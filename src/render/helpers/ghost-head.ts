@@ -22,6 +22,19 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
+      // rel="prev"/"next" for paginated archives. Google deprecated these as a
+      // ranking signal, but Bing and feed crawlers still honour them.
+      const pagination = paginationUrls(route);
+      if (pagination.prev) {
+        parts.push(
+          `<link rel="prev" href="${escapeAttr(absoluteUrl(site.url, pagination.prev))}">`,
+        );
+      }
+      if (pagination.next) {
+        parts.push(
+          `<link rel="next" href="${escapeAttr(absoluteUrl(site.url, pagination.next))}">`,
+        );
+      }
       if (meta.description) {
         parts.push(`<meta name="description" content="${escapeAttr(meta.description)}">`);
       }
@@ -315,6 +328,21 @@ function buildPublisherLogo(site: {
 
 function numericField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+// Read prev_url / next_url off route.data.pagination if the current route is a
+// paginated archive. The route shape is intentionally loose (the engine accepts
+// hand-built routes from unit tests), so we narrow defensively.
+function paginationUrls(route: { data?: Record<string, unknown> } | undefined): {
+  prev: string | undefined;
+  next: string | undefined;
+} {
+  const pagination = route?.data?.pagination as
+    | { prev_url?: unknown; next_url?: unknown }
+    | undefined;
+  const prev = typeof pagination?.prev_url === 'string' ? pagination.prev_url : undefined;
+  const next = typeof pagination?.next_url === 'string' ? pagination.next_url : undefined;
+  return { prev, next };
 }
 
 function escapeAttr(value: string): string {
