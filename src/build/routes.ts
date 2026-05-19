@@ -163,13 +163,18 @@ export function planRoutes(opts: {
     });
   }
 
-  if (theme.templates['error-404']) {
+  const errorTemplate = theme.templates['error-404']
+    ? 'error-404'
+    : theme.templates.error
+      ? 'error'
+      : undefined;
+  if (errorTemplate) {
     const url = '/404.html';
     routes.push({
       kind: 'error',
       url,
       outputPath: '404.html',
-      template: 'error-404',
+      template: errorTemplate,
       data: { error: { statusCode: 404, message: 'Page not found' } },
       meta: defaultMeta(config, url, `Page not found — ${config.site.title}`),
     });
