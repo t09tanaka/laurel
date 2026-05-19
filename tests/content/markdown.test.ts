@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { renderMarkdown, sanitizeRenderedHtml } from '~/content/markdown.ts';
+import { renderMarkdown, sanitizeRenderedHtml, truncateByWords } from '~/content/markdown.ts';
 
 describe('renderMarkdown (default sanitisation)', () => {
   test('strips <script> tags from raw HTML in markdown', async () => {
@@ -81,6 +81,69 @@ describe('sanitizeRenderedHtml', () => {
     const out = sanitizeRenderedHtml('<script>x</script><p>ok</p>');
     expect(out).not.toContain('<script');
     expect(out).toContain('<p>ok</p>');
+  });
+});
+
+describe('renderMarkdown — word_count and reading_time across scripts', () => {
+  test('whitespace split would return 1 for Japanese — segmenter returns many words', async () => {
+    const md = 'これは日本語のテストです。これは日本語のテストです。';
+    const { word_count } = await renderMarkdown(md, { locale: 'ja' });
+    expect(word_count).toBeGreaterThan(5);
+  });
+
+  test('Chinese essay gets a word_count proportional to length, not 1', async () => {
+    const body = '我喜欢学习编程。'.repeat(20);
+    const { word_count } = await renderMarkdown(body, { locale: 'zh' });
+    expect(word_count).toBeGreaterThan(20);
+  });
+
+  test('Korean text segments by word with locale ko', async () => {
+    const md = '안녕하세요 저는 한국어를 공부합니다.';
+    const { word_count } = await renderMarkdown(md, { locale: 'ko' });
+    expect(word_count).toBeGreaterThan(3);
+  });
+
+  test('English word_count matches whitespace tokens', async () => {
+    const md = 'The quick brown fox jumps over the lazy dog.';
+    const { word_count } = await renderMarkdown(md, { locale: 'en' });
+    expect(word_count).toBe(9);
+  });
+
+  test('reading_time grows with CJK content instead of staying at 1 minute', async () => {
+    const longJa = 'これは日本語のテストです。'.repeat(200);
+    const { reading_time, word_count } = await renderMarkdown(longJa, { locale: 'ja' });
+    expect(word_count).toBeGreaterThan(275);
+    expect(reading_time).toBeGreaterThan(1);
+  });
+
+  test('omitting locale still segments meaningfully (does not regress to 1 word)', async () => {
+    const md = 'これは日本語のテストです。';
+    const { word_count } = await renderMarkdown(md);
+    expect(word_count).toBeGreaterThan(1);
+  });
+});
+
+describe('truncateByWords', () => {
+  test('returns first N word-like segments for English with spaces', () => {
+    expect(truncateByWords('one two three four', 2, 'en')).toBe('one two');
+  });
+
+  test('returns first N word-like segments for Japanese without spaces', () => {
+    const result = truncateByWords('これは日本語のテストです。', 3, 'ja');
+    expect(result).toBe('これは日本語');
+  });
+
+  test('returns empty string for zero or negative word counts', () => {
+    expect(truncateByWords('hello world', 0, 'en')).toBe('');
+    expect(truncateByWords('hello world', -1, 'en')).toBe('');
+  });
+
+  test('returns full text when requested word count exceeds available', () => {
+    expect(truncateByWords('one two', 99, 'en')).toBe('one two');
+  });
+
+  test('handles empty text', () => {
+    expect(truncateByWords('', 5, 'en')).toBe('');
   });
 });
 
