@@ -1,6 +1,7 @@
 import { loadRoutesYaml } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
+import { compileThemeTemplates } from '~/theme/compile-check.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
@@ -42,8 +43,17 @@ export async function runCheck(args: string[]): Promise<number> {
     );
 
     const theme = await loadTheme({ cwd, config });
+    const compileIssues = compileThemeTemplates(theme);
+    if (compileIssues.length > 0) {
+      for (const issue of compileIssues) {
+        logger.error(
+          `Theme ${issue.kind} '${issue.name}' (${issue.file}) failed to compile: ${issue.message}`,
+        );
+      }
+      return 1;
+    }
     logger.info(
-      `Theme OK: ${theme.name} (${Object.keys(theme.templates).length} templates, ${Object.keys(theme.partials).length} partials)`,
+      `Theme OK: ${theme.name} (${Object.keys(theme.templates).length} templates, ${Object.keys(theme.partials).length} partials compiled)`,
     );
     validateThemeCustom({ config, pkg: theme.pkg });
 

@@ -88,4 +88,24 @@ describe('cli check', () => {
     expect(stderr).toContain('Invalid date in frontmatter');
     expect(stderr).toContain('Strict mode');
   });
+
+  test('exits 1 with file path and parse error when a template is malformed', async () => {
+    dir = await makeFixture();
+    await Bun.write(join(dir, 'themes/minimal/index.hbs'), '{{#if foo}}<h1>unterminated');
+    const { stderr, exitCode } = await runCli(['check'], dir);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Theme template 'index'");
+    expect(stderr).toContain(join(dir, 'themes/minimal/index.hbs'));
+    expect(stderr).toContain('Parse error');
+  });
+
+  test('exits 1 with partial path when a partial is malformed', async () => {
+    dir = await makeFixture();
+    await Bun.write(join(dir, 'themes/minimal/partials/header.hbs'), '{{#each posts}}');
+    const { stderr, exitCode } = await runCli(['check'], dir);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Theme partial 'header'");
+    expect(stderr).toContain(join(dir, 'themes/minimal/partials/header.hbs'));
+    expect(stderr).toContain('Parse error');
+  });
 });
