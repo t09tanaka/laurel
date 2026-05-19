@@ -15,6 +15,7 @@ import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
 import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
+import { GhostUrlRewriter } from './url-rewriter.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
 
@@ -141,6 +142,11 @@ export interface ImportGhostOptions {
   // fields, fetch them to <cwd>/content/images/, and rewrite the references
   // to site-relative paths. Defaults to false (URLs are written verbatim).
   downloadImages?: boolean;
+  // Absolute URL of the source Ghost site (e.g. https://oldblog.com). When
+  // set, any link in post bodies whose hostname matches is rewritten to a
+  // site-relative path. Internal hyperlinks (`<a href>` / `[text](url)`) keep
+  // pointing at the migrated content instead of 404ing on the old domain.
+  sourceUrl?: string;
   // Test seam: override the fetch implementation used by the downloader.
   // Defaults to globalThis.fetch.
   fetcher?: typeof fetch;
@@ -195,6 +201,7 @@ async function importFromResolvedInput(
   const downloader = opts.downloadImages
     ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
     : undefined;
+  const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;
 
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
@@ -235,7 +242,8 @@ async function importFromResolvedInput(
     }
     const dir = isPage ? 'content/pages' : 'content/posts';
     const rawBody = renderPostBody(post);
-    const body = downloader ? await downloader.rewriteText(rawBody) : rawBody;
+    const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
+    const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
     const feature_image = downloader
       ? await downloader.rewriteField(post.feature_image ?? undefined)
       : (post.feature_image ?? undefined);
