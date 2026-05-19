@@ -111,17 +111,24 @@ function computeMeta(
 
 function buildJsonLd(
   ctx: Record<string, unknown>,
-  site: { title: string; url: string; logo?: string },
+  site: {
+    title: string;
+    url: string;
+    logo?: string;
+    logo_width?: number;
+    logo_height?: number;
+  },
   meta: ComputedMeta,
 ): Record<string, unknown> | undefined {
   if (meta.ogType === 'article' && ctx.id) {
     return {
       '@context': 'https://schema.org',
       '@type': 'Article',
+      mainEntityOfPage: { '@type': 'WebPage', '@id': meta.canonical },
       url: meta.canonical,
       headline: meta.title,
       description: meta.description,
-      image: meta.image,
+      image: buildImageObject(meta.image, ctx),
       datePublished: ctx.published_at,
       dateModified: ctx.updated_at,
       author: Array.isArray(ctx.authors)
@@ -135,9 +142,7 @@ function buildJsonLd(
         '@type': 'Organization',
         name: site.title,
         url: site.url,
-        logo: site.logo
-          ? { '@type': 'ImageObject', url: absoluteUrl(site.url, site.logo) }
-          : undefined,
+        logo: buildPublisherLogo(site),
       },
     };
   }
@@ -147,6 +152,46 @@ function buildJsonLd(
     name: site.title,
     url: site.url,
   };
+}
+
+// Google Rich Results require `image` as an ImageObject with width/height when known.
+// We surface dimensions from frontmatter (feature_image_width/height) when present.
+function buildImageObject(
+  imageUrl: string | undefined,
+  ctx: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (!imageUrl) return undefined;
+  const width = numericField(ctx.feature_image_width);
+  const height = numericField(ctx.feature_image_height);
+  return {
+    '@type': 'ImageObject',
+    url: imageUrl,
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
+  };
+}
+
+// Google requires publisher.logo to be an ImageObject with width/height.
+// In a static SSG we cannot probe image files, so we honour the configured
+// logo_width / logo_height and fall back to Ghost's documented 60x60 default
+// when the logo is set without explicit dimensions.
+function buildPublisherLogo(site: {
+  url: string;
+  logo?: string;
+  logo_width?: number;
+  logo_height?: number;
+}): Record<string, unknown> | undefined {
+  if (!site.logo) return undefined;
+  return {
+    '@type': 'ImageObject',
+    url: absoluteUrl(site.url, site.logo),
+    width: site.logo_width ?? 60,
+    height: site.logo_height ?? 60,
+  };
+}
+
+function numericField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function absoluteUrl(base: string, path: string): string {

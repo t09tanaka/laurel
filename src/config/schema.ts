@@ -15,6 +15,8 @@ export const configSchema = z.object({
       timezone: z.string().default('UTC'),
       cover_image: z.string().optional(),
       logo: z.string().optional(),
+      logo_width: z.number().int().positive().optional(),
+      logo_height: z.number().int().positive().optional(),
       icon: z.string().optional(),
       accent_color: z.string().default('#222222'),
       twitter: z.string().optional(),

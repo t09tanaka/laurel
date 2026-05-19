@@ -18,6 +18,8 @@ function makeEngine(
     timezone: 'UTC',
     cover_image: undefined,
     logo: undefined,
+    logo_width: undefined,
+    logo_height: undefined,
     icon: undefined,
     accent_color: '#000',
     navigation: [],
@@ -113,8 +115,8 @@ describe('ghost_head JSON-LD escaping', () => {
       '<meta name="twitter:image" content="https://example.com/content/images/welcome-cover.svg">',
     );
     const jsonLd = extractJsonLd(html);
-    const parsed = JSON.parse(jsonLd) as { image: string };
-    expect(parsed.image).toBe('https://example.com/content/images/welcome-cover.svg');
+    const parsed = JSON.parse(jsonLd) as { image: { url: string } };
+    expect(parsed.image.url).toBe('https://example.com/content/images/welcome-cover.svg');
   });
 
   test('og:image keeps already-absolute URLs untouched', () => {
@@ -183,5 +185,129 @@ describe('ghost_head RSS feed autodiscovery', () => {
     expect(html).toContain(
       '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
     );
+  });
+});
+
+describe('ghost_head JSON-LD Article schema required fields', () => {
+  test('emits mainEntityOfPage pointing at the canonical URL for posts', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/a-post/',
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      mainEntityOfPage: { '@type': string; '@id': string };
+    };
+    expect(parsed.mainEntityOfPage).toEqual({
+      '@type': 'WebPage',
+      '@id': 'https://example.com/a-post/',
+    });
+  });
+
+  test('emits image as an ImageObject with width/height when frontmatter provides them', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      feature_image_width: 1200,
+      feature_image_height: 630,
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      image: { '@type': string; url: string; width: number; height: number };
+    };
+    expect(parsed.image).toEqual({
+      '@type': 'ImageObject',
+      url: 'https://example.com/content/images/welcome-cover.svg',
+      width: 1200,
+      height: 630,
+    });
+  });
+
+  test('emits image as an ImageObject without dimensions when frontmatter lacks them', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      image: Record<string, unknown>;
+    };
+    expect(parsed.image).toEqual({
+      '@type': 'ImageObject',
+      url: 'https://example.com/content/images/welcome-cover.svg',
+    });
+  });
+
+  test('emits publisher.logo with configured width/height', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'Hi',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/some-post/',
+      {
+        site: { logo: '/content/images/logo.png', logo_width: 600, logo_height: 60 },
+      },
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      publisher: { logo: Record<string, unknown> };
+    };
+    expect(parsed.publisher.logo).toEqual({
+      '@type': 'ImageObject',
+      url: 'https://example.com/content/images/logo.png',
+      width: 600,
+      height: 60,
+    });
+  });
+
+  test('falls back to 60x60 default dimensions when logo dimensions are unconfigured', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'Hi',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/some-post/',
+      { site: { logo: '/content/images/logo.png' } },
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      publisher: { logo: { width: number; height: number } };
+    };
+    expect(parsed.publisher.logo.width).toBe(60);
+    expect(parsed.publisher.logo.height).toBe(60);
+  });
+
+  test('omits publisher.logo entirely when no logo is configured', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Hi',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      publisher: { logo?: unknown };
+    };
+    expect(parsed.publisher.logo).toBeUndefined();
+  });
+
+  test('non-article pages keep the WebSite shape without mainEntityOfPage', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/');
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      '@type': string;
+      mainEntityOfPage?: unknown;
+    };
+    expect(parsed['@type']).toBe('WebSite');
+    expect(parsed.mainEntityOfPage).toBeUndefined();
   });
 });
