@@ -84,4 +84,25 @@ describe('social_url helper', () => {
     const tpl = engine.hb.compile('{{social_url type="myspace"}}');
     expect(tpl({ myspace: 'tom' })).toBe('');
   });
+
+  test('returns a Mastodon profile URL unchanged when the value is already a URL', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'https://hachyderm.io/@alice' })).toBe('https://hachyderm.io/@alice');
+  });
+
+  test('passes a full URL through for networks without a handle builder (e.g. discord)', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="discord"}}');
+    expect(tpl({ discord: 'https://discord.gg/nectar' })).toBe('https://discord.gg/nectar');
+  });
+
+  test('returns a Twitter profile URL unchanged when the value is already a URL', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="twitter"}}');
+    expect(tpl({ twitter: 'https://twitter.com/nectar' })).toBe('https://twitter.com/nectar');
+  });
 });
