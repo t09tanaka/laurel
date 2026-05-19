@@ -11,6 +11,8 @@
             alt="{{#if feature_image_alt}}{{feature_image_alt}}{{else}}{{title}}{{/if}}"
             {{#if feature_image_width}}width="{{feature_image_width}}"{{/if}}
             {{#if feature_image_height}}height="{{feature_image_height}}"{{/if}}
+            fetchpriority="high"
+            decoding="async"
         >
         {{#if feature_image_caption}}
             <figcaption>{{feature_image_caption}}</figcaption>
