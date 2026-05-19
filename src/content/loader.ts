@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
+import { pathContainsSymlink } from '~/util/fs.ts';
+import { logger } from '~/util/logger.ts';
 import { asBool, asDateISO, asString, asStringArray, parseFrontmatter } from './frontmatter.ts';
 import { renderMarkdown } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
@@ -165,6 +167,10 @@ async function loadMarkdownDir<T>(
   const results: T[] = [];
   if (!existsSync(dir)) return results;
   for await (const rel of glob.scan({ cwd: dir })) {
+    if (pathContainsSymlink(dir, rel)) {
+      logger.warn(`Skipping symlinked content path: ${join(dir, rel)}`);
+      continue;
+    }
     const file = join(dir, rel);
     const raw = await readFile(file, 'utf8');
     results.push(await normalize(file, raw));

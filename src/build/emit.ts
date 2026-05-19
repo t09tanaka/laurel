@@ -1,7 +1,8 @@
 import { copyFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
-import { ensureDir } from '~/util/fs.ts';
+import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
+import { logger } from '~/util/logger.ts';
 
 function assertWithinOutputDir(outputDir: string, dest: string): void {
   const root = resolve(outputDir);
@@ -57,6 +58,10 @@ export async function copyContentAssets(
   let count = 0;
   try {
     for await (const rel of glob.scan({ cwd: source, onlyFiles: true })) {
+      if (pathContainsSymlink(source, rel)) {
+        logger.warn(`Skipping symlinked content asset: ${join(source, rel)}`);
+        continue;
+      }
       const src = join(source, rel);
       const dst = join(target, rel);
       await ensureDir(dirname(dst));

@@ -112,7 +112,10 @@ url   = "/"
 ### 3.2 `src/content`
 
 - `loader.ts` — glob `content/posts/**/*.md`, parse YAML frontmatter, hand the
-  body to `markdown.ts`.
+  body to `markdown.ts`. Content directories (posts, pages, authors, tags,
+  `content/images/`) and theme `assets/` must contain only regular files —
+  symbolic links are skipped with a warning to prevent the build from reading
+  or shipping data from outside the project tree.
 - `markdown.ts` — `marked` + `gray-matter`. Renders to HTML; also extracts a
   plaintext excerpt and an estimated `reading_time`.
 - `model.ts` — TypeScript types for `Post`, `Page`, `Author`, `Tag`,
