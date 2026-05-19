@@ -109,6 +109,7 @@ src/        # SSG implementation (cli, content, theme, render, build, ghost, con
 tests/      # bun test suite mirroring src/
 docs/       # Design notes
 example/    # Reference blog: content + nectar.toml + vendored Source theme
+examples/   # Deploy snippets and (planned) starter site templates — see examples/README.md
 ```
 
 ## Community
