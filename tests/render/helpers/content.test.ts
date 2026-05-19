@@ -644,3 +644,46 @@ describe('authors helper', () => {
     expect(out).toBe('[Ada][Grace][Linus]');
   });
 });
+
+describe('post_class helper', () => {
+  // The helper runs from `{{post_class}}` inside `{{#foreach posts}}` blocks
+  // (Source's post-card.hbs is the canonical caller), so `this` is the
+  // iterated post — not the root context. Regression coverage for #1119.
+  test('emits `image` when the iterated post has a feature_image', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      tags: [],
+      feature_image: '/a.jpg',
+      html: '<p>x</p>',
+    });
+    const tokens = out.split(' ');
+    expect(tokens).toContain('post');
+    expect(tokens).toContain('image');
+    expect(tokens).not.toContain('no-image');
+  });
+
+  test('emits `no-image` and `no-content` when the iterated post is empty', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({ tags: [], html: '' });
+    const tokens = out.split(' ');
+    expect(tokens).toContain('no-image');
+    expect(tokens).toContain('no-content');
+  });
+
+  test('preserves tag-<slug> tokens alongside the new image/featured tokens', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      tags: [{ slug: 'news' }],
+      featured: true,
+      feature_image: '/a.jpg',
+      html: '<p>x</p>',
+    });
+    const tokens = out.split(' ');
+    expect(tokens).toContain('tag-news');
+    expect(tokens).toContain('featured');
+    expect(tokens).toContain('image');
+  });
+});

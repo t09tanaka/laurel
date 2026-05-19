@@ -1,7 +1,7 @@
 import type Handlebars from 'handlebars';
 import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
-import type { NectarEngine } from '../engine.ts';
+import { type NectarEngine, computePostClass } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
@@ -239,11 +239,14 @@ export function registerContentHelpers(engine: NectarEngine): void {
   );
 
   engine.hb.registerHelper('post_class', function postClassHelper(this: unknown) {
-    const ctx = this as { tags?: { slug: string }[]; featured?: boolean };
-    const tokens = ['post'];
-    for (const tag of ctx.tags ?? []) tokens.push(`tag-${tag.slug}`);
-    if (ctx.featured) tokens.push('featured');
-    return tokens.join(' ');
+    const ctx = this as {
+      tags?: { slug: string }[];
+      featured?: boolean;
+      feature_image?: string | undefined;
+      html?: string;
+      page?: boolean;
+    };
+    return computePostClass(ctx);
   });
 
   engine.hb.registerHelper(

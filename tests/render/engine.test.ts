@@ -227,6 +227,116 @@ describe('buildContext', () => {
     expect(tokens.filter((t) => t === 'tag-news')).toHaveLength(1);
   });
 
+  // Regression coverage for issue #1119: Ghost's post_class is richer than
+  // just `post` + tag/featured tokens. Themes (including Source) hook layout
+  // into `no-image`/`image`, `page`, and `no-content`, so the minimal output
+  // dropped visual states for stub posts and page templates.
+  test('post post_class includes `image` when feature_image is set (issue #1119)', () => {
+    const post = makePost({ feature_image: '/img.jpg', html: '<p>hi</p>' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('post');
+    expect(tokens).toContain('image');
+    expect(tokens).not.toContain('no-image');
+    expect(tokens).not.toContain('no-content');
+    expect(tokens).not.toContain('page');
+  });
+
+  test('post post_class falls back to `no-image` when feature_image is missing (issue #1119)', () => {
+    const post = makePost({ html: '<p>hi</p>' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('no-image');
+    expect(tokens).not.toContain('image');
+  });
+
+  test('post post_class adds `no-content` when the body is empty (issue #1119)', () => {
+    const post = makePost({ html: '   ' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('no-content');
+  });
+
+  test('featured posts keep both `featured` and `image` tokens together (issue #1119)', () => {
+    const post = makePost({
+      featured: true,
+      feature_image: '/img.jpg',
+      html: '<p>hi</p>',
+      tags: [makeTag({ slug: 'news' })],
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('featured');
+    expect(tokens).toContain('image');
+    expect(tokens).toContain('tag-news');
+  });
+
+  test('page post_class includes the `page` token (issue #1119)', () => {
+    const page = makePage({ feature_image: '/img.jpg', html: '<p>hi</p>' });
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('post');
+    expect(tokens).toContain('page');
+    expect(tokens).toContain('image');
+  });
+
+  test('page post_class with empty body gets both `no-image` and `no-content` (issue #1119)', () => {
+    const page = makePage({ html: '' });
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.post_class).split(' ');
+    expect(tokens).toContain('no-image');
+    expect(tokens).toContain('no-content');
+    expect(tokens).toContain('page');
+  });
+
   test('on an error route, ctx.statusCode and ctx.message are exposed (issue #1006)', () => {
     const route: RouteContext = {
       kind: 'error',
