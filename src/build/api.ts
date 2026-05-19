@@ -94,6 +94,9 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     facebook: site.facebook ?? null,
     navigation: site.navigation,
     secondary_navigation: site.secondary_navigation,
+    members_enabled: site.members_enabled,
+    paid_members_enabled: site.paid_members_enabled,
+    recommendations_enabled: site.recommendations_enabled,
   };
   const body = { settings };
   await writeJson(join(outputDir, API_BASE, 'settings.json'), body);

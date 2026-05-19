@@ -23,6 +23,16 @@ const site: SiteData = {
   accent_color: '#000',
   navigation: [],
   secondary_navigation: [],
+  cover_image: undefined,
+  logo: undefined,
+  logo_width: undefined,
+  logo_height: undefined,
+  icon: undefined,
+  twitter: undefined,
+  facebook: undefined,
+  members_enabled: false,
+  paid_members_enabled: false,
+  recommendations_enabled: false,
 };
 
 function makePost(overrides: Partial<Post> = {}): Post {

@@ -98,6 +98,19 @@ describe('loadContent', () => {
     expect(rtl.site.locale).toBe('ar-EG');
     expect(rtl.site.direction).toBe('rtl');
   });
+
+  test('site.members_enabled / paid_members_enabled / recommendations_enabled default to false', async () => {
+    // Ghost Source theme branches sidebar/footer/CTA on these. Nectar has no
+    // members backend, so they must be stable booleans (false), not undefined.
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+    expect(graph.site.members_enabled).toBe(false);
+    expect(graph.site.paid_members_enabled).toBe(false);
+    expect(graph.site.recommendations_enabled).toBe(false);
+  });
 });
 
 describe('loadContent feature image dimensions', () => {

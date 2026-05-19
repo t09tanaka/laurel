@@ -177,6 +177,9 @@ function makeGraph(): ContentGraph {
       lang: 'en',
       twitter: undefined,
       facebook: undefined,
+      members_enabled: false,
+      paid_members_enabled: false,
+      recommendations_enabled: false,
     },
   };
 }
@@ -213,6 +216,9 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.url).toBe('https://example.com');
     expect(settings.settings.locale).toBe('en');
     expect(settings.settings.direction).toBe('ltr');
+    expect(settings.settings.members_enabled).toBe(false);
+    expect(settings.settings.paid_members_enabled).toBe(false);
+    expect(settings.settings.recommendations_enabled).toBe(false);
   });
 
   test('writes per-slug single-resource files under ghost/api/content/<resource>/slug/<slug>.json', async () => {
