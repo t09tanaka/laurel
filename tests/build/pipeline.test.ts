@@ -644,3 +644,68 @@ describe('build pipeline --concurrency cap (#251)', () => {
     expect(fourHome).toBe(oneHome);
   });
 });
+
+describe('build pipeline --dry-run (#252)', () => {
+  test('plans routes and renders without writing dist/ or any sibling staging dir', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const distDir = resolve(cwd, 'dist');
+
+    const summary = await build({ cwd, dryRun: true });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.routeCount).toBeGreaterThan(0);
+    expect(summary.outputDir).toBe(distDir);
+    // dist/ was never created and no staging sibling was left behind.
+    expect(existsSync(distDir)).toBe(false);
+    const parent = dirname(distDir);
+    const siblings = await readdir(parent);
+    expect(siblings.filter((s) => s.startsWith('.dist.tmp-'))).toEqual([]);
+    expect(siblings.filter((s) => s.startsWith('dist.old-'))).toEqual([]);
+  });
+
+  test('summary.routes lists every planned route with template/path/bytes/kind', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, dryRun: true });
+
+    expect(Array.isArray(summary.routes)).toBe(true);
+    expect(summary.routes?.length).toBe(summary.routeCount);
+    const home = summary.routes?.find((r) => r.url === '/');
+    expect(home).toBeDefined();
+    expect(home?.outputPath).toBe('index.html');
+    expect(home?.template.length).toBeGreaterThan(0);
+    expect(home?.bytes).toBeGreaterThan(0);
+    expect(home?.kind).toBe('home');
+    const post = summary.routes?.find((r) => r.url === '/hello/');
+    expect(post).toBeDefined();
+    expect(post?.kind).toBe('post');
+    expect(post?.bytes).toBeGreaterThan(0);
+  });
+
+  test('does not overwrite an existing dist/ from a prior real build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await build({ cwd });
+    const distDir = resolve(cwd, 'dist');
+    const indexPath = join(distDir, 'index.html');
+    const indexBefore = readFileSync(indexPath, 'utf8');
+    const sentinel = join(distDir, 'sentinel.txt');
+    await writeFile(sentinel, 'untouched', 'utf8');
+
+    const summary = await build({ cwd, dryRun: true });
+
+    expect(summary.dryRun).toBe(true);
+    expect(readFileSync(indexPath, 'utf8')).toBe(indexBefore);
+    expect(readFileSync(sentinel, 'utf8')).toBe('untouched');
+  });
+
+  test('skipping site emitters: no sitemap/rss/robots/manifest written under dry-run', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const distDir = resolve(cwd, 'dist');
+
+    await build({ cwd, dryRun: true });
+
+    expect(existsSync(join(distDir, 'sitemap.xml'))).toBe(false);
+    expect(existsSync(join(distDir, 'robots.txt'))).toBe(false);
+    expect(existsSync(join(distDir, '.nojekyll'))).toBe(false);
+    expect(existsSync(join(distDir, '.nectar', 'build-manifest.json'))).toBe(false);
+  });
+});

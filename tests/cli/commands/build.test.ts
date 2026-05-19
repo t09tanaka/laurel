@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { cp, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { formatDryRunRouteTable } from '~/cli/commands/build.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -64,5 +66,115 @@ describe('nectar build exit codes', () => {
     cleanups.push(dir);
     const result = await runCli(['build'], dir);
     expect(result.exitCode).toBe(5);
+  });
+});
+
+async function makeDryRunFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-dryrun-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/authors'), { recursive: true });
+  await Bun.write(
+    join(dir, 'nectar.toml'),
+    [
+      '[site]',
+      'title = "Dry Run Test"',
+      'url = "https://dryrun.test"',
+      '',
+      '[theme]',
+      'dir = "themes"',
+      'name = "source"',
+      '',
+      '[components.rss]',
+      'enabled = false',
+      '',
+      '[components.sitemap]',
+      'enabled = false',
+      '',
+    ].join('\n'),
+  );
+  await Bun.write(
+    join(dir, 'content/posts/hello.md'),
+    '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+  );
+  await Bun.write(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n');
+  const themeSrc = join(process.cwd(), 'example/themes/source');
+  await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+  return dir;
+}
+
+describe('nectar build --dry-run (#252)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--dry-run exits 0 and never writes dist/', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--dry-run'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain('Dry run: would build');
+    expect(existsSync(join(dir, 'dist'))).toBe(false);
+  });
+
+  test('--dry-run without --verbose suppresses the per-route table', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--dry-run'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain('Routes:');
+    expect(result.stderr).not.toContain('TEMPLATE');
+  });
+
+  test('--dry-run --verbose prints the per-route table', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['--verbose', 'build', '--dry-run'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain('Routes:');
+    expect(result.stderr).toContain('TEMPLATE');
+    expect(result.stderr).toContain('URL');
+    expect(result.stderr).toContain('/hello/');
+  });
+});
+
+describe('formatDryRunRouteTable', () => {
+  test('renders aligned columns including a header row', () => {
+    const out = formatDryRunRouteTable([
+      {
+        url: '/',
+        outputPath: 'index.html',
+        template: 'home.hbs',
+        kind: 'home',
+        bytes: 1234,
+        reused: false,
+      },
+      {
+        url: '/post-with-a-long-slug/',
+        outputPath: 'post-with-a-long-slug/index.html',
+        template: 'post.hbs',
+        kind: 'post',
+        bytes: 56789,
+        reused: false,
+      },
+    ]);
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('Routes:');
+    expect(lines[1]).toContain('KIND');
+    expect(lines[1]).toContain('URL');
+    expect(lines[1]).toContain('TEMPLATE');
+    expect(lines[1]).toContain('BYTES');
+    expect(lines[1]).toContain('OUTPUT');
+    expect(lines[2]).toContain('home');
+    expect(lines[2]).toContain('1234');
+    expect(lines[3]).toContain('/post-with-a-long-slug/');
+    expect(lines[3]).toContain('56789');
+  });
+
+  test('handles an empty route list', () => {
+    expect(formatDryRunRouteTable([])).toBe('Routes: (none)');
   });
 });

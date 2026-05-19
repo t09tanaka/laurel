@@ -1,6 +1,6 @@
-import { build } from '~/build/pipeline.ts';
+import { type DryRunRouteSummary, build } from '~/build/pipeline.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
-import { logger } from '~/util/logger.ts';
+import { getLogLevel, logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
@@ -31,6 +31,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const strict = parsed.values.strict === true;
   const profile = parsed.values.profile === true;
   const noAtomic = parsed.values['no-atomic'] === true;
+  const dryRun = parsed.values['dry-run'] === true;
   const cwd = process.cwd();
 
   let concurrency: number | undefined;
@@ -55,10 +56,15 @@ export async function runBuild(args: string[]): Promise<number> {
       profile,
       noAtomic,
       concurrency,
+      dryRun,
     });
+    const prefix = summary.dryRun ? 'Dry run: would build' : 'Built';
     logger.info(
-      `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+      `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );
+    if (summary.dryRun && summary.routes && isVerbose()) {
+      logger.info(formatDryRunRouteTable(summary.routes));
+    }
     if (strict && summary.warningCount > 0) {
       logger.error(
         `Strict mode: build emitted ${summary.warningCount} warning${
@@ -88,4 +94,45 @@ function parseConcurrency(raw: string): number | CliUsageError {
     );
   }
   return n;
+}
+
+function isVerbose(): boolean {
+  const level = getLogLevel();
+  return level === 'debug' || level === 'trace';
+}
+
+// Renders a fixed-width per-route table for `--dry-run --verbose`. Columns
+// pad to the longest value in the column so URL/template/path stay aligned
+// even with long slugs. Routes are emitted in plan order (the same order
+// they would have been rendered/written by a real build).
+export function formatDryRunRouteTable(routes: readonly DryRunRouteSummary[]): string {
+  if (routes.length === 0) return 'Routes: (none)';
+  const headers = {
+    kind: 'KIND',
+    url: 'URL',
+    template: 'TEMPLATE',
+    bytes: 'BYTES',
+    path: 'OUTPUT',
+  };
+  const rows = routes.map((r) => ({
+    kind: r.kind,
+    url: r.url,
+    template: r.template,
+    bytes: String(r.bytes),
+    path: r.outputPath,
+  }));
+  const widths = {
+    kind: Math.max(headers.kind.length, ...rows.map((r) => r.kind.length)),
+    url: Math.max(headers.url.length, ...rows.map((r) => r.url.length)),
+    template: Math.max(headers.template.length, ...rows.map((r) => r.template.length)),
+    bytes: Math.max(headers.bytes.length, ...rows.map((r) => r.bytes.length)),
+    path: Math.max(headers.path.length, ...rows.map((r) => r.path.length)),
+  };
+  const fmt = (r: typeof headers): string =>
+    `  ${r.kind.padEnd(widths.kind)}  ${r.url.padEnd(widths.url)}  ${r.template.padEnd(
+      widths.template,
+    )}  ${r.bytes.padStart(widths.bytes)}  ${r.path.padEnd(widths.path)}`;
+  const lines = ['Routes:', fmt(headers)];
+  for (const r of rows) lines.push(fmt(r));
+  return lines.join('\n');
 }

@@ -48,6 +48,11 @@ export const BUILD_SPEC: CommandSpec = {
         'Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help',
       placeholder: '<n>',
     },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Plan routes, load templates, and render every route into memory without writing anything to disk (no staging dir, no asset copies, no manifest, no sitemap/RSS/etc.). Prints the same summary line as a real build; pair with --verbose to also print a per-route table (URL, template, bytes, output path)',
+    },
   },
   positionals: [],
 };

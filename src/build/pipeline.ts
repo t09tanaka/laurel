@@ -85,6 +85,20 @@ export interface BuildOptions {
   // Cap on parallel route renders. Undefined → availableParallelism() (CPU count).
   // Must be a positive integer; CLI validates before getting here.
   concurrency?: number | undefined;
+  // When true, the build plans routes, loads templates, and renders every
+  // route into memory but never touches the filesystem: no staging dir, no
+  // asset copies, no manifest, no sitemap/RSS/etc. The returned summary
+  // includes a per-route breakdown so the CLI can print it under --verbose.
+  dryRun?: boolean | undefined;
+}
+
+export interface DryRunRouteSummary {
+  url: string;
+  outputPath: string;
+  template: string;
+  kind: RouteContext['kind'];
+  bytes: number;
+  reused: boolean;
 }
 
 export interface BuildSummary {
@@ -94,6 +108,10 @@ export interface BuildSummary {
   warningCount: number;
   renderedCount: number;
   skippedCount: number;
+  dryRun: boolean;
+  // Populated only when dryRun is true; lets the CLI print a per-route table
+  // under --verbose without re-walking the route plan.
+  routes?: DryRunRouteSummary[];
 }
 
 async function timed<T>(
@@ -142,6 +160,7 @@ export async function build({
   profile,
   noAtomic,
   concurrency,
+  dryRun,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -157,22 +176,33 @@ export async function build({
   // build's tree, not the empty staging directory we are about to create.
   const previousManifest = await loadManifest(finalOutputDir);
 
-  // Stage the entire build into a sibling temp dir and swap it into place at
-  // the end. Two reasons: (1) `nectar dev` will produce overlapping rebuilds
-  // and a partially-cleared `dist/` lets readers (a browser, a deploy script)
-  // see "index.html missing for 200ms"; staging confines the half-written
-  // state to a path no one is watching. (2) On build failure the previous
-  // good `dist/` is left untouched instead of being half-deleted.
-  //
-  // `--no-atomic` opts out: writes go straight into the final dir. Used as an
-  // escape hatch for sandboxed runners where the staging-rename step is
-  // blocked, at the cost of dropping the two protections above.
-  const outputDir = noAtomic ? finalOutputDir : await prepareStagingDir(finalOutputDir);
-  if (noAtomic) {
-    // Match the pre-staging behaviour so a previous build's stale files do
-    // not bleed into this one. Wipes the previous manifest's on-disk HTML,
-    // which forces a full rebuild — acceptable since `--no-atomic` is opt-in.
-    await clearDirContents(finalOutputDir);
+  const isDryRun = dryRun === true;
+
+  // Dry-run skips both staging and the final-dir clear: nothing is ever
+  // written, so there is no half-built state to confine and no stale files
+  // to clobber. Render targets `finalOutputDir` only as the nominal path used
+  // for incremental-reuse reads from a previous real build.
+  let outputDir: string;
+  if (isDryRun) {
+    outputDir = finalOutputDir;
+  } else {
+    // Stage the entire build into a sibling temp dir and swap it into place at
+    // the end. Two reasons: (1) `nectar dev` will produce overlapping rebuilds
+    // and a partially-cleared `dist/` lets readers (a browser, a deploy script)
+    // see "index.html missing for 200ms"; staging confines the half-written
+    // state to a path no one is watching. (2) On build failure the previous
+    // good `dist/` is left untouched instead of being half-deleted.
+    //
+    // `--no-atomic` opts out: writes go straight into the final dir. Used as an
+    // escape hatch for sandboxed runners where the staging-rename step is
+    // blocked, at the cost of dropping the two protections above.
+    outputDir = noAtomic ? finalOutputDir : await prepareStagingDir(finalOutputDir);
+    if (noAtomic) {
+      // Match the pre-staging behaviour so a previous build's stale files do
+      // not bleed into this one. Wipes the previous manifest's on-disk HTML,
+      // which forces a full rebuild — acceptable since `--no-atomic` is opt-in.
+      await clearDirContents(finalOutputDir);
+    }
   }
 
   try {
@@ -185,9 +215,10 @@ export async function build({
       previousManifest,
       noAtomic: noAtomic === true,
       concurrency,
+      dryRun: isDryRun,
     });
   } catch (err) {
-    if (!noAtomic) {
+    if (!isDryRun && !noAtomic) {
       await rm(outputDir, { recursive: true, force: true }).catch(() => {});
     }
     throw err;
@@ -203,6 +234,7 @@ async function runBuild({
   previousManifest,
   noAtomic,
   concurrency,
+  dryRun,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -212,6 +244,7 @@ async function runBuild({
   previousManifest: BuildManifest | undefined;
   noAtomic: boolean;
   concurrency: number | undefined;
+  dryRun: boolean;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
@@ -249,10 +282,15 @@ async function runBuild({
     });
   }
 
-  await timed(profiler, 'og_images', async () => {
-    await rasterizeOgImages({ cwd, config, content, outputDir });
-    await generateOgImages({ cwd, config, content, outputDir });
-  });
+  // OG image generation writes PNG/SVG files into outputDir, so dry-run skips
+  // it. Themes consume `meta.image` set during route construction (above), not
+  // anything emitted here, so skipping does not change the rendered HTML.
+  if (!dryRun) {
+    await timed(profiler, 'og_images', async () => {
+      await rasterizeOgImages({ cwd, config, content, outputDir });
+      await generateOgImages({ cwd, config, content, outputDir });
+    });
+  }
 
   const favicons = computeFavicons({ config, theme, cwd });
   const engine = createEngine({ config, content, theme, favicons, cwd });
@@ -358,6 +396,39 @@ async function runBuild({
     if (result.reused) skippedCount += 1;
     else renderedCount += 1;
   }
+
+  if (dryRun) {
+    // Bail out after rendering: every step below this point writes to disk
+    // (HTML batch, asset copies, sitemap/RSS/search/redirects/manifests, …)
+    // and dry-run promises not to touch the filesystem. Asset count is the
+    // unique theme-asset set that copyAssets *would* emit, computed the same
+    // way (sourcePath|fingerprintedPath dedupe) so the summary line matches.
+    const uniqueAssets = new Set<string>();
+    for (const asset of theme.assets.values()) {
+      uniqueAssets.add(`${asset.sourcePath}|${asset.fingerprintedPath}`);
+    }
+    return {
+      outputDir: finalOutputDir,
+      routeCount: routes.length,
+      assetCount: uniqueAssets.size,
+      warningCount: getWarningCount(),
+      renderedCount,
+      skippedCount,
+      dryRun: true,
+      routes: routes.map((route, i) => {
+        const result = renderResults[i];
+        return {
+          url: route.url,
+          outputPath: route.outputPath,
+          template: route.template,
+          kind: route.kind,
+          bytes: result?.bytes ?? 0,
+          reused: result?.reused ?? false,
+        };
+      }),
+    };
+  }
+
   if (config.build.minify_html) {
     // Reused outputs already went through minification on the build that
     // emitted them; re-minifying would just pay the cost again and risk
@@ -578,6 +649,7 @@ async function runBuild({
     warningCount: getWarningCount(),
     renderedCount,
     skippedCount,
+    dryRun: false,
   };
 }
 
