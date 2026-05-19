@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'nod
 import { dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
+import type { ThemeImageSize } from '~/theme/types.ts';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -133,6 +134,7 @@ const RASTER_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
 interface SharpInstance {
   resize(width: number): SharpInstance;
+  resize(opts: { width?: number; height?: number; withoutEnlargement?: boolean }): SharpInstance;
   toFile(path: string): Promise<{ width: number; height: number }>;
   webp(opts: { quality: number }): SharpInstance;
   avif(opts: { quality: number }): SharpInstance;
@@ -513,4 +515,103 @@ export function injectImagePictureSourcesIntoContent(
   for (const page of opts.content.pages) {
     page.html = inject(page.html);
   }
+}
+
+// Build the URL segment for a theme `image_sizes` entry the same way the
+// `{{img_url}}` helper does (`w400`, `h800`, `w400h400`). Exported so build
+// and render layers cannot drift apart: the on-disk path must equal the
+// segment baked into rendered URLs.
+export function buildThemeImageSizeSegment(size: ThemeImageSize): string {
+  let s = '';
+  if (typeof size.width === 'number' && size.width > 0) s += `w${size.width}`;
+  if (typeof size.height === 'number' && size.height > 0) s += `h${size.height}`;
+  return s;
+}
+
+export interface GenerateThemeImageSizeVariantsOptions {
+  cwd: string;
+  config: NectarConfig;
+  outputDir: string;
+  themeImageSizes: Record<string, ThemeImageSize>;
+}
+
+// Theme `image_sizes` (e.g. Source's xs/s/m/l/xl/xxl) are referenced via
+// `{{img_url ... size="<key>"}}`, which rewrites the URL to the canonical
+// Ghost form `/content/images/size/<segment>/<rel>` but never materialised the
+// file. Without this pass every theme-sized URL 404s and themes serve
+// full-resolution images everywhere (issue #116). We emit one resized file per
+// (source, size) pair using sharp, mirroring the URL segment exactly.
+//
+// Upscaling is skipped per-axis: if neither width nor height shrinks below the
+// source, the size is dropped — the browser will fall back to the original via
+// `<img src>` which is still the same file on disk.
+export async function generateThemeImageSizeVariants(
+  opts: GenerateThemeImageSizeVariantsOptions,
+): Promise<number> {
+  const entries = Object.entries(opts.themeImageSizes).filter(([, size]) => {
+    const w = typeof size.width === 'number' ? size.width : 0;
+    const h = typeof size.height === 'number' ? size.height : 0;
+    return w > 0 || h > 0;
+  });
+  if (entries.length === 0) return 0;
+
+  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  if (!existsSync(assetsRoot)) return 0;
+
+  const sharpFn = await loadSharp();
+  if (!sharpFn) return 0;
+
+  const outRoot = join(opts.outputDir, 'content/images');
+  let count = 0;
+
+  const glob = new Bun.Glob('**/*');
+  for await (const rel of glob.scan({ cwd: assetsRoot, onlyFiles: true })) {
+    const ext = extname(rel).toLowerCase();
+    if (!RASTER_EXTS.has(ext)) continue;
+    const segments = rel.split(sep);
+    if (segments[0] === 'size') continue;
+    const sourcePath = join(assetsRoot, rel);
+    const dims = readImageDimensions(sourcePath);
+    if (!dims) continue;
+
+    for (const [, size] of entries) {
+      const segment = buildThemeImageSizeSegment(size);
+      if (!segment) continue;
+      if (!sizeShrinksSource(size, dims)) continue;
+      const outPath = join(outRoot, 'size', segment, segments.join('/'));
+      if (existsSync(outPath)) {
+        // Either an earlier pass (planImageVariants width match) or an explicit
+        // export already placed this file. Don't re-encode.
+        count += 1;
+        continue;
+      }
+      mkdirSync(dirname(outPath), { recursive: true });
+      try {
+        await sharpFn(sourcePath)
+          .resize({
+            width: typeof size.width === 'number' ? size.width : undefined,
+            height: typeof size.height === 'number' ? size.height : undefined,
+            withoutEnlargement: true,
+          })
+          .toFile(outPath);
+        count += 1;
+      } catch (err) {
+        logger.warn(
+          `Failed to generate theme size variant ${segment} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+  return count;
+}
+
+function sizeShrinksSource(size: ThemeImageSize, dims: ImageDimensions): boolean {
+  const wConstraint = typeof size.width === 'number' && size.width > 0;
+  const hConstraint = typeof size.height === 'number' && size.height > 0;
+  // Emit if at least one defined axis is strictly smaller than the source.
+  // Equality is treated as "no shrink" — the browser would just download the
+  // identical pixel count, so skipping saves disk and encode time.
+  if (wConstraint && (size.width as number) < dims.width) return true;
+  if (hConstraint && (size.height as number) < dims.height) return true;
+  return false;
 }

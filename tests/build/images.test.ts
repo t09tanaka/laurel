@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   DEFAULT_IMAGE_SIZES,
   DEFAULT_RESPONSIVE_WIDTHS,
   type ImageVariantPlan,
+  buildThemeImageSizeSegment,
+  generateThemeImageSizeVariants,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
   injectImagePictureSources,
@@ -16,6 +18,7 @@ import {
 } from '~/build/images.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
+import { readImageDimensions } from '~/util/image-size.ts';
 import type { ImageDimensions } from '~/util/image-size.ts';
 
 function makeAssetsRoot(): string {
@@ -585,5 +588,191 @@ describe('injectImagePictureSourcesIntoContent', () => {
       formats: [],
     });
     expect(post.html).toBe('<img src="/content/images/cover.jpg">');
+  });
+});
+
+describe('buildThemeImageSizeSegment', () => {
+  test('width only -> wN', () => {
+    expect(buildThemeImageSizeSegment({ width: 600 })).toBe('w600');
+  });
+
+  test('height only -> hN', () => {
+    expect(buildThemeImageSizeSegment({ height: 800 })).toBe('h800');
+  });
+
+  test('width + height -> wNhM', () => {
+    expect(buildThemeImageSizeSegment({ width: 400, height: 400 })).toBe('w400h400');
+  });
+
+  test('empty/zero size yields empty segment', () => {
+    expect(buildThemeImageSizeSegment({})).toBe('');
+    expect(buildThemeImageSizeSegment({ width: 0 })).toBe('');
+    expect(buildThemeImageSizeSegment({ height: 0 })).toBe('');
+  });
+
+  test('agrees with the URL helper for Source-theme sizes', () => {
+    expect(buildThemeImageSizeSegment({ width: 160 })).toBe('w160');
+    expect(buildThemeImageSizeSegment({ width: 320 })).toBe('w320');
+    expect(buildThemeImageSizeSegment({ width: 600 })).toBe('w600');
+    expect(buildThemeImageSizeSegment({ width: 960 })).toBe('w960');
+    expect(buildThemeImageSizeSegment({ width: 1200 })).toBe('w1200');
+    expect(buildThemeImageSizeSegment({ width: 2000 })).toBe('w2000');
+  });
+});
+
+async function writeRealPng(file: string, width: number, height: number): Promise<void> {
+  const sharp = (await import('sharp')).default;
+  mkdirSync(join(file, '..'), { recursive: true });
+  await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 200, g: 100, b: 50 },
+    },
+  })
+    .png()
+    .toFile(file);
+}
+
+describe('generateThemeImageSizeVariants', () => {
+  test('materialises one file per (source, size) into <outputDir>/content/images/size/<segment>/', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1600, 1000);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {
+        xs: { width: 160 },
+        s: { width: 320 },
+        m: { width: 600 },
+      },
+    });
+
+    expect(count).toBe(3);
+    for (const w of [160, 320, 600]) {
+      const p = join(outputDir, 'content/images/size', `w${w}`, 'cover.png');
+      expect(existsSync(p)).toBe(true);
+      const dims = readImageDimensions(p);
+      expect(dims?.width).toBe(w);
+    }
+  });
+
+  test('skips sizes that would upscale the source', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'small.png'), 400, 300);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {
+        xs: { width: 160 },
+        xl: { width: 1200 },
+        xxl: { width: 2000 },
+      },
+    });
+
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w160/small.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w1200/small.png'))).toBe(false);
+    expect(existsSync(join(outputDir, 'content/images/size/w2000/small.png'))).toBe(false);
+  });
+
+  test('emits height-only and width+height segments mirroring the URL helper', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 1200);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {
+        tall: { height: 600 },
+        square: { width: 400, height: 400 },
+      },
+    });
+
+    expect(count).toBe(2);
+    expect(existsSync(join(outputDir, 'content/images/size/h600/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w400h400/cover.png'))).toBe(true);
+  });
+
+  test('ignores nested assets/size/* sources so re-builds are idempotent', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
+    await writeRealPng(join(cwd, assetsDir, 'size/w600/cover.png'), 600, 400);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: { m: { width: 600 } },
+    });
+
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/size/w600/cover.png'))).toBe(false);
+  });
+
+  test('preserves subdirectory layout under size/<segment>/', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, '2026/05/photo.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: { m: { width: 600 } },
+    });
+
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/2026/05/photo.png'))).toBe(true);
+  });
+
+  test('no-op when theme defines no image_sizes', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {},
+    });
+
+    expect(count).toBe(0);
+  });
+
+  test('no-op when assets_dir does not exist', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as NectarConfig;
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir: join(cwd, 'dist'),
+      themeImageSizes: { m: { width: 600 } },
+    });
+    expect(count).toBe(0);
   });
 });

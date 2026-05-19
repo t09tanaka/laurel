@@ -21,6 +21,7 @@ import {
   type ImageFormat,
   generateImageFormatVariants,
   generateImageVariants,
+  generateThemeImageSizeVariants,
   injectImageDimensionsIntoContent,
   injectImagePictureSourcesIntoContent,
   injectImageSrcsetIntoContent,
@@ -227,6 +228,17 @@ async function runBuild({
         generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
       );
     }
+    // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
+    // (e.g. Source's xs/s/m/l/xl/xxl). Runs after the responsive-width pass so
+    // an `m: { width: 600 }` and the default 600w variant share one file.
+    await timed(profiler, 'theme_image_size_variants', () =>
+      generateThemeImageSizeVariants({
+        cwd,
+        config,
+        outputDir,
+        themeImageSizes: theme.pkg.image_sizes,
+      }),
+    );
   }
 
   if (config.components.sitemap.enabled) {
