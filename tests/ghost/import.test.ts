@@ -643,3 +643,51 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
     expect(authorMd).toContain('profile_image: "/content/images/avatar.jpg"');
   });
 });
+
+describe('importGhostExport — Koenig card comment fences', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('strips email/email-cta regions and preserves html/markdown card payloads', async () => {
+    const postHtml = [
+      '<p>Public intro.</p>',
+      '<!--kg-card-begin: email--><p>Paid subscribers only: secret link.</p><!--kg-card-end: email-->',
+      '<!--kg-card-begin: html--><div class="newsletter-signup"><span style="color:red">Sign up</span></div><!--kg-card-end: html-->',
+      '<!--kg-card-begin: markdown--><h2>Heading</h2><p>Body paragraph.</p><!--kg-card-end: markdown-->',
+      '<!--kg-card-begin: email-cta--><p>Members-only CTA copy.</p><!--kg-card-end: email-cta-->',
+      '<p>Public outro.</p>',
+    ].join('\n');
+
+    await writeFile(exportFile, makeExport([{ slug: 'fences', title: 'Fences', html: postHtml }]));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/fences.md'), 'utf8');
+    expect(md).toContain('Public intro.');
+    expect(md).toContain('Public outro.');
+    // email + email-cta regions must NOT leak into the static site.
+    expect(md).not.toContain('Paid subscribers only');
+    expect(md).not.toContain('secret link');
+    expect(md).not.toContain('Members-only CTA copy');
+    // html card preserves the raw user payload verbatim.
+    expect(md).toContain(
+      '<div class="newsletter-signup"><span style="color:red">Sign up</span></div>',
+    );
+    // markdown card content rendered as markdown.
+    expect(md).toContain('## Heading');
+    expect(md).toContain('Body paragraph.');
+  });
+});
