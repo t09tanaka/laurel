@@ -107,12 +107,22 @@ export function registerContentHelpers(engine: NectarEngine): void {
     'meta_description',
     function metaDescriptionHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as Record<string, unknown>;
+      const route = options.data?.route as { kind?: string } | undefined;
       const site = options.data?.site as { description?: string } | undefined;
+      const fallback = site?.description ?? '';
+
+      if (route?.kind === 'tag') {
+        const tag = ctx.tag as { meta_description?: string; description?: string } | undefined;
+        return tag?.meta_description || tag?.description || fallback;
+      }
+      if (route?.kind === 'author') {
+        const author = ctx.author as { meta_description?: string; bio?: string } | undefined;
+        return author?.meta_description || author?.bio || fallback;
+      }
       return (
-        (ctx.meta_description as string | undefined) ??
-        (ctx.excerpt as string | undefined) ??
-        site?.description ??
-        ''
+        (ctx.meta_description as string | undefined) ||
+        (ctx.excerpt as string | undefined) ||
+        fallback
       );
     },
   );
