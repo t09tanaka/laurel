@@ -14,8 +14,10 @@ import { computeFavicons, copyFavicons } from './favicons.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
+  generateImageFormatVariants,
   generateImageVariants,
   injectImageDimensionsIntoContent,
+  injectImagePictureSourcesIntoContent,
   injectImageSrcsetIntoContent,
   planImageVariants,
 } from './images.ts';
@@ -63,6 +65,15 @@ export async function build({
 
   const imageVariantPlan = await planImageVariants({ cwd, config });
   injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+  const imagesCfg = config.components.images;
+  const formatVariants = imagesCfg.enabled ? imagesCfg.formats : [];
+  if (formatVariants.length > 0) {
+    injectImagePictureSourcesIntoContent({
+      content,
+      plan: imageVariantPlan,
+      formats: formatVariants,
+    });
+  }
 
   await rasterizeOgImages({ cwd, config, content, outputDir });
   await generateOgImages({ cwd, config, content, outputDir });
@@ -94,6 +105,9 @@ export async function build({
       maxImageBytes: config.build.max_image_bytes,
     });
     await generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan });
+    if (formatVariants.length > 0) {
+      await generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan });
+    }
   }
 
   if (config.components.sitemap.enabled) {

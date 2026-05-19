@@ -8,6 +8,8 @@ import {
   type ImageVariantPlan,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
+  injectImagePictureSources,
+  injectImagePictureSourcesIntoContent,
   injectImageSrcset,
   injectImageSrcsetIntoContent,
   planImageVariants,
@@ -401,5 +403,152 @@ describe('injectImageSrcsetIntoContent', () => {
 describe('DEFAULT_RESPONSIVE_WIDTHS', () => {
   test("matches Ghost's contract (600/1000/1600/2400)", () => {
     expect(DEFAULT_RESPONSIVE_WIDTHS).toEqual([600, 1000, 1600, 2400]);
+  });
+});
+
+describe('injectImagePictureSources', () => {
+  function planFor(entries: Record<string, number[]>): ImageVariantPlan {
+    return new Map(Object.entries(entries));
+  }
+
+  test('wraps <img> in <picture> with per-format <source> tags', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="/content/images/cover.jpg">';
+    const out = injectImagePictureSources(html, { plan, formats: ['avif', 'webp'] });
+    expect(out).toContain('<picture>');
+    expect(out).toContain(
+      '<source type="image/avif" srcset="/content/images/size/w600/cover.jpg.avif 600w, /content/images/size/w1000/cover.jpg.avif 1000w"',
+    );
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w600/cover.jpg.webp 600w, /content/images/size/w1000/cover.jpg.webp 1000w"',
+    );
+    expect(out).toContain('<img src="/content/images/cover.jpg">');
+    expect(out).toContain('</picture>');
+    // AVIF must appear before WebP so browsers pick the best supported.
+    const avifIdx = out.indexOf('image/avif');
+    const webpIdx = out.indexOf('image/webp');
+    expect(avifIdx).toBeGreaterThan(-1);
+    expect(webpIdx).toBeGreaterThan(avifIdx);
+  });
+
+  test('uses the default sizes attr when none is set on the img', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg">';
+    const out = injectImagePictureSources(html, { plan, formats: ['webp'] });
+    expect(out).toContain(`sizes="${DEFAULT_IMAGE_SIZES}"`);
+  });
+
+  test('propagates an existing sizes attribute to the <source> tags', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg" sizes="100vw">';
+    const out = injectImagePictureSources(html, { plan, formats: ['webp'] });
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w600/cover.jpg.webp 600w" sizes="100vw">',
+    );
+  });
+
+  test('skips when no formats are configured', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg">';
+    expect(injectImagePictureSources(html, { plan, formats: [] })).toBe(html);
+  });
+
+  test('skips when the plan is empty', () => {
+    const html = '<img src="/content/images/cover.jpg">';
+    expect(injectImagePictureSources(html, { plan: new Map(), formats: ['webp'] })).toBe(html);
+  });
+
+  test('leaves untouched <img> tags that are already inside a <picture>', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html =
+      '<picture><source type="image/avif" srcset="/x.avif"><img src="/content/images/cover.jpg"></picture>';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp'] })).toBe(html);
+  });
+
+  test('leaves <img> alone when src is not in the plan', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/other.jpg">';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp'] })).toBe(html);
+  });
+
+  test('skips images already pointing at a variant URL', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/size/w600/cover.jpg">';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp'] })).toBe(html);
+  });
+
+  test('skips remote URLs (no marker substring)', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="https://example.com/cover.jpg">';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp'] })).toBe(html);
+  });
+
+  test('rejects path traversal in src', () => {
+    const plan = planFor({ '../etc/passwd': [600] });
+    const html = '<img src="/content/images/../etc/passwd">';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp'] })).toBe(html);
+  });
+
+  test('handles multiple <img> tags with mixed plan membership', () => {
+    const plan = planFor({ 'in.jpg': [600] });
+    const html =
+      '<img src="/content/images/in.jpg"><img src="/content/images/out.jpg"><img src="/content/images/in.jpg">';
+    const out = injectImagePictureSources(html, { plan, formats: ['webp'] });
+    // Two of the three become <picture>-wrapped; the middle one stays bare.
+    expect((out.match(/<picture>/g) ?? []).length).toBe(2);
+    expect(out).toContain('<img src="/content/images/out.jpg">');
+  });
+});
+
+describe('injectImagePictureSourcesIntoContent', () => {
+  test('wraps post.html, post.feed_html, and page.html using the plan and formats', () => {
+    const plan: ImageVariantPlan = new Map([['cover.jpg', [600, 1000]]]);
+    const post = {
+      id: 'p',
+      slug: 'p',
+      html: '<img src="/content/images/cover.jpg">',
+      feed_html: '<img src="/content/images/cover.jpg" alt="feed">',
+    } as unknown as Post;
+    const page = {
+      id: 'g',
+      slug: 'g',
+      html: '<img src="/content/images/cover.jpg">',
+    } as unknown as Page;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [page],
+      tags: [],
+      authors: [],
+      bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      site: {} as ContentGraph['site'],
+    };
+    injectImagePictureSourcesIntoContent({ content, plan, formats: ['webp', 'avif'] });
+    expect(post.html).toContain('<picture>');
+    expect(post.html).toContain('image/webp');
+    expect(post.html).toContain('image/avif');
+    expect(post.feed_html).toContain('<picture>');
+    expect(page.html).toContain('<picture>');
+  });
+
+  test('no-op when formats is empty', () => {
+    const post = {
+      id: 'p',
+      slug: 'p',
+      html: '<img src="/content/images/cover.jpg">',
+    } as unknown as Post;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [],
+      tags: [],
+      authors: [],
+      bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      site: {} as ContentGraph['site'],
+    };
+    injectImagePictureSourcesIntoContent({
+      content,
+      plan: new Map([['cover.jpg', [600]]]),
+      formats: [],
+    });
+    expect(post.html).toBe('<img src="/content/images/cover.jpg">');
   });
 });

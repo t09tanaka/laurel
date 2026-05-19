@@ -167,6 +167,18 @@ Newsletter subscribe form component.
 | `components.subscribe.username` | `string` | no | — | Provider username (e.g. Buttondown username, Mailchimp list u/id segment). |
 | `components.subscribe.email_field_name` | `string` | no | — | Name of the email input field. Defaults to a provider-appropriate value. |
 
+## `components.images`
+
+Per-format image transcoder. Generates WebP/AVIF variants of responsive widths and rewrites `<img>` into `<picture>` so themes get modern-format fallback automatically.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.images.enabled` | `boolean` | no | `false` | Emit per-format image variants (WebP/AVIF) alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`. |
+| `components.images.formats` | `array<"webp" \| "avif">` | no | `["webp"]` | Image formats to transcode the responsive variants into. Order matters: the first entry is preferred by browsers that understand it. |
+| `components.images.webp_quality` | `number` | no | `80` | Quality factor passed to sharp when encoding WebP variants. |
+| `components.images.avif_quality` | `number` | no | `50` | Quality factor passed to sharp when encoding AVIF variants. AVIF is much slower than WebP, so default is conservative. |
+| `components.images.cache_dir` | `string` | no | `".nectar-cache/images"` | Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build. |
+
 ## `components.comments`
 
 Comments component. Field set used depends on `provider`.
