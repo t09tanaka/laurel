@@ -53,28 +53,28 @@ describe('cli serve — host binding', () => {
   });
 
   test('default binding is localhost — log line reports it explicitly', async () => {
-    const { stdout, exitCode } = await runCli(['serve', '--port', '52001'], dir);
+    const { stderr, exitCode } = await runCli(['serve', '--port', '52001'], dir);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('bound to localhost');
-    expect(stdout).not.toContain('bound to 0.0.0.0');
+    expect(stderr).toContain('bound to localhost');
+    expect(stderr).not.toContain('bound to 0.0.0.0');
   });
 
   test('--host 0.0.0.0 opts in to LAN exposure and is reflected in the log line', async () => {
-    const { stdout, exitCode } = await runCli(
+    const { stderr, exitCode } = await runCli(
       ['serve', '--port', '52002', '--host', '0.0.0.0'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('bound to 0.0.0.0');
+    expect(stderr).toContain('bound to 0.0.0.0');
   });
 
   test('--host 127.0.0.1 is honored verbatim in the log line', async () => {
-    const { stdout, exitCode } = await runCli(
+    const { stderr, exitCode } = await runCli(
       ['serve', '--port', '52003', '--host', '127.0.0.1'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('bound to 127.0.0.1');
+    expect(stderr).toContain('bound to 127.0.0.1');
   });
 
   test('rejects empty --host with exit code 2', async () => {

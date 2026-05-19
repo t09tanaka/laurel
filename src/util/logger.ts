@@ -9,9 +9,8 @@ let warningCount = 0;
 function emit(level: Level, parts: unknown[]): void {
   if (level === 'warn') warningCount += 1;
   if (order[level] < threshold) return;
-  const stream = level === 'error' || level === 'warn' ? process.stderr : process.stdout;
   const tag = level === 'info' ? '' : `[${level}] `;
-  stream.write(`${tag}${parts.map(formatPart).join(' ')}\n`);
+  process.stderr.write(`${tag}${parts.map(formatPart).join(' ')}\n`);
 }
 
 function formatPart(part: unknown): string {
