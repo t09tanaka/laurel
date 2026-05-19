@@ -4,7 +4,10 @@ import type { ContentGraph, SiteData } from '~/content/model.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
 
-function makeEngine(site: Partial<SiteData> = {}): NectarEngine {
+function makeEngine(
+  site: Partial<SiteData> = {},
+  config?: Partial<NectarEngine['config']>,
+): NectarEngine {
   const hb = Handlebars.create();
   const fullSite: SiteData = {
     title: 'Nectar Test',
@@ -26,7 +29,7 @@ function makeEngine(site: Partial<SiteData> = {}): NectarEngine {
   };
   return {
     hb,
-    config: {} as NectarEngine['config'],
+    config: (config ?? {}) as NectarEngine['config'],
     content: { site: fullSite } as unknown as ContentGraph,
     theme: {} as NectarEngine['theme'],
     templates: {},
@@ -37,8 +40,12 @@ function makeEngine(site: Partial<SiteData> = {}): NectarEngine {
   };
 }
 
-function renderGhostHead(ctx: Record<string, unknown>, routeUrl = '/some-post/'): string {
-  const engine = makeEngine();
+function renderGhostHead(
+  ctx: Record<string, unknown>,
+  routeUrl = '/some-post/',
+  opts: { site?: Partial<SiteData>; config?: Partial<NectarEngine['config']> } = {},
+): string {
+  const engine = makeEngine(opts.site, opts.config);
   registerGhostHeadFootHelpers(engine);
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
@@ -134,5 +141,47 @@ describe('ghost_head JSON-LD escaping', () => {
     expect(jsonLd).not.toContain(' ');
     expect(jsonLd).toContain('\\u2028');
     expect(jsonLd).toContain('\\u2029');
+  });
+});
+
+describe('ghost_head RSS feed autodiscovery', () => {
+  test('emits absolute <link rel="alternate" type="application/rss+xml"> when RSS is enabled', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: { components: { rss: { enabled: true, items: 20 } } } as Partial<
+        NectarEngine['config']
+      >,
+    });
+    expect(html).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+    );
+  });
+
+  test('omits the RSS discovery link when components.rss.enabled is false', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: { components: { rss: { enabled: false, items: 20 } } } as Partial<
+        NectarEngine['config']
+      >,
+    });
+    expect(html).not.toContain('application/rss+xml');
+    expect(html).not.toContain('rss.xml');
+  });
+
+  test('escapes the site title inside the RSS link title attribute', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { title: 'A & "B"' },
+      config: { components: { rss: { enabled: true, items: 20 } } } as Partial<
+        NectarEngine['config']
+      >,
+    });
+    expect(html).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="A &amp; &quot;B&quot;" href="https://example.com/rss.xml">',
+    );
+  });
+
+  test('defaults to emitting the RSS link when config does not specify the RSS component', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
+    expect(html).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+    );
   });
 });
