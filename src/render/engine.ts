@@ -21,6 +21,11 @@ export interface NectarEngine {
   favicons?: FaviconSet;
   templates: Record<string, Handlebars.TemplateDelegate>;
   layouts: Record<string, Handlebars.TemplateDelegate>;
+  // Layout name extracted from `{{!< name}}` per template, pre-computed in
+  // createEngine so renderRoute can skip the splitLayout regex per route.
+  // Optional for unit tests that mock the engine without going through
+  // createEngine.
+  templateLayoutNames?: Map<string, string | undefined>;
   render(route: RouteContext): string;
   // Cache for `{{#get resource order=...}}` sorted results, keyed by
   // `${resource}|${order}`. Without this, every page that calls
@@ -43,18 +48,24 @@ export function createEngine(opts: {
   registerPartials(hb, opts.theme);
   const templates: Record<string, Handlebars.TemplateDelegate> = {};
   const layouts: Record<string, Handlebars.TemplateDelegate> = {};
+  const templateLayoutNames = new Map<string, string | undefined>();
   for (const [name, source] of Object.entries(opts.theme.templates)) {
     const split = splitLayout(source);
     templates[name] = hb.compile(split.body, { noEscape: false });
+    templateLayoutNames.set(name, split.layout);
     if (split.layout) {
       // mark for later resolution
       templates[`${name}__layout`] = hb.compile(`{{__layout '${split.layout}'}}`, {
         noEscape: false,
       });
     }
-    if (isLayoutName(name)) {
-      layouts[name] = hb.compile(source, { noEscape: false });
-    }
+    // Compile every template's full source as a layout candidate too. Themes
+    // can reference any template via `{{!< name}}`, not just default/layouts/*,
+    // and renderRoute resolves layouts through this map. Compiling once at
+    // engine init avoids recompiling the same layout source for every route
+    // that extends it (N routes × M layouts otherwise re-runs hb.compile per
+    // render).
+    layouts[name] = hb.compile(source, { noEscape: false });
   }
 
   const engine: NectarEngine = {
@@ -65,6 +76,7 @@ export function createEngine(opts: {
     favicons: opts.favicons ?? EMPTY_FAVICON_SET,
     templates,
     layouts,
+    templateLayoutNames,
     sortedCache: new Map(),
     render(route) {
       return renderRoute(engine, route);
@@ -73,10 +85,6 @@ export function createEngine(opts: {
 
   registerHelpers(engine);
   return engine;
-}
-
-function isLayoutName(name: string): boolean {
-  return name === 'default' || name.startsWith('layouts/');
 }
 
 function registerPartials(hb: typeof Handlebars, theme: ThemeBundle): void {
@@ -94,27 +102,22 @@ function registerPartials(hb: typeof Handlebars, theme: ThemeBundle): void {
 }
 
 function renderRoute(engine: NectarEngine, route: RouteContext): string {
-  const template = engine.theme.templates[route.template];
-  if (!template) {
+  const innerCompiled = engine.templates[route.template];
+  if (!innerCompiled) {
     throw new Error(`Template '${route.template}' not found in theme '${engine.theme.name}'`);
   }
-  const { layout, body } = splitLayout(template);
+  const layout = engine.templateLayoutNames?.get(route.template);
   const context = buildContext(engine, route);
+  const data = buildRootData(engine, route);
   if (!layout) {
-    const compiled = engine.hb.compile(body, { noEscape: false });
-    return compiled(context, { data: buildRootData(engine, route) });
+    return innerCompiled(context, { data });
   }
-  const layoutSource = engine.theme.templates[layout];
-  if (!layoutSource) {
+  const layoutCompiled = engine.layouts[layout];
+  if (!layoutCompiled) {
     throw new Error(`Layout '${layout}' referenced by '${route.template}' not found`);
   }
-  const innerCompiled = engine.hb.compile(body, { noEscape: false });
-  const innerHtml = innerCompiled(context, { data: buildRootData(engine, route) });
-  const layoutCompiled = engine.hb.compile(layoutSource, { noEscape: false });
-  return layoutCompiled(
-    { ...context, body: new engine.hb.SafeString(innerHtml) },
-    { data: buildRootData(engine, route) },
-  );
+  const innerHtml = innerCompiled(context, { data });
+  return layoutCompiled({ ...context, body: new engine.hb.SafeString(innerHtml) }, { data });
 }
 
 export function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
