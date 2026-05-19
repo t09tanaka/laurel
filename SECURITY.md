@@ -106,6 +106,25 @@ If you enable either flag, treat PRs that touch `codeinjection_*` /
 `unsafe_html` (or files with those fields set) as code review for raw HTML/JS
 shipped to every visitor.
 
+## Dependency hygiene
+
+Markdown and template parsing libraries (notably `marked`) have a history of
+ReDoS issues that ship in transitive patch releases. To keep these from
+landing silently:
+
+- Runtime dependencies that parse untrusted content are **pinned to an exact
+  version** in `package.json` (no `^` or `~` range). `marked` is the current
+  example; future parsers should follow the same rule.
+- Dependabot (see `.github/dependabot.yml`) opens grouped weekly PRs for both
+  npm and GitHub Actions ecosystems, so updates are reviewed by a human
+  rather than picked up at install time.
+- Maintainers run `bun pm audit` (or an equivalent scanner) against the
+  lockfile when triaging dependency PRs and before tagging a release.
+
+If you find a vulnerable transitive dependency that the above process missed,
+please report it through the channels in
+[Reporting a Vulnerability](#reporting-a-vulnerability).
+
 ## Safe Harbor
 
 We will not pursue or support legal action against researchers who:
