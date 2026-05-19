@@ -65,6 +65,14 @@ export const configSchema = z.object({
           disallow: z.boolean().default(false),
         })
         .default({}),
+      subscribe: z
+        .object({
+          provider: z.enum(['none', 'buttondown', 'mailchimp', 'custom']).default('none'),
+          action: z.string().optional(),
+          username: z.string().optional(),
+          email_field_name: z.string().optional(),
+        })
+        .default({}),
     })
     .default({}),
 });

@@ -12,6 +12,7 @@ import { emitRss, emitSitemap } from './feeds.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { emitRobots } from './robots.ts';
 import { planRoutes } from './routes.ts';
+import { transformSubscribeForms } from './subscribe-forms.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -47,9 +48,10 @@ export async function build({
   const engine = createEngine({ config, content, theme });
   const routes = planRoutes({ config, content, theme });
 
+  const subscribeConfig = config.components.subscribe;
   for (const route of routes) {
     try {
-      const html = injectSkipLink(engine.render(route));
+      const html = transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig);
       await writeHtml(outputDir, route.outputPath, html);
     } catch (err) {
       throw wrapRenderError(err, route.url, route.template);
