@@ -395,19 +395,45 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   //   - video file   → /content/media/     (<video src> or <source src>)
   //   - caption VTT  → /content/files/     (<track src kind="captions|subtitles">)
   // Without explicit track capture, turndown's default walk drops the <track>
-  // children, leaving the .vtt file orphaned on disk after import. Emit a
-  // nested `{{< video-track />}}` shortcode per track so all three assets
-  // round-trip through the markdown.
+  // children, leaving the .vtt file orphaned on disk after import.
+  //
+  // Issue #100 extends this with the layout/playback metadata Ghost stores on
+  // the surrounding wrapper:
+  //   - aspect ratio   → `<div class="kg-video-container" style="--aspect-ratio: 1.777">`
+  //                      (a CSS custom prop that drives the player's intrinsic
+  //                      box; without it the renderer either reflows on load or
+  //                      collapses to zero height)
+  //   - loop / preload / playsinline / muted / controls → boolean / valued
+  //                      attrs on <video>. Default turndown drops the element
+  //                      entirely, so even the truthy boolean form is lost.
+  // Emit a nested `{{< video-track />}}` shortcode per track and surface the
+  // wrapper/playback attrs on the parent `{{< video … >}}` shortcode so all of
+  // poster + media + captions + layout round-trip through the markdown.
   turndown.addRule('kg-video-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-video-card'),
     replacement: (_content, node) => {
       const video = node.querySelector('video');
       const src = attr(video, 'src') || attr(video?.querySelector('source') ?? null, 'src');
+      const container = node.querySelector('.kg-video-container');
+      const containerStyle = attr(container, 'style');
+      const aspectMatch = containerStyle.match(/--aspect-ratio\s*:\s*([0-9.]+)/);
+      const aspect = aspectMatch ? aspectMatch[1] : '';
+      const booleanAttr = (el: DomNode | null, name: string): string => {
+        if (!el) return '';
+        const v = el.getAttribute(name);
+        return v === null ? '' : 'true';
+      };
       const attrs = {
         src,
         poster: attr(video, 'poster'),
         width: attr(video, 'width'),
         height: attr(video, 'height'),
+        aspect,
+        loop: booleanAttr(video, 'loop'),
+        muted: booleanAttr(video, 'muted'),
+        controls: booleanAttr(video, 'controls'),
+        playsinline: booleanAttr(video, 'playsinline'),
+        preload: attr(video, 'preload'),
         caption: text(node.querySelector('figcaption')),
       };
       const trackEls = video
