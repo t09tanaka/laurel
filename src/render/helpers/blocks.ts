@@ -309,6 +309,8 @@ function baseResource(engine: NectarEngine, resource: string): readonly unknown[
       return engine.content.authors;
     case 'pages':
       return engine.content.pages;
+    case 'tiers':
+      return engine.content.tiers;
     default:
       return [];
   }

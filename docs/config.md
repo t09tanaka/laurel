@@ -20,6 +20,7 @@ falls back to the listed default.
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
 | `recommendations[]` | `array<object>` | External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section. |
+| `tiers[]` | `array<object>` | Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops. |
 | `deploy` | `object` | Deploy-target-specific hints that influence files emitted alongside the site. |
 | `components` | `object` | Optional components that emit extra files or inject markup. |
 
@@ -111,6 +112,20 @@ External sites surfaced through Ghost's `{{recommendations}}` helper. When non-e
 | `recommendations[].favicon` | `string` | no | — | Optional URL or content-relative path to the site icon shown in the list. |
 | `recommendations[].featured_image` | `string` | no | — | Optional cover image URL displayed on the full `/recommendations/` page. |
 | `recommendations[].reason` | `string` | no | — | Optional editorial reason shown alongside the title on the full page. |
+
+## `tiers[]`
+
+Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `tiers[].name` | `string` | yes | — | Display name of the tier (e.g. "Free", "Premium"). Required. |
+| `tiers[].description` | `string` | no | `""` | Short blurb shown alongside the tier name in pricing tables. |
+| `tiers[].monthly_price` | `number` | no | — | Monthly price in whole units of `currency` (e.g. `9` for $9/mo). Omit on free tiers. |
+| `tiers[].yearly_price` | `number` | no | — | Yearly price in whole units of `currency`. Omit on free tiers or to hide the yearly option. |
+| `tiers[].currency` | `string` | no | `"USD"` | ISO 4217 currency code for `monthly_price` / `yearly_price`. Defaults to `USD`. |
+| `tiers[].welcome_page_url` | `string` | no | — | Destination URL for Subscribe buttons targeting this tier (e.g. an external checkout / signup page). |
+| `tiers[].benefits` | `array<string>` | no | `[]` | Bullet-point benefits surfaced on pricing tables, in display order. |
 
 ## `deploy`
 

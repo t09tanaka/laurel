@@ -48,6 +48,7 @@ function makeContent(site: SiteData): ContentGraph {
     pages: [],
     tags: [],
     authors: [],
+    tiers: [],
     bySlug: {
       posts: new Map(),
       pages: new Map(),

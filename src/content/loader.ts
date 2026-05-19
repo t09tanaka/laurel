@@ -25,7 +25,7 @@ import {
 } from './frontmatter.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
-import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
+import type { Author, ContentGraph, Page, Post, SiteData, Tag, Tier } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
 export interface LoadContentOptions {
@@ -167,11 +167,14 @@ async function loadContentWithPool({
     }
   }
 
+  const tiers = buildTiers(config);
+
   return {
     posts: resolvedPosts,
     pages: resolvedPages,
     tags: allTags,
     authors: allAuthors,
+    tiers,
     bySlug: {
       posts: new Map(resolvedPosts.map((p) => [p.slug, p])),
       pages: new Map(resolvedPages.map((p) => [p.slug, p])),
@@ -182,6 +185,44 @@ async function loadContentWithPool({
     postsByAuthor,
     site,
   };
+}
+
+// Derive Ghost-shaped Tier objects from the flat `[[tiers]]` config so themes
+// that iterate `{{#get "tiers"}}` see the same `type` / `active` / `visibility`
+// fields they expect from Ghost. Slug derivation falls back to a positional
+// `tier-N` so two entries with the same display name still get unique ids.
+function buildTiers(config: NectarConfig): Tier[] {
+  if (config.tiers.length === 0) return [];
+  const usedSlugs = new Set<string>();
+  return config.tiers.map((entry, index) => {
+    const baseSlug = slugify(entry.name, { lower: true, strict: true }) || `tier-${index + 1}`;
+    let slug = baseSlug;
+    let suffix = 2;
+    while (usedSlugs.has(slug)) {
+      slug = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+    usedSlugs.add(slug);
+    const monthly = entry.monthly_price;
+    const yearly = entry.yearly_price;
+    const hasPrice =
+      (typeof monthly === 'number' && monthly > 0) || (typeof yearly === 'number' && yearly > 0);
+    return {
+      id: slug,
+      slug,
+      name: entry.name,
+      description: entry.description,
+      type: hasPrice ? 'paid' : 'free',
+      active: true,
+      visibility: 'public',
+      trial_days: 0,
+      monthly_price: monthly,
+      yearly_price: yearly,
+      currency: hasPrice ? entry.currency : undefined,
+      welcome_page_url: entry.welcome_page_url,
+      benefits: entry.benefits,
+    };
+  });
 }
 
 function buildSite(config: NectarConfig): SiteData {
