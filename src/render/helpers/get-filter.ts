@@ -32,8 +32,9 @@ export function applyGetFilter(
   items: readonly unknown[],
   filter: string,
   ctx: unknown,
+  route?: unknown,
 ): unknown[] {
-  const clauses = parseFilterClauses(filter, ctx);
+  const clauses = parseFilterClauses(filter, ctx, route);
   if (clauses.length === 0) return items.slice();
 
   const index = getFilterIndex(engine, resource);
@@ -144,23 +145,23 @@ function addEntry(index: FilterIndex, key: IndexedKey, value: string, item: unkn
   set.add(item);
 }
 
-function parseFilterClauses(filter: string, ctx: unknown): ParsedClause[] {
+function parseFilterClauses(filter: string, ctx: unknown, route?: unknown): ParsedClause[] {
   const clauses: ParsedClause[] = [];
   for (const raw of filter.split('+')) {
     const trimmed = raw.trim();
     if (!trimmed) continue;
-    const parsed = parseClause(trimmed, ctx);
+    const parsed = parseClause(trimmed, ctx, route);
     if (parsed) clauses.push(parsed);
   }
   return clauses;
 }
 
-function parseClause(clause: string, ctx: unknown): ParsedClause | null {
+function parseClause(clause: string, ctx: unknown, route?: unknown): ParsedClause | null {
   const colon = clause.indexOf(':');
   if (colon < 0) return null;
   const key = clause.slice(0, colon).trim();
   let value = clause.slice(colon + 1).trim();
-  value = interpolate(value, ctx);
+  value = interpolate(value, ctx, route);
   let negate = false;
   if (value.startsWith('-')) {
     negate = true;
@@ -178,16 +179,32 @@ function parseClause(clause: string, ctx: unknown): ParsedClause | null {
   return { key, negate, values };
 }
 
-function interpolate(value: string, ctx: unknown): string {
+// Ghost themes write filter expressions like `id:-{{post.id}}` that need to
+// resolve the route's primary object (`post`, `page`, `tag`, `author`) even
+// when the surrounding Handlebars `this` is something else — e.g. a partial
+// invoked outside a `{{#post}}` scope, or a sidebar rendered on a tag archive.
+// Falling back to `route.data` keeps `{{post.id}}` interpolating to the actual
+// post id instead of an empty string (which, with negation, would silently
+// match every post in the collection).
+function interpolate(value: string, ctx: unknown, route?: unknown): string {
+  const routeData =
+    route && typeof route === 'object' ? (route as Record<string, unknown>).data : undefined;
   return value.replace(/\{\{([^}]+)\}\}/g, (_, expr) => {
     const path = String(expr).trim().split('.');
-    let cursor: unknown = ctx;
-    for (const seg of path) {
-      cursor =
-        cursor && typeof cursor === 'object' ? (cursor as Record<string, unknown>)[seg] : undefined;
-    }
-    return cursor == null ? '' : String(cursor);
+    const fromCtx = resolvePath(ctx, path);
+    if (fromCtx != null) return String(fromCtx);
+    const fromRoute = resolvePath(routeData, path);
+    return fromRoute == null ? '' : String(fromRoute);
   });
+}
+
+function resolvePath(source: unknown, path: string[]): unknown {
+  let cursor: unknown = source;
+  for (const seg of path) {
+    if (cursor == null || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[seg];
+  }
+  return cursor;
 }
 
 function evaluateClause(item: unknown, clause: ParsedClause): boolean {
