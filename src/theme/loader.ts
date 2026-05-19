@@ -49,7 +49,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
 
   const pkg = await loadThemePackage(rootDir);
   const locales = await loadLocales(rootDir);
-  const assets = await loadThemeAssets(rootDir);
+  const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar-cache') });
 
   return {
     name: config.theme.name,
