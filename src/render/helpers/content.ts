@@ -2,6 +2,7 @@ import type Handlebars from 'handlebars';
 import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
+import { sanitizeHref } from '~/util/safe-href.ts';
 import { type NectarEngine, computePostClass } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
@@ -68,11 +69,13 @@ export function registerContentHelpers(engine: NectarEngine): void {
 
       if (list.length === 0) return new engine.hb.SafeString('');
 
-      let items = list.map((author) =>
-        autolink && typeof author.url === 'string' && author.url.length > 0
-          ? `<a href="${escapeAttr(author.url)}">${escapeHtml(author.name)}</a>`
-          : escapeHtml(author.name),
-      );
+      let items = list.map((author) => {
+        if (!autolink || typeof author.url !== 'string' || author.url.length === 0) {
+          return escapeHtml(author.name);
+        }
+        const safeHref = sanitizeHref(author.url, '{{authors}} helper');
+        return `<a href="${engine.hb.escapeExpression(safeHref)}">${escapeHtml(author.name)}</a>`;
+      });
       if (limit !== undefined && limit >= 0) items = items.slice(0, limit);
       const from = fromRaw && fromRaw > 0 ? fromRaw - 1 : 0;
       const to = toRaw && toRaw > 0 ? toRaw : items.length;
@@ -112,11 +115,13 @@ export function registerContentHelpers(engine: NectarEngine): void {
 
       if (list.length === 0) return new engine.hb.SafeString('');
 
-      let items = list.map((tag) =>
-        autolink && typeof tag.url === 'string' && tag.url.length > 0
-          ? `<a href="${escapeAttr(tag.url)}">${escapeHtml(tag.name)}</a>`
-          : escapeHtml(tag.name),
-      );
+      let items = list.map((tag) => {
+        if (!autolink || typeof tag.url !== 'string' || tag.url.length === 0) {
+          return escapeHtml(tag.name);
+        }
+        const safeHref = sanitizeHref(tag.url, '{{tags}} helper');
+        return `<a href="${engine.hb.escapeExpression(safeHref)}">${escapeHtml(tag.name)}</a>`;
+      });
       if (limit !== undefined && limit >= 0) items = items.slice(0, limit);
       const from = fromRaw && fromRaw > 0 ? fromRaw - 1 : 0;
       const to = toRaw && toRaw > 0 ? toRaw : items.length;

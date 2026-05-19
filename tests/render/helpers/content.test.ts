@@ -666,6 +666,20 @@ describe('authors helper', () => {
     expect(out).toBe('<a href="/u/a&amp;b/">A&amp;B&lt;x&gt;</a>');
   });
 
+  // A corrupt author entry (e.g. authored before slug validation existed,
+  // or smuggled past a custom loader) must not turn into a clickable XSS
+  // vector. Collapse unknown schemes to `#` and ensure attribute-breaking
+  // characters in the (now sanitized) href are HTML-escaped, not embedded raw.
+  test('refuses javascript: author.url and falls back to "#"', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors}}')({
+      authors: [{ name: 'Eve', url: 'javascript:alert(1)' }],
+    });
+    expect(out).toBe('<a href="#">Eve</a>');
+    expect(out).not.toContain('javascript:');
+  });
+
   test('block form still iterates with the original this context', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
@@ -755,6 +769,32 @@ describe('tags helper', () => {
       tags: [{ name: 'A&B<x>', slug: 'a-b-x', url: '/tag/a&b/' }],
     });
     expect(out).toBe('<a href="/tag/a&amp;b/">A&amp;B&lt;x&gt;</a>');
+  });
+
+  // Even though sanitizeUserSlug normalises slugs at load time, the rendered
+  // href is the last line of defence: a corrupt tag.url (e.g. injected via a
+  // custom content pipeline or unsafe theme partial) must not become a live
+  // XSS sink. Both `javascript:` and attribute-breaking quote characters need
+  // to collapse to `#` plus HTML-escaped output.
+  test('refuses javascript: tag.url and falls back to "#"', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags}}')({
+      tags: [{ name: 'News', slug: 'news', url: 'javascript:alert(1)' }],
+    });
+    expect(out).toBe('<a href="#">News</a>');
+    expect(out).not.toContain('javascript:');
+  });
+
+  test('Handlebars escapeExpression covers attribute-breaking quote chars in tag.url', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags}}')({
+      tags: [{ name: 'News', slug: 'news', url: '/tag/"><img src=x onerror=alert(1)>' }],
+    });
+    expect(out).not.toContain('"><img');
+    expect(out).toContain('&quot;');
+    expect(out).toContain('&gt;');
   });
 
   test('hides internal tags by default to match Ghost visibility', () => {
