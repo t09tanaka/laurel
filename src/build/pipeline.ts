@@ -10,6 +10,7 @@ import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
+import { emitCustomRedirects } from './custom-redirects.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
@@ -152,6 +153,11 @@ export async function build({
   });
   await emitCloudflarePagesHeaders({
     outputDir,
+    enabled: config.deploy.cloudflare_pages.enabled,
+  });
+  await emitCustomRedirects({
+    outputDir,
+    cwd,
     enabled: config.deploy.cloudflare_pages.enabled,
   });
 

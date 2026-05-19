@@ -43,11 +43,19 @@ accordingly.
 4. Save and deploy. First build takes ~1 minute; subsequent builds are cached.
 
 The `_redirects` and `_headers` files at the root of `dist/` are picked up by
-Cloudflare. To force a 404 page:
+Cloudflare. Set `[deploy.cloudflare_pages] enabled = true` in `nectar.toml` and
+Nectar will write `_headers` with cache and security defaults on every build.
+Custom redirects go in a `redirects.yaml` at the project root and Nectar emits
+them to `dist/_redirects` (same gating). Supported status codes are 301, 302,
+307, and 308; the first rule per `from` wins on overlap.
 
-```
-# dist/_redirects (write this from a custom build step if you need it)
-/*  /404.html  404
+```yaml
+# redirects.yaml
+- from: /feed
+  to: /rss.xml
+  status: 301
+- from: /old-post
+  to: /new-post
 ```
 
 ---
