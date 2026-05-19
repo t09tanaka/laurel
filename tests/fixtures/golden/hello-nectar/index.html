@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="has-dark-text">
+<head>
+
+    <title>Hello, Nectar</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="preload" as="style" href="/assets/built/screen.<HASH>.css">
+    <link rel="preload" as="script" href="/assets/built/source.<HASH>.js">
+
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/inter-roman.woff2" crossorigin="anonymous">
+    <style>
+        @font-face {
+            font-family: "Inter";
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: optional;
+            src: url(/assets/fonts/inter-roman.woff2) format("woff2");
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="/assets/built/screen.<HASH>.css">
+
+    <style>
+        :root {
+            --background-color: #ffffff
+        }
+    </style>
+
+    <meta name="generator" content="Nectar">
+<link rel="canonical" href="https://nectar.example.com/hello-nectar/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="description" content="First post! A quick tour of what&#39;s working and what&#39;s coming next.">
+<meta property="og:site_name" content="Nectar Example">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hello, Nectar">
+<meta property="og:description" content="First post! A quick tour of what&#39;s working and what&#39;s coming next.">
+<meta property="og:url" content="https://nectar.example.com/hello-nectar/">
+<meta property="og:image" content="https://nectar.example.com/content/images/welcome-cover.og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="A bee carrying a roll of parchment">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Hello, Nectar">
+<meta name="twitter:description" content="First post! A quick tour of what&#39;s working and what&#39;s coming next.">
+<meta name="twitter:image" content="https://nectar.example.com/content/images/welcome-cover.og.png">
+<meta name="twitter:image:alt" content="A bee carrying a roll of parchment">
+<link rel="alternate" type="application/rss+xml" title="Nectar Example" href="https://nectar.example.com/rss.xml">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://nectar.example.com/hello-nectar/"},"url":"https://nectar.example.com/hello-nectar/","headline":"Hello, Nectar","description":"First post! A quick tour of what's working and what's coming next.","image":{"@type":"ImageObject","url":"https://nectar.example.com/content/images/welcome-cover.og.png","width":1200,"height":600},"datePublished":"2026-05-19T09:00:00.000Z","author":[{"@type":"Person","name":"Casper","url":"https://nectar.example.com/author/casper/"}],"publisher":{"@type":"Organization","name":"Nectar Example","url":"https://nectar.example.com","logo":{"@type":"ImageObject","url":"https://nectar.example.com/content/images/logo.svg","width":60,"height":60}}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Nectar Example","item":"https://nectar.example.com/"},{"@type":"ListItem","position":2,"name":"News","item":"https://nectar.example.com/tag/news/"},{"@type":"ListItem","position":3,"name":"Hello, Nectar","item":"https://nectar.example.com/hello-nectar/"}]}</script>
+
+</head>
+<body class="nectar-route-post post-template has-sans-title has-sans-body">
+<style id="nectar-skip-link-style">.nectar-skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}.nectar-skip-link:focus{position:fixed;left:0;top:0;width:auto;height:auto;clip:auto;clip-path:none;padding:8px 16px;background:#000;color:#fff;z-index:9999;text-decoration:underline;font:bold 14px/1.4 system-ui,-apple-system,sans-serif;white-space:normal}</style>
+<a class="nectar-skip-link skip-link" href="#main">Skip to content</a>
+
+<div class="gh-viewport">
+    
+    <header id="gh-navigation" class="gh-navigation is-left-logo gh-outer">
+        <div class="gh-navigation-inner gh-inner">
+    
+            <div class="gh-navigation-brand">
+                <a class="gh-navigation-logo is-title" href="/" aria-label="Nectar Example">
+                        <img src="/content/images/logo.svg" alt="Nectar Example">
+                </a>
+                <button class="gh-search gh-icon-button" aria-label="Search this site" data-ghost-search>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>            <button class="gh-burger gh-icon-button" aria-label="Menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"></path></svg>                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"></path></svg>            </button>
+            </div>
+    
+            <nav class="gh-navigation-menu">
+                <ul class="nav"><li class="nav-home"><a href="/">Home</a></li><li class="nav-about"><a href="/about/">About</a></li><li class="nav-tags"><a href="/tag/news/">Tags</a></li></ul>
+            </nav>
+    
+            <div class="gh-navigation-actions">
+                        <button class="gh-search gh-icon-button" aria-label="Search this site" data-ghost-search>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>        </div>
+    
+        </div>
+    </header>
+
+    
+
+<main id="main" class="gh-main">
+
+    <article class="gh-article post tag-news tag-getting-started featured">
+
+        <header class="gh-article-header gh-canvas">
+
+                <a class="gh-article-tag" href="https://nectar.example.com/tag/news/">News</a>
+            <h1 class="gh-article-title is-title">Hello, Nectar</h1>
+                <p class="gh-article-excerpt is-body">First post! A quick tour of what&#x27;s working and what&#x27;s coming next.</p>
+
+                <div class="gh-meta-share">
+                    <div class="gh-article-meta">
+                        <div class="gh-article-author-image instapaper_ignore">
+                                    <a href="https://nectar.example.com/author/casper/">
+                                        <img class="author-profile-image" src="/content/images/size/w160/casper-profile.svg" alt="Casper">
+                                    </a>
+                        </div>
+                        <div class="gh-article-meta-wrapper">
+                            <p class="gh-article-author-name">Casper</p>
+                            <div class="gh-article-meta-content">
+                                <time class="gh-article-meta-date" datetime="2026-05-19">19 May 2026</time>
+                                    <span class="gh-article-meta-length"><span class="bull">—</span> 1 min read</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="gh-button gh-button-share" aria-label="Share this post">
+                        <svg role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                            <title>Share this post</title>
+                            <path d="M176,156a35.84,35.84,0,0,0-25.78,10.92l-46.39-23.2a35.78,35.78,0,0,0,0-19.44l46.39-23.2a36,36,0,1,0-7.16-14.31l-46.39,23.2a36,36,0,1,0,0,48.06l46.39,23.2A36,36,0,1,0,176,156Z"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <figure class="gh-article-image">
+                    <img
+                        srcset="/content/images/size/w320/welcome-cover.svg 320w,
+                                /content/images/size/w600/welcome-cover.svg 600w,
+                                /content/images/size/w960/welcome-cover.svg 960w,
+                                /content/images/size/w1200/welcome-cover.svg 1200w,
+                                /content/images/size/w2000/welcome-cover.svg 2000w"
+                        sizes="(max-width: 1200px) 100vw, 1120px"
+                        src="/content/images/size/w1200/welcome-cover.svg"
+                        alt="A bee carrying a roll of parchment"
+                        width="1200"
+                        height="600"
+                        fetchpriority="high"
+                        decoding="async"
+                    >
+                        <figcaption>Cover art by Casper.</figcaption>
+                </figure>
+
+        </header>
+
+        <section class="gh-content gh-canvas is-body drop-cap">
+            <p>Welcome to <strong>Nectar</strong> — a static site generator built around Ghost themes and
+Markdown content.</p>
+<h3 id="what-works-today">What works today</h3>
+<ul>
+<li>The whole Ghost Source theme renders end-to-end against this content.</li>
+<li>Posts, pages, tags, authors, pagination, RSS, sitemap — all generated.</li>
+<li>Theme custom settings (<code>@custom.*</code>) come from <code>nectar.toml</code>.</li>
+</ul>
+<h3 id="what-were-working-on-next">What we're working on next</h3>
+<ul>
+<li>Smarter <code>{{img_url}}</code> with build-time resizing.</li>
+<li>A <code>nectar dev</code> server that watches content and theme files.</li>
+<li>A pluggable component registry for search, comments, and OG image generation.</li>
+</ul>
+<blockquote>
+<p>Nectar is the substance bees turn into honey. We thought it was a fitting
+name for the substrate a Ghost theme turns into a blog.</p>
+</blockquote>
+
+        </section>
+
+    </article>
+
+        <div class="gh-comments gh-canvas">
+            <div data-nectar-comments></div>
+        </div>
+
+</main>
+
+
+            <section class="gh-container is-grid gh-outer">
+                <div class="gh-container-inner gh-inner">
+                        <h2 class="gh-container-title">Read more</h2>
+                    <div class="gh-feed">
+                            <article class="gh-card post tag-migration tag-getting-started">
+                                <a class="gh-card-link" href="https://nectar.example.com/migrating-from-ghost/">
+                                        <figure class="gh-card-image">
+                                            <img
+                                                srcset="/content/images/size/w160/migration-cover.svg 160w,
+                                                        /content/images/size/w320/migration-cover.svg 320w,
+                                                        /content/images/size/w600/migration-cover.svg 600w,
+                                                        /content/images/size/w960/migration-cover.svg 960w,
+                                                        /content/images/size/w1200/migration-cover.svg 1200w,
+                                                        /content/images/size/w2000/migration-cover.svg 2000w"
+                                                sizes="320px"
+                                                src="/content/images/size/w600/migration-cover.svg"
+                                                alt="A bee flying between two flowers"
+                                                width="1200"
+                                                height="600"
+                                                loading="lazy" decoding="async"
+                                            >
+                                        </figure>
+                                    <div class="gh-card-wrapper">
+                                            <p class="gh-card-tag">Migration</p>
+                                        <h3 class="gh-card-title is-title">Migrating from Ghost</h3>
+                                            <p class="gh-card-excerpt is-body">How &#x60;nectar import-ghost&#x60; turns a Ghost JSON export into Markdown.</p>
+                                        <footer class="gh-card-meta">
+                                            <!--
+                                         -->
+                                                <span class="gh-card-author">By Honeybee</span>
+                                                <time class="gh-card-date" datetime="2026-05-15">15 May 2026</time>
+                                            <!--
+                                     --></footer>
+                                    </div>
+                                </a>
+                            </article>
+                            <article class="gh-card post tag-getting-started">
+                                <a class="gh-card-link" href="https://nectar.example.com/writing-with-markdown/">
+                                        <figure class="gh-card-image">
+                                            <img
+                                                srcset="/content/images/size/w160/markdown-cover.svg 160w,
+                                                        /content/images/size/w320/markdown-cover.svg 320w,
+                                                        /content/images/size/w600/markdown-cover.svg 600w,
+                                                        /content/images/size/w960/markdown-cover.svg 960w,
+                                                        /content/images/size/w1200/markdown-cover.svg 1200w,
+                                                        /content/images/size/w2000/markdown-cover.svg 2000w"
+                                                sizes="320px"
+                                                src="/content/images/size/w600/markdown-cover.svg"
+                                                alt=""
+                                                width="1200"
+                                                height="600"
+                                                loading="lazy" decoding="async"
+                                            >
+                                        </figure>
+                                    <div class="gh-card-wrapper">
+                                            <p class="gh-card-tag">Getting Started</p>
+                                        <h3 class="gh-card-title is-title">Writing with Markdown</h3>
+                                            <p class="gh-card-excerpt is-body">A short primer on the frontmatter conventions Nectar expects.</p>
+                                        <footer class="gh-card-meta">
+                                            <!--
+                                         -->
+                                                <span class="gh-card-author">By Honeybee</span>
+                                                <time class="gh-card-date" datetime="2026-05-10">10 May 2026</time>
+                                            <!--
+                                     --></footer>
+                                    </div>
+                                </a>
+                            </article>
+                            <article class="gh-card post tag-news">
+                                <a class="gh-card-link" href="https://nectar.example.com/ghost-theme-compatibility/">
+                                        <figure class="gh-card-image">
+                                            <img
+                                                srcset="/content/images/size/w160/compat-cover.svg 160w,
+                                                        /content/images/size/w320/compat-cover.svg 320w,
+                                                        /content/images/size/w600/compat-cover.svg 600w,
+                                                        /content/images/size/w960/compat-cover.svg 960w,
+                                                        /content/images/size/w1200/compat-cover.svg 1200w,
+                                                        /content/images/size/w2000/compat-cover.svg 2000w"
+                                                sizes="320px"
+                                                src="/content/images/size/w600/compat-cover.svg"
+                                                alt=""
+                                                width="1200"
+                                                height="600"
+                                                loading="lazy" decoding="async"
+                                            >
+                                        </figure>
+                                    <div class="gh-card-wrapper">
+                                            <p class="gh-card-tag">News</p>
+                                        <h3 class="gh-card-title is-title">Ghost Theme Compatibility</h3>
+                                            <p class="gh-card-excerpt is-body">Which Ghost helpers Nectar implements, and which it deliberately doesn&#x27;t.</p>
+                                        <footer class="gh-card-meta">
+                                            <!--
+                                         -->
+                                                <span class="gh-card-author">By Casper</span>
+                                                <time class="gh-card-date" datetime="2026-05-05">05 May 2026</time>
+                                            <!--
+                                     --></footer>
+                                    </div>
+                                </a>
+                            </article>
+                            <article class="gh-card post tag-news tag-getting-started">
+                                <a class="gh-card-link" href="https://nectar.example.com/optional-components/">
+                                        <figure class="gh-card-image">
+                                            <img
+                                                srcset="/content/images/size/w160/components-cover.svg 160w,
+                                                        /content/images/size/w320/components-cover.svg 320w,
+                                                        /content/images/size/w600/components-cover.svg 600w,
+                                                        /content/images/size/w960/components-cover.svg 960w,
+                                                        /content/images/size/w1200/components-cover.svg 1200w,
+                                                        /content/images/size/w2000/components-cover.svg 2000w"
+                                                sizes="320px"
+                                                src="/content/images/size/w600/components-cover.svg"
+                                                alt=""
+                                                width="1200"
+                                                height="600"
+                                                loading="lazy" decoding="async"
+                                            >
+                                        </figure>
+                                    <div class="gh-card-wrapper">
+                                            <p class="gh-card-tag">News</p>
+                                        <h3 class="gh-card-title is-title">Optional Components</h3>
+                                            <p class="gh-card-excerpt is-body">Search, RSS, sitemap, comments — opt in by config.</p>
+                                        <footer class="gh-card-meta">
+                                            <!--
+                                         -->
+                                                <span class="gh-card-author">By Honeybee</span>
+                                                <time class="gh-card-date" datetime="2026-04-28">28 Apr 2026</time>
+                                            <!--
+                                     --></footer>
+                                    </div>
+                                </a>
+                            </article>
+                    </div>
+                </div>
+            </section>
+
+    
+    <footer class="gh-footer gh-outer">
+        <div class="gh-footer-inner gh-inner">
+    
+            <div class="gh-footer-bar">
+                <span class="gh-footer-logo is-title">
+                        <img src="/content/images/logo.svg" alt="Nectar Example">
+                </span>
+                <nav class="gh-footer-menu">
+                    <ul class="nav"><li class="nav-rss"><a href="/rss.xml">RSS</a></li></ul>
+                </nav>
+                <div class="gh-footer-copyright">
+                    Powered by <a href="https://ghost.org/" target="_blank" rel="noopener">Ghost</a>
+                </div>
+            </div>
+    
+    
+        </div>
+    </footer>    
+</div>
+
+<script src="/assets/built/source.<HASH>.js"></script>
+
+
+
+</body>
+</html>
