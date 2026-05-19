@@ -279,6 +279,30 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Vercel-specific deploy hints.'),
+        nginx: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit a self-hosted nginx server block at `<output>/.nectar/nginx.conf` folding both `deploy.headers` and `redirects.yaml` into a single config snippet. The block sets `gzip_static on; brotli_static on;` for pre-compressed assets, emits one `location` per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches every configured security header to each `location` (nginx `add_header` does not merge with parent blocks, so they are repeated rather than inherited), serves SPA-style routes with `try_files $uri $uri/index.html =404;`, and translates each `redirects.yaml` entry into a `location { return <status> <to>; }` rule. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted nginx.',
+              ),
+            root: z
+              .string()
+              .default('/var/www/nectar')
+              .describe(
+                'Filesystem path nginx should serve from, emitted as the `root` directive in the generated server block. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host.',
+              ),
+            server_name: z
+              .string()
+              .default('_')
+              .describe(
+                "Value of the `server_name` directive in the generated server block. Defaults to `_` (nginx's catch-all hostname) so the snippet drops onto a fresh VPS without editing. Override with the actual hostname when serving multiple sites from one nginx instance.",
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Self-hosted nginx-specific deploy hints.'),
         headers: z
           .object({
             security: z
