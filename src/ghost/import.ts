@@ -24,6 +24,13 @@ export type OnConflict = 'skip' | 'overwrite' | 'rename';
 
 export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', 'rename'];
 
+// Default cap on Ghost export JSON size to avoid OOM during JSON.parse. JSON.parse
+// loads the whole document into memory (worst case ~2-3x the file size in V8 due
+// to UTF-16 string + parsed-object overhead), so a multi-GB legit-or-malicious
+// export can crash the host. 256 MiB covers normal blogs comfortably and keeps
+// peak memory bounded; raise via maxFileSizeBytes / --max-size for huge sites.
+export const DEFAULT_MAX_IMPORT_JSON_BYTES = 256 * 1024 * 1024;
+
 const turndown = createGhostTurndown();
 
 // Ghost exports replace site URLs with the literal `__GHOST_URL__` placeholder
@@ -191,6 +198,12 @@ export interface ImportGhostOptions {
   // `--dry-run` flag so users with large exports can preview before
   // committing (#502).
   dryRun?: boolean;
+  // Maximum JSON file size (bytes) accepted before refusing to parse. Guards
+  // against multi-GB legit-or-malicious exports OOM-ing the host since
+  // JSON.parse loads the whole document into memory. Defaults to
+  // DEFAULT_MAX_IMPORT_JSON_BYTES (256 MiB). For .zip exports the cap is
+  // applied to the JSON inside after extraction, not the compressed archive.
+  maxFileSizeBytes?: number;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -276,6 +289,7 @@ async function importFromResolvedInput(
 ): Promise<ImportSummary> {
   const dryRun = opts.dryRun === true;
   const resolved = await resolveInput(inputFile, opts.assetsDir);
+  await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
   const raw = await readFile(resolved.jsonFile, 'utf8');
   const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
   const { posts, tags, users, postsTags, postsAuthors } = mergeGhostDbEntries(parsed.db);
@@ -637,6 +651,35 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
   }
 
   return { jsonFile, assetsDir: folderAssetsDir, assetsDirIsExplicit: false };
+}
+
+// Stat the resolved Ghost export JSON before loading it into memory and refuse
+// to parse anything above the configured cap. JSON.parse on a multi-GB file
+// (legit-large blog or an attacker-supplied deeply nested document) will spike
+// process memory and may crash the host before any validation runs. Failing
+// fast with a clear message lets the operator either split the export or raise
+// the cap explicitly.
+async function assertJsonWithinSizeCap(
+  jsonFile: string,
+  maxFileSizeBytes: number | undefined,
+): Promise<void> {
+  const cap = maxFileSizeBytes ?? DEFAULT_MAX_IMPORT_JSON_BYTES;
+  if (!Number.isFinite(cap) || cap <= 0) {
+    return;
+  }
+  const st = await stat(jsonFile);
+  if (st.size > cap) {
+    throw new Error(
+      `Ghost export JSON at ${jsonFile} is ${formatImportBytes(st.size)} which exceeds the configured cap of ${formatImportBytes(cap)}. Re-run with --max-size to raise the limit, or split the export into smaller files.`,
+    );
+  }
+}
+
+function formatImportBytes(n: number): string {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)}GB`;
 }
 
 async function findExportJson(dir: string): Promise<string> {

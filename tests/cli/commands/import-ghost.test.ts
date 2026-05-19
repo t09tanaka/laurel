@@ -3,6 +3,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSizeSpec } from '~/cli/commands/import-ghost.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -270,5 +271,78 @@ describe('cli import-ghost — --dry-run (#502)', () => {
 
     await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).rejects.toThrow();
     await expect(readFile(join(dir, 'content/pages/about.md'), 'utf8')).rejects.toThrow();
+  });
+});
+
+describe('cli import-ghost — --max-size (#558)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maxsize-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(exportFile, exportPayload());
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --max-size', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--max-size');
+  });
+
+  test('refuses an oversized export with a clear error', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--max-size', '10B'],
+      dir,
+    );
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('exceeds the configured cap');
+    await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).rejects.toThrow();
+  });
+
+  test('rejects a malformed --max-size value with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--max-size', 'huge'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --max-size value');
+  });
+
+  test('--max-size 0 disables the cap and import succeeds', async () => {
+    const { exitCode } = await runCli(['import-ghost', exportFile, '--max-size', '0'], dir);
+    expect(exitCode).toBe(0);
+    await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).resolves.toContain('Hello');
+  });
+});
+
+describe('parseSizeSpec (#558)', () => {
+  test('parses raw bytes', () => {
+    expect(parseSizeSpec('1024')).toBe(1024);
+    expect(parseSizeSpec('0')).toBe(0);
+  });
+
+  test('parses KB/MB/GB/TB with both cases', () => {
+    expect(parseSizeSpec('1KB')).toBe(1024);
+    expect(parseSizeSpec('1mb')).toBe(1024 * 1024);
+    expect(parseSizeSpec('256MB')).toBe(256 * 1024 * 1024);
+    expect(parseSizeSpec('1GB')).toBe(1024 * 1024 * 1024);
+    expect(parseSizeSpec('1tb')).toBe(1024 * 1024 * 1024 * 1024);
+  });
+
+  test('parses decimals and tolerates whitespace between number and unit', () => {
+    expect(parseSizeSpec('1.5MB')).toBe(Math.floor(1.5 * 1024 * 1024));
+    expect(parseSizeSpec('256 MB')).toBe(256 * 1024 * 1024);
+  });
+
+  test('rejects malformed inputs', () => {
+    expect(parseSizeSpec('')).toBeNull();
+    expect(parseSizeSpec('huge')).toBeNull();
+    expect(parseSizeSpec('-1MB')).toBeNull();
+    expect(parseSizeSpec('1XB')).toBeNull();
   });
 });
