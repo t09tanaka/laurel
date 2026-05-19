@@ -8,6 +8,7 @@ function buildEngine(content: {
   tags?: unknown[];
   authors?: unknown[];
   pages?: unknown[];
+  postsByAuthor?: Map<string, unknown[]>;
 }): NectarEngine {
   const hb = Handlebars.create();
   const engine = {
@@ -18,6 +19,7 @@ function buildEngine(content: {
       tags: content.tags ?? [],
       authors: content.authors ?? [],
       pages: content.pages ?? [],
+      postsByAuthor: content.postsByAuthor ?? new Map<string, unknown[]>(),
     } as unknown as NectarEngine['content'],
     theme: {} as NectarEngine['theme'],
     templates: {},
@@ -186,5 +188,87 @@ describe('get helper pagination metadata', () => {
       `{{#get "posts" filter="featured:true" limit=2}}{{@pagination.total}}/{{@pagination.pages}}{{/get}}`,
     );
     expect(tpl({})).toBe('3/2');
+  });
+});
+
+describe('get helper include= parameter', () => {
+  test('include="count.posts" exposes tag counts populated by the loader', () => {
+    const tags = [
+      { id: 't1', slug: 'news', name: 'News', count: { posts: 4 } },
+      { id: 't2', slug: 'opinion', name: 'Opinion', count: { posts: 2 } },
+    ];
+    const engine = buildEngine({ tags });
+    const tpl = engine.hb.compile(
+      `{{#get "tags" include="count.posts" order="name asc" as |items|}}{{#each items}}{{slug}}={{count.posts}},{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('news=4,opinion=2,');
+  });
+
+  test('include="count.posts" resolves author counts from postsByAuthor', () => {
+    const authors = [
+      { id: 'a1', slug: 'alice', name: 'Alice' },
+      { id: 'a2', slug: 'bob', name: 'Bob' },
+      { id: 'a3', slug: 'carol', name: 'Carol' },
+    ];
+    const postsByAuthor = new Map<string, unknown[]>([
+      ['alice', [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]],
+      ['bob', [{ id: 'p4' }]],
+      ['carol', []],
+    ]);
+    const engine = buildEngine({ authors, postsByAuthor });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" include="count.posts" order="name asc" as |items|}}{{#each items}}{{slug}}={{count.posts}},{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('alice=3,bob=1,carol=0,');
+  });
+
+  test('include="count.posts" does not mutate the shared author objects', () => {
+    const authors = [{ id: 'a1', slug: 'alice', name: 'Alice' }];
+    const postsByAuthor = new Map<string, unknown[]>([['alice', [{ id: 'p1' }, { id: 'p2' }]]]);
+    const engine = buildEngine({ authors, postsByAuthor });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" include="count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
+    );
+    tpl({});
+    expect((authors[0] as { count?: unknown }).count).toBeUndefined();
+  });
+
+  test('include with comma-separated tokens still resolves count.posts for authors', () => {
+    const authors = [{ id: 'a1', slug: 'alice', name: 'Alice' }];
+    const postsByAuthor = new Map<string, unknown[]>([['alice', [{ id: 'p1' }, { id: 'p2' }]]]);
+    const engine = buildEngine({ authors, postsByAuthor });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" include="authors,count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('2');
+  });
+
+  test('without include the author objects pass through untouched (no count attached)', () => {
+    const authors = [{ id: 'a1', slug: 'alice', name: 'Alice' }];
+    const postsByAuthor = new Map<string, unknown[]>([['alice', [{ id: 'p1' }, { id: 'p2' }]]]);
+    const engine = buildEngine({ authors, postsByAuthor });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" as |items|}}{{#each items}}[{{slug}}|{{count.posts}}]{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('[alice|]');
+  });
+
+  test('preserves an explicit count.posts already set on the author (no recompute)', () => {
+    const authors = [{ id: 'a1', slug: 'alice', name: 'Alice', count: { posts: 99 } }];
+    const postsByAuthor = new Map<string, unknown[]>([['alice', [{ id: 'p1' }, { id: 'p2' }]]]);
+    const engine = buildEngine({ authors, postsByAuthor });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" include="count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('99');
+  });
+
+  test('author with missing postsByAuthor entry falls back to zero', () => {
+    const authors = [{ id: 'a1', slug: 'ghost', name: 'Ghost' }];
+    const engine = buildEngine({ authors, postsByAuthor: new Map() });
+    const tpl = engine.hb.compile(
+      `{{#get "authors" include="count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('0');
   });
 });

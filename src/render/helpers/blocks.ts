@@ -142,6 +142,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const requestedPage = Math.max(1, Math.trunc(parseNum(hash.page) ?? 1));
     const order = String(hash.order ?? 'published_at desc');
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
+    const include = parseIncludeTokens(hash.include);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
@@ -150,13 +151,14 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       : sorted.slice();
     const total = filtered.length;
     const pagination = computeGetPagination(total, requestedPage, limit);
-    const results =
+    const paged =
       limit === 'all'
         ? filtered
         : filtered.slice((pagination.page - 1) * limit, pagination.page * limit);
-    if (results.length === 0 && options.inverse) {
+    if (paged.length === 0 && options.inverse) {
       return options.inverse(this);
     }
+    const results = applyGetIncludes(engine, resource, paged, include);
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
     data.pagination = pagination;
@@ -243,6 +245,54 @@ function getSortedResource(
   const sorted: readonly unknown[] = applyOrder(base as unknown[], order);
   engine.sortedCache.set(cacheKey, sorted);
   return sorted;
+}
+
+function parseIncludeTokens(raw: unknown): readonly string[] {
+  if (typeof raw !== 'string') return [];
+  const tokens: string[] = [];
+  for (const part of raw.split(',')) {
+    const token = part.trim();
+    if (token) tokens.push(token);
+  }
+  return tokens;
+}
+
+// Ghost's `include=` query string surfaces relations / counts that aren't part
+// of the default resource shape. Nectar pre-hydrates `authors` and `tags` on
+// posts/pages at load time, so those tokens are no-ops. `count.posts` is the
+// one that actually needs work on the way out: tags already carry the count
+// from the loader, but author objects don't — wrap them with the count from
+// the inverse `postsByAuthor` index so themes can render `{{count.posts}}`.
+function applyGetIncludes(
+  engine: NectarEngine,
+  resource: string,
+  results: readonly unknown[],
+  include: readonly string[],
+): unknown[] {
+  if (include.length === 0 || !include.includes('count.posts')) {
+    return results.slice();
+  }
+  if (resource === 'authors') {
+    const postsByAuthor = (
+      engine.content as { postsByAuthor?: ReadonlyMap<string, readonly unknown[]> }
+    ).postsByAuthor;
+    return results.map((item) => attachAuthorPostCount(item, postsByAuthor));
+  }
+  return results.slice();
+}
+
+function attachAuthorPostCount(
+  author: unknown,
+  postsByAuthor: ReadonlyMap<string, readonly unknown[]> | undefined,
+): unknown {
+  if (!author || typeof author !== 'object') return author;
+  const existing = (author as { count?: { posts?: unknown } }).count;
+  if (existing && typeof existing === 'object' && typeof existing.posts === 'number') {
+    return author;
+  }
+  const slug = String((author as { slug?: unknown }).slug ?? '');
+  const count = postsByAuthor?.get(slug)?.length ?? 0;
+  return { ...(author as Record<string, unknown>), count: { posts: count } };
 }
 
 function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {
