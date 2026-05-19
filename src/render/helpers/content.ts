@@ -173,11 +173,17 @@ export function registerContentHelpers(engine: NectarEngine): void {
     },
   );
 
-  engine.hb.registerHelper('subscribe_form', function subscribeFormHelper() {
-    return new engine.hb.SafeString(
-      '<form data-nectar-subscribe action="#" method="post"><input type="email" name="email" /></form>',
-    );
-  });
+  engine.hb.registerHelper(
+    'subscribe_form',
+    function subscribeFormHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const placeholder = String(options.hash.placeholder ?? 'Your email address');
+      const buttonText = String(options.hash.button_text ?? 'Subscribe');
+      const label = options.hash.label != null ? String(options.hash.label) : '';
+      return new engine.hb.SafeString(
+        `<form data-members-form="subscribe" action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
+      );
+    },
+  );
 
   engine.hb.registerHelper(
     'input_email',

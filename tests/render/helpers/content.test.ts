@@ -71,6 +71,52 @@ describe('recommendations helper', () => {
   });
 });
 
+describe('subscribe_form helper', () => {
+  test('emits Ghost-compatible data-members-form so theme members.js hooks attach', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{subscribe_form}}')({});
+    expect(html).toContain('data-members-form="subscribe"');
+    expect(html).toContain('data-members-email');
+    expect(html).not.toContain('data-nectar-subscribe');
+  });
+
+  test('includes documented data-members-label hidden input so themes can tag subscribers', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{subscribe_form label="newsletter"}}')({});
+    expect(html).toContain('<input data-members-label type="hidden" value="newsletter">');
+  });
+
+  test('honors placeholder and button_text hash options and escapes them as attributes', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile(
+      '{{subscribe_form placeholder="jamie@example.com" button_text="Join"}}',
+    )({});
+    expect(html).toContain('placeholder="jamie@example.com"');
+    expect(html).toContain('<span>Join</span>');
+  });
+
+  test('escapes user-supplied placeholder to defeat attribute injection', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{subscribe_form placeholder=p}}')({
+      p: '"><script>alert(1)</script>',
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&quot;');
+  });
+
+  test('output is shaped so the build-time transformSubscribeForms can rewrite action/name', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{subscribe_form}}')({});
+    expect(html).toMatch(/<form\b[^>]*\bdata-members-form\b/);
+    expect(html).toMatch(/<input\b[^>]*\bdata-members-email\b/);
+  });
+});
+
 describe('content helper', () => {
   test('downshifts body h1 to h2 so it does not collide with the layout title h1', () => {
     const engine = makeEngine();
