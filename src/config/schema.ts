@@ -568,13 +568,13 @@ export const configSchema = z
               .boolean()
               .default(true)
               .describe(
-                "Emit a client-side search index. When `engine` is `json` or `json+pagefind`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch). When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*`. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent.",
+                "Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch). When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*`. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent.",
               ),
             engine: z
-              .enum(['json', 'pagefind', 'json+pagefind'])
+              .enum(['json', 'pagefind', 'json+pagefind', 'lunr', 'json+lunr'])
               .default('json')
               .describe(
-                'Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime.',
+                "Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget.",
               ),
             excerpt_words: z
               .number()

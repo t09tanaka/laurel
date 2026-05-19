@@ -91,6 +91,7 @@
   "optionalDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "html-minifier-terser": "^7.2.0",
+    "lunr": "^2.3.9",
     "sharp": "^0.33.5"
   },
   "devDependencies": {

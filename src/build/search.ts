@@ -145,7 +145,8 @@ export async function emitSearchJson(opts: {
   const { config, content, outputDir } = opts;
   const cfg = config.components.search;
   if (!cfg.enabled) return null;
-  if (cfg.engine !== 'json' && cfg.engine !== 'json+pagefind') return null;
+  if (cfg.engine !== 'json' && cfg.engine !== 'json+pagefind' && cfg.engine !== 'json+lunr')
+    return null;
   const index = buildSearchIndex({ config, content });
   const dest = join(outputDir, 'content', 'search.json');
   await ensureDir(join(outputDir, 'content'));

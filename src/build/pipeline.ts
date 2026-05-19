@@ -31,6 +31,7 @@ import {
   resolveCacheDir,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import { emitLunrIndex, emitLunrWidget } from './lunr.ts';
 import {
   type BuildManifest,
   MANIFEST_VERSION,
@@ -358,6 +359,8 @@ async function runBuild({
     // here (before `commitStagingDir`) so the index is part of the atomic
     // swap into `dist/` — never a half-indexed live deploy.
     await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
+    await timed(profiler, 'lunr_index', () => emitLunrIndex({ config, content, outputDir }));
+    await timed(profiler, 'lunr_widget', () => emitLunrWidget({ config, outputDir }));
   }
   await emitNojekyll({ outputDir });
   await emitCname({
