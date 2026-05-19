@@ -79,6 +79,30 @@ export const configSchema = z.object({
           email_field_name: z.string().optional(),
         })
         .default({}),
+      comments: z
+        .object({
+          provider: z
+            .enum(['off', 'giscus', 'disqus', 'utterances', 'webmention.io'])
+            .default('off'),
+          repo: z.string().optional(),
+          repo_id: z.string().optional(),
+          category: z.string().optional(),
+          category_id: z.string().optional(),
+          mapping: z.string().optional(),
+          strict: z.boolean().optional(),
+          reactions_enabled: z.boolean().optional(),
+          emit_metadata: z.boolean().optional(),
+          input_position: z.enum(['top', 'bottom']).optional(),
+          theme: z.string().optional(),
+          lang: z.string().optional(),
+          loading: z.enum(['lazy', 'eager']).optional(),
+          issue_term: z.string().optional(),
+          label: z.string().optional(),
+          shortname: z.string().optional(),
+          identifier: z.string().optional(),
+          username: z.string().optional(),
+        })
+        .default({}),
     })
     .default({}),
 });
