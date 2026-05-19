@@ -3,6 +3,10 @@
 Living document. Every time a Ghost helper or context field is implemented or
 deliberately scoped out, record it here.
 
+For a practical, signature-level reference of every helper and context with
+worked examples, see [`THEME_DEV.md`](./THEME_DEV.md). This document tracks
+status and edge cases as we discover them.
+
 ## Helpers
 
 See `DESIGN.md` §4 for the master matrix.

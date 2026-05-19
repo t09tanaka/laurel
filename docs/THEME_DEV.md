@@ -1,0 +1,743 @@
+# Theme Developer Guide
+
+This guide is for people writing or porting a theme to run under Nectar. Nectar
+consumes Ghost-style `.hbs` Handlebars themes, so most of this material reads as
+"how the Ghost surface behaves *in Nectar*" — call out where Nectar's behaviour
+differs from upstream Ghost.
+
+If you're looking for the high-level architecture or the goals of the project,
+read [`DESIGN.md`](./DESIGN.md) first. If you're looking for the per-helper
+status matrix and edge cases as we discover them, see
+[`GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md). This document is the
+practical handbook.
+
+The reference theme is `example/themes/source/` (a vendored copy of the official
+Ghost Source theme). Whenever you wonder "should I be able to do X in a Nectar
+theme?", the answer is "yes if Source does it, otherwise check the compat
+matrix."
+
+## 1. Theme layout
+
+A theme is a directory under `<site>/themes/<name>/` referenced by
+`[theme] name = "<name>"` in `nectar.toml`. The minimum useful shape is:
+
+```
+themes/<name>/
+├── package.json              # config block: posts_per_page, image_sizes, custom
+├── default.hbs               # top-level layout; other templates extend it
+├── index.hbs                 # / (also paginated home)
+├── post.hbs                  # /<post-slug>/
+├── page.hbs                  # /<page-slug>/
+├── tag.hbs                   # /tag/<tag-slug>/  (optional; falls back to index)
+├── author.hbs                # /author/<author-slug>/  (optional)
+├── error.hbs                 # 404 / generic error page (optional)
+├── partials/
+│   ├── post-card.hbs
+│   ├── navigation.hbs
+│   └── icons/avatar.hbs      # nested partials work
+├── locales/
+│   ├── en.json
+│   └── fr.json
+└── assets/
+    ├── built/screen.css
+    ├── built/screen.js
+    ├── fonts/...
+    └── images/...
+```
+
+### Templates Nectar recognises as top-level layouts
+
+`index`, `home`, `post`, `page`, `tag`, `author`, `default`, `error`,
+`error-404`, `amp`, `private`. Any other top-level `.hbs` is loaded but only
+reachable if a top-level template renders it explicitly.
+
+### Routes Nectar emits
+
+| Route                                  | `route.kind`     | Template choice                       |
+|----------------------------------------|------------------|---------------------------------------|
+| `/`                                    | `home`           | `home.hbs` if present, else `index.hbs` |
+| `/page/<n>/`                           | `index`          | same as `/`                           |
+| `/<post-slug>/`                        | `post`           | `post.hbs`                            |
+| `/<page-slug>/`                        | `page`           | `page.hbs`                            |
+| `/tag/<tag-slug>/` + pagination        | `tag`            | `tag.hbs`, falls back to `index.hbs`  |
+| `/author/<author-slug>/` + pagination  | `author`         | `author.hbs`, falls back to `index.hbs` |
+
+The `error.hbs` / `error-404.hbs` templates are accepted by the theme loader
+but Nectar's build pipeline does not currently emit a dedicated error route or
+`404.html`. If you ship one, host it yourself or use the dev server's built-in
+fallback.
+
+## 2. Layout inheritance
+
+Ghost themes inherit a layout with the `{{!< layout-name}}` directive on the
+first line of a child template:
+
+```hbs
+{{!< default}}
+
+<main class="gh-main">
+  {{#post}}
+    <h1>{{title}}</h1>
+    {{content}}
+  {{/post}}
+</main>
+```
+
+Inside `default.hbs`, `{{{body}}}` is replaced with the child template's
+rendered output:
+
+```hbs
+<!DOCTYPE html>
+<html lang="{{lang}}">
+  <head>
+    {{ghost_head}}
+  </head>
+  <body class="{{body_class}}">
+    {{> "navigation"}}
+    {{{body}}}
+    {{ghost_foot}}
+  </body>
+</html>
+```
+
+The split is implemented in `src/render/layouts.ts`. The directive must start at
+column 0 (or after whitespace) of the file. Comments using `{{!--` work
+elsewhere in the file as in standard Handlebars; only `{{!<` is the layout
+directive.
+
+**Gotcha:** Nectar does not support nested layout inheritance (a layout
+extending another layout). One level is enough for every Ghost theme we've
+encountered, including Source.
+
+## 3. Partials
+
+Partials live in `themes/<name>/partials/**/*.hbs`. Their name in `{{> "name"}}`
+is the path under `partials/` without the `.hbs` extension:
+
+| File                                          | Partial name        |
+|-----------------------------------------------|---------------------|
+| `partials/post-card.hbs`                      | `post-card`         |
+| `partials/icons/avatar.hbs`                   | `icons/avatar`      |
+| `partials/components/header.hbs`              | `components/header` |
+
+Usage:
+
+```hbs
+{{> "post-card"}}
+{{> "icons/avatar"}}
+{{> "post-card" lazyLoad=true class="featured"}}     {{!-- hash params --}}
+{{#> "card-shell"}}<p>inner block</p>{{/card-shell}} {{!-- block partial --}}
+```
+
+Hash parameters and block partials use Handlebars' built-in plumbing — Nectar
+adds no special handling. Inside a partial, hash params are available as
+top-level variables (`{{lazyLoad}}`, `{{class}}`).
+
+**Quoting:** Ghost themes typically quote partial names (`{{> "name"}}`).
+Unquoted (`{{> name}}`) works for names without slashes; quoted form is required
+for any partial name containing `/` or `-`.
+
+## 4. Asset pipeline
+
+Static files under `themes/<name>/assets/` are discovered, optionally
+fingerprinted, and copied to `dist/assets/` at build time.
+
+### `{{asset "path"}}`
+
+```hbs
+<link rel="stylesheet" href="{{asset "built/screen.css"}}">
+<script src="{{asset "built/main.js"}}"></script>
+<img src="{{asset "images/logo.svg"}}" alt="">
+```
+
+Renders an absolute URL (prefixed with `[build] base_path`). For files where
+fingerprinting is enabled, the URL embeds a content hash:
+
+```
+/assets/built/screen.b3c0f1d29a.css
+/assets/built/main.6e2a7c1180.js
+/assets/images/logo.svg          ← not fingerprinted
+```
+
+### Which files get fingerprinted
+
+Currently only `.css`, `.js`, and `.mjs` files. Everything else (fonts, images,
+JSON, etc.) is copied with its original name. Fingerprinting uses the first 10
+hex characters of a SHA-1 over the file contents, so cache busting tracks
+content changes deterministically.
+
+### Resolution rules
+
+`{{asset "built/screen.css"}}` and `{{asset "/built/screen.css"}}` both resolve.
+Internally Nectar tries the path as-is first, then with an `assets/` prefix
+added. Leading slashes are stripped. The result is always joined with the
+configured `base_path` (`/` by default).
+
+### Asset symlinks
+
+Symlinks under `assets/` (or under any content directory) are skipped with a
+warning. This is intentional: Nectar refuses to ship files from outside the
+project tree. If you genuinely need to share files between themes, copy or
+hard-link them.
+
+### Manually wired URLs
+
+If your theme references an asset that doesn't exist in the asset map, the
+helper still emits a path (`<basePath>/assets/<your-path>`). It just isn't
+fingerprinted — useful for build artefacts produced by an external pipeline,
+but you lose cache busting.
+
+## 5. Helpers — signatures and behaviour
+
+This section is the working reference. Each entry lists the call shape, the
+`hash` (named) parameters it understands, what it returns, and where the
+implementation lives. Block helpers note their `{{#name}}…{{else}}…{{/name}}`
+contract.
+
+### 5.1 Asset helpers (`src/render/helpers/assets.ts`)
+
+#### `{{asset path}}` — inline
+
+| Param   | Type   | Notes |
+|---------|--------|-------|
+| `path`  | string | Logical path. Leading `/` allowed. `assets/` prefix optional. |
+
+Returns a `SafeString` containing the resolved (possibly fingerprinted) URL.
+
+#### `{{img_url image [size="..." absolute=true]}}` — inline
+
+| Param        | Type     | Notes |
+|--------------|----------|-------|
+| `image`      | string or object | A URL string, or an object with `feature_image` / `profile_image` / `url`. |
+| `size=`      | string   | Key in `package.json > config.image_sizes`. |
+| `absolute=`  | boolean  | If `true`, absolutise against `[site].url`. |
+
+Returns the image URL with a `/content/images/.../size/wXXX[hYYY]/...` segment
+inserted when `size=` matches a configured size. Nectar does not actually
+resize images — the segment exists so `srcset` URLs are distinct.
+
+Example:
+
+```hbs
+<img src="{{img_url feature_image size="m"}}"
+     srcset="{{img_url feature_image size="m"}} 600w,
+             {{img_url feature_image size="l"}} 960w"
+     alt="{{feature_image_alt}}">
+```
+
+### 5.2 Content helpers (`src/render/helpers/content.ts`)
+
+#### `{{content [words=N]}}` — inline; SafeString
+
+Returns the post's rendered HTML. With `words=N`, returns a plaintext
+approximation of the first N words (HTML tags stripped).
+
+#### `{{excerpt [words=N] [characters=N]}}` — inline; plaintext
+
+Returns `custom_excerpt`, falling back to the loader-generated `excerpt`, then
+the post `plaintext`. `words=` and `characters=` truncate. No HTML.
+
+#### `{{reading_time [minute="1 min read"] [minutes="% min read"]}}` — inline
+
+Uses the loader-computed `reading_time` (in minutes). Returns `minute` for
+`<=1`, otherwise `minutes` with `%` substituted.
+
+#### `{{authors}}` / `{{#authors}}…{{/authors}}` — both inline and block
+
+- Inline: comma-joined `name` list.
+- Block: iterates over `post.authors`, exposing each author as the current context.
+
+#### `{{tags [separator=", "] [autolink=true]}}` / `{{#tags}}…{{/tags}}`
+
+- Inline: a separator-joined list of tag links (or names if `autolink=false`).
+- Block: iterates over `post.tags`.
+
+#### `{{meta_title [page="%"]}}` — inline
+
+For `post` / `page` routes: returns `meta_title` || `title` || `site.title`.
+For list routes (home/tag/author): site title, with `page` suffix appended on
+paginated pages 2+ (`%` is the page number).
+
+#### `{{meta_description}}` — inline
+
+Returns `meta_description` || `excerpt` || `site.description`.
+
+#### `{{post_class}}` — inline
+
+Returns a space-joined class list: always `post`, plus `tag-<slug>` for each
+tag, plus `featured` if `post.featured` is true.
+
+#### `{{body_class}}` — inline
+
+Returns the post/page's `body_class` if set, otherwise
+`nectar-route-<route-kind>` where `<route-kind>` is one of `home`, `post`,
+`page`, `tag`, `author`.
+
+#### Stubs (members-adjacent)
+
+- `{{comments}}` → `<div data-nectar-comments></div>`. Wire your own comment
+  system (Giscus, Disqus, Utterances) by listening on this hook.
+- `{{recommendations}}` → empty `<ul class="recommendations">`.
+- `{{access}}` → block: renders `{{else}}` (visitor is always
+  "unauthenticated" in a static build); inline: returns `false`.
+- `{{subscribe_form}}` → a `<form data-nectar-subscribe>` no-op. Replace with
+  your own component or remove from the theme.
+- `{{input_email [placeholder="..."]}}` → a plain email input with
+  `data-members-email` so existing themes don't break.
+
+### 5.3 Date helper (`src/render/helpers/date.ts`)
+
+#### `{{date [value] [format="DD MMM YYYY"] [timeago=true]}}` — inline
+
+| Param      | Type     | Notes |
+|------------|----------|-------|
+| `value`    | string / Date / number / object | Optional. If omitted, falls back to `published_at`, `updated_at`, `created_at`, or `now`. |
+| `format=`  | string   | `dayjs`-compatible format (Ghost themes use `moment` syntax — they overlap). |
+| `timeago=` | boolean  | Returns "3 days ago" via `dayjs/relativeTime`. |
+
+Formatting happens in the timezone from `[site].timezone` (defaults to `UTC`).
+
+```hbs
+<time datetime="{{date format="YYYY-MM-DD"}}">
+  {{date format="MMMM D, YYYY"}}
+</time>
+```
+
+### 5.4 Flow helpers (`src/render/helpers/flow.ts`)
+
+Ghost-flavoured aliases for boolean operations themes occasionally use. Each
+works as block or inline.
+
+- `{{#or a b c}}…{{else}}…{{/or}}` / `{{or a b c}}` → first truthy value (block: branch on whether anything was truthy).
+- `{{#and a b c}}…{{else}}…{{/and}}` / `{{and a b c}}` → last value if all truthy.
+- `{{#not a}}…{{else}}…{{/not}}` → negation.
+- `{{#eq a b}}…{{else}}…{{/eq}}` / `{{eq a b}}` → strict equality.
+
+For richer comparisons use `{{#match}}` (§5.5).
+
+Standard Handlebars `{{#if}}`, `{{#unless}}`, `{{#each}}`, `{{#with}}` are
+available too (provided by Handlebars itself).
+
+### 5.5 Block helpers (`src/render/helpers/blocks.ts`)
+
+#### `{{#foreach collection [limit=N] [from=N] [to=N] [visibility="..."]}}…{{else}}…{{/foreach}}`
+
+Iterates with Ghost's `@first`, `@last`, `@index` (0-based), `@number`
+(1-based), `@even`, `@odd` data variables. `from`/`to` are **1-based,
+inclusive** slice bounds.
+
+```hbs
+{{#foreach posts limit=3}}
+  {{#if @first}}<div class="featured">{{else}}<div>{{/if}}
+    <a href="{{url}}">{{title}}</a>
+  </div>
+{{/foreach}}
+```
+
+`visibility="public"` filters out non-public items. `visibility="all"` (the
+default if unset) iterates everything.
+
+If the (post-filter, post-slice) iteration is empty, the `{{else}}` block
+renders.
+
+#### `{{#is "name [, name…]"}}…{{else}}…{{/is}}`
+
+Branch on route kind. Targets: `home`, `index` (alias of `home`), `post`,
+`page`, `tag`, `author`, `paged` (current pagination > 1). Multiple targets in
+a single string are comma-separated. Multiple positional args also accumulate.
+
+```hbs
+{{#is "home, tag"}}<h1 class="big">{{@site.title}}</h1>{{/is}}
+{{#is "post"}}<article class="post">…</article>{{/is}}
+```
+
+#### `{{#has tag="..." author="..." visibility="..." slug="..." number=N}}…{{else}}…{{/has}}`
+
+Branch on the current context. Multiple values per key are comma-separated; the
+helper short-circuits on the first match.
+
+| Hash key      | Matches                                                       |
+|---------------|---------------------------------------------------------------|
+| `tag=`        | `this.tags[].slug` or `name`                                 |
+| `author=`     | `this.authors[].slug` or `name`                              |
+| `visibility=` | `this.visibility` (default `public`)                          |
+| `slug=`       | `this.slug`                                                   |
+| `number=`     | Current `route.data.pagination.page` (1-based)                |
+| (anything else) | Direct equality on `this[<key>]`                           |
+
+#### `{{#match left [op right]}}…{{else}}…{{/match}}` / `{{match …}}` — block or inline
+
+- `(value)` → truthy check.
+- `(value other)` → strict equality.
+- `(value op other)` with `op ∈ { = != > < >= <= ~ ~^ ~$ }`. `~` is substring;
+  `~^` and `~$` are starts-with / ends-with.
+
+#### Context blocks: `{{#post}}`, `{{#page}}`, `{{#tag}}`, `{{#author}}`
+
+Each scopes `this` to the corresponding route data. If the route has no such
+data (e.g. `{{#post}}` on the home page), the `{{else}}` branch renders.
+
+```hbs
+{{#post}}
+  <h1>{{title}}</h1>
+  {{content}}
+{{else}}
+  {{!-- not on a single-post route --}}
+{{/post}}
+```
+
+#### `{{#get "resource" [filter="…"] [limit=N] [order="…"] [include="…"]}}…{{else}}…{{/get}}`
+
+Local resolver against the content graph. `resource ∈ {posts, pages, tags,
+authors}`.
+
+| Hash key  | Notes |
+|-----------|-------|
+| `filter=` | A subset of Ghost's filter DSL (see below). |
+| `limit=`  | Number; default `15`. |
+| `order=`  | `"field [asc|desc][, field …]"`. Default `"published_at desc"`. |
+| `include=`| Accepted for compatibility; the graph already eager-loads relations. |
+
+Filter clauses are joined with `+` (AND). Each clause is `key:value`,
+`key:-value` (negation), or `key:[a,b,…]` (any-of). Interpolation `{{post.id}}`
+inside `value` is resolved against the calling context — useful for
+"posts in same tag" patterns:
+
+```hbs
+{{#get "posts" filter="tag:{{primary_tag.slug}}+id:-{{id}}" limit=3 as |related|}}
+  {{#foreach related}}<a href="{{url}}">{{title}}</a>{{/foreach}}
+{{/get}}
+```
+
+Supported fields: `id`, `slug`, `featured` (`true`/`false`), `tag` / `tags`,
+`author` / `authors`, `visibility`. Unknown fields do an equality check against
+the raw frontmatter value. Filters that fall outside what's recognised return
+the unfiltered set — be conservative and check `tests/render/get-helper.test.ts`
+if you hit edge cases.
+
+### 5.6 Ghost head/foot (`src/render/helpers/ghost-head.ts`)
+
+#### `{{ghost_head}}` — inline; SafeString
+
+Emits inside `<head>`:
+
+- `<meta name="generator" content="Nectar">`
+- `<link rel="canonical" href="…">` (built from `route.url` and `[site].url`)
+- `<meta name="description">`
+- OpenGraph: `og:site_name`, `og:type` (`article` on post routes, otherwise
+  `website`), `og:title`, `og:description`, `og:url`, `og:image`
+- Twitter card: `summary_large_image`, with `twitter:title`,
+  `twitter:description`, `twitter:image`
+- `<link rel="alternate" type="application/rss+xml">` for RSS autodiscovery,
+  unless `[components.rss] enabled = false`
+- A JSON-LD `<script type="application/ld+json">` (Article on post routes,
+  WebSite otherwise)
+- The current context's `codeinjection_head` string, verbatim
+
+Source values, in priority order:
+- Title: `meta_title` → `og_title` → `title` → `site.title`
+- Description: `meta_description` → `og_description` → `excerpt` →
+  `site.description`
+- Image: `og_image` → `twitter_image` → `feature_image`
+
+#### `{{ghost_foot}}` — inline; SafeString
+
+Emits the context's `codeinjection_foot` verbatim. No member portal, no
+analytics scripts.
+
+### 5.7 i18n (`src/render/helpers/i18n.ts`)
+
+#### `{{t "key" [name=value …]}}` — inline
+
+Look up `key` in `themes/<name>/locales/<site.locale>.json`, falling back to
+`en.json`, then to the literal `key`. Empty strings are treated as missing
+(Ghost convention).
+
+Interpolation:
+- `{name}` placeholders are replaced by `name=` hash values.
+- `%` is replaced by the first hash value, in declaration order — Ghost's
+  positional placeholder.
+
+```hbs
+<button>{{t "Read more"}}</button>
+<p>{{t "Page %" page=pagination.page}}</p>
+<p>{{t "Hello {name}" name=author.name}}</p>
+```
+
+Missing locale files are tolerated — every theme should ship at least `en.json`
+even if it's empty.
+
+#### `{{lang}}` — inline
+
+Returns `[site].locale`. Use on `<html lang="…">`.
+
+### 5.8 Navigation & links (`src/render/helpers/navigation.ts`)
+
+#### `{{navigation [type="primary"]}}` — inline; SafeString
+
+Renders a `<ul class="nav">` from `[[navigation]]` (or `[[secondary_navigation]]`
+if `type="secondary"`). Items matching the current `route.url` get
+`aria-current="page"` on both the `<li>` and inner `<a>`.
+
+The output is intentionally minimal. If you want different markup, either
+iterate over `@site.navigation` directly with `{{#foreach}}` or define a
+`partials/navigation.hbs` and invoke it as `{{> "navigation"}}` — the partial
+wins because it's a different call site, not because the helper looks for it.
+
+#### `{{pagination}}` — inline; SafeString
+
+Renders prev/next links and a "Page N of M" indicator. Returns `""` when there
+is only one page. As with `{{navigation}}`, this is intentionally minimal —
+ship a `partials/pagination.hbs` and call it directly if you want a richer UI.
+
+#### `{{#link href="…" [class="…"] [target="…"]}}…{{/link}}`
+
+Inline link helper. Builds an `<a>` with escaped attributes. The block body
+becomes the link text; if omitted, the href itself is used.
+
+#### `{{link_class for="/path" [activeClass="nav-current"]}}` — inline
+
+Returns the activeClass string when the current route equals `for=` (trailing
+slashes are normalised), otherwise an empty string. Designed for
+`class="… {{link_class for="/blog/"}}"` patterns.
+
+### 5.9 String helpers (`src/render/helpers/strings.ts`)
+
+- `{{concat a b c [separator="…"]}}` — string concatenation with optional separator.
+- `{{encode value}}` — `encodeURIComponent`.
+- `{{upper value}}` / `{{lower value}}` — case conversion.
+- `{{plural count empty="…" singular="…" plural="…"}}` — choose template by
+  count and substitute `%`.
+
+### 5.10 URL helpers (`src/render/helpers/urls.ts`)
+
+#### `{{url [absolute=true]}}` — inline
+
+Returns `this.url`. With `absolute=true`, resolved against `[site].url`.
+
+#### `{{social_url type="twitter|facebook|linkedin|bluesky|mastodon|threads|tiktok|youtube|instagram"}}` — inline
+
+Reads `this[type]` (the handle from frontmatter) and builds the canonical
+profile URL. Returns `""` if the type isn't recognised or the handle is unset.
+
+Mastodon understands `@user@host.tld` and routes to `https://host.tld/@user`;
+bare `@user` defaults to `mastodon.social`.
+
+## 6. Context shapes
+
+The contexts available inside templates are documented in
+[`GHOST_COMPATIBILITY.md` §Contexts](./GHOST_COMPATIBILITY.md#contexts). In
+brief:
+
+- `@site` (alias `@blog`) — site-wide values from `nectar.toml [site]`.
+- `@custom` — theme custom-settings, built from `package.json > config.custom`
+  defaults, overridden by `nectar.toml [theme.custom]`.
+- `@page` — `route.data` for the current page (rarely accessed directly).
+- `this` (the implicit context) — the route's primary record:
+  - Post route: a `Post` (frontmatter + `html`, `plaintext`, `excerpt`,
+    `reading_time`, `primary_tag`, `primary_author`, `tags`, `authors`,
+    `url`, `prev`, `next`).
+  - Page route: a `Page`.
+  - Tag/author/home routes: an object containing `posts` (paginated subset),
+    `pagination`, and (for tag/author) the `tag` / `author` record.
+
+Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
+`src/content/model.ts` — keep that file open when authoring a template.
+
+### `@site` fields
+
+| Field                  | Source                                |
+|------------------------|---------------------------------------|
+| `title`                | `nectar.toml [site].title`            |
+| `description`          | `[site].description`                  |
+| `url`                  | `[site].url`                          |
+| `logo`                 | `[site].logo`                         |
+| `icon`                 | `[site].icon`                         |
+| `cover_image`          | `[site].cover_image`                  |
+| `lang` / `locale`      | `[site].locale`                       |
+| `timezone`             | `[site].timezone`                     |
+| `accent_color`         | `[site].accent_color`                 |
+| `navigation`           | `[[navigation]]` array                |
+| `secondary_navigation` | `[[secondary_navigation]]` array      |
+
+### `@custom`
+
+Built from the theme's `package.json` `config.custom.*` block. Each declared
+setting becomes a key on `@custom`, taking the `default` value when set,
+falling back to `false` for `boolean`, the first option for `select`, and an
+empty string otherwise. Users override via:
+
+```toml
+[theme.custom]
+navigation_layout = "Logo on the left"
+show_featured_posts = true
+```
+
+A custom setting referenced by the theme but not declared in `package.json` is
+still readable (it just resolves to `undefined`); a user-side override of an
+undeclared key currently warns rather than hard-fails.
+
+## 7. Theme `package.json` reference
+
+```jsonc
+{
+  "name": "my-theme",
+  "version": "1.0.0",
+  "config": {
+    "posts_per_page": 12,
+    "image_sizes": {
+      "xs": { "width": 160 },
+      "s":  { "width": 320 },
+      "m":  { "width": 600 },
+      "l":  { "width": 960 },
+      "xl": { "width": 1200 }
+    },
+    "card_assets": true,
+    "custom": {
+      "navigation_layout": {
+        "type": "select",
+        "options": ["Logo in the middle", "Logo on the left", "Stacked"],
+        "default": "Logo in the middle"
+      },
+      "site_background_color": {
+        "type": "color",
+        "default": "#ffffff"
+      },
+      "show_featured_posts": {
+        "type": "boolean",
+        "default": false,
+        "group": "homepage"
+      }
+    }
+  }
+}
+```
+
+- **`posts_per_page`** — default pagination size. Overridden by
+  `[build] posts_per_page` in `nectar.toml`.
+- **`image_sizes`** — drives `{{img_url size="key"}}`. Width / height in pixels.
+- **`card_assets`** — accepted for upstream compatibility; Nectar always copies
+  the theme's `assets/` directory wholesale.
+- **`custom`** — settings exposed on `@custom`. Supported `type` values mirror
+  Ghost: `text`, `boolean`, `select` (with `options`), `color`, `image`. Types
+  beyond `select` and `boolean` currently round-trip as strings — the user is
+  responsible for the value's shape.
+
+## 8. Locales
+
+```
+themes/<name>/locales/
+├── en.json
+├── fr.json
+└── ja.json
+```
+
+Each file is a flat `{ "key": "translation" }` map. Keys are the English source
+strings by convention (as Ghost does), and translations may use `%` or
+`{name}` placeholders (see `{{t}}` §5.7).
+
+The active locale is `[site].locale`. Nectar falls back through:
+
+1. `<locale>.json` (exact match)
+2. `en.json`
+3. The literal key
+
+So you can ship a theme with only `en.json` and still call `{{t}}` everywhere —
+the keys themselves act as the default text.
+
+## 9. Worked example: porting a card from Source
+
+Here's an excerpt of `partials/post-card.hbs` from the Source theme, showing
+helpers in concert:
+
+```hbs
+<article class="gh-card {{post_class}}">
+  {{#if feature_image}}
+    <a class="gh-card-image" href="{{url}}">
+      <img
+        srcset="{{img_url feature_image size="s"}} 320w,
+                {{img_url feature_image size="m"}} 600w,
+                {{img_url feature_image size="l"}} 960w"
+        src="{{img_url feature_image size="m"}}"
+        alt="{{#if feature_image_alt}}{{feature_image_alt}}{{else}}{{title}}{{/if}}"
+        loading="lazy"
+      >
+    </a>
+  {{/if}}
+  <div class="gh-card-meta">
+    {{#if primary_tag}}
+      <a class="gh-card-tag" href="{{primary_tag.url}}">{{primary_tag.name}}</a>
+    {{/if}}
+    <h2 class="gh-card-title"><a href="{{url}}">{{title}}</a></h2>
+    {{#if excerpt}}
+      <p class="gh-card-excerpt">{{excerpt words=24}}</p>
+    {{/if}}
+    <footer class="gh-card-footer">
+      <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="D MMM YYYY"}}</time>
+      <span class="bull">•</span>
+      <span class="gh-card-readtime">{{reading_time minute="1 min read" minutes="% min read"}}</span>
+    </footer>
+  </div>
+</article>
+```
+
+Each helper used here (`post_class`, `img_url`, `excerpt`, `date`,
+`reading_time`) is `✅ implemented` in the matrix and behaves identically to
+Ghost for the inputs Source feeds them.
+
+## 10. Out of scope (do not rely on)
+
+The following Ghost features are intentionally absent or stubbed. If your
+theme uses them, you'll either get an empty render or a no-op:
+
+- **Members surface** — `@member.*` context resolves to `undefined`. `{{access}}`
+  always treats the visitor as unauthenticated. `{{subscribe_form}}`,
+  `{{input_email}}`, `{{input_password}}` render harmless markup; wire your own
+  membership component if needed.
+- **Newsletter / email-only posts** — posts marked `email-only` are filtered
+  out at load time.
+- **Server-side search** — no built-in. The recommended approach is to plug in
+  Pagefind or Lunr as an optional component (see `[components.search]` in
+  `nectar.toml`).
+- **Comments** — `{{comments}}` emits `<div data-nectar-comments></div>` so a
+  client-side embed (Giscus / Disqus / Utterances) can hook onto it.
+- **Ghost Admin / edit URLs** — not rendered.
+- **`{{#get}}` against remote Ghost endpoints** — resolved against the local
+  content graph only (see §5.5).
+- **Live drafts / preview** — `status: draft` posts are dropped at build time.
+
+## 11. Working on a theme locally
+
+```bash
+# from the site root (e.g. example/)
+cd example
+bun ../src/cli/index.ts build         # full build into dist/
+bun ../src/cli/index.ts serve         # rebuild + serve on file change
+```
+
+Common iteration loop:
+
+1. Edit a template under `themes/<name>/`.
+2. `bun ../src/cli/index.ts build` (or leave `serve` running).
+3. Inspect output under `dist/`. Look for `{{` left in the HTML — that's a
+   missing or misnamed helper.
+4. Check the build log for warnings about symlinked assets, unrecognised
+   filter clauses in `{{#get}}`, or malformed locale files.
+
+`bun test` in the repo root exercises the helper unit suite; `tests/source-smoke.test.ts`
+builds the bundled Source theme end-to-end and is the closest thing to "does
+my theme render at all" in CI.
+
+## 12. Where to look in the code
+
+- Template / partial discovery: `src/theme/loader.ts`
+- Layout inheritance: `src/render/layouts.ts`
+- Helper registration entry point: `src/render/helpers/index.ts`
+- Per-helper implementations: `src/render/helpers/*.ts`
+- Per-route context builder: `src/render/context.ts`
+- Asset fingerprinting: `src/theme/assets.ts`
+- Theme `package.json` parsing: `src/theme/pkg.ts`
+
+When in doubt about a helper's edge case, the test under
+`tests/render/<helper>.test.ts` is authoritative — those are written against
+observed Ghost behaviour.
