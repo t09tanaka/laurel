@@ -316,6 +316,48 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Newsletter subscribe form component.'),
+        images: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit per-format image variants (WebP/AVIF) alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`.',
+              ),
+            formats: z
+              .array(z.enum(['webp', 'avif']))
+              .default(['webp'])
+              .describe(
+                'Image formats to transcode the responsive variants into. Order matters: the first entry is preferred by browsers that understand it.',
+              ),
+            webp_quality: z
+              .number()
+              .int()
+              .min(1)
+              .max(100)
+              .default(80)
+              .describe('Quality factor passed to sharp when encoding WebP variants.'),
+            avif_quality: z
+              .number()
+              .int()
+              .min(1)
+              .max(100)
+              .default(50)
+              .describe(
+                'Quality factor passed to sharp when encoding AVIF variants. AVIF is much slower than WebP, so default is conservative.',
+              ),
+            cache_dir: z
+              .string()
+              .default('.nectar-cache/images')
+              .describe(
+                'Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Per-format image transcoder. Generates WebP/AVIF variants of responsive widths and rewrites `<img>` into `<picture>` so themes get modern-format fallback automatically.',
+          ),
         comments: z
           .object({
             provider: z

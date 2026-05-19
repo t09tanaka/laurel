@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, extname, join, relative, sep } from 'node:path';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
@@ -133,6 +134,8 @@ const RASTER_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 interface SharpInstance {
   resize(width: number): SharpInstance;
   toFile(path: string): Promise<{ width: number; height: number }>;
+  webp(opts: { quality: number }): SharpInstance;
+  avif(opts: { quality: number }): SharpInstance;
 }
 
 type SharpFactory = (input: string) => SharpInstance;
@@ -282,6 +285,202 @@ export function injectImageSrcsetIntoContent(opts: InjectImageSrcsetIntoContentO
   if (opts.plan.size === 0) return;
   const inject = (html: string): string =>
     injectImageSrcset(html, { plan: opts.plan, sizesAttr: opts.sizesAttr });
+  for (const post of opts.content.posts) {
+    post.html = inject(post.html);
+    if (post.feed_html && post.feed_html !== post.html) {
+      post.feed_html = inject(post.feed_html);
+    }
+  }
+  for (const page of opts.content.pages) {
+    page.html = inject(page.html);
+  }
+}
+
+export type ImageFormat = 'webp' | 'avif';
+
+export interface GenerateImageFormatVariantsOptions {
+  cwd: string;
+  config: NectarConfig;
+  outputDir: string;
+  plan: ImageVariantPlan;
+}
+
+// Content-hash a source file so unchanged sources collide on the same cache
+// filename. mtime is consulted only as the cheap miss-path: if the cached entry
+// reports a matching mtimeMs we trust the recorded sha256 and skip re-hashing.
+interface SourceCacheEntry {
+  mtimeMs: number;
+  sha256: string;
+}
+const sourceHashCache = new Map<string, SourceCacheEntry>();
+
+function hashSourceFile(filePath: string): string {
+  const stat = statSync(filePath);
+  const cached = sourceHashCache.get(filePath);
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.sha256;
+  const sha256 = createHash('sha256').update(readFileSync(filePath)).digest('hex');
+  sourceHashCache.set(filePath, { mtimeMs: stat.mtimeMs, sha256 });
+  return sha256;
+}
+
+function resolveCacheDir(cwd: string, cacheDir: string): string {
+  return isAbsolute(cacheDir) ? cacheDir : join(cwd, cacheDir);
+}
+
+// Emit `<original>.<format>` variants for every (width, format) pair the
+// plan plus images config requests. Cache by source content hash so a rebuild
+// that doesn't touch the file skips the (slow, especially for AVIF) sharp
+// encode entirely and just copies the cached bytes into the output tree.
+export async function generateImageFormatVariants(
+  opts: GenerateImageFormatVariantsOptions,
+): Promise<number> {
+  const imagesCfg = opts.config.components.images;
+  if (!imagesCfg.enabled) return 0;
+  if (imagesCfg.formats.length === 0) return 0;
+  if (opts.plan.size === 0) return 0;
+
+  const sharpFn = await loadSharp();
+  if (!sharpFn) return 0;
+
+  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  const outRoot = join(opts.outputDir, 'content/images');
+  const cacheDir = resolveCacheDir(opts.cwd, imagesCfg.cache_dir);
+  mkdirSync(cacheDir, { recursive: true });
+
+  let count = 0;
+  for (const [rel, widths] of opts.plan) {
+    const sourcePath = join(assetsRoot, rel);
+    if (!existsSync(sourcePath)) continue;
+    let sha: string;
+    try {
+      sha = hashSourceFile(sourcePath);
+    } catch (err) {
+      logger.warn(
+        `Failed to hash ${rel} for format variants: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      continue;
+    }
+    for (const w of widths) {
+      for (const format of imagesCfg.formats) {
+        const cacheFile = join(cacheDir, `${sha}-w${w}.${format}`);
+        const outPath = join(outRoot, 'size', `w${w}`, `${rel}.${format}`);
+        mkdirSync(dirname(outPath), { recursive: true });
+        if (!existsSync(cacheFile)) {
+          try {
+            const resized = sharpFn(sourcePath).resize(w);
+            const withFormat =
+              format === 'webp'
+                ? resized.webp({ quality: imagesCfg.webp_quality })
+                : resized.avif({ quality: imagesCfg.avif_quality });
+            await withFormat.toFile(cacheFile);
+          } catch (err) {
+            logger.warn(
+              `Failed to encode ${format} variant w${w} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            continue;
+          }
+        }
+        try {
+          copyFileSync(cacheFile, outPath);
+          count += 1;
+        } catch (err) {
+          logger.warn(
+            `Failed to copy ${format} variant w${w} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+  }
+  return count;
+}
+
+export interface InjectImagePictureSourcesOptions {
+  plan: ImageVariantPlan;
+  formats: readonly ImageFormat[];
+  marker?: string;
+  sizesAttr?: string;
+}
+
+// Wrap each `<img>` whose path is in the plan in a `<picture>` that lists
+// per-format `<source>` entries before the original `<img>` fallback. AVIF
+// comes first if requested so browsers that understand it use it; WebP next;
+// the original same-format `<img srcset>` (set by injectImageSrcset) is the
+// final fallback. Images already inside a `<picture>` or already pointing at a
+// variant URL are left alone.
+export function injectImagePictureSources(
+  html: string,
+  opts: InjectImagePictureSourcesOptions,
+): string {
+  if (!html.includes('<img')) return html;
+  if (opts.plan.size === 0 || opts.formats.length === 0) return html;
+  const marker = opts.marker ?? '/content/images/';
+  const sizesAttr = opts.sizesAttr ?? DEFAULT_IMAGE_SIZES;
+
+  const re = /<img\b([^>]*?)(\/?)>/gi;
+  let result = '';
+  let lastIdx = 0;
+  let m: RegExpExecArray | null = re.exec(html);
+  while (m !== null) {
+    const matchStart = m.index;
+    const matchEnd = re.lastIndex;
+    const attrsRaw = m[1];
+    const lastOpen = html.lastIndexOf('<picture', matchStart);
+    const lastClose = html.lastIndexOf('</picture>', matchStart);
+    const insidePicture = lastOpen >= 0 && lastOpen > lastClose;
+    let replacement = m[0];
+    if (!insidePicture) {
+      const attrs = parseImgAttrs(attrsRaw);
+      const src = attrs.get('src');
+      if (typeof src === 'string' && src !== '') {
+        const cleaned = src.split(/[?#]/)[0] ?? '';
+        const idx = cleaned.indexOf(marker);
+        if (idx >= 0) {
+          const after = cleaned.slice(idx + marker.length);
+          if (after !== '' && !after.startsWith('size/') && !after.includes('..')) {
+            const widths = opts.plan.get(after);
+            if (widths && widths.length > 0) {
+              const before = cleaned.slice(0, idx + marker.length);
+              const sizesValue =
+                typeof attrs.get('sizes') === 'string' ? (attrs.get('sizes') as string) : sizesAttr;
+              const sources = opts.formats
+                .map((format) => {
+                  const entries = widths
+                    .map((w) => `${before}size/w${w}/${after}.${format} ${w}w`)
+                    .join(', ');
+                  return `<source type="image/${format}" srcset="${entries}" sizes="${sizesValue}">`;
+                })
+                .join('');
+              replacement = `<picture>${sources}${m[0]}</picture>`;
+            }
+          }
+        }
+      }
+    }
+    result += html.slice(lastIdx, matchStart) + replacement;
+    lastIdx = matchEnd;
+    m = re.exec(html);
+  }
+  result += html.slice(lastIdx);
+  return result;
+}
+
+export interface InjectImagePictureSourcesIntoContentOptions {
+  content: ContentGraph;
+  plan: ImageVariantPlan;
+  formats: readonly ImageFormat[];
+  sizesAttr?: string;
+}
+
+export function injectImagePictureSourcesIntoContent(
+  opts: InjectImagePictureSourcesIntoContentOptions,
+): void {
+  if (opts.plan.size === 0 || opts.formats.length === 0) return;
+  const inject = (html: string): string =>
+    injectImagePictureSources(html, {
+      plan: opts.plan,
+      formats: opts.formats,
+      sizesAttr: opts.sizesAttr,
+    });
   for (const post of opts.content.posts) {
     post.html = inject(post.html);
     if (post.feed_html && post.feed_html !== post.html) {
