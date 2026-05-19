@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { absolutizeHtmlUrls } from '~/build/feeds.ts';
+import { readFileSync } from 'node:fs';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { absolutizeHtmlUrls, emitRss } from '~/build/feeds.ts';
+import { configSchema } from '~/config/schema.ts';
+import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 describe('absolutizeHtmlUrls', () => {
   const base = 'https://example.com';
@@ -89,3 +95,203 @@ describe('absolutizeHtmlUrls', () => {
     );
   });
 });
+
+describe('emitRss', () => {
+  test('declares atom namespace and emits atom:link rel="self"', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('xmlns:atom="http://www.w3.org/2005/Atom"');
+    expect(xml).toContain(
+      '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
+    );
+  });
+
+  test('atom:link self honors trailing slash on site.url', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com/' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain(
+      '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
+    );
+  });
+});
+
+function makeTag(over: Partial<Tag> = {}): Tag {
+  return {
+    id: 'tag-1',
+    slug: 'news',
+    name: 'News',
+    description: '',
+    feature_image: undefined,
+    visibility: 'public',
+    meta_title: undefined,
+    meta_description: undefined,
+    url: 'https://example.com/tag/news/',
+    count: { posts: 1 },
+    ...over,
+  };
+}
+
+function makeAuthor(over: Partial<Author> = {}): Author {
+  return {
+    id: 'author-1',
+    slug: 'casper',
+    name: 'Casper',
+    bio: '',
+    profile_image: undefined,
+    cover_image: undefined,
+    website: undefined,
+    location: undefined,
+    twitter: undefined,
+    facebook: undefined,
+    linkedin: undefined,
+    bluesky: undefined,
+    mastodon: undefined,
+    threads: undefined,
+    tiktok: undefined,
+    youtube: undefined,
+    instagram: undefined,
+    meta_title: undefined,
+    meta_description: undefined,
+    url: 'https://example.com/author/casper/',
+    ...over,
+  };
+}
+
+function makePost(over: Partial<Post> = {}): Post {
+  const tag = makeTag();
+  const author = makeAuthor();
+  return {
+    id: 'post-1',
+    slug: 'hello-world',
+    title: 'Hello, world',
+    html: '<p>hi</p>',
+    plaintext: 'hi',
+    excerpt: 'hi',
+    custom_excerpt: undefined,
+    feature_image: undefined,
+    feature_image_alt: undefined,
+    feature_image_caption: undefined,
+    feature_image_width: undefined,
+    feature_image_height: undefined,
+    featured: false,
+    page: false,
+    published_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    created_at: '2026-01-01T00:00:00.000Z',
+    reading_time: 1,
+    word_count: 1,
+    visibility: 'public',
+    status: 'published',
+    tags: [tag],
+    primary_tag: tag,
+    authors: [author],
+    primary_author: author,
+    url: 'https://example.com/hello-world/',
+    canonical_url: undefined,
+    meta_title: undefined,
+    meta_description: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
+    comments: true,
+    prev: undefined,
+    next: undefined,
+    ...over,
+  };
+}
+
+function makePage(over: Partial<Page> = {}): Page {
+  return {
+    id: 'page-1',
+    slug: 'about',
+    title: 'About',
+    html: '<p>about</p>',
+    plaintext: 'about',
+    excerpt: 'about',
+    custom_excerpt: undefined,
+    feature_image: undefined,
+    feature_image_alt: undefined,
+    feature_image_caption: undefined,
+    feature_image_width: undefined,
+    feature_image_height: undefined,
+    page: true,
+    published_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    created_at: '2026-01-01T00:00:00.000Z',
+    reading_time: 1,
+    word_count: 1,
+    visibility: 'public',
+    status: 'published',
+    tags: [],
+    primary_tag: undefined,
+    authors: [],
+    primary_author: undefined,
+    url: 'https://example.com/about/',
+    canonical_url: undefined,
+    meta_title: undefined,
+    meta_description: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
+    show_title_and_feature_image: true,
+    ...over,
+  };
+}
+
+function makeGraph(): ContentGraph {
+  const tag = makeTag();
+  const author = makeAuthor();
+  const post = makePost();
+  const page = makePage();
+  return {
+    posts: [post],
+    pages: [page],
+    tags: [tag],
+    authors: [author],
+    bySlug: {
+      posts: new Map([[post.slug, post]]),
+      pages: new Map([[page.slug, page]]),
+      tags: new Map([[tag.slug, tag]]),
+      authors: new Map([[author.slug, author]]),
+    },
+    site: {
+      title: 'Site',
+      description: 'desc',
+      url: 'https://example.com',
+      locale: 'en',
+      direction: 'ltr',
+      timezone: 'UTC',
+      cover_image: undefined,
+      logo: undefined,
+      logo_width: undefined,
+      logo_height: undefined,
+      icon: undefined,
+      accent_color: '#222',
+      navigation: [],
+      secondary_navigation: [],
+      lang: 'en',
+      twitter: undefined,
+      facebook: undefined,
+    },
+  };
+}
