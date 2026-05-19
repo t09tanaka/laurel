@@ -64,8 +64,21 @@ export async function loadContent({ cwd, config }: LoadContentOptions): Promise<
 
   const allTags = Array.from(tagMap.values());
   const allAuthors = Array.from(authorMap.values());
+  // Single pass: iterate posts once and bump per-tag counters via the shared
+  // Tag references stored on each post. The previous O(T·P) filter blew up on
+  // sites with many tags (100k tags x 10k posts ~= 10^9 ops just to count).
+  // Dedupe tag slugs per post so duplicate frontmatter entries don't inflate
+  // the count, matching the original `some(...)` boolean semantics.
   for (const tag of allTags) {
-    tag.count.posts = resolvedPosts.filter((p) => p.tags.some((t) => t.slug === tag.slug)).length;
+    tag.count.posts = 0;
+  }
+  for (const post of resolvedPosts) {
+    const seen = new Set<string>();
+    for (const t of post.tags) {
+      if (seen.has(t.slug)) continue;
+      seen.add(t.slug);
+      t.count.posts += 1;
+    }
   }
 
   return {
