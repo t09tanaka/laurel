@@ -78,4 +78,82 @@ url = "/"
       }
     });
   });
+
+  test('rejects unknown top-level keys with did-you-mean hint', async () => {
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, '[sites]\ntitle = "Typo"\n', 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.file).toBe(file);
+        expect(ne.message).toMatch(/unknown key/);
+        expect(ne.message).toMatch(/`sites`/);
+        expect(ne.hint).toBe('did you mean `site`?');
+      }
+    });
+  });
+
+  test('rejects unknown nested keys with dotted path and suggestion', async () => {
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, '[site]\ntitle = "Blog"\ndescriptio = "typo"\n', 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/unknown key/);
+        expect(ne.message).toMatch(/`site\.descriptio`/);
+        expect(ne.hint).toBe('did you mean `site.description`?');
+      }
+    });
+  });
+
+  test('rejects unknown keys inside navigation array entries', async () => {
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(
+        file,
+        `[[navigation]]
+label = "Home"
+url = "/"
+external = true
+`,
+        'utf8',
+      );
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/unknown key/);
+        expect(ne.message).toMatch(/`navigation\.0\.external`/);
+      }
+    });
+  });
+
+  test('still accepts arbitrary keys under theme.custom', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Custom"
+
+[theme.custom]
+navigation_layout = "Logo on the left"
+some_brand_new_setting = "ok"
+`,
+        'utf8',
+      );
+      const config = await loadConfig({ cwd });
+      expect(config.theme.custom.some_brand_new_setting).toBe('ok');
+      expect(config.theme.custom.navigation_layout).toBe('Logo on the left');
+    });
+  });
 });
