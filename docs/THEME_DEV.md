@@ -706,7 +706,100 @@ theme uses them, you'll either get an empty render or a no-op:
   content graph only (see §5.5).
 - **Live drafts / preview** — `status: draft` posts are dropped at build time.
 
-## 11. Working on a theme locally
+## 11. Accessibility requirements
+
+Nectar emits no styling of its own — `body_class`, `post_class`, and the helpers
+under §5 hand the theme a set of hooks, but the visual contract (colors,
+spacing, focus rings, hit targets) is entirely the theme's responsibility. The
+following are **hard requirements** for any theme shipped against Nectar. A
+theme that fails them is not considered conformant, even if it renders without
+errors.
+
+### 11.1 Keyboard focus must be visible
+
+Every interactive element rendered by the theme — `<a>`, `<button>`,
+`<input>`, `<select>`, `<textarea>`, `[tabindex]` other than `-1`, and any
+custom `[role]` that takes focus — **must** show a clearly visible focus
+indicator when reached via the keyboard.
+
+The minimum bar:
+
+- Ship a `:focus-visible` rule for interactive elements. Do **not** rely on the
+  user-agent default outline; many resets (Normalize, Tailwind preflight, Ghost
+  Source's own `screen.css`) strip it. If you reset, you must re-apply.
+- Never write `outline: none` (or `outline: 0`) without an accompanying
+  `:focus-visible` style that restores a visible indicator on the same
+  selector.
+- The indicator must meet **WCAG 2.1 AA 1.4.11 Non-text Contrast** — at least
+  **3:1** contrast against the adjacent background — and **WCAG 2.2 AA 2.4.11
+  Focus Not Obscured** — the focused element is not fully hidden behind
+  sticky headers, modals, or cookie banners. (Source: [WCAG 2.1 SC
+  1.4.11](https://www.w3.org/WAI/WCAG21/Understanding/non-text-contrast.html),
+  [WCAG 2.2 SC 2.4.11](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html).)
+- Prefer `:focus-visible` over `:focus` so that mouse clicks on buttons don't
+  leave a sticky ring. If you support browsers without `:focus-visible`
+  (Safari < 15.4), pair it with a `:focus:not(:focus-visible)` reset rather
+  than dropping `:focus-visible` entirely.
+
+A minimal, theme-agnostic snippet that satisfies the requirement:
+
+```css
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--nectar-focus-ring, #1f6feb);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+}
+```
+
+Pick a `--nectar-focus-ring` color that has ≥ 3:1 contrast against **every**
+surface the element can sit on (page background, card background, hero
+overlays). Check both light and dark modes if your theme supports them. The
+[WebAIM contrast checker](https://webaim.org/resources/contrastchecker/) is
+the easiest sanity check.
+
+### 11.2 Skip link
+
+Every theme should ship a "Skip to main content" link as the first focusable
+element in `<body>`, targeting the page's primary `<main>` (or
+`role="main"`) landmark. The link may be visually hidden until focused, but
+**must** become visible on focus. This satisfies **WCAG 2.4.1 Bypass
+Blocks**. ([SC 2.4.1](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html).)
+
+### 11.3 Landmarks and headings
+
+- Wrap the page's primary content in `<main>` so the skip link has a target
+  and screen readers expose the landmark.
+- Use exactly one `<h1>` per route. On post / page routes that is the post
+  title; on the home / tag / author routes pick something meaningful (site
+  title, tag name, author name).
+- Don't skip heading levels (`<h2>` → `<h4>` with no `<h3>` between).
+
+### 11.4 Verifying
+
+Before declaring a theme "done", run through this checklist on a built site
+(`bun ../src/cli/index.ts build`):
+
+1. Open `dist/index.html` in a real browser. Press `Tab` repeatedly from the
+   address bar onwards. Every focused element must be visibly outlined.
+2. Repeat on `dist/<post-slug>/index.html` and `dist/tag/<tag-slug>/index.html`.
+3. Inspect each `:focus-visible` style with DevTools and confirm the rendered
+   outline has ≥ 3:1 contrast against the surface behind it. Sticky headers
+   count — focus on a link near the top of the page after scrolling and check
+   the indicator isn't fully covered.
+4. Confirm the first `Tab` press surfaces the skip link and that activating it
+   moves focus into `<main>`.
+5. Run an automated audit (axe DevTools, Lighthouse → Accessibility, or
+   `pa11y dist/index.html`) and triage any focus-related violations.
+
+Nectar does not currently fail the build when a theme is missing
+`:focus-visible` styles (the CSS is opaque to the renderer), so these checks
+are a manual gate. CI-friendly automation is tracked separately.
+
+## 12. Working on a theme locally
 
 ```bash
 # from the site root (e.g. example/)
@@ -728,7 +821,7 @@ Common iteration loop:
 builds the bundled Source theme end-to-end and is the closest thing to "does
 my theme render at all" in CI.
 
-## 12. Where to look in the code
+## 13. Where to look in the code
 
 - Template / partial discovery: `src/theme/loader.ts`
 - Layout inheritance: `src/render/layouts.ts`
