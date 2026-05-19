@@ -77,6 +77,10 @@ export const CHECK_SPEC: CommandSpec = {
       description: 'Path to nectar.toml (defaults to ./nectar.toml)',
       placeholder: '<path>',
     },
+    strict: {
+      type: 'boolean',
+      description: 'Exit with non-zero status if any warnings were emitted during the check',
+    },
   },
   positionals: [],
 };
