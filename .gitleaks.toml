@@ -1,0 +1,33 @@
+# gitleaks configuration for Nectar.
+#
+# Extends the upstream default ruleset (see
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml) and
+# adds an allowlist for paths that contain example fixtures or third-party
+# vendored code where matches are expected and not real secrets.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for fixtures and vendored content"
+paths = [
+  # Vendored Ghost Source theme — third-party assets we don't control.
+  '''^example/themes/source/''',
+  # Build output and dependencies.
+  '''^example/dist/''',
+  '''^node_modules/''',
+  '''^dist/''',
+  # Lockfile churn is too noisy for entropy heuristics.
+  '''^bun\.lock$''',
+  # Test fixtures may include synthetic credentials by design.
+  '''^tests/fixtures/''',
+  # Documentation often quotes example tokens like AKIAIOSFODNN7EXAMPLE.
+  '''^docs/''',
+  '''^README\.md$''',
+  '''^CHANGELOG\.md$''',
+]
+regexes = [
+  # AWS canonical "EXAMPLE" placeholders used in AWS docs and SDKs.
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+]

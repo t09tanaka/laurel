@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-commit hook that runs gitleaks against staged changes.
+#
+# Enable for this repo with:
+#
+#   git config core.hooksPath .githooks
+#
+# Skip a single commit (only when you know what you're doing) with:
+#
+#   GITLEAKS_SKIP=1 git commit ...
+#
+# Requires gitleaks to be on PATH. Install via:
+#   brew install gitleaks      # macOS
+#   go install github.com/gitleaks/gitleaks/v8@latest
+
+set -euo pipefail
+
+if [[ "${GITLEAKS_SKIP:-}" == "1" ]]; then
+  echo "gitleaks: skipped via GITLEAKS_SKIP=1" >&2
+  exit 0
+fi
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+gitleaks: not found on PATH.
+
+Install with one of:
+  brew install gitleaks
+  go install github.com/gitleaks/gitleaks/v8@latest
+  # or grab a release binary from https://github.com/gitleaks/gitleaks/releases
+
+To skip this check for a single commit:
+  GITLEAKS_SKIP=1 git commit ...
+EOF
+  exit 1
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+config="${repo_root}/.gitleaks.toml"
+
+args=(protect --staged --redact --verbose)
+if [[ -f "$config" ]]; then
+  args+=(--config "$config")
+fi
+
+exec gitleaks "${args[@]}"
