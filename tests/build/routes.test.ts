@@ -101,7 +101,7 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
   };
 }
 
-function makePage(slug: string): Page {
+function makePage(slug: string, overrides: Partial<Page> = {}): Page {
   return {
     id: slug,
     slug,
@@ -140,6 +140,8 @@ function makePage(slug: string): Page {
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     show_title_and_feature_image: true,
+    custom_template: undefined,
+    ...overrides,
   };
 }
 
@@ -393,6 +395,40 @@ describe('planRoutes — error-404 route', () => {
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
     expect(routes.find((r) => r.kind === 'error')).toBeUndefined();
+  });
+});
+
+describe('planRoutes — page custom_template (issue #1005)', () => {
+  test('renders page through custom-* template when theme provides one', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('about', { custom_template: 'custom-about' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-about'] = '{{!custom-about}}';
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('custom-about');
+  });
+
+  test('falls back to page.hbs when requested custom-* template is absent', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('about', { custom_template: 'custom-missing' })],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('page');
+  });
+
+  test('defaults to page.hbs when frontmatter declares no custom template', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ pages: [makePage('about')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('page');
   });
 });
 

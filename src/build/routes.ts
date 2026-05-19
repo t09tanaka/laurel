@@ -1,7 +1,8 @@
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ContentGraph, Post } from '~/content/model.ts';
+import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { logger } from '~/util/logger.ts';
 import { absoluteUrl } from '~/util/url.ts';
 
 export function planRoutes(opts: {
@@ -65,7 +66,7 @@ export function planRoutes(opts: {
         kind: 'page',
         url,
         outputPath: `${page.slug}/index.html`,
-        template: 'page',
+        template: resolvePageTemplate(page, theme),
         lastmod: page.updated_at ?? page.published_at,
         data: { page },
         meta: defaultMeta(
@@ -165,6 +166,21 @@ export function planRoutes(opts: {
   }
 
   return routes;
+}
+
+// Mirrors Ghost's per-page template override: when a page's frontmatter declares
+// `template: foo`, render through `custom-foo.hbs` if the active theme ships
+// one; otherwise fall back to `page.hbs` and warn so the misconfiguration is
+// visible at build time. The frontmatter loader has already normalized the
+// value to the `custom-<slug>` form.
+function resolvePageTemplate(page: Page, theme: ThemeBundle): string {
+  const requested = page.custom_template;
+  if (!requested) return 'page';
+  if (theme.templates[requested]) return requested;
+  logger.warn(
+    `Page "${page.slug}" requested template "${requested}" but theme has no matching .hbs; falling back to page.hbs.`,
+  );
+  return 'page';
 }
 
 function latestPostTimestamp(posts: Post[]): string | undefined {

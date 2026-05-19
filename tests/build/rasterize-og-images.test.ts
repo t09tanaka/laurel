@@ -112,6 +112,7 @@ function makePage(overrides: Partial<Page> = {}): Page {
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     show_title_and_feature_image: true,
+    custom_template: undefined,
     ...overrides,
   };
 }
