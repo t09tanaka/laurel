@@ -147,6 +147,53 @@ If you find a vulnerable transitive dependency that the above process missed,
 please report it through the channels in
 [Reporting a Vulnerability](#reporting-a-vulnerability).
 
+## Bug bounty and recognition
+
+Nectar is an unfunded open-source project, so **no monetary bounty is
+currently offered**. We do recognize researchers in three ways that cost
+nothing and are useful for your portfolio:
+
+- **Credit in the GitHub Security Advisory** (and any CVE we request) under
+  the name and contact you choose, or anonymously on request.
+- **Mention in the release notes / `CHANGELOG.md`** for the version that
+  ships the fix.
+- **A thank-you entry in this file** for reports that result in a
+  non-trivial hardening change.
+
+### Criteria for a future paid program
+
+If this project finds funding (sponsorship, grant, or employer underwrite),
+we intend to offer modest monetary bounties via
+[huntr.dev](https://huntr.dev/) or direct payment, calibrated by severity
+(CVSS v3.1):
+
+| Severity            | Indicative floor     |
+| ------------------- | -------------------- |
+| Critical (9.0–10.0) | $100                 |
+| High (7.0–8.9)      | $50                  |
+| Medium (4.0–6.9)    | Discretionary / swag |
+| Low (0.1–3.9)       | Recognition only     |
+
+These are floors, not ceilings — particularly creative supply-chain or
+sandbox-escape findings will be rewarded above the floor.
+
+Eligibility (when the program goes live):
+
+- First reporter of a **confirmed, previously-unknown** issue **in
+  [Scope](#scope)**.
+- Reported through a **private channel** listed in
+  [Reporting a Vulnerability](#reporting-a-vulnerability) — public issues,
+  discussions, or PRs disqualify the report.
+- Not a duplicate of an existing internal finding or open advisory.
+- Reporter follows [Safe Harbor](#safe-harbor) rules (no privacy
+  violations, data destruction, or service disruption).
+- One bounty per root cause, regardless of how many entry points it has.
+
+Until the program is funded, reports are still very welcome — the
+recognition above applies today, and reports submitted now remain eligible
+for retroactive payment if a paid program launches before the issue is
+publicly disclosed.
+
 ## Safe Harbor
 
 We will not pursue or support legal action against researchers who:
