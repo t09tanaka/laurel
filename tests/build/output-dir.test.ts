@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { clearDirContents, resolveOutputDir } from '~/build/output-dir.ts';
+import { basename, dirname, join, resolve } from 'node:path';
+import {
+  clearDirContents,
+  commitStagingDir,
+  prepareStagingDir,
+  resolveOutputDir,
+} from '~/build/output-dir.ts';
 
 describe('resolveOutputDir', () => {
   test('accepts a normal relative subdirectory', () => {
@@ -72,5 +77,66 @@ describe('clearDirContents', () => {
 
     expect(existsSync(target)).toBe(true);
     expect(await readdir(target)).toEqual([]);
+  });
+});
+
+describe('prepareStagingDir', () => {
+  test('creates a sibling temp directory next to finalDir', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const finalDir = join(parent, 'dist');
+    const staging = await prepareStagingDir(finalDir);
+    expect(existsSync(staging)).toBe(true);
+    expect(dirname(staging)).toBe(parent);
+    expect(basename(staging).startsWith('.dist.tmp-')).toBe(true);
+  });
+
+  test('creates the parent directory when missing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const finalDir = join(root, 'nested/build/dist');
+    const staging = await prepareStagingDir(finalDir);
+    expect(existsSync(staging)).toBe(true);
+    expect(dirname(staging)).toBe(join(root, 'nested/build'));
+  });
+
+  test('returns unique paths on repeated calls', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const finalDir = join(parent, 'dist');
+    const a = await prepareStagingDir(finalDir);
+    const b = await prepareStagingDir(finalDir);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('commitStagingDir', () => {
+  test('moves staging into place when finalDir does not exist', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'nectar-commit-'));
+    const finalDir = join(parent, 'dist');
+    const staging = await prepareStagingDir(finalDir);
+    await writeFile(join(staging, 'index.html'), '<new/>', 'utf8');
+
+    await commitStagingDir(staging, finalDir);
+
+    expect(existsSync(staging)).toBe(false);
+    expect(existsSync(finalDir)).toBe(true);
+    expect(readFileSync(join(finalDir, 'index.html'), 'utf8')).toBe('<new/>');
+  });
+
+  test('replaces an existing finalDir without leaving the old tree behind', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'nectar-commit-'));
+    const finalDir = join(parent, 'dist');
+    await mkdir(finalDir, { recursive: true });
+    await writeFile(join(finalDir, 'index.html'), '<old/>', 'utf8');
+    await writeFile(join(finalDir, 'leftover.txt'), 'gone', 'utf8');
+
+    const staging = await prepareStagingDir(finalDir);
+    await writeFile(join(staging, 'index.html'), '<new/>', 'utf8');
+
+    await commitStagingDir(staging, finalDir);
+
+    expect(readFileSync(join(finalDir, 'index.html'), 'utf8')).toBe('<new/>');
+    expect(existsSync(join(finalDir, 'leftover.txt'))).toBe(false);
+    const siblings = await readdir(parent);
+    expect(siblings.filter((s) => s.startsWith('dist.old-'))).toEqual([]);
+    expect(siblings.filter((s) => s.startsWith('.dist.tmp-'))).toEqual([]);
   });
 });
