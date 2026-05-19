@@ -197,6 +197,8 @@ describe('injectImageDimensionsIntoContent', () => {
       tags: [],
       authors: [],
       bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
       site: {} as ContentGraph['site'],
     };
     const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
@@ -373,6 +375,8 @@ describe('injectImageSrcsetIntoContent', () => {
       tags: [],
       authors: [],
       bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
       site: {} as ContentGraph['site'],
     };
     injectImageSrcsetIntoContent({ content, plan });
@@ -393,6 +397,8 @@ describe('injectImageSrcsetIntoContent', () => {
       tags: [],
       authors: [],
       bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
       site: {} as ContentGraph['site'],
     };
     injectImageSrcsetIntoContent({ content, plan: new Map() });
@@ -545,6 +551,8 @@ describe('injectImagePictureSourcesIntoContent', () => {
       tags: [],
       authors: [],
       bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
       site: {} as ContentGraph['site'],
     };
     injectImagePictureSourcesIntoContent({ content, plan, formats: ['webp', 'avif'] });
@@ -567,6 +575,8 @@ describe('injectImagePictureSourcesIntoContent', () => {
       tags: [],
       authors: [],
       bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
       site: {} as ContentGraph['site'],
     };
     injectImagePictureSourcesIntoContent({

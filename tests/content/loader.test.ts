@@ -80,6 +80,27 @@ describe('loadContent', () => {
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
   });
 
+  test('builds postsByTag and postsByAuthor inverse maps preserving sort order', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    const newsPosts = graph.postsByTag.get('news');
+    expect(newsPosts).toBeDefined();
+    expect(newsPosts).toHaveLength(1);
+    expect(newsPosts?.[0]?.slug).toBe('hello');
+
+    const casperPosts = graph.postsByAuthor.get('casper');
+    expect(casperPosts).toBeDefined();
+    expect(casperPosts).toHaveLength(1);
+    expect(casperPosts?.[0]?.slug).toBe('hello');
+
+    // Tags / authors that exist but have no posts still get an empty bucket so
+    // route planners don't need a null check.
+    expect(graph.postsByTag.has('news')).toBe(true);
+    expect(graph.postsByAuthor.has('casper')).toBe(true);
+  });
+
   test('site.direction is ltr by default and rtl for Arabic locale', async () => {
     const cwd = await fixture();
     const ltr = await loadContent({

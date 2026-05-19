@@ -58,6 +58,8 @@ function makeContent(site: SiteData): ContentGraph {
       tags: new Map(),
       authors: new Map(),
     },
+    postsByTag: new Map(),
+    postsByAuthor: new Map(),
     site,
   };
 }

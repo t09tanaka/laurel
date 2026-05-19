@@ -449,6 +449,8 @@ function makeGraph(): ContentGraph {
       tags: new Map([[tag.slug, tag]]),
       authors: new Map([[author.slug, author]]),
     },
+    postsByTag: new Map([[tag.slug, [post]]]),
+    postsByAuthor: new Map([[author.slug, [post]]]),
     site: {
       title: 'Site',
       description: 'desc',

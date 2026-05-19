@@ -82,7 +82,7 @@ export function planRoutes(opts: {
 
   if (theme.templates.tag) {
     for (const tag of content.tags) {
-      const tagPosts = content.posts.filter((p) => p.tags.some((t) => t.slug === tag.slug));
+      const tagPosts = content.postsByTag.get(tag.slug) ?? [];
       const pages = paginatePosts(tagPosts, perPage);
       pages.forEach((slice, idx) => {
         const url = idx === 0 ? `/tag/${tag.slug}/` : `/tag/${tag.slug}/page/${idx + 1}/`;
@@ -125,9 +125,7 @@ export function planRoutes(opts: {
 
   if (theme.templates.author) {
     for (const author of content.authors) {
-      const authorPosts = content.posts.filter((p) =>
-        p.authors.some((a) => a.slug === author.slug),
-      );
+      const authorPosts = content.postsByAuthor.get(author.slug) ?? [];
       const pages = paginatePosts(authorPosts, perPage);
       pages.forEach((slice, idx) => {
         const url =

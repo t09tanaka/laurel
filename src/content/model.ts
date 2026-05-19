@@ -156,5 +156,10 @@ export interface ContentGraph {
     tags: Map<string, Tag>;
     authors: Map<string, Author>;
   };
+  // Inverse indices keyed by slug. Built once during content load so the route
+  // planner can resolve tag/author archives in O(1) instead of scanning
+  // `posts` for every tag/author (O(tags x posts), O(authors x posts)).
+  postsByTag: Map<string, Post[]>;
+  postsByAuthor: Map<string, Post[]>;
   site: SiteData;
 }
