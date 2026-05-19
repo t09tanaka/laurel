@@ -1,0 +1,64 @@
+# Deploy a Nectar site to GitHub Pages.
+#
+# Copy this file to .github/workflows/pages.yml in your repo, then in the
+# GitHub repo settings turn on: Pages -> Build and deployment -> Source =
+# "GitHub Actions". Push to main and the workflow publishes dist/ to Pages.
+#
+# If your site lives at https://<user>.github.io/<repo>/ (a project site),
+# also set [build].base_path = "/<repo>/" in nectar.toml so {{asset}} and
+# {{url}} emit correct URLs for the subdirectory.
+#
+# See docs/tutorials/04-deploy.md for the full walkthrough.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build site
+        run: bunx nectar build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
