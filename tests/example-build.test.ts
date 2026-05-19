@@ -41,6 +41,12 @@ describe('example build', () => {
       expect(html, `${label} page <main> should carry id="main" for skip-link targeting`).toMatch(
         /<main[^>]*\bid="main"/,
       );
+      expect(html, `${label} page search button must have non-empty aria-label`).not.toMatch(
+        /<button[^>]*\bgh-search\b[^>]*\baria-label=""/,
+      );
+      expect(html, `${label} page burger button must have non-empty aria-label`).not.toMatch(
+        /<button[^>]*\bgh-burger\b[^>]*\baria-label=""/,
+      );
     }
 
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
