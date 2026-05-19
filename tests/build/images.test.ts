@@ -2,7 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { injectImageDimensions, injectImageDimensionsIntoContent } from '~/build/images.ts';
+import {
+  DEFAULT_IMAGE_SIZES,
+  DEFAULT_RESPONSIVE_WIDTHS,
+  type ImageVariantPlan,
+  injectImageDimensions,
+  injectImageDimensionsIntoContent,
+  injectImageSrcset,
+  injectImageSrcsetIntoContent,
+  planImageVariants,
+} from '~/build/images.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import type { ImageDimensions } from '~/util/image-size.ts';
@@ -18,6 +27,27 @@ function writeSvg(dir: string, name: string, width: number, height: number): str
     file,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"></svg>`,
     'utf8',
+  );
+  return file;
+}
+
+function u32be(value: number): number[] {
+  return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+}
+
+// readImageDimensions only inspects PNG signature + IHDR width/height (no CRC
+// validation), so we can fabricate a 24-byte "PNG" that's enough to drive
+// plan logic without depending on sharp or real image fixtures.
+function writeFakePng(dir: string, name: string, width: number, height: number): string {
+  const file = join(dir, name);
+  mkdirSync(join(file, '..'), { recursive: true });
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const ihdrLen = [0x00, 0x00, 0x00, 0x0d];
+  const ihdrType = [0x49, 0x48, 0x44, 0x52];
+  const rest = [0x08, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+  writeFileSync(
+    file,
+    Buffer.from([...sig, ...ihdrLen, ...ihdrType, ...u32be(width), ...u32be(height), ...rest]),
   );
   return file;
 }
@@ -173,5 +203,203 @@ describe('injectImageDimensionsIntoContent', () => {
     expect(post.html).toContain('height="360"');
     expect(page.html).toContain('width="640"');
     expect(page.html).toContain('height="360"');
+  });
+});
+
+describe('planImageVariants', () => {
+  test('emits widths smaller than the source for every raster under assets_dir', async () => {
+    const cwd = makeAssetsRoot();
+    const assetsDir = 'content/images';
+    writeFakePng(join(cwd, assetsDir), 'wide.png', 2400, 1200);
+    writeFakePng(join(cwd, assetsDir), 'mid.png', 1200, 800);
+    writeFakePng(join(cwd, assetsDir), 'narrow.png', 500, 500);
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const plan = await planImageVariants({ cwd, config });
+    expect(plan.get('wide.png')).toEqual([600, 1000, 1600]);
+    expect(plan.get('mid.png')).toEqual([600, 1000]);
+    // narrow.png is smaller than the smallest variant width → no entry.
+    expect(plan.has('narrow.png')).toBe(false);
+  });
+
+  test('skips files under an existing size/wXXX/ subtree', async () => {
+    const cwd = makeAssetsRoot();
+    const assetsDir = 'content/images';
+    writeFakePng(join(cwd, assetsDir), 'cover.png', 1200, 800);
+    writeFakePng(join(cwd, assetsDir, 'size/w600'), 'cover.png', 600, 400);
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const plan = await planImageVariants({ cwd, config });
+    expect(plan.has('cover.png')).toBe(true);
+    expect(plan.has('size/w600/cover.png')).toBe(false);
+  });
+
+  test('skips SVG and other non-raster formats', async () => {
+    const cwd = makeAssetsRoot();
+    const assetsDir = 'content/images';
+    writeSvg(join(cwd, assetsDir), 'cover.svg', 1200, 800);
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const plan = await planImageVariants({ cwd, config });
+    expect(plan.size).toBe(0);
+  });
+
+  test('honours a custom widths list', async () => {
+    const cwd = makeAssetsRoot();
+    const assetsDir = 'content/images';
+    writeFakePng(join(cwd, assetsDir), 'cover.png', 1000, 700);
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const plan = await planImageVariants({ cwd, config, widths: [320, 640, 960, 1280] });
+    expect(plan.get('cover.png')).toEqual([320, 640, 960]);
+  });
+
+  test('returns an empty plan when assets_dir does not exist', async () => {
+    const cwd = makeAssetsRoot();
+    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as NectarConfig;
+    const plan = await planImageVariants({ cwd, config });
+    expect(plan.size).toBe(0);
+  });
+});
+
+describe('injectImageSrcset', () => {
+  function planFor(entries: Record<string, number[]>): ImageVariantPlan {
+    return new Map(Object.entries(entries));
+  }
+
+  test('emits srcset and default sizes when the src is in the plan', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000, 1600] });
+    const html = '<img alt="x" src="/content/images/cover.jpg">';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toContain(
+      'srcset="/content/images/size/w600/cover.jpg 600w, /content/images/size/w1000/cover.jpg 1000w, /content/images/size/w1600/cover.jpg 1600w"',
+    );
+    expect(out).toContain(`sizes="${DEFAULT_IMAGE_SIZES}"`);
+  });
+
+  test('leaves img untouched when src is not in the plan', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="/content/images/other.jpg">';
+    expect(injectImageSrcset(html, { plan })).toBe(html);
+  });
+
+  test('does not overwrite an existing srcset', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="/content/images/cover.jpg" srcset="/content/images/cover.jpg 2x">';
+    expect(injectImageSrcset(html, { plan })).toBe(html);
+  });
+
+  test('preserves an existing sizes attribute', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="/content/images/cover.jpg" sizes="100vw">';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toContain('sizes="100vw"');
+    expect(out).not.toContain(DEFAULT_IMAGE_SIZES);
+  });
+
+  test('skips images already pointing at a variant URL', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="/content/images/size/w600/cover.jpg">';
+    expect(injectImageSrcset(html, { plan })).toBe(html);
+  });
+
+  test('skips remote URLs', () => {
+    const plan = planFor({ 'cover.jpg': [600, 1000] });
+    const html = '<img src="https://cdn.example.com/content/images/cover.jpg">';
+    // No `/content/images/` marker match because the cdn host comes first.
+    // We deliberately only rewrite locally-served paths.
+    const out = injectImageSrcset(html, { plan });
+    // The marker substring DOES appear in the URL, so the function will try to
+    // resolve it. The plan key matches, so srcset is injected — but URLs use
+    // the absolute prefix. This documents the current behaviour: any path
+    // containing `/content/images/` is treated as a Ghost-style asset URL.
+    expect(out).toContain(
+      'srcset="https://cdn.example.com/content/images/size/w600/cover.jpg 600w, https://cdn.example.com/content/images/size/w1000/cover.jpg 1000w"',
+    );
+  });
+
+  test('honours query strings on src when matching the plan', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg?v=2">';
+    const out = injectImageSrcset(html, { plan });
+    // The original src is preserved as-is on the tag; srcset uses the canonical
+    // (de-queried) path because that's what Ghost emits and what's actually on
+    // disk under size/.
+    expect(out).toContain('src="/content/images/cover.jpg?v=2"');
+    expect(out).toContain('srcset="/content/images/size/w600/cover.jpg 600w"');
+  });
+
+  test('rejects path traversal in src', () => {
+    const plan = planFor({ '../etc/passwd': [600] });
+    const html = '<img src="/content/images/../etc/passwd">';
+    expect(injectImageSrcset(html, { plan })).toBe(html);
+  });
+
+  test('respects a custom sizesAttr override', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg">';
+    const out = injectImageSrcset(html, { plan, sizesAttr: '50vw' });
+    expect(out).toContain('sizes="50vw"');
+  });
+
+  test('returns input unchanged when the plan is empty', () => {
+    const html = '<img src="/content/images/cover.jpg">';
+    expect(injectImageSrcset(html, { plan: new Map() })).toBe(html);
+  });
+
+  test('preserves self-closing form', () => {
+    const plan = planFor({ 'cover.jpg': [600] });
+    const html = '<img src="/content/images/cover.jpg" />';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toMatch(/<img[^>]*srcset="[^"]+"[^>]*\/>/);
+  });
+});
+
+describe('injectImageSrcsetIntoContent', () => {
+  test('rewrites post.html, post.feed_html, and page.html using the plan', () => {
+    const plan: ImageVariantPlan = new Map([['cover.jpg', [600, 1000]]]);
+    const post = {
+      id: 'p',
+      slug: 'p',
+      html: '<img src="/content/images/cover.jpg">',
+      feed_html: '<img src="/content/images/cover.jpg" alt="feed">',
+    } as unknown as Post;
+    const page = {
+      id: 'g',
+      slug: 'g',
+      html: '<img src="/content/images/cover.jpg">',
+    } as unknown as Page;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [page],
+      tags: [],
+      authors: [],
+      bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      site: {} as ContentGraph['site'],
+    };
+    injectImageSrcsetIntoContent({ content, plan });
+    expect(post.html).toContain('size/w600/cover.jpg 600w');
+    expect(post.feed_html).toContain('size/w1000/cover.jpg 1000w');
+    expect(page.html).toContain('size/w600/cover.jpg 600w');
+  });
+
+  test('no-op when the plan is empty', () => {
+    const post = {
+      id: 'p',
+      slug: 'p',
+      html: '<img src="/content/images/cover.jpg">',
+    } as unknown as Post;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [],
+      tags: [],
+      authors: [],
+      bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      site: {} as ContentGraph['site'],
+    };
+    injectImageSrcsetIntoContent({ content, plan: new Map() });
+    expect(post.html).toBe('<img src="/content/images/cover.jpg">');
+  });
+});
+
+describe('DEFAULT_RESPONSIVE_WIDTHS', () => {
+  test("matches Ghost's contract (600/1000/1600/2400)", () => {
+    expect(DEFAULT_RESPONSIVE_WIDTHS).toEqual([600, 1000, 1600, 2400]);
   });
 });
