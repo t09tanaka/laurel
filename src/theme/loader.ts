@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
+import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
 import type { ThemeBundle } from './types.ts';
@@ -85,16 +86,75 @@ async function loadLocales(rootDir: string): Promise<Record<string, Record<strin
   for await (const rel of glob.scan({ cwd: dir })) {
     const code = rel.slice(0, rel.length - 5);
     const raw = await readFile(join(dir, rel), 'utf8');
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const strings: Record<string, string> = {};
-      for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value === 'string') strings[key] = value;
-      }
-      out[code] = strings;
+      parsed = JSON.parse(raw);
     } catch {
-      // ignore malformed locale file
+      logger.warn(`Locale file ${rel} is not valid JSON; ignoring.`);
+      continue;
     }
+    out[code] = sanitizeLocale(parsed, rel);
   }
   return out;
+}
+
+// Locale strings are rendered by themes through `{{t}}` and frequently through
+// `{{{t}}}` (triple-stash) so that translations may contain link markup. That
+// makes the locale JSON file an HTML-injection surface: a malicious or
+// compromised translation can ship `<script>` or `onerror=` payloads into every
+// rendered page. We validate the shape (string keys -> string values), cap the
+// length, and reject entries that contain obvious script-injection tokens. We
+// still allow benign markup like `<a>` and `<strong>` because real-world Ghost
+// locale files rely on it.
+const MAX_LOCALE_KEY_LEN = 256;
+const MAX_LOCALE_VALUE_LEN = 4096;
+const DANGEROUS_LOCALE_PATTERNS: ReadonlyArray<RegExp> = [
+  /<script\b/i,
+  /<\/script\b/i,
+  /<iframe\b/i,
+  /<object\b/i,
+  /<embed\b/i,
+  /<svg\b/i,
+  /<link\b/i,
+  /<meta\b/i,
+  /\bjavascript:/i,
+  /\bdata:text\/html/i,
+  /\son[a-z]+\s*=/i,
+];
+
+export function sanitizeLocale(parsed: unknown, fileLabel: string): Record<string, string> {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    logger.warn(`Locale file ${fileLabel} must be a JSON object; ignoring.`);
+    return {};
+  }
+  const strings: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value !== 'string') {
+      logger.warn(`Locale ${fileLabel}: key ${truncate(key, 64)} has non-string value; skipping.`);
+      continue;
+    }
+    if (key.length > MAX_LOCALE_KEY_LEN) {
+      logger.warn(`Locale ${fileLabel}: key exceeds ${MAX_LOCALE_KEY_LEN} chars; skipping.`);
+      continue;
+    }
+    if (value.length > MAX_LOCALE_VALUE_LEN) {
+      logger.warn(
+        `Locale ${fileLabel}: value for key ${truncate(key, 64)} exceeds ${MAX_LOCALE_VALUE_LEN} chars; skipping.`,
+      );
+      continue;
+    }
+    const matched = DANGEROUS_LOCALE_PATTERNS.find((rx) => rx.test(value));
+    if (matched) {
+      logger.warn(
+        `Locale ${fileLabel}: value for key ${truncate(key, 64)} contains dangerous token (${matched.source}); skipping.`,
+      );
+      continue;
+    }
+    strings[key] = value;
+  }
+  return strings;
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
 }
