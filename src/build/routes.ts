@@ -6,8 +6,10 @@ import { logger } from '~/util/logger.ts';
 import { absoluteUrl } from '~/util/url.ts';
 import {
   type RoutesYaml,
+  applyTaxonomyTemplate,
   emptyRoutesYaml,
   resolveRouteEntries,
+  resolveTaxonomies,
   routeUrlToOutputPath,
 } from './routes-yaml.ts';
 
@@ -19,6 +21,7 @@ export function planRoutes(opts: {
 }): RouteContext[] {
   const { config, content, theme } = opts;
   const routesYaml = opts.routesYaml ?? emptyRoutesYaml();
+  const taxonomies = resolveTaxonomies(routesYaml);
   const routes: RouteContext[] = [];
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
 
@@ -88,14 +91,15 @@ export function planRoutes(opts: {
     }
   }
 
-  if (theme.templates.tag) {
+  if (theme.templates.tag && taxonomies.tag !== undefined) {
+    const tagTemplate = taxonomies.tag;
     for (const tag of content.tags) {
       const tagPosts = content.postsByTag.get(tag.slug) ?? [];
       const pages = paginatePosts(tagPosts, perPage);
+      const base = applyTaxonomyTemplate(tagTemplate, tag.slug);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? `/tag/${tag.slug}/` : `/tag/${tag.slug}/page/${idx + 1}/`;
-        const outputPath =
-          idx === 0 ? `tag/${tag.slug}/index.html` : `tag/${tag.slug}/page/${idx + 1}/index.html`;
+        const url = idx === 0 ? base : `${base}page/${idx + 1}/`;
+        const outputPath = routeUrlToOutputPath(url);
         routes.push({
           kind: 'tag',
           url,
@@ -105,7 +109,7 @@ export function planRoutes(opts: {
           data: {
             tag,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, tagPosts.length, `/tag/${tag.slug}/`),
+            pagination: paginationInfo(idx, pages, perPage, tagPosts.length, base),
           },
           meta: defaultMeta(
             config,
@@ -171,17 +175,15 @@ export function planRoutes(opts: {
     });
   }
 
-  if (theme.templates.author) {
+  if (theme.templates.author && taxonomies.author !== undefined) {
+    const authorTemplate = taxonomies.author;
     for (const author of content.authors) {
       const authorPosts = content.postsByAuthor.get(author.slug) ?? [];
       const pages = paginatePosts(authorPosts, perPage);
+      const base = applyTaxonomyTemplate(authorTemplate, author.slug);
       pages.forEach((slice, idx) => {
-        const url =
-          idx === 0 ? `/author/${author.slug}/` : `/author/${author.slug}/page/${idx + 1}/`;
-        const outputPath =
-          idx === 0
-            ? `author/${author.slug}/index.html`
-            : `author/${author.slug}/page/${idx + 1}/index.html`;
+        const url = idx === 0 ? base : `${base}page/${idx + 1}/`;
+        const outputPath = routeUrlToOutputPath(url);
         routes.push({
           kind: 'author',
           url,
@@ -191,13 +193,7 @@ export function planRoutes(opts: {
           data: {
             author,
             posts: slice,
-            pagination: paginationInfo(
-              idx,
-              pages,
-              perPage,
-              authorPosts.length,
-              `/author/${author.slug}/`,
-            ),
+            pagination: paginationInfo(idx, pages, perPage, authorPosts.length, base),
           },
           meta: defaultMeta(
             config,

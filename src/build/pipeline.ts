@@ -116,8 +116,12 @@ async function runBuild({
   finalOutputDir: string;
   profiler: Profiler | null;
 }): Promise<BuildSummary> {
+  // Load `routes.yaml` first so it can shape both content URLs (tag/author
+  // archives may be disabled or use custom paths) and the route plan.
+  const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
+  warnUnappliedSections(routesYaml);
   const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
-    Promise.all([loadContent({ cwd, config }), loadTheme({ cwd, config })]),
+    Promise.all([loadContent({ cwd, config, routesYaml }), loadTheme({ cwd, config })]),
   );
 
   validateThemeCustom({ config, pkg: theme.pkg });
@@ -151,8 +155,6 @@ async function runBuild({
 
   const favicons = computeFavicons({ config, theme, cwd });
   const engine = createEngine({ config, content, theme, favicons });
-  const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
-  warnUnappliedSections(routesYaml);
   const routes = planRoutes({ config, content, theme, routesYaml });
 
   const subscribeConfig = config.components.subscribe;

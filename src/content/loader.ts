@@ -2,6 +2,13 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
+import {
+  type ResolvedTaxonomies,
+  type RoutesYaml,
+  applyTaxonomyTemplate,
+  emptyRoutesYaml,
+  resolveTaxonomies,
+} from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { toNectarError } from '~/util/errors.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
@@ -24,10 +31,33 @@ import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 export interface LoadContentOptions {
   cwd: string;
   config: NectarConfig;
+  // Resolved `routes.yaml`, when available. Used to pick the URL template for
+  // tag/author archives so `tag.url` / `author.url` reflect any custom paths
+  // (and become `''` when the taxonomy is disabled via routes.yaml).
+  routesYaml?: RoutesYaml;
 }
 
-export async function loadContent({ cwd, config }: LoadContentOptions): Promise<ContentGraph> {
+// Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
+// when the taxonomy is disabled so template guards like
+// `typeof tag.url === 'string' && tag.url.length > 0` keep skipping the link.
+function taxonomyArchiveUrl(
+  siteUrl: string,
+  taxonomies: ResolvedTaxonomies,
+  kind: 'tag' | 'author',
+  slug: string,
+): string {
+  const template = taxonomies[kind];
+  if (template === undefined) return '';
+  return joinUrl(siteUrl, applyTaxonomyTemplate(template, slug));
+}
+
+export async function loadContent({
+  cwd,
+  config,
+  routesYaml,
+}: LoadContentOptions): Promise<ContentGraph> {
   const site = buildSite(config);
+  const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
 
   // Pre-count post/page files so the pool can skip spawning Bun Workers on
   // small sites where the spawn cost would exceed the parsing cost. Tags and
@@ -44,7 +74,7 @@ export async function loadContent({ cwd, config }: LoadContentOptions): Promise<
   const pool = createMarkdownPool({ estimatedJobs: postCount * 2 + pageCount });
 
   try {
-    return await loadContentWithPool({ cwd, config, site, pool });
+    return await loadContentWithPool({ cwd, config, site, pool, taxonomies });
   } finally {
     await pool.close();
   }
@@ -55,10 +85,15 @@ async function loadContentWithPool({
   config,
   site,
   pool,
-}: LoadContentOptions & { site: SiteData; pool: MarkdownPool }): Promise<ContentGraph> {
+  taxonomies,
+}: LoadContentOptions & {
+  site: SiteData;
+  pool: MarkdownPool;
+  taxonomies: ResolvedTaxonomies;
+}): Promise<ContentGraph> {
   const [authors, tags, posts, pages] = await Promise.all([
-    loadAuthors(cwd, config),
-    loadTags(cwd, config),
+    loadAuthors(cwd, config, taxonomies),
+    loadTags(cwd, config, taxonomies),
     loadPosts(cwd, config, pool),
     loadPages(cwd, config, pool),
   ]);
@@ -77,7 +112,7 @@ async function loadContentWithPool({
   for (const raw of posts) {
     if (raw.status === 'draft') continue;
     if (raw.status === 'scheduled' && new Date(raw.published_at).getTime() > nowMs) continue;
-    const resolved = resolvePostRelations(raw, authorMap, tagMap, site);
+    const resolved = resolvePostRelations(raw, authorMap, tagMap, site, taxonomies);
     resolvedPosts.push(resolved);
   }
   resolvedPosts.sort(
@@ -93,7 +128,7 @@ async function loadContentWithPool({
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
     if (raw.status === 'draft') continue;
-    const resolved = resolvePageRelations(raw, authorMap, tagMap, site);
+    const resolved = resolvePageRelations(raw, authorMap, tagMap, site, taxonomies);
     resolvedPages.push(resolved);
   }
   resolvedPages.sort((a, b) => a.title.localeCompare(b.title));
@@ -252,14 +287,22 @@ async function loadPages(
   );
 }
 
-async function loadAuthors(cwd: string, config: NectarConfig): Promise<Author[]> {
+async function loadAuthors(
+  cwd: string,
+  config: NectarConfig,
+  taxonomies: ResolvedTaxonomies,
+): Promise<Author[]> {
   const dir = join(cwd, config.content.authors_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizeAuthor(file, raw, config));
+  return loadMarkdownDir(dir, async (file, raw) => normalizeAuthor(file, raw, config, taxonomies));
 }
 
-async function loadTags(cwd: string, config: NectarConfig): Promise<Tag[]> {
+async function loadTags(
+  cwd: string,
+  config: NectarConfig,
+  taxonomies: ResolvedTaxonomies,
+): Promise<Tag[]> {
   const dir = join(cwd, config.content.tags_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizeTag(file, raw, config));
+  return loadMarkdownDir(dir, async (file, raw) => normalizeTag(file, raw, config, taxonomies));
 }
 
 // Cap how many files we read+normalize concurrently. The previous serial loop
@@ -529,6 +572,7 @@ async function normalizeAuthor(
   filePath: string,
   raw: string,
   config: NectarConfig,
+  taxonomies: ResolvedTaxonomies,
 ): Promise<Author> {
   const { data, body } = parseFrontmatter(raw, { filePath });
   const slug =
@@ -556,11 +600,16 @@ async function normalizeAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: joinUrl(config.site.url, `/author/${slug}/`),
+    url: taxonomyArchiveUrl(config.site.url, taxonomies, 'author', slug),
   };
 }
 
-async function normalizeTag(filePath: string, raw: string, config: NectarConfig): Promise<Tag> {
+async function normalizeTag(
+  filePath: string,
+  raw: string,
+  config: NectarConfig,
+  taxonomies: ResolvedTaxonomies,
+): Promise<Tag> {
   const { data } = parseFrontmatter(raw, { filePath });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} tag slug`) ??
@@ -575,7 +624,7 @@ async function normalizeTag(filePath: string, raw: string, config: NectarConfig)
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: joinUrl(config.site.url, `/tag/${slug}/`),
+    url: taxonomyArchiveUrl(config.site.url, taxonomies, 'tag', slug),
     count: { posts: 0 },
   };
 }
@@ -613,9 +662,10 @@ function resolvePostRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   site: SiteData,
+  taxonomies: ResolvedTaxonomies,
 ): Post {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, taxonomies);
+  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, taxonomies);
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
@@ -673,9 +723,10 @@ function resolvePageRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   site: SiteData,
+  taxonomies: ResolvedTaxonomies,
 ): Page {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, taxonomies);
+  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, taxonomies);
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
@@ -724,7 +775,12 @@ function resolvePageRelations(
   };
 }
 
-function resolveTagSlugs(slugs: string[], tags: Map<string, Tag>, site: SiteData): Tag[] {
+function resolveTagSlugs(
+  slugs: string[],
+  tags: Map<string, Tag>,
+  site: SiteData,
+  taxonomies: ResolvedTaxonomies,
+): Tag[] {
   return slugs.map((slug) => {
     const existing = tags.get(slug);
     if (existing) return existing;
@@ -737,7 +793,7 @@ function resolveTagSlugs(slugs: string[], tags: Map<string, Tag>, site: SiteData
       visibility: 'public',
       meta_title: undefined,
       meta_description: undefined,
-      url: joinUrl(site.url, `/tag/${slug}/`),
+      url: taxonomyArchiveUrl(site.url, taxonomies, 'tag', slug),
       count: { posts: 0 },
     };
     tags.set(slug, created);
@@ -749,6 +805,7 @@ function resolveAuthorSlugs(
   slugs: string[],
   authors: Map<string, Author>,
   site: SiteData,
+  taxonomies: ResolvedTaxonomies,
 ): Author[] {
   return slugs.map((slug) => {
     const existing = authors.get(slug);
@@ -773,7 +830,7 @@ function resolveAuthorSlugs(
       instagram: undefined,
       meta_title: undefined,
       meta_description: undefined,
-      url: joinUrl(site.url, `/author/${slug}/`),
+      url: taxonomyArchiveUrl(site.url, taxonomies, 'author', slug),
     };
     authors.set(slug, created);
     return created;

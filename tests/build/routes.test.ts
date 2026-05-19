@@ -470,6 +470,143 @@ describe('planRoutes — posts_per_page precedence', () => {
   });
 });
 
+describe('planRoutes — routes.yaml taxonomies (issue #233)', () => {
+  test('omitting taxonomies in routes.yaml still emits the default /tag/{slug}/ archives', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [tag], primary_tag: tag })],
+      tags: [tag],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: { ...emptyRoutesYaml(), routes: { '/featured/': 'featured' } },
+    });
+    const tagRoute = routes.find((r) => r.kind === 'tag');
+    expect(tagRoute?.url).toBe('/tag/news/');
+    expect(tagRoute?.outputPath).toBe('tag/news/index.html');
+  });
+
+  test('an explicit empty taxonomies block disables both tag and author archives', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const author = makeAuthor('alice');
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [tag], primary_tag: tag, authors: [author] })],
+      tags: [tag],
+      authors: [author],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: { ...emptyRoutesYaml(), taxonomies: {} },
+    });
+    expect(routes.find((r) => r.kind === 'tag')).toBeUndefined();
+    expect(routes.find((r) => r.kind === 'author')).toBeUndefined();
+  });
+
+  test('listing only `tag:` disables author archives (block is authoritative)', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const author = makeAuthor('alice');
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [tag], primary_tag: tag, authors: [author] })],
+      tags: [tag],
+      authors: [author],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/tag/{slug}/' },
+      },
+    });
+    expect(routes.find((r) => r.kind === 'tag')).toBeDefined();
+    expect(routes.find((r) => r.kind === 'author')).toBeUndefined();
+  });
+
+  test('null taxonomy value is equivalent to omitting the key', () => {
+    const config = makeConfig('https://example.com');
+    const author = makeAuthor('alice');
+    const content = makeGraph({
+      posts: [makePost('a', { authors: [author] })],
+      authors: [author],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        taxonomies: { author: null },
+      },
+    });
+    expect(routes.find((r) => r.kind === 'author')).toBeUndefined();
+  });
+
+  test('custom tag path replaces the default /tag/{slug}/ in URL and outputPath', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const posts = Array.from({ length: 7 }, (_, i) =>
+      makePost(`p${i}`, { tags: [tag], primary_tag: tag }),
+    );
+    const content = makeGraph({ posts, tags: [tag] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/category/{slug}/', author: '/author/{slug}/' },
+      },
+    });
+    const first = routes.find((r) => r.kind === 'tag' && r.url === '/category/news/');
+    expect(first).toBeDefined();
+    expect(first?.outputPath).toBe('category/news/index.html');
+    expect(first?.meta.canonical).toBe('https://example.com/category/news/');
+
+    const second = routes.find((r) => r.kind === 'tag' && r.url === '/category/news/page/2/');
+    expect(second).toBeDefined();
+    expect(second?.outputPath).toBe('category/news/page/2/index.html');
+
+    const paginationOnFirst = first?.data.pagination as { next_url?: string } | undefined;
+    expect(paginationOnFirst?.next_url).toBe('/category/news/page/2/');
+  });
+
+  test('custom author path replaces the default /author/{slug}/ everywhere', () => {
+    const config = makeConfig('https://example.com');
+    const author = makeAuthor('alice');
+    const content = makeGraph({
+      posts: [makePost('a', { authors: [author], primary_author: author })],
+      authors: [author],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/tag/{slug}/', author: '/writer/{slug}/' },
+      },
+    });
+    const route = routes.find((r) => r.kind === 'author');
+    expect(route?.url).toBe('/writer/alice/');
+    expect(route?.outputPath).toBe('writer/alice/index.html');
+    expect(route?.meta.canonical).toBe('https://example.com/writer/alice/');
+  });
+});
+
 describe('planRoutes — routes.yaml routes section', () => {
   test('emits a custom route for a string-form entry that resolves to a real theme template', () => {
     const config = makeConfig('https://example.com');

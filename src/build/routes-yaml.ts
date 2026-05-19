@@ -60,16 +60,43 @@ const collectionSchema = z
   })
   .strict();
 
+// Taxonomy entries may be:
+//   * a permalink template (`/tag/{slug}/`) — archive enabled at that path
+//   * `null` — archive explicitly disabled (same effect as omitting the key)
+// The path must start with `/`, end with `/` (Ghost's directory-style URLs),
+// and contain `{slug}` so each tag/author gets its own URL.
 const taxonomySchema = z
-  .string()
-  .min(1)
-  .refine((s) => s.startsWith('/'), { message: 'taxonomy permalink must start with `/`' });
+  .union([
+    z.null(),
+    z
+      .string()
+      .min(1)
+      .refine((s) => s.startsWith('/'), { message: 'taxonomy permalink must start with `/`' })
+      .refine((s) => s.endsWith('/'), { message: 'taxonomy permalink must end with `/`' })
+      .refine((s) => s.includes('{slug}'), {
+        message: 'taxonomy permalink must contain the `{slug}` placeholder',
+      }),
+  ])
+  .describe('Permalink template (e.g. `/tag/{slug}/`) or `null` to disable this taxonomy.');
+
+const TAXONOMY_KINDS = ['tag', 'author'] as const;
+type TaxonomyKind = (typeof TAXONOMY_KINDS)[number];
+
+// Authoritative defaults applied when `routes.yaml` is absent, or present but
+// contains no `taxonomies:` block. Both tag and author archives are enabled at
+// Ghost's conventional locations.
+const DEFAULT_TAXONOMY_PATHS: Record<TaxonomyKind, string> = {
+  tag: '/tag/{slug}/',
+  author: '/author/{slug}/',
+};
 
 export const routesYamlSchema = z
   .object({
     routes: z.record(routeEntrySchema).default({}),
     collections: z.record(collectionSchema).default({}),
-    taxonomies: z.record(taxonomySchema).default({}),
+    // Optional (not `.default({})`) so we can distinguish "block omitted, use
+    // defaults" from "block present but empty, disable everything".
+    taxonomies: z.record(taxonomySchema).optional(),
   })
   .strict();
 
@@ -77,6 +104,7 @@ export type RoutesYaml = z.infer<typeof routesYamlSchema>;
 export type RouteEntry = z.infer<typeof routeEntrySchema>;
 export type RouteEntryObject = z.infer<typeof routeEntryObjectSchema>;
 export type RouteCollection = z.infer<typeof collectionSchema>;
+export type ResolvedTaxonomies = Partial<Record<TaxonomyKind, string>>;
 
 export interface ResolvedRouteEntry {
   url: string;
@@ -172,9 +200,42 @@ export function warnUnappliedSections(yaml: RoutesYaml): void {
       'routes.yaml: `collections:` is parsed but not yet applied to the build; post URLs and per-collection templates are unchanged.',
     );
   }
-  if (Object.keys(yaml.taxonomies).length > 0) {
-    logger.warn(
-      'routes.yaml: `taxonomies:` is parsed but not yet applied to the build; tag and author URLs use the built-in `/tag/{slug}/` and `/author/{slug}/` patterns.',
-    );
+}
+
+// Resolve which tag/author archives are active and their URL templates.
+// `undefined` for a kind means "no archive emitted for this taxonomy". The
+// returned templates always include a `{slug}` placeholder and a trailing `/`.
+//
+// Semantics:
+//   * `taxonomies` omitted (undefined) → Ghost defaults for both kinds
+//   * `taxonomies: {}`                  → both kinds disabled
+//   * key listed with string value      → kind enabled with that path
+//   * key listed with null value        → kind explicitly disabled
+//   * key omitted from a present block  → kind disabled (block is authoritative)
+export function resolveTaxonomies(yaml: RoutesYaml): ResolvedTaxonomies {
+  if (yaml.taxonomies === undefined) {
+    return { ...DEFAULT_TAXONOMY_PATHS };
   }
+  const out: ResolvedTaxonomies = {};
+  for (const kind of TAXONOMY_KINDS) {
+    const value = yaml.taxonomies[kind];
+    if (typeof value === 'string') out[kind] = value;
+  }
+  // Any extra keys (anything outside `tag` / `author`) are silently dropped —
+  // Ghost itself only honours these two and the schema accepts arbitrary keys
+  // only because Ghost's docs hint at future extensibility.
+  for (const key of Object.keys(yaml.taxonomies)) {
+    if (!(TAXONOMY_KINDS as readonly string[]).includes(key)) {
+      logger.warn(
+        `routes.yaml: taxonomies.${key} is not a recognised taxonomy kind (expected one of: ${TAXONOMY_KINDS.join(', ')}); ignoring.`,
+      );
+    }
+  }
+  return out;
+}
+
+// Substitute `{slug}` in a taxonomy permalink template. Validated upstream so
+// the placeholder is guaranteed present and the result starts/ends with `/`.
+export function applyTaxonomyTemplate(template: string, slug: string): string {
+  return template.replaceAll('{slug}', slug);
 }

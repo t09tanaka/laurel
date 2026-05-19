@@ -1,3 +1,4 @@
+import { loadRoutesYaml } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { loadTheme } from '~/theme/loader.ts';
@@ -34,7 +35,8 @@ export async function runCheck(args: string[]): Promise<number> {
     const config = await loadConfig({ cwd, configPath });
     logger.info(`Config OK (site: ${config.site.title})`);
 
-    const content = await loadContent({ cwd, config });
+    const routesYaml = await loadRoutesYaml(cwd);
+    const content = await loadContent({ cwd, config, routesYaml });
     logger.info(
       `Content OK: ${content.posts.length} posts, ${content.pages.length} pages, ${content.tags.length} tags, ${content.authors.length} authors`,
     );
