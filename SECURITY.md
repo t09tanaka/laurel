@@ -134,6 +134,14 @@ landing silently:
   over Dependabot here because it understands `bun.lock` natively.
 - Maintainers run `bun pm audit` (or an equivalent scanner) against the
   lockfile when triaging dependency PRs and before tagging a release.
+- CI runs three automated scans on every push and PR to `main`, plus a
+  weekly schedule, via [`.github/workflows/security.yml`](.github/workflows/security.yml):
+  [gitleaks](https://github.com/gitleaks/gitleaks) for secrets in commit
+  history, [osv-scanner](https://github.com/google/osv-scanner) against
+  `bun.lock`, and [CodeQL](https://codeql.github.com/) for the
+  JavaScript/TypeScript source. Contributors can opt in to a local
+  gitleaks pre-commit hook — see
+  [`CONTRIBUTING.md` § Secrets scanning](CONTRIBUTING.md#secrets-scanning).
 
 If you find a vulnerable transitive dependency that the above process missed,
 please report it through the channels in

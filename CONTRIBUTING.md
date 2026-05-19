@@ -215,6 +215,36 @@ bun run typecheck
 bun run build:example      # smoke-test the example site
 ```
 
+### Secrets scanning
+
+The repo ships a `gitleaks` pre-commit hook under [`.githooks/`](./.githooks/)
+that scans staged changes before each commit. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+You also need `gitleaks` on `PATH`:
+
+```bash
+brew install gitleaks                            # macOS
+go install github.com/gitleaks/gitleaks/v8@latest # any Go install
+# or grab a binary from https://github.com/gitleaks/gitleaks/releases
+```
+
+The same scan, plus [osv-scanner](https://github.com/google/osv-scanner) (for
+`bun.lock` vulnerabilities) and [CodeQL](https://codeql.github.com/), runs in
+CI via [`.github/workflows/security.yml`](./.github/workflows/security.yml).
+Treat any security finding as a release blocker — this matters more here than
+in a typical SSG because Nectar accepts raw HTML from theme content
+(`codeinjection_head` / `codeinjection_foot`).
+
+To skip the hook for one commit (rare — prefer fixing the finding):
+
+```bash
+GITLEAKS_SKIP=1 git commit ...
+```
+
 ## Pull Request Workflow
 
 1. **Fork** (if you're external) or **branch** (if you have write access).
