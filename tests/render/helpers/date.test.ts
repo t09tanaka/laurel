@@ -19,11 +19,58 @@ function makeEngine(locale: string, timezone = 'UTC'): NectarEngine {
 }
 
 describe('date helper', () => {
-  test('defaults to English month names for locale=en', () => {
+  test('default format follows Intl.DateTimeFormat for locale=en (US-style)', () => {
     const engine = makeEngine('en');
     registerDateHelpers(engine);
     const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
+    expect(out).toBe(
+      new Intl.DateTimeFormat('en', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        timeZone: 'UTC',
+      }).format(new Date('2026-05-05T00:00:00Z')),
+    );
+  });
+
+  test('default format honours en-GB ordering (DD MMM YYYY)', () => {
+    const engine = makeEngine('en-GB');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
     expect(out).toBe('05 May 2026');
+  });
+
+  test('default format is locale-aware for locale=ja (no explicit format hash)', () => {
+    const engine = makeEngine('ja');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
+    expect(out).toBe(
+      new Intl.DateTimeFormat('ja', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        timeZone: 'UTC',
+      }).format(new Date('2026-05-05T00:00:00Z')),
+    );
+    // Sanity: month digit and year/era marker should appear.
+    expect(out).toContain('2026');
+    expect(out).toContain('5');
+  });
+
+  test('default format uses timezone from site config', () => {
+    const engine = makeEngine('en-GB', 'Asia/Tokyo');
+    registerDateHelpers(engine);
+    // 2026-05-04T20:00:00Z is 2026-05-05T05:00:00+09:00 in Tokyo.
+    const out = engine.hb.compile('{{date "2026-05-04T20:00:00Z"}}')({});
+    expect(out).toBe('05 May 2026');
+  });
+
+  test('underscore-separated locale tags resolve via Intl fallback', () => {
+    const engine = makeEngine('ja_JP');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
+    expect(out).toContain('2026');
+    expect(out).toContain('5');
   });
 
   test('uses Japanese month names when locale=ja with a localized format', () => {
@@ -68,7 +115,14 @@ describe('date helper', () => {
     const engine = makeEngine('zz');
     registerDateHelpers(engine);
     const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
-    expect(out).toBe('05 May 2026');
+    expect(out).toBe(
+      new Intl.DateTimeFormat('en', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        timeZone: 'UTC',
+      }).format(new Date('2026-05-05T00:00:00Z')),
+    );
   });
 
   test('timeago output is localized', () => {
