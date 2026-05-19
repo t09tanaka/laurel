@@ -1,0 +1,39 @@
+############################# lychee config ###################################
+# https://github.com/lycheeverse/lychee
+# Used by .github/workflows/links.yml to catch broken anchors and 404s in *.md.
+
+# Exclude paths that are not first-party docs:
+#  - node_modules: third-party
+#  - example/themes/source: vendored Ghost theme; not ours to fix
+#  - example/dist: build artifact
+#  - .worktrees: local-only parallel work dirs
+exclude_path = [
+  "node_modules",
+  "example/themes/source",
+  "example/dist",
+  ".worktrees",
+]
+
+# Network behavior
+max_concurrency = 8
+max_retries = 2
+retry_wait_time = 2
+timeout = 20
+
+# 429 = rate-limited. Treat as transient, not a failure.
+accept = ["100..=103", "200..=299", "429"]
+
+# Skip link checking inside fenced code blocks and inline code.
+include_verbatim = false
+
+# Don't follow mailto: or tel: links.
+exclude_mail = true
+
+# Allowlist for hosts/URLs that are known to misbehave or are placeholders.
+# example.com / example.org are RFC 2606 reserved names used in docs.
+exclude = [
+  "^https?://(?:[a-z0-9-]+\\.)*example\\.com(?:/|$)",
+  "^https?://(?:[a-z0-9-]+\\.)*example\\.org(?:/|$)",
+  "^https?://localhost(?::\\d+)?(?:/|$)",
+  "^https?://127\\.0\\.0\\.1(?::\\d+)?(?:/|$)",
+]

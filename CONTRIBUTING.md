@@ -215,6 +215,20 @@ bun run typecheck
 bun run build:example      # smoke-test the example site
 ```
 
+### Markdown link checks
+
+PRs that touch any `*.md` file run [lychee](https://github.com/lycheeverse/lychee)
+in CI via [`.github/workflows/links.yml`](./.github/workflows/links.yml) to catch
+broken anchors and 404s. Settings live in [`lychee.toml`](./lychee.toml). To run
+the same check locally before pushing:
+
+```bash
+# macOS
+brew install lychee
+# or grab a binary from https://github.com/lycheeverse/lychee/releases
+lychee --config lychee.toml './**/*.md'
+```
+
 ### Secrets scanning
 
 The repo ships a `gitleaks` pre-commit hook under [`.githooks/`](./.githooks/)
