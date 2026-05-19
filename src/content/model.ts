@@ -65,6 +65,8 @@ export interface Post {
   feature_image: string | undefined;
   feature_image_alt: string | undefined;
   feature_image_caption: string | undefined;
+  feature_image_width: number | undefined;
+  feature_image_height: number | undefined;
   featured: boolean;
   page: false;
   published_at: string;
@@ -106,6 +108,8 @@ export interface Page {
   feature_image: string | undefined;
   feature_image_alt: string | undefined;
   feature_image_caption: string | undefined;
+  feature_image_width: number | undefined;
+  feature_image_height: number | undefined;
   page: true;
   published_at: string;
   updated_at: string;

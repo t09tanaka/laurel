@@ -80,6 +80,15 @@ describe('example build', () => {
       ).toBe(skipAnchorPos);
     }
 
+    // Feature/card images must declare intrinsic width/height so browsers
+    // can reserve layout space (avoids Cumulative Layout Shift).
+    const cardImgPattern =
+      /<figure class="gh-card-image">[\s\S]*?<img\b[^>]*\bwidth="\d+"[^>]*\bheight="\d+"/;
+    expect(indexHtml, 'index card images must declare width/height').toMatch(cardImgPattern);
+    const articleImgPattern =
+      /<figure class="gh-article-image">[\s\S]*?<img\b[^>]*\bwidth="\d+"[^>]*\bheight="\d+"/;
+    expect(postHtml, 'article feature image must declare width/height').toMatch(articleImgPattern);
+
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
     expect(existsSync(join(distRoot, 'sitemap.xml'))).toBeTrue();
 

@@ -30,6 +30,18 @@ export function asStringArray(value: unknown): string[] {
   return [];
 }
 
+export function asPositiveInt(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const n = Math.trunc(value);
+    return n > 0 ? n : undefined;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+}
+
 export function asBool(value: unknown, fallback: boolean): boolean {
   if (typeof value === 'boolean') return value;
   if (value === 'true') return true;

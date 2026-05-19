@@ -99,6 +99,88 @@ describe('loadContent', () => {
   });
 });
 
+describe('loadContent feature image dimensions', () => {
+  test('reads intrinsic SVG width/height from local feature_image', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/cover.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/dims.md'),
+      `---
+title: Dims
+date: 2026-01-01T00:00:00Z
+feature_image: "/content/images/cover.svg"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+    expect(post?.feature_image_width).toBe(1200);
+    expect(post?.feature_image_height).toBe(600);
+  });
+
+  test('honors explicit frontmatter dimensions over file probe', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-explicit-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/cover.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/dims.md'),
+      `---
+title: Dims
+date: 2026-01-01T00:00:00Z
+feature_image: "/content/images/cover.svg"
+feature_image_width: 800
+feature_image_height: 400
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+    expect(post?.feature_image_width).toBe(800);
+    expect(post?.feature_image_height).toBe(400);
+  });
+
+  test('leaves dimensions undefined for remote feature images', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-remote-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/remote.md'),
+      `---
+title: Remote
+date: 2026-01-01T00:00:00Z
+feature_image: "https://cdn.example.com/cover.jpg"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+    expect(post?.feature_image_width).toBeUndefined();
+    expect(post?.feature_image_height).toBeUndefined();
+  });
+});
+
 describe('loadContent slug sanitization', () => {
   test('sanitizes malicious frontmatter slug for posts (path traversal)', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
