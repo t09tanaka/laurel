@@ -105,4 +105,46 @@ describe('social_url helper', () => {
     const tpl = engine.hb.compile('{{social_url type="twitter"}}');
     expect(tpl({ twitter: 'https://twitter.com/nectar' })).toBe('https://twitter.com/nectar');
   });
+
+  test('rejects a Mastodon handle whose host contains attribute-breaking characters', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'me@evil.example/?" onmouseover=alert(1) x="' })).toBe('');
+  });
+
+  test('rejects a Mastodon handle whose host has a path segment', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'alice@hachyderm.io/extra' })).toBe('');
+  });
+
+  test('rejects a Mastodon handle whose host is a bare label without a dot', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'alice@localhost' })).toBe('');
+  });
+
+  test('rejects a Mastodon handle with more than one inner "@"', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'alice@evil@hachyderm.io' })).toBe('');
+  });
+
+  test('rejects a Mastodon handle whose user contains unsafe characters', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'al"ice@hachyderm.io' })).toBe('');
+  });
+
+  test('rejects a host-less Mastodon handle that contains unsafe characters', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
+    expect(tpl({ mastodon: 'al ice' })).toBe('');
+  });
 });

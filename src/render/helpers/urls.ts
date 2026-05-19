@@ -56,8 +56,24 @@ function isAbsoluteHttpUrl(value: string): boolean {
 function normaliseMastodon(handle: string): string {
   const clean = handle.replace(/^@/, '');
   if (clean.includes('@')) {
-    const [user, host] = clean.split('@');
+    const parts = clean.split('@');
+    if (parts.length !== 2) return '';
+    const [user, host] = parts;
+    if (!isValidMastodonUser(user) || !isValidHostname(host)) return '';
     return `https://${host}/@${user}`;
   }
+  if (!isValidMastodonUser(clean)) return '';
   return `https://mastodon.social/@${clean}`;
+}
+
+function isValidMastodonUser(user: string): boolean {
+  return /^[A-Za-z0-9_]([A-Za-z0-9_.-]{0,28}[A-Za-z0-9_])?$/.test(user);
+}
+
+function isValidHostname(host: string): boolean {
+  if (!host || host.length > 253) return false;
+  const labels = host.split('.');
+  if (labels.length < 2) return false;
+  const label = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+  return labels.every((l) => label.test(l));
 }
