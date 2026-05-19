@@ -2490,6 +2490,36 @@ blockquote.kg-blockquote-alt {
     margin-left: 6px;
 }
 
+/* Video */
+/* Koenig stores the natural aspect ratio of a video card on the wrapping
+   container as a CSS custom property (`--aspect-ratio: 1.777` for 16:9).
+   Without an `aspect-ratio` rule that consumes it, the <video> element
+   either collapses to zero height before metadata loads or reflows when
+   playback starts. Mirrors `@tryghost/kg-default-cards/styles/kg-video.css`
+   but only the static, non-overlay rules — Nectar renders the card without
+   Koenig's play-overlay DOM, so the native `controls` button is used. */
+
+.kg-video-container {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-darker-gray);
+}
+
+.kg-video-container[style*="--aspect-ratio"] {
+    aspect-ratio: var(--aspect-ratio);
+}
+
+.kg-video-container video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.kg-video-card figcaption {
+    margin-top: 12px;
+}
+
 /* Caption */
 
 figcaption {
