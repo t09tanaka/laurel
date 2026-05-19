@@ -9,13 +9,18 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
         navigation: { label: string; url: string }[];
         secondary_navigation: { label: string; url: string }[];
       };
+      const route = options.data?.route as { url?: string } | undefined;
+      const currentUrl = route?.url;
       const type = String(options.hash.type ?? 'primary');
       const items = type === 'secondary' ? site.secondary_navigation : site.navigation;
       const list = items
-        .map(
-          (item) =>
-            `<li class="nav-${slugify(item.label)}"><a href="${escapeAttr(item.url)}">${escapeHtml(item.label)}</a></li>`,
-        )
+        .map((item) => {
+          const isCurrent =
+            currentUrl !== undefined &&
+            (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url));
+          const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
+          return `<li class="nav-${slugify(item.label)}"${ariaCurrent}><a href="${escapeAttr(item.url)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
+        })
         .join('');
       return new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);
     },
