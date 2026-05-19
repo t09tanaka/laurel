@@ -165,6 +165,72 @@ describe('foreach helper', () => {
     // Public-only view is [a, c, e, f]; from=2 limit=2 yields [c, e].
     expect(tpl({ items })).toBe('c|e|');
   });
+
+  // Ghost themes wire masonry/grid wrapping through `@rowStart` / `@rowEnd`,
+  // which flip on the row boundaries dictated by `columns=`. With columns=3 and
+  // 6 items, rowStart fires on positions 0/3 and rowEnd on positions 2/5.
+  // Reference: TryGhost/Ghost `core/frontend/helpers/foreach.js`.
+  test('columns=3 flags rowStart/rowEnd on row boundaries', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns=3}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    const items = [
+      { slug: 'a' },
+      { slug: 'b' },
+      { slug: 'c' },
+      { slug: 'd' },
+      { slug: 'e' },
+      { slug: 'f' },
+    ];
+    expect(tpl({ items })).toBe('a:S|b:|c:E|d:S|e:|f:E|');
+  });
+
+  // A `columns=` value supplied as a string (the Handlebars literal form) must
+  // parse to a number so themes can write `columns="2"` without the helper
+  // silently falling back to the default.
+  test('columns accepts string literals from the template', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns="2"}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    const items = [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }, { slug: 'd' }];
+    expect(tpl({ items })).toBe('a:S|b:E|c:S|d:E|');
+  });
+
+  // The previous implementation hardcoded rowStart/rowEnd to `false`, which
+  // broke `{{#if @rowStart}}` wrappers in single-column lists. Defaulting
+  // columns to 1 means every item is both the start and end of its own row,
+  // so themes that conditionally open/close wrapper elements per iteration
+  // get a coherent signal even when columns is omitted entirely.
+  test('rowStart/rowEnd both default to true when columns is omitted', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    const items = [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }];
+    expect(tpl({ items })).toBe('a:SE|b:SE|c:SE|');
+  });
+
+  // Garbage values (zero, negative, non-numeric) would otherwise divide by
+  // zero or yield NaN flags. Collapsing them to 1 keeps the helper's output
+  // deterministic instead of leaking `NaN`-shaped booleans into the template.
+  test('non-positive or non-numeric columns falls back to 1', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns=0}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    expect(tpl({ items: [{ slug: 'a' }, { slug: 'b' }] })).toBe('a:SE|b:SE|');
+
+    const tpl2 = engine.hb.compile(
+      '{{#foreach items columns="oops"}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    expect(tpl2({ items: [{ slug: 'a' }, { slug: 'b' }] })).toBe('a:SE|b:SE|');
+  });
 });
 
 describe('is helper', () => {
