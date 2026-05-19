@@ -41,13 +41,15 @@ export async function emitRss(opts: {
       ].join('');
     })
     .join('');
+  const selfHref = `${base}/rss.xml`;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
 <title>${escapeXml(config.site.title)}</title>
 <link>${escapeXml(base)}</link>
 <description>${escapeXml(config.site.description)}</description>
 <language>${escapeXml(config.site.locale)}</language>
+<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>
 ${items}
 </channel>
 </rss>`;
