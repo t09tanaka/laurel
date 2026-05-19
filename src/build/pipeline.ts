@@ -29,6 +29,7 @@ import {
 import { stripUnusedLightbox } from './lightbox.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
+import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRobots } from './robots.ts';
 import { planRoutes } from './routes.ts';
@@ -39,6 +40,7 @@ export interface BuildOptions {
   configPath?: string | undefined;
   outputDir?: string | undefined;
   basePath?: string | undefined;
+  profile?: boolean | undefined;
 }
 
 export interface BuildSummary {
@@ -48,28 +50,45 @@ export interface BuildSummary {
   warningCount: number;
 }
 
+async function timed<T>(
+  profiler: Profiler | null,
+  phase: string,
+  fn: () => Promise<T> | T,
+  getBytes?: (result: T) => number | undefined,
+): Promise<T> {
+  if (!profiler) return await fn();
+  const stop = profiler.start(phase);
+  const result = await fn();
+  const bytes = getBytes?.(result);
+  stop(bytes !== undefined ? { bytes_emitted: bytes } : undefined);
+  return result;
+}
+
 export async function build({
   cwd,
   configPath,
   outputDir: outputDirOverride,
   basePath: basePathOverride,
+  profile,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
-  const config = await loadConfig({ cwd, configPath });
+  const profiler = profile ? createProfiler() : null;
+  const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
   const outputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
   await clearDirContents(outputDir);
 
-  const [content, theme] = await Promise.all([
-    loadContent({ cwd, config }),
-    loadTheme({ cwd, config }),
-  ]);
+  const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
+    Promise.all([loadContent({ cwd, config }), loadTheme({ cwd, config })]),
+  );
 
   validateThemeCustom({ config, pkg: theme.pkg });
 
   injectImageDimensionsIntoContent({ content, cwd, config });
 
-  const imageVariantPlan = await planImageVariants({ cwd, config });
+  const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
+    planImageVariants({ cwd, config }),
+  );
   injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
   const imagesCfg = config.components.images;
   // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
@@ -87,8 +106,10 @@ export async function build({
     });
   }
 
-  await rasterizeOgImages({ cwd, config, content, outputDir });
-  await generateOgImages({ cwd, config, content, outputDir });
+  await timed(profiler, 'og_images', async () => {
+    await rasterizeOgImages({ cwd, config, content, outputDir });
+    await generateOgImages({ cwd, config, content, outputDir });
+  });
 
   const favicons = computeFavicons({ config, theme, cwd });
   const engine = createEngine({ config, content, theme, favicons });
@@ -96,57 +117,82 @@ export async function build({
 
   const subscribeConfig = config.components.subscribe;
   const htmlOutputs: HtmlOutput[] = [];
+  let renderedBytes = 0;
   for (const route of routes) {
+    const stop = profiler?.start('render', route.url);
     try {
       const html = stripUnusedLightbox(
         transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
       );
+      const bytes = Buffer.byteLength(html, 'utf8');
+      renderedBytes += bytes;
+      stop?.({ bytes_emitted: bytes });
       htmlOutputs.push({ outputPath: route.outputPath, html });
     } catch (err) {
+      stop?.();
       throw wrapRenderError(err, route.url, route.template);
     }
   }
-  await writeHtmlBatch(outputDir, htmlOutputs);
+  await timed(
+    profiler,
+    'write_html',
+    () => writeHtmlBatch(outputDir, htmlOutputs),
+    () => renderedBytes,
+  );
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
-    await emitDefault404({ config, content, outputDir, favicons });
+    await timed(profiler, 'default_404', () =>
+      emitDefault404({ config, content, outputDir, favicons }),
+    );
   }
 
-  const assetCount = await copyAssets(theme, outputDir);
-  await copyFavicons(favicons, outputDir);
+  const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+  await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
   if (config.build.copy_content_assets) {
-    await copyContentAssets(cwd, config.content.assets_dir, outputDir, {
-      maxImageBytes: config.build.max_image_bytes,
-    });
-    await generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan });
+    await timed(profiler, 'copy_content_assets', () =>
+      copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+        maxImageBytes: config.build.max_image_bytes,
+      }),
+    );
+    await timed(profiler, 'image_variants', () =>
+      generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+    );
     if (formatVariants.length > 0) {
-      await generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan });
+      await timed(profiler, 'image_format_variants', () =>
+        generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+      );
     }
   }
 
   if (config.components.sitemap.enabled) {
-    await emitSitemap({
-      config,
-      content,
-      outputDir,
-      urls: routes
-        .filter((r) => r.kind !== 'error')
-        .map((r) => ({ url: r.url, lastmod: r.lastmod })),
-    });
+    await timed(profiler, 'sitemap', () =>
+      emitSitemap({
+        config,
+        content,
+        outputDir,
+        urls: routes
+          .filter((r) => r.kind !== 'error')
+          .map((r) => ({ url: r.url, lastmod: r.lastmod })),
+      }),
+    );
   }
   if (config.components.rss.enabled) {
-    await emitRss({
-      config,
-      content,
-      outputDir,
-      limit: config.components.rss.items,
-    });
+    await timed(profiler, 'rss', () =>
+      emitRss({
+        config,
+        content,
+        outputDir,
+        limit: config.components.rss.items,
+      }),
+    );
   }
   if (config.components.content_api.enabled) {
-    await emitContentApiShadows({ config, content, outputDir });
+    await timed(profiler, 'content_api', () =>
+      emitContentApiShadows({ config, content, outputDir }),
+    );
   }
   if (config.components.robots.enabled) {
-    await emitRobots({ config, outputDir });
+    await timed(profiler, 'robots', () => emitRobots({ config, outputDir }));
   }
   await emitNojekyll({ outputDir });
   await emitCname({
@@ -162,6 +208,10 @@ export async function build({
     cwd,
     enabled: config.deploy.cloudflare_pages.enabled,
   });
+
+  if (profiler) {
+    await writeProfile(outputDir, profiler);
+  }
 
   return {
     outputDir,
