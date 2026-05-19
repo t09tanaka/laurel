@@ -20,16 +20,60 @@ function render(
 }
 
 describe('meta_description helper', () => {
-  test('post route uses meta_description, then excerpt, then site.description', () => {
+  test('post route walks meta_description → custom_excerpt → og_description → excerpt → site.description → plaintext', () => {
     const engine = makeEngine();
     const site = { description: 'Site default' };
     const route = { kind: 'post' };
 
-    expect(render(engine, { meta_description: 'Post meta', excerpt: 'X' }, { route, site })).toBe(
-      'Post meta',
+    expect(
+      render(
+        engine,
+        {
+          meta_description: 'Post meta',
+          custom_excerpt: 'X',
+          og_description: 'X',
+          excerpt: 'X',
+          plaintext: 'X.',
+        },
+        { route, site },
+      ),
+    ).toBe('Post meta');
+    expect(
+      render(
+        engine,
+        { custom_excerpt: 'Custom', og_description: 'X', excerpt: 'X', plaintext: 'X.' },
+        { route, site },
+      ),
+    ).toBe('Custom');
+    expect(
+      render(engine, { og_description: 'OG desc', excerpt: 'X', plaintext: 'X.' }, { route, site }),
+    ).toBe('OG desc');
+    expect(render(engine, { excerpt: 'Post excerpt', plaintext: 'X.' }, { route, site })).toBe(
+      'Post excerpt',
     );
-    expect(render(engine, { excerpt: 'Post excerpt' }, { route, site })).toBe('Post excerpt');
+    expect(render(engine, { plaintext: 'Hello world.' }, { route, site })).toBe('Site default');
+    expect(render(engine, { plaintext: 'Hello world. More.' }, { route, site: {} })).toBe(
+      'Hello world.',
+    );
     expect(render(engine, {}, { route, site })).toBe('Site default');
+  });
+
+  test('post route falls back to first sentence of plaintext when nothing else is set', () => {
+    const engine = makeEngine();
+    const route = { kind: 'post' };
+    const site = {};
+
+    expect(
+      render(engine, { plaintext: 'First sentence here. Second sentence here.' }, { route, site }),
+    ).toBe('First sentence here.');
+    expect(render(engine, { plaintext: 'Question mark? Then more.' }, { route, site })).toBe(
+      'Question mark?',
+    );
+    expect(render(engine, { plaintext: 'Exclaim! More.' }, { route, site })).toBe('Exclaim!');
+    expect(render(engine, { plaintext: '   \n  \t  ' }, { route, site })).toBe('');
+    expect(render(engine, { plaintext: 'No terminator here just words' }, { route, site })).toBe(
+      'No terminator here just words',
+    );
   });
 
   test('tag route falls back to tag.description, not site.description', () => {
