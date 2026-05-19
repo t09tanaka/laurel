@@ -1,0 +1,14 @@
+[files]
+extend-exclude = [
+  "example/themes/**",
+  "example/dist/**",
+  "dist/**",
+  "node_modules/**",
+  ".worktrees/**",
+  "bun.lock",
+  "*.lock",
+  "CHANGELOG.md",
+  "tests/fixtures/**",
+  ".github/workflows/release.yml",
+]
+ignore-hidden = false
