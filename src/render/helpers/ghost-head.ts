@@ -1,4 +1,6 @@
 import type Handlebars from 'handlebars';
+import type { FaviconLink } from '~/build/favicons.ts';
+import { joinPath } from '~/theme/assets.ts';
 import { absoluteUrl } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
 
@@ -22,6 +24,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       parts.push(`<meta name="generator" content="Nectar">`);
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
+      }
+      for (const link of engine.favicons?.links ?? []) {
+        parts.push(renderFaviconLink(link, engine.config?.build?.base_path ?? '/'));
       }
       // rel="prev"/"next" for paginated archives. Google deprecated these as a
       // ranking signal, but Bing and feed crawlers still honour them.
@@ -420,6 +425,20 @@ function paginationUrls(route: { data?: Record<string, unknown> } | undefined): 
   const prev = typeof pagination?.prev_url === 'string' ? pagination.prev_url : undefined;
   const next = typeof pagination?.next_url === 'string' ? pagination.next_url : undefined;
   return { prev, next };
+}
+
+// Emit one favicon <link>. Root-relative hrefs are rewritten through the
+// configured base_path so a deploy under /blog/ still resolves correctly;
+// absolute URLs (e.g. a CDN-hosted icon) are passed through unchanged.
+function renderFaviconLink(link: FaviconLink, basePath: string): string {
+  const href = /^[a-z][a-z0-9+.-]*:/i.test(link.href)
+    ? link.href
+    : joinPath(basePath, link.href.replace(/^\/+/, ''));
+  const attrs: string[] = [`rel="${escapeAttr(link.rel)}"`, `href="${escapeAttr(href)}"`];
+  if (link.type) attrs.push(`type="${escapeAttr(link.type)}"`);
+  if (link.sizes) attrs.push(`sizes="${escapeAttr(link.sizes)}"`);
+  if (link.color) attrs.push(`color="${escapeAttr(link.color)}"`);
+  return `<link ${attrs.join(' ')}>`;
 }
 
 function escapeAttr(value: string): string {

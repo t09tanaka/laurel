@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
+import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
@@ -7,6 +8,7 @@ import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
 function makeEngine(
   site: Partial<SiteData> = {},
   config?: Partial<NectarEngine['config']>,
+  favicons?: FaviconSet,
 ): NectarEngine {
   const hb = Handlebars.create();
   const fullSite: SiteData = {
@@ -34,6 +36,7 @@ function makeEngine(
     config: (config ?? {}) as NectarEngine['config'],
     content: { site: fullSite } as unknown as ContentGraph,
     theme: {} as NectarEngine['theme'],
+    favicons,
     templates: {},
     layouts: {},
     render() {
@@ -50,9 +53,10 @@ function renderGhostHead(
     config?: Partial<NectarEngine['config']>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
+    favicons?: FaviconSet;
   } = {},
 ): string {
-  const engine = makeEngine(opts.site, opts.config);
+  const engine = makeEngine(opts.site, opts.config, opts.favicons);
   registerGhostHeadFootHelpers(engine);
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
@@ -923,5 +927,97 @@ describe('ghost_head rel="prev"/rel="next" for paginated archives', () => {
     });
     expect(html).toContain('<link rel="prev" href="https://example.com/">');
     expect(html).toContain('<link rel="next" href="https://example.com/page/3/">');
+  });
+});
+
+describe('ghost_head favicon <link> tags', () => {
+  test('emits nothing when the engine has no favicon set', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+    );
+    expect(html).not.toContain('rel="icon"');
+    expect(html).not.toContain('apple-touch-icon');
+  });
+
+  test('emits each declared favicon link with type/sizes/color attributes', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      {
+        favicons: {
+          copies: [],
+          links: [
+            { rel: 'icon', href: '/favicon.ico', type: 'image/x-icon' },
+            { rel: 'icon', href: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
+            { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+            { rel: 'mask-icon', href: '/safari-pinned-tab.svg', color: '#222222' },
+            { rel: 'manifest', href: '/site.webmanifest' },
+          ],
+        },
+      },
+    );
+    expect(html).toContain('<link rel="icon" href="/favicon.ico" type="image/x-icon">');
+    expect(html).toContain(
+      '<link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">',
+    );
+    expect(html).toContain(
+      '<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">',
+    );
+    expect(html).toContain('<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#222222">');
+    expect(html).toContain('<link rel="manifest" href="/site.webmanifest">');
+  });
+
+  test('rewrites root-relative hrefs through base_path so /blog deploys still resolve', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      {
+        config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+        favicons: {
+          copies: [],
+          links: [{ rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+        },
+      },
+    );
+    expect(html).toContain('<link rel="icon" href="/blog/favicon.svg" type="image/svg+xml">');
+  });
+
+  test('passes absolute URLs through unchanged regardless of base_path', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      {
+        config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+        favicons: {
+          copies: [],
+          links: [{ rel: 'icon', href: 'https://cdn.example.com/favicon.png', type: 'image/png' }],
+        },
+      },
+    );
+    expect(html).toContain(
+      '<link rel="icon" href="https://cdn.example.com/favicon.png" type="image/png">',
+    );
+  });
+
+  test('escapes href and color attributes to prevent attribute breakout', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      {
+        favicons: {
+          copies: [],
+          links: [
+            {
+              rel: 'mask-icon',
+              href: 'https://evil.example.com/"><script>alert(1)</script>',
+              color: '"><script>',
+            },
+          ],
+        },
+      },
+    );
+    expect(html).not.toContain('<script>alert(1)');
+    expect(html).toContain('&quot;');
   });
 });
