@@ -17,7 +17,7 @@ import {
   parseFrontmatter,
 } from './frontmatter.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
-import { truncateByWords } from './markdown.ts';
+import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
@@ -294,6 +294,16 @@ function slugFromPath(filePath: string, rootDir: string): string {
   return slugify(candidate.split('/').pop() ?? basename(filePath), { lower: true, strict: true });
 }
 
+// `feature_image_caption` is rendered raw by typical Ghost themes via
+// `{{{feature_image_caption}}}`. Strip anything beyond inline formatting at
+// load time so unsafe markup in frontmatter cannot reach readers as XSS, even
+// if the active theme uses triple-stash. Keep undefined as undefined so the
+// "no caption" path stays distinguishable from an empty caption.
+function sanitizeFeatureImageCaption(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return sanitizeInlineCaptionHtml(value);
+}
+
 function sanitizeUserSlug(input: string | undefined, context: string): string | undefined {
   if (input === undefined) return undefined;
   const sanitized = slugify(input, { lower: true, strict: true });
@@ -384,7 +394,7 @@ async function normalizePost(
     feed_excerpt: customExcerpt ?? buildDefaultExcerpt(feedPlaintext, locale),
     feature_image: featureImage,
     feature_image_alt: asString(data.feature_image_alt),
-    feature_image_caption: asString(data.feature_image_caption),
+    feature_image_caption: sanitizeFeatureImageCaption(asString(data.feature_image_caption)),
     feature_image_width: explicitWidth ?? dims?.width,
     feature_image_height: explicitHeight ?? dims?.height,
     featured: asBool(data.featured, false),

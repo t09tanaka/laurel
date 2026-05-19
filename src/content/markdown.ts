@@ -65,6 +65,29 @@ export function sanitizeRenderedHtml(html: string): string {
   return sanitizeHtml(html, sanitizeOptions);
 }
 
+// Ghost stores `feature_image_caption` as inline HTML and most upstream Ghost
+// themes (Source, Casper, etc.) render it through Handlebars triple-stash
+// `{{{feature_image_caption}}}`. A contributor PR that adds
+// `feature_image_caption: "<script>…</script>"` would ship persistent XSS to
+// every reader. Sanitise at load time so the stored value is safe regardless of
+// whether the active theme escapes it or not. Restrict to the small set of
+// inline tags Ghost's Koenig editor actually emits for captions — block-level
+// or media tags here would be a layout bug anyway.
+const captionSanitizeOptions: IOptions = {
+  allowedTags: ['a', 'em', 'strong', 'b', 'i', 'code', 'br', 'sup', 'sub', 'span'],
+  allowedAttributes: {
+    a: ['href', 'title', 'target', 'rel'],
+    '*': ['class', 'lang', 'dir'],
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowProtocolRelative: false,
+  disallowedTagsMode: 'discard',
+};
+
+export function sanitizeInlineCaptionHtml(html: string): string {
+  return sanitizeHtml(html, captionSanitizeOptions);
+}
+
 export async function renderMarkdown(
   body: string,
   options: RenderMarkdownOptions = {},

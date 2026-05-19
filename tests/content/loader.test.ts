@@ -396,6 +396,76 @@ body
     }
   });
 
+  test('strips raw <script> from feature_image_caption frontmatter', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-xss-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/cap.md'),
+      `---
+title: Cap
+date: 2026-01-01T00:00:00Z
+feature_image_caption: "Photo by <a href=\\"https://ok.test\\">A</a><script>alert(1)</script>"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const caption = graph.posts[0]?.feature_image_caption ?? '';
+    expect(caption).not.toContain('<script');
+    expect(caption).not.toContain('alert(1)');
+    expect(caption).toContain('<a href="https://ok.test"');
+    expect(caption).toContain('Photo by');
+  });
+
+  test('drops event handler attributes and javascript: hrefs from feature_image_caption', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-handlers-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/cap.md'),
+      `---
+title: Cap
+date: 2026-01-01T00:00:00Z
+feature_image_caption: "<a href=\\"javascript:alert(1)\\" onclick=\\"alert(2)\\">x</a>"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const caption = graph.posts[0]?.feature_image_caption ?? '';
+    expect(caption.toLowerCase()).not.toContain('javascript:');
+    expect(caption.toLowerCase()).not.toContain('onclick');
+    expect(caption).not.toContain('alert(1)');
+    expect(caption).not.toContain('alert(2)');
+  });
+
+  test('preserves safe inline formatting in feature_image_caption', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-safe-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/cap.md'),
+      `---
+title: Cap
+date: 2026-01-01T00:00:00Z
+feature_image_caption: "Photo by <em>Alice</em> &mdash; <strong>2026</strong>"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const caption = graph.posts[0]?.feature_image_caption ?? '';
+    expect(caption).toContain('<em>Alice</em>');
+    expect(caption).toContain('<strong>2026</strong>');
+  });
+
   test('throws when explicit frontmatter slug sanitizes to empty', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
