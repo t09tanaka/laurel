@@ -121,6 +121,52 @@ describe('renderMarkdown — word_count and reading_time across scripts', () => 
     const { word_count } = await renderMarkdown(md);
     expect(word_count).toBeGreaterThan(1);
   });
+
+  test('Japanese reading_time uses characters-per-minute, not 275 wpm', async () => {
+    // 13 reading-chars per sentence × 100 = 1300 chars. At 500 cpm that is
+    // 2.6 → rounds to 3 minutes. Under the broken 275 wpm rule applied to
+    // ICU word segments this same body's word_count is far higher and would
+    // explode reading_time — the char-based rule is what tracks reading effort.
+    const body = 'これは日本語のテストです。'.repeat(100);
+    const { reading_time } = await renderMarkdown(body, { locale: 'ja' });
+    expect(reading_time).toBe(3);
+  });
+
+  test('Chinese reading_time uses characters-per-minute', async () => {
+    // 8 chars × 100 = 800 chars, at 500 cpm → 1.6 → rounds to 2 minutes.
+    const body = '我喜欢学习编程。'.repeat(100);
+    const { reading_time } = await renderMarkdown(body, { locale: 'zh' });
+    expect(reading_time).toBe(2);
+  });
+
+  test('Korean reading_time uses characters-per-minute', async () => {
+    // Single sentence is short — clamped to 1 min minimum.
+    const md = '안녕하세요 저는 한국어를 공부합니다.';
+    const { reading_time } = await renderMarkdown(md, { locale: 'ko' });
+    expect(reading_time).toBe(1);
+  });
+
+  test('locale variants like ja-JP and zh-Hans-CN are recognised as CJK', async () => {
+    const body = 'これは日本語のテストです。'.repeat(100);
+    const ja = await renderMarkdown(body, { locale: 'ja-JP' });
+    const zhHans = await renderMarkdown('我喜欢学习编程。'.repeat(100), { locale: 'zh-Hans-CN' });
+    expect(ja.reading_time).toBe(3);
+    expect(zhHans.reading_time).toBe(2);
+  });
+
+  test('English reading_time still uses 275 wpm', async () => {
+    // 9 words × 100 = 900 words / 275 ≈ 3.27 → rounds to 3.
+    const md = 'The quick brown fox jumps over the lazy dog. '.repeat(100);
+    const { reading_time } = await renderMarkdown(md, { locale: 'en' });
+    expect(reading_time).toBe(3);
+  });
+
+  test('short content always reports at least 1 minute', async () => {
+    const { reading_time: en } = await renderMarkdown('Hi.', { locale: 'en' });
+    const { reading_time: ja } = await renderMarkdown('はい。', { locale: 'ja' });
+    expect(en).toBe(1);
+    expect(ja).toBe(1);
+  });
 });
 
 describe('truncateByWords', () => {
