@@ -202,3 +202,51 @@ describe('post/page/tag/author context helpers', () => {
     expect(tpl({}, { data: { route: {} } })).toBe('NONE');
   });
 });
+
+describe('prev_post / next_post helpers', () => {
+  test('prev_post enters the older sibling and exposes its fields', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#prev_post}}{{title}}@{{url}}{{else}}NONE{{/prev_post}}');
+    const ctx = { title: 'Current', prev: { title: 'Older', url: '/older/' } };
+    expect(tpl(ctx)).toBe('Older@/older/');
+  });
+
+  test('next_post enters the newer sibling and exposes its fields', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#next_post}}{{title}}@{{url}}{{else}}NONE{{/next_post}}');
+    const ctx = { title: 'Current', next: { title: 'Newer', url: '/newer/' } };
+    expect(tpl(ctx)).toBe('Newer@/newer/');
+  });
+
+  test('prev_post falls through to inverse when the current post has no older sibling', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#prev_post}}HIT{{else}}NONE{{/prev_post}}');
+    expect(tpl({ title: 'Only', prev: undefined })).toBe('NONE');
+  });
+
+  test('next_post falls through to inverse when the current post has no newer sibling', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#next_post}}HIT{{else}}NONE{{/next_post}}');
+    expect(tpl({ title: 'Only', next: undefined })).toBe('NONE');
+  });
+
+  test('prev_post reads the route post when called outside an explicit post context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#prev_post}}{{title}}{{else}}NONE{{/prev_post}}');
+    const data = { route: { data: { post: { title: 'Current', prev: { title: 'Older' } } } } };
+    expect(tpl({}, { data })).toBe('Older');
+  });
+
+  test('next_post reads the route post when called outside an explicit post context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#next_post}}{{title}}{{else}}NONE{{/next_post}}');
+    const data = { route: { data: { post: { title: 'Current', next: { title: 'Newer' } } } } };
+    expect(tpl({}, { data })).toBe('Newer');
+  });
+});
