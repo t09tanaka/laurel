@@ -614,6 +614,18 @@ export const configSchema = z
               .describe(
                 'Optional path or command for the `pagefind` CLI. Defaults to `pagefind` resolved via `PATH`. Only consulted when `engine` includes `pagefind`.',
               ),
+            emit_algolia_records: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit `dist/.nectar/algolia-records.json` — a flat array of posts/pages/tags/authors with `objectID`, `url`, `title`, `content`, `type`, `tags`, `authors`. Push to your Algolia index with the `algoliasearch` CLI / SDK; Nectar does not push for you. Independent of `engine`: combine with any engine to get Algolia-pushable records alongside the on-site widget. A starter DocSearch-compatible stylesheet ships at `search/algolia-docsearch.css`.',
+              ),
+            emit_meilisearch_records: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit `dist/.nectar/meilisearch-records.json` — the same flat document set used for Algolia but with Meilisearch-safe IDs (colon-free, `[a-zA-Z0-9-_]` only) under the `id` primary key. Push with the `meilisearch-js` SDK or HTTP API; Nectar does not push for you. Independent of `engine`.',
+              ),
           })
           .strict()
           .default({})
