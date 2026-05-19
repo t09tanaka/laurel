@@ -348,6 +348,145 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
   });
 });
 
+describe('ghost_head og:image supplementary tags', () => {
+  test('emits og:image:type derived from feature_image extension', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta property="og:image:type" content="image/svg+xml">');
+  });
+
+  test('maps common image extensions to the correct MIME type', () => {
+    const cases: { url: string; expected: string }[] = [
+      { url: '/img/a.jpg', expected: 'image/jpeg' },
+      { url: '/img/a.jpeg', expected: 'image/jpeg' },
+      { url: '/img/a.png', expected: 'image/png' },
+      { url: '/img/a.gif', expected: 'image/gif' },
+      { url: '/img/a.webp', expected: 'image/webp' },
+      { url: '/img/a.avif', expected: 'image/avif' },
+    ];
+    for (const { url, expected } of cases) {
+      const html = renderGhostHead({
+        id: 'p1',
+        title: 'cover',
+        feature_image: url,
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      });
+      expect(html).toContain(`<meta property="og:image:type" content="${expected}">`);
+    }
+  });
+
+  test('omits og:image:type when the extension is unknown', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.bin',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('og:image:type');
+  });
+
+  test('emits og:image:width/height when feature_image dimensions are known', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.png',
+      feature_image_width: 1200,
+      feature_image_height: 630,
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta property="og:image:width" content="1200">');
+    expect(html).toContain('<meta property="og:image:height" content="630">');
+  });
+
+  test('omits og:image:width/height when an explicit og_image overrides feature_image', () => {
+    // og_image dimensions are not tracked in frontmatter, so emitting
+    // feature_image_width/height alongside an unrelated og_image would be wrong.
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      og_image: 'https://cdn.example.org/share.png',
+      feature_image: '/content/images/welcome-cover.png',
+      feature_image_width: 1200,
+      feature_image_height: 630,
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('og:image:width');
+    expect(html).not.toContain('og:image:height');
+  });
+
+  test('emits og:image:alt and twitter:image:alt from feature_image_alt', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      feature_image_alt: 'A bee carrying a roll of parchment',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain(
+      '<meta property="og:image:alt" content="A bee carrying a roll of parchment">',
+    );
+    expect(html).toContain(
+      '<meta name="twitter:image:alt" content="A bee carrying a roll of parchment">',
+    );
+  });
+
+  test('omits og:image:alt and twitter:image:alt when feature_image_alt is absent', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('og:image:alt');
+    expect(html).not.toContain('twitter:image:alt');
+  });
+
+  test('escapes quotes and ampersands in feature_image_alt', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      feature_image_alt: 'A & "B" tag',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta property="og:image:alt" content="A &amp; &quot;B&quot; tag">');
+  });
+
+  test('omits og:image:type when no image is present', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'no cover',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('og:image');
+    expect(html).not.toContain('twitter:image');
+  });
+
+  test('strips query strings and fragments before extension lookup', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.png?v=2#frag',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta property="og:image:type" content="image/png">');
+  });
+});
+
 describe('ghost_head BreadcrumbList JSON-LD', () => {
   test('emits Home > Tag > Post for a post with a primary tag', () => {
     const html = renderGhostHead(
