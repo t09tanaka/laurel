@@ -115,3 +115,76 @@ describe('get helper memoization', () => {
     expect(posts).toEqual(snapshot);
   });
 });
+
+describe('get helper pagination metadata', () => {
+  function buildPosts(n: number): { id: string; published_at: string }[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `p${i}`,
+      published_at: `2026-05-${String(n - i).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+  }
+
+  test('exposes pagination via @pagination on the data frame', () => {
+    const engine = buildEngine({ posts: buildPosts(12) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=5}}{{@pagination.page}}/{{@pagination.pages}} total={{@pagination.total}} prev={{@pagination.prev}} next={{@pagination.next}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('1/3 total=12 prev= next=2');
+  });
+
+  test('exposes pagination via the second block param', () => {
+    const engine = buildEngine({ posts: buildPosts(10) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=4 page=2 as |items meta|}}page={{meta.pagination.page}} count={{items.length}} next={{meta.pagination.next}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('page=2 count=4 next=3');
+  });
+
+  test('honours the page hash by offsetting the slice', () => {
+    const engine = buildEngine({ posts: buildPosts(10) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=3 page=2 as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('p3,p4,p5,');
+  });
+
+  test('clamps requested pages beyond the last page', () => {
+    const engine = buildEngine({ posts: buildPosts(5) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=2 page=99 as |items meta|}}page={{meta.pagination.page}} count={{items.length}} prev={{meta.pagination.prev}} next={{meta.pagination.next}}{{/get}}`,
+    );
+    // Page 3 of 3 (pages=ceil(5/2)=3), holds 1 item, prev=2, next=null.
+    expect(tpl({})).toBe('page=3 count=1 prev=2 next=');
+  });
+
+  test('limit="all" collapses to a single page covering every match', () => {
+    const engine = buildEngine({ posts: buildPosts(7) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit="all" as |items meta|}}pages={{meta.pagination.pages}} total={{meta.pagination.total}} count={{items.length}} prev={{meta.pagination.prev}} next={{meta.pagination.next}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('pages=1 total=7 count=7 prev= next=');
+  });
+
+  test('renders inverse and skips pagination wiring when results are empty', () => {
+    const engine = buildEngine({ posts: [] });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=5}}n={{@pagination.total}}{{else}}empty{{/get}}`,
+    );
+    expect(tpl({})).toBe('empty');
+  });
+
+  test('pagination accounts for filter results, not the unfiltered total', () => {
+    const posts = [
+      { id: 'a', featured: true, published_at: '2026-05-19T00:00:00.000Z' },
+      { id: 'b', featured: false, published_at: '2026-05-18T00:00:00.000Z' },
+      { id: 'c', featured: true, published_at: '2026-05-17T00:00:00.000Z' },
+      { id: 'd', featured: true, published_at: '2026-05-16T00:00:00.000Z' },
+      { id: 'e', featured: false, published_at: '2026-05-15T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:true" limit=2}}{{@pagination.total}}/{{@pagination.pages}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('3/2');
+  });
+});

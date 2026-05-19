@@ -137,24 +137,35 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const resource = String(args[0] ?? '');
     const hash = options.hash as Record<string, unknown>;
-    const limit = parseNum(hash.limit) ?? 15;
+    const limitRaw = hash.limit;
+    const limit: number | 'all' = limitRaw === 'all' ? 'all' : (parseNum(limitRaw) ?? 15);
+    const requestedPage = Math.max(1, Math.trunc(parseNum(hash.page) ?? 1));
     const order = String(hash.order ?? 'published_at desc');
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
-    let results: unknown[] = filter
+    const filtered: unknown[] = filter
       ? applyGetFilter(engine, resource, sorted, filter, this)
       : sorted.slice();
-    results = results.slice(0, limit);
+    const total = filtered.length;
+    const pagination = computeGetPagination(total, requestedPage, limit);
+    const results =
+      limit === 'all'
+        ? filtered
+        : filtered.slice((pagination.page - 1) * limit, pagination.page * limit);
     if (results.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    if (blockParams) {
-      return options.fn(this, { blockParams: [results, { resource }] });
-    }
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
+    data.pagination = pagination;
+    if (blockParams) {
+      return options.fn(this, {
+        data,
+        blockParams: [results, { resource, pagination }],
+      });
+    }
     return options.fn(results, { data });
   });
 
@@ -175,6 +186,39 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     }
     return result;
   });
+}
+
+// Ghost's `{{#get}}` exposes a `pagination` object to the block so themes can
+// page through API results. `prev`/`next` are page numbers (or null) because
+// `{{#get}}` queries are not tied to a route, so URL synthesis is the theme's
+// job. `limit: 'all'` collapses to a single page covering every match.
+export interface GetPagination {
+  page: number;
+  limit: number | 'all';
+  pages: number;
+  total: number;
+  prev: number | null;
+  next: number | null;
+}
+
+function computeGetPagination(
+  total: number,
+  requestedPage: number,
+  limit: number | 'all',
+): GetPagination {
+  if (limit === 'all' || !Number.isFinite(limit) || limit <= 0) {
+    return { page: 1, limit, pages: 1, total, prev: null, next: null };
+  }
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const page = Math.min(Math.max(1, requestedPage), pages);
+  return {
+    page,
+    limit,
+    pages,
+    total,
+    prev: page > 1 ? page - 1 : null,
+    next: page < pages ? page + 1 : null,
+  };
 }
 
 // The loader pre-sorts posts by `published_at desc` and pages by `title asc`.
