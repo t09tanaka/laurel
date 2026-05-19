@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { configSchema } from '~/config/schema.ts';
 import type { ThemePackage } from '~/theme/types.ts';
-import { findUnknownThemeCustomKeys, formatThemeCustomIssue } from '~/theme/validate-custom.ts';
+import {
+  findInvalidThemeCustomValues,
+  findUnknownThemeCustomKeys,
+  formatThemeCustomIssue,
+  formatThemeCustomValueIssue,
+} from '~/theme/validate-custom.ts';
 
 function makePkg(custom: ThemePackage['custom']): ThemePackage {
   return {
@@ -65,6 +70,189 @@ describe('formatThemeCustomIssue', () => {
   test('omits the hint when there is no nearby match', () => {
     expect(formatThemeCustomIssue({ key: 'totally_unrelated' }, 'source')).toBe(
       'unknown `[theme.custom].totally_unrelated` — not declared by theme "source"',
+    );
+  });
+});
+
+describe('findInvalidThemeCustomValues', () => {
+  test('flags a select value that is not one of the declared options', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { title_font: 'Comic Sans' } },
+    });
+    const pkg = makePkg({
+      title_font: {
+        type: 'select',
+        options: ['Modern sans-serif', 'Elegant serif', 'Consistent mono'],
+      },
+    });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([
+      {
+        key: 'title_font',
+        reason:
+          '`Comic Sans` is not one of `Modern sans-serif`, `Elegant serif`, `Consistent mono`',
+      },
+    ]);
+  });
+
+  test('suggests the closest valid select option when the value is a near-miss', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { title_font: 'Elegent serif' } },
+    });
+    const pkg = makePkg({
+      title_font: {
+        type: 'select',
+        options: ['Modern sans-serif', 'Elegant serif', 'Consistent mono'],
+      },
+    });
+    const issues = findInvalidThemeCustomValues({ config, pkg });
+    expect(issues).toEqual([
+      {
+        key: 'title_font',
+        reason:
+          '`Elegent serif` is not one of `Modern sans-serif`, `Elegant serif`, `Consistent mono`',
+        suggestion: 'Elegant serif',
+      },
+    ]);
+  });
+
+  test('accepts a select value that matches one of the options', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { title_font: 'Elegant serif' } },
+    });
+    const pkg = makePkg({
+      title_font: {
+        type: 'select',
+        options: ['Modern sans-serif', 'Elegant serif'],
+      },
+    });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+
+  test('skips select validation when the theme declares no options', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { title_font: 'Anything' } },
+    });
+    const pkg = makePkg({ title_font: { type: 'select' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+
+  test('flags a boolean setting that received a string', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { show_author: 'yes' } },
+    });
+    const pkg = makePkg({ show_author: { type: 'boolean' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([
+      { key: 'show_author', reason: 'expected boolean, got string `yes`' },
+    ]);
+  });
+
+  test('accepts a boolean setting that received a boolean', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { show_author: false } },
+    });
+    const pkg = makePkg({ show_author: { type: 'boolean' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+
+  test('flags a text setting that received a number', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { signup_heading: 42 } },
+    });
+    const pkg = makePkg({ signup_heading: { type: 'text' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([
+      { key: 'signup_heading', reason: 'expected string, got number `42`' },
+    ]);
+  });
+
+  test('flags a color setting that is not a hex string', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { site_background_color: 'red' } },
+    });
+    const pkg = makePkg({ site_background_color: { type: 'color' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([
+      {
+        key: 'site_background_color',
+        reason: '`red` is not a valid hex color (e.g. `#ffffff`)',
+      },
+    ]);
+  });
+
+  test('accepts a 6-digit hex color', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { site_background_color: '#ffffff' } },
+    });
+    const pkg = makePkg({ site_background_color: { type: 'color' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+
+  test('accepts a 3-digit and 8-digit hex color', () => {
+    const config3 = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { site_background_color: '#fff' } },
+    });
+    const config8 = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { site_background_color: '#ffffffaa' } },
+    });
+    const pkg = makePkg({ site_background_color: { type: 'color' } });
+    expect(findInvalidThemeCustomValues({ config: config3, pkg })).toEqual([]);
+    expect(findInvalidThemeCustomValues({ config: config8, pkg })).toEqual([]);
+  });
+
+  test('flags an image setting that received a boolean', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { hero_image: true } },
+    });
+    const pkg = makePkg({ hero_image: { type: 'image' } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([
+      { key: 'hero_image', reason: 'expected image path string, got boolean `true`' },
+    ]);
+  });
+
+  test('does not flag keys that the theme does not declare', () => {
+    const config = configSchema.parse({
+      site: { title: 'Blog' },
+      theme: { custom: { totally_unrelated: 'whatever' } },
+    });
+    const pkg = makePkg({ title_font: { type: 'select', options: ['Modern sans-serif'] } });
+    expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+});
+
+describe('formatThemeCustomValueIssue', () => {
+  test('renders a did-you-mean hint when a suggestion is available', () => {
+    expect(
+      formatThemeCustomValueIssue(
+        {
+          key: 'title_font',
+          reason: '`Elegent serif` is not one of `Elegant serif`',
+          suggestion: 'Elegant serif',
+        },
+        'source',
+      ),
+    ).toBe(
+      'invalid value for `[theme.custom].title_font` in theme "source": `Elegent serif` is not one of `Elegant serif` (did you mean `Elegant serif`?)',
+    );
+  });
+
+  test('omits the hint when there is no suggestion', () => {
+    expect(
+      formatThemeCustomValueIssue(
+        { key: 'show_author', reason: 'expected boolean, got string `yes`' },
+        'source',
+      ),
+    ).toBe(
+      'invalid value for `[theme.custom].show_author` in theme "source": expected boolean, got string `yes`',
     );
   });
 });
