@@ -1,10 +1,12 @@
 import { rm } from 'node:fs/promises';
+import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
+import { pLimit } from '~/util/concurrency.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
@@ -203,54 +205,90 @@ async function runBuild({
   let skippedCount = 0;
   let renderedCount = 0;
 
-  for (const route of routes) {
-    const routeHash = computeRouteHash({ globalHash, route, theme });
-    nextRoutes[route.url] = { hash: routeHash, outputPath: route.outputPath };
+  // Render fans out under a concurrency cap so a 1000-post site overlaps the
+  // per-route `Bun.file().exists()` / `.text()` I/O for reused entries instead
+  // of paying it serially. The cap is CPU count because the fresh-render path
+  // is CPU-bound on the single JS thread — going wider buys nothing.
+  const renderConcurrency = Math.max(1, availableParallelism());
+  const renderLimit = pLimit(renderConcurrency);
+  type RenderResult = {
+    htmlOutput: HtmlOutput;
+    routeHash: string;
+    outputPath: string;
+    url: string;
+    bytes: number;
+    reused: boolean;
+  };
+  const renderResults = await Promise.all(
+    routes.map((route) =>
+      renderLimit(async (): Promise<RenderResult> => {
+        const routeHash = computeRouteHash({ globalHash, route, theme });
+        const previous = previousRoutes[route.url];
+        const reusableEntry =
+          previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+            ? previous
+            : undefined;
 
-    const previous = previousRoutes[route.url];
-    const reusableEntry =
-      previous && previous.hash === routeHash && previous.outputPath === route.outputPath
-        ? previous
-        : undefined;
+        if (reusableEntry) {
+          const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
+          if (await previousFile.exists()) {
+            const stop = profiler?.start('render', route.url);
+            const html = await previousFile.text();
+            const bytes = Buffer.byteLength(html, 'utf8');
+            stop?.({ bytes_emitted: bytes });
+            return {
+              htmlOutput: { outputPath: route.outputPath, html, reused: true },
+              routeHash,
+              outputPath: route.outputPath,
+              url: route.url,
+              bytes,
+              reused: true,
+            };
+          }
+        }
 
-    if (reusableEntry) {
-      const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
-      if (await previousFile.exists()) {
         const stop = profiler?.start('render', route.url);
-        const html = await previousFile.text();
-        const bytes = Buffer.byteLength(html, 'utf8');
-        renderedBytes += bytes;
-        stop?.({ bytes_emitted: bytes });
-        htmlOutputs.push({ outputPath: route.outputPath, html, reused: true });
-        skippedCount += 1;
-        continue;
-      }
-    }
+        try {
+          const html = rewritePortalLinks({
+            html: rewriteRecommendationsButton({
+              html: stripUnusedLightbox(
+                transformSubscribeForms(
+                  injectSkipLink(engine.render(route), config.build.csp_nonce),
+                  subscribeConfig,
+                ),
+              ),
+              basePath: config.build.base_path,
+              enabled: recommendationsEnabled,
+            }),
+            urls: portalUrls,
+          });
+          const bytes = Buffer.byteLength(html, 'utf8');
+          stop?.({ bytes_emitted: bytes });
+          return {
+            htmlOutput: { outputPath: route.outputPath, html },
+            routeHash,
+            outputPath: route.outputPath,
+            url: route.url,
+            bytes,
+            reused: false,
+          };
+        } catch (err) {
+          stop?.();
+          throw wrapRenderError(err, route.url, route.template);
+        }
+      }),
+    ),
+  );
 
-    const stop = profiler?.start('render', route.url);
-    try {
-      const html = rewritePortalLinks({
-        html: rewriteRecommendationsButton({
-          html: stripUnusedLightbox(
-            transformSubscribeForms(
-              injectSkipLink(engine.render(route), config.build.csp_nonce),
-              subscribeConfig,
-            ),
-          ),
-          basePath: config.build.base_path,
-          enabled: recommendationsEnabled,
-        }),
-        urls: portalUrls,
-      });
-      const bytes = Buffer.byteLength(html, 'utf8');
-      renderedBytes += bytes;
-      stop?.({ bytes_emitted: bytes });
-      htmlOutputs.push({ outputPath: route.outputPath, html });
-      renderedCount += 1;
-    } catch (err) {
-      stop?.();
-      throw wrapRenderError(err, route.url, route.template);
-    }
+  // Aggregate in route order so htmlOutputs (consumed by minify_html and
+  // writeHtmlBatch) and the manifest stay deterministic regardless of which
+  // chunk finished first.
+  for (const result of renderResults) {
+    nextRoutes[result.url] = { hash: result.routeHash, outputPath: result.outputPath };
+    htmlOutputs.push(result.htmlOutput);
+    renderedBytes += result.bytes;
+    if (result.reused) skippedCount += 1;
+    else renderedCount += 1;
   }
   if (config.build.minify_html) {
     // Reused outputs already went through minification on the build that
