@@ -28,4 +28,48 @@ describe('packaging', () => {
     expect(pkg.files).toContain('README.md');
     expect(pkg.files).toContain('LICENSE');
   });
+
+  // Guards the programmatic API surface: downstream code (Cloudflare Pages
+  // plugins, Vite integrations, etc.) needs stable subpath entries to embed
+  // Nectar without reaching into private internals. See backlog task #510.
+  describe('subpath exports', () => {
+    type ExportEntry = string | { types?: string; default?: string };
+    const exportsMap = pkg.exports as Record<string, ExportEntry>;
+
+    test('exports map is defined as an object', () => {
+      expect(typeof exportsMap).toBe('object');
+      expect(exportsMap).not.toBeNull();
+    });
+
+    test('main entry resolves to the programmatic build module', () => {
+      const main = exportsMap['.'];
+      expect(typeof main).toBe('object');
+      expect((main as { default?: string }).default).toBe('./dist/build.mjs');
+      expect((main as { types?: string }).types).toBe('./dist/types/build/index.d.ts');
+    });
+
+    test('./build exposes the programmatic build entry', () => {
+      const entry = exportsMap['./build'];
+      expect(typeof entry).toBe('object');
+      expect((entry as { default?: string }).default).toBe('./dist/build.mjs');
+      expect((entry as { types?: string }).types).toBe('./dist/types/build/index.d.ts');
+    });
+
+    test('./cli exposes the CLI entry', () => {
+      const entry = exportsMap['./cli'];
+      expect(typeof entry).toBe('object');
+      expect((entry as { default?: string }).default).toBe('./dist/cli.mjs');
+      expect((entry as { types?: string }).types).toBe('./dist/types/cli/index.d.ts');
+    });
+
+    test('./types continues to expose the public type barrel', () => {
+      const entry = exportsMap['./types'];
+      expect(typeof entry).toBe('object');
+      expect((entry as { types?: string }).types).toBe('./dist/types/types.d.ts');
+    });
+
+    test('./package.json is exported so tooling can read metadata', () => {
+      expect(exportsMap['./package.json']).toBe('./package.json');
+    });
+  });
 });

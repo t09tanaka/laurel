@@ -10,10 +10,23 @@
   },
   "types": "./dist/types/types.d.ts",
   "exports": {
+    ".": {
+      "types": "./dist/types/build/index.d.ts",
+      "default": "./dist/build.mjs"
+    },
+    "./build": {
+      "types": "./dist/types/build/index.d.ts",
+      "default": "./dist/build.mjs"
+    },
+    "./cli": {
+      "types": "./dist/types/cli/index.d.ts",
+      "default": "./dist/cli.mjs"
+    },
     "./types": {
       "types": "./dist/types/types.d.ts",
       "default": "./src/types.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

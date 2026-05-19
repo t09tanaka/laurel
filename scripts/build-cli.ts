@@ -14,25 +14,33 @@ const external = [
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
 
-const result = await Bun.build({
-  entrypoints: ['src/cli/index.ts'],
-  outdir: 'dist',
-  target: 'bun',
-  format: 'esm',
-  naming: { entry: 'cli.mjs' },
-  external,
-});
+const entries: Array<{ entrypoint: string; outName: string; bin?: true }> = [
+  { entrypoint: 'src/cli/index.ts', outName: 'cli.mjs', bin: true },
+  { entrypoint: 'src/build/index.ts', outName: 'build.mjs' },
+];
 
-if (!result.success) {
-  for (const log of result.logs) {
-    console.error(log);
+for (const { entrypoint, outName, bin } of entries) {
+  const result = await Bun.build({
+    entrypoints: [entrypoint],
+    outdir: 'dist',
+    target: 'bun',
+    format: 'esm',
+    naming: { entry: outName },
+    external,
+  });
+
+  if (!result.success) {
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    process.exit(1);
   }
-  process.exit(1);
+
+  if (bin) {
+    // npm sets the mode during `npm install`, but we want `node dist/cli.mjs`
+    // / `./dist/cli.mjs` to work right after a local `bun run build:cli`.
+    await chmod(`dist/${outName}`, 0o755);
+  }
+
+  console.log(`Built dist/${outName} (${result.outputs.length} output${result.outputs.length === 1 ? '' : 's'})`);
 }
-
-// Ensure the bin entry is executable for local invocation. npm sets the mode
-// during `npm install`, but we want `node dist/cli.mjs` / `./dist/cli.mjs` to
-// work right after `bun run build:cli`.
-await chmod('dist/cli.mjs', 0o755);
-
-console.log(`Built dist/cli.mjs (${result.outputs.length} output${result.outputs.length === 1 ? '' : 's'})`);
