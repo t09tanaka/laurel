@@ -116,9 +116,34 @@ export function registerContentHelpers(engine: NectarEngine): void {
     },
   );
 
-  engine.hb.registerHelper('comments', function commentsHelper() {
-    return new engine.hb.SafeString('<div data-nectar-comments></div>');
-  });
+  engine.hb.registerHelper(
+    'comments',
+    function commentsHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const cfg = engine.config?.components?.comments;
+      const provider = cfg?.provider ?? 'off';
+      if (!cfg || provider === 'off') {
+        return new engine.hb.SafeString('<div data-nectar-comments></div>');
+      }
+      const route = options.data?.route as { url?: string } | undefined;
+      const site = engine.content?.site as { url?: string } | undefined;
+      const ctx = this as { id?: string; url?: string };
+      const canonical = buildCanonicalUrl(site?.url, route?.url ?? ctx.url ?? '/');
+      const identifier = cfg.identifier ?? (typeof ctx.id === 'string' ? ctx.id : canonical);
+
+      switch (provider) {
+        case 'giscus':
+          return new engine.hb.SafeString(renderGiscusComments(cfg));
+        case 'utterances':
+          return new engine.hb.SafeString(renderUtterancesComments(cfg));
+        case 'disqus':
+          return new engine.hb.SafeString(renderDisqusComments(cfg, canonical, identifier));
+        case 'webmention.io':
+          return new engine.hb.SafeString(renderWebmentionComments(cfg, canonical));
+        default:
+          return new engine.hb.SafeString('<div data-nectar-comments></div>');
+      }
+    },
+  );
 
   engine.hb.registerHelper('recommendations', function recommendationsHelper() {
     return new engine.hb.SafeString(
@@ -207,4 +232,122 @@ function escapeHtml(value: string): string {
 
 function escapeAttr(value: string): string {
   return escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+type CommentsConfig = {
+  provider?: string;
+  repo?: string;
+  repo_id?: string;
+  category?: string;
+  category_id?: string;
+  mapping?: string;
+  strict?: boolean;
+  reactions_enabled?: boolean;
+  emit_metadata?: boolean;
+  input_position?: string;
+  theme?: string;
+  lang?: string;
+  loading?: string;
+  issue_term?: string;
+  label?: string;
+  shortname?: string;
+  identifier?: string;
+  username?: string;
+};
+
+function renderGiscusComments(cfg: CommentsConfig): string {
+  if (!cfg.repo) {
+    return '<!-- nectar comments: giscus provider requires components.comments.repo -->';
+  }
+  const attrs: [string, string][] = [
+    ['src', 'https://giscus.app/client.js'],
+    ['data-repo', cfg.repo],
+    ['data-mapping', cfg.mapping ?? 'pathname'],
+    ['data-strict', cfg.strict ? '1' : '0'],
+    ['data-reactions-enabled', cfg.reactions_enabled === false ? '0' : '1'],
+    ['data-emit-metadata', cfg.emit_metadata ? '1' : '0'],
+    ['data-input-position', cfg.input_position ?? 'bottom'],
+    ['data-theme', cfg.theme ?? 'preferred_color_scheme'],
+    ['data-lang', cfg.lang ?? 'en'],
+    ['data-loading', cfg.loading ?? 'lazy'],
+    ['crossorigin', 'anonymous'],
+  ];
+  if (cfg.repo_id) attrs.splice(2, 0, ['data-repo-id', cfg.repo_id]);
+  if (cfg.category) attrs.splice(3, 0, ['data-category', cfg.category]);
+  if (cfg.category_id) attrs.splice(4, 0, ['data-category-id', cfg.category_id]);
+  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
+  return `<div data-nectar-comments></div>\n<script ${rendered} async></script>`;
+}
+
+function renderUtterancesComments(cfg: CommentsConfig): string {
+  if (!cfg.repo) {
+    return '<!-- nectar comments: utterances provider requires components.comments.repo -->';
+  }
+  const attrs: [string, string][] = [
+    ['src', 'https://utteranc.es/client.js'],
+    ['repo', cfg.repo],
+    ['issue-term', cfg.issue_term ?? 'pathname'],
+    ['theme', cfg.theme ?? 'github-light'],
+    ['crossorigin', 'anonymous'],
+  ];
+  if (cfg.label) attrs.splice(3, 0, ['label', cfg.label]);
+  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
+  return `<div data-nectar-comments></div>\n<script ${rendered} async></script>`;
+}
+
+function renderDisqusComments(cfg: CommentsConfig, canonical: string, identifier: string): string {
+  if (!cfg.shortname) {
+    return '<!-- nectar comments: disqus provider requires components.comments.shortname -->';
+  }
+  if (!/^[a-z0-9-]+$/i.test(cfg.shortname)) {
+    return '<!-- nectar comments: disqus shortname must be alphanumeric/dash only -->';
+  }
+  const urlJson = escapeForScript(JSON.stringify(canonical));
+  const idJson = escapeForScript(JSON.stringify(identifier));
+  const shortAttr = escapeAttr(cfg.shortname);
+  return [
+    '<div id="disqus_thread" data-nectar-comments></div>',
+    '<script>',
+    '(function() {',
+    '  var disqus_config = function () {',
+    `    this.page.url = ${urlJson};`,
+    `    this.page.identifier = ${idJson};`,
+    '  };',
+    '  window.disqus_config = disqus_config;',
+    '  var d = document, s = d.createElement("script");',
+    `  s.src = "https://${shortAttr}.disqus.com/embed.js";`,
+    '  s.setAttribute("data-timestamp", +new Date());',
+    '  (d.head || d.body).appendChild(s);',
+    '})();',
+    '</script>',
+  ].join('\n');
+}
+
+function renderWebmentionComments(cfg: CommentsConfig, canonical: string): string {
+  const parts = [
+    'class="webmentions"',
+    'data-nectar-comments',
+    'data-nectar-webmentions',
+    `data-target="${escapeAttr(canonical)}"`,
+  ];
+  if (cfg.username) parts.push(`data-username="${escapeAttr(cfg.username)}"`);
+  return `<div ${parts.join(' ')}></div>`;
+}
+
+function buildCanonicalUrl(base: string | undefined, path: string): string {
+  if (!base) return path;
+  if (/^https?:/i.test(path)) return path;
+  try {
+    return new URL(path, base.endsWith('/') ? base : `${base}/`).toString();
+  } catch {
+    return path;
+  }
+}
+
+function escapeForScript(json: string): string {
+  return json
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/[\u2028\u2029]/g, (c) => (c === '\u2028' ? '\\u2028' : '\\u2029'));
 }

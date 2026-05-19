@@ -169,6 +169,12 @@ function renderConfig(a: InitAnswers): string {
   lines.push('[components.opengraph]');
   lines.push('enabled = true');
   lines.push('');
+  lines.push('[components.comments]');
+  lines.push('provider = "off"  # "off" | "giscus" | "disqus" | "utterances" | "webmention.io"');
+  lines.push('# repo = "owner/repo"           # giscus, utterances');
+  lines.push('# shortname = "your-shortname"  # disqus');
+  lines.push('# username = "you.example.com"  # webmention.io');
+  lines.push('');
   return `${lines.join('\n')}\n`;
 }
 

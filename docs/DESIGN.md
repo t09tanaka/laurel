@@ -322,7 +322,7 @@ For each helper we track: **status** (✅ implemented / 🟡 partial / ⛔ stub 
 | `get`             | 🟡     | Local resolver, subset of Ghost filter DSL |
 | `post`/`page`/    | ✅     | Context blocks |
 | `tag`/`author`    | ✅     | |
-| `comments`        | ⛔     | Outputs empty `<div data-comments></div>` |
+| `comments`        | 🟡     | Emits provider snippet via `[components.comments]` (giscus, disqus, utterances, webmention.io) or empty placeholder when `provider = "off"` |
 | `subscribe_form`  | ⛔     | Outputs a no-op form pointing at optional handler |
 | `members`-helpers | ❌     | Not implemented |
 | `cancel_link`     | ❌     | |
@@ -353,8 +353,12 @@ enabled = true
 enabled = true
 
 [components.comments]
-provider = "giscus"      # "giscus" | "disqus" | "utterances" | "off"
-repo     = "owner/repo"
+provider = "giscus"      # "off" | "giscus" | "disqus" | "utterances" | "webmention.io"
+repo     = "owner/repo"  # giscus, utterances
+# repo_id, category, category_id, mapping, theme, lang … for giscus
+# issue_term, label, theme … for utterances
+# shortname, identifier … for disqus
+# username … for webmention.io
 ```
 
 Optional ≠ baked-in. The build pipeline calls `applyComponents()` after route
