@@ -143,6 +143,18 @@ Update your config before upgrading.
 Keep the subject line under ~72 characters, in the imperative mood ("add X",
 not "added X" or "adds X").
 
+### Sign-off / DCO
+
+Nectar does **not** currently require a Developer Certificate of Origin (DCO)
+sign-off on commits. You do not need to add `Signed-off-by:` trailers, and CI
+will not reject commits that lack them.
+
+By opening a pull request you affirm that your contribution is your own work
+(or that you have the right to submit it) and that you license it under the
+project's [MIT License](./LICENSE). If this policy changes in the future, the
+requirement will be documented here and enforced by CI before it is required of
+contributors.
+
 ## Testing Expectations
 
 - **Every behavior change needs a test.** Bug fix → add a regression test that
@@ -154,6 +166,38 @@ not "added X" or "adds X").
   `example/dist/`.
 - **No skipped tests in PRs.** If a test is flaky or genuinely blocked, open an
   issue and link it; don't merge `.skip` silently.
+
+### What counts as a "theme-compat regression"
+
+The project's north star is that the vendored Ghost Source theme (under
+`example/themes/source/`) renders end-to-end against the content in
+`example/content/`. Anything that breaks that rendering is a **theme-compat
+regression** and blocks merge until fixed. Concretely, a change is a
+theme-compat regression if any of the following are true:
+
+- `bun run build:example` exits non-zero where it previously succeeded.
+- A Ghost helper used by Source (`{{asset}}`, `{{img_url}}`, `{{ghost_head}}`,
+  `{{foreach}}`, `{{is}}`, `{{match}}`, `{{has}}`, `{{get}}`, `{{t}}`,
+  `{{date}}`, `{{reading_time}}`, `{{navigation}}`, `{{pagination}}`,
+  `{{content}}`, `{{excerpt}}`, `{{authors}}`, `{{tags}}`, etc.) throws or
+  silently emits a wrong value.
+- A Ghost context field that Source reads (`@site`, `@custom`, `@page`, `post`,
+  `page`, `author`, `tag`, pagination metadata) is missing, renamed, or
+  reshaped incompatibly.
+- Asset fingerprinting via `{{asset}}` produces broken or non-content-addressed
+  URLs that 404 in the built `example/dist/`.
+- The pages that `docs/CLAUDE.md` calls out as required output for the
+  bootstrap milestone (`index.html`, `<post-slug>/index.html`,
+  `tag/<tag>/index.html`, `author/<author>/index.html`, `<page-slug>/index.html`,
+  `sitemap.xml`, `rss.xml`) stop being emitted or stop being valid.
+
+Items declared **out of scope** in `CLAUDE.md` (members, server-side search,
+live drafts, email-only posts) are **not** theme-compat regressions even if a
+Source partial mentions them — those helpers are intentionally stubbed.
+
+If you suspect your change is a theme-compat regression, run `bun run
+build:example` locally and open the resulting `example/dist/index.html` in a
+browser to confirm before pushing.
 
 ### Before pushing
 
