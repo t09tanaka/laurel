@@ -54,6 +54,8 @@ function makePost(overrides: Partial<Post> = {}): Post {
     comments: false,
     prev: undefined,
     next: undefined,
+    feed_html: '',
+    feed_excerpt: '',
     ...overrides,
   };
 }

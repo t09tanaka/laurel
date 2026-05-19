@@ -111,6 +111,28 @@ describe('emitRss', () => {
     );
   });
 
+  test('uses post.feed_html instead of post.html so paywalled bodies do not leak', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.visibility = 'paid';
+    post.html = '<p>Public intro.</p><p>Secret members-only paragraph that must not leak.</p>';
+    post.feed_html =
+      '<p>Public intro.</p><div class="gh-paywall-stub">Subscribe to read more.</div>';
+    post.excerpt = 'Public intro. Secret members-only paragraph that must not leak.';
+    post.feed_excerpt = 'Public intro.';
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).not.toContain('Secret members-only paragraph');
+    expect(xml).toContain('Public intro.');
+    expect(xml).toContain('gh-paywall-stub');
+    expect(xml).toContain('<description>Public intro.</description>');
+  });
+
   test('atom:link self honors trailing slash on site.url', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com/' } });
@@ -249,6 +271,8 @@ function makePost(over: Partial<Post> = {}): Post {
     comments: true,
     prev: undefined,
     next: undefined,
+    feed_html: '<p>hi</p>',
+    feed_excerpt: 'hi',
     ...over,
   };
 }

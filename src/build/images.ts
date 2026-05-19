@@ -58,6 +58,9 @@ export function injectImageDimensionsIntoContent({
   const cache = new Map<string, ImageDimensions | null>();
   for (const post of content.posts) {
     post.html = injectImageDimensions(post.html, { assetsRoot, cache });
+    if (post.feed_html && post.feed_html !== post.html) {
+      post.feed_html = injectImageDimensions(post.feed_html, { assetsRoot, cache });
+    }
   }
   for (const page of content.pages) {
     page.html = injectImageDimensions(page.html, { assetsRoot, cache });

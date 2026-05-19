@@ -46,14 +46,14 @@ export async function emitRss(opts: {
     .slice(0, limit)
     .map((post) => {
       const link = `${base}${new URL(post.url).pathname}`;
-      const html = absolutizeHtmlUrls(post.html, base);
+      const html = absolutizeHtmlUrls(post.feed_html, base);
       return [
         '<item>',
         `<title>${escapeXml(post.title)}</title>`,
         `<link>${escapeXml(link)}</link>`,
         `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
         `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
-        `<description>${escapeXml(post.excerpt)}</description>`,
+        `<description>${escapeXml(post.feed_excerpt)}</description>`,
         `<content:encoded><![CDATA[${html}]]></content:encoded>`,
         '</item>',
       ].join('');
