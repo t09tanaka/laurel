@@ -57,6 +57,11 @@
       "matchManagers": ["github-actions"],
       "groupName": "github-actions",
       "groupSlug": "github-actions"
+    },
+    {
+      "description": "Tag non-major updates so the auto-merge-deps workflow can enable GitHub auto-merge once branch protection is green.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest", "lockFileMaintenance"],
+      "addLabels": ["renovate-automerge"]
     }
   ]
 }
