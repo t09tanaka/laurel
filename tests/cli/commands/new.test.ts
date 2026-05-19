@@ -149,4 +149,16 @@ describe('cli new — slug collision handling', () => {
     const body = await readFile(join(dir, 'drafts/hello-world.md'), 'utf8');
     expect(body).toContain('slug: hello-world');
   });
+
+  test('--config=value (equals form) is parsed identically to --config value', async () => {
+    await Bun.write(
+      join(dir, 'alt.toml'),
+      ['[site]', 'title = "T"', '', '[content]', 'posts_dir = "drafts"', ''].join('\n'),
+    );
+
+    const { exitCode } = await runCli(['new', 'post', 'Hello Equals', '--config=alt.toml'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'drafts/hello-equals.md'), 'utf8');
+    expect(body).toContain('slug: hello-equals');
+  });
 });
