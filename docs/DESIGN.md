@@ -13,6 +13,16 @@ published from Ghost — without running Ghost.
   Source theme is the litmus test.
 - Database, members, paywall, email — these are out of scope unless the user
   opts into an optional component.
+- Multi-locale routing. A build produces exactly one locale, determined by
+  `[site].locale`. There is no `/en/foo/` + `/ja/foo/` split, no per-locale
+  content subdirectory convention, and no language switcher routing. Sites
+  that need multiple locales should run one Nectar build per locale (each
+  with its own `nectar.toml` and `content/` tree) and stitch the outputs
+  together at the hosting layer. The single-locale-per-build constraint
+  keeps the content graph, routing, sitemap, RSS, and pagination logic
+  unambiguous; bolting multi-locale routing on top would force every
+  context (`@site`, post URLs, canonical, hreflang, feeds) to grow a
+  locale axis that themes are not built to consume.
 
 ## 2. High-level pipeline
 
