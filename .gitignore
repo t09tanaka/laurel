@@ -31,6 +31,7 @@ yarn-error.log*
 coverage/
 *.lcov
 
-# Ephemeral progress file from docs/audit/bulk-create.ts
+# Ephemeral progress files from docs/audit/* bulk tooling
 docs/audit/created.ndjson
 docs/audit/bulk-create.log
+docs/audit/backlog-loaded.txt
