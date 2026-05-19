@@ -23,6 +23,25 @@ describe('example build', () => {
     expect(postHtml).toContain('Casper');
     expect(postHtml).toContain('class="gh-article');
 
+    const articleImage = postHtml.match(/<figure class="gh-article-image">[\s\S]*?<\/figure>/);
+    expect(articleImage).not.toBeNull();
+    expect(articleImage?.[0]).toContain('fetchpriority="high"');
+    expect(articleImage?.[0]).toContain('decoding="async"');
+
+    const firstCard = indexHtml.match(/<figure class="gh-card-image">[\s\S]*?<\/figure>/g)?.[0];
+    expect(firstCard).toBeDefined();
+    expect(firstCard).toContain('fetchpriority="high"');
+    expect(firstCard).toContain('decoding="async"');
+    expect(firstCard).not.toContain('loading="lazy"');
+
+    const lazyCards =
+      indexHtml.match(/<figure class="gh-card-image">[\s\S]*?<\/figure>/g)?.slice(1) ?? [];
+    for (const card of lazyCards) {
+      expect(card).toContain('loading="lazy"');
+      expect(card).toContain('decoding="async"');
+      expect(card).not.toContain('fetchpriority="high"');
+    }
+
     const tagHtml = readFileSync(join(distRoot, 'tag/news/index.html'), 'utf8');
     expect(tagHtml).toContain('News');
     expect(tagHtml).toContain('Hello, Nectar');
