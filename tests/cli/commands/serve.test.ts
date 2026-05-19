@@ -83,3 +83,36 @@ describe('cli serve — host binding', () => {
     expect(stderr).toContain('Invalid --host');
   });
 });
+
+describe('cli serve — port collision', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('exits with code 2 and a friendly message when the port is already in use', async () => {
+    const blocker = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch() {
+        return new Response('blocker');
+      },
+    });
+    try {
+      const { stderr, exitCode } = await runCli(
+        ['serve', '--port', String(blocker.port), '--host', '127.0.0.1'],
+        dir,
+      );
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain(`Port ${blocker.port} is in use`);
+      expect(stderr).toContain(`--port ${blocker.port + 1}`);
+    } finally {
+      blocker.stop(true);
+    }
+  });
+});
