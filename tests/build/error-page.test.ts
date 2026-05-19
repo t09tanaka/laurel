@@ -30,7 +30,7 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
   };
 }
 
-function makeConfig(overrides: { base_path?: string } = {}): NectarConfig {
+function makeConfig(overrides: { base_path?: string; csp_nonce?: string } = {}): NectarConfig {
   return {
     site: {
       title: 'Example',
@@ -42,7 +42,11 @@ function makeConfig(overrides: { base_path?: string } = {}): NectarConfig {
       navigation: [],
       secondary_navigation: [],
     },
-    build: { output_dir: 'dist', base_path: overrides.base_path ?? '' },
+    build: {
+      output_dir: 'dist',
+      base_path: overrides.base_path ?? '',
+      csp_nonce: overrides.csp_nonce,
+    },
     components: {},
   } as unknown as NectarConfig;
 }
@@ -106,5 +110,19 @@ describe('renderDefault404Html', () => {
     const content = makeContent(makeSite({ direction: 'rtl' }));
     const html = renderDefault404Html({ config, content });
     expect(html).toContain('dir="rtl"');
+  });
+
+  test('stamps build.csp_nonce onto the inline <style> tag', () => {
+    const config = makeConfig({ csp_nonce: 'rAnd0m+/=' });
+    const content = makeContent(makeSite());
+    const html = renderDefault404Html({ config, content });
+    expect(html).toMatch(/<style nonce="rAnd0m\+\/="[^>]*>body\{/);
+  });
+
+  test('omits nonce attribute when build.csp_nonce is unset', () => {
+    const config = makeConfig();
+    const content = makeContent(makeSite());
+    const html = renderDefault404Html({ config, content });
+    expect(html).not.toMatch(/<style[^>]*nonce=/);
   });
 });

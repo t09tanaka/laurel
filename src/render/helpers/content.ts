@@ -1,6 +1,7 @@
 import type Handlebars from 'handlebars';
 import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
+import { nonceAttr } from '~/util/csp.ts';
 import { type NectarEngine, computePostClass } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
@@ -193,13 +194,14 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const canonical = buildCanonicalUrl(site?.url, route?.url ?? ctx.url ?? '/');
       const identifier = cfg.identifier ?? (typeof ctx.id === 'string' ? ctx.id : canonical);
 
+      const nonce = engine.config?.build?.csp_nonce;
       switch (provider) {
         case 'giscus':
           return new engine.hb.SafeString(renderGiscusComments(cfg));
         case 'utterances':
           return new engine.hb.SafeString(renderUtterancesComments(cfg));
         case 'disqus':
-          return new engine.hb.SafeString(renderDisqusComments(cfg, canonical, identifier));
+          return new engine.hb.SafeString(renderDisqusComments(cfg, canonical, identifier, nonce));
         case 'webmention.io':
           return new engine.hb.SafeString(renderWebmentionComments(cfg, canonical));
         default:
@@ -436,7 +438,12 @@ function renderUtterancesComments(cfg: CommentsConfig): string {
   return `<div data-nectar-comments></div>\n<script ${rendered} async></script>`;
 }
 
-function renderDisqusComments(cfg: CommentsConfig, canonical: string, identifier: string): string {
+function renderDisqusComments(
+  cfg: CommentsConfig,
+  canonical: string,
+  identifier: string,
+  cspNonce: string | undefined,
+): string {
   if (!cfg.shortname) {
     return '<!-- nectar comments: disqus provider requires components.comments.shortname -->';
   }
@@ -448,7 +455,7 @@ function renderDisqusComments(cfg: CommentsConfig, canonical: string, identifier
   const shortAttr = escapeAttr(cfg.shortname);
   return [
     '<div id="disqus_thread" data-nectar-comments></div>',
-    '<script>',
+    `<script${nonceAttr(cspNonce)}>`,
     '(function() {',
     '  var disqus_config = function () {',
     `    this.page.url = ${urlJson};`,

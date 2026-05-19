@@ -45,4 +45,17 @@ describe('injectSkipLink', () => {
     const input = '<div>fragment only</div>';
     expect(injectSkipLink(input)).toBe(input);
   });
+
+  test('stamps the configured CSP nonce onto the skip-link <style> tag', () => {
+    const out = injectSkipLink('<body></body>', 'abc123');
+    expect(out).toMatch(
+      /<style id="nectar-skip-link-style" nonce="abc123">[^<]*\.nectar-skip-link\{/,
+    );
+  });
+
+  test('omits nonce attribute when no CSP nonce is configured', () => {
+    const out = injectSkipLink('<body></body>');
+    expect(out).toContain('<style id="nectar-skip-link-style">');
+    expect(out).not.toMatch(/<style[^>]*nonce=/);
+  });
 });

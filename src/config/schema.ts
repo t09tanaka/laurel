@@ -259,6 +259,16 @@ export const configSchema = z
           .describe(
             'Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace and strips comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing.',
           ),
+        csp_nonce: z
+          .string()
+          .regex(
+            /^[A-Za-z0-9+/\-_]+={0,2}$/,
+            'csp_nonce must be a base64 or base64url value (alphanumeric plus `+/-_`, optional `=` padding)',
+          )
+          .optional()
+          .describe(
+            "CSP nonce stamped onto every inline `<script>` and `<style>` tag Nectar emits (JSON-LD blocks in `{{ghost_head}}`, the accessibility skip-link style, Disqus bootstrap, default 404 / recommendations page styles). Pair with a `Content-Security-Policy` header that lists `'nonce-<value>' 'strict-dynamic'` for `script-src` / `style-src` so a strict policy doesn't block these tags. Leave unset to skip nonce emission. Because this is a static build the same nonce is baked into every page, so rotate it per deploy and serve a matching CSP header — a static, never-rotated nonce defeats the purpose. Validated as a base64 / base64url value (`[A-Za-z0-9+/\\-_]+={0,2}`) to keep the attribute safe to inject without HTML escaping.",
+          ),
       })
       .strict()
       .default({})

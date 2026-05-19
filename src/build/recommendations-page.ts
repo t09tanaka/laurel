@@ -1,6 +1,7 @@
 import type { NectarConfig, RecommendationItem } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { joinPath } from '~/theme/assets.ts';
+import { nonceAttr } from '~/util/csp.ts';
 import { writeHtml } from './emit.ts';
 import { EMPTY_FAVICON_SET, type FaviconSet } from './favicons.ts';
 
@@ -32,6 +33,7 @@ export function renderRecommendationsHtml(opts: {
     config.recommendations.length === 0
       ? '<p class="recommendations-empty">No recommendations yet.</p>'
       : '';
+  const nonce = nonceAttr(config.build.csp_nonce);
   return [
     '<!DOCTYPE html>',
     `<html lang="${escapeHtml(lang)}" dir="${direction}">`,
@@ -40,7 +42,7 @@ export function renderRecommendationsHtml(opts: {
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     ...faviconTags,
     `<title>${escapeHtml(title)}</title>`,
-    '<style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#15171a;background:#fff;line-height:1.5}header,footer{padding:1.5rem;border-bottom:1px solid #e5e7eb}footer{border:none;border-top:1px solid #e5e7eb;color:#6b7280;font-size:0.875rem}header h1{margin:0;font-size:1.25rem}main{max-width:46rem;margin:0 auto;padding:3rem 1.5rem}main h2{margin:0 0 1.5rem;font-size:2rem}.recommendation-card{margin:0 0 1.5rem;padding:1rem 1.25rem;border:1px solid #e5e7eb;border-radius:0.5rem}.recommendation-card h3{margin:0 0 0.25rem;font-size:1.125rem}.recommendation-card a{color:inherit;text-decoration:none}.recommendation-card a:hover{text-decoration:underline}.recommendation-card p{margin:0.25rem 0}.recommendation-reason{color:#6b7280;font-size:0.875rem;font-style:italic}.recommendations-empty{color:#6b7280}</style>',
+    `<style${nonce}>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#15171a;background:#fff;line-height:1.5}header,footer{padding:1.5rem;border-bottom:1px solid #e5e7eb}footer{border:none;border-top:1px solid #e5e7eb;color:#6b7280;font-size:0.875rem}header h1{margin:0;font-size:1.25rem}main{max-width:46rem;margin:0 auto;padding:3rem 1.5rem}main h2{margin:0 0 1.5rem;font-size:2rem}.recommendation-card{margin:0 0 1.5rem;padding:1rem 1.25rem;border:1px solid #e5e7eb;border-radius:0.5rem}.recommendation-card h3{margin:0 0 0.25rem;font-size:1.125rem}.recommendation-card a{color:inherit;text-decoration:none}.recommendation-card a:hover{text-decoration:underline}.recommendation-card p{margin:0.25rem 0}.recommendation-reason{color:#6b7280;font-size:0.875rem;font-style:italic}.recommendations-empty{color:#6b7280}</style>`,
     '</head>',
     `<body class="nectar-route-recommendations recommendations-template">`,
     `<header><h1><a href="${escapeAttr(homeHref)}">${escapeHtml(site.title)}</a></h1></header>`,
