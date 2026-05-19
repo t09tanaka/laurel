@@ -1,6 +1,7 @@
 import { copyFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
+import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -10,6 +11,11 @@ import { logger } from '~/util/logger.ts';
 // of scope for the LCP-image problem this guard exists to solve.
 const RASTER_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
 
+// Bounded fan-out for per-file fs writes. 32 is comfortably under the typical
+// soft file-descriptor limit (1024) even when other code paths hold fds, and
+// big enough to hide ensureDir/writeFile latency on real sites.
+const EMIT_CONCURRENCY = 32;
+
 function assertWithinOutputDir(outputDir: string, dest: string): void {
   const root = resolve(outputDir);
   const target = resolve(dest);
@@ -17,6 +23,10 @@ function assertWithinOutputDir(outputDir: string, dest: string): void {
   if (rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../')) {
     throw new Error(`Refusing to write outside output directory: outputDir=${root} dest=${target}`);
   }
+}
+
+async function ensureDirs(dirs: Iterable<string>): Promise<void> {
+  await Promise.all(Array.from(new Set(dirs), (d) => ensureDir(d)));
 }
 
 export async function writeHtml(
@@ -30,25 +40,66 @@ export async function writeHtml(
   await writeFile(dest, html, 'utf8');
 }
 
+export interface HtmlOutput {
+  outputPath: string;
+  html: string;
+}
+
+// Batched companion to writeHtml: validate + dedupe parent dirs up front, then
+// fan out the per-file writeFile calls under a concurrency cap. Used by the
+// render loop, which produces hundreds of routes that previously serialised
+// behind `await ensureDir; await writeFile` per route.
+export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): Promise<void> {
+  if (outputs.length === 0) return;
+  const dests: string[] = [];
+  const dirs: string[] = [];
+  for (const { outputPath } of outputs) {
+    const dest = join(outputDir, outputPath);
+    assertWithinOutputDir(outputDir, dest);
+    dests.push(dest);
+    dirs.push(dirname(dest));
+  }
+  await ensureDirs(dirs);
+  const limit = pLimit(EMIT_CONCURRENCY);
+  await Promise.all(
+    outputs.map((out, i) => {
+      const dest = dests[i];
+      if (dest === undefined) throw new Error('writeHtmlBatch: dest missing for output');
+      return limit(() => writeFile(dest, out.html, 'utf8'));
+    }),
+  );
+}
+
 export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise<number> {
   const seen = new Set<string>();
-  let count = 0;
+  const unique: ThemeAsset[] = [];
   for (const asset of theme.assets.values()) {
-    if (seen.has(`${asset.sourcePath}|${asset.fingerprintedPath}`)) continue;
-    seen.add(`${asset.sourcePath}|${asset.fingerprintedPath}`);
-    await emitAsset(asset, outputDir);
-    count += 1;
+    const key = `${asset.sourcePath}|${asset.fingerprintedPath}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(asset);
   }
-  return count;
+  if (unique.length === 0) return 0;
+
+  const dirs: string[] = [];
+  for (const asset of unique) {
+    dirs.push(dirname(join(outputDir, asset.fingerprintedPath)));
+    if (asset.fingerprintedPath !== asset.logicalPath) {
+      dirs.push(dirname(join(outputDir, asset.logicalPath)));
+    }
+  }
+  await ensureDirs(dirs);
+
+  const limit = pLimit(EMIT_CONCURRENCY);
+  await Promise.all(unique.map((asset) => limit(() => emitAsset(asset, outputDir))));
+  return unique.length;
 }
 
 async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
   const dest = join(outputDir, asset.fingerprintedPath);
-  await ensureDir(dirname(dest));
   await copyFile(asset.sourcePath, dest);
   if (asset.fingerprintedPath !== asset.logicalPath) {
     const logicalDest = join(outputDir, asset.logicalPath);
-    await ensureDir(dirname(logicalDest));
     await copyFile(asset.sourcePath, logicalDest);
   }
 }
@@ -91,7 +142,7 @@ interface CopyTreeOptions {
 
 async function copyTree(source: string, target: string, opts: CopyTreeOptions): Promise<number> {
   const glob = new Bun.Glob('**/*');
-  let count = 0;
+  const tasks: Array<{ src: string; dst: string }> = [];
   try {
     for await (const rel of glob.scan({ cwd: source, onlyFiles: true })) {
       if (pathContainsSymlink(source, rel)) {
@@ -108,15 +159,17 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
           continue;
         }
       }
-      const dst = join(target, rel);
-      await ensureDir(dirname(dst));
-      await copyFile(src, dst);
-      count += 1;
+      tasks.push({ src, dst: join(target, rel) });
     }
   } catch {
     // optional: directory may not exist
   }
-  return count;
+  if (tasks.length === 0) return 0;
+
+  await ensureDirs(tasks.map((t) => dirname(t.dst)));
+  const limit = pLimit(EMIT_CONCURRENCY);
+  await Promise.all(tasks.map((t) => limit(() => copyFile(t.src, t.dst))));
+  return tasks.length;
 }
 
 function formatBytes(n: number): string {
