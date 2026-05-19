@@ -159,14 +159,14 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   return ctx;
 }
 
-function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const custom = buildCustom(engine);
   const backgroundColor =
     typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
   return {
     site: engine.content.site,
     blog: engine.content.site,
-    config: engine.config,
+    config: buildGhostConfig(engine),
     custom,
     page: route.kind === 'page' ? route.data.page : undefined,
     route,
@@ -174,6 +174,18 @@ function buildRootData(engine: NectarEngine, route: RouteContext): Record<string
     labs: {},
     member: undefined,
     text_color_class: textColorClassFor(backgroundColor),
+  };
+}
+
+// Ghost themes read `@config.posts_per_page` (flat keys from the theme's
+// `package.json` `config` block), not Nectar's nested `[build]` config. Source
+// theme's `{{#get "posts" limit=@config.posts_per_page}}` would silently fall
+// back to the helper's default if we exposed the raw NectarConfig here.
+function buildGhostConfig(engine: NectarEngine): Record<string, unknown> {
+  return {
+    posts_per_page: engine.theme.pkg.posts_per_page,
+    image_sizes: engine.theme.pkg.image_sizes,
+    card_assets: engine.theme.pkg.card_assets,
   };
 }
 

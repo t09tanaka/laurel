@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import type { Page, Post } from '~/content/model.ts';
-import { type NectarEngine, buildContext } from '~/render/engine.ts';
+import { type NectarEngine, buildContext, buildRootData } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
+import type { ThemePackage } from '~/theme/types.ts';
 
 const engine = {} as NectarEngine;
 
@@ -148,5 +149,64 @@ describe('buildContext', () => {
     expect(ctx.statusCode).toBe(404);
     expect(ctx.message).toBe('Page not found');
     expect(ctx.error).toEqual({ statusCode: 404, message: 'Page not found' });
+  });
+});
+
+describe('buildRootData', () => {
+  function makeEngine(pkg: Partial<ThemePackage> = {}): NectarEngine {
+    const themePkg: ThemePackage = {
+      name: 'theme',
+      version: '0.0.0',
+      posts_per_page: 7,
+      image_sizes: { xs: { width: 160 } },
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+      ...pkg,
+    };
+    return {
+      config: {
+        theme: { custom: {} },
+        build: { posts_per_page: 99 },
+      } as unknown as NectarEngine['config'],
+      content: {
+        site: { locale: 'en' },
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+    } as NectarEngine;
+  }
+
+  test('@config exposes the Ghost-shaped fields from the theme package (issue #102)', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    expect(data.config).toEqual({
+      posts_per_page: 7,
+      image_sizes: { xs: { width: 160 } },
+      card_assets: true,
+    });
+  });
+
+  test('@config does not leak the raw NectarConfig shape (no nested build/theme keys)', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const config = data.config as Record<string, unknown>;
+    expect(config.build).toBeUndefined();
+    expect(config.theme).toBeUndefined();
   });
 });
