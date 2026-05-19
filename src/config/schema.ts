@@ -139,10 +139,10 @@ export const configSchema = z
         paywall_word_count: z
           .number()
           .int()
-          .positive()
-          .default(300)
+          .nonnegative()
+          .default(0)
           .describe(
-            'Number of words kept before the paywall cut when `visibility_policy` is `truncate`.',
+            'Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no `<!-- members -->` marker. Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview.',
           ),
       })
       .strict()

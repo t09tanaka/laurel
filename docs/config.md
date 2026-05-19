@@ -64,7 +64,7 @@ Where Markdown content lives and how members-only posts are handled.
 | `content.tags_dir` | `string` | no | `"content/tags"` | Directory of tag profile Markdown files, relative to the project root. |
 | `content.assets_dir` | `string` | no | `"content/images"` | Directory of content-bundled image and binary assets, relative to the project root. |
 | `content.visibility_policy` | `"truncate" \| "render-full" \| "skip"` | no | `"truncate"` | How to render posts whose `visibility` is `members` or `paid`. `truncate` cuts the body at `paywall_word_count`, `render-full` keeps the body intact (losing the paywall), and `skip` drops the post entirely. |
-| `content.paywall_word_count` | `number` | no | `300` | Number of words kept before the paywall cut when `visibility_policy` is `truncate`. |
+| `content.paywall_word_count` | `number` | no | `0` | Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no `<!-- members -->` marker. Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview. |
 
 ## `build`
 
