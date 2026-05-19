@@ -1,6 +1,7 @@
 import { Marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
+import { promoteImagesToFigures } from './figure-images.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
 marked.use(gfmHeadingId());
@@ -70,7 +71,8 @@ export async function renderMarkdown(
 ): Promise<RenderedMarkdown> {
   const expanded = expandKoenigShortcodes(body);
   const raw = await marked.parse(expanded);
-  const html = options.unsafe ? raw : sanitizeRenderedHtml(raw);
+  const promoted = promoteImagesToFigures(raw);
+  const html = options.unsafe ? promoted : sanitizeRenderedHtml(promoted);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
   const reading_time = Math.max(1, Math.round(word_count / 275));
