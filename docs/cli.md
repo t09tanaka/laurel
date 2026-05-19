@@ -1,0 +1,171 @@
+# Nectar CLI reference
+
+<!-- AUTO-GENERATED FILE. Do not edit by hand. Regenerate with `bun run docs:cli`. -->
+
+This page lists every `nectar` subcommand, flag, and positional argument.
+It is generated from the command specs in `src/cli/specs.ts`; run
+`bun run docs:cli` after changing a spec to refresh it.
+
+## Synopsis
+
+```
+nectar [global options] <command> [options]
+```
+
+## Global options
+
+| Flag | Description |
+| --- | --- |
+| `--quiet` | Suppress info/debug output (keeps warn/error) |
+| `-V, --verbose` | Increase verbosity to debug (stack `-VV` for trace) |
+| `-h, --help` | Show help for the top-level CLI or any subcommand |
+| `-v, --version` | Print the Nectar version and exit |
+
+## Commands
+
+| Command | Summary |
+| --- | --- |
+| [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
+| [`nectar build`](#nectar-build) | Build the site into the configured output directory |
+| [`nectar new`](#nectar-new) | Scaffold a new post or page |
+| [`nectar serve`](#nectar-serve) | Serve the built site locally |
+| [`nectar check`](#nectar-check) | Validate config, theme, and content |
+| [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
+| [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
+
+### `nectar init`
+
+Scaffold a new Nectar project in the current (or given) directory
+
+Usage:
+
+```
+nectar init [--yes] [--force] [--dir <path>]
+```
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `-y, --yes` | boolean | Skip prompts and use defaults (non-interactive) |
+| `--force` | boolean | Overwrite existing files in the target directory |
+| `--dir <path>` | string | Target directory to scaffold into (defaults to .) |
+
+### `nectar build`
+
+Build the site into the configured output directory
+
+Usage:
+
+```
+nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--strict]
+```
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to nectar.toml (defaults to ./nectar.toml) |
+| `-o, --output <dir>` | string | Override build.output_dir from the config (relative path inside the project root) |
+| `--base-path <path>` | string | Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages) |
+| `--strict` | boolean | Exit with non-zero status if any warnings are emitted |
+
+### `nectar new`
+
+Scaffold a new post or page
+
+Usage:
+
+```
+nectar new [--config <path>] [--force] [--slug <slug>] <kind> <title...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<kind>` | required | post or page |
+| `<title...>` | required (variadic) | Title of the post or page |
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--force` | boolean | Overwrite the destination file if it already exists |
+| `--slug <slug>` | string | Use this slug instead of one derived from the title |
+
+### `nectar serve`
+
+Serve the built site locally
+
+Usage:
+
+```
+nectar serve [--port <n>] [--host <host>]
+```
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--port <n>` | string | Port to listen on (defaults to 4321) |
+| `--host <host>` | string | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
+
+### `nectar check`
+
+Validate config, theme, and content
+
+Usage:
+
+```
+nectar check [--config <path>] [--strict]
+```
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--strict` | boolean | Exit with non-zero status if any warnings were emitted during the check |
+
+### `nectar doctor`
+
+Run health checks on the project (bun, config, theme, content, network)
+
+Usage:
+
+```
+nectar doctor [--config <path>] [--json] [--no-network]
+```
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--json` | boolean | Emit results as JSON (for CI consumption) |
+| `--no-network` | boolean | Skip the network reachability check |
+
+### `nectar import-ghost`
+
+Convert a Ghost JSON export into Markdown content
+
+Usage:
+
+```
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] <file>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<file>` | required | Path to the Ghost export JSON file or to an unzipped Ghost export folder |
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--on-conflict <skip\|overwrite\|rename>` | string | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
+| `--assets <dir>` | string | Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |

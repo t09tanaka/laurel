@@ -63,6 +63,7 @@
     "build:types": "tsc -p tsconfig.types.json",
     "compile": "bun run scripts/compile.ts",
     "compile:all": "bun run scripts/compile.ts --all",
+    "docs:cli": "bun run src/cli/docs.ts",
     "prepublishOnly": "bun run build:cli && bun run build:types",
     "test": "bun test",
     "test:watch": "bun test --watch",
