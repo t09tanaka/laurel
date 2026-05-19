@@ -19,6 +19,7 @@ falls back to the listed default.
 | `build` | `object` | Build pipeline options that shape the emitted site. |
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
+| `recommendations[]` | `array<object>` | External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section. |
 | `deploy` | `object` | Deploy-target-specific hints that influence files emitted alongside the site. |
 | `components` | `object` | Optional components that emit extra files or inject markup. |
 
@@ -96,6 +97,19 @@ Secondary navigation items, exposed to themes via `{{navigation type="secondary"
 | --- | --- | --- | --- | --- |
 | `secondary_navigation[].label` | `string` | yes | — | Anchor text shown in theme navigation. |
 | `secondary_navigation[].url` | `string` | yes | — | Destination of the link. May be an absolute URL or a path relative to the site root. |
+
+## `recommendations[]`
+
+External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `recommendations[].title` | `string` | yes | — | Display title of the recommended site. |
+| `recommendations[].url` | `string` | yes | — | Absolute URL of the recommended site. |
+| `recommendations[].description` | `string` | no | — | Short blurb shown beneath the title in the recommendations list. |
+| `recommendations[].favicon` | `string` | no | — | Optional URL or content-relative path to the site icon shown in the list. |
+| `recommendations[].featured_image` | `string` | no | — | Optional cover image URL displayed on the full `/recommendations/` page. |
+| `recommendations[].reason` | `string` | no | — | Optional editorial reason shown alongside the title on the full page. |
 
 ## `deploy`
 

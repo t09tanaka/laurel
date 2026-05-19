@@ -11,6 +11,29 @@ const navigationItemSchema = z
   })
   .strict();
 
+const recommendationItemSchema = z
+  .object({
+    title: z.string().describe('Display title of the recommended site.'),
+    url: z.string().describe('Absolute URL of the recommended site.'),
+    description: z
+      .string()
+      .optional()
+      .describe('Short blurb shown beneath the title in the recommendations list.'),
+    favicon: z
+      .string()
+      .optional()
+      .describe('Optional URL or content-relative path to the site icon shown in the list.'),
+    featured_image: z
+      .string()
+      .optional()
+      .describe('Optional cover image URL displayed on the full `/recommendations/` page.'),
+    reason: z
+      .string()
+      .optional()
+      .describe('Optional editorial reason shown alongside the title on the full page.'),
+  })
+  .strict();
+
 export const configSchema = z
   .object({
     site: z
@@ -199,6 +222,12 @@ export const configSchema = z
       .default([])
       .describe(
         'Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`.',
+      ),
+    recommendations: z
+      .array(recommendationItemSchema)
+      .default([])
+      .describe(
+        'External sites surfaced through Ghost\'s `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme\'s "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section.',
       ),
     deploy: z
       .object({
@@ -601,3 +630,4 @@ export const configSchema = z
 
 export type NectarConfig = z.infer<typeof configSchema>;
 export type NavigationItem = z.infer<typeof navigationItemSchema>;
+export type RecommendationItem = z.infer<typeof recommendationItemSchema>;

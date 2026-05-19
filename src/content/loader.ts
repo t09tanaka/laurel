@@ -172,7 +172,11 @@ function buildSite(config: NectarConfig): SiteData {
     // Nectar is static-only with no members backend, so they are always false.
     members_enabled: false,
     paid_members_enabled: false,
-    recommendations_enabled: false,
+    // Drives the Source theme's `{{#if @site.recommendations_enabled}}` block
+    // that renders the sidebar list and the "See all" portal button. Only flip
+    // it on once the user has populated `[[recommendations]]` so empty configs
+    // don't ship a dead `/recommendations/` link.
+    recommendations_enabled: config.recommendations.length > 0,
   };
 }
 

@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import type { NectarEngine } from '../engine.ts';
 
@@ -156,11 +157,25 @@ export function registerContentHelpers(engine: NectarEngine): void {
     },
   );
 
-  engine.hb.registerHelper('recommendations', function recommendationsHelper() {
-    return new engine.hb.SafeString(
-      '<ul class="recommendations" data-nectar-recommendations></ul>',
-    );
-  });
+  engine.hb.registerHelper(
+    'recommendations',
+    function recommendationsHelper(options?: Handlebars.HelperOptions) {
+      const items = engine.config?.recommendations ?? [];
+      // Ghost defaults the sidebar helper to 5 entries; the full list lives on
+      // the auto-emitted `/recommendations/` page (see build/recommendations-page.ts).
+      const limit = parseNum(options?.hash?.limit) ?? 5;
+      const visible = limit > 0 ? items.slice(0, limit) : items;
+      if (visible.length === 0) {
+        return new engine.hb.SafeString(
+          '<ul class="recommendations" data-nectar-recommendations></ul>',
+        );
+      }
+      const lis = visible.map((item) => renderRecommendationListItem(item)).join('');
+      return new engine.hb.SafeString(
+        `<ul class="recommendations" data-nectar-recommendations>${lis}</ul>`,
+      );
+    },
+  );
 
   // Members surface is out of scope in static builds, so the visitor is always
   // treated as unauthenticated. Themes can rely on `access` being a registered
@@ -249,6 +264,18 @@ function sliceByCharacters(text: string, characters: number): string {
 // html-validate flags as heading-level skip).
 function downshiftHeadings(html: string): string {
   return html.replace(/<(\/?)h1\b/gi, (_match, slash: string) => `<${slash}h2`);
+}
+
+export function renderRecommendationListItem(item: RecommendationItem): string {
+  const href = escapeAttr(item.url);
+  const title = escapeHtml(item.title);
+  const desc = item.description
+    ? `<p class="recommendation-description">${escapeHtml(item.description)}</p>`
+    : '';
+  const favicon = item.favicon
+    ? `<img class="recommendation-favicon" src="${escapeAttr(item.favicon)}" alt="" loading="lazy">`
+    : '';
+  return `<li class="recommendation"><a href="${href}" rel="noopener" target="_blank">${favicon}<span class="recommendation-title">${title}</span></a>${desc}</li>`;
 }
 
 function parseNum(value: unknown): number | undefined {

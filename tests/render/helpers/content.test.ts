@@ -69,6 +69,73 @@ describe('recommendations helper', () => {
       '<ul class="recommendations" data-nectar-recommendations></ul>',
     );
   });
+
+  test('renders configured recommendations from [[recommendations]] in nectar.toml', () => {
+    const engine = makeEngine({
+      config: {
+        recommendations: [
+          { title: 'First', url: 'https://a.example', description: 'desc A' },
+          { title: 'Second', url: 'https://b.example' },
+        ],
+      } as unknown as NectarEngine['config'],
+    });
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{recommendations}}')({});
+    expect(html).toContain('First');
+    expect(html).toContain('Second');
+    expect(html).toContain('href="https://a.example"');
+    expect(html).toContain('desc A');
+    expect(html).toContain('rel="noopener"');
+  });
+
+  test('caps the sidebar list at 5 items by default to match Ghost', () => {
+    const engine = makeEngine({
+      config: {
+        recommendations: Array.from({ length: 8 }, (_, i) => ({
+          title: `Site ${i}`,
+          url: `https://${i}.example`,
+        })),
+      } as unknown as NectarEngine['config'],
+    });
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{recommendations}}')({});
+    const liCount = html.split('<li').length - 1;
+    expect(liCount).toBe(5);
+    expect(html).toContain('Site 0');
+    expect(html).toContain('Site 4');
+    expect(html).not.toContain('Site 5');
+  });
+
+  test('limit=0 renders every configured recommendation', () => {
+    const engine = makeEngine({
+      config: {
+        recommendations: Array.from({ length: 8 }, (_, i) => ({
+          title: `Site ${i}`,
+          url: `https://${i}.example`,
+        })),
+      } as unknown as NectarEngine['config'],
+    });
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{recommendations limit=0}}')({});
+    const liCount = html.split('<li').length - 1;
+    expect(liCount).toBe(8);
+  });
+
+  test('escapes HTML in title and description', () => {
+    const engine = makeEngine({
+      config: {
+        recommendations: [
+          { title: '<script>', url: 'https://x.example/?a=1&b=2', description: 'a & b' },
+        ],
+      } as unknown as NectarEngine['config'],
+    });
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{recommendations}}')({});
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('a &amp; b');
+    expect(html).toContain('href="https://x.example/?a=1&amp;b=2"');
+    expect(html).not.toContain('<script>');
+  });
 });
 
 describe('subscribe_form helper', () => {

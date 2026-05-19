@@ -132,6 +132,18 @@ describe('loadContent', () => {
     expect(graph.site.paid_members_enabled).toBe(false);
     expect(graph.site.recommendations_enabled).toBe(false);
   });
+
+  test('site.recommendations_enabled flips to true once `[[recommendations]]` is populated', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        recommendations: [{ title: 'Cool', url: 'https://cool.example' }],
+      }),
+    });
+    expect(graph.site.recommendations_enabled).toBe(true);
+  });
 });
 
 describe('loadContent feature image dimensions', () => {
