@@ -30,6 +30,19 @@ describe('example build', () => {
     const authorHtml = readFileSync(join(distRoot, 'author/casper/index.html'), 'utf8');
     expect(authorHtml).toContain('Casper');
 
+    for (const [label, html] of [
+      ['home', indexHtml],
+      ['post', postHtml],
+      ['tag', tagHtml],
+      ['author', authorHtml],
+    ] as const) {
+      const matches = html.match(/<main\b/g) ?? [];
+      expect(matches.length, `${label} page should have exactly one <main> landmark`).toBe(1);
+      expect(html, `${label} page <main> should carry id="main" for skip-link targeting`).toMatch(
+        /<main[^>]*\bid="main"/,
+      );
+    }
+
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
     expect(existsSync(join(distRoot, 'sitemap.xml'))).toBeTrue();
 
