@@ -1,0 +1,45 @@
+# Enable GitHub native auto-merge on Renovate PRs that Renovate itself has
+# tagged as safe (minor/patch/digest/lockFileMaintenance, never major).
+#
+# Prerequisites (configure once in the repository settings):
+#   1. Settings -> General -> Pull Requests -> "Allow auto-merge" must be ON.
+#   2. Settings -> Branches -> branch protection for `main` requires the CI
+#      checks to pass. Auto-merge only completes once those required checks
+#      go green, so branch protection is the actual safety gate.
+#
+# Renovate adds the `renovate-automerge` label only to non-major updates
+# (see .github/renovate.json). This workflow trusts that label rather than
+# parsing PR titles.
+name: auto-merge-deps
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: auto-merge-deps-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enable-automerge:
+    name: enable auto-merge
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.actor == 'renovate[bot]' &&
+      contains(github.event.pull_request.labels.*.name, 'renovate-automerge')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        uses: peter-evans/enable-pull-request-automerge@a25b6a64ff117c1ad27bb3ce42cee818d7ce0ddd # v3.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: squash
