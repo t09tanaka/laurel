@@ -9,6 +9,7 @@ import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
+import { emitDefault404 } from './error-page.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
@@ -80,6 +81,10 @@ export async function build({
     }
   }
 
+  if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
+    await emitDefault404({ config, content, outputDir });
+  }
+
   const assetCount = await copyAssets(theme, outputDir);
   if (config.build.copy_content_assets) {
     await copyContentAssets(cwd, config.content.assets_dir, outputDir, {
@@ -93,7 +98,9 @@ export async function build({
       config,
       content,
       outputDir,
-      urls: routes.map((r) => ({ url: r.url, lastmod: r.lastmod })),
+      urls: routes
+        .filter((r) => r.kind !== 'error')
+        .map((r) => ({ url: r.url, lastmod: r.lastmod })),
     });
   }
   if (config.components.rss.enabled) {

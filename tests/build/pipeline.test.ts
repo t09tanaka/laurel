@@ -131,3 +131,16 @@ describe('build pipeline basePath override', () => {
     expect(build({ cwd, basePath: '' })).rejects.toThrow(/must not be empty/);
   });
 });
+
+describe('build pipeline 404 emission', () => {
+  test('emits a fallback 404.html when the theme lacks an error-404 template', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const file = join(summary.outputDir, '404.html');
+    expect(existsSync(file)).toBe(true);
+    const html = readFileSync(file, 'utf8');
+    expect(html).toContain('<title>Page not found — Strict Test</title>');
+    expect(html).toContain('href="/"');
+    expect(html).toContain('content="noindex"');
+  });
+});

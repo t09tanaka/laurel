@@ -110,6 +110,18 @@ export function planRoutes(opts: {
     }
   }
 
+  if (theme.templates['error-404']) {
+    const url = '/404.html';
+    routes.push({
+      kind: 'error',
+      url,
+      outputPath: '404.html',
+      template: 'error-404',
+      data: {},
+      meta: defaultMeta(config, url, `Page not found — ${config.site.title}`),
+    });
+  }
+
   if (theme.templates.author) {
     for (const author of content.authors) {
       const authorPosts = content.posts.filter((p) =>
