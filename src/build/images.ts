@@ -342,7 +342,7 @@ function hashSourceFile(filePath: string): string {
   return sha256;
 }
 
-function resolveCacheDir(cwd: string, cacheDir: string): string {
+export function resolveCacheDir(cwd: string, cacheDir: string): string {
   return isAbsolute(cacheDir) ? cacheDir : join(cwd, cacheDir);
 }
 
@@ -533,14 +533,31 @@ export interface GenerateThemeImageSizeVariantsOptions {
   config: NectarConfig;
   outputDir: string;
   themeImageSizes: Record<string, ThemeImageSize>;
+  // When provided, sharp-encoded variants are cached here keyed by source
+  // content hash so unchanged sources skip re-encoding on subsequent builds.
+  // Cache filename: `<sha>-<segment>[.<format>].<ext>`.
+  cacheDir?: string;
+  // When non-empty AND cacheDir is set, additionally emit per-format variants
+  // at `/content/images/size/<segment>/format/<ext>/<rel>` for each jpg/png
+  // source. Mirrors the URL `{{img_url ... size="x" format="webp"}}` produces.
+  formats?: readonly ImageFormat[];
+  webpQuality?: number;
+  avifQuality?: number;
 }
 
 // Theme `image_sizes` (e.g. Source's xs/s/m/l/xl/xxl) are referenced via
-// `{{img_url ... size="<key>"}}`, which rewrites the URL to the canonical
-// Ghost form `/content/images/size/<segment>/<rel>` but never materialised the
-// file. Without this pass every theme-sized URL 404s and themes serve
-// full-resolution images everywhere (issue #116). We emit one resized file per
-// (source, size) pair using sharp, mirroring the URL segment exactly.
+// `{{img_url ... size="<key>"}}` and, for the per-format variant URLs Source
+// uses in `<img srcset>` for `feature_image`, via
+// `{{img_url ... size="<key>" format="webp"}}`. Both URL forms must be
+// materialised on disk or the theme's `feature_image` srcsets 404 and browsers
+// fall back to the full-resolution original (issues #116/#117).
+//
+// We emit one resized file per (source, size) pair using sharp and, when
+// configured with formats + a cache_dir, additionally emit per-format variants
+// at `/content/images/size/<segment>/format/<ext>/<rel>`. Caching is keyed by
+// source content hash so subsequent builds copy bytes instead of re-encoding;
+// the cache file's mtime survives across builds because it lives outside the
+// staging `dist/`.
 //
 // Upscaling is skipped per-axis: if neither width nor height shrinks below the
 // source, the size is dropped — the browser will fall back to the original via
@@ -562,6 +579,12 @@ export async function generateThemeImageSizeVariants(
   if (!sharpFn) return 0;
 
   const outRoot = join(opts.outputDir, 'content/images');
+  const cacheDir = opts.cacheDir;
+  const formats: readonly ImageFormat[] = opts.formats ?? [];
+  const webpQuality = opts.webpQuality ?? 80;
+  const avifQuality = opts.avifQuality ?? 50;
+  if (cacheDir) mkdirSync(cacheDir, { recursive: true });
+
   let count = 0;
 
   const glob = new Bun.Glob('**/*');
@@ -573,36 +596,128 @@ export async function generateThemeImageSizeVariants(
     const sourcePath = join(assetsRoot, rel);
     const dims = readImageDimensions(sourcePath);
     if (!dims) continue;
+    const normalizedRel = segments.join('/');
+
+    // Hash the source once per build. Used as the cache key for every
+    // (size, format) variant of this file; a single hash failure must not
+    // stop the rest of the pipeline so we fall through to the uncached path.
+    let sha: string | null = null;
+    if (cacheDir) {
+      try {
+        sha = hashSourceFile(sourcePath);
+      } catch (err) {
+        logger.warn(
+          `Failed to hash ${rel} for theme size variants: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     for (const [, size] of entries) {
       const segment = buildThemeImageSizeSegment(size);
       if (!segment) continue;
       if (!sizeShrinksSource(size, dims)) continue;
-      const outPath = join(outRoot, 'size', segment, segments.join('/'));
-      if (existsSync(outPath)) {
-        // Either an earlier pass (planImageVariants width match) or an explicit
-        // export already placed this file. Don't re-encode.
+
+      // Base same-format variant. Mirrors `{{img_url ... size="<key>"}}`.
+      const baseOutPath = join(outRoot, 'size', segment, normalizedRel);
+      const baseCacheFile = cacheDir && sha ? join(cacheDir, `${sha}-${segment}${ext}`) : null;
+      if (
+        await encodeOrReuseThemeVariant({
+          sharpFn,
+          sourcePath,
+          outPath: baseOutPath,
+          size,
+          cacheFile: baseCacheFile,
+          format: null,
+          webpQuality,
+          avifQuality,
+        })
+      ) {
         count += 1;
-        continue;
       }
-      mkdirSync(dirname(outPath), { recursive: true });
-      try {
-        await sharpFn(sourcePath)
-          .resize({
-            width: typeof size.width === 'number' ? size.width : undefined,
-            height: typeof size.height === 'number' ? size.height : undefined,
-            withoutEnlargement: true,
-          })
-          .toFile(outPath);
-        count += 1;
-      } catch (err) {
-        logger.warn(
-          `Failed to generate theme size variant ${segment} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+
+      // Per-format variants. Only jpg/png sources benefit: webp/avif sources
+      // would degenerate (e.g. `cover.webp` re-encoded as webp). Caching is
+      // required because AVIF encoding is the slowest step in the pipeline and
+      // we don't want to re-pay it every build.
+      if (cacheDir && sha && formats.length > 0 && isFormatVariantSource(normalizedRel)) {
+        for (const format of formats) {
+          const formatOutPath = join(outRoot, 'size', segment, 'format', format, normalizedRel);
+          const formatCacheFile = join(cacheDir, `${sha}-${segment}.${format}`);
+          if (
+            await encodeOrReuseThemeVariant({
+              sharpFn,
+              sourcePath,
+              outPath: formatOutPath,
+              size,
+              cacheFile: formatCacheFile,
+              format,
+              webpQuality,
+              avifQuality,
+            })
+          ) {
+            count += 1;
+          }
+        }
       }
     }
   }
   return count;
+}
+
+interface EncodeOrReuseThemeVariantOptions {
+  sharpFn: SharpFactory;
+  sourcePath: string;
+  outPath: string;
+  size: ThemeImageSize;
+  cacheFile: string | null;
+  format: ImageFormat | null;
+  webpQuality: number;
+  avifQuality: number;
+}
+
+async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions): Promise<boolean> {
+  const { sharpFn, sourcePath, outPath, size, cacheFile, format } = opts;
+  // An earlier pass (planImageVariants width match, or copyContentAssets for
+  // already-exported variants) may have placed this file. Don't re-encode.
+  if (existsSync(outPath)) return true;
+
+  mkdirSync(dirname(outPath), { recursive: true });
+
+  if (cacheFile && existsSync(cacheFile)) {
+    try {
+      copyFileSync(cacheFile, outPath);
+      return true;
+    } catch (err) {
+      logger.warn(
+        `Failed to copy cached theme variant to ${outPath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
+  }
+
+  try {
+    let pipeline = sharpFn(sourcePath).resize({
+      width: typeof size.width === 'number' ? size.width : undefined,
+      height: typeof size.height === 'number' ? size.height : undefined,
+      withoutEnlargement: true,
+    });
+    if (format === 'webp') pipeline = pipeline.webp({ quality: opts.webpQuality });
+    else if (format === 'avif') pipeline = pipeline.avif({ quality: opts.avifQuality });
+
+    if (cacheFile) {
+      mkdirSync(dirname(cacheFile), { recursive: true });
+      await pipeline.toFile(cacheFile);
+      copyFileSync(cacheFile, outPath);
+    } else {
+      await pipeline.toFile(outPath);
+    }
+    return true;
+  } catch (err) {
+    logger.warn(
+      `Failed to generate theme size variant ${outPath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return false;
+  }
 }
 
 function sizeShrinksSource(size: ThemeImageSize, dims: ImageDimensions): boolean {

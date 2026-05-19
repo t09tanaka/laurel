@@ -27,6 +27,7 @@ import {
   injectImageSrcsetIntoContent,
   isSharpAvailable,
   planImageVariants,
+  resolveCacheDir,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
 import { minifyHtmlOutputs } from './minify.ts';
@@ -229,14 +230,21 @@ async function runBuild({
       );
     }
     // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
-    // (e.g. Source's xs/s/m/l/xl/xxl). Runs after the responsive-width pass so
-    // an `m: { width: 600 }` and the default 600w variant share one file.
+    // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
+    // post-card srcsets for `feature_image`). Runs after the responsive-width
+    // pass so an `m: { width: 600 }` and the default 600w variant share one
+    // file. Cache is keyed by source content hash; format variants are emitted
+    // only when sharp is available and at least one format is configured.
     await timed(profiler, 'theme_image_size_variants', () =>
       generateThemeImageSizeVariants({
         cwd,
         config,
         outputDir,
         themeImageSizes: theme.pkg.image_sizes,
+        cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
+        formats: formatVariants,
+        webpQuality: imagesCfg.webp_quality,
+        avifQuality: imagesCfg.avif_quality,
       }),
     );
   }
