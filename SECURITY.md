@@ -106,6 +106,17 @@ If you enable either flag, treat PRs that touch `codeinjection_*` /
 `unsafe_html` (or files with those fields set) as code review for raw HTML/JS
 shipped to every visitor.
 
+## Hosting headers
+
+The built site is plain static files, so HTTP response headers
+(`Content-Security-Policy`, `Strict-Transport-Security`, `Referrer-Policy`,
+`Permissions-Policy`, …) are set by the hosting platform, not by Nectar.
+See [`docs/security/hosting.md`](docs/security/hosting.md) for
+copy-pasteable `_headers` / `vercel.json` / `netlify.toml` snippets
+calibrated to what Nectar actually emits (inline JSON-LD, optional
+component scripts, theme-controlled inline scripts), plus workarounds for
+GitHub Pages' fixed header set.
+
 ## Dependency hygiene
 
 Markdown and template parsing libraries (notably `marked`) have a history of
