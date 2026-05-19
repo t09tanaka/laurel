@@ -89,10 +89,20 @@ export async function renderMarkdown(
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
+// Block-form shortcode: `{{< toggle heading="…" >}}body markdown{{< /toggle >}}`.
+// The body is non-greedy so consecutive toggles in the same document each get
+// their own match, and `[\s\S]` lets the body span line breaks.
+const TOGGLE_SHORTCODE_RE =
+  /\{\{<\s+toggle((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/toggle\s*>\}\}/g;
+
 export function expandKoenigShortcodes(markdown: string): string {
-  return markdown.replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
-    renderBookmarkHtml(parseShortcodeAttrs(attrsStr)),
-  );
+  return markdown
+    .replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderBookmarkHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
+    );
 }
 
 const ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
@@ -163,6 +173,25 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
 
   return `\n\n<figure class="kg-card kg-bookmark-card">${anchor}${figcaption}</figure>\n\n`;
+}
+
+// Render a Koenig toggle card as a native <details>/<summary> pair. Ghost's
+// editor produces a `<div class="kg-toggle-card">` that relies on a separate
+// `kg-toggle.js` to flip `data-kg-toggle-state` on click — we don't bundle
+// that script, so the card would render permanently collapsed with no way to
+// expand. `<details>` is the browser-native equivalent and needs no JS while
+// keeping the same Koenig class hooks so Ghost themes' existing CSS still
+// applies. The blank lines around `body` keep CommonMark parsing the inner
+// markdown as block content rather than as raw HTML.
+function renderToggleHtml(attrs: Record<string, string>, body: string): string {
+  const heading = attrs.heading ?? '';
+  const headingHtml = heading
+    ? `<h4 class="kg-toggle-heading-text">${escapeHtmlAttr(heading)}</h4>`
+    : '';
+  const summary = `<summary class="kg-toggle-heading">${headingHtml}</summary>`;
+  const innerMarkdown = body.trim();
+  const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
+  return `\n\n<details class="kg-card kg-toggle-card">\n${summary}\n${contentBlock}\n</details>\n\n`;
 }
 
 function htmlToPlaintext(html: string): string {

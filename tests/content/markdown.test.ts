@@ -220,3 +220,62 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
     expect(html).toContain('A &amp; B');
   });
 });
+
+describe('renderMarkdown — toggle shortcode expansion', () => {
+  test('expands toggle into a <details> element with Koenig class hooks', async () => {
+    const md =
+      'Intro.\n\n{{< toggle heading="Show details" >}}\nHidden paragraph.\n{{< /toggle >}}\n\nOutro.';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<details class="kg-card kg-toggle-card">');
+    expect(html).toContain('<summary class="kg-toggle-heading">');
+    expect(html).toContain('<h4 class="kg-toggle-heading-text">Show details</h4>');
+    expect(html).toContain('<div class="kg-toggle-content">');
+    expect(html).toContain('Hidden paragraph.');
+    expect(html).toContain('</details>');
+    expect(html).not.toContain('{{< toggle');
+    expect(html).not.toContain('{{< /toggle');
+  });
+
+  test('parses inner body as markdown', async () => {
+    const md =
+      '{{< toggle heading="More" >}}\nSee **bold** and [a link](https://example.com/).\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).toContain('<a href="https://example.com/">a link</a>');
+  });
+
+  test('omits the heading element when no heading attribute is provided', async () => {
+    const md = '{{< toggle >}}\nBody only.\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<details class="kg-card kg-toggle-card">');
+    expect(html).toContain('<summary class="kg-toggle-heading">');
+    expect(html).not.toContain('kg-toggle-heading-text');
+    expect(html).toContain('Body only.');
+  });
+
+  test('expands multiple toggles independently', async () => {
+    const md =
+      '{{< toggle heading="One" >}}\nfirst body\n{{< /toggle >}}\n\n{{< toggle heading="Two" >}}\nsecond body\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html.match(/kg-toggle-card/g)?.length).toBe(2);
+    expect(html).toContain('>One</h4>');
+    expect(html).toContain('>Two</h4>');
+    expect(html).toContain('first body');
+    expect(html).toContain('second body');
+  });
+
+  test('escapes HTML-significant characters in heading attribute', async () => {
+    const md = '{{< toggle heading="<script>x</script> & more" >}}\nbody\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt; &amp; more');
+    expect(html).not.toContain('<script>x</script>');
+  });
+
+  test('preserves multi-paragraph body markdown', async () => {
+    const md = '{{< toggle heading="H" >}}\nFirst paragraph.\n\nSecond paragraph.\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('First paragraph.');
+    expect(html).toContain('Second paragraph.');
+    expect(html.match(/<p>/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
