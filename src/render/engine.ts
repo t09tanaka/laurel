@@ -3,6 +3,7 @@ import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
@@ -172,10 +173,11 @@ function buildRootData(engine: NectarEngine, route: RouteContext): Record<string
 }
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
-  return {
+  const merged = {
     ...engine.theme.pkg.customDefaults,
     ...engine.config.theme.custom,
   };
+  return sanitizeThemeCustomValues(merged, engine.theme.pkg.custom);
 }
 
 function computeBodyClass(route: RouteContext): string {

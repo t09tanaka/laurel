@@ -6,6 +6,7 @@ import {
   findUnknownThemeCustomKeys,
   formatThemeCustomIssue,
   formatThemeCustomValueIssue,
+  sanitizeThemeCustomValues,
 } from '~/theme/validate-custom.ts';
 
 function makePkg(custom: ThemePackage['custom']): ThemePackage {
@@ -226,6 +227,54 @@ describe('findInvalidThemeCustomValues', () => {
     });
     const pkg = makePkg({ title_font: { type: 'select', options: ['Modern sans-serif'] } });
     expect(findInvalidThemeCustomValues({ config, pkg })).toEqual([]);
+  });
+});
+
+describe('sanitizeThemeCustomValues', () => {
+  test('keeps a valid hex color untouched', () => {
+    const result = sanitizeThemeCustomValues(
+      { site_background_color: '#fafafa' },
+      { site_background_color: { type: 'color' } },
+    );
+    expect(result.site_background_color).toBe('#fafafa');
+  });
+
+  test('strips a CSS-breakout payload from a color-typed key (issue #560)', () => {
+    const payload = "red; } body { display: none } @import url('//evil.tld/x.css'); /*";
+    const result = sanitizeThemeCustomValues(
+      { site_background_color: payload },
+      { site_background_color: { type: 'color' } },
+    );
+    expect(result.site_background_color).toBe('');
+  });
+
+  test('strips a malicious theme default the same way as user config', () => {
+    const result = sanitizeThemeCustomValues(
+      { site_background_color: 'red; }/**/x:url("//evil")' },
+      { site_background_color: { type: 'color' } },
+    );
+    expect(result.site_background_color).toBe('');
+  });
+
+  test('strips a non-string color value', () => {
+    const result = sanitizeThemeCustomValues(
+      { site_background_color: 42 },
+      { site_background_color: { type: 'color' } },
+    );
+    expect(result.site_background_color).toBe('');
+  });
+
+  test('leaves non-color keys alone even if they look unsafe', () => {
+    const result = sanitizeThemeCustomValues(
+      { signup_heading: '} body { display: none } /*' },
+      { signup_heading: { type: 'text' } },
+    );
+    expect(result.signup_heading).toBe('} body { display: none } /*');
+  });
+
+  test('does not introduce keys that were not in the input', () => {
+    const result = sanitizeThemeCustomValues({}, { site_background_color: { type: 'color' } });
+    expect('site_background_color' in result).toBe(false);
   });
 });
 
