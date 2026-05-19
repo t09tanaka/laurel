@@ -1,0 +1,129 @@
+name: Ghost compatibility gap
+description: A Ghost theme renders differently in Nectar than in upstream Ghost (helper, context, or template behaviour).
+title: "[Ghost-compat] "
+labels:
+  - bug
+  - ghost-compat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when a Ghost theme — preferably the vendored
+        [Source](https://github.com/TryGhost/Source) theme — produces output
+        in Nectar that differs from real Ghost in a way that looks unintended.
+
+        Nectar's Ghost compatibility surface is scoped. Before filing, please
+        skim the **Implemented / Out of scope** lists in
+        [`CLAUDE.md`](https://github.com/t09tanaka/nectar/blob/main/CLAUDE.md).
+        If the missing behaviour is explicitly out of scope (members,
+        server-side search, drafts via API, multi-locale routing, email-only
+        posts, ...), this isn't a compat bug — it's a feature request, and
+        should go through [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas).
+  - type: textarea
+    id: summary
+    attributes:
+      label: What renders differently?
+      description: One sentence. "`{{#foreach posts limit=3}}` inside a tag
+        archive emits 4 posts instead of 3."
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Helper / context / template construct
+      description: The specific Ghost surface this touches. Helper name,
+        context key, or template construct.
+      placeholder: "{{#foreach}} with `limit` and `visibility`"
+    validations:
+      required: true
+  - type: textarea
+    id: template
+    attributes:
+      label: Template snippet
+      description: The `.hbs` fragment that triggers the difference. Trim to
+        the smallest snippet that still reproduces it.
+      render: handlebars
+      placeholder: |
+        {{#foreach posts limit="3" visibility="public"}}
+          <a href="{{url}}">{{title}}</a>
+        {{/foreach}}
+    validations:
+      required: true
+  - type: textarea
+    id: content
+    attributes:
+      label: Content / fixtures
+      description: The Markdown frontmatter, `nectar.toml` snippet, or content
+        graph state that the snippet runs against. A minimal reproduction in
+        the shape of `example/` (a couple of posts, one tag, one author) is
+        ideal.
+      placeholder: |
+        # content/posts/a.md
+        ---
+        title: A
+        visibility: public
+        ---
+
+        # content/posts/b.md
+        ---
+        title: B
+        visibility: members
+        ---
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What Ghost does
+      description: Output, behaviour, or contract from real Ghost — ideally
+        with a link to Ghost's helper docs, theme docs, or the upstream
+        source that establishes this.
+      placeholder: |
+        Per Ghost helper docs: `visibility="public"` filters before
+        `limit` applies, so only public posts count toward the 3.
+        Link: https://ghost.org/docs/themes/helpers/foreach/
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What Nectar does
+      description: The actual rendered HTML / error / behaviour. Paste the
+        relevant slice of the generated output or the thrown error.
+    validations:
+      required: true
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      description: Which theme exposes this? The vendored Source is the
+        canonical compat target — Source repros get prioritised. Forks /
+        third-party themes welcome but say so.
+      placeholder: "Vendored Source (example/themes/source/)"
+    validations:
+      required: true
+  - type: input
+    id: nectar-version
+    attributes:
+      label: Nectar version
+      description: Output of `nectar --version`, or the commit SHA you're on.
+      placeholder: "0.1.0 / commit 5148f15"
+    validations:
+      required: true
+  - type: input
+    id: bun-version
+    attributes:
+      label: Bun version
+      description: Output of `bun --version`.
+      placeholder: "1.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Links to the Ghost docs you're comparing against, a side-by-side
+        diff of Nectar vs Ghost output, related issues, things you already
+        ruled out.
+    validations:
+      required: false
