@@ -156,7 +156,7 @@ async function runBuild({
   });
 
   const favicons = computeFavicons({ config, theme, cwd });
-  const engine = createEngine({ config, content, theme, favicons });
+  const engine = createEngine({ config, content, theme, favicons, cwd });
   const routes = planRoutes({ config, content, theme, routesYaml });
 
   const subscribeConfig = config.components.subscribe;
