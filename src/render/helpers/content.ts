@@ -83,21 +83,44 @@ export function registerContentHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'tags',
     function tagsHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const ctx = this as { tags?: { name: string; slug: string; url: string }[] };
-      const list = ctx.tags ?? [];
-      const separator = options.hash.separator ?? ', ';
-      const autolink = options.hash.autolink !== false;
+      const ctx = this as {
+        tags?: { name: string; slug: string; url: string; visibility?: string }[];
+      };
+      // Ghost's tags helper hides `internal` tags by default; visibility="all"
+      // or a comma-separated list (e.g. "public,internal") opts back in.
+      const visibility = parseVisibility(options.hash.visibility);
+      const list = (ctx.tags ?? []).filter((tag) => {
+        if (visibility === 'all') return true;
+        const v = tag.visibility ?? 'public';
+        return visibility.has(v);
+      });
       if (options.fn) {
         let out = '';
         for (const tag of list) out += options.fn(tag);
         return out;
       }
-      const items = list.map((tag) =>
-        autolink
+      const separator = typeof options.hash.separator === 'string' ? options.hash.separator : ', ';
+      const prefix = typeof options.hash.prefix === 'string' ? options.hash.prefix : '';
+      const suffix = typeof options.hash.suffix === 'string' ? options.hash.suffix : '';
+      // Ghost treats only boolean false and the string 'false' as disabling
+      // autolink, so undefined/'true'/boolean true all link.
+      const autolink = !(options.hash.autolink === false || options.hash.autolink === 'false');
+      const limit = parseNum(options.hash.limit);
+      const fromRaw = parseNum(options.hash.from);
+      const toRaw = parseNum(options.hash.to);
+
+      if (list.length === 0) return new engine.hb.SafeString('');
+
+      let items = list.map((tag) =>
+        autolink && typeof tag.url === 'string' && tag.url.length > 0
           ? `<a href="${escapeAttr(tag.url)}">${escapeHtml(tag.name)}</a>`
           : escapeHtml(tag.name),
       );
-      return new engine.hb.SafeString(items.join(String(separator)));
+      if (limit !== undefined && limit >= 0) items = items.slice(0, limit);
+      const from = fromRaw && fromRaw > 0 ? fromRaw - 1 : 0;
+      const to = toRaw && toRaw > 0 ? toRaw : items.length;
+      const joined = items.slice(from, to).join(separator);
+      return new engine.hb.SafeString(joined.length > 0 ? prefix + joined + suffix : '');
     },
   );
 
@@ -331,6 +354,17 @@ function parseNum(value: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
+}
+
+function parseVisibility(value: unknown): 'all' | Set<string> {
+  if (value === 'all') return 'all';
+  if (typeof value !== 'string' || value.length === 0) return new Set(['public']);
+  const parts = value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+  if (parts.includes('all')) return 'all';
+  return parts.length > 0 ? new Set(parts) : new Set(['public']);
 }
 
 function escapeHtml(value: string): string {
