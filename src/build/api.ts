@@ -84,6 +84,7 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     url: site.url,
     locale: site.locale,
     lang: site.lang,
+    direction: site.direction,
     timezone: site.timezone,
     cover_image: site.cover_image ?? null,
     logo: site.logo ?? null,

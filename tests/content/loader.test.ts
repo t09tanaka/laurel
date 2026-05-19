@@ -78,6 +78,25 @@ describe('loadContent', () => {
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
   });
+
+  test('site.direction is ltr by default and rtl for Arabic locale', async () => {
+    const cwd = await fixture();
+    const ltr = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+    expect(ltr.site.locale).toBe('en');
+    expect(ltr.site.direction).toBe('ltr');
+
+    const rtl = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test', locale: 'ar-EG' },
+      }),
+    });
+    expect(rtl.site.locale).toBe('ar-EG');
+    expect(rtl.site.direction).toBe('rtl');
+  });
 });
 
 describe('loadContent slug sanitization', () => {
