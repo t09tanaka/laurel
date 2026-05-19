@@ -31,8 +31,10 @@ import { stripUnusedLightbox } from './lightbox.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
+import { rewriteRecommendationsButton } from './portal-shim.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
+import { emitRecommendationsPage } from './recommendations-page.ts';
 import { loadRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
@@ -150,14 +152,19 @@ async function runBuild({
   const routes = planRoutes({ config, content, theme, routesYaml });
 
   const subscribeConfig = config.components.subscribe;
+  const recommendationsEnabled = config.recommendations.length > 0;
   const htmlOutputs: HtmlOutput[] = [];
   let renderedBytes = 0;
   for (const route of routes) {
     const stop = profiler?.start('render', route.url);
     try {
-      const html = stripUnusedLightbox(
-        transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
-      );
+      const html = rewriteRecommendationsButton({
+        html: stripUnusedLightbox(
+          transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
+        ),
+        basePath: config.build.base_path,
+        enabled: recommendationsEnabled,
+      });
       const bytes = Buffer.byteLength(html, 'utf8');
       renderedBytes += bytes;
       stop?.({ bytes_emitted: bytes });
@@ -177,6 +184,12 @@ async function runBuild({
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
     await timed(profiler, 'default_404', () =>
       emitDefault404({ config, content, outputDir, favicons }),
+    );
+  }
+
+  if (recommendationsEnabled) {
+    await timed(profiler, 'recommendations_page', () =>
+      emitRecommendationsPage({ config, content, outputDir, favicons }),
     );
   }
 
