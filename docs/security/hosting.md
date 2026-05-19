@@ -15,6 +15,12 @@ the repo root.
 > for a personal site, risky for one that accepts contributions to `content/`,
 > uses `build.allow_code_injection`, or serves a custom domain.
 
+For the build-time side — which frontmatter and config fields ship code to
+visitors, and what to look for when reviewing a contributor's PR — see
+[`threat-model.md`](./threat-model.md). The two pages complement each other:
+`threat-model.md` covers what Nectar emits, `hosting.md` covers what the host
+wraps around that output.
+
 ## What Nectar actually emits
 
 The CSP below is calibrated for what Nectar puts on the page:

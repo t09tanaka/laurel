@@ -90,6 +90,13 @@ Once a site is live, see
 header snippets each host needs — Nectar emits static files, so these are
 the host's job.
 
+Accepting PRs against `content/` or `themes/`? Read
+[`docs/security/threat-model.md`](./docs/security/threat-model.md) first.
+It documents which frontmatter fields (`codeinjection_*`,
+`feature_image_caption`, `unsafe_html`, `slug`) and config fields
+(`site.url`, `theme.custom.*`, `build.allow_code_injection`) carry which
+level of trust, and what to look for in a contributor's diff.
+
 ## Layout
 
 ```
