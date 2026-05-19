@@ -3,7 +3,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
-import { createGhostTurndown } from './turndown-rules.ts';
+import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
 
@@ -491,7 +491,7 @@ async function nextAvailablePath(dest: string): Promise<string> {
 
 function renderPostBody(post: GhostPost): string {
   if (post.html?.trim()) {
-    return turndown.turndown(post.html);
+    return turndown.turndown(preprocessKoenigCardFences(post.html));
   }
   if (post.lexical || post.mobiledoc) {
     logger.warn(

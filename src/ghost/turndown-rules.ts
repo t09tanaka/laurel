@@ -72,6 +72,34 @@ function wrap(s: string): string {
   return `\n\n${s}\n\n`;
 }
 
+function isDataKgCard(node: FilterNode, ...types: readonly string[]): boolean {
+  if (node.nodeName !== 'DIV') return false;
+  const t = node.getAttribute?.('data-kg-card');
+  return typeof t === 'string' && types.includes(t);
+}
+
+// Ghost emits four Koenig card types as HTML comment fences instead of class
+// wrappers: `markdown`, `html`, `email`, `email-cta`. Turndown drops comments
+// by default, which makes it impossible to detect where each card starts and
+// ends — fatal for `email`/`email-cta` (members-only content that must NOT
+// leak into a public static site) and lossy for `markdown`/`html` (where the
+// raw user payload should survive the round-trip).
+//
+// This regex converts each fence pair into a `<div data-kg-card="X">…</div>`
+// wrapper that dedicated Turndown rules can act on. The back-reference (`\1`)
+// requires the closing fence to match the opening one, so an orphan or
+// crossed-up fence is left alone (graceful degradation rather than silent
+// truncation across an unrelated region).
+const KG_CARD_FENCE_RE =
+  /<!--\s*kg-card-begin:\s*([a-z-]+)\s*-->([\s\S]*?)<!--\s*kg-card-end:\s*\1\s*-->/g;
+
+export function preprocessKoenigCardFences(html: string): string {
+  return html.replace(
+    KG_CARD_FENCE_RE,
+    (_match, type: string, body: string) => `<div data-kg-card="${type}">${body}</div>`,
+  );
+}
+
 // kg-card classes that get their own rule. The plain-figure fallback uses this
 // list to avoid claiming a figure that belongs to a more specific card.
 const FIGURE_CARD_SUBTYPES = [
@@ -337,6 +365,34 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       return `![${attr(img, 'alt')}](${src})`;
     },
   });
+
+  // Comment-fence cards (preprocessed by `preprocessKoenigCardFences` into
+  // `<div data-kg-card="X">` wrappers).
+  //
+  // `email` / `email-cta`: members-only content (paid-newsletter intros and
+  // CTAs). Stripping them outright is non-negotiable — a public static site
+  // must never expose this content.
+  turndown.addRule('kg-card-fence-email', {
+    filter: (node) => isDataKgCard(node, 'email', 'email-cta'),
+    replacement: () => '',
+  });
+
+  // `html`: Ghost emits the card without the `kg-html-card` div in `post.html`,
+  // so the comment fence is the only signal that this region is hand-crafted
+  // HTML. Preserve it verbatim; markdown conversion would destroy attributes,
+  // inline styles, and any structure the user intended.
+  turndown.addRule('kg-card-fence-html', {
+    filter: (node) => isDataKgCard(node, 'html'),
+    replacement: (_content, node) => {
+      const inner = node.innerHTML.trim();
+      return inner ? wrap(inner) : '';
+    },
+  });
+
+  // `markdown` cards intentionally have no rule: Ghost has already rendered
+  // the user's markdown to HTML before export, so the default `<div>`
+  // walk-through behaviour converts the children back to markdown — and any
+  // nested kg-* card rules inside still fire.
 
   // Inline semantic tags markdown has no syntax for. Keeping them as HTML is
   // strictly better than silently flattening to plain text.

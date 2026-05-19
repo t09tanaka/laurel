@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createGhostTurndown } from '~/ghost/turndown-rules.ts';
+import { createGhostTurndown, preprocessKoenigCardFences } from '~/ghost/turndown-rules.ts';
 
 const td = createGhostTurndown();
 
@@ -377,5 +377,105 @@ describe('Ghost Turndown rules — regression: paragraphs and links untouched', 
     const html = '<p>Hello <a href="https://example.com">world</a></p>';
     const md = td.turndown(html);
     expect(md.trim()).toBe('Hello [world](https://example.com)');
+  });
+});
+
+describe('preprocessKoenigCardFences', () => {
+  test('wraps each card type in a data-kg-card div', () => {
+    for (const type of ['markdown', 'html', 'email', 'email-cta']) {
+      const input = `<!--kg-card-begin: ${type}--><p>Body</p><!--kg-card-end: ${type}-->`;
+      expect(preprocessKoenigCardFences(input)).toBe(
+        `<div data-kg-card="${type}"><p>Body</p></div>`,
+      );
+    }
+  });
+
+  test('handles multiple fences in one input', () => {
+    const input =
+      '<!--kg-card-begin: markdown--><p>A</p><!--kg-card-end: markdown-->\n' +
+      '<p>between</p>\n' +
+      '<!--kg-card-begin: html--><b>B</b><!--kg-card-end: html-->';
+    const out = preprocessKoenigCardFences(input);
+    expect(out).toContain('<div data-kg-card="markdown"><p>A</p></div>');
+    expect(out).toContain('<div data-kg-card="html"><b>B</b></div>');
+    expect(out).toContain('<p>between</p>');
+  });
+
+  test('tolerates whitespace around the card type', () => {
+    const input = '<!-- kg-card-begin: markdown --><p>Hi</p><!-- kg-card-end: markdown -->';
+    expect(preprocessKoenigCardFences(input)).toBe('<div data-kg-card="markdown"><p>Hi</p></div>');
+  });
+
+  test('leaves mismatched fences alone instead of swallowing content', () => {
+    const input = '<!--kg-card-begin: markdown--><p>Hi</p><!--kg-card-end: html-->';
+    expect(preprocessKoenigCardFences(input)).toBe(input);
+  });
+
+  test('leaves text without fences untouched', () => {
+    const input = '<p>Just a paragraph.</p>';
+    expect(preprocessKoenigCardFences(input)).toBe(input);
+  });
+});
+
+describe('Ghost Turndown rules — email / email-cta cards (comment-fenced)', () => {
+  test('strips email card content entirely', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: email--><p>Members only intro.</p><!--kg-card-end: email-->',
+    );
+    expect(td.turndown(html).trim()).toBe('');
+  });
+
+  test('strips email-cta card content entirely', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: email-cta--><p>Sign up!</p><!--kg-card-end: email-cta-->',
+    );
+    expect(td.turndown(html).trim()).toBe('');
+  });
+
+  test('strips email region without affecting surrounding public content', () => {
+    const html = preprocessKoenigCardFences(
+      '<p>Public.</p>\n' +
+        '<!--kg-card-begin: email--><p>Members only.</p><!--kg-card-end: email-->\n' +
+        '<p>Also public.</p>',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('Public.');
+    expect(md).toContain('Also public.');
+    expect(md).not.toContain('Members only.');
+  });
+});
+
+describe('Ghost Turndown rules — html card (comment-fenced)', () => {
+  test('preserves inner HTML verbatim', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html--><div class="custom"><span style="color:red">x</span></div><!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('<div class="custom"><span style="color:red">x</span></div>');
+  });
+
+  test('drops empty html card', () => {
+    const html = preprocessKoenigCardFences('<!--kg-card-begin: html--><!--kg-card-end: html-->');
+    expect(td.turndown(html).trim()).toBe('');
+  });
+});
+
+describe('Ghost Turndown rules — markdown card (comment-fenced)', () => {
+  test('walks children and emits their markdown', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: markdown--><h2>Hello</h2><p>World</p><!--kg-card-end: markdown-->',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('## Hello');
+    expect(md).toContain('World');
+  });
+
+  test('inner kg-* card rules still fire from inside a markdown card', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: markdown--><figure class="kg-card kg-image-card"><img src="/x.jpg" alt="x" /></figure><!--kg-card-end: markdown-->',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="/x.jpg"');
   });
 });
