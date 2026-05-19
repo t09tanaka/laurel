@@ -296,3 +296,13 @@ Comments component. Field set used depends on `provider`.
 | `components.comments.shortname` | `string` | no | — | Disqus: site shortname. |
 | `components.comments.identifier` | `string` | no | — | Disqus: per-page identifier override. Defaults to the post slug. |
 | `components.comments.username` | `string` | no | — | webmention.io: account username receiving webmentions. |
+
+## `components.portal`
+
+Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.portal.provider` | `"none" \| "ghost" \| "custom"` | no | `"none"` | Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost's own Portal script intercepts. `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler. |
+| `components.portal.paid` | `boolean` | no | `false` | Whether paid tiers are available. Drives `@site.paid_members_enabled`, which Source's sidebar uses to decide between Subscribe and Upgrade CTAs. Only meaningful when `provider != "none"`. |
+| `components.portal.invite_only` | `boolean` | no | `false` | When true, hide the public Subscribe button and only expose Sign in (Ghost's invite-only mode). Drives `@site.members_invite_only`. Only meaningful when `provider != "none"`. |

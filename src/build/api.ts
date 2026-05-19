@@ -96,6 +96,7 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     secondary_navigation: site.secondary_navigation,
     members_enabled: site.members_enabled,
     paid_members_enabled: site.paid_members_enabled,
+    members_invite_only: site.members_invite_only,
     recommendations_enabled: site.recommendations_enabled,
   };
   const body = { settings };

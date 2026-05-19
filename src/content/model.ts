@@ -20,6 +20,7 @@ export interface SiteData {
   facebook: string | undefined;
   members_enabled: boolean;
   paid_members_enabled: boolean;
+  members_invite_only: boolean;
   recommendations_enabled: boolean;
 }
 

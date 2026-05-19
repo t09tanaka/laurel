@@ -663,6 +663,32 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Comments component. Field set used depends on `provider`.'),
+        portal: z
+          .object({
+            provider: z
+              .enum(['none', 'ghost', 'custom'])
+              .default('none')
+              .describe(
+                "Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost's own Portal script intercepts. `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler.",
+              ),
+            paid: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Whether paid tiers are available. Drives `@site.paid_members_enabled`, which Source\'s sidebar uses to decide between Subscribe and Upgrade CTAs. Only meaningful when `provider != "none"`.',
+              ),
+            invite_only: z
+              .boolean()
+              .default(false)
+              .describe(
+                'When true, hide the public Subscribe button and only expose Sign in (Ghost\'s invite-only mode). Drives `@site.members_invite_only`. Only meaningful when `provider != "none"`.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links.',
+          ),
       })
       .strict()
       .default({})
