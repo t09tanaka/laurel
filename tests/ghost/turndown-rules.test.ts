@@ -86,6 +86,57 @@ describe('Ghost Turndown rules — kg-image-card', () => {
     expect(md).toContain('src="/content/images/hero.jpg"');
     expect(md).not.toContain('caption=');
   });
+
+  test('preserves wrapping anchor href as the image click target', () => {
+    const html = `
+      <figure class="kg-card kg-image-card kg-card-hascaption">
+        <a href="https://target.example/">
+          <img src="/content/images/hero.jpg" class="kg-image" alt="Hero" width="2000" height="1200" />
+        </a>
+        <figcaption>By <a href="https://author.example/">Jane</a></figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('href="https://target.example/"');
+    // The caption's inner anchor must not be mistaken for the wrap href.
+    expect(md).not.toContain('href="https://author.example/"');
+    expect(md).toContain('caption=');
+  });
+
+  test('omits href when img is not wrapped in an anchor', () => {
+    const html = `
+      <figure class="kg-card kg-image-card">
+        <img src="/content/images/plain.jpg" alt="Plain" />
+        <figcaption>See <a href="https://elsewhere.example/">elsewhere</a></figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).not.toContain('href=');
+  });
+
+  test('preserves srcset and sizes from the inner img', () => {
+    const html = `
+      <figure class="kg-card kg-image-card kg-width-full">
+        <img
+          src="/content/images/hero.jpg"
+          srcset="/content/images/size/w600/hero.jpg 600w, /content/images/size/w1000/hero.jpg 1000w, /content/images/hero.jpg 2000w"
+          sizes="(min-width: 1200px) 1000px, 100vw"
+          alt="Hero"
+          width="2000"
+          height="1200"
+        />
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('size="full"');
+    expect(md).toContain(
+      'srcset="/content/images/size/w600/hero.jpg 600w, /content/images/size/w1000/hero.jpg 1000w, /content/images/hero.jpg 2000w"',
+    );
+    expect(md).toContain('sizes="(min-width: 1200px) 1000px, 100vw"');
+  });
 });
 
 describe('Ghost Turndown rules — kg-gallery-card', () => {

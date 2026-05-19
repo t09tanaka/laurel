@@ -74,6 +74,19 @@ function providerFromUrl(url: string): string {
   return '';
 }
 
+// Return the href of the first <a> inside a figure that wraps an <img>. Skips
+// anchors inside figcaption (which carry markdown caption links, not the
+// image's click target).
+function imageWrapAnchorHref(figure: DomNode): string {
+  const anchors = Array.from(figure.querySelectorAll('a') as ArrayLike<DomNode>);
+  for (const a of anchors) {
+    if (a.querySelector('img')) {
+      return attr(a, 'href');
+    }
+  }
+  return '';
+}
+
 function lastAnchorHref(node: DomNode): string {
   const anchors = Array.from(node.querySelectorAll('a') as ArrayLike<DomNode>);
   for (let i = anchors.length - 1; i >= 0; i--) {
@@ -428,7 +441,14 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Image card: <figure class="kg-card kg-image-card"><img><figcaption>
+  // Image card: <figure class="kg-card kg-image-card"><a href><img><figcaption>
+  //
+  // Ghost wraps the <img> in an <a> when the editor sets a "click target" link
+  // on the image. Default turndown loses that anchor because the figure rule
+  // takes over and only renders the inner img. We capture the wrapper href so
+  // the click target survives. Likewise, `srcset`/`sizes` carry the responsive
+  // variants Ghost computes at upload time — without them the renderer falls
+  // back to a single resolution and loses the layout shift protection.
   turndown.addRule('kg-image-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-image-card'),
     replacement: (_content, node) => {
@@ -440,6 +460,9 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           alt: attr(img, 'alt'),
           width: attr(img, 'width'),
           height: attr(img, 'height'),
+          srcset: attr(img, 'srcset'),
+          sizes: attr(img, 'sizes'),
+          href: imageWrapAnchorHref(node),
           size: classByPrefix(node, 'kg-width-'),
           caption: text(node.querySelector('figcaption')),
         }),
