@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
+import { pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
@@ -38,6 +39,10 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   const glob = new Bun.Glob('**/*.hbs');
   for await (const rel of glob.scan({ cwd: rootDir })) {
     const file = join(rootDir, rel);
+    if (pathContainsSymlink(rootDir, rel)) {
+      logger.warn(`Skipping symlinked theme template: ${file}`);
+      continue;
+    }
     const raw = await readFile(file, 'utf8');
     if (rel.startsWith('partials/') || rel.startsWith(`partials${separator()}`)) {
       const name = stripExt(relative(join(rootDir, 'partials'), file));
@@ -84,6 +89,10 @@ async function loadLocales(rootDir: string): Promise<Record<string, Record<strin
   const glob = new Bun.Glob('*.json');
   const out: Record<string, Record<string, string>> = {};
   for await (const rel of glob.scan({ cwd: dir })) {
+    if (pathContainsSymlink(dir, rel)) {
+      logger.warn(`Skipping symlinked locale file: ${join(dir, rel)}`);
+      continue;
+    }
     const code = rel.slice(0, rel.length - 5);
     const raw = await readFile(join(dir, rel), 'utf8');
     let parsed: unknown;
