@@ -16,7 +16,17 @@ export const BUILD_SPEC: CommandSpec = {
 export const NEW_SPEC: CommandSpec = {
   name: 'new',
   summary: 'Scaffold a new post or page',
-  options: {},
+  options: {
+    force: {
+      type: 'boolean',
+      description: 'Overwrite the destination file if it already exists',
+    },
+    slug: {
+      type: 'string',
+      description: 'Use this slug instead of one derived from the title',
+      placeholder: '<slug>',
+    },
+  },
   positionals: [
     { name: 'kind', description: 'post or page', required: true },
     { name: 'title', description: 'Title of the post or page', required: true, variadic: true },

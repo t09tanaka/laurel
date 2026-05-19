@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { access, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import slugify from 'slugify';
 import { ensureDir } from '~/util/fs.ts';
@@ -37,10 +37,26 @@ export async function runNew(args: string[]): Promise<number> {
     return 2;
   }
 
-  const slug = slugify(title, { lower: true, strict: true });
+  const force = parsed.values.force === true;
+  const slugOverride = typeof parsed.values.slug === 'string' ? parsed.values.slug.trim() : '';
+  const slug = slugOverride
+    ? slugify(slugOverride, { lower: true, strict: true })
+    : slugify(title, { lower: true, strict: true });
+  if (!slug) {
+    process.stderr.write('Could not derive a slug from the provided title or --slug value.\n');
+    return 2;
+  }
+
   const baseDir = kind === 'post' ? 'content/posts' : 'content/pages';
   const dest = join(process.cwd(), baseDir, `${slug}.md`);
   await ensureDir(dirname(dest));
+
+  if (!force && (await fileExists(dest))) {
+    process.stderr.write(
+      `Refusing to overwrite ${dest}. Pass --force to overwrite or --slug <other>.\n`,
+    );
+    return 1;
+  }
 
   const frontmatter = ['---', `title: ${JSON.stringify(title)}`, `slug: ${slug}`];
   if (kind === 'post') {
@@ -53,4 +69,13 @@ export async function runNew(args: string[]): Promise<number> {
   await writeFile(dest, frontmatter.join('\n'), 'utf8');
   logger.info(`Created ${dest}`);
   return 0;
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
