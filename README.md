@@ -120,6 +120,7 @@ examples/   # Deploy snippets and (planned) starter site templates — see examp
 - **Releases and project-wide notices:** [Discussions → Announcements](https://github.com/t09tanaka/nectar/discussions/categories/announcements)
 - **Reproducible bugs:** [open an issue](https://github.com/t09tanaka/nectar/issues/new/choose)
 - **Security vulnerabilities:** see [`SECURITY.md`](./SECURITY.md) — please don't file public issues
+- **Code of Conduct:** this project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md)
 
 Picking the right venue gets you a faster answer and keeps the issue tracker
 scannable. See [`.github/SUPPORT.md`](./.github/SUPPORT.md) for the long

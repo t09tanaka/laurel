@@ -9,8 +9,11 @@ follow [`SECURITY.md`](./SECURITY.md) instead.
 
 ## Code of Conduct
 
-Be kind. Assume good intent. Critique code, not people. Maintainers may close
-issues or PRs that violate this in spirit even if no formal CoC document exists.
+This project adopts the [Contributor Covenant](https://www.contributor-covenant.org/)
+version 2.1 as its Code of Conduct. See [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
+for the full text and how to report concerns.
+
+In short: be kind, assume good intent, and critique code rather than people.
 
 ## Ways to Contribute
 
