@@ -176,24 +176,45 @@ async function loadTags(cwd: string, config: NectarConfig): Promise<Tag[]> {
   return loadMarkdownDir(dir, async (file, raw) => normalizeTag(file, raw, config));
 }
 
+// Cap how many files we read+normalize concurrently. The previous serial loop
+// awaited renderMarkdown per post on the main thread (marked.parse is CPU-bound
+// and yields a microtask via the async API, sanitize-html runs sync), making a
+// 10k-post site spend ~30s+ in this loader alone. Batching with Promise.all
+// lets readFile I/O overlap with parsing/sanitising work and keeps the event
+// loop saturated. We chunk instead of unbounded Promise.all to avoid exhausting
+// file descriptors on very large repos (macOS default ulimit is 256).
+const MARKDOWN_LOAD_CONCURRENCY = 32;
+
 async function loadMarkdownDir<T>(
   dir: string,
   normalize: (filePath: string, raw: string) => Promise<T>,
 ): Promise<T[]> {
+  if (!existsSync(dir)) return [];
   const glob = new Bun.Glob('**/*.md');
-  const results: T[] = [];
-  if (!existsSync(dir)) return results;
+  const files: string[] = [];
   for await (const rel of glob.scan({ cwd: dir })) {
     if (pathContainsSymlink(dir, rel)) {
       logger.warn(`Skipping symlinked content path: ${join(dir, rel)}`);
       continue;
     }
-    const file = join(dir, rel);
-    const raw = await readFile(file, 'utf8');
-    try {
-      results.push(await normalize(file, raw));
-    } catch (err) {
-      throw toNectarError(err, { file });
+    files.push(join(dir, rel));
+  }
+
+  const results: T[] = new Array(files.length);
+  for (let i = 0; i < files.length; i += MARKDOWN_LOAD_CONCURRENCY) {
+    const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);
+    const chunkResults = await Promise.all(
+      chunk.map(async (file) => {
+        const raw = await readFile(file, 'utf8');
+        try {
+          return await normalize(file, raw);
+        } catch (err) {
+          throw toNectarError(err, { file });
+        }
+      }),
+    );
+    for (let j = 0; j < chunkResults.length; j += 1) {
+      results[i + j] = chunkResults[j] as T;
     }
   }
   return results;
