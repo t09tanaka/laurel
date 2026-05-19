@@ -139,6 +139,31 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
   ],
 };
 
+export const IMPORT_WORDPRESS_SPEC: CommandSpec = {
+  name: 'import-wordpress',
+  summary: 'Convert a WordPress WXR XML export into Markdown content',
+  options: {
+    'on-conflict': {
+      type: 'string',
+      description:
+        'How to handle existing files when slugs collide: skip (default), overwrite, or rename',
+      placeholder: '<skip|overwrite|rename>',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files',
+    },
+  },
+  positionals: [
+    {
+      name: 'file',
+      description: 'Path to a WordPress WXR XML export (Tools → Export in wp-admin produces this)',
+      required: true,
+    },
+  ],
+};
+
 export const INIT_SPEC: CommandSpec = {
   name: 'init',
   summary: 'Scaffold a new Nectar project in the current (or given) directory',
@@ -190,6 +215,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   check: CHECK_SPEC,
   doctor: DOCTOR_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
+  'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };
 
 export const COMMAND_NAMES = Object.keys(COMMAND_SPECS);

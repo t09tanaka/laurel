@@ -55,6 +55,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runImportGhost } = await import('./commands/import-ghost.ts');
       return runImportGhost(rest);
     }
+    case 'import-wordpress': {
+      const { runImportWordPress } = await import('./commands/import-wordpress.ts');
+      return runImportWordPress(rest);
+    }
     case 'serve': {
       const { runServe } = await import('./commands/serve.ts');
       return runServe(rest);

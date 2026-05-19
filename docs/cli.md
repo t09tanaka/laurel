@@ -32,6 +32,7 @@ nectar [global options] <command> [options]
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
+| [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
 ### `nectar init`
 
@@ -173,3 +174,26 @@ Options:
 | `--download-images` | boolean | Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths |
 | `--source-url <url>` | string | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
 | `--dry-run` | boolean | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |
+
+### `nectar import-wordpress`
+
+Convert a WordPress WXR XML export into Markdown content
+
+Usage:
+
+```
+nectar import-wordpress [--on-conflict <skip|overwrite|rename>] [--dry-run] <file>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<file>` | required | Path to a WordPress WXR XML export (Tools → Export in wp-admin produces this) |
+
+Options:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--on-conflict <skip\|overwrite\|rename>` | string | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
+| `--dry-run` | boolean | Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files |

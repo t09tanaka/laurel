@@ -26,7 +26,8 @@ Nectar's Ghost compatibility surface is doing its job.
 4. **Optional components** — features like search, comments, RSS, sitemap, OG
    images, and JSON feeds plug in by config; they are not core.
 5. **Migration tooling** — `nectar import-ghost` ingests a Ghost JSON export and
-   writes Markdown + assets into `content/`.
+   writes Markdown + assets into `content/`. `nectar import-wordpress` does the
+   same for a WordPress WXR XML export.
 
 ## Repo layout
 
