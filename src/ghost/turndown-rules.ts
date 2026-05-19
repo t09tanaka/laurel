@@ -166,24 +166,60 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Gallery card: <figure class="kg-card kg-gallery-card"><div.kg-gallery-container>...<img>...
+  // Gallery card: <figure class="kg-card kg-gallery-card"><div.kg-gallery-container>
+  //   <div class="kg-gallery-row">
+  //     <div class="kg-gallery-image"><img src width height /></div> × N (typically up to 3)
+  //   </div> × M (typically up to 3, giving 9 images max)
+  //   <figcaption>…</figcaption>
+  //
+  // Ghost groups images into rows of (usually) three and relies on each image's
+  // intrinsic width/height to compute `flex-grow` per row — that's what gives
+  // the masonry look. Flattening to `![alt](src)` lines (the default turndown
+  // behaviour) drops both the row boundaries and the dimensions, leaving the
+  // gallery shape unrecoverable on the way back. Emit a nested shortcode that
+  // keeps each row explicit and carries the dimensions on every image;
+  // renderers without row support can flatten by ignoring the wrapper.
   turndown.addRule('kg-gallery-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-gallery-card'),
     replacement: (_content, node) => {
       const seen = new Set<string>();
-      const imgs: string[] = [];
-      const all = Array.from(node.querySelectorAll('img') as ArrayLike<DomNode>);
-      for (const img of all) {
+      const renderImage = (img: DomNode): string => {
         const src = attr(img, 'src');
-        if (!src || seen.has(src)) continue;
+        if (!src || seen.has(src)) return '';
         seen.add(src);
-        imgs.push(`![${attr(img, 'alt')}](${src})`);
+        return shortcode('gallery-image', {
+          src,
+          alt: attr(img, 'alt'),
+          width: attr(img, 'width'),
+          height: attr(img, 'height'),
+        });
+      };
+      const renderRow = (rowImgs: DomNode[]): string => {
+        const lines = rowImgs.map(renderImage).filter((s) => s !== '');
+        return lines.length === 0 ? '' : shortcodeBlock('gallery-row', {}, lines.join('\n'));
+      };
+
+      const rows: string[] = [];
+      const rowNodes = Array.from(node.querySelectorAll('.kg-gallery-row') as ArrayLike<DomNode>);
+      for (const row of rowNodes) {
+        const rowImgs = Array.from(row.querySelectorAll('img') as ArrayLike<DomNode>);
+        const block = renderRow(rowImgs);
+        if (block) rows.push(block);
       }
+
+      // Fallback for galleries without explicit row wrappers (older themes /
+      // hand-written HTML). Group every image into a single synthesized row so
+      // the shortcode shape stays consistent regardless of source structure.
+      if (rows.length === 0) {
+        const block = renderRow(Array.from(node.querySelectorAll('img') as ArrayLike<DomNode>));
+        if (block) rows.push(block);
+      }
+
       return wrap(
         shortcodeBlock(
           'gallery',
           { caption: text(node.querySelector('figcaption')) },
-          imgs.join('\n'),
+          rows.join('\n'),
         ),
       );
     },
