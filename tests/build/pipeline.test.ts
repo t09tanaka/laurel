@@ -81,6 +81,14 @@ describe('build pipeline strict mode wiring', () => {
     expect(body).toContain('Allow: /');
     expect(body).toContain('Sitemap: https://strict.test/sitemap.xml');
   });
+
+  test('emits zero-byte dist/.nojekyll for GitHub Pages compatibility', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const nojekyll = join(summary.outputDir, '.nojekyll');
+    expect(existsSync(nojekyll)).toBe(true);
+    expect(readFileSync(nojekyll, 'utf8')).toBe('');
+  });
 });
 
 describe('build pipeline outputDir override', () => {
