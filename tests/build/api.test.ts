@@ -93,6 +93,8 @@ function makePost(over: Partial<Post> = {}): Post {
     comments: true,
     prev: undefined,
     next: undefined,
+    feed_html: '',
+    feed_excerpt: '',
     ...over,
   };
 }

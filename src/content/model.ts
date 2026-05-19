@@ -97,6 +97,8 @@ export interface Post {
   comments: boolean;
   prev: Post | undefined;
   next: Post | undefined;
+  feed_html: string;
+  feed_excerpt: string;
 }
 
 export interface Page {

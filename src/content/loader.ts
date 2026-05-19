@@ -115,6 +115,8 @@ interface RawPost {
   reading_time: number;
   excerpt: string;
   custom_excerpt: string | undefined;
+  feed_html: string;
+  feed_excerpt: string;
   feature_image: string | undefined;
   feature_image_alt: string | undefined;
   feature_image_caption: string | undefined;
@@ -256,17 +258,19 @@ async function normalizePost(
   let plaintext = rendered.plaintext;
   let word_count = rendered.word_count;
   let reading_time = rendered.reading_time;
-  if (
-    config &&
-    (visibility === 'members' || visibility === 'paid') &&
-    config.content.visibility_policy === 'truncate'
-  ) {
+  let feedHtml = html;
+  let feedPlaintext = plaintext;
+  if (config && (visibility === 'members' || visibility === 'paid')) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
     const reRendered = await renderMarkdown(truncated, { unsafe: unsafeHtml, locale });
-    html = `${reRendered.html}${buildPaywallStub(visibility)}`;
-    plaintext = reRendered.plaintext;
-    word_count = reRendered.word_count;
-    reading_time = reRendered.reading_time;
+    feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
+    feedPlaintext = reRendered.plaintext;
+    if (config.content.visibility_policy === 'truncate') {
+      html = feedHtml;
+      plaintext = feedPlaintext;
+      word_count = reRendered.word_count;
+      reading_time = reRendered.reading_time;
+    }
   }
 
   const featureImage = asString(data.feature_image);
@@ -287,6 +291,8 @@ async function normalizePost(
     reading_time,
     excerpt: customExcerpt ?? buildDefaultExcerpt(plaintext, locale),
     custom_excerpt: customExcerpt,
+    feed_html: feedHtml,
+    feed_excerpt: customExcerpt ?? buildDefaultExcerpt(feedPlaintext, locale),
     feature_image: featureImage,
     feature_image_alt: asString(data.feature_image_alt),
     feature_image_caption: asString(data.feature_image_caption),
@@ -476,6 +482,8 @@ function resolvePostRelations(
     comments: true,
     prev: undefined,
     next: undefined,
+    feed_html: raw.feed_html,
+    feed_excerpt: raw.feed_excerpt,
   };
 }
 

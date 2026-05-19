@@ -115,6 +115,29 @@ describe('visibility_policy', () => {
     expect(gated?.html).not.toContain('gh-paywall-stub');
   });
 
+  test('render-full policy still produces paywall-safe feed_html for gated posts', async () => {
+    const cwd = await fixture({ marker: true });
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      content: { visibility_policy: 'render-full' },
+    });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.feed_html).toContain('Free intro paragraph');
+    expect(gated?.feed_html).not.toContain('Secret members-only paragraph');
+    expect(gated?.feed_html).toContain('gh-paywall-stub');
+    expect(gated?.feed_excerpt).not.toContain('Secret members-only paragraph');
+  });
+
+  test('public posts have feed_html identical to html', async () => {
+    const cwd = await fixture({ visibility: 'public' });
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.feed_html).toBe(gated?.html ?? '');
+    expect(gated?.feed_excerpt).toBe(gated?.excerpt ?? '');
+  });
+
   test('skip policy drops the gated post from the route graph', async () => {
     const cwd = await fixture({ marker: true });
     const config = configSchema.parse({
