@@ -1,0 +1,62 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":timezone(Asia/Tokyo)"
+  ],
+  "schedule": ["before 9am on Monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on Monday"]
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"],
+    "minimumReleaseAge": null,
+    "schedule": []
+  },
+  "packageRules": [
+    {
+      "description": "Group npm minor + patch updates so bun.lock churn lands in one PR per week.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm minor + patch",
+      "groupSlug": "npm-minor-patch"
+    },
+    {
+      "description": "Handlebars majors can break Ghost theme compatibility — review on its own.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["handlebars"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "handlebars major",
+      "groupSlug": "handlebars-major",
+      "labels": ["dependencies", "ghost-compat"]
+    },
+    {
+      "description": "Marked majors have historically changed sanitization / AST — review on its own.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["marked"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "marked major",
+      "groupSlug": "marked-major",
+      "labels": ["dependencies", "markdown"]
+    },
+    {
+      "description": "Other npm majors stay as individual PRs so each is reviewed independently.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "excludePackageNames": ["handlebars", "marked"]
+    },
+    {
+      "description": "Group all GitHub Actions updates into one weekly PR.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "groupSlug": "github-actions"
+    }
+  ]
+}
