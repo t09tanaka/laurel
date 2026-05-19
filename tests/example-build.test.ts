@@ -108,8 +108,11 @@ describe('example build', () => {
     expect(postHtml, 'post author byline must not be an <h4> section heading').not.toMatch(
       /<h4[^>]*\bgh-article-author-name\b/,
     );
+    // `{{authors}}` autolinks by default (Ghost-compat, #1110), so the byline
+    // is `<p class="gh-article-author-name"><a ...>Casper</a></p>` — still
+    // inline metadata, just wrapped in an anchor.
     expect(postHtml, 'post author byline should render as inline metadata, not a heading').toMatch(
-      /<p[^>]*\bgh-article-author-name\b[^>]*>[^<]*Casper/,
+      /<p[^>]*\bgh-article-author-name\b[^>]*>(?:<a\b[^>]*>)?Casper/,
     );
     for (const [label, html] of [
       ['tag', tagHtml],

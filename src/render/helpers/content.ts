@@ -48,14 +48,35 @@ export function registerContentHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'authors',
     function authorsHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const ctx = this as { authors?: { name: string }[] };
+      const ctx = this as { authors?: { name: string; url?: string }[] };
       const list = ctx.authors ?? [];
       if (options.fn) {
         let out = '';
         for (const author of list) out += options.fn(author);
         return out;
       }
-      return list.map((a) => a.name).join(', ');
+      const separator = typeof options.hash.separator === 'string' ? options.hash.separator : ', ';
+      const prefix = typeof options.hash.prefix === 'string' ? options.hash.prefix : '';
+      const suffix = typeof options.hash.suffix === 'string' ? options.hash.suffix : '';
+      // Ghost treats only the string 'false' (not the empty/missing hash) as
+      // disabling autolink, so undefined/'true'/boolean true all link.
+      const autolink = !(options.hash.autolink === false || options.hash.autolink === 'false');
+      const limit = parseNum(options.hash.limit);
+      const fromRaw = parseNum(options.hash.from);
+      const toRaw = parseNum(options.hash.to);
+
+      if (list.length === 0) return new engine.hb.SafeString('');
+
+      let items = list.map((author) =>
+        autolink && typeof author.url === 'string' && author.url.length > 0
+          ? `<a href="${escapeAttr(author.url)}">${escapeHtml(author.name)}</a>`
+          : escapeHtml(author.name),
+      );
+      if (limit !== undefined && limit >= 0) items = items.slice(0, limit);
+      const from = fromRaw && fromRaw > 0 ? fromRaw - 1 : 0;
+      const to = toRaw && toRaw > 0 ? toRaw : items.length;
+      const joined = items.slice(from, to).join(separator);
+      return new engine.hb.SafeString(joined.length > 0 ? prefix + joined + suffix : '');
     },
   );
 
