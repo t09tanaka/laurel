@@ -211,6 +211,20 @@ function computeBodyClass(route: RouteContext): string {
   }
   if (route.data.tag) tokens.push(`tag-${route.data.tag.slug}`);
   if (route.data.author) tokens.push(`author-${route.data.author.slug}`);
+  // Ghost emits `tag-<slug>` for every tag on the current post, including
+  // internal tags. Internal tag slugs already carry the `hash-` prefix
+  // (see content/loader.ts), so they surface here as `tag-hash-<name>`
+  // without a separate code path. De-duplicate against an existing
+  // `tag-<slug>` token (the tag-archive route already added one).
+  if (route.kind === 'post' && route.data.post) {
+    const seen = new Set(tokens);
+    for (const tag of route.data.post.tags ?? []) {
+      const token = `tag-${tag.slug}`;
+      if (seen.has(token)) continue;
+      seen.add(token);
+      tokens.push(token);
+    }
+  }
   return tokens.join(' ');
 }
 

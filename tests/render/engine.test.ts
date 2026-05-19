@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { Page, Post } from '~/content/model.ts';
+import type { Page, Post, Tag } from '~/content/model.ts';
 import { type NectarEngine, buildContext, buildRootData } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import type { RouteContext } from '~/render/types.ts';
@@ -107,6 +107,23 @@ function makePage(overrides: Partial<Page> = {}): Page {
   };
 }
 
+function makeTag(overrides: Partial<Tag> = {}): Tag {
+  const slug = overrides.slug ?? 'news';
+  return {
+    id: `tag-${slug}`,
+    slug,
+    name: slug,
+    description: '',
+    feature_image: undefined,
+    visibility: slug.startsWith('hash-') ? 'internal' : 'public',
+    meta_title: undefined,
+    meta_description: undefined,
+    url: `/tag/${slug}/`,
+    count: { posts: 0 },
+    ...overrides,
+  };
+}
+
 describe('buildContext', () => {
   test('on a post route, ctx.post is the post object', () => {
     const post = makePost();
@@ -136,6 +153,78 @@ describe('buildContext', () => {
     const ctx = buildContext(engine, route);
     expect(ctx.page).toBe(page);
     expect(ctx.post).toBeUndefined();
+  });
+
+  // Regression coverage for issue #1111: Ghost's body_class includes a
+  // `tag-<slug>` token for every tag on the current post (Source theme styles
+  // hook into these). Internal tags carry `hash-<name>` slugs, so they must
+  // surface as `tag-hash-<name>` without a custom code path.
+  test('post body_class includes tag-<slug> tokens for every post tag (issue #1111)', () => {
+    const post = makePost({
+      tags: [makeTag({ slug: 'news' }), makeTag({ slug: 'features' })],
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.body_class).split(' ');
+    expect(tokens).toContain('post-template');
+    expect(tokens).toContain('tag-news');
+    expect(tokens).toContain('tag-features');
+  });
+
+  test('post body_class surfaces internal tags as tag-hash-<name> (issue #1111)', () => {
+    const post = makePost({
+      tags: [makeTag({ slug: 'news' }), makeTag({ slug: 'hash-cta' })],
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.body_class).split(' ');
+    expect(tokens).toContain('tag-news');
+    expect(tokens).toContain('tag-hash-cta');
+  });
+
+  test('non-post routes do not gain per-post tag tokens (issue #1111)', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.body_class).split(' ');
+    expect(tokens.filter((t) => t.startsWith('tag-'))).toEqual([]);
+  });
+
+  test('duplicate tags on a post emit a single tag-<slug> token (issue #1111)', () => {
+    const post = makePost({
+      tags: [makeTag({ slug: 'news' }), makeTag({ slug: 'news' })],
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    const tokens = String(ctx.body_class).split(' ');
+    expect(tokens.filter((t) => t === 'tag-news')).toHaveLength(1);
   });
 
   test('on an error route, ctx.statusCode and ctx.message are exposed (issue #1006)', () => {
