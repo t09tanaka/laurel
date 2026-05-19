@@ -155,7 +155,8 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
     ctx.error = data.error;
   }
   ctx.body_class = computeBodyClass(route);
-  ctx.post_class = data.post ? computePostClass(data.post) : '';
+  const postOrPage = data.post ?? data.page;
+  ctx.post_class = postOrPage ? computePostClass(postOrPage) : '';
   return ctx;
 }
 
@@ -236,9 +237,23 @@ function computeBodyClass(route: RouteContext): string {
   return tokens.join(' ');
 }
 
-function computePostClass(post: { tags: { slug: string }[]; featured?: boolean }): string {
+// Ghost's `post_class` emits more than just tag/featured tokens — themes
+// (Source included) hook layout into `no-image`/`image` and `page`, so a
+// minimal "post tag-x" output drops styles that depend on these tokens. We
+// also surface `no-content` for empty bodies; that lets themes hide the
+// content shell on stub posts without inspecting the body themselves.
+export function computePostClass(post: {
+  tags?: { slug: string }[];
+  featured?: boolean;
+  feature_image?: string | undefined;
+  html?: string;
+  page?: boolean;
+}): string {
   const tokens = ['post'];
   for (const t of post.tags ?? []) tokens.push(`tag-${t.slug}`);
   if (post.featured) tokens.push('featured');
+  tokens.push(post.feature_image ? 'image' : 'no-image');
+  if (!post.html || post.html.trim() === '') tokens.push('no-content');
+  if (post.page) tokens.push('page');
   return tokens.join(' ');
 }
