@@ -214,6 +214,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('GitHub Pages-specific deploy hints.'),
+        cloudflare_pages: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit a Cloudflare Pages `_headers` file at the output root. Defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). Leave disabled when deploying somewhere other than Cloudflare Pages.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Cloudflare Pages-specific deploy hints.'),
       })
       .strict()
       .default({})
