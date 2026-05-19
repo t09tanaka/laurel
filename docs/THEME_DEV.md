@@ -518,6 +518,14 @@ Interpolation:
 Missing locale files are tolerated — every theme should ship at least `en.json`
 even if it's empty.
 
+**Escaping.** `{{t}}` returns a plain string, not a `SafeString`. Double-stash
+output is HTML-escaped by Handlebars. Triple-stash output is emitted raw —
+both the locale value and any hash values are interpolated unescaped, which
+is how Ghost themes ship strings like `<strong>%</strong>`. That makes locale
+files (and any content-derived hash value passed into `{{{t}}}`) part of the
+theme trust boundary; see
+[`docs/security/threat-model.md` § Locale files](security/threat-model.md#locale-files-themesnamelocalesjson-and-t).
+
 #### `{{lang}}` — inline
 
 Returns `[site].locale`. Use on `<html lang="…">`.
