@@ -170,7 +170,10 @@ async function runBuild({
       const html = rewritePortalLinks({
         html: rewriteRecommendationsButton({
           html: stripUnusedLightbox(
-            transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
+            transformSubscribeForms(
+              injectSkipLink(engine.render(route), config.build.csp_nonce),
+              subscribeConfig,
+            ),
           ),
           basePath: config.build.base_path,
           enabled: recommendationsEnabled,

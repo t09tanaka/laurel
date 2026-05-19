@@ -32,11 +32,15 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
 
 function makeConfig(
   recommendations: RecommendationItem[] = [],
-  overrides: { base_path?: string } = {},
+  overrides: { base_path?: string; csp_nonce?: string } = {},
 ): NectarConfig {
   return {
     site: { title: 'Example' },
-    build: { output_dir: 'dist', base_path: overrides.base_path ?? '/' },
+    build: {
+      output_dir: 'dist',
+      base_path: overrides.base_path ?? '/',
+      csp_nonce: overrides.csp_nonce,
+    },
     components: {},
     recommendations,
   } as unknown as NectarConfig;
@@ -126,5 +130,21 @@ describe('renderRecommendationsHtml', () => {
     });
     expect(html).toMatch(/href="https:\/\/cool\.example"[^>]*rel="noopener"/);
     expect(html).toContain('target="_blank"');
+  });
+
+  test('stamps build.csp_nonce onto the inline <style> tag', () => {
+    const html = renderRecommendationsHtml({
+      config: makeConfig([], { csp_nonce: 'rAnd0m+/=' }),
+      content: makeContent(makeSite()),
+    });
+    expect(html).toMatch(/<style nonce="rAnd0m\+\/="[^>]*>body\{/);
+  });
+
+  test('omits nonce attribute when build.csp_nonce is unset', () => {
+    const html = renderRecommendationsHtml({
+      config: makeConfig([]),
+      content: makeContent(makeSite()),
+    });
+    expect(html).not.toMatch(/<style[^>]*nonce=/);
   });
 });

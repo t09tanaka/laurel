@@ -1025,3 +1025,29 @@ describe('ghost_head favicon <link> tags', () => {
     expect(html).toContain('&quot;');
   });
 });
+
+describe('ghost_head CSP nonce', () => {
+  test('emits nonce="..." on every JSON-LD script when build.csp_nonce is set', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      { config: { build: { csp_nonce: 'rAnd0m+Nonce/=' } } as Partial<NectarEngine['config']> },
+    );
+    // Posts emit Article + BreadcrumbList JSON-LD; both must carry the nonce.
+    const scripts = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>/g) ?? [];
+    expect(scripts.length).toBe(2);
+    for (const tag of scripts) {
+      expect(tag).toContain('nonce="rAnd0m+Nonce/="');
+    }
+  });
+
+  test('omits nonce attribute when build.csp_nonce is unset', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 't',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('nonce=');
+  });
+});

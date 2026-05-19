@@ -169,4 +169,43 @@ some_brand_new_setting = "ok"
       expect(config.theme.custom.navigation_layout).toBe('Logo on the left');
     });
   });
+
+  test('accepts a base64 build.csp_nonce so CSP-aware deploys can opt in', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[build]
+csp_nonce = "rAnd0m+Nonce/=="
+`,
+        'utf8',
+      );
+      const config = await loadConfig({ cwd });
+      expect(config.build.csp_nonce).toBe('rAnd0m+Nonce/==');
+    });
+  });
+
+  test('leaves build.csp_nonce undefined when omitted (no nonce attribute stamped)', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({ cwd });
+      expect(config.build.csp_nonce).toBeUndefined();
+    });
+  });
+
+  test('rejects build.csp_nonce with characters outside the base64 alphabet', async () => {
+    // The renderer injects the nonce into HTML attributes without escaping (the
+    // schema is the trust boundary). A value like `"><script>...` must be
+    // rejected at config-load time, not emitted into <script nonce="...">.
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, `[build]\ncsp_nonce = "\\"><script>"\n`, 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/csp_nonce|base64/);
+      }
+    });
+  });
 });

@@ -22,9 +22,13 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
 function makeEngineWithComments(
   comments: Record<string, unknown>,
   siteUrl = 'https://example.com',
+  build: Record<string, unknown> = {},
 ): NectarEngine {
   return makeEngine({
-    config: { components: { comments } } as unknown as NectarEngine['config'],
+    config: {
+      components: { comments },
+      build,
+    } as unknown as NectarEngine['config'],
     content: { site: { url: siteUrl } } as unknown as NectarEngine['content'],
   });
 }
@@ -529,6 +533,31 @@ describe('comments helper', () => {
     expect(out).toContain(
       '<!-- nectar comments: disqus provider requires components.comments.shortname -->',
     );
+  });
+
+  test('disqus inline <script> carries build.csp_nonce when configured', () => {
+    const engine = makeEngineWithComments(
+      { provider: 'disqus', shortname: 'mysite' },
+      'https://example.com',
+      { csp_nonce: 'rAnd0m+/=' },
+    );
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')(
+      { id: 'p1' },
+      { data: { route: { url: '/p1/' } } },
+    );
+    expect(out).toContain('<script nonce="rAnd0m+/=">');
+  });
+
+  test('disqus inline <script> omits nonce when build.csp_nonce is unset', () => {
+    const engine = makeEngineWithComments({ provider: 'disqus', shortname: 'mysite' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')(
+      { id: 'p1' },
+      { data: { route: { url: '/p1/' } } },
+    );
+    expect(out).toContain('<script>');
+    expect(out).not.toMatch(/<script[^>]*nonce=/);
   });
 
   test('webmention.io renders a hookable container with canonical target', () => {

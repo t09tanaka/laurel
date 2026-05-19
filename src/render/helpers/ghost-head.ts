@@ -1,6 +1,7 @@
 import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
 import { joinPath } from '~/theme/assets.ts';
+import { nonceAttr } from '~/util/csp.ts';
 import { absoluteUrl } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
 
@@ -89,9 +90,10 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
 
       const jsonLdEntities = buildJsonLd(ctx, route, site, meta);
+      const nonce = nonceAttr(engine.config?.build?.csp_nonce);
       for (const entity of jsonLdEntities) {
         parts.push(
-          `<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(entity))}</script>`,
+          `<script type="application/ld+json"${nonce}>${escapeJsonForScript(JSON.stringify(entity))}</script>`,
         );
       }
 
