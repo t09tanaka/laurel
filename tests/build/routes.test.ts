@@ -362,6 +362,30 @@ describe('planRoutes — home meta title includes site description', () => {
   });
 });
 
+describe('planRoutes — error-404 route', () => {
+  test('emits /404.html route when theme has error-404 template', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    theme.templates['error-404'] = '{{!error-404}}';
+    const routes = planRoutes({ config, content, theme });
+    const errorRoute = routes.find((r) => r.kind === 'error');
+    expect(errorRoute).toBeDefined();
+    expect(errorRoute?.url).toBe('/404.html');
+    expect(errorRoute?.outputPath).toBe('404.html');
+    expect(errorRoute?.template).toBe('error-404');
+    expect(errorRoute?.meta.title).toBe('Page not found — Example');
+  });
+
+  test('does not emit error route when theme lacks error-404 template', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    expect(routes.find((r) => r.kind === 'error')).toBeUndefined();
+  });
+});
+
 describe('planRoutes — posts_per_page precedence', () => {
   test('user config posts_per_page overrides theme pkg.json posts_per_page', () => {
     const config = makeConfig('https://example.com');
