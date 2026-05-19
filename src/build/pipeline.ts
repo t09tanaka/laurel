@@ -6,6 +6,7 @@ import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
+import { normalizeBasePath } from './base-path.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
@@ -16,6 +17,7 @@ export interface BuildOptions {
   cwd: string;
   configPath?: string | undefined;
   outputDir?: string | undefined;
+  basePath?: string | undefined;
 }
 
 export interface BuildSummary {
@@ -29,10 +31,12 @@ export async function build({
   cwd,
   configPath,
   outputDir: outputDirOverride,
+  basePath: basePathOverride,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const config = await loadConfig({ cwd, configPath });
   const outputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
+  config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
   await clearDirContents(outputDir);
 
   const [content, theme] = await Promise.all([

@@ -102,3 +102,32 @@ describe('build pipeline outputDir override', () => {
     expect(build({ cwd, outputDir: '../escape' })).rejects.toThrow(/inside the project/);
   });
 });
+
+describe('build pipeline basePath override', () => {
+  test('applies the override to asset URLs in the rendered HTML', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/preview' });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(html).toContain('/preview/assets/');
+    expect(html).not.toContain('"/assets/');
+  });
+
+  test('writes _redirects entries prefixed with the overridden base path', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const redirects = readFileSync(join(summary.outputDir, '_redirects'), 'utf8');
+    expect(redirects).toContain('/blog/ghost/api/content/posts/');
+  });
+
+  test('normalises a missing trailing slash', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/repo' });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(html).toContain('/repo/assets/');
+  });
+
+  test('rejects an empty base path', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    expect(build({ cwd, basePath: '' })).rejects.toThrow(/must not be empty/);
+  });
+});
