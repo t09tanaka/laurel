@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import { absoluteUrl } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
@@ -6,7 +7,11 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
     'ghost_head',
     function ghostHeadHelper(this: unknown, options: Handlebars.HelperOptions) {
       const route = options.data?.route as
-        | { url?: string; data?: Record<string, unknown> }
+        | {
+            url?: string;
+            data?: Record<string, unknown>;
+            meta?: { canonical?: string };
+          }
         | undefined;
       const site = engine.content.site;
       const ctx = this as Record<string, unknown>;
@@ -98,7 +103,9 @@ interface ComputedMeta {
 
 function computeMeta(
   ctx: Record<string, unknown>,
-  route: { url?: string; data?: Record<string, unknown> } | undefined,
+  route:
+    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | undefined,
   site: { title: string; description: string; url: string },
 ): ComputedMeta {
   const titleFromCtx =
@@ -122,7 +129,10 @@ function computeMeta(
   const imageWidth = useFeatureDims ? numericField(ctx.feature_image_width) : undefined;
   const imageHeight = useFeatureDims ? numericField(ctx.feature_image_height) : undefined;
   const imageAlt = image ? (ctx.feature_image_alt as string | undefined) : undefined;
-  const canonical = absoluteUrl(site.url, route?.url ?? '/');
+  // Canonical is precomputed in route.meta (build/routes.ts:defaultMeta). Fall
+  // back to deriving from route.url for callers that hand-construct a partial
+  // route object (some unit tests do this).
+  const canonical = route?.meta?.canonical ?? absoluteUrl(site.url, route?.url ?? '/');
 
   let ogType = 'website';
   if (route?.data?.post) ogType = 'article';
@@ -169,7 +179,9 @@ function mimeTypeForImage(url: string): string | undefined {
 
 function buildJsonLd(
   ctx: Record<string, unknown>,
-  route: { url?: string; data?: Record<string, unknown> } | undefined,
+  route:
+    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | undefined,
   site: {
     title: string;
     url: string;
@@ -226,7 +238,9 @@ function buildJsonLd(
 // Skipped for the home route and standalone static pages — no useful path there.
 function buildBreadcrumbList(
   ctx: Record<string, unknown>,
-  route: { url?: string; data?: Record<string, unknown> } | undefined,
+  route:
+    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | undefined,
   site: { title: string; url: string },
   meta: ComputedMeta,
 ): Record<string, unknown> | undefined {
@@ -301,16 +315,6 @@ function buildPublisherLogo(site: {
 
 function numericField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function absoluteUrl(base: string, path: string): string {
-  if (!base) return path;
-  if (/^https?:/.test(path)) return path;
-  try {
-    return new URL(path, base.endsWith('/') ? base : `${base}/`).toString();
-  } catch {
-    return path;
-  }
 }
 
 function escapeAttr(value: string): string {
