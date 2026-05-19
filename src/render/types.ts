@@ -15,6 +15,11 @@ export interface PaginationInfo {
 
 export type RouteKind = 'index' | 'home' | 'post' | 'page' | 'tag' | 'author' | 'custom' | 'error';
 
+export interface ErrorContext {
+  statusCode: number;
+  message: string;
+}
+
 export interface RouteContext {
   kind: RouteKind;
   url: string;
@@ -28,6 +33,7 @@ export interface RouteContext {
     page?: Page;
     tag?: Tag;
     author?: Author;
+    error?: ErrorContext;
   };
   meta: {
     title: string;

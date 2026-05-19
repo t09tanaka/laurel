@@ -117,7 +117,7 @@ export function planRoutes(opts: {
       url,
       outputPath: '404.html',
       template: 'error-404',
-      data: {},
+      data: { error: { statusCode: 404, message: 'Page not found' } },
       meta: defaultMeta(config, url, `Page not found — ${config.site.title}`),
     });
   }

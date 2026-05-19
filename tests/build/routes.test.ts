@@ -377,6 +377,16 @@ describe('planRoutes — error-404 route', () => {
     expect(errorRoute?.meta.title).toBe('Page not found — Example');
   });
 
+  test('populates data.error with statusCode and message (issue #1006)', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    theme.templates['error-404'] = '{{!error-404}}';
+    const routes = planRoutes({ config, content, theme });
+    const errorRoute = routes.find((r) => r.kind === 'error');
+    expect(errorRoute?.data.error).toEqual({ statusCode: 404, message: 'Page not found' });
+  });
+
   test('does not emit error route when theme lacks error-404 template', () => {
     const config = makeConfig('https://example.com');
     const content = makeGraph({ posts: [makePost('a')] });
