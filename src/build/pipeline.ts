@@ -60,7 +60,7 @@ import { loadRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
-import { emitSearchJson, runPagefind } from './search.ts';
+import { emitSearchJson, emitSearchUiCss, runPagefind } from './search.ts';
 import { copyStaticDir } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 import { emitVercelJson } from './vercel.ts';
@@ -403,6 +403,7 @@ async function runBuild({
     await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
     await timed(profiler, 'lunr_index', () => emitLunrIndex({ config, content, outputDir }));
     await timed(profiler, 'lunr_widget', () => emitLunrWidget({ config, outputDir }));
+    await timed(profiler, 'search_ui_css', () => emitSearchUiCss({ config, outputDir }));
     await timed(profiler, 'algolia_records', () =>
       emitAlgoliaRecords({ config, content, outputDir }),
     );

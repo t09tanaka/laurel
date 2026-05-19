@@ -154,6 +154,89 @@ export async function emitSearchJson(opts: {
   return dest;
 }
 
+// Starter stylesheet for the default `{{> search}}` partial. Emitted as a
+// sibling of the lunr widget at `search/search.css` so themes can opt in with
+// a single `<link rel="stylesheet" href="/search/search.css">`. Selectors are
+// kept low-specificity so site CSS loaded after this file can override them
+// without `!important`. Themes that prefer their own styling can skip the
+// link. Issue #1135.
+function searchUiCss(accent: string): string {
+  return `:root {
+  --nectar-search-accent: ${accent};
+  --nectar-search-border: #d1d5db;
+  --nectar-search-text: #1f2937;
+  --nectar-search-muted: #6b7280;
+  --nectar-search-bg: #ffffff;
+  --nectar-search-hover-bg: #f3f4f6;
+}
+
+.nectar-search { position: relative; margin: 1rem 0; }
+.nectar-search__label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--nectar-search-muted);
+}
+.nectar-search__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--nectar-search-text);
+  background: var(--nectar-search-bg);
+  border: 1px solid var(--nectar-search-border);
+  border-radius: 6px;
+}
+.nectar-search__input:focus {
+  outline: none;
+  border-color: var(--nectar-search-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nectar-search-accent) 25%, transparent);
+}
+.nectar-search__results {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  background: var(--nectar-search-bg);
+  border: 1px solid var(--nectar-search-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.nectar-search__results:empty { display: none; }
+.nectar-search__results li {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--nectar-search-border);
+}
+.nectar-search__results li:last-child { border-bottom: 0; }
+.nectar-search__results li:hover { background: var(--nectar-search-hover-bg); }
+.nectar-search__results a {
+  display: block;
+  font-weight: 600;
+  color: var(--nectar-search-text);
+  text-decoration: none;
+}
+.nectar-search__results a:hover { color: var(--nectar-search-accent); }
+.nectar-search__results p {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--nectar-search-muted);
+}
+`;
+}
+
+export async function emitSearchUiCss(opts: {
+  config: NectarConfig;
+  outputDir: string;
+}): Promise<string | null> {
+  const { config, outputDir } = opts;
+  const cfg = config.components.search;
+  if (!cfg.enabled) return null;
+  const dir = join(outputDir, 'search');
+  await ensureDir(dir);
+  const dest = join(dir, 'search.css');
+  await writeFile(dest, searchUiCss(config.site.accent_color), 'utf8');
+  return dest;
+}
+
 export async function runPagefind(opts: {
   config: NectarConfig;
   outputDir: string;

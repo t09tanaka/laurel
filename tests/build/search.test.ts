@@ -3,7 +3,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildSearchIndex, emitSearchJson, runPagefind, truncateExcerpt } from '~/build/search.ts';
+import {
+  buildSearchIndex,
+  emitSearchJson,
+  emitSearchUiCss,
+  runPagefind,
+  truncateExcerpt,
+} from '~/build/search.ts';
 import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
@@ -352,6 +358,48 @@ describe('emitSearchJson', () => {
     const dest = await emitSearchJson({ config, content, outputDir });
     expect(dest).toBeNull();
     expect(existsSync(join(outputDir, 'content', 'search.json'))).toBe(false);
+  });
+});
+
+// Issue #1135: a default `{{> search}}` partial is useless without matching
+// CSS, so the search component ships a starter stylesheet that themes can
+// link from `search/search.css`. Emission is gated on the search component
+// being enabled — engine choice is irrelevant because every engine variant
+// reuses the same default markup.
+describe('emitSearchUiCss', () => {
+  test('writes search/search.css with the configured accent color', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test', accent_color: '#abc123' },
+    });
+    const dest = await emitSearchUiCss({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'search.css'));
+    const css = readFileSync(join(outputDir, 'search', 'search.css'), 'utf8');
+    expect(css).toContain('--nectar-search-accent: #abc123;');
+    expect(css).toContain('.nectar-search__input');
+    expect(css).toContain('.nectar-search__results');
+  });
+
+  test('emits even when the engine is pagefind-only (markup is engine-agnostic)', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'pagefind' } },
+    });
+    const dest = await emitSearchUiCss({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'search.css'));
+    expect(existsSync(join(outputDir, 'search', 'search.css'))).toBe(true);
+  });
+
+  test('skips emission when the search component is disabled', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { enabled: false } },
+    });
+    const dest = await emitSearchUiCss({ config, outputDir });
+    expect(dest).toBeNull();
+    expect(existsSync(join(outputDir, 'search', 'search.css'))).toBe(false);
   });
 });
 

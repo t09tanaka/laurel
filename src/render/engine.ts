@@ -5,6 +5,7 @@ import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { textColorClassFor } from '~/util/color.ts';
+import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { splitLayout } from './layouts.ts';
@@ -101,6 +102,16 @@ function registerPartials(
   theme: ThemeBundle,
   templateBodies: Record<string, string>,
 ): void {
+  // Defaults go in first so a theme's same-named partial overrides cleanly via
+  // the subsequent `theme.partials` loop. Without this ordering, a theme that
+  // ships `partials/search.hbs` would lose to Nectar's built-in markup (issue
+  // #1135).
+  for (const [name, source] of Object.entries(DEFAULT_PARTIALS)) {
+    hb.registerPartial(name, source);
+    if (!name.includes('/')) {
+      hb.registerPartial(`partials/${name}`, source);
+    }
+  }
   for (const [name, source] of Object.entries(theme.partials)) {
     hb.registerPartial(name, source);
     if (!name.includes('/')) {

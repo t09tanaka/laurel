@@ -648,3 +648,118 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<article class="post">Hello</article>');
   });
 });
+
+// Issue #1135: Nectar ships a default `{{> search}}` partial so themes can
+// drop in the search widget without authoring markup themselves. Themes that
+// prefer their own UI must still be able to override by shipping
+// `partials/search.hbs`.
+describe('createEngine — default search partial (issue #1135)', () => {
+  function makeTheme(opts: {
+    templates?: Record<string, string>;
+    partials?: Record<string, string>;
+  }): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'fixture',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    };
+    return {
+      name: 'fixture',
+      rootDir: '/tmp/themes/fixture',
+      templates: opts.templates ?? {},
+      partials: opts.partials ?? {},
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'fixture', custom: {} },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        direction: 'ltr',
+        timezone: 'UTC',
+        cover_image: undefined,
+        logo: undefined,
+        logo_width: undefined,
+        logo_height: undefined,
+        icon: undefined,
+        accent_color: '#000',
+        navigation: [],
+        secondary_navigation: [],
+        lang: 'en',
+        twitter: undefined,
+        facebook: undefined,
+        members_enabled: false,
+        paid_members_enabled: false,
+        members_invite_only: false,
+        recommendations_enabled: false,
+      },
+    } as unknown as ContentGraph;
+  }
+
+  test('registers a default `search` partial themes can include via {{> search}}', () => {
+    const theme = makeTheme({});
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const partial = engine.hb.partials.search;
+    expect(typeof partial).toBe('string');
+    const source = partial as string;
+    expect(source).toContain('data-nectar-search');
+    expect(source).toContain('data-nectar-search-results');
+  });
+
+  test('the default `search` partial is also reachable as `partials/search`', () => {
+    const theme = makeTheme({});
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials['partials/search']).toBe(engine.hb.partials.search);
+  });
+
+  test('theme-supplied `partials/search.hbs` overrides the built-in default', () => {
+    const theme = makeTheme({
+      partials: { search: '<!-- theme search override -->' },
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials.search).toBe('<!-- theme search override -->');
+    expect(engine.hb.partials['partials/search']).toBe('<!-- theme search override -->');
+  });
+});
