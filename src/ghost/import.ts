@@ -1,9 +1,13 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, readFile, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
 import slugify from 'slugify';
 import TurndownService from 'turndown';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+
+export type OnConflict = 'skip' | 'overwrite' | 'rename';
+
+export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', 'rename'];
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 
@@ -82,12 +86,21 @@ export interface ImportSummary {
   pages: number;
   tags: number;
   authors: number;
+  skipped: number;
+  overwritten: number;
+  renamed: number;
 }
 
-export async function importGhostExport(opts: {
+export interface ImportGhostOptions {
   cwd: string;
   file: string;
-}): Promise<ImportSummary> {
+  onConflict?: OnConflict;
+}
+
+export async function importGhostExport(opts: ImportGhostOptions): Promise<ImportSummary> {
+  const onConflict: OnConflict = opts.onConflict ?? 'skip';
+  const counters = { skipped: 0, overwritten: 0, renamed: 0 };
+
   const raw = await readFile(opts.file, 'utf8');
   const parsed = JSON.parse(raw) as GhostExport;
   const data = parsed.db?.[0]?.data;
@@ -154,7 +167,13 @@ export async function importGhostExport(opts: {
     });
     const dest = join(opts.cwd, dir, `${slug}.md`);
     await ensureDir(join(opts.cwd, dir));
-    await writeFile(dest, `${frontmatter}\n\n${body}\n`, 'utf8');
+    const written = await writeWithConflictPolicy(
+      dest,
+      `${frontmatter}\n\n${body}\n`,
+      onConflict,
+      counters,
+    );
+    if (!written) continue;
     if (isPage) pageCount += 1;
     else postCount += 1;
   }
@@ -172,8 +191,8 @@ export async function importGhostExport(opts: {
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
     });
-    await writeFile(dest, `${frontmatter}\n`, 'utf8');
-    tagCount += 1;
+    const written = await writeWithConflictPolicy(dest, `${frontmatter}\n`, onConflict, counters);
+    if (written) tagCount += 1;
   }
 
   let authorCount = 0;
@@ -193,11 +212,68 @@ export async function importGhostExport(opts: {
       meta_title: user.meta_title ?? undefined,
       meta_description: user.meta_description ?? undefined,
     });
-    await writeFile(dest, `${frontmatter}\n`, 'utf8');
-    authorCount += 1;
+    const written = await writeWithConflictPolicy(dest, `${frontmatter}\n`, onConflict, counters);
+    if (written) authorCount += 1;
   }
 
-  return { posts: postCount, pages: pageCount, tags: tagCount, authors: authorCount };
+  return {
+    posts: postCount,
+    pages: pageCount,
+    tags: tagCount,
+    authors: authorCount,
+    skipped: counters.skipped,
+    overwritten: counters.overwritten,
+    renamed: counters.renamed,
+  };
+}
+
+async function writeWithConflictPolicy(
+  dest: string,
+  contents: string,
+  onConflict: OnConflict,
+  counters: { skipped: number; overwritten: number; renamed: number },
+): Promise<boolean> {
+  if (!(await pathExists(dest))) {
+    await writeFile(dest, contents, 'utf8');
+    return true;
+  }
+  switch (onConflict) {
+    case 'skip':
+      process.stderr.write(`Skipped (already exists): ${dest}\n`);
+      counters.skipped += 1;
+      return false;
+    case 'overwrite':
+      process.stderr.write(`Overwrote: ${dest}\n`);
+      await writeFile(dest, contents, 'utf8');
+      counters.overwritten += 1;
+      return true;
+    case 'rename': {
+      const renamed = await nextAvailablePath(dest);
+      process.stderr.write(`Renamed (conflict with ${dest}): ${renamed}\n`);
+      await writeFile(renamed, contents, 'utf8');
+      counters.renamed += 1;
+      return true;
+    }
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function nextAvailablePath(dest: string): Promise<string> {
+  const ext = extname(dest);
+  const base = ext ? dest.slice(0, -ext.length) : dest;
+  for (let i = 2; i < 10000; i++) {
+    const candidate = `${base}-${i}${ext}`;
+    if (!(await pathExists(candidate))) return candidate;
+  }
+  throw new Error(`Could not find a non-conflicting filename for ${dest} after many attempts`);
 }
 
 function renderPostBody(post: GhostPost): string {
