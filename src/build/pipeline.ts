@@ -24,6 +24,7 @@ import {
   planImageVariants,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import { emitNojekyll } from './nojekyll.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRobots } from './robots.ts';
@@ -142,6 +143,7 @@ export async function build({
   if (config.components.robots.enabled) {
     await emitRobots({ config, outputDir });
   }
+  await emitNojekyll({ outputDir });
 
   return {
     outputDir,
