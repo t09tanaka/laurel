@@ -133,4 +133,19 @@ describe('buildContext', () => {
     expect(ctx.page).toBe(page);
     expect(ctx.post).toBeUndefined();
   });
+
+  test('on an error route, ctx.statusCode and ctx.message are exposed (issue #1006)', () => {
+    const route: RouteContext = {
+      kind: 'error',
+      url: '/404.html',
+      outputPath: '404.html',
+      template: 'error-404',
+      data: { error: { statusCode: 404, message: 'Page not found' } },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    expect(ctx.statusCode).toBe(404);
+    expect(ctx.message).toBe('Page not found');
+    expect(ctx.error).toEqual({ statusCode: 404, message: 'Page not found' });
+  });
 });

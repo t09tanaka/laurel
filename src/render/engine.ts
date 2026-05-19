@@ -149,6 +149,11 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   if (data.pagination) {
     ctx.pagination = data.pagination;
   }
+  if (data.error) {
+    ctx.statusCode = data.error.statusCode;
+    ctx.message = data.error.message;
+    ctx.error = data.error;
+  }
   ctx.body_class = computeBodyClass(route);
   ctx.post_class = data.post ? computePostClass(data.post) : '';
   return ctx;
