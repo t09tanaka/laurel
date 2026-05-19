@@ -109,6 +109,173 @@ describe('content helper', () => {
   });
 });
 
+describe('meta_title helper pagination', () => {
+  test('post route returns the explicit post title and ignores pagination hash', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'Hello, Nectar', title: 'Hello, Nectar' },
+      { data: { route: { kind: 'post' }, site: { title: 'Site' } } },
+    );
+    expect(out).toBe('Hello, Nectar');
+  });
+
+  test('static page route returns the explicit title without a page suffix', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'About', title: 'About' },
+      { data: { route: { kind: 'page' }, site: { title: 'Site' } } },
+    );
+    expect(out).toBe('About');
+  });
+
+  test('home route page 1 returns the site title without a page suffix', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      {},
+      { data: { route: { kind: 'home', data: {} }, site: { title: 'Site' } } },
+    );
+    expect(out).toBe('Site');
+  });
+
+  test('paginated index route appends the page suffix to the site title', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      {},
+      {
+        data: {
+          route: { kind: 'index', data: { pagination: { page: 2 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Site (Page 2)');
+  });
+
+  test('tag archive page 1 returns the precomposed meta_title without a suffix', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 1 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News | Site');
+  });
+
+  test('paginated tag archive appends the page suffix to the tag meta_title', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 3 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News | Site (Page 3)');
+  });
+
+  test('paginated tag archive respects an explicit tag.meta_title override', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'Custom Tag Title' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 2 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Custom Tag Title (Page 2)');
+  });
+
+  test('paginated author archive appends the page suffix to the author meta_title', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'Jane Doe | Site' },
+      {
+        data: {
+          route: { kind: 'author', data: { pagination: { page: 2 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Jane Doe | Site (Page 2)');
+  });
+
+  test('author archive page 1 returns the precomposed meta_title without a suffix', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { meta_title: 'Jane Doe | Site' },
+      {
+        data: {
+          route: { kind: 'author', data: { pagination: { page: 1 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Jane Doe | Site');
+  });
+
+  test('paginated route without a page= hash returns the base title unchanged', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title}}')(
+      { meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 2 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News | Site');
+  });
+
+  test('locale-translated page suffix substitutes the % placeholder', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page="（%ページ目）"}}')(
+      { meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 4 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News | Site（4ページ目）');
+  });
+
+  test('falls back to site title when neither meta_title nor title is set on a paginated archive', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      {},
+      {
+        data: {
+          route: { kind: 'index', data: { pagination: { page: 5 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Site (Page 5)');
+  });
+});
+
 describe('comments helper', () => {
   test('emits an empty placeholder when no config is wired', () => {
     const engine = makeEngine();
