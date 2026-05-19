@@ -5,7 +5,7 @@ import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
-import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
+import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
@@ -28,6 +28,7 @@ import {
   planImageVariants,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import { minifyHtmlOutputs } from './minify.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
@@ -174,11 +175,27 @@ async function runBuild({
       throw wrapRenderError(err, route.url, route.template);
     }
   }
+  if (config.build.minify_html) {
+    const stats = await timed(
+      profiler,
+      'minify_html',
+      () => minifyHtmlOutputs(htmlOutputs),
+      (r) => r.outputBytes,
+    );
+    if (stats.minified && stats.inputBytes > 0) {
+      const saved = stats.inputBytes - stats.outputBytes;
+      const pct = ((saved / stats.inputBytes) * 100).toFixed(1);
+      logger.info(
+        `HTML minified: ${stats.inputBytes} -> ${stats.outputBytes} bytes (${pct}% smaller across ${htmlOutputs.length} files)`,
+      );
+    }
+  }
+
   await timed(
     profiler,
     'write_html',
     () => writeHtmlBatch(outputDir, htmlOutputs),
-    () => renderedBytes,
+    () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
   );
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {

