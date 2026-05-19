@@ -1,5 +1,8 @@
 # Nectar
 
+[![CI](https://github.com/t09tanaka/nectar/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/t09tanaka/nectar/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/t09tanaka/nectar/branch/main/graph/badge.svg)](https://codecov.io/gh/t09tanaka/nectar)
+
 A static site generator that consumes **Ghost themes** and **Markdown content
 from a Git repository** and emits a fully static site. No CMS, no server, no
 database.
