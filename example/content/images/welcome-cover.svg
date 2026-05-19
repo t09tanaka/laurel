@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600">
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#FFE0B2"/>
+      <stop offset="100%" stop-color="#FF5722"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="600" fill="url(#g1)"/>
+  <g transform="translate(600 300)" font-family="ui-sans-serif, system-ui" fill="#fff" text-anchor="middle">
+    <text font-size="96" font-weight="800" y="-20">Hello, Nectar</text>
+    <text font-size="28" y="40" opacity="0.85">A demo blog built with the Source theme</text>
+  </g>
+</svg>

@@ -121,7 +121,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const limit = parseNum(hash.limit) ?? 15;
     const order = String(hash.order ?? 'published_at desc');
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
-    const blockParams = ((options as unknown as { blockParams?: number }).blockParams ?? 0) > 0;
+    const fnAny = options.fn as unknown as { blockParams?: number };
+    const blockParams = (fnAny?.blockParams ?? 0) > 0;
     let results: unknown[] = [];
     if (resource === 'posts') {
       results = engine.content.posts.slice();
