@@ -10,10 +10,12 @@ import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
+import { emitBuildManifest } from './build-manifest.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
 import { emitCustomRedirects } from './custom-redirects.ts';
@@ -198,6 +200,10 @@ async function runBuild({
   previousManifest: BuildManifest | undefined;
   noAtomic: boolean;
 }): Promise<BuildSummary> {
+  // Resolve Nectar's own version once up front; the build-manifest emitter at
+  // the end of the pipeline embeds it into `build-manifest.json` for deploy
+  // tooling to detect generator upgrades.
+  const nectarVersion = await getNectarVersion();
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
   const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
@@ -526,7 +532,26 @@ async function runBuild({
     // Copy user-owned files (CNAME, .well-known/*, …) from the previous build's
     // final dir into staging so the upcoming atomic swap does not drop them.
     await preserveUserFiles({ cwd, finalOutputDir, stagingDir: outputDir });
+  }
 
+  // Emit the deploy-facing build manifest last so its file list reflects every
+  // artifact in the tree — including incremental cache, preserved user files,
+  // and platform descriptors. Excludes only itself to avoid a self-referential
+  // hash. Runs before commitStagingDir (atomic mode) so the manifest swaps in
+  // atomically with the rest of the site; under --no-atomic it lands directly
+  // in finalOutputDir.
+  await timed(profiler, 'build_manifest', () =>
+    emitBuildManifest({
+      outputDir,
+      config,
+      theme,
+      routeCount: routes.length,
+      assetCount,
+      nectarVersion,
+    }),
+  );
+
+  if (!noAtomic) {
     await commitStagingDir(outputDir, finalOutputDir);
   }
 

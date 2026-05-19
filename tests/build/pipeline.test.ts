@@ -206,6 +206,52 @@ describe('build pipeline --profile', () => {
   });
 });
 
+describe('build pipeline build-manifest emission (#248)', () => {
+  test('writes dist/.nectar/build-manifest.json with the deploy-facing fields', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const file = join(summary.outputDir, '.nectar/build-manifest.json');
+    expect(existsSync(file)).toBe(true);
+
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
+      schema_version: number;
+      generated_at: string;
+      nectar: { version: string };
+      theme: { name: string; version: string };
+      config_hash: string;
+      hash_algorithm: string;
+      route_count: number;
+      asset_count: number;
+      files: Array<{ path: string; size: number; hash: string }>;
+    };
+
+    expect(parsed.schema_version).toBe(1);
+    expect(parsed.hash_algorithm).toBe('sha256');
+    expect(parsed.route_count).toBe(summary.routeCount);
+    expect(parsed.asset_count).toBe(summary.assetCount);
+    expect(parsed.theme.name).toBe('source');
+    expect(typeof parsed.nectar.version).toBe('string');
+    expect(parsed.config_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(new Date(parsed.generated_at).toString()).not.toBe('Invalid Date');
+
+    // index.html is part of every Ghost-themed build; verify it shows up in
+    // the file list with a real sha256 and a positive size.
+    const indexEntry = parsed.files.find((f) => f.path === 'index.html');
+    expect(indexEntry).toBeDefined();
+    expect(indexEntry?.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(indexEntry?.size).toBeGreaterThan(0);
+
+    // The manifest must not list itself; otherwise its contents would be
+    // self-referential and change every build.
+    expect(parsed.files.find((f) => f.path === '.nectar/build-manifest.json')).toBeUndefined();
+
+    // Files must be sorted for deterministic deploy diffs.
+    const paths = parsed.files.map((f) => f.path);
+    const sorted = [...paths].sort();
+    expect(paths).toEqual(sorted);
+  });
+});
+
 describe('build pipeline content assets emission (#109)', () => {
   test('copies content/images/** into dist/content/images/** so Ghost-style feature_image URLs resolve', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
