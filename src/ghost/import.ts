@@ -16,6 +16,7 @@ import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
 import { renderLexicalToHtml } from './lexical-renderer.ts';
 import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
+import { type SlugChange, loadRedirectsJson, writeRedirectMaps } from './redirects.ts';
 import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
 import { GhostUrlRewriter } from './url-rewriter.ts';
 
@@ -153,6 +154,14 @@ export interface ImportSummary {
   // would be written as empty markdown. Surfaced separately so users with
   // large exports can spot silent body loss before importing.
   bodiesEmpty: number;
+  // Custom redirect rules read from <export>/content/data/redirects.json. Each
+  // one becomes a line in the emitted _redirects / vercel.json / nginx.conf
+  // snippets so links to the source Ghost site survive migration (#503).
+  redirectsImported: number;
+  // Slug rewrites the import had to perform (e.g. uppercase or unsafe chars
+  // stripped by safeSlug). Each one produces an additional redirect entry so
+  // the old Ghost URL still resolves after deployment (#503).
+  slugRedirects: number;
 }
 
 export interface ImportGhostOptions {
@@ -283,6 +292,29 @@ async function importFromResolvedInput(
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
 
+  const slugChanges: SlugChange[] = [];
+  const recordSlugChange = (
+    kind: SlugChange['kind'],
+    originalSlug: unknown,
+    newSlug: string,
+  ): void => {
+    if (typeof originalSlug !== 'string' || originalSlug.length === 0) return;
+    if (newSlug.length === 0 || originalSlug === newSlug) return;
+    // Only emit a redirect when the original slug was something Ghost could
+    // realistically have served as a URL. Slugs with traversal or path
+    // separators wouldn't have been valid Ghost URLs to redirect from, so we
+    // skip them rather than emit a junk rule.
+    if (
+      originalSlug.includes('/') ||
+      originalSlug.includes('\\') ||
+      originalSlug === '.' ||
+      originalSlug === '..'
+    ) {
+      return;
+    }
+    slugChanges.push({ kind, oldSlug: originalSlug, newSlug });
+  };
+
   // Bucket postsTags / postsAuthors by post_id once so per-post lookups are O(k)
   // (k = tags/authors on that post) instead of O(M) (scan the entire join table).
   // Without this, a 50k-post export with 200k posts_tags rows is ~10^10 ops.
@@ -322,6 +354,7 @@ async function importFromResolvedInput(
       );
       continue;
     }
+    recordSlugChange(isPage ? 'page' : 'post', post.slug, slug);
     if (post.status === 'draft') counters.drafts += 1;
     const dir = isPage ? 'content/pages' : 'content/posts';
     const rawBody = renderPostBody(post);
@@ -389,6 +422,7 @@ async function importFromResolvedInput(
       );
       continue;
     }
+    recordSlugChange('tag', tag.slug, tagSlug);
     const baseDir = join(opts.cwd, 'content/tags');
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
@@ -423,6 +457,7 @@ async function importFromResolvedInput(
       );
       continue;
     }
+    recordSlugChange('author', user.slug, userSlug);
     const baseDir = join(opts.cwd, 'content/authors');
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
@@ -460,6 +495,18 @@ async function importFromResolvedInput(
     ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit, dryRun)
     : 0;
 
+  // Ghost stores custom redirects at content/data/redirects.json. The resolved
+  // assetsDir points at the Ghost `content/` folder when the user passed a
+  // directory or zip, so the lookup happens here. When the user passed only
+  // the JSON file, we have no asset root to inspect and skip the load (#503).
+  const customRedirects = resolved.assetsDir ? await loadRedirectsJson(resolved.assetsDir) : [];
+  const redirectMaps = await writeRedirectMaps({
+    cwd: opts.cwd,
+    customRedirects,
+    slugChanges,
+    dryRun,
+  });
+
   return {
     posts: postCount,
     pages: pageCount,
@@ -475,6 +522,8 @@ async function importFromResolvedInput(
     drafts: counters.drafts,
     statusFiltered: counters.statusFiltered,
     bodiesEmpty: counters.bodiesEmpty,
+    redirectsImported: redirectMaps.customCount,
+    slugRedirects: redirectMaps.slugCount,
   };
 }
 
