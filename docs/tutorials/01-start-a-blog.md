@@ -72,8 +72,13 @@ all work. Images dropped into `content/images/` are served verbatim:
 
 Frontmatter keys you'll use most often: `title`, `date`, `slug`, `tags`,
 `authors`, `excerpt`, `feature_image`, `featured`, `status` (`published` |
-`draft` | `scheduled`). Drafts are skipped at build time. The full list is
-documented inline in `src/content/loader.ts`.
+`draft` | `scheduled`). Drafts are always skipped at build time. Scheduled
+posts are skipped until their `date` (a.k.a. `published_at`) is at or before
+the moment the build runs — Nectar compares against the build host's current
+wall-clock time in UTC, so a future-dated scheduled post stays out of the
+HTML, RSS feed, and sitemap, and only ships when you trigger a build at or
+after that timestamp. The full list of frontmatter keys is documented inline
+in `src/content/loader.ts`.
 
 > **Headings in body content.** Your post or page title (from frontmatter
 > `title:`) is already rendered as an `<h1>` by the theme's article header. To
