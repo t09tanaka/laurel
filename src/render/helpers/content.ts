@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import { truncateByWords } from '~/content/markdown.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
@@ -9,7 +10,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const html = typeof ctx.html === 'string' ? ctx.html : '';
       const words = options.hash.words;
       if (typeof words === 'number') {
-        return new engine.hb.SafeString(truncateWords(html, words));
+        return new engine.hb.SafeString(truncateWords(html, words, siteLocale(options)));
       }
       return new engine.hb.SafeString(downshiftHeadings(html));
     },
@@ -25,8 +26,8 @@ export function registerContentHelpers(engine: NectarEngine): void {
         (typeof ctx.plaintext === 'string' ? ctx.plaintext : '');
       const words = parseNum(options.hash.words);
       const characters = parseNum(options.hash.characters);
-      if (words) return truncateWordsText(source, words);
-      if (characters) return source.slice(0, characters);
+      if (words) return truncateByWords(source, words, siteLocale(options));
+      if (characters) return sliceByCharacters(source, characters);
       return source;
     },
   );
@@ -196,10 +197,33 @@ export function registerContentHelpers(engine: NectarEngine): void {
   );
 }
 
-function truncateWords(html: string, words: number): string {
-  const text = html.replace(/<[^>]*>/g, ' ');
-  const parts = text.split(/\s+/).filter(Boolean);
-  return parts.slice(0, words).join(' ');
+function truncateWords(html: string, words: number, locale: string | undefined): string {
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return truncateByWords(text, words, locale);
+}
+
+function siteLocale(options: Handlebars.HelperOptions): string | undefined {
+  const site = options.data?.site as { locale?: unknown } | undefined;
+  return typeof site?.locale === 'string' ? site.locale : undefined;
+}
+
+// `String.prototype.slice` operates on UTF-16 code units, so a slice that lands
+// mid-surrogate-pair on an emoji or astral CJK character emits a lone surrogate
+// in the output. Slice by code points instead so the trimmed excerpt stays
+// well-formed UTF-16.
+function sliceByCharacters(text: string, characters: number): string {
+  if (characters <= 0) return '';
+  let count = 0;
+  let end = 0;
+  for (const ch of text) {
+    if (count >= characters) break;
+    count += 1;
+    end += ch.length;
+  }
+  return text.slice(0, end);
 }
 
 // The post/page layout already emits the title as an <h1>, so any body-content
@@ -211,10 +235,6 @@ function downshiftHeadings(html: string): string {
     const next = Number(level) + 1;
     return `<${slash}h${next}`;
   });
-}
-
-function truncateWordsText(text: string, words: number): string {
-  return text.split(/\s+/).filter(Boolean).slice(0, words).join(' ');
 }
 
 function parseNum(value: unknown): number | undefined {

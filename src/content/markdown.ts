@@ -17,6 +17,10 @@ export interface RenderMarkdownOptions {
   // for fully trusted authors — raw <script>, event handlers, or javascript:
   // URLs would otherwise reach readers as stored XSS.
   unsafe?: boolean;
+  // BCP-47 locale used to segment word_count. CJK scripts have no ASCII
+  // whitespace between words, so a locale-aware segmenter is the only way to
+  // get meaningful counts.
+  locale?: string;
 }
 
 const sanitizeOptions: IOptions = {
@@ -68,7 +72,7 @@ export async function renderMarkdown(
   const raw = await marked.parse(expanded);
   const html = options.unsafe ? raw : sanitizeRenderedHtml(raw);
   const plaintext = htmlToPlaintext(html);
-  const word_count = countWords(plaintext);
+  const word_count = countWords(plaintext, options.locale);
   const reading_time = Math.max(1, Math.round(word_count / 275));
   return { html, plaintext, word_count, reading_time };
 }
@@ -174,7 +178,33 @@ function htmlToPlaintext(html: string): string {
     .trim();
 }
 
-function countWords(text: string): number {
+// Whitespace tokenisation returns 1 for an entire CJK essay because Japanese,
+// Chinese, and Korean don't put spaces between words. Intl.Segmenter with
+// granularity:'word' uses ICU's locale-aware word boundaries, so reading_time
+// stays meaningful regardless of script.
+function countWords(text: string, locale: string | undefined): number {
   if (!text) return 0;
-  return text.split(/\s+/).filter(Boolean).length;
+  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  let count = 0;
+  for (const segment of segmenter.segment(text)) {
+    if (segment.isWordLike) count += 1;
+  }
+  return count;
+}
+
+// Take the first `words` word-like segments from `text` and return the
+// original slice up to the end of that last word. Preserves natural spacing
+// for Latin scripts and works for CJK where words run together without spaces.
+export function truncateByWords(text: string, words: number, locale: string | undefined): string {
+  if (!text || words <= 0) return '';
+  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  let count = 0;
+  let end = 0;
+  for (const seg of segmenter.segment(text)) {
+    if (!seg.isWordLike) continue;
+    count += 1;
+    end = seg.index + seg.segment.length;
+    if (count >= words) break;
+  }
+  return count === 0 ? '' : text.slice(0, end);
 }

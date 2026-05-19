@@ -16,7 +16,7 @@ import {
   asStringArray,
   parseFrontmatter,
 } from './frontmatter.ts';
-import { renderMarkdown } from './markdown.ts';
+import { renderMarkdown, truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
@@ -234,7 +234,8 @@ async function normalizePost(
 ): Promise<RawPost> {
   const { data, body } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
-  const rendered = await renderMarkdown(body, { unsafe: unsafeHtml });
+  const locale = config?.site.locale;
+  const rendered = await renderMarkdown(body, { unsafe: unsafeHtml, locale });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
@@ -261,7 +262,7 @@ async function normalizePost(
     config.content.visibility_policy === 'truncate'
   ) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
-    const reRendered = await renderMarkdown(truncated, { unsafe: unsafeHtml });
+    const reRendered = await renderMarkdown(truncated, { unsafe: unsafeHtml, locale });
     html = `${reRendered.html}${buildPaywallStub(visibility)}`;
     plaintext = reRendered.plaintext;
     word_count = reRendered.word_count;
@@ -284,7 +285,7 @@ async function normalizePost(
     plaintext,
     word_count,
     reading_time,
-    excerpt: customExcerpt ?? plaintext.slice(0, 200),
+    excerpt: customExcerpt ?? buildDefaultExcerpt(plaintext, locale),
     custom_excerpt: customExcerpt,
     feature_image: featureImage,
     feature_image_alt: asString(data.feature_image_alt),
@@ -600,4 +601,13 @@ function titleCase(slug: string): string {
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
   return new URL(path, base.endsWith('/') ? base : `${base}/`).toString();
+}
+
+// `plaintext.slice(0, 200)` cut by code-unit count, which means 200 Japanese
+// characters (a much denser unit than 200 English characters) for CJK posts and
+// inconsistent excerpt length across scripts. Take the first 50 word-like
+// segments instead so excerpts are roughly comparable regardless of language.
+const DEFAULT_EXCERPT_WORDS = 50;
+function buildDefaultExcerpt(plaintext: string, locale: string | undefined): string {
+  return truncateByWords(plaintext, DEFAULT_EXCERPT_WORDS, locale);
 }
