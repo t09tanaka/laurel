@@ -227,7 +227,12 @@ async function checkOrphanedDrafts(cwd: string, config: NectarConfig): Promise<C
       } catch {
         continue;
       }
-      const { data } = parseFrontmatter(raw);
+      let data: Record<string, unknown>;
+      try {
+        ({ data } = parseFrontmatter(raw, { filePath: file }));
+      } catch {
+        continue;
+      }
       if (data.status !== 'draft') continue;
       const ts = pickTimestamp(data);
       if (ts === undefined || ts < cutoff) {

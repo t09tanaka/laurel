@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { asDateISO } from '~/content/frontmatter.ts';
+import { asDateISO, parseFrontmatter } from '~/content/frontmatter.ts';
+import { NectarError } from '~/util/errors.ts';
 import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 
 describe('asDateISO', () => {
@@ -45,5 +46,47 @@ describe('asDateISO', () => {
     const out = asDateISO({ year: 2026 } as unknown, fallback);
     expect(out).toBe(fallback);
     expect(getWarningCount()).toBe(1);
+  });
+});
+
+describe('parseFrontmatter error reporting', () => {
+  test('throws NectarError with file:line:col when YAML is malformed', () => {
+    const raw = `---
+title: ok
+  date: 2026-01-01
+---
+
+body
+`;
+    try {
+      parseFrontmatter(raw, { filePath: '/repo/content/posts/foo.md' });
+      throw new Error('expected parseFrontmatter to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.file).toBe('/repo/content/posts/foo.md');
+      expect(ne.line).toBe(3);
+      expect(ne.message).toMatch(/invalid frontmatter/);
+      expect(ne.message).toMatch(/bad indentation/);
+    }
+  });
+
+  test('still throws NectarError without file when filePath omitted', () => {
+    const raw = `---
+title: ok
+  date: 2026-01-01
+---
+
+body
+`;
+    expect(() => parseFrontmatter(raw)).toThrow(NectarError);
+  });
+
+  test('returns parsed data for valid frontmatter', () => {
+    const { data, body } = parseFrontmatter('---\ntitle: Hello\n---\n\nWorld\n', {
+      filePath: '/x.md',
+    });
+    expect(data.title).toBe('Hello');
+    expect(body.trim()).toBe('World');
   });
 });

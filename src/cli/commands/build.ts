@@ -1,6 +1,7 @@
 import { build } from '~/build/pipeline.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
 
 export async function runBuild(args: string[]): Promise<number> {
@@ -39,7 +40,7 @@ export async function runBuild(args: string[]): Promise<number> {
     }
     return 0;
   } catch (err) {
-    logger.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
+    reportError(err, cwd);
     return 1;
   }
 }

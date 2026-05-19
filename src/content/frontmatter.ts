@@ -1,4 +1,5 @@
 import matter from 'gray-matter';
+import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 
 export interface ParsedFrontmatter {
@@ -6,9 +7,40 @@ export interface ParsedFrontmatter {
   body: string;
 }
 
-export function parseFrontmatter(raw: string): ParsedFrontmatter {
-  const parsed = matter(raw);
-  return { data: parsed.data as Record<string, unknown>, body: parsed.content };
+export interface ParseFrontmatterOptions {
+  filePath?: string;
+}
+
+export function parseFrontmatter(
+  raw: string,
+  options: ParseFrontmatterOptions = {},
+): ParsedFrontmatter {
+  try {
+    const parsed = matter(raw, MATTER_OPTIONS);
+    return { data: parsed.data as Record<string, unknown>, body: parsed.content };
+  } catch (err) {
+    throw wrapYamlError(err, options.filePath);
+  }
+}
+
+const MATTER_OPTIONS = { excerpt: false, language: 'yaml' } as const;
+
+interface YamlMark {
+  line?: number;
+  column?: number;
+}
+
+function wrapYamlError(err: unknown, filePath: string | undefined): NectarError {
+  const e = err as Error & { mark?: YamlMark; reason?: string };
+  const mark = e.mark;
+  const message = e.reason
+    ? `invalid frontmatter: ${e.reason}`
+    : `invalid frontmatter: ${e.message ?? String(err)}`;
+  const init: ConstructorParameters<typeof NectarError>[0] = { message, cause: err };
+  if (filePath) init.file = filePath;
+  if (mark?.line !== undefined) init.line = mark.line + 1;
+  if (mark?.column !== undefined) init.col = mark.column + 1;
+  return new NectarError(init);
 }
 
 export function asString(value: unknown): string | undefined {

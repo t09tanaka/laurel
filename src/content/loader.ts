@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
+import { toNectarError } from '~/util/errors.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
@@ -185,7 +186,11 @@ async function loadMarkdownDir<T>(
     }
     const file = join(dir, rel);
     const raw = await readFile(file, 'utf8');
-    results.push(await normalize(file, raw));
+    try {
+      results.push(await normalize(file, raw));
+    } catch (err) {
+      throw toNectarError(err, { file });
+    }
   }
   return results;
 }
@@ -225,7 +230,7 @@ async function normalizePost(
   rootDir: string,
   config?: NectarConfig,
 ): Promise<RawPost> {
-  const { data, body } = parseFrontmatter(raw);
+  const { data, body } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
   const rendered = await renderMarkdown(body, { unsafe: unsafeHtml });
   const slug =
@@ -322,7 +327,7 @@ async function normalizePage(
   config?: NectarConfig,
 ): Promise<RawPage> {
   const base = await normalizePost(filePath, raw, cwd, rootDir, config);
-  const { data } = parseFrontmatter(raw);
+  const { data } = parseFrontmatter(raw, { filePath });
   return {
     ...base,
     show_title_and_feature_image: asBool(data.show_title_and_feature_image, true),
@@ -335,7 +340,7 @@ async function normalizeAuthor(
   raw: string,
   config: NectarConfig,
 ): Promise<Author> {
-  const { data, body } = parseFrontmatter(raw);
+  const { data, body } = parseFrontmatter(raw, { filePath });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} author slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
@@ -366,7 +371,7 @@ async function normalizeAuthor(
 }
 
 async function normalizeTag(filePath: string, raw: string, config: NectarConfig): Promise<Tag> {
-  const { data } = parseFrontmatter(raw);
+  const { data } = parseFrontmatter(raw, { filePath });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} tag slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });

@@ -2,7 +2,8 @@ import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
-import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
+import { NectarError, isNectarError } from '~/util/errors.ts';
+import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
@@ -42,8 +43,7 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
       const html = injectSkipLink(engine.render(route));
       await writeHtml(outputDir, route.outputPath, html);
     } catch (err) {
-      logger.error(`Failed to render ${route.url} (${route.template}):`);
-      throw err;
+      throw wrapRenderError(err, route.url, route.template);
     }
   }
 
@@ -81,4 +81,22 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
     assetCount,
     warningCount: getWarningCount(),
   };
+}
+
+function wrapRenderError(err: unknown, url: string, template: string): NectarError {
+  const prefix = `failed to render ${url} (${template})`;
+  if (isNectarError(err)) {
+    return new NectarError({
+      message: `${prefix}: ${err.message}`,
+      file: err.file,
+      line: err.line,
+      col: err.col,
+      hint: err.hint,
+      cause: err.cause ?? err,
+    });
+  }
+  return new NectarError({
+    message: err instanceof Error ? `${prefix}: ${err.message}` : `${prefix}: ${String(err)}`,
+    cause: err,
+  });
 }

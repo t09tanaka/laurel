@@ -3,6 +3,7 @@ import { loadContent } from '~/content/loader.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { reportError } from '../report.ts';
 import { CHECK_SPEC } from '../specs.ts';
 
 export async function runCheck(args: string[]): Promise<number> {
@@ -41,7 +42,7 @@ export async function runCheck(args: string[]): Promise<number> {
 
     return 0;
   } catch (err) {
-    logger.error(err instanceof Error ? err.message : String(err));
+    reportError(err, cwd);
     return 1;
   }
 }
