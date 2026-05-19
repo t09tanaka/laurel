@@ -194,3 +194,81 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
   });
 });
+
+describe('cli import-ghost — --dry-run (#502)', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-')));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --dry-run', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--dry-run');
+  });
+
+  test('prints a summary table and writes nothing to content/', async () => {
+    const exportFile = join(dir, 'export.json');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+                {
+                  id: 'p2',
+                  title: 'Draft',
+                  slug: 'draft-one',
+                  html: '<p>x</p>',
+                  status: 'draft',
+                  type: 'post',
+                },
+                {
+                  id: 'p3',
+                  title: 'Skip',
+                  slug: 'skip-one',
+                  html: '<p>x</p>',
+                  status: 'sent',
+                  type: 'post',
+                },
+                {
+                  id: 'p4',
+                  title: 'About',
+                  slug: 'about',
+                  html: '<p>about</p>',
+                  status: 'published',
+                  type: 'page',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { stdout, exitCode } = await runCli(['import-ghost', exportFile, '--dry-run'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Dry run: no files written.');
+    expect(stdout).toContain('Posts to import');
+    expect(stdout).toContain('Drafts');
+    expect(stdout).toContain('Status-filtered');
+    expect(stdout).toContain('Empty bodies');
+
+    await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(dir, 'content/pages/about.md'), 'utf8')).rejects.toThrow();
+  });
+});
