@@ -312,6 +312,56 @@ describe('planRoutes — defaultMeta.canonical', () => {
   });
 });
 
+describe('planRoutes — home meta title includes site description', () => {
+  test('home meta.title combines site.title and site.description with em dash', () => {
+    const config = makeConfig('https://example.com');
+    config.site.title = 'Nectar Example';
+    config.site.description = 'A demo blog built with Nectar against the Ghost Source theme';
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    expect(home?.meta.title).toBe(
+      'Nectar Example — A demo blog built with Nectar against the Ghost Source theme',
+    );
+  });
+
+  test('home meta.title falls back to site.title when description is empty', () => {
+    const config = makeConfig('https://example.com');
+    config.site.title = 'Nectar Example';
+    config.site.description = '';
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    expect(home?.meta.title).toBe('Nectar Example');
+  });
+
+  test('home meta.title trims whitespace-only description before falling back', () => {
+    const config = makeConfig('https://example.com');
+    config.site.title = 'Nectar Example';
+    config.site.description = '   ';
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    expect(home?.meta.title).toBe('Nectar Example');
+  });
+
+  test('paginated index pages do not include site.description in title', () => {
+    const config = makeConfig('https://example.com');
+    config.site.title = 'Nectar Example';
+    config.site.description = 'Demo blog';
+    config.build.posts_per_page = 2;
+    const posts = Array.from({ length: 5 }, (_, i) => makePost(`p${i}`));
+    const content = makeGraph({ posts });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const page2 = routes.find((r) => r.kind === 'index' && r.url === '/page/2/');
+    expect(page2?.meta.title).toBe('Nectar Example - Page 2');
+  });
+});
+
 describe('planRoutes — posts_per_page precedence', () => {
   test('user config posts_per_page overrides theme pkg.json posts_per_page', () => {
     const config = makeConfig('https://example.com');
