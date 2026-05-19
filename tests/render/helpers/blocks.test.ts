@@ -106,6 +106,48 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('c|e|');
   });
 
+  // Ghost's `visibility=` filter is polymorphic: it compares each item's own
+  // `visibility` field. Tags expose `'public' | 'internal'`, so
+  // `visibility="public"` should drop internal (hash-prefixed) tags by their
+  // `tag.visibility === 'public'` check, matching Ghost's behaviour for
+  // `{{#foreach tags visibility="public"}}` blocks.
+  test('visibility="public" filters tag-shaped items by tag.visibility === "public"', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items visibility="public"}}{{slug}}|{{/foreach}}');
+    const items = [
+      { slug: 'news', visibility: 'public' },
+      { slug: 'hash-featured', visibility: 'internal' },
+      { slug: 'sports', visibility: 'public' },
+    ];
+    expect(tpl({ items })).toBe('news|sports|');
+  });
+
+  // `visibility="all"` is Ghost's documented escape hatch to bypass the filter,
+  // so internal tags must surface alongside public ones when themes ask for it.
+  test('visibility="all" keeps internal tags alongside public ones', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items visibility="all"}}{{slug}}|{{/foreach}}');
+    const items = [
+      { slug: 'news', visibility: 'public' },
+      { slug: 'hash-featured', visibility: 'internal' },
+    ];
+    expect(tpl({ items })).toBe('news|hash-featured|');
+  });
+
+  // Authors have no `visibility` field in Nectar's content graph (mirroring
+  // Ghost's API shape). The filter must treat a missing field as public so
+  // `{{#foreach authors visibility="public"}}` is a no-op for that resource
+  // rather than wiping the iteration empty.
+  test('visibility="public" passes through author-shaped items that omit visibility', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items visibility="public"}}{{slug}}|{{/foreach}}');
+    const items = [{ slug: 'alice' }, { slug: 'bob' }];
+    expect(tpl({ items })).toBe('alice|bob|');
+  });
+
   test('visibility filter combined with from + limit honours filtered indices', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);

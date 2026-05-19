@@ -386,6 +386,22 @@ function parseNum(value: unknown): number | undefined {
   return undefined;
 }
 
+// Ghost's `visibility=` hash on `{{#foreach}}` reads the iterated item's own
+// `visibility` field, which means the filter is polymorphic across resources:
+//   - Posts carry `'public' | 'members' | 'paid'`, so `visibility="public"`
+//     drops anything gated behind a tier.
+//   - Tags carry `'public' | 'internal'` (Nectar's loader marks `hash-`-prefixed
+//     slugs as `'internal'` to mirror Ghost's `#`-prefix convention), so
+//     `visibility="public"` drops internal tags via the `tag.visibility ===
+//     'public'` comparison.
+//   - Authors, Pages, and Tiers have no per-row visibility variation in
+//     Nectar's content graph. Authors omit the field entirely; Pages/Tiers
+//     always materialise as `'public'`. The `?? 'public'` fallback below treats
+//     a missing field as public so iterating those resources with
+//     `visibility="public"` is a no-op rather than a wipeout.
+// `visibility="all"` is the documented Ghost escape hatch that bypasses the
+// filter entirely — used by themes that want to render internal tags or
+// members-only posts in admin-adjacent UI.
 function visibilityFilter(item: unknown, visibility: string | undefined): boolean {
   if (!visibility || visibility === 'all') return true;
   const obj = item as { visibility?: string };
