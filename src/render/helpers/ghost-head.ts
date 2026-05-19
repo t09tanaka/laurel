@@ -31,6 +31,18 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
       if (meta.image) {
         parts.push(`<meta property="og:image" content="${escapeAttr(meta.image)}">`);
+        if (meta.imageType) {
+          parts.push(`<meta property="og:image:type" content="${escapeAttr(meta.imageType)}">`);
+        }
+        if (meta.imageWidth !== undefined) {
+          parts.push(`<meta property="og:image:width" content="${meta.imageWidth}">`);
+        }
+        if (meta.imageHeight !== undefined) {
+          parts.push(`<meta property="og:image:height" content="${meta.imageHeight}">`);
+        }
+        if (meta.imageAlt) {
+          parts.push(`<meta property="og:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
+        }
       }
       parts.push(`<meta name="twitter:card" content="summary_large_image">`);
       parts.push(`<meta name="twitter:title" content="${escapeAttr(meta.title)}">`);
@@ -39,6 +51,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
       if (meta.image) {
         parts.push(`<meta name="twitter:image" content="${escapeAttr(meta.image)}">`);
+        if (meta.imageAlt) {
+          parts.push(`<meta name="twitter:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
+        }
       }
 
       // RSS autodiscovery: browsers and feed readers look for <link rel="alternate">.
@@ -74,6 +89,10 @@ interface ComputedMeta {
   description: string;
   canonical: string;
   image: string | undefined;
+  imageType: string | undefined;
+  imageWidth: number | undefined;
+  imageHeight: number | undefined;
+  imageAlt: string | undefined;
   ogType: string;
 }
 
@@ -90,11 +109,19 @@ function computeMeta(
     (ctx.meta_description as string | undefined) ||
     (ctx.og_description as string | undefined) ||
     (ctx.excerpt as string | undefined);
-  const rawImage =
-    (ctx.og_image as string | undefined) ||
-    (ctx.twitter_image as string | undefined) ||
-    (ctx.feature_image as string | undefined);
+  const ogImage = ctx.og_image as string | undefined;
+  const twitterImage = ctx.twitter_image as string | undefined;
+  const featureImage = ctx.feature_image as string | undefined;
+  const rawImage = ogImage || twitterImage || featureImage;
   const image = rawImage ? absoluteUrl(site.url, rawImage) : undefined;
+  const imageType = image ? mimeTypeForImage(image) : undefined;
+  // Width/height come from feature_image probing at load time, so only attach
+  // them when the emitted og:image actually points at the feature image (not an
+  // explicit og_image / twitter_image override whose dimensions we don't know).
+  const useFeatureDims = rawImage === featureImage && !ogImage && !twitterImage;
+  const imageWidth = useFeatureDims ? numericField(ctx.feature_image_width) : undefined;
+  const imageHeight = useFeatureDims ? numericField(ctx.feature_image_height) : undefined;
+  const imageAlt = image ? (ctx.feature_image_alt as string | undefined) : undefined;
   const canonical = absoluteUrl(site.url, route?.url ?? '/');
 
   let ogType = 'website';
@@ -105,8 +132,39 @@ function computeMeta(
     description: descFromCtx || site.description,
     canonical,
     image,
+    imageType,
+    imageWidth,
+    imageHeight,
+    imageAlt,
     ogType,
   };
+}
+
+// Open Graph recommends emitting og:image:type so consumers can decide how to
+// render the preview without HEAD'ing the URL. Map by file extension; for any
+// unknown / queryless / data URL fall back to undefined (omit the tag rather
+// than guess wrong).
+function mimeTypeForImage(url: string): string | undefined {
+  const pathPart = url.split('?')[0]?.split('#')[0] ?? '';
+  const m = pathPart.match(/\.([a-z0-9]+)$/i);
+  if (!m) return undefined;
+  switch (m[1].toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'avif':
+      return 'image/avif';
+    case 'svg':
+      return 'image/svg+xml';
+    default:
+      return undefined;
+  }
 }
 
 function buildJsonLd(
