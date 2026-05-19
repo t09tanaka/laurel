@@ -75,6 +75,51 @@ can ship arbitrary JavaScript to every page of the site.** Either keep the
 flag off, or treat `codeinjection_*` lines in a PR diff with the same scrutiny
 as a change to a JavaScript bundle.
 
+### Render-side raw-HTML exits — `{{ghost_head}}` / `{{ghost_foot}}`
+
+`{{ghost_head}}` and `{{ghost_foot}}` are the **only two render helpers in
+Nectar that emit author-controlled HTML verbatim**, with no escaping. That is
+intentional and required for Ghost theme compatibility — themes rely on these
+helpers to splice analytics tags, comments bootstraps, and other inline
+`<script>` / `<link>` snippets that the post author configured. Every other
+Ghost helper (`title`, `excerpt`, `meta_description`, `feature_image`, …) is
+either HTML-escaped or passes through Nectar's content sanitizer first.
+
+In other words: the render layer has exactly **one explicit XSS exit, and it
+is gated behind `build.allow_code_injection`**. When the gate is off, the
+loader strips `codeinjection_head` / `codeinjection_foot` before the helpers
+ever see them; when it is on, whatever the post author put there ships
+unmodified.
+
+This is safe **only as long as `content/` is treated as code**: the trust
+boundary is the operator's PR-review process, not a runtime sanitizer.
+Anyone who can land a PR that edits a frontmatter file with
+`codeinjection_*` and the gate enabled can publish arbitrary script to every
+page on the site.
+
+**Recommended defence in depth: a CSP that pins inline scripts.** Even with
+`allow_code_injection` enabled and trusted authors, configure the host to
+send a `Content-Security-Policy` header that constrains what those inline
+scripts can do. Two viable approaches for a static deploy:
+
+- **Edge-injected nonces.** A Cloudflare Worker / Vercel Edge / Netlify Edge
+  function rewrites the response per request: generate a fresh nonce, attach
+  it to every legitimate `<script>` / `<style>` tag emitted by Nectar, and
+  emit a matching `script-src 'nonce-…'; style-src 'nonce-…'` header. This
+  is the cleanest path because it does not require build-time bookkeeping
+  and works with arbitrary `codeinjection_*` content.
+- **Precomputed hashes.** Run a post-build step that hashes every inline
+  `<script>` / `<style>` block in `dist/` and emits a `_headers` /
+  `vercel.json` with `'sha256-…'` entries in `script-src` / `style-src`.
+  This pins exactly the scripts your build produced; any new inline script
+  from a malicious `codeinjection_*` after the build would be blocked.
+  Trade-off: hashes change on every build, so the header file is rebuilt
+  too.
+
+See [`hosting.md`](./hosting.md) for the baseline CSP and tightening steps.
+Neither edge nonces nor precomputed hashes are bundled with Nectar today;
+both are operator-side wiring on top of the static output.
+
 ### Content assets (`content/images/`)
 
 Images and other binary assets in `content/images/` are copied to the output
