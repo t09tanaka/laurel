@@ -127,6 +127,23 @@ describe('example build', () => {
       ).toBe(2);
     }
 
+    // a11y (issue #204): wrapper headings such as gh-featured-title and
+    // gh-container-title must not render as empty <h2> elements when their
+    // label string is blank. Empty headings break screen-reader heading
+    // navigation and fail axe rule 'empty-heading'.
+    for (const [label, html] of [
+      ['home', indexHtml],
+      ['post', postHtml],
+      ['tag', tagHtml],
+      ['author', authorHtml],
+    ] as const) {
+      const emptyHeadingMatch = html.match(/<h([1-6])\b[^>]*>\s*<\/h\1>/i);
+      expect(
+        emptyHeadingMatch?.[0],
+        `${label} page must not emit empty heading elements`,
+      ).toBeUndefined();
+    }
+
     // Feature/card images must declare intrinsic width/height so browsers
     // can reserve layout space (avoids Cumulative Layout Shift).
     const cardImgPattern =
