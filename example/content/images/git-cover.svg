@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600">
+  <rect width="1200" height="600" fill="#212121"/>
+  <text x="600" y="320" text-anchor="middle" font-family="ui-monospace, monospace" font-size="84" font-weight="700" fill="#F48FB1">Markdown Meets Git</text>
+</svg>

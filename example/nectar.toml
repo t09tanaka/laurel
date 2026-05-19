@@ -1,0 +1,71 @@
+[site]
+title = "Nectar Example"
+description = "A demo blog built with Nectar against the Ghost Source theme"
+url = "https://nectar.example.com"
+locale = "en"
+timezone = "UTC"
+accent_color = "#FF5722"
+logo = "/content/images/logo.svg"
+icon = "/content/images/logo.svg"
+
+[theme]
+name = "source"
+dir = "themes"
+
+[theme.custom]
+navigation_layout = "Logo on the left"
+site_background_color = "#ffffff"
+header_and_footer_color = "Background color"
+title_font = "Modern sans-serif"
+body_font = "Modern sans-serif"
+header_style = "Landing"
+header_text = "Reading and writing for the love of the craft."
+background_image = true
+show_featured_posts = true
+post_feed_style = "List"
+show_images_in_feed = true
+show_author = true
+show_publish_date = true
+show_publication_info_sidebar = false
+show_post_metadata = true
+enable_drop_caps_on_posts = true
+show_related_articles = true
+
+[content]
+posts_dir = "content/posts"
+pages_dir = "content/pages"
+authors_dir = "content/authors"
+tags_dir = "content/tags"
+assets_dir = "content/images"
+
+[build]
+output_dir = "dist"
+base_path = "/"
+posts_per_page = 6
+copy_content_assets = true
+
+[[navigation]]
+label = "Home"
+url = "/"
+
+[[navigation]]
+label = "About"
+url = "/about/"
+
+[[navigation]]
+label = "Tags"
+url = "/tag/news/"
+
+[[secondary_navigation]]
+label = "RSS"
+url = "/rss.xml"
+
+[components.rss]
+enabled = true
+items = 10
+
+[components.sitemap]
+enabled = true
+
+[components.opengraph]
+enabled = true
