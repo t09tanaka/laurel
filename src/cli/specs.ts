@@ -94,6 +94,28 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
   ],
 };
 
+export const INIT_SPEC: CommandSpec = {
+  name: 'init',
+  summary: 'Scaffold a new Nectar project in the current (or given) directory',
+  options: {
+    yes: {
+      type: 'boolean',
+      short: 'y',
+      description: 'Skip prompts and use defaults (non-interactive)',
+    },
+    force: {
+      type: 'boolean',
+      description: 'Overwrite existing files in the target directory',
+    },
+    dir: {
+      type: 'string',
+      description: 'Target directory to scaffold into (defaults to .)',
+      placeholder: '<path>',
+    },
+  },
+  positionals: [],
+};
+
 export const DOCTOR_SPEC: CommandSpec = {
   name: 'doctor',
   summary: 'Run health checks on the project (bun, config, theme, content, network)',
@@ -116,6 +138,7 @@ export const DOCTOR_SPEC: CommandSpec = {
 };
 
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
+  init: INIT_SPEC,
   build: BUILD_SPEC,
   new: NEW_SPEC,
   serve: SERVE_SPEC,
