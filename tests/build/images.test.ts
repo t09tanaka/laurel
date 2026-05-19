@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -774,5 +775,141 @@ describe('generateThemeImageSizeVariants', () => {
       themeImageSizes: { m: { width: 600 } },
     });
     expect(count).toBe(0);
+  });
+
+  test('emits per-format variants under size/<segment>/format/<ext>/ when formats are configured', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1600, 1000);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {
+        xs: { width: 160 },
+        m: { width: 600 },
+      },
+      cacheDir: join(cwd, '.nectar-cache/images'),
+      formats: ['webp'],
+    });
+
+    // 2 base + 2 webp = 4 emitted files.
+    expect(count).toBe(4);
+    expect(existsSync(join(outputDir, 'content/images/size/w160/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png'))).toBe(
+      true,
+    );
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+      true,
+    );
+  });
+
+  test('skips format variants for non-jpg/png sources', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    // sharp can read webp, but emitting `cover.webp` re-encoded as webp is busy
+    // work; the existing same-format src is already webp.
+    const sharp = (await import('sharp')).default;
+    mkdirSync(join(cwd, assetsDir), { recursive: true });
+    await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: { r: 50, g: 50, b: 50 } },
+    })
+      .webp()
+      .toFile(join(cwd, assetsDir, 'cover.webp'));
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: { m: { width: 600 } },
+      cacheDir: join(cwd, '.nectar-cache/images'),
+      formats: ['webp'],
+    });
+
+    // Only the base variant — no `format/webp/` re-encode for a webp source.
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.webp'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.webp'))).toBe(
+      false,
+    );
+  });
+
+  test('does not emit format variants when cacheDir is not provided', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: { m: { width: 600 } },
+      formats: ['webp'],
+    });
+
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+      false,
+    );
+  });
+
+  test('caches encoded bytes by content hash so a rebuild reuses them', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const cacheDir = join(cwd, '.nectar-cache/images');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const themeImageSizes = { m: { width: 600 } };
+
+    await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes,
+      cacheDir,
+      formats: ['webp'],
+    });
+
+    // Cache populated after first run.
+    const cacheFiles = await Array.fromAsync(
+      new Bun.Glob('*').scan({ cwd: cacheDir, onlyFiles: true }),
+    );
+    expect(cacheFiles.length).toBe(2); // base .png + .webp
+    const baseCache = cacheFiles.find((f) => f.endsWith('.png'));
+    const webpCache = cacheFiles.find((f) => f.endsWith('.webp'));
+    expect(baseCache).toBeDefined();
+    expect(webpCache).toBeDefined();
+
+    // Wipe the output tree and rebuild: outputs should come back from cache.
+    await rm(outputDir, { recursive: true, force: true });
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes,
+      cacheDir,
+      formats: ['webp'],
+    });
+    expect(count).toBe(2);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+      true,
+    );
+
+    // Cache file count unchanged — no new entries were written.
+    const cacheFilesAfter = await Array.fromAsync(
+      new Bun.Glob('*').scan({ cwd: cacheDir, onlyFiles: true }),
+    );
+    expect(cacheFilesAfter.length).toBe(2);
   });
 });
