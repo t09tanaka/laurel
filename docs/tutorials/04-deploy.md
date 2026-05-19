@@ -211,3 +211,18 @@ For preview deploys against a subpath, build with `--base-path`:
 ```bash
 bunx nectar build --base-path /preview/feature-x/
 ```
+
+## Security headers
+
+The configs above get the site live, but **do not set any HTTP security
+headers**. Static hosts default to no CSP, no HSTS, no Referrer-Policy on
+most free tiers — fine for a personal site, risky once you accept
+contributions to `content/`, enable `build.allow_code_injection`, or serve
+a custom domain.
+
+See [`docs/security/hosting.md`](../security/hosting.md) for
+copy-pasteable `_headers` / `vercel.json` / `netlify.toml` snippets with
+a Nectar-calibrated baseline `Content-Security-Policy`,
+`Strict-Transport-Security`, `Referrer-Policy`, `Permissions-Policy`, and
+related headers. GitHub Pages users will find the workarounds for the
+host's hard-coded headers there too.

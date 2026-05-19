@@ -84,6 +84,12 @@ self-contained and ends with something running locally.
 
 Index: [`docs/tutorials/`](./docs/tutorials/README.md).
 
+Once a site is live, see
+[`docs/security/hosting.md`](./docs/security/hosting.md) for the
+`Content-Security-Policy`, `Strict-Transport-Security`, and related HTTP
+header snippets each host needs — Nectar emits static files, so these are
+the host's job.
+
 ## Layout
 
 ```
