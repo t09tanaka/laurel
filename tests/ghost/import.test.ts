@@ -2337,3 +2337,196 @@ describe('importGhostExport — JSON size cap (#558)', () => {
     );
   });
 });
+
+describe('importGhostExport — image URL scheme sanitization (#562)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-img-sanitize-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('strips javascript:/data:/file: URLs from post image fields and logs a warning', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Compromised',
+                slug: 'compromised',
+                html: '<p>body</p>',
+                feature_image: 'javascript:alert(1)',
+                og_image: 'data:text/html,<script>alert(1)</script>',
+                twitter_image: 'file:///etc/passwd',
+                status: 'published',
+                published_at: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.posts).toBe(1);
+
+    const postMd = await readFile(join(cwd, 'content/posts/compromised.md'), 'utf8');
+    expect(postMd).not.toContain('javascript:');
+    expect(postMd).not.toContain('data:text/html');
+    expect(postMd).not.toContain('file:///');
+    expect(postMd).not.toMatch(/^feature_image:/m);
+    expect(postMd).not.toMatch(/^og_image:/m);
+    expect(postMd).not.toMatch(/^twitter_image:/m);
+
+    expect(captured.data).toContain('Refusing unsafe feature_image URL');
+    expect(captured.data).toContain('Refusing unsafe og_image URL');
+    expect(captured.data).toContain('Refusing unsafe twitter_image URL');
+  });
+
+  test('strips javascript: URLs from tag.feature_image and author profile_image / cover_image', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Post',
+                slug: 'post',
+                html: '<p>body</p>',
+                status: 'published',
+                published_at: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+            tags: [
+              {
+                id: 't1',
+                slug: 'news',
+                name: 'News',
+                description: 'desc',
+                feature_image: 'javascript:alert("tag")',
+                meta_title: 'News',
+              },
+            ],
+            users: [
+              {
+                id: 'u1',
+                slug: 'casper',
+                name: 'Casper',
+                profile_image: 'data:text/html,<script>1</script>',
+                cover_image: 'vbscript:msgbox(1)',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.tags).toBe(1);
+    expect(summary.authors).toBe(1);
+
+    const tagMd = await readFile(join(cwd, 'content/tags/news.md'), 'utf8');
+    expect(tagMd).not.toContain('javascript:');
+    expect(tagMd).not.toMatch(/^feature_image:/m);
+
+    const authorMd = await readFile(join(cwd, 'content/authors/casper.md'), 'utf8');
+    expect(authorMd).not.toContain('data:');
+    expect(authorMd).not.toContain('vbscript:');
+    expect(authorMd).not.toMatch(/^profile_image:/m);
+    expect(authorMd).not.toMatch(/^cover_image:/m);
+
+    expect(captured.data).toContain('Refusing unsafe feature_image URL');
+    expect(captured.data).toContain('Refusing unsafe profile_image URL');
+    expect(captured.data).toContain('Refusing unsafe cover_image URL');
+  });
+
+  test('treats leading whitespace + javascript: as unsafe (browsers strip whitespace before resolving)', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Sneaky',
+                slug: 'sneaky',
+                html: '<p>body</p>',
+                feature_image: '\t javascript:alert(1)',
+                status: 'published',
+                published_at: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    const postMd = await readFile(join(cwd, 'content/posts/sneaky.md'), 'utf8');
+    expect(postMd).not.toContain('javascript:');
+    expect(postMd).not.toMatch(/^feature_image:/m);
+    expect(captured.data).toContain('Refusing unsafe feature_image URL');
+  });
+
+  test('keeps http(s):// URLs and relative paths intact', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Legit',
+                slug: 'legit',
+                html: '<p>body</p>',
+                feature_image: 'https://cdn.example.com/cover.jpg',
+                og_image: '/content/images/og.jpg',
+                twitter_image: 'content/images/tw.jpg',
+                status: 'published',
+                published_at: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    const postMd = await readFile(join(cwd, 'content/posts/legit.md'), 'utf8');
+    expect(postMd).toContain('feature_image: "https://cdn.example.com/cover.jpg"');
+    expect(postMd).toContain('og_image: "/content/images/og.jpg"');
+    expect(postMd).toContain('twitter_image: "content/images/tw.jpg"');
+    expect(captured.data).not.toContain('Refusing unsafe');
+  });
+});
