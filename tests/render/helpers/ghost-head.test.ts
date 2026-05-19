@@ -639,3 +639,112 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
     expect(second['@type']).toBe('BreadcrumbList');
   });
 });
+
+describe('ghost_head rel="prev"/rel="next" for paginated archives', () => {
+  test('emits absolute rel="next" on the first page of a paginated tag archive', () => {
+    const html = renderGhostHead({}, '/tag/news/', {
+      routeData: {
+        tag: { name: 'news', url: 'https://example.com/tag/news/' },
+        pagination: {
+          page: 1,
+          pages: 3,
+          prev: undefined,
+          next: 2,
+          total: 30,
+          limit: 10,
+          prev_url: undefined,
+          next_url: '/tag/news/page/2/',
+        },
+      },
+    });
+    expect(html).toContain('<link rel="next" href="https://example.com/tag/news/page/2/">');
+    expect(html).not.toContain('rel="prev"');
+  });
+
+  test('emits both rel="prev" and rel="next" on an interior pagination page', () => {
+    const html = renderGhostHead({}, '/tag/news/page/2/', {
+      routeData: {
+        tag: { name: 'news', url: 'https://example.com/tag/news/' },
+        pagination: {
+          page: 2,
+          pages: 3,
+          prev: 1,
+          next: 3,
+          total: 30,
+          limit: 10,
+          prev_url: '/tag/news/',
+          next_url: '/tag/news/page/3/',
+        },
+      },
+    });
+    expect(html).toContain('<link rel="prev" href="https://example.com/tag/news/">');
+    expect(html).toContain('<link rel="next" href="https://example.com/tag/news/page/3/">');
+  });
+
+  test('emits only rel="prev" on the last pagination page', () => {
+    const html = renderGhostHead({}, '/tag/news/page/3/', {
+      routeData: {
+        tag: { name: 'news', url: 'https://example.com/tag/news/' },
+        pagination: {
+          page: 3,
+          pages: 3,
+          prev: 2,
+          next: undefined,
+          total: 30,
+          limit: 10,
+          prev_url: '/tag/news/page/2/',
+          next_url: undefined,
+        },
+      },
+    });
+    expect(html).toContain('<link rel="prev" href="https://example.com/tag/news/page/2/">');
+    expect(html).not.toContain('rel="next"');
+  });
+
+  test('omits rel="prev"/rel="next" entirely on routes without pagination', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'A post' }, '/a-post/', {
+      routeData: { post: { id: 'p1', title: 'A post' } },
+    });
+    expect(html).not.toContain('rel="prev"');
+    expect(html).not.toContain('rel="next"');
+  });
+
+  test('omits rel="prev"/rel="next" on a single-page archive', () => {
+    const html = renderGhostHead({}, '/tag/solo/', {
+      routeData: {
+        tag: { name: 'solo', url: 'https://example.com/tag/solo/' },
+        pagination: {
+          page: 1,
+          pages: 1,
+          prev: undefined,
+          next: undefined,
+          total: 3,
+          limit: 10,
+          prev_url: undefined,
+          next_url: undefined,
+        },
+      },
+    });
+    expect(html).not.toContain('rel="prev"');
+    expect(html).not.toContain('rel="next"');
+  });
+
+  test('emits rel="prev"/rel="next" for the home/index archive too', () => {
+    const html = renderGhostHead({}, '/page/2/', {
+      routeData: {
+        pagination: {
+          page: 2,
+          pages: 3,
+          prev: 1,
+          next: 3,
+          total: 30,
+          limit: 10,
+          prev_url: '/',
+          next_url: '/page/3/',
+        },
+      },
+    });
+    expect(html).toContain('<link rel="prev" href="https://example.com/">');
+    expect(html).toContain('<link rel="next" href="https://example.com/page/3/">');
+  });
+});
