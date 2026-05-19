@@ -11,6 +11,28 @@ export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', '
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
 
+// Ghost exports replace site URLs with the literal `__GHOST_URL__` placeholder
+// in HTML bodies and image/URL fields. We rewrite to the empty string so the
+// remaining `/content/images/...` path resolves against the deployed site root.
+const GHOST_URL_PLACEHOLDER = /__GHOST_URL__/g;
+
+function stripGhostUrlPlaceholder<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value.replace(GHOST_URL_PLACEHOLDER, '') as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => stripGhostUrlPlaceholder(item)) as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = stripGhostUrlPlaceholder(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 interface GhostExport {
   db: Array<{
     data: {
@@ -102,7 +124,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
   const counters = { skipped: 0, overwritten: 0, renamed: 0 };
 
   const raw = await readFile(opts.file, 'utf8');
-  const parsed = JSON.parse(raw) as GhostExport;
+  const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
   const data = parsed.db?.[0]?.data;
   if (!data) {
     throw new Error('Invalid Ghost export: db[0].data missing');

@@ -349,3 +349,90 @@ describe('importGhostExport — slug sanitization (#160)', () => {
     await expect(access(join(cwd, 'content/posts'))).rejects.toThrow();
   });
 });
+
+describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-url-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('strips __GHOST_URL__ placeholder from body, frontmatter, and metadata', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Hello',
+                slug: 'hello',
+                html: '<p>See <a href="__GHOST_URL__/welcome/">the welcome post</a> and this <img src="__GHOST_URL__/content/images/2024/01/pic.jpg" alt="pic"></p>',
+                feature_image: '__GHOST_URL__/content/images/2024/01/cover.jpg',
+                og_image: '__GHOST_URL__/content/images/2024/01/og.jpg',
+                twitter_image: '__GHOST_URL__/content/images/2024/01/tw.jpg',
+                canonical_url: '__GHOST_URL__/canonical/',
+                codeinjection_head:
+                  '<link rel="stylesheet" href="__GHOST_URL__/content/files/style.css">',
+                codeinjection_foot: '<script src="__GHOST_URL__/content/files/foot.js"></script>',
+                status: 'published',
+                published_at: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+            tags: [
+              {
+                id: 't1',
+                slug: 'news',
+                name: 'News',
+                description: 'See __GHOST_URL__/tag/news/ for more',
+                feature_image: '__GHOST_URL__/content/images/tag.jpg',
+                meta_title: 'News',
+              },
+            ],
+            users: [
+              {
+                id: 'u1',
+                slug: 'casper',
+                name: 'Casper',
+                profile_image: '__GHOST_URL__/content/images/avatar.jpg',
+              },
+            ],
+            posts_tags: [{ post_id: 'p1', tag_id: 't1', sort_order: 0 }],
+            posts_authors: [{ post_id: 'p1', user_id: 'u1', sort_order: 0 }],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(1);
+    expect(summary.tags).toBe(1);
+    expect(summary.authors).toBe(1);
+
+    const postMd = await readFile(join(cwd, 'content/posts/hello.md'), 'utf8');
+    expect(postMd).not.toContain('__GHOST_URL__');
+    expect(postMd).toContain('feature_image: "/content/images/2024/01/cover.jpg"');
+    expect(postMd).toContain('og_image: "/content/images/2024/01/og.jpg"');
+    expect(postMd).toContain('twitter_image: "/content/images/2024/01/tw.jpg"');
+    expect(postMd).toContain('canonical_url: "/canonical/"');
+    expect(postMd).toContain('/content/images/2024/01/pic.jpg');
+    expect(postMd).toContain('/welcome/');
+
+    const tagMd = await readFile(join(cwd, 'content/tags/news.md'), 'utf8');
+    expect(tagMd).not.toContain('__GHOST_URL__');
+    expect(tagMd).toContain('/tag/news/');
+    expect(tagMd).toContain('feature_image: "/content/images/tag.jpg"');
+
+    const authorMd = await readFile(join(cwd, 'content/authors/casper.md'), 'utf8');
+    expect(authorMd).not.toContain('__GHOST_URL__');
+    expect(authorMd).toContain('profile_image: "/content/images/avatar.jpg"');
+  });
+});
