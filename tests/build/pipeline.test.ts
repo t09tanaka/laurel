@@ -327,3 +327,65 @@ describe('build pipeline favicon emission', () => {
     expect(postHtml).toContain('type="image/svg+xml"');
   });
 });
+
+describe('build pipeline HTML minification (#1109)', () => {
+  async function makeSite(opts: { minify: boolean }): Promise<string> {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-minify-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Minify Test"',
+        'url = "https://minify.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[build]',
+        `minify_html = ${opts.minify}`,
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+      'utf8',
+    );
+    await writeFile(join(cwd, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(cwd, 'themes/source'), { recursive: true });
+    return cwd;
+  }
+
+  test('does not minify when build.minify_html is false (default)', async () => {
+    const cwd = await makeSite({ minify: false });
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(html).toMatch(/\n\s+</);
+  });
+
+  test('shrinks emitted HTML when build.minify_html is true', async () => {
+    const cwdUnmin = await makeSite({ minify: false });
+    const cwdMin = await makeSite({ minify: true });
+    const sUnmin = await build({ cwd: cwdUnmin });
+    const sMin = await build({ cwd: cwdMin });
+
+    const htmlUnmin = readFileSync(join(sUnmin.outputDir, 'hello/index.html'), 'utf8');
+    const htmlMin = readFileSync(join(sMin.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(htmlMin.length).toBeLessThan(htmlUnmin.length);
+    expect(htmlMin).toContain('Hello');
+    expect(htmlMin).not.toMatch(/<!--[^[]/);
+  });
+});
