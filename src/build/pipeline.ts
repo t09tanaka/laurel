@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
+import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
@@ -19,7 +20,7 @@ import { emitCustomRedirects } from './custom-redirects.ts';
 import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
-import { emitRss, emitSitemap } from './feeds.ts';
+import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
   type ImageFormat,
@@ -94,6 +95,29 @@ async function timed<T>(
   const bytes = getBytes?.(result);
   stop(bytes !== undefined ? { bytes_emitted: bytes } : undefined);
   return result;
+}
+
+// Maps the internal RouteKind taxonomy onto Ghost's four sitemap sections.
+// home/index/custom land in 'pages' because they are page-like entry points
+// from a crawler's perspective; sitemapindex pagination is keyed on this
+// classification so the mapping is load-bearing once total URLs exceed
+// SITEMAP_MAX_URLS_PER_FILE.
+function routeKindToSitemapKind(kind: RouteContext['kind']): SitemapKind | undefined {
+  switch (kind) {
+    case 'post':
+      return 'posts';
+    case 'home':
+    case 'index':
+    case 'page':
+    case 'custom':
+      return 'pages';
+    case 'tag':
+      return 'tags';
+    case 'author':
+      return 'authors';
+    default:
+      return undefined;
+  }
 }
 
 export async function build({
@@ -373,7 +397,7 @@ async function runBuild({
         outputDir,
         urls: routes
           .filter((r) => r.kind !== 'error')
-          .map((r) => ({ url: r.url, lastmod: r.lastmod })),
+          .map((r) => ({ url: r.url, lastmod: r.lastmod, kind: routeKindToSitemapKind(r.kind) })),
       }),
     );
   }

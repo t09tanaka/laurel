@@ -2,10 +2,45 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { writeHtml } from './emit.ts';
 
+export type SitemapKind = 'posts' | 'pages' | 'tags' | 'authors';
+
+export type SitemapChangefreq =
+  | 'always'
+  | 'hourly'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'never';
+
 export interface SitemapEntry {
   url: string;
   lastmod?: string | undefined;
+  kind?: SitemapKind | undefined;
+  changefreq?: SitemapChangefreq | undefined;
+  priority?: number | undefined;
 }
+
+// Sitemap protocol caps each file at 50,000 URLs and 50 MiB uncompressed.
+// Beyond the URL cap we split per Ghost's scheme (sitemap-posts.xml,
+// sitemap-pages.xml, sitemap-tags.xml, sitemap-authors.xml) and emit
+// sitemap.xml as a sitemapindex so crawlers still find a single entry point.
+export const SITEMAP_MAX_URLS_PER_FILE = 50_000;
+
+const SITEMAP_KIND_DEFAULTS: Record<
+  SitemapKind,
+  { changefreq: SitemapChangefreq; priority: number }
+> = {
+  posts: { changefreq: 'weekly', priority: 0.9 },
+  pages: { changefreq: 'weekly', priority: 0.7 },
+  tags: { changefreq: 'daily', priority: 0.6 },
+  authors: { changefreq: 'daily', priority: 0.6 },
+};
+
+// Used for entries that arrive without a kind (e.g. ad-hoc callers that
+// don't classify URLs). Keeps changefreq/priority deterministic instead of
+// silently dropping them from the XML.
+const SITEMAP_UNCLASSIFIED_DEFAULT = { changefreq: 'monthly', priority: 0.5 } as const;
 
 export async function emitSitemap(opts: {
   config: NectarConfig;
@@ -14,17 +49,105 @@ export async function emitSitemap(opts: {
   urls: SitemapEntry[];
 }): Promise<void> {
   const base = opts.config.site.url.replace(/\/$/, '');
-  const entries = opts.urls
+
+  if (opts.urls.length <= SITEMAP_MAX_URLS_PER_FILE) {
+    const xml = renderSitemapUrlset(opts.urls, base);
+    await writeHtml(opts.outputDir, 'sitemap.xml', xml);
+    return;
+  }
+
+  const buckets = bucketSitemapEntriesByKind(opts.urls);
+  const indexEntries: { loc: string; lastmod: string | undefined }[] = [];
+  for (const kind of ['posts', 'pages', 'tags', 'authors'] as const) {
+    const entries = buckets.get(kind) ?? [];
+    if (entries.length === 0) continue;
+    const pages = chunkEntries(entries, SITEMAP_MAX_URLS_PER_FILE);
+    for (let i = 0; i < pages.length; i++) {
+      const filename = sitemapKindFilename(kind, i + 1);
+      const xml = renderSitemapUrlset(pages[i] ?? [], base);
+      await writeHtml(opts.outputDir, filename, xml);
+      indexEntries.push({
+        loc: `${base}/${filename}`,
+        lastmod: latestLastmodIso(pages[i] ?? []),
+      });
+    }
+  }
+  const indexXml = renderSitemapIndex(indexEntries);
+  await writeHtml(opts.outputDir, 'sitemap.xml', indexXml);
+}
+
+function renderSitemapUrlset(entries: SitemapEntry[], base: string): string {
+  const body = entries
     .map((entry) => {
+      const defaults = entry.kind
+        ? SITEMAP_KIND_DEFAULTS[entry.kind]
+        : SITEMAP_UNCLASSIFIED_DEFAULT;
+      const changefreq = entry.changefreq ?? defaults.changefreq;
+      const priority = entry.priority ?? defaults.priority;
       const loc = `<loc>${escapeXml(`${base}${entry.url}`)}</loc>`;
       const lastmod = entry.lastmod
         ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
         : '';
-      return `<url>${loc}${lastmod}</url>`;
+      const cf = `<changefreq>${changefreq}</changefreq>`;
+      const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
+      return `<url>${loc}${lastmod}${cf}${pr}</url>`;
     })
     .join('');
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`;
-  await writeHtml(opts.outputDir, 'sitemap.xml', xml);
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`;
+}
+
+function renderSitemapIndex(entries: { loc: string; lastmod: string | undefined }[]): string {
+  const body = entries
+    .map((e) => {
+      const loc = `<loc>${escapeXml(e.loc)}</loc>`;
+      const lastmod = e.lastmod ? `<lastmod>${escapeXml(e.lastmod)}</lastmod>` : '';
+      return `<sitemap>${loc}${lastmod}</sitemap>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</sitemapindex>`;
+}
+
+function bucketSitemapEntriesByKind(urls: SitemapEntry[]): Map<SitemapKind, SitemapEntry[]> {
+  const buckets = new Map<SitemapKind, SitemapEntry[]>([
+    ['posts', []],
+    ['pages', []],
+    ['tags', []],
+    ['authors', []],
+  ]);
+  for (const entry of urls) {
+    // Unclassified entries (no kind) fall into 'pages' — most ad-hoc URLs
+    // (home, custom routes) are page-like and Ghost's sitemap-pages bucket
+    // is the natural catch-all.
+    const kind: SitemapKind = entry.kind ?? 'pages';
+    buckets.get(kind)?.push(entry);
+  }
+  return buckets;
+}
+
+function chunkEntries<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+function sitemapKindFilename(kind: SitemapKind, page: number): string {
+  return page === 1 ? `sitemap-${kind}.xml` : `sitemap-${kind}-${page}.xml`;
+}
+
+function latestLastmodIso(entries: SitemapEntry[]): string | undefined {
+  let latest = Number.NEGATIVE_INFINITY;
+  let latestSource: string | undefined;
+  for (const e of entries) {
+    if (!e.lastmod) continue;
+    const t = Date.parse(e.lastmod);
+    if (!Number.isNaN(t) && t > latest) {
+      latest = t;
+      latestSource = e.lastmod;
+    }
+  }
+  return latestSource ? formatLastmod(latestSource) : undefined;
 }
 
 // Sitemap protocol accepts W3C datetime; pass ISO timestamps through and fall back
@@ -32,6 +155,14 @@ export async function emitSitemap(opts: {
 function formatLastmod(value: string): string {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toISOString();
+}
+
+// Sitemap priority is a number in [0.0, 1.0] with at most one decimal of
+// meaningful precision per protocol. Clamp and round so out-of-range inputs
+// don't produce invalid XML.
+function formatSitemapPriority(value: number): string {
+  const clamped = Math.max(0, Math.min(1, value));
+  return clamped.toFixed(1);
 }
 
 // Hard upper bound on items emitted in a single RSS page. Users who set

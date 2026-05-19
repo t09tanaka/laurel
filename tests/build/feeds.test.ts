@@ -4,7 +4,14 @@ import { existsSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RSS_MAX_ITEMS_PER_PAGE, absolutizeHtmlUrls, emitRss, emitSitemap } from '~/build/feeds.ts';
+import {
+  RSS_MAX_ITEMS_PER_PAGE,
+  SITEMAP_MAX_URLS_PER_FILE,
+  type SitemapEntry,
+  absolutizeHtmlUrls,
+  emitRss,
+  emitSitemap,
+} from '~/build/feeds.ts';
 import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
@@ -379,7 +386,7 @@ describe('emitRss', () => {
 });
 
 describe('emitSitemap', () => {
-  test('emits <lastmod> for entries that provide one', async () => {
+  test('emits <lastmod>, <changefreq>, <priority> for every entry', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
@@ -388,14 +395,19 @@ describe('emitSitemap', () => {
       config,
       content,
       outputDir,
-      urls: [{ url: '/hello-world/', lastmod: '2026-01-02T03:04:05.000Z' }, { url: '/no-date/' }],
+      urls: [
+        { url: '/hello-world/', lastmod: '2026-01-02T03:04:05.000Z', kind: 'posts' },
+        { url: '/no-date/', kind: 'pages' },
+      ],
     });
     const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
 
     expect(xml).toContain(
-      '<url><loc>https://example.com/hello-world/</loc><lastmod>2026-01-02T03:04:05.000Z</lastmod></url>',
+      '<url><loc>https://example.com/hello-world/</loc><lastmod>2026-01-02T03:04:05.000Z</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>',
     );
-    expect(xml).toContain('<url><loc>https://example.com/no-date/</loc></url>');
+    expect(xml).toContain(
+      '<url><loc>https://example.com/no-date/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>',
+    );
     expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
   });
 
@@ -408,11 +420,130 @@ describe('emitSitemap', () => {
       config,
       content,
       outputDir,
-      urls: [{ url: '/x/', lastmod: 'not-a-date' }],
+      urls: [{ url: '/x/', lastmod: 'not-a-date', kind: 'pages' }],
     });
     const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
 
     expect(xml).toContain('<lastmod>not-a-date</lastmod>');
+  });
+
+  test('unclassified entries fall back to monthly/0.5 defaults', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [{ url: '/ad-hoc/' }],
+    });
+    const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+
+    expect(xml).toContain('<changefreq>monthly</changefreq>');
+    expect(xml).toContain('<priority>0.5</priority>');
+  });
+
+  test('caller can override changefreq and priority per entry', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [{ url: '/', kind: 'pages', changefreq: 'daily', priority: 1.0 }],
+    });
+    const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+
+    expect(xml).toContain('<changefreq>daily</changefreq>');
+    expect(xml).toContain('<priority>1.0</priority>');
+  });
+
+  test('clamps out-of-range priority into [0.0, 1.0]', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [
+        { url: '/hi/', kind: 'pages', priority: 9.9 },
+        { url: '/lo/', kind: 'pages', priority: -3 },
+      ],
+    });
+    const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+
+    expect(xml).toContain(
+      '<loc>https://example.com/hi/</loc><changefreq>weekly</changefreq><priority>1.0</priority>',
+    );
+    expect(xml).toContain(
+      '<loc>https://example.com/lo/</loc><changefreq>weekly</changefreq><priority>0.0</priority>',
+    );
+  });
+
+  test('above the 50k URL cap, emits a sitemapindex with per-kind urlsets', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    const overflow = SITEMAP_MAX_URLS_PER_FILE + 1;
+    const urls: SitemapEntry[] = [];
+    for (let i = 0; i < overflow; i++) {
+      urls.push({ url: `/p-${i}/`, kind: 'posts', lastmod: '2026-01-01T00:00:00.000Z' });
+    }
+    urls.push({ url: '/about/', kind: 'pages', lastmod: '2026-02-02T00:00:00.000Z' });
+    urls.push({ url: '/tag/news/', kind: 'tags', lastmod: '2026-03-03T00:00:00.000Z' });
+    urls.push({ url: '/author/jane/', kind: 'authors', lastmod: '2026-04-04T00:00:00.000Z' });
+
+    await emitSitemap({ config, content, outputDir, urls });
+
+    const index = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+    expect(index).toContain('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+    expect(index).toContain('<loc>https://example.com/sitemap-posts.xml</loc>');
+    expect(index).toContain('<loc>https://example.com/sitemap-posts-2.xml</loc>');
+    expect(index).toContain('<loc>https://example.com/sitemap-pages.xml</loc>');
+    expect(index).toContain('<loc>https://example.com/sitemap-tags.xml</loc>');
+    expect(index).toContain('<loc>https://example.com/sitemap-authors.xml</loc>');
+
+    const posts1 = readFileSync(join(outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts1).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+    expect(posts1).toContain('<loc>https://example.com/p-0/</loc>');
+    expect(posts1).toContain('<changefreq>weekly</changefreq>');
+    expect(posts1).toContain('<priority>0.9</priority>');
+
+    const posts2 = readFileSync(join(outputDir, 'sitemap-posts-2.xml'), 'utf8');
+    expect(posts2).toContain(`<loc>https://example.com/p-${SITEMAP_MAX_URLS_PER_FILE}/</loc>`);
+
+    const tags = readFileSync(join(outputDir, 'sitemap-tags.xml'), 'utf8');
+    expect(tags).toContain('<loc>https://example.com/tag/news/</loc>');
+
+    expect(existsSync(join(outputDir, 'sitemap-pages-2.xml'))).toBe(false);
+  });
+
+  test('sitemapindex skips empty per-kind sections', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    const urls: SitemapEntry[] = [];
+    for (let i = 0; i <= SITEMAP_MAX_URLS_PER_FILE; i++) {
+      urls.push({ url: `/p-${i}/`, kind: 'posts' });
+    }
+
+    await emitSitemap({ config, content, outputDir, urls });
+
+    const index = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+    expect(index).toContain('<loc>https://example.com/sitemap-posts.xml</loc>');
+    expect(index).not.toContain('sitemap-pages.xml');
+    expect(index).not.toContain('sitemap-tags.xml');
+    expect(index).not.toContain('sitemap-authors.xml');
+    expect(existsSync(join(outputDir, 'sitemap-pages.xml'))).toBe(false);
+    expect(existsSync(join(outputDir, 'sitemap-tags.xml'))).toBe(false);
+    expect(existsSync(join(outputDir, 'sitemap-authors.xml'))).toBe(false);
   });
 });
 
