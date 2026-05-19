@@ -683,6 +683,51 @@ body
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
     await expect(loadContent({ cwd, config })).rejects.toThrow(/Invalid slug/);
   });
+
+  test('refuses Markdown sources larger than content.max_markdown_bytes and reports the offending file (issue #1136)', async () => {
+    // A contributor PR with an outsized Markdown body can OOM or hang the build
+    // runner (marked.parse is CPU-bound and quadratic on pathological input).
+    // Enforce the cap at stat() so the body is never loaded into memory and the
+    // error points at the offending path.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-md-size-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const file = join(cwd, 'content/posts/big.md');
+    const header = '---\ntitle: Big\ndate: 2026-01-01T00:00:00Z\n---\n\n';
+    const body = 'x'.repeat(2048);
+    await writeFile(file, header + body, 'utf8');
+
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      content: { max_markdown_bytes: 1024 },
+    });
+    try {
+      await loadContent({ cwd, config });
+      throw new Error('expected loadContent to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.file).toBe(file);
+      expect(ne.message).toMatch(/exceed/i);
+      expect(ne.hint).toMatch(/max_markdown_bytes/);
+    }
+  });
+
+  test('content.max_markdown_bytes = 0 disables the size check entirely', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-md-size-off-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const file = join(cwd, 'content/posts/big.md');
+    const header = '---\ntitle: Big\ndate: 2026-01-01T00:00:00Z\n---\n\n';
+    const body = 'x'.repeat(2048);
+    await writeFile(file, header + body, 'utf8');
+
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      content: { max_markdown_bytes: 0 },
+    });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts).toHaveLength(1);
+    expect(graph.posts[0]?.slug).toBe('big');
+  });
 });
 
 describe('loadContent page custom_template (issue #1005)', () => {

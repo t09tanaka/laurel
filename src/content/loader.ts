@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
 import {
@@ -10,7 +10,7 @@ import {
   resolveTaxonomies,
 } from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
-import { toNectarError } from '~/util/errors.ts';
+import { NectarError, toNectarError } from '~/util/errors.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
@@ -318,8 +318,10 @@ async function loadPosts(
   pool: MarkdownPool,
 ): Promise<RawPost[]> {
   const dir = join(cwd, config.content.posts_dir);
-  const posts = await loadMarkdownDir(dir, async (file, raw) =>
-    normalizePost(file, raw, cwd, dir, config, pool),
+  const posts = await loadMarkdownDir(
+    dir,
+    async (file, raw) => normalizePost(file, raw, cwd, dir, config, pool),
+    config.content.max_markdown_bytes,
   );
   if (config.content.visibility_policy === 'skip') {
     return posts.filter((p) => p.visibility === 'public');
@@ -333,8 +335,10 @@ async function loadPages(
   pool: MarkdownPool,
 ): Promise<RawPage[]> {
   const dir = join(cwd, config.content.pages_dir);
-  return loadMarkdownDir(dir, async (file, raw) =>
-    normalizePage(file, raw, cwd, dir, config, pool),
+  return loadMarkdownDir(
+    dir,
+    async (file, raw) => normalizePage(file, raw, cwd, dir, config, pool),
+    config.content.max_markdown_bytes,
   );
 }
 
@@ -344,7 +348,11 @@ async function loadAuthors(
   taxonomies: ResolvedTaxonomies,
 ): Promise<Author[]> {
   const dir = join(cwd, config.content.authors_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizeAuthor(file, raw, config, taxonomies));
+  return loadMarkdownDir(
+    dir,
+    async (file, raw) => normalizeAuthor(file, raw, config, taxonomies),
+    config.content.max_markdown_bytes,
+  );
 }
 
 async function loadTags(
@@ -353,7 +361,11 @@ async function loadTags(
   taxonomies: ResolvedTaxonomies,
 ): Promise<Tag[]> {
   const dir = join(cwd, config.content.tags_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizeTag(file, raw, config, taxonomies));
+  return loadMarkdownDir(
+    dir,
+    async (file, raw) => normalizeTag(file, raw, config, taxonomies),
+    config.content.max_markdown_bytes,
+  );
 }
 
 // Cap how many files we read+normalize concurrently. The previous serial loop
@@ -384,6 +396,7 @@ async function countMarkdownFiles(dir: string): Promise<number> {
 async function loadMarkdownDir<T>(
   dir: string,
   normalize: (filePath: string, raw: string) => Promise<T>,
+  maxBytes: number,
 ): Promise<T[]> {
   if (!existsSync(dir)) return [];
   const glob = new Bun.Glob('**/*.md');
@@ -401,6 +414,7 @@ async function loadMarkdownDir<T>(
     const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);
     const chunkResults = await Promise.all(
       chunk.map(async (file) => {
+        await enforceMarkdownSizeLimit(file, maxBytes);
         const raw = await readFile(file, 'utf8');
         try {
           return await normalize(file, raw);
@@ -414,6 +428,38 @@ async function loadMarkdownDir<T>(
     }
   }
   return results;
+}
+
+// Stat each `.md` file before `readFile` and refuse to load anything larger
+// than `content.max_markdown_bytes`. `marked.parse` is CPU-bound and quadratic
+// on some pathological inputs (deeply nested lists / blockquotes), so a
+// contributor PR with a 500 MB Markdown body — or a much smaller adversarial
+// one — can OOM or hang the build runner. Bun strings cap at 2 GB, and even
+// approaching that bound stalls the tokenizer for tens of seconds. Failing fast
+// at stat() avoids loading the body into memory at all and gives a useful
+// error pointer at the offending path.
+async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise<void> {
+  if (maxBytes <= 0) return;
+  const info = await stat(file);
+  if (info.size <= maxBytes) return;
+  throw new NectarError({
+    file,
+    message: `Markdown file is ${formatBytes(info.size)}, exceeding the configured limit of ${formatBytes(maxBytes)}.`,
+    hint: 'Split the file into smaller documents, raise `content.max_markdown_bytes` in nectar.toml, or set it to 0 to disable the cap.',
+  });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KiB', 'MiB', 'GiB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  const rounded = value >= 10 ? value.toFixed(0) : value.toFixed(1);
+  return `${rounded} ${units[i]}`;
 }
 
 function slugFromPath(filePath: string, rootDir: string): string {

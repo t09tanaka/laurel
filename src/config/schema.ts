@@ -217,6 +217,14 @@ export const configSchema = z
           .describe(
             'Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no `<!-- members -->` marker. Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview.',
           ),
+        max_markdown_bytes: z
+          .number()
+          .int()
+          .nonnegative()
+          .default(5 * 1024 * 1024)
+          .describe(
+            'Refuse to load a single Markdown source file larger than this many bytes. `marked.parse` is CPU-bound and quadratic on some pathological inputs (deeply nested blockquotes / lists), so a 500 MB or even a much smaller adversarial post can OOM or hang the build runner. The cap is enforced via `stat()` before the file is read into memory, so an outsized post fails fast with a useful error pointing at the offending path. `0` disables the check entirely. Default is 5 MiB.',
+          ),
       })
       .strict()
       .default({})
