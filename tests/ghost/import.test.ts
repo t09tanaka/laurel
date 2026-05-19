@@ -350,6 +350,213 @@ describe('importGhostExport — slug sanitization (#160)', () => {
   });
 });
 
+describe('importGhostExport — folder input + asset copy (#73)', () => {
+  let exportDir: string;
+
+  beforeEach(async () => {
+    exportDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-assets-')));
+  });
+
+  afterEach(async () => {
+    await rm(exportDir, { recursive: true, force: true });
+  });
+
+  async function writeJsonNamed(name: string): Promise<string> {
+    const file = join(exportDir, name);
+    await writeFile(
+      file,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p><img src="/content/images/2024/01/pic.jpg" alt="pic"></p>',
+                  feature_image: '/content/images/2024/01/cover.jpg',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    return file;
+  }
+
+  test('folder input finds the .json and copies content/images, content/files, content/media', async () => {
+    await writeJsonNamed('my-blog.ghost.2024-01-01.json');
+
+    await ensureDir(join(exportDir, 'content/images/2024/01'));
+    await writeFile(join(exportDir, 'content/images/2024/01/cover.jpg'), 'COVER');
+    await writeFile(join(exportDir, 'content/images/2024/01/pic.jpg'), 'PIC');
+    await ensureDir(join(exportDir, 'content/files'));
+    await writeFile(join(exportDir, 'content/files/handout.pdf'), 'PDF');
+    await ensureDir(join(exportDir, 'content/media/clip'));
+    await writeFile(join(exportDir, 'content/media/clip/intro.mp4'), 'MP4');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(4);
+
+      expect(await readFile(join(cwd, 'content/images/2024/01/cover.jpg'), 'utf8')).toBe('COVER');
+      expect(await readFile(join(cwd, 'content/images/2024/01/pic.jpg'), 'utf8')).toBe('PIC');
+      expect(await readFile(join(cwd, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+      expect(await readFile(join(cwd, 'content/media/clip/intro.mp4'), 'utf8')).toBe('MP4');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('folder input without content/ subdir but with images/ at top level still works', async () => {
+    await writeJsonNamed('export.json');
+
+    await ensureDir(join(exportDir, 'images/2024'));
+    await writeFile(join(exportDir, 'images/2024/cover.jpg'), 'COVER');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(1);
+      expect(await readFile(join(cwd, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('folder with no JSON throws a clear error', async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      await expect(importGhostExport({ cwd, file: exportDir })).rejects.toThrow(
+        /No \.json export file found in/,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('JSON file input + explicit --assets copies from the override dir', async () => {
+    const jsonFile = await writeJsonNamed('export.json');
+
+    const assetsRoot = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ext-')));
+    try {
+      await ensureDir(join(assetsRoot, 'images'));
+      await writeFile(join(assetsRoot, 'images/cover.jpg'), 'OVERRIDE');
+
+      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+      try {
+        const summary = await importGhostExport({
+          cwd,
+          file: jsonFile,
+          onConflict: 'overwrite',
+          assetsDir: assetsRoot,
+        });
+        expect(summary.posts).toBe(1);
+        expect(summary.assetsCopied).toBe(1);
+        expect(await readFile(join(cwd, 'content/images/cover.jpg'), 'utf8')).toBe('OVERRIDE');
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    } finally {
+      await rm(assetsRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('--assets wins over folder-detected content/ subdir', async () => {
+    await writeJsonNamed('export.json');
+    await ensureDir(join(exportDir, 'content/images'));
+    await writeFile(join(exportDir, 'content/images/auto.jpg'), 'AUTO');
+
+    const override = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ovr-')));
+    try {
+      await ensureDir(join(override, 'images'));
+      await writeFile(join(override, 'images/explicit.jpg'), 'EXPLICIT');
+
+      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+      try {
+        const summary = await importGhostExport({
+          cwd,
+          file: exportDir,
+          onConflict: 'overwrite',
+          assetsDir: override,
+        });
+        expect(summary.assetsCopied).toBe(1);
+        expect(await readFile(join(cwd, 'content/images/explicit.jpg'), 'utf8')).toBe('EXPLICIT');
+        await expect(access(join(cwd, 'content/images/auto.jpg'))).rejects.toThrow();
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    } finally {
+      await rm(override, { recursive: true, force: true });
+    }
+  });
+
+  test('--assets pointing to a non-existent dir rejects with a clear error', async () => {
+    const jsonFile = await writeJsonNamed('export.json');
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      await expect(
+        importGhostExport({
+          cwd,
+          file: jsonFile,
+          assetsDir: join(exportDir, 'does-not-exist'),
+        }),
+      ).rejects.toThrow(/--assets directory does not exist/);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('does not overwrite existing destination asset files', async () => {
+    await writeJsonNamed('export.json');
+    await ensureDir(join(exportDir, 'content/images'));
+    await writeFile(join(exportDir, 'content/images/cover.jpg'), 'FROM-EXPORT');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      await ensureDir(join(cwd, 'content/images'));
+      await writeFile(join(cwd, 'content/images/cover.jpg'), 'KEEP-ME');
+
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.assetsCopied).toBe(0);
+      expect(await readFile(join(cwd, 'content/images/cover.jpg'), 'utf8')).toBe('KEEP-ME');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('passing a .zip path rejects with a helpful message', async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      await expect(importGhostExport({ cwd, file: join(exportDir, 'export.zip') })).rejects.toThrow(
+        /ZIP Ghost exports are not yet supported/,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('JSON file input without --assets does not copy anything (back-compat)', async () => {
+    const jsonFile = await writeJsonNamed('export.json');
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: jsonFile, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(0);
+      await expect(access(join(cwd, 'content/images'))).rejects.toThrow();
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
   let cwd: string;
   let exportFile: string;

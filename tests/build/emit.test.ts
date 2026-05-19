@@ -45,4 +45,34 @@ describe('copyContentAssets', () => {
     expect(existsSync(join(outputDir, 'content/images/real.png'))).toBe(true);
     expect(existsSync(join(outputDir, 'content/images/oops.png'))).toBe(false);
   });
+
+  test('also copies content/files and content/media when present (#73)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-files-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-files-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/a.png'), 'A');
+    await mkdir(join(cwd, 'content/files'), { recursive: true });
+    await writeFile(join(cwd, 'content/files/handout.pdf'), 'PDF');
+    await mkdir(join(cwd, 'content/media/clip'), { recursive: true });
+    await writeFile(join(cwd, 'content/media/clip/intro.mp4'), 'MP4');
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+    expect(count).toBe(3);
+    expect(await readFile(join(outputDir, 'content/images/a.png'), 'utf8')).toBe('A');
+    expect(await readFile(join(outputDir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+    expect(await readFile(join(outputDir, 'content/media/clip/intro.mp4'), 'utf8')).toBe('MP4');
+  });
+
+  test('content/files and content/media are optional', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-opt-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-opt-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/a.png'), 'A');
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/a.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/files'))).toBe(false);
+    expect(existsSync(join(outputDir, 'content/media'))).toBe(false);
+  });
 });

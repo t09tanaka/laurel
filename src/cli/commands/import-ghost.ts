@@ -40,12 +40,18 @@ export async function runImportGhost(args: string[]): Promise<number> {
     onConflict = rawOnConflict as OnConflict;
   }
 
+  const rawAssets = parsed.values.assets;
+  const assetsDir = typeof rawAssets === 'string' ? rawAssets : undefined;
+
   const cwd = process.cwd();
   try {
-    const summary = await importGhostExport({ cwd, file, onConflict });
+    const summary = await importGhostExport({ cwd, file, onConflict, assetsDir });
     logger.info(
       `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,
     );
+    if (summary.assetsCopied > 0) {
+      logger.info(`Copied ${summary.assetsCopied} asset files into content/`);
+    }
     if (summary.skipped > 0 || summary.overwritten > 0 || summary.renamed > 0) {
       logger.info(
         `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,

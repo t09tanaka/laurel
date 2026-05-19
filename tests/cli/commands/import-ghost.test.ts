@@ -114,3 +114,61 @@ describe('cli import-ghost — --on-conflict', () => {
     expect(await readFile(renamed, 'utf8')).toContain('slug: "hello"');
   });
 });
+
+describe('cli import-ghost — folder input + --assets (#73)', () => {
+  let dir: string;
+  let exportFolder: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-')));
+    exportFolder = join(dir, 'ghost-export');
+    await Bun.write(join(exportFolder, 'my-blog.ghost.2024-01-01.json'), exportPayload());
+    await Bun.write(join(exportFolder, 'content/images/2024/cover.jpg'), 'COVER');
+    await Bun.write(join(exportFolder, 'content/files/handout.pdf'), 'PDF');
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises both the file/folder positional and --assets', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--assets');
+    expect(stdout).toContain('unzipped Ghost export folder');
+  });
+
+  test('passing a folder ingests JSON and copies image/file assets', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFolder, '--on-conflict', 'overwrite'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('Copied 2 asset files');
+    expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
+    expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+  });
+
+  test('--assets pointing to an external content/ dir copies from there', async () => {
+    const jsonOnly = join(dir, 'export.json');
+    await Bun.write(jsonOnly, exportPayload());
+    const externalAssets = join(dir, 'external-assets');
+    await Bun.write(join(externalAssets, 'images/cover.jpg'), 'EXTERNAL');
+
+    const { exitCode } = await runCli(
+      ['import-ghost', jsonOnly, '--assets', externalAssets, '--on-conflict', 'overwrite'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(await readFile(join(dir, 'content/images/cover.jpg'), 'utf8')).toBe('EXTERNAL');
+  });
+
+  test('passing a .zip exits non-zero with a helpful message', async () => {
+    const fakeZip = join(dir, 'export.zip');
+    await Bun.write(fakeZip, 'not really a zip');
+    const { stderr, exitCode } = await runCli(['import-ghost', fakeZip], dir);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('ZIP Ghost exports are not yet supported');
+  });
+});

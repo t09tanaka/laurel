@@ -52,8 +52,17 @@ export async function copyContentAssets(
   contentImagesDir: string,
   outputDir: string,
 ): Promise<number> {
-  const source = join(cwd, contentImagesDir);
-  const target = join(outputDir, 'content/images');
+  let total = 0;
+  total += await copyTree(join(cwd, contentImagesDir), join(outputDir, 'content/images'));
+  // content/files and content/media come straight from Ghost exports
+  // (import-ghost copies them next to content/images). They mirror Ghost's
+  // /content/<name>/ URL layout so imported markdown links resolve.
+  total += await copyTree(join(cwd, 'content/files'), join(outputDir, 'content/files'));
+  total += await copyTree(join(cwd, 'content/media'), join(outputDir, 'content/media'));
+  return total;
+}
+
+async function copyTree(source: string, target: string): Promise<number> {
   const glob = new Bun.Glob('**/*');
   let count = 0;
   try {
@@ -69,7 +78,7 @@ export async function copyContentAssets(
       count += 1;
     }
   } catch {
-    // content/images is optional
+    // optional: directory may not exist
   }
   return count;
 }
