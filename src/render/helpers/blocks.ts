@@ -130,6 +130,9 @@ export function registerBlockHelpers(engine: NectarEngine): void {
   registerContextBlock(engine, 'tag', (route) => pickFromRoute(route, 'tag'));
   registerContextBlock(engine, 'author', (route) => pickFromRoute(route, 'author'));
 
+  registerAdjacentPostBlock(engine, 'prev_post', 'prev');
+  registerAdjacentPostBlock(engine, 'next_post', 'next');
+
   engine.hb.registerHelper('get', function getHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const resource = String(args[0] ?? '');
@@ -234,6 +237,31 @@ function registerContextBlock(
       const value = pick(route) ?? (this as Record<string, unknown>)?.[name];
       if (!value) return options.inverse ? options.inverse(this) : '';
       return options.fn(value);
+    },
+  );
+}
+
+// `{{#prev_post}}` / `{{#next_post}}` scope into the adjacent post on a single
+// post template. The content loader pre-wires `post.prev` (older) and
+// `post.next` (newer) when sorting by `published_at desc`, so the helpers just
+// hand that reference to the block body and fall through to inverse otherwise.
+function registerAdjacentPostBlock(
+  engine: NectarEngine,
+  name: 'prev_post' | 'next_post',
+  key: 'prev' | 'next',
+): void {
+  engine.hb.registerHelper(
+    name,
+    function adjacentPostHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const ctx = this as Record<string, unknown> | undefined;
+      const fromCtx = ctx ? (ctx[key] as unknown) : undefined;
+      const route = options.data?.route as
+        | { data?: { post?: Record<string, unknown> } }
+        | undefined;
+      const fromRoute = route?.data?.post?.[key];
+      const target = fromCtx ?? fromRoute;
+      if (!target) return options.inverse ? options.inverse(this) : '';
+      return options.fn(target);
     },
   );
 }
