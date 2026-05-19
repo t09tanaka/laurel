@@ -355,6 +355,36 @@ describe('Ghost Turndown rules — kg-video-card', () => {
     expect(md).toContain('width="1280"');
     expect(md).toContain('caption="Demo"');
   });
+
+  // Regression for backlog task #99: the kg-video-card carries three distinct
+  // asset references (poster image, video file, caption track) that live in
+  // three different content subdirs. The default turndown walk dropped the
+  // <track> child, orphaning the .vtt on disk after import.
+  test('preserves caption <track> elements as nested video-track shortcodes', () => {
+    const html = `
+      <figure class="kg-card kg-video-card">
+        <div class="kg-video-container">
+          <video poster="/content/images/2024/01/poster.jpg" width="1280" height="720">
+            <source src="/content/media/2024/01/demo.mp4" type="video/mp4" />
+            <track src="/content/files/2024/01/demo-en.vtt" kind="subtitles" srclang="en" label="English" default />
+            <track src="/content/files/2024/01/demo-es.vtt" kind="subtitles" srclang="es" label="Spanish" />
+          </video>
+        </div>
+        <figcaption>Demo</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< video');
+    expect(md).toContain('src="/content/media/2024/01/demo.mp4"');
+    expect(md).toContain('poster="/content/images/2024/01/poster.jpg"');
+    expect(md).toContain('{{< video-track src="/content/files/2024/01/demo-en.vtt"');
+    expect(md).toContain('kind="subtitles"');
+    expect(md).toContain('srclang="en"');
+    expect(md).toContain('label="English"');
+    expect(md).toContain('default="true"');
+    expect(md).toContain('{{< video-track src="/content/files/2024/01/demo-es.vtt"');
+    expect(md).toContain('{{< /video >}}');
+  });
 });
 
 describe('Ghost Turndown rules — kg-audio-card', () => {
