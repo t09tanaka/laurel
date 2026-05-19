@@ -55,6 +55,7 @@ import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import { emitSearchJson, runPagefind } from './search.ts';
+import { copyStaticDir } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 import { emitVercelJson } from './vercel.ts';
 
@@ -404,6 +405,13 @@ async function runBuild({
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
   });
+
+  // Static passthrough runs as the final emit step so a file the user drops
+  // under `<cwd>/<content.static_dir>/` wins over both theme assets and
+  // generated platform files (`_headers`, `_redirects`, `robots.txt`, …).
+  await timed(profiler, 'static_passthrough', () =>
+    copyStaticDir({ cwd, staticDir: config.content.static_dir, outputDir }),
+  );
 
   if (profiler) {
     await writeProfile(outputDir, profiler);
