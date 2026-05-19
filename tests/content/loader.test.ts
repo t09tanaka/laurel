@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configSchema } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
+import { NectarError } from '~/util/errors.ts';
 
 async function fixture(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-content-'));
@@ -316,6 +317,34 @@ unsafe_html: true
     const html = graph.posts[0]?.html ?? '';
     expect(html).toContain('<div data-trusted="1">');
     expect(html).toContain('<em>raw</em>');
+  });
+
+  test('surfaces malformed YAML frontmatter as a NectarError with the offending file path', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-yaml-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const file = join(cwd, 'content/posts/bad.md');
+    await writeFile(
+      file,
+      `---
+title: ok
+  date: 2026-01-01
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    try {
+      await loadContent({ cwd, config });
+      throw new Error('expected loadContent to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.file).toBe(file);
+      expect(ne.line).toBe(3);
+      expect(ne.message).toMatch(/invalid frontmatter/);
+    }
   });
 
   test('throws when explicit frontmatter slug sanitizes to empty', async () => {

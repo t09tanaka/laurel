@@ -1,6 +1,7 @@
 import { ON_CONFLICT_VALUES, type OnConflict, importGhostExport } from '~/ghost/import.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { reportError } from '../report.ts';
 import { IMPORT_GHOST_SPEC } from '../specs.ts';
 
 export async function runImportGhost(args: string[]): Promise<number> {
@@ -53,7 +54,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
     }
     return 0;
   } catch (err) {
-    logger.error(err instanceof Error ? err.message : String(err));
+    reportError(err, cwd);
     return 1;
   }
 }
