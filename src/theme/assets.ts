@@ -1,6 +1,8 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { pathContainsSymlink } from '~/util/fs.ts';
+import { logger } from '~/util/logger.ts';
 import type { ThemeAsset } from './types.ts';
 
 export async function loadThemeAssets(rootDir: string): Promise<Map<string, ThemeAsset>> {
@@ -9,6 +11,10 @@ export async function loadThemeAssets(rootDir: string): Promise<Map<string, Them
   if (!existsSync(assetsDir)) return out;
   const glob = new Bun.Glob('**/*');
   for await (const rel of glob.scan({ cwd: assetsDir, onlyFiles: true })) {
+    if (pathContainsSymlink(assetsDir, rel)) {
+      logger.warn(`Skipping symlinked theme asset: ${join(assetsDir, rel)}`);
+      continue;
+    }
     const file = join(assetsDir, rel);
     const stat = statSync(file);
     const buf = await readFile(file);

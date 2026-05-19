@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configSchema } from '~/config/schema.ts';
@@ -145,6 +145,30 @@ name: Escape
     for (const author of graph.authors) {
       expect(author.slug).not.toContain('..');
       expect(author.slug).not.toContain('/');
+    }
+  });
+
+  test('skips symlinked markdown files instead of following them outside the content tree', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-symlink-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const outside = await mkdtemp(join(tmpdir(), 'nectar-outside-'));
+    const secret = join(outside, 'secret.md');
+    await writeFile(
+      secret,
+      '---\ntitle: Stolen\ndate: 2026-01-01T00:00:00Z\n---\n\nSECRET_TOKEN=abc123\n',
+      'utf8',
+    );
+    await symlink(secret, join(cwd, 'content/posts/oops.md'));
+    await writeFile(
+      join(cwd, 'content/posts/real.md'),
+      '---\ntitle: Real\ndate: 2026-02-01T00:00:00Z\n---\n\nhi\n',
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.map((p) => p.slug)).toEqual(['real']);
+    for (const post of graph.posts) {
+      expect(post.html).not.toContain('SECRET_TOKEN');
     }
   });
 
