@@ -2530,3 +2530,105 @@ describe('importGhostExport — image URL scheme sanitization (#562)', () => {
     expect(captured.data).not.toContain('Refusing unsafe');
   });
 });
+
+describe('importGhostExport — code injection opt-in (#561)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ci-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function writeExportWithInjection(): Promise<void> {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'With Head',
+                slug: 'with-head',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+                codeinjection_head: '<script src="https://attacker.example/x.js"></script>',
+              },
+              {
+                id: 'p2',
+                title: 'With Foot',
+                slug: 'with-foot',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+                codeinjection_foot: '<script>alert(1)</script>',
+              },
+              {
+                id: 'p3',
+                title: 'Clean',
+                slug: 'clean',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+              },
+              {
+                id: 'p4',
+                title: 'Empty Strings',
+                slug: 'empty-strings',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+                codeinjection_head: '',
+                codeinjection_foot: '',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    return writeFile(exportFile, JSON.stringify(ghostExport));
+  }
+
+  test('default omits codeinjection fields and counts the affected posts', async () => {
+    await writeExportWithInjection();
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.codeInjectionSkipped).toBe(2);
+
+    const headMd = await readFile(join(cwd, 'content/posts/with-head.md'), 'utf8');
+    expect(headMd).not.toContain('codeinjection_head');
+    expect(headMd).not.toContain('attacker.example');
+    const footMd = await readFile(join(cwd, 'content/posts/with-foot.md'), 'utf8');
+    expect(footMd).not.toContain('codeinjection_foot');
+    expect(footMd).not.toContain('alert(1)');
+    const cleanMd = await readFile(join(cwd, 'content/posts/clean.md'), 'utf8');
+    expect(cleanMd).not.toContain('codeinjection_head');
+    const emptyMd = await readFile(join(cwd, 'content/posts/empty-strings.md'), 'utf8');
+    expect(emptyMd).not.toContain('codeinjection_head');
+    expect(emptyMd).not.toContain('codeinjection_foot');
+  });
+
+  test('keepCodeInjection: true preserves the fields verbatim and zeroes the counter', async () => {
+    await writeExportWithInjection();
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+      keepCodeInjection: true,
+    });
+
+    expect(summary.codeInjectionSkipped).toBe(0);
+
+    const headMd = await readFile(join(cwd, 'content/posts/with-head.md'), 'utf8');
+    expect(headMd).toContain(
+      'codeinjection_head: "<script src=\\"https://attacker.example/x.js\\"></script>"',
+    );
+    const footMd = await readFile(join(cwd, 'content/posts/with-foot.md'), 'utf8');
+    expect(footMd).toContain('codeinjection_foot: "<script>alert(1)</script>"');
+  });
+});

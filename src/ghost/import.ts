@@ -169,6 +169,11 @@ export interface ImportSummary {
   // stripped by safeSlug). Each one produces an additional redirect entry so
   // the old Ghost URL still resolves after deployment (#503).
   slugRedirects: number;
+  // Posts whose `codeinjection_head` / `codeinjection_foot` were present in
+  // the export but omitted from the written frontmatter because
+  // `keepCodeInjection` was not set. Surfaced so the operator can audit the
+  // source and re-run with `--keep-code-injection` if they trust it (#561).
+  codeInjectionSkipped: number;
 }
 
 export interface ImportGhostOptions {
@@ -204,6 +209,14 @@ export interface ImportGhostOptions {
   // DEFAULT_MAX_IMPORT_JSON_BYTES (256 MiB). For .zip exports the cap is
   // applied to the JSON inside after extraction, not the compressed archive.
   maxFileSizeBytes?: number;
+  // When true, preserve `codeinjection_head` / `codeinjection_foot` from the
+  // Ghost export verbatim in post frontmatter. Defaults to false: a user
+  // importing an export from a site they no longer control (sold, taken
+  // over, leaked) would otherwise silently inherit attacker scripts that
+  // get re-injected into <head> / before </body> by `{{ghost_head}}` /
+  // `{{ghost_foot}}`. The CLI surface flag is `--keep-code-injection`
+  // (#561).
+  keepCodeInjection?: boolean;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -255,6 +268,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     drafts: 0,
     statusFiltered: 0,
     bodiesEmpty: 0,
+    codeInjectionSkipped: 0,
   };
 
   let extractedZipRoot: string | undefined;
@@ -285,8 +299,10 @@ async function importFromResolvedInput(
     drafts: number;
     statusFiltered: number;
     bodiesEmpty: number;
+    codeInjectionSkipped: number;
   },
 ): Promise<ImportSummary> {
+  const keepCodeInjection = opts.keepCodeInjection === true;
   const dryRun = opts.dryRun === true;
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
@@ -397,6 +413,16 @@ async function importFromResolvedInput(
       'twitter_image',
       postLabel,
     );
+    const rawHead = post.codeinjection_head ?? undefined;
+    const rawFoot = post.codeinjection_foot ?? undefined;
+    const hasInjectedCode =
+      (typeof rawHead === 'string' && rawHead.length > 0) ||
+      (typeof rawFoot === 'string' && rawFoot.length > 0);
+    if (hasInjectedCode && !keepCodeInjection) {
+      counters.codeInjectionSkipped += 1;
+    }
+    const codeinjection_head = keepCodeInjection ? rawHead : undefined;
+    const codeinjection_foot = keepCodeInjection ? rawFoot : undefined;
     const frontmatter = buildFrontmatter({
       slug,
       title: post.title,
@@ -420,8 +446,8 @@ async function importFromResolvedInput(
       twitter_description: post.twitter_description ?? undefined,
       twitter_image,
       canonical_url: post.canonical_url ?? undefined,
-      codeinjection_head: post.codeinjection_head ?? undefined,
-      codeinjection_foot: post.codeinjection_foot ?? undefined,
+      codeinjection_head,
+      codeinjection_foot,
     });
     const baseDir = join(opts.cwd, dir);
     const dest = join(baseDir, `${slug}.md`);
@@ -564,6 +590,7 @@ async function importFromResolvedInput(
     bodiesEmpty: counters.bodiesEmpty,
     redirectsImported: redirectMaps.customCount,
     slugRedirects: redirectMaps.slugCount,
+    codeInjectionSkipped: counters.codeInjectionSkipped,
   };
 }
 

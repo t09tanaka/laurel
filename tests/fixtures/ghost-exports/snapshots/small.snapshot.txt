@@ -15,6 +15,7 @@ statusFiltered: 0
 bodiesEmpty: 0
 redirectsImported: 0
 slugRedirects: 0
+codeInjectionSkipped: 0
 
 # tree
 === content/authors/alice.md ===

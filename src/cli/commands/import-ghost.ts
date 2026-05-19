@@ -65,6 +65,8 @@ export async function runImportGhost(args: string[]): Promise<number> {
     maxFileSizeBytes = parsedSize;
   }
 
+  const keepCodeInjection = parsed.values['keep-code-injection'] === true;
+
   const cwd = process.cwd();
   try {
     const summary = await importGhostExport({
@@ -76,6 +78,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       sourceUrl,
       dryRun,
       maxFileSizeBytes,
+      keepCodeInjection,
     });
     if (dryRun) {
       process.stdout.write(formatDryRunSummary(summary, { downloadImages }));
@@ -100,6 +103,11 @@ export async function runImportGhost(args: string[]): Promise<number> {
     if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
       logger.info(
         `Wrote migration/redirects/ snippets (${summary.redirectsImported} custom, ${summary.slugRedirects} from slug changes): _redirects, vercel.json, nginx.conf`,
+      );
+    }
+    if (summary.codeInjectionSkipped > 0 && !keepCodeInjection) {
+      logger.info(
+        `Skipped code injection in ${summary.codeInjectionSkipped} posts. Re-run with --keep-code-injection to import them.`,
       );
     }
     return 0;
@@ -166,6 +174,11 @@ function formatDryRunSummary(
       label: 'Redirects (slug changes)',
       value: summary.slugRedirects,
       note: 'auto-generated for slugs rewritten by safeSlug',
+    },
+    {
+      label: 'Code injection skipped',
+      value: summary.codeInjectionSkipped,
+      note: 'posts whose codeinjection_head/foot were dropped; pass --keep-code-injection to import',
     },
   ];
   const labelWidth = Math.max(...rows.map((r) => r.label.length));
