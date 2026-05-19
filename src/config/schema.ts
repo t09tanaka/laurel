@@ -53,6 +53,14 @@ export const configSchema = z
         base_path: z.string().default('/'),
         posts_per_page: z.number().int().positive().default(12),
         copy_content_assets: z.boolean().default(true),
+        // Refuse to emit raster images larger than this many bytes during
+        // copyContentAssets so a stray 40MB DSLR JPEG does not tank LCP. 0
+        // disables the check entirely. Default is 5 MiB.
+        max_image_bytes: z
+          .number()
+          .int()
+          .nonnegative()
+          .default(5 * 1024 * 1024),
       })
       .strict()
       .default({}),

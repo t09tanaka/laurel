@@ -1,8 +1,14 @@
 import { copyFile, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+
+// Raster formats the size cap applies to. SVG is intrinsically scalable so a
+// large byte count there is unusual and the cap would just confuse users;
+// non-image formats (PDF/video under content/files & content/media) are out
+// of scope for the LCP-image problem this guard exists to solve.
+const RASTER_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
 
 function assertWithinOutputDir(outputDir: string, dest: string): void {
   const root = resolve(outputDir);
@@ -47,22 +53,43 @@ async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
   }
 }
 
+export interface CopyContentAssetsOptions {
+  // Skip raster image files (under contentImagesDir) larger than this many
+  // bytes, logging a warning per skip. 0 (or undefined) disables the check.
+  maxImageBytes?: number;
+}
+
 export async function copyContentAssets(
   cwd: string,
   contentImagesDir: string,
   outputDir: string,
+  options?: CopyContentAssetsOptions,
 ): Promise<number> {
+  const maxImageBytes = options?.maxImageBytes ?? 0;
   let total = 0;
-  total += await copyTree(join(cwd, contentImagesDir), join(outputDir, 'content/images'));
+  total += await copyTree(join(cwd, contentImagesDir), join(outputDir, 'content/images'), {
+    maxImageBytes,
+  });
   // content/files and content/media come straight from Ghost exports
   // (import-ghost copies them next to content/images). They mirror Ghost's
-  // /content/<name>/ URL layout so imported markdown links resolve.
-  total += await copyTree(join(cwd, 'content/files'), join(outputDir, 'content/files'));
-  total += await copyTree(join(cwd, 'content/media'), join(outputDir, 'content/media'));
+  // /content/<name>/ URL layout so imported markdown links resolve. The image
+  // size cap is intentionally not applied here: these dirs hold PDFs, video,
+  // and audio, which are not LCP candidates and have legitimate large-file
+  // use cases.
+  total += await copyTree(join(cwd, 'content/files'), join(outputDir, 'content/files'), {
+    maxImageBytes: 0,
+  });
+  total += await copyTree(join(cwd, 'content/media'), join(outputDir, 'content/media'), {
+    maxImageBytes: 0,
+  });
   return total;
 }
 
-async function copyTree(source: string, target: string): Promise<number> {
+interface CopyTreeOptions {
+  maxImageBytes: number;
+}
+
+async function copyTree(source: string, target: string, opts: CopyTreeOptions): Promise<number> {
   const glob = new Bun.Glob('**/*');
   let count = 0;
   try {
@@ -72,6 +99,15 @@ async function copyTree(source: string, target: string): Promise<number> {
         continue;
       }
       const src = join(source, rel);
+      if (opts.maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
+        const size = Bun.file(src).size;
+        if (size > opts.maxImageBytes) {
+          logger.warn(
+            `Skipping oversized image ${src}: ${formatBytes(size)} exceeds build.max_image_bytes=${formatBytes(opts.maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
+          );
+          continue;
+        }
+      }
       const dst = join(target, rel);
       await ensureDir(dirname(dst));
       await copyFile(src, dst);
@@ -81,4 +117,10 @@ async function copyTree(source: string, target: string): Promise<number> {
     // optional: directory may not exist
   }
   return count;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)}MB`;
 }
