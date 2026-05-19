@@ -3,17 +3,37 @@ import { dirname, join } from 'node:path';
 import slugify from 'slugify';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { NEW_SPEC } from '../specs.ts';
 
 export async function runNew(args: string[]): Promise<number> {
-  const [kind, ...titleParts] = args;
+  let parsed: ParsedCommand;
+  try {
+    parsed = parseCommand(NEW_SPEC, args);
+  } catch (err) {
+    if (err instanceof CliUsageError) {
+      process.stderr.write(`${err.message}\n\n`);
+      process.stderr.write(formatCommandHelp(NEW_SPEC));
+      return 2;
+    }
+    throw err;
+  }
+  if (parsed.helpRequested) {
+    process.stdout.write(formatCommandHelp(NEW_SPEC));
+    return 0;
+  }
+
+  const [kind, ...titleParts] = parsed.positionals;
   const title = titleParts.join(' ').trim();
 
   if (kind !== 'post' && kind !== 'page') {
-    logger.error('Usage: nectar new <post|page> "Title"');
+    process.stderr.write(`Invalid kind: ${kind}. Expected "post" or "page".\n\n`);
+    process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
   if (!title) {
-    logger.error('A title is required');
+    process.stderr.write('A title is required.\n\n');
+    process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
 

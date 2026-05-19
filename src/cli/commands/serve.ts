@@ -2,10 +2,38 @@ import { existsSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { logger } from '~/util/logger.ts';
+import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { SERVE_SPEC } from '../specs.ts';
+
+const DEFAULT_PORT = 4321;
 
 export async function runServe(args: string[]): Promise<number> {
-  const portFlag = args.indexOf('--port');
-  const port = portFlag >= 0 ? Number(args[portFlag + 1]) : 4321;
+  let parsed: ParsedCommand;
+  try {
+    parsed = parseCommand(SERVE_SPEC, args);
+  } catch (err) {
+    if (err instanceof CliUsageError) {
+      process.stderr.write(`${err.message}\n\n`);
+      process.stderr.write(formatCommandHelp(SERVE_SPEC));
+      return 2;
+    }
+    throw err;
+  }
+  if (parsed.helpRequested) {
+    process.stdout.write(formatCommandHelp(SERVE_SPEC));
+    return 0;
+  }
+
+  let port = DEFAULT_PORT;
+  if (typeof parsed.values.port === 'string') {
+    const parsedPort = Number(parsed.values.port);
+    if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
+      process.stderr.write(`Invalid --port value: ${parsed.values.port}\n`);
+      return 2;
+    }
+    port = parsedPort;
+  }
+
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
