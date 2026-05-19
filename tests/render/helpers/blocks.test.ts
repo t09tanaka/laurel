@@ -133,6 +133,70 @@ describe('has helper', () => {
     const route = { data: { pagination: { page: 2 } } };
     expect(tpl({}, { data: { route } })).toBe('HIT');
   });
+
+  test('count:tags=">N" matches when the tags array has more than N entries', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has count:tags=">2"}}HIT{{else}}MISS{{/has}}');
+    const many = { tags: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] };
+    const few = { tags: [{ slug: 'a' }] };
+    expect(tpl(many)).toBe('HIT');
+    expect(tpl(few)).toBe('MISS');
+  });
+
+  test('count:authors=">=N" honours the >= operator', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has count:authors=">=2"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ authors: [{ slug: 'a' }, { slug: 'b' }] })).toBe('HIT');
+    expect(tpl({ authors: [{ slug: 'a' }] })).toBe('MISS');
+  });
+
+  test('count:tags="<N" / "<=N" / "=N" cover the remaining comparison operators', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const lt = engine.hb.compile('{{#has count:tags="<2"}}HIT{{else}}MISS{{/has}}');
+    const lte = engine.hb.compile('{{#has count:tags="<=2"}}HIT{{else}}MISS{{/has}}');
+    const eq = engine.hb.compile('{{#has count:tags="=2"}}HIT{{else}}MISS{{/has}}');
+    expect(lt({ tags: [{ slug: 'a' }] })).toBe('HIT');
+    expect(lt({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('MISS');
+    expect(lte({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('HIT');
+    expect(lte({ tags: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] })).toBe('MISS');
+    expect(eq({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('HIT');
+    expect(eq({ tags: [{ slug: 'a' }] })).toBe('MISS');
+  });
+
+  test('count:tags="N" without an operator defaults to equality', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has count:tags="1"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ tags: [{ slug: 'a' }] })).toBe('HIT');
+    expect(tpl({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('MISS');
+  });
+
+  test('count:tags treats a missing collection as length 0', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const gt = engine.hb.compile('{{#has count:tags=">0"}}HIT{{else}}MISS{{/has}}');
+    const eqZero = engine.hb.compile('{{#has count:tags="=0"}}HIT{{else}}MISS{{/has}}');
+    expect(gt({})).toBe('MISS');
+    expect(eqZero({})).toBe('HIT');
+  });
+
+  test('count:posts uses a numeric property directly when it is not an array', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has count:posts=">0"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ posts: 5 })).toBe('HIT');
+    expect(tpl({ posts: 0 })).toBe('MISS');
+  });
+
+  test('count: with a malformed value falls through to inverse', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has count:tags="garbage"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ tags: [{ slug: 'a' }] })).toBe('MISS');
+  });
 });
 
 describe('match helper', () => {
