@@ -119,13 +119,15 @@ Things to double-check, in priority order:
    from Ghost admin is **not** imported — paste it into your theme's
    `default.hbs` instead.
 3. **Members / paid posts.** Static sites cannot enforce paywalls. By default
-   Nectar truncates `members`/`paid` posts to 300 words. Change in
-   `nectar.toml`:
+   Nectar strips `members`/`paid` post bodies down to a paywall stub so
+   anonymous readers never see the real content; add a `<!-- members -->`
+   marker in the Markdown body to keep an explicit free preview above it.
+   Override in `nectar.toml`:
    ```toml
    [content]
    visibility_policy = "skip"           # omit entirely, or
    visibility_policy = "render-full"    # publish in full
-   paywall_word_count = 300
+   paywall_word_count = 300             # or emit a fixed-word preview when no marker
    ```
 4. **Drafts.** Drafts are dropped from the build silently. Set
    `status: published` in frontmatter to bring one back.

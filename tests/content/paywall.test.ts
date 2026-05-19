@@ -91,7 +91,19 @@ describe('visibility_policy', () => {
     expect(gated?.html).toContain('data-portal="signup"');
   });
 
-  test('truncate policy without marker falls back to word count', async () => {
+  test('truncate policy without marker emits stub only by default (no body leak)', async () => {
+    const cwd = await fixture({ marker: false });
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.html).toContain('gh-paywall-stub');
+    expect(gated?.html).not.toContain('one two');
+    expect(gated?.plaintext.split(/\s+/).filter(Boolean)).toHaveLength(0);
+    expect(gated?.feed_html).toContain('gh-paywall-stub');
+    expect(gated?.feed_html).not.toContain('one two');
+  });
+
+  test('truncate policy emits an opt-in word-count preview when paywall_word_count is set', async () => {
     const cwd = await fixture({ marker: false });
     const config = configSchema.parse({
       site: { title: 'X', url: 'https://x.test' },
