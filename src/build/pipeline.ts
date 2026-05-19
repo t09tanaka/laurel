@@ -10,7 +10,7 @@ import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
-import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
+import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
@@ -94,16 +94,18 @@ export async function build({
   const routes = planRoutes({ config, content, theme });
 
   const subscribeConfig = config.components.subscribe;
+  const htmlOutputs: HtmlOutput[] = [];
   for (const route of routes) {
     try {
       const html = stripUnusedLightbox(
         transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
       );
-      await writeHtml(outputDir, route.outputPath, html);
+      htmlOutputs.push({ outputPath: route.outputPath, html });
     } catch (err) {
       throw wrapRenderError(err, route.url, route.template);
     }
   }
+  await writeHtmlBatch(outputDir, htmlOutputs);
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
     await emitDefault404({ config, content, outputDir, favicons });

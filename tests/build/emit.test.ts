@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyContentAssets, writeHtml } from '~/build/emit.ts';
+import { copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
 
 describe('writeHtml', () => {
   test('writes file when path resolves under outputDir', async () => {
@@ -25,6 +25,53 @@ describe('writeHtml', () => {
     await expect(writeHtml(dir, 'foo/../../bar/index.html', 'pwned')).rejects.toThrow(
       /Refusing to write outside output directory/,
     );
+  });
+});
+
+describe('writeHtmlBatch', () => {
+  test('writes all outputs and creates nested directories (#1102)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    await writeHtmlBatch(dir, [
+      { outputPath: 'index.html', html: '<h1>home</h1>' },
+      { outputPath: 'a/index.html', html: '<h1>a</h1>' },
+      { outputPath: 'a/b/index.html', html: '<h1>b</h1>' },
+      { outputPath: 'tag/foo/index.html', html: '<h1>foo</h1>' },
+    ]);
+    expect(await readFile(join(dir, 'index.html'), 'utf8')).toContain('home');
+    expect(await readFile(join(dir, 'a/index.html'), 'utf8')).toContain('a');
+    expect(await readFile(join(dir, 'a/b/index.html'), 'utf8')).toContain('b');
+    expect(await readFile(join(dir, 'tag/foo/index.html'), 'utf8')).toContain('foo');
+  });
+
+  test('refuses any output that escapes outputDir (#1102)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    await expect(
+      writeHtmlBatch(dir, [
+        { outputPath: 'index.html', html: 'ok' },
+        { outputPath: '../escape.html', html: 'pwned' },
+      ]),
+    ).rejects.toThrow(/Refusing to write outside output directory/);
+    expect(existsSync(join(dir, 'index.html'))).toBe(false);
+  });
+
+  test('handles empty input without touching the filesystem (#1102)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    await writeHtmlBatch(dir, []);
+    // mkdtemp gives us an empty dir; should still be empty afterwards.
+    expect(existsSync(join(dir, 'index.html'))).toBe(false);
+  });
+
+  test('writes many outputs concurrently without dropping any (#1102)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const n = 200;
+    const outputs = Array.from({ length: n }, (_, i) => ({
+      outputPath: `post-${i}/index.html`,
+      html: `<h1>${i}</h1>`,
+    }));
+    await writeHtmlBatch(dir, outputs);
+    for (let i = 0; i < n; i++) {
+      expect(await readFile(join(dir, `post-${i}/index.html`), 'utf8')).toContain(`<h1>${i}</h1>`);
+    }
   });
 });
 
