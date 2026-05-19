@@ -225,6 +225,34 @@ describe('match helper', () => {
     const tpl = engine.hb.compile('{{#match a "=" b}}HIT{{else}}MISS{{/match}}');
     expect(tpl({ a: 1, b: 2 })).toBe('MISS');
   });
+
+  test('numeric comparators handle string operands lexicographically', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const gt = engine.hb.compile('{{match a ">" b}}');
+    const lt = engine.hb.compile('{{match a "<" b}}');
+    const ge = engine.hb.compile('{{match a ">=" b}}');
+    expect(gt({ a: 'foo', b: 'bar' })).toBe('true');
+    expect(lt({ a: 'apple', b: 'banana' })).toBe('true');
+    expect(ge({ a: 'foo', b: 'foo' })).toBe('true');
+    expect(gt({ a: 'apple', b: 'banana' })).toBe('false');
+  });
+
+  test('numeric comparators still work with numeric strings', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const gt = engine.hb.compile('{{match a ">" b}}');
+    expect(gt({ a: '10', b: '9' })).toBe('true');
+    expect(gt({ a: '9', b: '10' })).toBe('false');
+  });
+
+  test('numeric comparators mix numbers and numeric strings', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const gt = engine.hb.compile('{{match a ">" b}}');
+    expect(gt({ a: 10, b: '9' })).toBe('true');
+    expect(gt({ a: '10', b: 9 })).toBe('true');
+  });
 });
 
 describe('get helper', () => {

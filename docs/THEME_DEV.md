@@ -409,6 +409,11 @@ helper short-circuits on the first match.
 - `(value other)` → strict equality.
 - `(value op other)` with `op ∈ { = != > < >= <= ~ ~^ ~$ }`. `~` is substring;
   `~^` and `~$` are starts-with / ends-with.
+- Ordering comparators (`> < >= <=`) auto-detect numeric vs. string operands:
+  if both sides parse as finite numbers (including numeric strings like
+  `"10"`), they compare numerically; otherwise they fall back to lexicographic
+  string comparison. So `{{#match "foo" ">" "bar"}}` works, and
+  `{{#match posts.length ">=" 4}}` keeps its numeric behavior.
 
 #### Context blocks: `{{#post}}`, `{{#page}}`, `{{#tag}}`, `{{#author}}`
 
