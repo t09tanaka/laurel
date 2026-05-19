@@ -112,4 +112,41 @@ describe('cli new — slug collision handling', () => {
     expect(exitCode).toBe(1);
     expect(stderr).toContain(`Refusing to overwrite ${dest}.`);
   });
+
+  test('honors content.posts_dir / pages_dir overrides from nectar.toml', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "T"',
+        '',
+        '[content]',
+        'posts_dir = "src/posts"',
+        'pages_dir = "src/pages"',
+        '',
+      ].join('\n'),
+    );
+
+    const post = await runCli(['new', 'post', 'Hello World'], dir);
+    expect(post.exitCode).toBe(0);
+    const postBody = await readFile(join(dir, 'src/posts/hello-world.md'), 'utf8');
+    expect(postBody).toContain('slug: hello-world');
+
+    const page = await runCli(['new', 'page', 'About'], dir);
+    expect(page.exitCode).toBe(0);
+    const pageBody = await readFile(join(dir, 'src/pages/about.md'), 'utf8');
+    expect(pageBody).toContain('slug: about');
+  });
+
+  test('--config points at an alternate config file', async () => {
+    await Bun.write(
+      join(dir, 'alt.toml'),
+      ['[site]', 'title = "T"', '', '[content]', 'posts_dir = "drafts"', ''].join('\n'),
+    );
+
+    const { exitCode } = await runCli(['new', 'post', 'Hello World', '--config', 'alt.toml'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'drafts/hello-world.md'), 'utf8');
+    expect(body).toContain('slug: hello-world');
+  });
 });
