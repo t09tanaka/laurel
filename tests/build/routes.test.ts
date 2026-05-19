@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'bun:test';
+import { type RoutesYaml, emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+
+function routesYamlWith(routes: RoutesYaml['routes']): RoutesYaml {
+  return { ...emptyRoutesYaml(), routes };
+}
 
 function makeSite(): SiteData {
   return {
@@ -462,5 +467,51 @@ describe('planRoutes — posts_per_page precedence', () => {
     const routes = planRoutes({ config, content, theme });
     const indexPages = routes.filter((r) => r.kind === 'home' || r.kind === 'index');
     expect(indexPages).toHaveLength(Math.ceil(10 / 3));
+  });
+});
+
+describe('planRoutes — routes.yaml routes section', () => {
+  test('emits a custom route for a string-form entry that resolves to a real theme template', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({});
+    const theme = makeTheme();
+    theme.templates.featured = '{{!featured}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({ '/featured/': 'featured' }),
+    });
+    const custom = routes.find((r) => r.kind === 'custom' && r.url === '/featured/');
+    expect(custom).toBeDefined();
+    expect(custom?.template).toBe('featured');
+    expect(custom?.outputPath).toBe('featured/index.html');
+    expect(custom?.meta.canonical).toBe('https://example.com/featured/');
+  });
+
+  test('object-form entries pass their template through and skip routes whose template is absent', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({});
+    const theme = makeTheme();
+    theme.templates.about = '{{!about}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({
+        '/about/': { template: 'about' },
+        '/missing/': { template: 'never-exists' },
+      }),
+    });
+    const customs = routes.filter((r) => r.kind === 'custom');
+    expect(customs.map((r) => r.url).sort()).toEqual(['/about/']);
+  });
+
+  test('emits no custom routes when routes.yaml has no `routes:` section', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({});
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    expect(routes.some((r) => r.kind === 'custom')).toBe(false);
   });
 });

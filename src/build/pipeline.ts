@@ -35,6 +35,7 @@ import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { loadRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
+import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 
@@ -143,7 +144,9 @@ async function runBuild({
 
   const favicons = computeFavicons({ config, theme, cwd });
   const engine = createEngine({ config, content, theme, favicons });
-  const routes = planRoutes({ config, content, theme });
+  const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
+  warnUnappliedSections(routesYaml);
+  const routes = planRoutes({ config, content, theme, routesYaml });
 
   const subscribeConfig = config.components.subscribe;
   const htmlOutputs: HtmlOutput[] = [];

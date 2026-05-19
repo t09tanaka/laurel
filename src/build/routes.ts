@@ -4,13 +4,21 @@ import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrl } from '~/util/url.ts';
+import {
+  type RoutesYaml,
+  emptyRoutesYaml,
+  resolveRouteEntries,
+  routeUrlToOutputPath,
+} from './routes-yaml.ts';
 
 export function planRoutes(opts: {
   config: NectarConfig;
   content: ContentGraph;
   theme: ThemeBundle;
+  routesYaml?: RoutesYaml;
 }): RouteContext[] {
   const { config, content, theme } = opts;
+  const routesYaml = opts.routesYaml ?? emptyRoutesYaml();
   const routes: RouteContext[] = [];
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
 
@@ -109,6 +117,46 @@ export function planRoutes(opts: {
         });
       });
     }
+  }
+
+  // `routes:` section from `routes.yaml` — pin a URL to a template that
+  // renders with only the global context (no post/page/collection data).
+  // Collections and taxonomies are intentionally not applied here yet;
+  // `warnUnappliedSections` flags them at the pipeline boundary so authors
+  // see the gap at build time instead of silent misbehaviour.
+  const seenCustomUrls = new Set<string>();
+  for (const entry of resolveRouteEntries(routesYaml)) {
+    if (seenCustomUrls.has(entry.url)) {
+      logger.warn(
+        `routes.yaml: duplicate route '${entry.url}'; keeping the first occurrence and ignoring the rest.`,
+      );
+      continue;
+    }
+    seenCustomUrls.add(entry.url);
+    if (!theme.templates[entry.template]) {
+      logger.warn(
+        `routes.yaml: route '${entry.url}' references template '${entry.template}' but the active theme has no '${entry.template}.hbs'; skipping.`,
+      );
+      continue;
+    }
+    if (entry.data !== undefined) {
+      logger.warn(
+        `routes.yaml: route '${entry.url}' uses 'data: ${entry.data}' which is parsed but not yet applied; the template will render without that data binding.`,
+      );
+    }
+    if (entry.content_type !== 'html') {
+      logger.warn(
+        `routes.yaml: route '${entry.url}' requests content_type '${entry.content_type}' which is parsed but not yet applied; the route will be emitted as HTML.`,
+      );
+    }
+    routes.push({
+      kind: 'custom',
+      url: entry.url,
+      outputPath: routeUrlToOutputPath(entry.url),
+      template: entry.template,
+      data: {},
+      meta: defaultMeta(config, entry.url, config.site.title),
+    });
   }
 
   if (theme.templates['error-404']) {
