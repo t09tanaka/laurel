@@ -16,7 +16,8 @@ import {
   asStringArray,
   parseFrontmatter,
 } from './frontmatter.ts';
-import { renderMarkdown, truncateByWords } from './markdown.ts';
+import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
+import { truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
@@ -28,11 +29,38 @@ export interface LoadContentOptions {
 export async function loadContent({ cwd, config }: LoadContentOptions): Promise<ContentGraph> {
   const site = buildSite(config);
 
+  // Pre-count post/page files so the pool can skip spawning Bun Workers on
+  // small sites where the spawn cost would exceed the parsing cost. Tags and
+  // authors don't push markdown through `renderMarkdown`, so they're excluded.
+  const postsDir = join(cwd, config.content.posts_dir);
+  const pagesDir = join(cwd, config.content.pages_dir);
+  const [postCount, pageCount] = await Promise.all([
+    countMarkdownFiles(postsDir),
+    countMarkdownFiles(pagesDir),
+  ]);
+  // Paywalled posts render twice (full + truncated for feed), so each post
+  // contributes a worst-case 2 jobs. Estimating at 2x ensures borderline sites
+  // (e.g. 30 posts but all members-only) still benefit from workers.
+  const pool = createMarkdownPool({ estimatedJobs: postCount * 2 + pageCount });
+
+  try {
+    return await loadContentWithPool({ cwd, config, site, pool });
+  } finally {
+    await pool.close();
+  }
+}
+
+async function loadContentWithPool({
+  cwd,
+  config,
+  site,
+  pool,
+}: LoadContentOptions & { site: SiteData; pool: MarkdownPool }): Promise<ContentGraph> {
   const [authors, tags, posts, pages] = await Promise.all([
     loadAuthors(cwd, config),
     loadTags(cwd, config),
-    loadPosts(cwd, config),
-    loadPages(cwd, config),
+    loadPosts(cwd, config, pool),
+    loadPages(cwd, config, pool),
   ]);
 
   const authorMap = new Map(authors.map((a) => [a.slug, a]));
@@ -163,10 +191,14 @@ interface RawPage extends Omit<RawPost, 'featured' | 'visibility'> {
   status: 'published' | 'draft';
 }
 
-async function loadPosts(cwd: string, config: NectarConfig): Promise<RawPost[]> {
+async function loadPosts(
+  cwd: string,
+  config: NectarConfig,
+  pool: MarkdownPool,
+): Promise<RawPost[]> {
   const dir = join(cwd, config.content.posts_dir);
   const posts = await loadMarkdownDir(dir, async (file, raw) =>
-    normalizePost(file, raw, cwd, dir, config),
+    normalizePost(file, raw, cwd, dir, config, pool),
   );
   if (config.content.visibility_policy === 'skip') {
     return posts.filter((p) => p.visibility === 'public');
@@ -174,9 +206,15 @@ async function loadPosts(cwd: string, config: NectarConfig): Promise<RawPost[]> 
   return posts;
 }
 
-async function loadPages(cwd: string, config: NectarConfig): Promise<RawPage[]> {
+async function loadPages(
+  cwd: string,
+  config: NectarConfig,
+  pool: MarkdownPool,
+): Promise<RawPage[]> {
   const dir = join(cwd, config.content.pages_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizePage(file, raw, cwd, dir, config));
+  return loadMarkdownDir(dir, async (file, raw) =>
+    normalizePage(file, raw, cwd, dir, config, pool),
+  );
 }
 
 async function loadAuthors(cwd: string, config: NectarConfig): Promise<Author[]> {
@@ -197,6 +235,22 @@ async function loadTags(cwd: string, config: NectarConfig): Promise<Tag[]> {
 // loop saturated. We chunk instead of unbounded Promise.all to avoid exhausting
 // file descriptors on very large repos (macOS default ulimit is 256).
 const MARKDOWN_LOAD_CONCURRENCY = 32;
+
+// Walks a directory tree for `*.md` files without reading or parsing them.
+// Used by `loadContent` to estimate the markdown rendering workload up front so
+// the pool can pick between worker and in-process modes. The extra scan is
+// cheap compared to a full read+normalize and keeps the pool from spawning
+// workers for sites that wouldn't amortise the spawn cost.
+async function countMarkdownFiles(dir: string): Promise<number> {
+  if (!existsSync(dir)) return 0;
+  const glob = new Bun.Glob('**/*.md');
+  let count = 0;
+  for await (const rel of glob.scan({ cwd: dir })) {
+    if (pathContainsSymlink(dir, rel)) continue;
+    count += 1;
+  }
+  return count;
+}
 
 async function loadMarkdownDir<T>(
   dir: string,
@@ -266,12 +320,13 @@ async function normalizePost(
   raw: string,
   cwd: string,
   rootDir: string,
-  config?: NectarConfig,
+  config: NectarConfig | undefined,
+  pool: MarkdownPool,
 ): Promise<RawPost> {
   const { data, body } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
   const locale = config?.site.locale;
-  const rendered = await renderMarkdown(body, { unsafe: unsafeHtml, locale });
+  const rendered = await pool.render(body, { unsafe: unsafeHtml, locale });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
@@ -296,7 +351,7 @@ async function normalizePost(
   let feedPlaintext = plaintext;
   if (config && (visibility === 'members' || visibility === 'paid')) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
-    const reRendered = await renderMarkdown(truncated, { unsafe: unsafeHtml, locale });
+    const reRendered = await pool.render(truncated, { unsafe: unsafeHtml, locale });
     feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
     feedPlaintext = reRendered.plaintext;
     if (config.content.visibility_policy === 'truncate') {
@@ -367,9 +422,10 @@ async function normalizePage(
   raw: string,
   cwd: string,
   rootDir: string,
-  config?: NectarConfig,
+  config: NectarConfig | undefined,
+  pool: MarkdownPool,
 ): Promise<RawPage> {
-  const base = await normalizePost(filePath, raw, cwd, rootDir, config);
+  const base = await normalizePost(filePath, raw, cwd, rootDir, config, pool);
   const { data } = parseFrontmatter(raw, { filePath });
   return {
     ...base,
