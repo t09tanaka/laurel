@@ -20,6 +20,19 @@ describe('loadConfig', () => {
     });
   });
 
+  test('enables WebP/AVIF image transcoder out of the box', async () => {
+    // Task #481: modern formats save 30-50% bytes on jpg/png. The transcoder
+    // is opt-out (set `enabled = false` in `[components.images]`), so a vanilla
+    // build emits WebP variants without any configuration. The default
+    // `formats` is intentionally `['webp']` only: AVIF is much slower and stays
+    // opt-in.
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({ cwd });
+      expect(config.components.images.enabled).toBe(true);
+      expect(config.components.images.formats).toEqual(['webp']);
+    });
+  });
+
   test('parses nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

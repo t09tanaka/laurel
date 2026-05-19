@@ -320,9 +320,9 @@ export const configSchema = z
           .object({
             enabled: z
               .boolean()
-              .default(false)
+              .default(true)
               .describe(
-                'Emit per-format image variants (WebP/AVIF) alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`.',
+                'Emit per-format image variants (WebP/AVIF) for jpg/png sources alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`; when sharp is not installed the `<picture>` wrap is skipped so themes keep working with the original `<img>`.',
               ),
             formats: z
               .array(z.enum(['webp', 'avif']))

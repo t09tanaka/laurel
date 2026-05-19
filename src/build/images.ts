@@ -160,6 +160,23 @@ async function loadSharp(): Promise<SharpFactory | null> {
   return cachedSharp;
 }
 
+// Probe sharp without surfacing a second warning. Used by the pipeline to
+// decide whether the `<picture>` rewrite is safe — if sharp will not run, the
+// per-format variants never land on disk and rewriting `<img>` would point
+// browsers at 404 sources instead of the original jpg/png.
+export async function isSharpAvailable(): Promise<boolean> {
+  return (await loadSharp()) !== null;
+}
+
+// Format variants only make sense when the source can plausibly shrink under
+// modern encoders. jpg/png is the documented target (#481): webp sources would
+// produce `foo.webp.webp` and avif sources do not benefit further.
+const FORMAT_SOURCE_EXTS = new Set(['.jpg', '.jpeg', '.png']);
+
+function isFormatVariantSource(rel: string): boolean {
+  return FORMAT_SOURCE_EXTS.has(extname(rel).toLowerCase());
+}
+
 export interface PlanImageVariantsOptions {
   cwd: string;
   config: NectarConfig;
@@ -349,6 +366,7 @@ export async function generateImageFormatVariants(
 
   let count = 0;
   for (const [rel, widths] of opts.plan) {
+    if (!isFormatVariantSource(rel)) continue;
     const sourcePath = join(assetsRoot, rel);
     if (!existsSync(sourcePath)) continue;
     let sha: string;
@@ -436,7 +454,12 @@ export function injectImagePictureSources(
         const idx = cleaned.indexOf(marker);
         if (idx >= 0) {
           const after = cleaned.slice(idx + marker.length);
-          if (after !== '' && !after.startsWith('size/') && !after.includes('..')) {
+          if (
+            after !== '' &&
+            !after.startsWith('size/') &&
+            !after.includes('..') &&
+            isFormatVariantSource(after)
+          ) {
             const widths = opts.plan.get(after);
             if (widths && widths.length > 0) {
               const before = cleaned.slice(0, idx + marker.length);

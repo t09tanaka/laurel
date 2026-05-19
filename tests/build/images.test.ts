@@ -498,6 +498,31 @@ describe('injectImagePictureSources', () => {
     expect((out.match(/<picture>/g) ?? []).length).toBe(2);
     expect(out).toContain('<img src="/content/images/out.jpg">');
   });
+
+  test('skips sources that are not jpg/png even when present in the plan', () => {
+    // Task #481: format variants only fire for jpg/png sources. webp/gif/svg
+    // sources stay as bare <img>: re-encoding webp to webp would be wasteful,
+    // and gif/svg fall outside the format-variant contract entirely.
+    const plan = planFor({
+      'cover.webp': [600],
+      'banner.gif': [800],
+      'icon.svg': [400],
+    });
+    const html =
+      '<img src="/content/images/cover.webp">' +
+      '<img src="/content/images/banner.gif">' +
+      '<img src="/content/images/icon.svg">';
+    expect(injectImagePictureSources(html, { plan, formats: ['webp', 'avif'] })).toBe(html);
+  });
+
+  test('handles PNG sources like jpg sources', () => {
+    const plan = planFor({ 'shot.png': [600, 1000] });
+    const html = '<img src="/content/images/shot.png">';
+    const out = injectImagePictureSources(html, { plan, formats: ['webp'] });
+    expect(out).toContain('<picture>');
+    expect(out).toContain('<source type="image/webp"');
+    expect(out).toContain('/content/images/size/w600/shot.png.webp 600w');
+  });
 });
 
 describe('injectImagePictureSourcesIntoContent', () => {
