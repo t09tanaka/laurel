@@ -196,8 +196,11 @@ export function renderVideoCardHtml(payload: unknown): string {
   if (!src) return '';
   const poster = strProp(payload, 'thumbnailSrc');
   const caption = strProp(payload, 'caption');
-  const w = strProp(payload, 'width');
-  const h = strProp(payload, 'height');
+  // Lexical payloads store width/height as numbers; Mobiledoc and ad-hoc
+  // callers may pass strings. Accept either rather than silently dropping
+  // the values when the JSON type isn't string.
+  const w = dimensionProp(payload, 'width');
+  const h = dimensionProp(payload, 'height');
   const videoAttrs = [
     `src="${escapeAttr(src)}"`,
     poster ? `poster="${escapeAttr(poster)}"` : '',
@@ -208,8 +211,26 @@ export function renderVideoCardHtml(payload: unknown): string {
   ]
     .filter((s) => s !== '')
     .join(' ');
+  // Surface the intrinsic aspect ratio as a CSS custom property so the
+  // theme's `.kg-video-container { aspect-ratio: var(--aspect-ratio) }`
+  // rule has a value to consume — without this the container collapses
+  // to zero height before the video's metadata loads.
+  const wNum = Number(w);
+  const hNum = Number(h);
+  const containerStyle =
+    Number.isFinite(wNum) && Number.isFinite(hNum) && wNum > 0 && hNum > 0
+      ? ` style="--aspect-ratio: ${wNum / hNum}"`
+      : '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-video-card"><div class="kg-video-container"><video ${videoAttrs}></video></div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-video-card"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
+}
+
+function dimensionProp(obj: unknown, key: string): string {
+  if (typeof obj !== 'object' || obj === null) return '';
+  const v = (obj as Record<string, unknown>)[key];
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return '';
 }
 
 export function renderToggleCardHtml(payload: unknown): string {

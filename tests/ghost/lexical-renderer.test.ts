@@ -211,6 +211,40 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('https://example.com');
   });
 
+  // Regression for backlog task #101: the Source theme grew `kg-video-*`
+  // styling that consumes `--aspect-ratio` on `.kg-video-container`. The
+  // renderer has to materialise that custom property from the card's
+  // width/height payload, otherwise the CSS rule has nothing to bind to
+  // and the container collapses to zero height before metadata loads.
+  test('renders a video card with --aspect-ratio derived from width/height (#101)', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'video',
+          src: '/content/media/clip.mp4',
+          thumbnailSrc: '/content/images/poster.jpg',
+          width: 1920,
+          height: 1080,
+          caption: 'A clip',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('kg-video-card');
+    expect(out).toContain('kg-video-container');
+    expect(out).toContain(`--aspect-ratio: ${1920 / 1080}`);
+    expect(out).toContain('poster="/content/images/poster.jpg"');
+    expect(out).toContain('<figcaption>A clip</figcaption>');
+  });
+
+  test('omits --aspect-ratio when width or height is missing (#101)', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'video', src: '/content/media/clip.mp4', version: 1 }]),
+    );
+    expect(out).toContain('kg-video-container');
+    expect(out).not.toContain('--aspect-ratio');
+  });
+
   test('omits members-only cards', () => {
     const out = renderLexicalToHtml(
       lex([
