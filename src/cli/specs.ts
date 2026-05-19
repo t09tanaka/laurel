@@ -9,6 +9,13 @@ export const BUILD_SPEC: CommandSpec = {
       description: 'Path to nectar.toml (defaults to ./nectar.toml)',
       placeholder: '<path>',
     },
+    output: {
+      type: 'string',
+      short: 'o',
+      description:
+        'Override build.output_dir from the config (relative path inside the project root)',
+      placeholder: '<dir>',
+    },
     strict: {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings are emitted',

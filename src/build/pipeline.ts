@@ -15,6 +15,7 @@ import { planRoutes } from './routes.ts';
 export interface BuildOptions {
   cwd: string;
   configPath?: string | undefined;
+  outputDir?: string | undefined;
 }
 
 export interface BuildSummary {
@@ -24,10 +25,14 @@ export interface BuildSummary {
   warningCount: number;
 }
 
-export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSummary> {
+export async function build({
+  cwd,
+  configPath,
+  outputDir: outputDirOverride,
+}: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const config = await loadConfig({ cwd, configPath });
-  const outputDir = resolveOutputDir(cwd, config.build.output_dir);
+  const outputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   await clearDirContents(outputDir);
 
   const [content, theme] = await Promise.all([
