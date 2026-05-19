@@ -54,7 +54,7 @@ describe('cli serve — host binding', () => {
   });
 
   test('default binding is localhost — log line reports it explicitly', async () => {
-    const { stderr, exitCode } = await runCli(['serve', '--port', '52001'], dir);
+    const { stderr, exitCode } = await runCli(['serve', '--port', '52001', '--no-watch'], dir);
     expect(exitCode).toBe(0);
     expect(stderr).toContain('bound to localhost');
     expect(stderr).not.toContain('bound to 0.0.0.0');
@@ -62,7 +62,7 @@ describe('cli serve — host binding', () => {
 
   test('--host 0.0.0.0 opts in to LAN exposure and is reflected in the log line', async () => {
     const { stderr, exitCode } = await runCli(
-      ['serve', '--port', '52002', '--host', '0.0.0.0'],
+      ['serve', '--port', '52002', '--host', '0.0.0.0', '--no-watch'],
       dir,
     );
     expect(exitCode).toBe(0);
@@ -71,7 +71,7 @@ describe('cli serve — host binding', () => {
 
   test('--host 127.0.0.1 is honored verbatim in the log line', async () => {
     const { stderr, exitCode } = await runCli(
-      ['serve', '--port', '52003', '--host', '127.0.0.1'],
+      ['serve', '--port', '52003', '--host', '127.0.0.1', '--no-watch'],
       dir,
     );
     expect(exitCode).toBe(0);
@@ -79,7 +79,7 @@ describe('cli serve — host binding', () => {
   });
 
   test('rejects empty --host with exit code 2', async () => {
-    const { stderr, exitCode } = await runCli(['serve', '--host', '   '], dir);
+    const { stderr, exitCode } = await runCli(['serve', '--host', '   ', '--no-watch'], dir);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid --host');
   });
@@ -96,15 +96,15 @@ describe('cli serve — watch mode', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('serve --help advertises --watch', async () => {
+  test('serve --help advertises --no-watch opt-out', async () => {
     const { stdout, exitCode } = await runCli(['serve', '--help']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('--watch');
-    expect(stdout).toContain('reload');
+    expect(stdout).toContain('--no-watch');
+    expect(stdout).toContain('static snapshot');
   });
 
-  test('serve --watch stays alive after startup until terminated', async () => {
-    const proc = Bun.spawn(['bun', CLI_ENTRY, 'serve', '--port', '52010', '--watch'], {
+  test('serve stays alive after startup until terminated (watch is the default)', async () => {
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'serve', '--port', '52010'], {
       cwd: dir,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -127,6 +127,12 @@ describe('cli serve — watch mode', () => {
       proc.kill('SIGTERM');
       await proc.exited;
     }
+  });
+
+  test('serve --no-watch returns immediately without engaging watchers', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('Watch mode enabled');
   });
 });
 
@@ -185,7 +191,7 @@ describe('cli serve — port collision', () => {
     });
     try {
       const { stderr, exitCode } = await runCli(
-        ['serve', '--port', String(blocker.port), '--host', '127.0.0.1'],
+        ['serve', '--port', String(blocker.port), '--host', '127.0.0.1', '--no-watch'],
         dir,
       );
       expect(exitCode).toBe(2);

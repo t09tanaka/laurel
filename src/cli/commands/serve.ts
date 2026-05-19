@@ -53,7 +53,7 @@ export async function runServe(args: string[]): Promise<number> {
     hostname = trimmed;
   }
 
-  const watchMode = parsed.values.watch === true;
+  const watchMode = parsed.values['no-watch'] !== true;
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
