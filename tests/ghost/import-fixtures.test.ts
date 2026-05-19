@@ -29,6 +29,7 @@ const SUMMARY_KEYS = [
   'bodiesEmpty',
   'redirectsImported',
   'slugRedirects',
+  'codeInjectionSkipped',
 ] as const satisfies ReadonlyArray<keyof ImportSummary>;
 
 function formatSummary(summary: ImportSummary): string {

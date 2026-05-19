@@ -134,6 +134,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.',
       placeholder: '<size>',
     },
+    'keep-code-injection': {
+      type: 'boolean',
+      description:
+        'Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.',
+    },
   },
   positionals: [
     {

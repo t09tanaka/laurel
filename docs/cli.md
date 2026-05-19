@@ -156,7 +156,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--source-url <url>] [--dry-run] [--max-size <size>] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] <file>
 ```
 
 Arguments:
@@ -175,6 +175,7 @@ Options:
 | `--source-url <url>` | string | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
 | `--dry-run` | boolean | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |
 | `--max-size <size>` | string | Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check. |
+| `--keep-code-injection` | boolean | Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source. |
 
 ### `nectar import-wordpress`
 
