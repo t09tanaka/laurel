@@ -146,7 +146,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
     const filtered: unknown[] = filter
-      ? applyGetFilter(engine, resource, sorted, filter, this)
+      ? applyGetFilter(engine, resource, sorted, filter, this, options.data?.route)
       : sorted.slice();
     const total = filtered.length;
     const pagination = computeGetPagination(total, requestedPage, limit);

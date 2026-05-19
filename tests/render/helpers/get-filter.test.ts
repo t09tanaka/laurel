@@ -93,6 +93,50 @@ describe('get helper filter via secondary indexes', () => {
     expect(tpl({ post: { id: 'a' } })).toBe('b,');
   });
 
+  // On a single-post route, Ghost makes the post available through both `this`
+  // (flattened) and the route data. A sidebar/partial rendered where the
+  // surrounding ctx is something else still needs `{{post.id}}` to resolve, or
+  // `id:-` collapses to "not equal to ''" and silently matches every post.
+  test('interpolates {{post.id}} from route.data when surrounding ctx has no post', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:news+id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const rendered = tpl(
+      { some: 'tag-archive-ctx' },
+      { data: { route: { kind: 'tag', data: { post: { id: 'a' } } } } },
+    );
+    expect(rendered).toBe('b,');
+  });
+
+  test('falls through to route.data for nested paths like {{post.primary_tag.slug}}', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:{{post.primary_tag.slug}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const rendered = tpl(
+      {},
+      {
+        data: {
+          route: { kind: 'post', data: { post: { primary_tag: { slug: 'opinion' } } } },
+        },
+      },
+    );
+    expect(rendered).toBe('c,');
+  });
+
+  test('prefers surrounding ctx over route.data when both resolve the path', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const rendered = tpl(
+      { post: { id: 'a' } },
+      { data: { route: { kind: 'post', data: { post: { id: 'b' } } } } },
+    );
+    expect(rendered).toBe('b,c,');
+  });
+
   test('handles list values like tag:[a,b]', () => {
     const engine = buildEngine({ posts: samplePosts });
     const tpl = engine.hb.compile(
