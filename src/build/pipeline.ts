@@ -29,6 +29,7 @@ import {
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
+import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
 import { rewriteRecommendationsButton } from './portal-shim.ts';
@@ -277,6 +278,14 @@ async function runBuild({
     enabled: config.deploy.vercel.enabled,
     headers: config.deploy.headers,
     rules: redirects,
+  });
+  await emitNginxConf({
+    outputDir,
+    enabled: config.deploy.nginx.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
+    root: config.deploy.nginx.root,
+    serverName: config.deploy.nginx.server_name,
   });
 
   if (profiler) {
