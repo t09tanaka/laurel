@@ -38,3 +38,6 @@ jobs:
 
       - name: Build example site
         run: bun run build:example
+
+      - name: html-validate (example/dist)
+        run: bun run lint:html

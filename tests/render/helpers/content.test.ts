@@ -81,22 +81,13 @@ describe('content helper', () => {
     expect(out).toBe('<h2 id="what-is-nectar">What is Nectar?</h2>');
   });
 
-  test('downshifts subsequent headings to preserve outline nesting', () => {
+  test('leaves h2 and deeper headings untouched so the outline does not skip levels', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{{content}}}')({
-      html: '<h1>A</h1><h2>B</h2><h3 class="c">C</h3><h4>D</h4><h5>E</h5>',
+      html: '<h1>A</h1><h2>B</h2><h3 class="c">C</h3><h4>D</h4><h5>E</h5><h6>F</h6>',
     });
-    expect(out).toBe('<h2>A</h2><h3>B</h3><h4 class="c">C</h4><h5>D</h5><h6>E</h6>');
-  });
-
-  test('caps downshift at h6 so existing h6 stays h6', () => {
-    const engine = makeEngine();
-    registerContentHelpers(engine);
-    const out = engine.hb.compile('{{{content}}}')({
-      html: '<h6>Deep</h6>',
-    });
-    expect(out).toBe('<h6>Deep</h6>');
+    expect(out).toBe('<h2>A</h2><h2>B</h2><h3 class="c">C</h3><h4>D</h4><h5>E</h5><h6>F</h6>');
   });
 
   test('leaves non-heading markup untouched', () => {

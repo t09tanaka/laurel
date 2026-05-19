@@ -97,16 +97,16 @@ ordinary lists:</p>
 ]]></content:encoded></item><item><title>Ghost Theme Compatibility</title><link>https://nectar.example.com/ghost-theme-compatibility/</link><guid isPermaLink="true">https://nectar.example.com/ghost-theme-compatibility/</guid><pubDate>Tue, 05 May 2026 08:00:00 GMT</pubDate><description>Which Ghost helpers Nectar implements, and which it deliberately doesn&apos;t.</description><content:encoded><![CDATA[<p>Nectar implements the Ghost theme helper surface needed to render real-world
 themes against static Markdown content. The full coverage matrix lives in
 <code>docs/GHOST_COMPATIBILITY.md</code> — here are the highlights.</p>
-<h3 id="implemented">Implemented</h3>
+<h2 id="implemented">Implemented</h2>
 <p><code>asset</code>, <code>img_url</code>, <code>ghost_head</code>, <code>ghost_foot</code>, <code>date</code>, <code>t</code>, <code>url</code>, <code>concat</code>,
 <code>encode</code>, <code>link</code>, <code>link_class</code>, <code>navigation</code>, <code>pagination</code>, <code>reading_time</code>,
 <code>excerpt</code>, <code>content</code>, <code>authors</code>, <code>tags</code>, <code>social_url</code>, <code>lang</code>, <code>foreach</code>,
 <code>is</code>, <code>match</code>, <code>has</code>, and a <code>get</code> resolver against the local content graph.</p>
-<h3 id="deliberately-scoped-out">Deliberately scoped out</h3>
+<h2 id="deliberately-scoped-out">Deliberately scoped out</h2>
 <p>Members, subscriptions, paywall, comments. <code>{{comments}}</code> outputs an empty
 container; the optional components system is where you'd wire Giscus / Disqus
 in.</p>
-<h3 id="currently-best-effort">Currently best-effort</h3>
+<h2 id="currently-best-effort">Currently best-effort</h2>
 <p><code>{{img_url size=...}}</code> doesn't transcode images yet — the size parameter is
 recognised, but the same source URL is returned. We'll add real resizing as
 an optional <code>[components.images]</code> component.</p>
