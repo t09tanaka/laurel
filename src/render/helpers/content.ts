@@ -120,6 +120,17 @@ export function registerContentHelpers(engine: NectarEngine): void {
     return new engine.hb.SafeString('<div data-nectar-comments></div>');
   });
 
+  // Members surface is out of scope in static builds, so the visitor is always
+  // treated as unauthenticated. Themes can rely on `access` being a registered
+  // helper that returns `false` rather than an undefined context lookup.
+  engine.hb.registerHelper(
+    'access',
+    function accessHelper(this: unknown, options?: Handlebars.HelperOptions) {
+      if (options?.fn) return options.inverse(this);
+      return false;
+    },
+  );
+
   engine.hb.registerHelper('subscribe_form', function subscribeFormHelper() {
     return new engine.hb.SafeString(
       '<form data-nectar-subscribe action="#" method="post"><input type="email" name="email" /></form>',
