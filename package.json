@@ -16,11 +16,11 @@
     }
   },
   "files": [
+    "dist",
     "src",
-    "dist/cli.mjs",
-    "dist/types",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "bun run src/cli/index.ts build",
