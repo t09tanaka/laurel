@@ -1,0 +1,170 @@
+import Handlebars from 'handlebars';
+import type { NectarConfig } from '~/config/schema.ts';
+import type { ContentGraph } from '~/content/model.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
+import { registerHelpers } from './helpers/index.ts';
+import { splitLayout } from './layouts.ts';
+import type { RouteContext } from './types.ts';
+
+export interface NectarEngine {
+  hb: typeof Handlebars;
+  config: NectarConfig;
+  content: ContentGraph;
+  theme: ThemeBundle;
+  templates: Record<string, Handlebars.TemplateDelegate>;
+  layouts: Record<string, Handlebars.TemplateDelegate>;
+  render(route: RouteContext): string;
+}
+
+export function createEngine(opts: {
+  config: NectarConfig;
+  content: ContentGraph;
+  theme: ThemeBundle;
+}): NectarEngine {
+  const hb = Handlebars.create();
+  registerPartials(hb, opts.theme);
+  const templates: Record<string, Handlebars.TemplateDelegate> = {};
+  const layouts: Record<string, Handlebars.TemplateDelegate> = {};
+  for (const [name, source] of Object.entries(opts.theme.templates)) {
+    const split = splitLayout(source);
+    templates[name] = hb.compile(split.body, { noEscape: false });
+    if (split.layout) {
+      // mark for later resolution
+      templates[`${name}__layout`] = hb.compile(`{{__layout '${split.layout}'}}`, { noEscape: false });
+    }
+    if (isLayoutName(name)) {
+      layouts[name] = hb.compile(source, { noEscape: false });
+    }
+  }
+
+  const engine: NectarEngine = {
+    hb,
+    config: opts.config,
+    content: opts.content,
+    theme: opts.theme,
+    templates,
+    layouts,
+    render(route) {
+      return renderRoute(engine, route);
+    },
+  };
+
+  registerHelpers(engine);
+  return engine;
+}
+
+function isLayoutName(name: string): boolean {
+  return name === 'default' || name.startsWith('layouts/');
+}
+
+function registerPartials(hb: typeof Handlebars, theme: ThemeBundle): void {
+  for (const [name, source] of Object.entries(theme.partials)) {
+    hb.registerPartial(name, source);
+    if (!name.includes('/')) {
+      hb.registerPartial(`partials/${name}`, source);
+    }
+  }
+  // Templates are also reachable as partials under their bare name to allow
+  // {{> "post"}} from custom layouts.
+  for (const [name, source] of Object.entries(theme.templates)) {
+    hb.registerPartial(name, source);
+  }
+}
+
+function renderRoute(engine: NectarEngine, route: RouteContext): string {
+  const template = engine.theme.templates[route.template];
+  if (!template) {
+    throw new Error(`Template '${route.template}' not found in theme '${engine.theme.name}'`);
+  }
+  const { layout, body } = splitLayout(template);
+  const context = buildContext(engine, route);
+  if (!layout) {
+    const compiled = engine.hb.compile(body, { noEscape: false });
+    return compiled(context, { data: buildRootData(engine, route) });
+  }
+  const layoutSource = engine.theme.templates[layout];
+  if (!layoutSource) {
+    throw new Error(`Layout '${layout}' referenced by '${route.template}' not found`);
+  }
+  const innerCompiled = engine.hb.compile(body, { noEscape: false });
+  const innerHtml = innerCompiled(context, { data: buildRootData(engine, route) });
+  const layoutCompiled = engine.hb.compile(layoutSource, { noEscape: false });
+  return layoutCompiled(
+    { ...context, body: new engine.hb.SafeString(innerHtml) },
+    { data: buildRootData(engine, route) },
+  );
+}
+
+function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+  const ctx: Record<string, unknown> = {};
+  const data = route.data;
+  if (data.post) {
+    Object.assign(ctx, data.post);
+    ctx.post = data.post;
+  }
+  if (data.page) {
+    Object.assign(ctx, data.page);
+    ctx.page = data.page;
+    ctx.post = data.page;
+  }
+  if (data.tag) {
+    Object.assign(ctx, { tag: data.tag });
+  }
+  if (data.author) {
+    Object.assign(ctx, { author: data.author });
+  }
+  if (data.posts) {
+    ctx.posts = data.posts;
+  }
+  if (data.pagination) {
+    ctx.pagination = data.pagination;
+  }
+  ctx.body_class = computeBodyClass(route);
+  ctx.post_class = data.post ? computePostClass(data.post) : '';
+  return ctx;
+}
+
+function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+  return {
+    site: engine.content.site,
+    blog: engine.content.site,
+    config: engine.config,
+    custom: buildCustom(engine),
+    page: route.kind === 'page' ? route.data.page : undefined,
+    route,
+    locale: engine.content.site.locale,
+    labs: {},
+    member: undefined,
+  };
+}
+
+function buildCustom(engine: NectarEngine): Record<string, unknown> {
+  return {
+    ...engine.theme.pkg.customDefaults,
+    ...engine.config.theme.custom,
+  };
+}
+
+function computeBodyClass(route: RouteContext): string {
+  const tokens = [`nectar-route-${route.kind}`];
+  if (route.kind === 'home' || route.kind === 'index') {
+    tokens.push('home-template');
+  }
+  if (route.kind === 'post') tokens.push('post-template');
+  if (route.kind === 'page') tokens.push('page-template');
+  if (route.kind === 'tag') tokens.push('tag-template', 'archive-template');
+  if (route.kind === 'author') tokens.push('author-template', 'archive-template');
+  if (route.data.pagination && route.data.pagination.page > 1) {
+    tokens.push('paged');
+  }
+  if (route.data.tag) tokens.push(`tag-${route.data.tag.slug}`);
+  if (route.data.author) tokens.push(`author-${route.data.author.slug}`);
+  return tokens.join(' ');
+}
+
+function computePostClass(post: { tags: { slug: string }[]; featured?: boolean }): string {
+  const tokens = ['post'];
+  for (const t of post.tags ?? []) tokens.push(`tag-${t.slug}`);
+  if (post.featured) tokens.push('featured');
+  return tokens.join(' ');
+}

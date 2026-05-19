@@ -61,3 +61,5 @@ async function main(argv: string[]): Promise<number> {
 
 const code = await main(process.argv);
 process.exit(code);
+
+export {};
