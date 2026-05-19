@@ -11,7 +11,12 @@ import { normalizeBasePath } from './base-path.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
-import { injectImageDimensionsIntoContent } from './images.ts';
+import {
+  generateImageVariants,
+  injectImageDimensionsIntoContent,
+  injectImageSrcsetIntoContent,
+  planImageVariants,
+} from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
@@ -54,6 +59,9 @@ export async function build({
 
   injectImageDimensionsIntoContent({ content, cwd, config });
 
+  const imageVariantPlan = await planImageVariants({ cwd, config });
+  injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+
   await rasterizeOgImages({ cwd, config, content, outputDir });
   await generateOgImages({ cwd, config, content, outputDir });
 
@@ -75,6 +83,7 @@ export async function build({
   const assetCount = await copyAssets(theme, outputDir);
   if (config.build.copy_content_assets) {
     await copyContentAssets(cwd, config.content.assets_dir, outputDir);
+    await generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan });
   }
 
   if (config.components.sitemap.enabled) {
