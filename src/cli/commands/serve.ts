@@ -59,18 +59,14 @@ export async function runServe(args: string[]): Promise<number> {
   const distDir = join(cwd, config.build.output_dir);
 
   if (!existsSync(distDir)) {
-    if (watchMode) {
-      try {
-        const summary = await build({ cwd });
-        logger.info(
-          `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
-        );
-      } catch (err) {
-        reportError(err, cwd);
-        return 1;
-      }
-    } else {
-      logger.error(`No build output found at ${distDir}. Run \`nectar build\` first.`);
+    logger.info(`No build output at ${distDir}; running an initial build before serving.`);
+    try {
+      const summary = await build({ cwd });
+      logger.info(
+        `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+      );
+    } catch (err) {
+      reportError(err, cwd);
       return 1;
     }
   }

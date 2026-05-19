@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,6 +133,61 @@ describe('cli serve — watch mode', () => {
     const { stderr, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
     expect(exitCode).toBe(0);
     expect(stderr).not.toContain('Watch mode enabled');
+  });
+});
+
+describe('cli serve — auto-build when dist/ is missing', () => {
+  async function makeServeFixtureWithoutDist(): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-nodist-')));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Auto Build Test"',
+        'url = "https://autobuild.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+      'utf8',
+    );
+    await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixtureWithoutDist();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('serve --no-watch runs an initial build instead of erroring out', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', '52020', '--no-watch'], dir);
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('running an initial build');
+    expect(stderr).toContain('Initial build complete');
+    expect(stderr).not.toContain('No build output found');
   });
 });
 
