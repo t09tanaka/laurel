@@ -15,6 +15,11 @@ export interface NectarEngine {
   templates: Record<string, Handlebars.TemplateDelegate>;
   layouts: Record<string, Handlebars.TemplateDelegate>;
   render(route: RouteContext): string;
+  // Cache for `{{#get resource order=...}}` sorted results, keyed by
+  // `${resource}|${order}`. Without this, every page that calls
+  // `{{#get "posts"}}` re-sorts the full post list — 10k pages × N log N
+  // collapses fast on themes that use `get` in headers or sidebars.
+  sortedCache: Map<string, readonly unknown[]>;
 }
 
 export function createEngine(opts: {
@@ -47,6 +52,7 @@ export function createEngine(opts: {
     theme: opts.theme,
     templates,
     layouts,
+    sortedCache: new Map(),
     render(route) {
       return renderRoute(engine, route);
     },
