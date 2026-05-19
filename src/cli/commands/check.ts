@@ -1,6 +1,7 @@
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { loadTheme } from '~/theme/loader.ts';
+import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -42,6 +43,7 @@ export async function runCheck(args: string[]): Promise<number> {
     logger.info(
       `Theme OK: ${theme.name} (${Object.keys(theme.templates).length} templates, ${Object.keys(theme.partials).length} partials)`,
     );
+    validateThemeCustom({ config, pkg: theme.pkg });
 
     if (strict) {
       const warnings = getWarningCount();
