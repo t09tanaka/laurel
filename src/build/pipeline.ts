@@ -90,6 +90,11 @@ export interface BuildOptions {
   // asset copies, no manifest, no sitemap/RSS/etc. The returned summary
   // includes a per-route breakdown so the CLI can print it under --verbose.
   dryRun?: boolean | undefined;
+  // When true, posts and pages with `status: draft` are included in the build
+  // instead of being filtered out. Default is to exclude drafts so a forgotten
+  // WIP can't accidentally ship; this flag is intended for preview deploys
+  // where the operator explicitly wants drafts visible.
+  includeDrafts?: boolean | undefined;
 }
 
 export interface DryRunRouteSummary {
@@ -161,9 +166,17 @@ export async function build({
   noAtomic,
   concurrency,
   dryRun,
+  includeDrafts,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
+  // Emit the looser-policy warning before any other build output so it is
+  // hard to miss in CI logs and obviously precedes the rendered route list.
+  // Goes through `logger.warn` so `--strict` counts it as a warning and the
+  // operator has to acknowledge that drafts shipped.
+  if (includeDrafts === true) {
+    logger.warn('Building with drafts');
+  }
   const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
   const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
@@ -216,6 +229,7 @@ export async function build({
       noAtomic: noAtomic === true,
       concurrency,
       dryRun: isDryRun,
+      includeDrafts: includeDrafts === true,
     });
   } catch (err) {
     if (!isDryRun && !noAtomic) {
@@ -235,6 +249,7 @@ async function runBuild({
   noAtomic,
   concurrency,
   dryRun,
+  includeDrafts,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -245,6 +260,7 @@ async function runBuild({
   noAtomic: boolean;
   concurrency: number | undefined;
   dryRun: boolean;
+  includeDrafts: boolean;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
@@ -255,7 +271,10 @@ async function runBuild({
   const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
   warnUnappliedSections(routesYaml);
   const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
-    Promise.all([loadContent({ cwd, config, routesYaml }), loadTheme({ cwd, config })]),
+    Promise.all([
+      loadContent({ cwd, config, routesYaml, includeDrafts }),
+      loadTheme({ cwd, config }),
+    ]),
   );
 
   validateThemeCustom({ config, pkg: theme.pkg });

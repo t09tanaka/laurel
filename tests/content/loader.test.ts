@@ -850,7 +850,7 @@ Now live.
     expect(graph.posts.map((p) => p.slug)).toEqual(['late']);
   });
 
-  test('always excludes drafts regardless of date', async () => {
+  test('excludes drafts by default regardless of date', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
@@ -867,6 +867,79 @@ Not ready.
     );
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
     const graph = await loadContent({ cwd, config });
+    expect(graph.posts).toHaveLength(0);
+  });
+
+  test('includes drafts when includeDrafts is true', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-opt-in-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/wip.md'),
+      `---
+title: WIP
+status: draft
+date: 2020-01-01T00:00:00Z
+---
+
+Not ready.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/live.md'),
+      `---
+title: Live
+date: 2026-01-01T00:00:00Z
+---
+
+Published.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config, includeDrafts: true });
+    expect(graph.posts.map((p) => p.slug).sort()).toEqual(['live', 'wip']);
+  });
+
+  test('includeDrafts also surfaces draft pages', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-page-'));
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/pages/wip-page.md'),
+      `---
+title: WIP page
+status: draft
+---
+
+Not ready.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const excluded = await loadContent({ cwd, config });
+    expect(excluded.pages).toHaveLength(0);
+    const included = await loadContent({ cwd, config, includeDrafts: true });
+    expect(included.pages.map((p) => p.slug)).toEqual(['wip-page']);
+  });
+
+  test('includeDrafts does not unmask scheduled posts whose date is still in the future', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-scheduled-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/embargo.md'),
+      `---
+title: Embargo
+status: scheduled
+date: ${futureIso}
+---
+
+Secret.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config, includeDrafts: true });
     expect(graph.posts).toHaveLength(0);
   });
 });

@@ -102,6 +102,40 @@ describe('build pipeline strict mode wiring', () => {
   });
 });
 
+describe('build pipeline includeDrafts (#253)', () => {
+  async function withDraft(): Promise<string> {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/wip.md'),
+      `---
+title: WIP
+status: draft
+date: 2026-02-01T00:00:00Z
+---
+
+Not yet ready.
+`,
+      'utf8',
+    );
+    return cwd;
+  }
+
+  test('skips draft posts by default', async () => {
+    const cwd = await withDraft();
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, 'wip/index.html'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
+  });
+
+  test('renders draft posts and emits a warning when includeDrafts is true', async () => {
+    const cwd = await withDraft();
+    const summary = await build({ cwd, includeDrafts: true });
+    expect(existsSync(join(summary.outputDir, 'wip/index.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
+    expect(summary.warningCount).toBeGreaterThan(0);
+  });
+});
+
 describe('build pipeline outputDir override', () => {
   test('writes into outputDir override instead of config.build.output_dir', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });

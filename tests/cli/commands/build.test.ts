@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,11 +14,16 @@ interface RunResult {
   exitCode: number;
 }
 
-async function runCli(args: string[], cwd?: string): Promise<RunResult> {
+async function runCli(
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string>,
+): Promise<RunResult> {
   const proc = Bun.spawn(['bun', CLI_ENTRY, ...args], {
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: env ? { ...process.env, ...env } : undefined,
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -176,5 +181,80 @@ describe('formatDryRunRouteTable', () => {
 
   test('handles an empty route list', () => {
     expect(formatDryRunRouteTable([])).toBe('Routes: (none)');
+  });
+});
+
+describe('nectar build --include-drafts (#253)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function makeSiteWithDraft(): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-drafts-')));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Drafts"',
+        'url = "https://drafts.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/wip.md'),
+      `---
+title: WIP
+status: draft
+date: 2026-02-01T00:00:00Z
+---
+
+Not ready.
+`,
+      'utf8',
+    );
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  test('--include-drafts flag emits the "Building with drafts" warning', async () => {
+    const dir = await makeSiteWithDraft();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--include-drafts'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain('Building with drafts');
+  });
+
+  test('NECTAR_DRAFTS=1 env alias also opts in', async () => {
+    const dir = await makeSiteWithDraft();
+    cleanups.push(dir);
+    const result = await runCli(['build'], dir, { NECTAR_DRAFTS: '1' });
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain('Building with drafts');
+  });
+
+  test('without the flag, drafts are silently excluded (no warning)', async () => {
+    const dir = await makeSiteWithDraft();
+    cleanups.push(dir);
+    const result = await runCli(['build'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain('Building with drafts');
   });
 });

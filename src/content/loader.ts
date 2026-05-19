@@ -35,6 +35,12 @@ export interface LoadContentOptions {
   // tag/author archives so `tag.url` / `author.url` reflect any custom paths
   // (and become `''` when the taxonomy is disabled via routes.yaml).
   routesYaml?: RoutesYaml;
+  // When true, posts and pages with `status: draft` are kept in the content
+  // graph instead of being filtered out. Default-excluded so a forgotten WIP
+  // can't accidentally ship; the CLI's `--include-drafts` opts in for preview
+  // builds. Scheduled posts continue to be gated on their `published_at`
+  // timestamp regardless of this flag.
+  includeDrafts?: boolean;
 }
 
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
@@ -55,6 +61,7 @@ export async function loadContent({
   cwd,
   config,
   routesYaml,
+  includeDrafts,
 }: LoadContentOptions): Promise<ContentGraph> {
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
@@ -74,7 +81,14 @@ export async function loadContent({
   const pool = createMarkdownPool({ estimatedJobs: postCount * 2 + pageCount });
 
   try {
-    return await loadContentWithPool({ cwd, config, site, pool, taxonomies });
+    return await loadContentWithPool({
+      cwd,
+      config,
+      site,
+      pool,
+      taxonomies,
+      includeDrafts: includeDrafts === true,
+    });
   } finally {
     await pool.close();
   }
@@ -86,10 +100,12 @@ async function loadContentWithPool({
   site,
   pool,
   taxonomies,
+  includeDrafts,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
   taxonomies: ResolvedTaxonomies;
+  includeDrafts: boolean;
 }): Promise<ContentGraph> {
   const [authors, tags, posts, pages] = await Promise.all([
     loadAuthors(cwd, config, taxonomies),
@@ -110,7 +126,7 @@ async function loadContentWithPool({
   const nowMs = Date.now();
   const resolvedPosts: Post[] = [];
   for (const raw of posts) {
-    if (raw.status === 'draft') continue;
+    if (raw.status === 'draft' && !includeDrafts) continue;
     if (raw.status === 'scheduled' && new Date(raw.published_at).getTime() > nowMs) continue;
     const resolved = resolvePostRelations(raw, authorMap, tagMap, site, taxonomies);
     resolvedPosts.push(resolved);
@@ -127,7 +143,7 @@ async function loadContentWithPool({
 
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
-    if (raw.status === 'draft') continue;
+    if (raw.status === 'draft' && !includeDrafts) continue;
     const resolved = resolvePageRelations(raw, authorMap, tagMap, site, taxonomies);
     resolvedPages.push(resolved);
   }

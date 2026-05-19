@@ -1,7 +1,13 @@
 import { type DryRunRouteSummary, build } from '~/build/pipeline.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
-import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import {
+  CliUsageError,
+  type ParsedCommand,
+  formatCommandHelp,
+  parseBooleanEnv,
+  parseCommand,
+} from '../parse.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
 
@@ -32,6 +38,27 @@ export async function runBuild(args: string[]): Promise<number> {
   const profile = parsed.values.profile === true;
   const noAtomic = parsed.values['no-atomic'] === true;
   const dryRun = parsed.values['dry-run'] === true;
+  // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
+  // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
+  // populated `parsed.values['include-drafts']` if set; only fall back to the
+  // shorter alias when the flag and the standard env var are both unset, so a
+  // misspelled NECTAR_DRAFTS value can't override an explicit --include-drafts=false.
+  let includeDrafts = parsed.values['include-drafts'] === true;
+  if (!includeDrafts && parsed.values['include-drafts'] === undefined) {
+    const aliasRaw = process.env.NECTAR_DRAFTS;
+    if (aliasRaw !== undefined) {
+      try {
+        includeDrafts = parseBooleanEnv(aliasRaw, 'NECTAR_DRAFTS');
+      } catch (err) {
+        if (err instanceof CliUsageError) {
+          process.stderr.write(`${err.message}\n\n`);
+          process.stderr.write(formatCommandHelp(BUILD_SPEC));
+          return EXIT_CODES.usage;
+        }
+        throw err;
+      }
+    }
+  }
   const cwd = process.cwd();
 
   let concurrency: number | undefined;
@@ -57,6 +84,7 @@ export async function runBuild(args: string[]): Promise<number> {
       noAtomic,
       concurrency,
       dryRun,
+      includeDrafts,
     });
     const prefix = summary.dryRun ? 'Dry run: would build' : 'Built';
     logger.info(
