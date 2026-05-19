@@ -1771,3 +1771,191 @@ describe('importGhostExport — multi-db export merging (#126)', () => {
     );
   });
 });
+
+describe('importGhostExport — Lexical/Mobiledoc body rendering (#127)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('renders a Ghost 5.x post body from the `lexical` field', async () => {
+    const lexical = JSON.stringify({
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [
+              { type: 'extended-text', text: 'Hello ', format: 0, version: 1 },
+              { type: 'extended-text', text: 'world', format: 1, version: 1 },
+            ],
+          },
+          {
+            type: 'heading',
+            tag: 'h2',
+            version: 1,
+            children: [{ type: 'extended-text', text: 'Section', format: 0, version: 1 }],
+          },
+        ],
+      },
+    });
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'L',
+                  slug: 'lexical',
+                  html: null,
+                  lexical,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    const body = await readFile(join(cwd, 'content/posts/lexical.md'), 'utf8');
+    expect(body).toContain('Hello **world**');
+    expect(body).toContain('## Section');
+  });
+
+  test('renders an older Ghost post body from the `mobiledoc` field', async () => {
+    const mobiledoc = JSON.stringify({
+      version: '0.3.1',
+      atoms: [],
+      cards: [['image', { src: '/content/images/legacy.jpg', alt: 'L' }]],
+      markups: [['strong']],
+      sections: [
+        [1, 'p', [[0, [0], 1, 'bold start']]],
+        [10, 0],
+      ],
+    });
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'M',
+                  slug: 'mobiledoc',
+                  html: null,
+                  mobiledoc,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    const body = await readFile(join(cwd, 'content/posts/mobiledoc.md'), 'utf8');
+    expect(body).toContain('**bold start**');
+    expect(body).toContain('/content/images/legacy.jpg');
+  });
+
+  test('prefers `html` when both html and lexical are present', async () => {
+    const lexical = JSON.stringify({
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'extended-text', text: 'from-lexical', format: 0, version: 1 }],
+          },
+        ],
+      },
+    });
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Pref',
+                  slug: 'prefer-html',
+                  html: '<p>from-html</p>',
+                  lexical,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({ cwd, file: exportFile });
+    const body = await readFile(join(cwd, 'content/posts/prefer-html.md'), 'utf8');
+    expect(body).toContain('from-html');
+    expect(body).not.toContain('from-lexical');
+  });
+
+  test('warns and writes an empty body when lexical JSON is unrenderable', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Broken',
+                  slug: 'broken',
+                  html: null,
+                  lexical: 'not json',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    expect(captured.data).toContain('Lexical body is not valid JSON');
+    const body = await readFile(join(cwd, 'content/posts/broken.md'), 'utf8');
+    // The frontmatter is still written; the body section is empty.
+    expect(body).toContain('slug: "broken"');
+    expect(body.trim().endsWith('---')).toBe(true);
+  });
+});

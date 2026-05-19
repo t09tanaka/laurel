@@ -14,6 +14,8 @@ import slugify from 'slugify';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
+import { renderLexicalToHtml } from './lexical-renderer.ts';
+import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
 import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
 import { GhostUrlRewriter } from './url-rewriter.ts';
 
@@ -665,10 +667,23 @@ function renderPostBody(post: GhostPost): string {
   if (post.html?.trim()) {
     return turndown.turndown(preprocessKoenigCardFences(post.html));
   }
+  // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
+  // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
+  // kg-card-aware turndown pipeline can convert to Markdown (#127).
+  if (post.lexical) {
+    const html = renderLexicalToHtml(post.lexical);
+    if (html.trim()) {
+      return turndown.turndown(preprocessKoenigCardFences(html));
+    }
+  }
+  if (post.mobiledoc) {
+    const html = renderMobiledocToHtml(post.mobiledoc);
+    if (html.trim()) {
+      return turndown.turndown(preprocessKoenigCardFences(html));
+    }
+  }
   if (post.lexical || post.mobiledoc) {
-    logger.warn(
-      `Post ${post.slug}: Mobiledoc/Lexical body not yet supported, skipping body. Use 'Export with HTML' from Ghost.`,
-    );
+    logger.warn(`Post ${post.slug}: Lexical/Mobiledoc body rendered to empty content, skipping.`);
   }
   return '';
 }
