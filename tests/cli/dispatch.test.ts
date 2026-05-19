@@ -66,6 +66,7 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('--config <path>');
     expect(stdout).toContain('-o, --output <dir>');
     expect(stdout).toContain('--base-path <path>');
+    expect(stdout).toContain('--base-url <url>');
     expect(stdout).toContain('--strict');
   });
 

@@ -25,13 +25,23 @@ export async function runBuild(args: string[]): Promise<number> {
   const outputDir = typeof parsed.values.output === 'string' ? parsed.values.output : undefined;
   const basePath =
     typeof parsed.values['base-path'] === 'string' ? parsed.values['base-path'] : undefined;
+  const baseUrl =
+    typeof parsed.values['base-url'] === 'string' ? parsed.values['base-url'] : undefined;
   const strict = parsed.values.strict === true;
   const profile = parsed.values.profile === true;
   const noAtomic = parsed.values['no-atomic'] === true;
   const cwd = process.cwd();
 
   try {
-    const summary = await build({ cwd, configPath, outputDir, basePath, profile, noAtomic });
+    const summary = await build({
+      cwd,
+      configPath,
+      outputDir,
+      basePath,
+      baseUrl,
+      profile,
+      noAtomic,
+    });
     logger.info(
       `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );

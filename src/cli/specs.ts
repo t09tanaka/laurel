@@ -22,6 +22,12 @@ export const BUILD_SPEC: CommandSpec = {
         'Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages)',
       placeholder: '<path>',
     },
+    'base-url': {
+      type: 'string',
+      description:
+        'Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host',
+      placeholder: '<url>',
+    },
     strict: {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings are emitted',

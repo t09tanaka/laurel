@@ -151,6 +151,110 @@ describe('build pipeline basePath override', () => {
   });
 });
 
+describe('build pipeline baseUrl override (#250)', () => {
+  async function makeSiteWithFeeds(opts: { dateValue: string }): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-baseurl-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/pages'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Preview Test"',
+        'url = "https://prod.example.com"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      `---\ntitle: "Hello"\ndate: ${opts.dateValue}\n---\n\nBody\n`,
+      'utf8',
+    );
+    await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  test('retargets canonical and OG URLs at the override host', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(html).toContain('https://pr-42.example.com/hello/');
+    expect(html).not.toContain('https://prod.example.com');
+  });
+
+  test('retargets robots.txt sitemap URL at the override host', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
+    const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(body).toContain('Sitemap: https://pr-42.example.com/sitemap.xml');
+    expect(body).not.toContain('prod.example.com');
+  });
+
+  test('retargets RSS feed link/guid at the override host', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
+    const rss = readFileSync(join(summary.outputDir, 'rss.xml'), 'utf8');
+    expect(rss).toContain('https://pr-42.example.com/');
+    expect(rss).not.toContain('prod.example.com');
+  });
+
+  test('retargets sitemap entries at the override host', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
+    const sitemap = readFileSync(join(summary.outputDir, 'sitemap.xml'), 'utf8');
+    expect(sitemap).toContain('https://pr-42.example.com/hello/');
+    expect(sitemap).not.toContain('prod.example.com');
+  });
+
+  test('strips a trailing slash on the override so URL joins do not double-up', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com/' });
+    const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(body).toContain('Sitemap: https://pr-42.example.com/sitemap.xml');
+    expect(body).not.toContain('pr-42.example.com//');
+  });
+
+  test('composes with --base-path so a preview deploy can override both', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({
+      cwd,
+      baseUrl: 'https://pr-42.example.com',
+      basePath: '/preview/',
+    });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(html).toContain('/preview/assets/');
+    const robots = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(robots).toContain('https://pr-42.example.com');
+  });
+
+  test('rejects a path-only override (catches the easy "/preview" mistake)', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    expect(build({ cwd, baseUrl: '/preview' })).rejects.toThrow(/http:\/\/ or https:\/\//);
+  });
+
+  test('rejects an empty override', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    expect(build({ cwd, baseUrl: '' })).rejects.toThrow(/must not be empty/);
+  });
+
+  test('without override, canonical URLs still come from site.url', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(html).toContain('https://prod.example.com');
+    expect(html).not.toContain('pr-42.example.com');
+  });
+});
+
 describe('build pipeline 404 emission', () => {
   test('emits a fallback 404.html when the theme lacks an error-404 template', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });

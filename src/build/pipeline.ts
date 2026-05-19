@@ -15,6 +15,7 @@ import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
+import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest } from './build-manifest.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
@@ -78,6 +79,7 @@ export interface BuildOptions {
   configPath?: string | undefined;
   outputDir?: string | undefined;
   basePath?: string | undefined;
+  baseUrl?: string | undefined;
   profile?: boolean | undefined;
   noAtomic?: boolean | undefined;
 }
@@ -133,6 +135,7 @@ export async function build({
   configPath,
   outputDir: outputDirOverride,
   basePath: basePathOverride,
+  baseUrl: baseUrlOverride,
   profile,
   noAtomic,
 }: BuildOptions): Promise<BuildSummary> {
@@ -141,6 +144,9 @@ export async function build({
   const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
   const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
+  if (baseUrlOverride !== undefined) {
+    config.site.url = normalizeBaseUrl(baseUrlOverride);
+  }
 
   // Read the previous manifest from the live output dir BEFORE staging so the
   // incremental decision and any reused-HTML reads see the last successful
