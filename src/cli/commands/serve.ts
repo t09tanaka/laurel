@@ -54,30 +54,44 @@ export async function runServe(args: string[]): Promise<number> {
     return 1;
   }
 
-  Bun.serve({
-    port,
-    hostname,
-    async fetch(request) {
-      const url = new URL(request.url);
-      const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-      const target = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
-      const filePath = normalize(join(distDir, target));
-      if (!filePath.startsWith(distDir)) {
-        return new Response('Forbidden', { status: 403 });
-      }
-      const file = Bun.file(filePath);
-      if (await file.exists()) {
-        return new Response(file);
-      }
-      const fallback = Bun.file(join(distDir, '404.html'));
-      if (await fallback.exists()) {
-        return new Response(fallback, { status: 404 });
-      }
-      return new Response('Not Found', { status: 404 });
-    },
-  });
+  try {
+    Bun.serve({
+      port,
+      hostname,
+      async fetch(request) {
+        const url = new URL(request.url);
+        const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+        const target = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
+        const filePath = normalize(join(distDir, target));
+        if (!filePath.startsWith(distDir)) {
+          return new Response('Forbidden', { status: 403 });
+        }
+        const file = Bun.file(filePath);
+        if (await file.exists()) {
+          return new Response(file);
+        }
+        const fallback = Bun.file(join(distDir, '404.html'));
+        if (await fallback.exists()) {
+          return new Response(fallback, { status: 404 });
+        }
+        return new Response('Not Found', { status: 404 });
+      },
+    });
+  } catch (err) {
+    if (isAddrInUseError(err)) {
+      process.stderr.write(`Port ${port} is in use; try --port ${port + 1}\n`);
+      return 2;
+    }
+    throw err;
+  }
 
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
   logger.info(`Serving ${distDir} on http://${displayHost}:${port} (bound to ${hostname})`);
   return 0;
+}
+
+function isAddrInUseError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if ('code' in err && (err as { code?: unknown }).code === 'EADDRINUSE') return true;
+  return /EADDRINUSE|address already in use/i.test(err.message);
 }
