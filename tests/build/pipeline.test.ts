@@ -610,3 +610,37 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     expect(readFileSync(join(summary.outputDir, 'CNAME'), 'utf8')).toBe('example.test');
   });
 });
+
+describe('build pipeline --concurrency cap (#251)', () => {
+  test('concurrency: 1 (serial) produces the same html as the default parallel cap', async () => {
+    const cwdParallel = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const cwdSerial = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+
+    const parallelSummary = await build({ cwd: cwdParallel });
+    const serialSummary = await build({ cwd: cwdSerial, concurrency: 1 });
+
+    expect(serialSummary.routeCount).toBe(parallelSummary.routeCount);
+    // Same rendered bytes for the home page proves the Handlebars helpers are
+    // reentrant across both concurrency settings — the task acceptance criterion.
+    const parallelHome = readFileSync(join(parallelSummary.outputDir, 'index.html'), 'utf8');
+    const serialHome = readFileSync(join(serialSummary.outputDir, 'index.html'), 'utf8');
+    expect(serialHome).toBe(parallelHome);
+
+    const parallelPost = readFileSync(join(parallelSummary.outputDir, 'hello/index.html'), 'utf8');
+    const serialPost = readFileSync(join(serialSummary.outputDir, 'hello/index.html'), 'utf8');
+    expect(serialPost).toBe(parallelPost);
+  });
+
+  test('concurrency: 4 builds an identical site to concurrency: 1', async () => {
+    const cwdOne = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const cwdFour = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+
+    const oneSummary = await build({ cwd: cwdOne, concurrency: 1 });
+    const fourSummary = await build({ cwd: cwdFour, concurrency: 4 });
+
+    expect(fourSummary.routeCount).toBe(oneSummary.routeCount);
+    const oneHome = readFileSync(join(oneSummary.outputDir, 'index.html'), 'utf8');
+    const fourHome = readFileSync(join(fourSummary.outputDir, 'index.html'), 'utf8');
+    expect(fourHome).toBe(oneHome);
+  });
+});

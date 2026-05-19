@@ -33,6 +33,18 @@ export async function runBuild(args: string[]): Promise<number> {
   const noAtomic = parsed.values['no-atomic'] === true;
   const cwd = process.cwd();
 
+  let concurrency: number | undefined;
+  const concurrencyRaw = parsed.values.concurrency;
+  if (typeof concurrencyRaw === 'string') {
+    const parsedConcurrency = parseConcurrency(concurrencyRaw);
+    if (parsedConcurrency instanceof CliUsageError) {
+      process.stderr.write(`${parsedConcurrency.message}\n\n`);
+      process.stderr.write(formatCommandHelp(BUILD_SPEC));
+      return EXIT_CODES.usage;
+    }
+    concurrency = parsedConcurrency;
+  }
+
   try {
     const summary = await build({
       cwd,
@@ -42,6 +54,7 @@ export async function runBuild(args: string[]): Promise<number> {
       baseUrl,
       profile,
       noAtomic,
+      concurrency,
     });
     logger.info(
       `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
@@ -59,4 +72,20 @@ export async function runBuild(args: string[]): Promise<number> {
     reportError(err, cwd);
     return exitCodeForError(err);
   }
+}
+
+function parseConcurrency(raw: string): number | CliUsageError {
+  const trimmed = raw.trim();
+  if (trimmed === '' || !/^[0-9]+$/.test(trimmed)) {
+    return new CliUsageError(
+      `Invalid value for --concurrency: ${JSON.stringify(raw)} (expected a positive integer)`,
+    );
+  }
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    return new CliUsageError(
+      `Invalid value for --concurrency: ${JSON.stringify(raw)} (expected a positive integer)`,
+    );
+  }
+  return n;
 }

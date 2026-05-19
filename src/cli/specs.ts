@@ -42,6 +42,12 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted',
     },
+    concurrency: {
+      type: 'string',
+      description:
+        'Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help',
+      placeholder: '<n>',
+    },
   },
   positionals: [],
 };

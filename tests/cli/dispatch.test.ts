@@ -67,7 +67,29 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('-o, --output <dir>');
     expect(stdout).toContain('--base-path <path>');
     expect(stdout).toContain('--base-url <url>');
+    expect(stdout).toContain('--concurrency <n>');
     expect(stdout).toContain('--strict');
+  });
+
+  test('build --concurrency rejects non-numeric values with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--concurrency', 'abc']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--concurrency');
+    expect(stderr).toContain('positive integer');
+    expect(stderr).toContain('Usage:');
+  });
+
+  test('build --concurrency rejects zero with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--concurrency', '0']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--concurrency');
+    expect(stderr).toContain('positive integer');
+  });
+
+  test('build --concurrency rejects negative values with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--concurrency', '-1']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--concurrency');
   });
 
   test('serve --help prints subcommand help with --port flag', async () => {

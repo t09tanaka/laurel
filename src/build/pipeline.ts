@@ -82,6 +82,9 @@ export interface BuildOptions {
   baseUrl?: string | undefined;
   profile?: boolean | undefined;
   noAtomic?: boolean | undefined;
+  // Cap on parallel route renders. Undefined → availableParallelism() (CPU count).
+  // Must be a positive integer; CLI validates before getting here.
+  concurrency?: number | undefined;
 }
 
 export interface BuildSummary {
@@ -138,6 +141,7 @@ export async function build({
   baseUrl: baseUrlOverride,
   profile,
   noAtomic,
+  concurrency,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -180,6 +184,7 @@ export async function build({
       profiler,
       previousManifest,
       noAtomic: noAtomic === true,
+      concurrency,
     });
   } catch (err) {
     if (!noAtomic) {
@@ -197,6 +202,7 @@ async function runBuild({
   profiler,
   previousManifest,
   noAtomic,
+  concurrency,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -205,6 +211,7 @@ async function runBuild({
   profiler: Profiler | null;
   previousManifest: BuildManifest | undefined;
   noAtomic: boolean;
+  concurrency: number | undefined;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
@@ -265,9 +272,12 @@ async function runBuild({
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
   // per-route `Bun.file().exists()` / `.text()` I/O for reused entries instead
-  // of paying it serially. The cap is CPU count because the fresh-render path
-  // is CPU-bound on the single JS thread — going wider buys nothing.
-  const renderConcurrency = Math.max(1, availableParallelism());
+  // of paying it serially. The default cap is CPU count because the fresh-render
+  // path is CPU-bound on the single JS thread — going wider buys nothing. The
+  // `--concurrency` CLI flag overrides this for memory-constrained CI runners
+  // (lower) or experimentation; the CLI guarantees it's a positive integer.
+  const renderConcurrency =
+    concurrency !== undefined ? Math.max(1, concurrency) : Math.max(1, availableParallelism());
   const renderLimit = pLimit(renderConcurrency);
   type RenderResult = {
     htmlOutput: HtmlOutput;
