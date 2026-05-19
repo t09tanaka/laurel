@@ -34,10 +34,12 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     function socialUrlHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as Record<string, unknown>;
       const type = String(options.hash.type ?? '');
-      const builder = SOCIAL_PATTERNS[type];
-      if (!builder) return '';
+      if (!type) return '';
       const handle = ctx[type];
       if (typeof handle !== 'string' || !handle) return '';
+      if (isAbsoluteHttpUrl(handle)) return handle;
+      const builder = SOCIAL_PATTERNS[type];
+      if (!builder) return '';
       return builder(handle);
     },
   );
@@ -45,6 +47,10 @@ export function registerUrlHelpers(engine: NectarEngine): void {
 
 function stripAt(handle: string): string {
   return handle.replace(/^@/, '');
+}
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
 }
 
 function normaliseMastodon(handle: string): string {
