@@ -33,7 +33,7 @@ export function planRoutes(opts: {
         meta: defaultMeta(
           config,
           url,
-          idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`,
+          idx === 0 ? homeTitle(config) : `${config.site.title} - Page ${idx + 1}`,
         ),
       });
     });
@@ -198,6 +198,11 @@ function paginationInfo(
     prev_url: prevUrl,
     next_url: nextUrl,
   };
+}
+
+function homeTitle(config: NectarConfig): string {
+  const desc = config.site.description?.trim();
+  return desc ? `${config.site.title} — ${desc}` : config.site.title;
 }
 
 function defaultMeta(

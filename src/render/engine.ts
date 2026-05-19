@@ -109,6 +109,9 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
     Object.assign(ctx, data.page);
     ctx.page = data.page;
   }
+  if (route.kind === 'home') {
+    ctx.meta_title = route.meta.title;
+  }
   if (data.tag) {
     ctx.tag = data.tag;
     ctx.meta_title = route.meta.title;

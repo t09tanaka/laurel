@@ -13,7 +13,9 @@ describe('example build', () => {
 
     const distRoot = join(cwd, 'dist');
     const indexHtml = readFileSync(join(distRoot, 'index.html'), 'utf8');
-    expect(indexHtml).toContain('<title>Nectar Example</title>');
+    expect(indexHtml).toContain(
+      '<title>Nectar Example — A demo blog built with Nectar against the Ghost Source theme</title>',
+    );
     expect(indexHtml).toContain('gh-viewport');
     expect(indexHtml).toContain('/assets/built/screen.');
     expect(indexHtml).not.toMatch(/\{\{[a-zA-Z][^}]*\}\}/);
