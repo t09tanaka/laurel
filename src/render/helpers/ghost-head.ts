@@ -41,6 +41,14 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         parts.push(`<meta name="twitter:image" content="${escapeAttr(meta.image)}">`);
       }
 
+      // RSS autodiscovery: browsers and feed readers look for <link rel="alternate">.
+      if (engine.config?.components?.rss?.enabled !== false) {
+        const rssHref = absoluteUrl(site.url, 'rss.xml');
+        parts.push(
+          `<link rel="alternate" type="application/rss+xml" title="${escapeAttr(site.title)}" href="${escapeAttr(rssHref)}">`,
+        );
+      }
+
       const jsonLd = buildJsonLd(ctx, site, meta);
       if (jsonLd) {
         parts.push(
