@@ -1,0 +1,92 @@
+# summary
+posts: 2
+pages: 1
+tags: 2
+authors: 1
+skipped: 0
+overwritten: 0
+renamed: 0
+assetsCopied: 0
+imagesDownloaded: 0
+imagesFailed: 0
+dryRun: false
+drafts: 1
+statusFiltered: 0
+bodiesEmpty: 0
+redirectsImported: 0
+slugRedirects: 0
+
+# tree
+=== content/authors/alice.md ===
+---
+slug: "alice"
+name: "Alice Example"
+bio: "Editor of the blog."
+profile_image: "/content/images/2024/01/alice.jpg"
+website: "https://example.com/alice"
+---
+
+=== content/pages/about.md ===
+---
+slug: "about"
+title: "About Us"
+date: "2024-01-01T08:00:00.000Z"
+featured: false
+visibility: "public"
+status: "published"
+authors: ["alice"]
+---
+
+## Who we are
+
+A small team writing about software.
+
+=== content/posts/draft-post.md ===
+---
+slug: "draft-post"
+title: "Draft Post"
+date: "2024-01-03T10:00:00.000Z"
+featured: false
+visibility: "public"
+status: "draft"
+tags: ["news"]
+authors: ["alice"]
+---
+
+Still cooking, do not publish yet.
+
+=== content/posts/welcome.md ===
+---
+slug: "welcome"
+title: "Welcome to the Blog"
+date: "2024-01-01T09:00:00.000Z"
+updated_at: "2024-01-02T09:00:00.000Z"
+featured: true
+feature_image: "/content/images/2024/01/cover.jpg"
+feature_image_alt: "Cover photo"
+visibility: "public"
+status: "published"
+tags: ["news", "tutorials"]
+authors: ["alice"]
+custom_excerpt: "A short intro to the blog."
+meta_title: "Welcome"
+meta_description: "Welcome post for the blog."
+---
+
+Hello and welcome to our brand new blog.
+
+=== content/tags/news.md ===
+---
+slug: "news"
+name: "News"
+description: "Latest updates"
+---
+
+=== content/tags/tutorials.md ===
+---
+slug: "tutorials"
+name: "Tutorials"
+description: "How-to guides"
+meta_title: "Tutorials"
+---
+

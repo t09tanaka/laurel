@@ -1,0 +1,89 @@
+{
+  "db": [
+    {
+      "data": {
+        "posts": [
+          {
+            "id": "p-welcome",
+            "uuid": "11111111-1111-1111-1111-111111111111",
+            "title": "Welcome to the Blog",
+            "slug": "welcome",
+            "html": "<p>Hello and welcome to our brand new blog.</p>",
+            "feature_image": "__GHOST_URL__/content/images/2024/01/cover.jpg",
+            "feature_image_alt": "Cover photo",
+            "featured": true,
+            "type": "post",
+            "status": "published",
+            "visibility": "public",
+            "custom_excerpt": "A short intro to the blog.",
+            "published_at": "2024-01-01T09:00:00.000Z",
+            "updated_at": "2024-01-02T09:00:00.000Z",
+            "created_at": "2024-01-01T08:00:00.000Z",
+            "meta_title": "Welcome",
+            "meta_description": "Welcome post for the blog."
+          },
+          {
+            "id": "p-draft",
+            "uuid": "22222222-2222-2222-2222-222222222222",
+            "title": "Draft Post",
+            "slug": "draft-post",
+            "html": "<p>Still cooking, do not publish yet.</p>",
+            "type": "post",
+            "status": "draft",
+            "visibility": "public",
+            "published_at": null,
+            "created_at": "2024-01-03T10:00:00.000Z"
+          },
+          {
+            "id": "pg-about",
+            "uuid": "33333333-3333-3333-3333-333333333333",
+            "title": "About Us",
+            "slug": "about",
+            "html": "<h2>Who we are</h2><p>A small team writing about software.</p>",
+            "type": "page",
+            "status": "published",
+            "visibility": "public",
+            "published_at": "2024-01-01T08:00:00.000Z"
+          }
+        ],
+        "tags": [
+          {
+            "id": "t-news",
+            "slug": "news",
+            "name": "News",
+            "description": "Latest updates",
+            "visibility": "public"
+          },
+          {
+            "id": "t-tutorials",
+            "slug": "tutorials",
+            "name": "Tutorials",
+            "description": "How-to guides",
+            "visibility": "public",
+            "meta_title": "Tutorials"
+          }
+        ],
+        "users": [
+          {
+            "id": "u-alice",
+            "slug": "alice",
+            "name": "Alice Example",
+            "bio": "Editor of the blog.",
+            "profile_image": "__GHOST_URL__/content/images/2024/01/alice.jpg",
+            "website": "https://example.com/alice"
+          }
+        ],
+        "posts_tags": [
+          { "post_id": "p-welcome", "tag_id": "t-news", "sort_order": 0 },
+          { "post_id": "p-welcome", "tag_id": "t-tutorials", "sort_order": 1 },
+          { "post_id": "p-draft", "tag_id": "t-news", "sort_order": 0 }
+        ],
+        "posts_authors": [
+          { "post_id": "p-welcome", "user_id": "u-alice", "sort_order": 0 },
+          { "post_id": "p-draft", "user_id": "u-alice", "sort_order": 0 },
+          { "post_id": "pg-about", "user_id": "u-alice", "sort_order": 0 }
+        ]
+      }
+    }
+  ]
+}
