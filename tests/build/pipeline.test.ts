@@ -153,6 +153,48 @@ describe('build pipeline 404 emission', () => {
   });
 });
 
+describe('build pipeline --profile', () => {
+  test('does not write profile.json by default', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, '.nectar/profile.json'))).toBe(false);
+  });
+
+  test('writes dist/.nectar/profile.json with phase + render-route entries when profile: true', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, profile: true });
+    const file = join(summary.outputDir, '.nectar/profile.json');
+    expect(existsSync(file)).toBe(true);
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<{
+      phase: string;
+      duration_ms: number;
+      route?: string;
+      bytes_emitted?: number;
+    }>;
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+    for (const entry of parsed) {
+      expect(typeof entry.phase).toBe('string');
+      expect(typeof entry.duration_ms).toBe('number');
+      expect(entry.duration_ms).toBeGreaterThanOrEqual(0);
+    }
+    const phases = parsed.map((e) => e.phase);
+    expect(phases).toContain('config');
+    expect(phases).toContain('load_content_and_theme');
+    expect(phases).toContain('write_html');
+    expect(phases).toContain('copy_assets');
+    const renderEntries = parsed.filter((e) => e.phase === 'render');
+    expect(renderEntries.length).toBeGreaterThan(0);
+    for (const r of renderEntries) {
+      expect(typeof r.route).toBe('string');
+      expect(typeof r.bytes_emitted).toBe('number');
+      expect(r.bytes_emitted ?? 0).toBeGreaterThan(0);
+    }
+    const writeHtml = parsed.find((e) => e.phase === 'write_html');
+    expect(writeHtml?.bytes_emitted ?? 0).toBeGreaterThan(0);
+  });
+});
+
 describe('build pipeline favicon emission', () => {
   test('copies site.icon into dist root and emits a <link rel="icon"> in rendered HTML', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-favicon-'));

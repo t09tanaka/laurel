@@ -59,7 +59,7 @@ Build the site into the configured output directory
 Usage:
 
 ```
-nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--strict]
+nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--strict] [--profile]
 ```
 
 Options:
@@ -70,6 +70,7 @@ Options:
 | `-o, --output <dir>` | string | Override build.output_dir from the config (relative path inside the project root) |
 | `--base-path <path>` | string | Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages) |
 | `--strict` | boolean | Exit with non-zero status if any warnings are emitted |
+| `--profile` | boolean | Write dist/.nectar/profile.json with per-phase timing + bytes_emitted (and per-route render durations) for diagnosing slow builds |
 
 ### `nectar new`
 

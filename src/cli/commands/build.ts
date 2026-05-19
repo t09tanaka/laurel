@@ -26,10 +26,11 @@ export async function runBuild(args: string[]): Promise<number> {
   const basePath =
     typeof parsed.values['base-path'] === 'string' ? parsed.values['base-path'] : undefined;
   const strict = parsed.values.strict === true;
+  const profile = parsed.values.profile === true;
   const cwd = process.cwd();
 
   try {
-    const summary = await build({ cwd, configPath, outputDir, basePath });
+    const summary = await build({ cwd, configPath, outputDir, basePath, profile });
     logger.info(
       `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );

@@ -26,6 +26,11 @@ export const BUILD_SPEC: CommandSpec = {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings are emitted',
     },
+    profile: {
+      type: 'boolean',
+      description:
+        'Write dist/.nectar/profile.json with per-phase timing + bytes_emitted (and per-route render durations) for diagnosing slow builds',
+    },
   },
   positionals: [],
 };
