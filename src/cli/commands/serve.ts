@@ -6,6 +6,7 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { SERVE_SPEC } from '../specs.ts';
 
 const DEFAULT_PORT = 4321;
+const DEFAULT_HOST = 'localhost';
 
 export async function runServe(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -34,6 +35,16 @@ export async function runServe(args: string[]): Promise<number> {
     port = parsedPort;
   }
 
+  let hostname = DEFAULT_HOST;
+  if (typeof parsed.values.host === 'string') {
+    const trimmed = parsed.values.host.trim();
+    if (trimmed.length === 0) {
+      process.stderr.write('Invalid --host value: cannot be empty\n');
+      return 2;
+    }
+    hostname = trimmed;
+  }
+
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
@@ -45,6 +56,7 @@ export async function runServe(args: string[]): Promise<number> {
 
   Bun.serve({
     port,
+    hostname,
     async fetch(request) {
       const url = new URL(request.url);
       const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
@@ -65,6 +77,7 @@ export async function runServe(args: string[]): Promise<number> {
     },
   });
 
-  logger.info(`Serving ${distDir} on http://localhost:${port}`);
+  const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
+  logger.info(`Serving ${distDir} on http://${displayHost}:${port} (bound to ${hostname})`);
   return 0;
 }

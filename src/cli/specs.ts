@@ -46,6 +46,11 @@ export const SERVE_SPEC: CommandSpec = {
       description: 'Port to listen on (defaults to 4321)',
       placeholder: '<n>',
     },
+    host: {
+      type: 'string',
+      description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
+      placeholder: '<host>',
+    },
   },
   positionals: [],
 };
