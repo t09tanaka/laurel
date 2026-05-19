@@ -385,6 +385,52 @@ describe('Ghost Turndown rules — kg-video-card', () => {
     expect(md).toContain('{{< video-track src="/content/files/2024/01/demo-es.vtt"');
     expect(md).toContain('{{< /video >}}');
   });
+
+  // Regression for backlog task #100: Ghost's video card stores layout and
+  // playback metadata outside the <video> element itself — the intrinsic
+  // aspect ratio lives as a `--aspect-ratio` CSS custom prop on the
+  // .kg-video-container wrapper, and loop/playsinline/preload are video
+  // attrs the default turndown walk discards. Without these the rendered
+  // player either reflows on load or loses the auto-playing UX Ghost ships.
+  test('preserves --aspect-ratio CSS custom prop and loop/preload/playsinline attrs', () => {
+    const html = `
+      <figure class="kg-card kg-video-card kg-width-regular">
+        <div class="kg-video-container" style="--aspect-ratio: 1.777">
+          <video src="/content/media/2024/01/demo.mp4" poster="/content/images/2024/01/poster.jpg" preload="metadata" loop playsinline></video>
+        </div>
+        <figcaption>Demo</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< video');
+    expect(md).toContain('src="/content/media/2024/01/demo.mp4"');
+    expect(md).toContain('poster="/content/images/2024/01/poster.jpg"');
+    expect(md).toContain('aspect="1.777"');
+    expect(md).toContain('loop="true"');
+    expect(md).toContain('playsinline="true"');
+    expect(md).toContain('preload="metadata"');
+    expect(md).toContain('caption="Demo"');
+  });
+
+  // Aspect/loop/playsinline must NOT appear when their source attributes are
+  // absent — formatAttrs already filters empty strings, but a bug in the
+  // matcher (e.g. capturing the literal "0") would slip through silently.
+  test('omits aspect/loop/playsinline when not present on source HTML', () => {
+    const html = `
+      <figure class="kg-card kg-video-card">
+        <div class="kg-video-container">
+          <video src="/v.mp4"></video>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< video');
+    expect(md).toContain('src="/v.mp4"');
+    expect(md).not.toContain('aspect=');
+    expect(md).not.toContain('loop=');
+    expect(md).not.toContain('playsinline=');
+    expect(md).not.toContain('preload=');
+  });
 });
 
 describe('Ghost Turndown rules — kg-audio-card', () => {
