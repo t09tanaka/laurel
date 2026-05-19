@@ -427,13 +427,10 @@ function compare(left: unknown, op: string, right: unknown): boolean {
     case '!=':
       return left !== right;
     case '>':
-      return Number(left) > Number(right);
     case '<':
-      return Number(left) < Number(right);
     case '>=':
-      return Number(left) >= Number(right);
     case '<=':
-      return Number(left) <= Number(right);
+      return compareOrder(left, right, op);
     case '~':
       return String(left).includes(String(right));
     case '~^':
@@ -443,6 +440,51 @@ function compare(left: unknown, op: string, right: unknown): boolean {
     default:
       return false;
   }
+}
+
+// Ghost's `{{#match}}` numeric comparators must work on both numbers and
+// strings. The previous implementation coerced both sides with `Number()`,
+// which silently produced `NaN > NaN === false` for non-numeric strings like
+// `{{#match foo ">" bar}}`. Detect numeric-ish operands and use numeric
+// comparison; otherwise fall back to lexicographic string comparison, which
+// JS's relational operators handle natively.
+function compareOrder(left: unknown, right: unknown, op: '>' | '<' | '>=' | '<='): boolean {
+  const ln = toComparableNumber(left);
+  const rn = toComparableNumber(right);
+  if (ln !== null && rn !== null) {
+    switch (op) {
+      case '>':
+        return ln > rn;
+      case '<':
+        return ln < rn;
+      case '>=':
+        return ln >= rn;
+      case '<=':
+        return ln <= rn;
+    }
+  }
+  const ls = String(left ?? '');
+  const rs = String(right ?? '');
+  switch (op) {
+    case '>':
+      return ls > rs;
+    case '<':
+      return ls < rs;
+    case '>=':
+      return ls >= rs;
+    case '<=':
+      return ls <= rs;
+  }
+}
+
+function toComparableNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 function applyOrder(items: unknown[], order: string): unknown[] {
