@@ -233,4 +233,114 @@ describe('emitContentApiShadows', () => {
     expect(posts.posts[0].feature_image).toBeNull();
     expect(posts.posts[0].canonical_url).toBeNull();
   });
+
+  test('also writes directory-index variants for trailing-slash SDK requests', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const content = makeGraph();
+
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const flatPosts = readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8');
+    const dirPosts = readFileSync(join(outputDir, 'ghost/api/content/posts/index.json'), 'utf8');
+    expect(dirPosts).toBe(flatPosts);
+
+    const flatPages = readFileSync(join(outputDir, 'ghost/api/content/pages.json'), 'utf8');
+    const dirPages = readFileSync(join(outputDir, 'ghost/api/content/pages/index.json'), 'utf8');
+    expect(dirPages).toBe(flatPages);
+
+    const flatAuthors = readFileSync(join(outputDir, 'ghost/api/content/authors.json'), 'utf8');
+    const dirAuthors = readFileSync(
+      join(outputDir, 'ghost/api/content/authors/index.json'),
+      'utf8',
+    );
+    expect(dirAuthors).toBe(flatAuthors);
+
+    const flatTags = readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8');
+    const dirTags = readFileSync(join(outputDir, 'ghost/api/content/tags/index.json'), 'utf8');
+    expect(dirTags).toBe(flatTags);
+
+    const flatSettings = readFileSync(join(outputDir, 'ghost/api/content/settings.json'), 'utf8');
+    const dirSettings = readFileSync(
+      join(outputDir, 'ghost/api/content/settings/index.json'),
+      'utf8',
+    );
+    expect(dirSettings).toBe(flatSettings);
+  });
+
+  test('also writes per-slug directory-index variants', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const content = makeGraph();
+
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const flatPost = readFileSync(
+      join(outputDir, 'ghost/api/content/posts/slug/hello-world.json'),
+      'utf8',
+    );
+    const dirPost = readFileSync(
+      join(outputDir, 'ghost/api/content/posts/slug/hello-world/index.json'),
+      'utf8',
+    );
+    expect(dirPost).toBe(flatPost);
+
+    const flatTag = readFileSync(join(outputDir, 'ghost/api/content/tags/slug/news.json'), 'utf8');
+    const dirTag = readFileSync(
+      join(outputDir, 'ghost/api/content/tags/slug/news/index.json'),
+      'utf8',
+    );
+    expect(dirTag).toBe(flatTag);
+  });
+
+  test('emits _redirects with trailing-slash rewrite rules for collections and slugs', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const content = makeGraph();
+
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const redirects = readFileSync(join(outputDir, '_redirects'), 'utf8');
+
+    expect(redirects).toContain(
+      '/ghost/api/content/posts/  /ghost/api/content/posts/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/pages/  /ghost/api/content/pages/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/authors/  /ghost/api/content/authors/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/tags/  /ghost/api/content/tags/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/settings/  /ghost/api/content/settings/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/posts/slug/hello-world/  /ghost/api/content/posts/slug/hello-world/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/ghost/api/content/tags/slug/news/  /ghost/api/content/tags/slug/news/index.json  200',
+    );
+  });
+
+  test('respects build.base_path when emitting _redirects rules', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const config = configSchema.parse({
+      site: { title: 'T' },
+      build: { base_path: '/blog/' },
+    });
+    const content = makeGraph();
+
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const redirects = readFileSync(join(outputDir, '_redirects'), 'utf8');
+    expect(redirects).toContain(
+      '/blog/ghost/api/content/posts/  /blog/ghost/api/content/posts/index.json  200',
+    );
+    expect(redirects).toContain(
+      '/blog/ghost/api/content/posts/slug/hello-world/  /blog/ghost/api/content/posts/slug/hello-world/index.json  200',
+    );
+  });
 });
