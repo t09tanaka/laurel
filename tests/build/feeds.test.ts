@@ -244,6 +244,26 @@ describe('emitRss', () => {
     expect(xml).toContain('<title>Hello, world</title>');
   });
 
+  test('splits literal "]]>" inside post html so CDATA does not terminate early', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.feed_html = '<p>before ]]> after</p>';
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    const open = xml.indexOf('<content:encoded>');
+    const close = xml.indexOf('</content:encoded>');
+    expect(open).toBeGreaterThanOrEqual(0);
+    expect(close).toBeGreaterThan(open);
+    const section = xml.slice(open + '<content:encoded>'.length, close);
+    expect(section).toBe('<![CDATA[<p>before ]]]]><![CDATA[> after</p>]]>');
+    expect(xml.indexOf(']]></content:encoded>')).toBe(close - ']]>'.length);
+  });
+
   test('empty content emits a single rss.xml with no items', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
