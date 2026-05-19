@@ -120,6 +120,12 @@ export function registerContentHelpers(engine: NectarEngine): void {
     return new engine.hb.SafeString('<div data-nectar-comments></div>');
   });
 
+  engine.hb.registerHelper('recommendations', function recommendationsHelper() {
+    return new engine.hb.SafeString(
+      '<ul class="recommendations" data-nectar-recommendations></ul>',
+    );
+  });
+
   // Members surface is out of scope in static builds, so the visitor is always
   // treated as unauthenticated. Themes can rely on `access` being a registered
   // helper that returns `false` rather than an undefined context lookup.
