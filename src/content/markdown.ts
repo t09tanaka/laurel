@@ -18,9 +18,10 @@ export interface RenderMarkdownOptions {
   // for fully trusted authors — raw <script>, event handlers, or javascript:
   // URLs would otherwise reach readers as stored XSS.
   unsafe?: boolean;
-  // BCP-47 locale used to segment word_count. CJK scripts have no ASCII
-  // whitespace between words, so a locale-aware segmenter is the only way to
-  // get meaningful counts.
+  // BCP-47 locale used to segment word_count and pick the reading_time rule.
+  // CJK scripts have no ASCII whitespace between words, so a locale-aware
+  // segmenter is the only way to get meaningful counts; ja/zh/ko also switch
+  // reading_time from words-per-minute to characters-per-minute.
   locale?: string;
 }
 
@@ -98,7 +99,7 @@ export async function renderMarkdown(
   const html = options.unsafe ? promoted : sanitizeRenderedHtml(promoted);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
-  const reading_time = Math.max(1, Math.round(word_count / 275));
+  const reading_time = computeReadingTime(plaintext, options.locale, word_count);
   return { html, plaintext, word_count, reading_time };
 }
 
@@ -244,6 +245,44 @@ function countWords(text: string, locale: string | undefined): number {
     if (segment.isWordLike) count += 1;
   }
   return count;
+}
+
+// Ghost's 275 wpm rate is calibrated for whitespace-separated languages. For
+// CJK scripts the meaningful unit is the character (kanji/kana/hanzi/hangul
+// syllable), and typical silent reading speed is around 500 characters per
+// minute. We pick the rule from the configured site locale so a single nectar
+// build emits one consistent reading_time per locale.
+const CJK_LANGS = new Set(['ja', 'zh', 'ko']);
+const WORDS_PER_MINUTE = 275;
+const CHARS_PER_MINUTE = 500;
+
+function isCjkLocale(locale: string | undefined): boolean {
+  if (!locale) return false;
+  const lang = locale.split(/[-_]/, 1)[0]?.toLowerCase() ?? '';
+  return CJK_LANGS.has(lang);
+}
+
+function countReadingChars(text: string, locale: string | undefined): number {
+  if (!text) return 0;
+  const segmenter = new Intl.Segmenter(locale, { granularity: 'grapheme' });
+  let count = 0;
+  for (const seg of segmenter.segment(text)) {
+    if (/^\s+$/.test(seg.segment)) continue;
+    count += 1;
+  }
+  return count;
+}
+
+function computeReadingTime(
+  plaintext: string,
+  locale: string | undefined,
+  wordCount: number,
+): number {
+  if (isCjkLocale(locale)) {
+    const chars = countReadingChars(plaintext, locale);
+    return Math.max(1, Math.round(chars / CHARS_PER_MINUTE));
+  }
+  return Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
 }
 
 // Take the first `words` word-like segments from `text` and return the
