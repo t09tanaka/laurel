@@ -100,20 +100,35 @@ async function loadContentWithPool({
 
   const allTags = Array.from(tagMap.values());
   const allAuthors = Array.from(authorMap.values());
-  // Single pass: iterate posts once and bump per-tag counters via the shared
-  // Tag references stored on each post. The previous O(T·P) filter blew up on
-  // sites with many tags (100k tags x 10k posts ~= 10^9 ops just to count).
-  // Dedupe tag slugs per post so duplicate frontmatter entries don't inflate
-  // the count, matching the original `some(...)` boolean semantics.
+  // Single pass: iterate posts once and (a) bump per-tag counters via the
+  // shared Tag references stored on each post, (b) populate the inverse
+  // slug -> Post[] indices used by the route planner. The previous O(T·P)
+  // filter blew up on sites with many tags (100k tags x 10k posts ~= 10^9
+  // ops just to count). Dedupe slugs per post so duplicate frontmatter
+  // entries don't inflate the count or push the same post twice into a
+  // bucket, matching the original `some(...)` boolean semantics.
   for (const tag of allTags) {
     tag.count.posts = 0;
   }
+  const postsByTag = new Map<string, Post[]>();
+  const postsByAuthor = new Map<string, Post[]>();
+  for (const tag of allTags) postsByTag.set(tag.slug, []);
+  for (const author of allAuthors) postsByAuthor.set(author.slug, []);
   for (const post of resolvedPosts) {
-    const seen = new Set<string>();
+    const seenTags = new Set<string>();
     for (const t of post.tags) {
-      if (seen.has(t.slug)) continue;
-      seen.add(t.slug);
+      if (seenTags.has(t.slug)) continue;
+      seenTags.add(t.slug);
       t.count.posts += 1;
+      const bucket = postsByTag.get(t.slug);
+      if (bucket) bucket.push(post);
+    }
+    const seenAuthors = new Set<string>();
+    for (const a of post.authors) {
+      if (seenAuthors.has(a.slug)) continue;
+      seenAuthors.add(a.slug);
+      const bucket = postsByAuthor.get(a.slug);
+      if (bucket) bucket.push(post);
     }
   }
 
@@ -128,6 +143,8 @@ async function loadContentWithPool({
       tags: tagMap,
       authors: authorMap,
     },
+    postsByTag,
+    postsByAuthor,
     site,
   };
 }

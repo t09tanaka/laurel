@@ -181,6 +181,8 @@ function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
       tags: new Map(),
       authors: new Map(),
     },
+    postsByTag: new Map(),
+    postsByAuthor: new Map(),
     site,
   };
 }

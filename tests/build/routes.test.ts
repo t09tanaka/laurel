@@ -198,6 +198,20 @@ function makeGraph(opts: {
   const pages = opts.pages ?? [];
   const tags = opts.tags ?? [];
   const authors = opts.authors ?? [];
+  const postsByTag = new Map<string, Post[]>();
+  for (const tag of tags) {
+    postsByTag.set(
+      tag.slug,
+      posts.filter((p) => p.tags.some((t) => t.slug === tag.slug)),
+    );
+  }
+  const postsByAuthor = new Map<string, Post[]>();
+  for (const author of authors) {
+    postsByAuthor.set(
+      author.slug,
+      posts.filter((p) => p.authors.some((a) => a.slug === author.slug)),
+    );
+  }
   return {
     posts,
     pages,
@@ -209,6 +223,8 @@ function makeGraph(opts: {
       tags: new Map(tags.map((t) => [t.slug, t])),
       authors: new Map(authors.map((a) => [a.slug, a])),
     },
+    postsByTag,
+    postsByAuthor,
     site: makeSite(),
   };
 }
