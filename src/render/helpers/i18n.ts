@@ -9,13 +9,20 @@ export function registerI18nHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('t', function tHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const key = String(args[0] ?? '');
-    const lookup = active[key] ?? fallback[key] ?? key;
+    // Ghost locale files use "" as a sentinel for "no translation; use the key
+    // as the English label." Treat empty strings as missing so the key wins,
+    // otherwise aria-labels and other UI text would render as "".
+    const lookup = nonEmpty(active[key]) ?? nonEmpty(fallback[key]) ?? key;
     return interpolate(lookup, options.hash as Record<string, unknown>);
   });
 
   engine.hb.registerHelper('lang', function langHelper() {
     return locale;
   });
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+  return value !== undefined && value.length > 0 ? value : undefined;
 }
 
 function interpolate(template: string, hash: Record<string, unknown>): string {
