@@ -23,11 +23,13 @@ export async function runBuild(args: string[]): Promise<number> {
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const outputDir = typeof parsed.values.output === 'string' ? parsed.values.output : undefined;
+  const basePath =
+    typeof parsed.values['base-path'] === 'string' ? parsed.values['base-path'] : undefined;
   const strict = parsed.values.strict === true;
   const cwd = process.cwd();
 
   try {
-    const summary = await build({ cwd, configPath, outputDir });
+    const summary = await build({ cwd, configPath, outputDir, basePath });
     logger.info(
       `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );

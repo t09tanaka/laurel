@@ -16,6 +16,12 @@ export const BUILD_SPEC: CommandSpec = {
         'Override build.output_dir from the config (relative path inside the project root)',
       placeholder: '<dir>',
     },
+    'base-path': {
+      type: 'string',
+      description:
+        'Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages)',
+      placeholder: '<path>',
+    },
     strict: {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings are emitted',
