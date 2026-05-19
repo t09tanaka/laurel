@@ -19,6 +19,7 @@ falls back to the listed default.
 | `build` | `object` | Build pipeline options that shape the emitted site. |
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
+| `deploy` | `object` | Deploy-target-specific hints that influence files emitted alongside the site. |
 | `components` | `object` | Optional components that emit extra files or inject markup. |
 
 ## `site`
@@ -95,6 +96,19 @@ Secondary navigation items, exposed to themes via `{{navigation type="secondary"
 | --- | --- | --- | --- | --- |
 | `secondary_navigation[].label` | `string` | yes | — | Anchor text shown in theme navigation. |
 | `secondary_navigation[].url` | `string` | yes | — | Destination of the link. May be an absolute URL or a path relative to the site root. |
+
+## `deploy`
+
+Deploy-target-specific hints that influence files emitted alongside the site.
+
+
+## `deploy.github_pages`
+
+GitHub Pages-specific deploy hints.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.github_pages.custom_domain` | `string` | no | — | Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments. |
 
 ## `components`
 

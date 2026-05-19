@@ -8,6 +8,7 @@ import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
+import { emitCname } from './cname.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
@@ -144,6 +145,10 @@ export async function build({
     await emitRobots({ config, outputDir });
   }
   await emitNojekyll({ outputDir });
+  await emitCname({
+    outputDir,
+    customDomain: config.deploy.github_pages.custom_domain,
+  });
 
   return {
     outputDir,
