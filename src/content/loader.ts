@@ -94,6 +94,8 @@ function buildSite(config: NectarConfig): SiteData {
     timezone: config.site.timezone,
     cover_image: config.site.cover_image,
     logo: config.site.logo,
+    logo_width: config.site.logo_width,
+    logo_height: config.site.logo_height,
     icon: config.site.icon,
     accent_color: config.site.accent_color,
     navigation: config.navigation,

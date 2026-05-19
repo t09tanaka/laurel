@@ -9,6 +9,8 @@ export interface SiteData {
   timezone: string;
   cover_image: string | undefined;
   logo: string | undefined;
+  logo_width: number | undefined;
+  logo_height: number | undefined;
   icon: string | undefined;
   accent_color: string;
   navigation: NavigationItem[];

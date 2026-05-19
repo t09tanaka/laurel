@@ -165,6 +165,8 @@ function makeGraph(): ContentGraph {
       timezone: 'UTC',
       cover_image: undefined,
       logo: undefined,
+      logo_width: undefined,
+      logo_height: undefined,
       icon: undefined,
       accent_color: '#222',
       navigation: [],
