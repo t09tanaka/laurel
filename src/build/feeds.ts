@@ -140,7 +140,7 @@ function renderItem(post: ContentGraph['posts'][number], base: string): string {
     '<item>',
     `<title>${escapeXml(post.title)}</title>`,
     `<link>${escapeXml(link)}</link>`,
-    `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
+    `<guid isPermaLink="false">${escapeXml(post.id)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
     `<description>${escapeXml(post.feed_excerpt)}</description>`,
     `<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`,
