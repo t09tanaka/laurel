@@ -555,6 +555,68 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+
+  // Regression for backlog task #99: a kg-video-card references three asset
+  // types (poster image / video file / caption track) that Ghost scatters into
+  // three subdirs. Confirm all three round-trip through the importer to disk
+  // *and* survive in the resulting markdown shortcode.
+  test('kg-video-card poster / video / caption track all get relocated and referenced (#99)', async () => {
+    await writeFile(
+      join(exportDir, 'export.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Demo',
+                  slug: 'demo',
+                  html:
+                    '<figure class="kg-card kg-video-card">' +
+                    '<div class="kg-video-container">' +
+                    '<video poster="/content/images/2024/01/poster.jpg" width="1280" height="720">' +
+                    '<source src="/content/media/2024/01/demo.mp4" type="video/mp4" />' +
+                    '<track src="/content/files/2024/01/demo-en.vtt" kind="subtitles" srclang="en" label="English" default />' +
+                    '</video>' +
+                    '</div>' +
+                    '<figcaption>Demo caption</figcaption>' +
+                    '</figure>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await ensureDir(join(exportDir, 'content/images/2024/01'));
+    await writeFile(join(exportDir, 'content/images/2024/01/poster.jpg'), 'POSTER');
+    await ensureDir(join(exportDir, 'content/media/2024/01'));
+    await writeFile(join(exportDir, 'content/media/2024/01/demo.mp4'), 'MP4');
+    await ensureDir(join(exportDir, 'content/files/2024/01'));
+    await writeFile(join(exportDir, 'content/files/2024/01/demo-en.vtt'), 'VTT');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(3);
+
+      expect(await readFile(join(cwd, 'content/images/2024/01/poster.jpg'), 'utf8')).toBe('POSTER');
+      expect(await readFile(join(cwd, 'content/media/2024/01/demo.mp4'), 'utf8')).toBe('MP4');
+      expect(await readFile(join(cwd, 'content/files/2024/01/demo-en.vtt'), 'utf8')).toBe('VTT');
+
+      const postMd = await readFile(join(cwd, 'content/posts/demo.md'), 'utf8');
+      expect(postMd).toContain('poster="/content/images/2024/01/poster.jpg"');
+      expect(postMd).toContain('src="/content/media/2024/01/demo.mp4"');
+      expect(postMd).toContain('src="/content/files/2024/01/demo-en.vtt"');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('importGhostExport — ZIP archive input (#88)', () => {

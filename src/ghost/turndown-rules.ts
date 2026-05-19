@@ -387,21 +387,51 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Video card: <figure class="kg-card kg-video-card">...<video>
+  // Video card: <figure class="kg-card kg-video-card">...<video>...<track>...
+  //
+  // Koenig stores three distinct asset types on a video card and Ghost's export
+  // scatters them into three different content subdirs (issue #99):
+  //   - poster image → /content/images/    (`poster=` attr on <video>)
+  //   - video file   → /content/media/     (<video src> or <source src>)
+  //   - caption VTT  → /content/files/     (<track src kind="captions|subtitles">)
+  // Without explicit track capture, turndown's default walk drops the <track>
+  // children, leaving the .vtt file orphaned on disk after import. Emit a
+  // nested `{{< video-track />}}` shortcode per track so all three assets
+  // round-trip through the markdown.
   turndown.addRule('kg-video-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-video-card'),
     replacement: (_content, node) => {
       const video = node.querySelector('video');
       const src = attr(video, 'src') || attr(video?.querySelector('source') ?? null, 'src');
-      return wrap(
-        shortcode('video', {
-          src,
-          poster: attr(video, 'poster'),
-          width: attr(video, 'width'),
-          height: attr(video, 'height'),
-          caption: text(node.querySelector('figcaption')),
-        }),
-      );
+      const attrs = {
+        src,
+        poster: attr(video, 'poster'),
+        width: attr(video, 'width'),
+        height: attr(video, 'height'),
+        caption: text(node.querySelector('figcaption')),
+      };
+      const trackEls = video
+        ? Array.from(video.querySelectorAll('track') as ArrayLike<DomNode>)
+        : [];
+      if (trackEls.length === 0) {
+        return wrap(shortcode('video', attrs));
+      }
+      const inner = trackEls
+        .map((t) =>
+          shortcode('video-track', {
+            src: attr(t, 'src'),
+            kind: attr(t, 'kind'),
+            srclang: attr(t, 'srclang'),
+            label: attr(t, 'label'),
+            default: t.getAttribute('default') !== null ? 'true' : '',
+          }),
+        )
+        .filter((line) => line.includes('src='))
+        .join('\n');
+      if (!inner) {
+        return wrap(shortcode('video', attrs));
+      }
+      return wrap(shortcodeBlock('video', attrs, inner));
     },
   });
 
