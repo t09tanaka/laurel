@@ -45,16 +45,26 @@ function stripGhostUrlPlaceholder<T>(value: T): T {
   return value;
 }
 
+interface GhostExportDbEntry {
+  data?: {
+    posts?: GhostPost[];
+    tags?: GhostTag[];
+    users?: GhostUser[];
+    posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
+    posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
+  };
+}
+
 interface GhostExport {
-  db: Array<{
-    data: {
-      posts?: GhostPost[];
-      tags?: GhostTag[];
-      users?: GhostUser[];
-      posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
-      posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
-    };
-  }>;
+  db: GhostExportDbEntry[];
+}
+
+interface MergedGhostData {
+  posts: GhostPost[];
+  tags: GhostTag[];
+  users: GhostUser[];
+  postsTags: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
+  postsAuthors: Array<{ post_id: string; user_id: string; sort_order?: number }>;
 }
 
 interface GhostPost {
@@ -157,6 +167,41 @@ export interface ImportGhostOptions {
 // resolve at build time.
 const GHOST_ASSET_SUBDIRS = ['images', 'files', 'media'] as const;
 
+// Newer Ghost admin exports split tables across multiple `db[i]` blocks (e.g.
+// posts in db[0], posts_meta/members/snippets in db[1]). Reading only db[0]
+// would silently drop content from any subsequent block, so concatenate the
+// known arrays across every entry that carries a `data` field.
+function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostData {
+  if (!Array.isArray(db) || db.length === 0) {
+    throw new Error('Invalid Ghost export: db array missing or empty');
+  }
+
+  const merged: MergedGhostData = {
+    posts: [],
+    tags: [],
+    users: [],
+    postsTags: [],
+    postsAuthors: [],
+  };
+
+  let sawData = false;
+  for (const entry of db) {
+    const d = entry?.data;
+    if (!d) continue;
+    sawData = true;
+    if (d.posts) merged.posts.push(...d.posts);
+    if (d.tags) merged.tags.push(...d.tags);
+    if (d.users) merged.users.push(...d.users);
+    if (d.posts_tags) merged.postsTags.push(...d.posts_tags);
+    if (d.posts_authors) merged.postsAuthors.push(...d.posts_authors);
+  }
+
+  if (!sawData) {
+    throw new Error('Invalid Ghost export: no db[i].data block present');
+  }
+  return merged;
+}
+
 export async function importGhostExport(opts: ImportGhostOptions): Promise<ImportSummary> {
   const onConflict: OnConflict = opts.onConflict ?? 'skip';
   const counters = { skipped: 0, overwritten: 0, renamed: 0 };
@@ -187,16 +232,7 @@ async function importFromResolvedInput(
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   const raw = await readFile(resolved.jsonFile, 'utf8');
   const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
-  const data = parsed.db?.[0]?.data;
-  if (!data) {
-    throw new Error('Invalid Ghost export: db[0].data missing');
-  }
-
-  const posts = data.posts ?? [];
-  const tags = data.tags ?? [];
-  const users = data.users ?? [];
-  const postsTags = data.posts_tags ?? [];
-  const postsAuthors = data.posts_authors ?? [];
+  const { posts, tags, users, postsTags, postsAuthors } = mergeGhostDbEntries(parsed.db);
 
   const downloader = opts.downloadImages
     ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
