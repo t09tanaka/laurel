@@ -97,7 +97,7 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   );
 }
 
-function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+export function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const ctx: Record<string, unknown> = {};
   const data = route.data;
   if (data.post) {
@@ -107,7 +107,6 @@ function buildContext(_engine: NectarEngine, route: RouteContext): Record<string
   if (data.page) {
     Object.assign(ctx, data.page);
     ctx.page = data.page;
-    ctx.post = data.page;
   }
   if (data.tag) {
     Object.assign(ctx, { tag: data.tag });
