@@ -38,6 +38,7 @@ import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
+import { emitVercelJson } from './vercel.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -257,6 +258,12 @@ async function runBuild({
     outputDir,
     rules: redirects,
     enabled: config.deploy.netlify.enabled,
+  });
+  await emitVercelJson({
+    outputDir,
+    enabled: config.deploy.vercel.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
   });
 
   if (profiler) {
