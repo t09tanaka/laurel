@@ -99,6 +99,34 @@ describe('example build', () => {
       ).toBe(skipAnchorPos);
     }
 
+    // a11y (issue #198): heading hierarchy must not skip levels. The post
+    // page previously used <h4> for the author byline (metadata, not a
+    // section heading) immediately after the <h1> title, and archive pages
+    // jumped straight from the page <h1> to <h3> card titles.
+    expect(postHtml, 'post author byline must not be an <h4> section heading').not.toMatch(
+      /<h4[^>]*\bgh-article-author-name\b/,
+    );
+    expect(postHtml, 'post author byline should render as inline metadata, not a heading').toMatch(
+      /<p[^>]*\bgh-article-author-name\b[^>]*>[^<]*Casper/,
+    );
+    for (const [label, html] of [
+      ['tag', tagHtml],
+      ['author', authorHtml],
+    ] as const) {
+      const headingLevels = (html.match(/<h([1-6])\b/g) ?? []).map((m) =>
+        Number.parseInt(m.slice(2), 10),
+      );
+      const firstH1 = headingLevels.indexOf(1);
+      expect(firstH1, `${label} page must include an <h1>`).toBeGreaterThanOrEqual(0);
+      const afterH1 = headingLevels.slice(firstH1);
+      const nextNonH1 = afterH1.find((level) => level !== 1);
+      expect(nextNonH1, `${label} page must include a heading after the <h1>`).toBeDefined();
+      expect(
+        nextNonH1,
+        `${label} page heading after <h1> must be <h2> (no level skip to <h3>)`,
+      ).toBe(2);
+    }
+
     // Feature/card images must declare intrinsic width/height so browsers
     // can reserve layout space (avoids Cumulative Layout Shift).
     const cardImgPattern =
