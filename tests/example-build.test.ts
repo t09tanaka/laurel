@@ -26,9 +26,22 @@ describe('example build', () => {
     const tagHtml = readFileSync(join(distRoot, 'tag/news/index.html'), 'utf8');
     expect(tagHtml).toContain('News');
     expect(tagHtml).toContain('Hello, Nectar');
+    expect(tagHtml).toContain('<title>News | Nectar Example</title>');
+    expect(tagHtml).toContain(
+      '<meta name="description" content="Announcements and project updates from the Nectar team.">',
+    );
+    expect(tagHtml).toContain('<meta property="og:title" content="News | Nectar Example">');
+    expect(tagHtml).toContain(
+      '<meta property="og:description" content="Announcements and project updates from the Nectar team.">',
+    );
 
     const authorHtml = readFileSync(join(distRoot, 'author/casper/index.html'), 'utf8');
     expect(authorHtml).toContain('Casper');
+    expect(authorHtml).toContain('<title>Casper | Nectar Example</title>');
+    expect(authorHtml).toContain(
+      '<meta name="description" content="Friendly mascot of the open publishing platform Ghost — and the canonical Nectar test author.">',
+    );
+    expect(authorHtml).toContain('<meta property="og:title" content="Casper | Nectar Example">');
 
     for (const [label, html] of [
       ['home', indexHtml],
