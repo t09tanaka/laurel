@@ -75,7 +75,9 @@
         {{#if next}}
             <section class="gh-container is-grid gh-outer">
                 <div class="gh-container-inner gh-inner">
-                    <h2 class="gh-container-title">{{t "Read more"}}</h2>
+                    {{#if (t "Read more")}}
+                        <h2 class="gh-container-title">{{t "Read more"}}</h2>
+                    {{/if}}
                     <div class="gh-feed">
                         {{#foreach next}}
                             {{> "post-card" lazyLoad=true}}

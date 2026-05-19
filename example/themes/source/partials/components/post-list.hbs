@@ -10,9 +10,13 @@
     <div class="gh-container-inner gh-inner">
         
         {{#if showTitle}}
-            <h2 class="gh-container-title">
-                {{#unless title}}{{t "Latest"}}{{else}}{{title}}{{/unless}}
-            </h2>
+            {{#if title}}
+                <h2 class="gh-container-title">{{title}}</h2>
+            {{else}}
+                {{#if (t "Latest")}}
+                    <h2 class="gh-container-title">{{t "Latest"}}</h2>
+                {{/if}}
+            {{/if}}
         {{/if}}
 
         <div class="gh-main">
