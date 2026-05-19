@@ -1,3 +1,4 @@
+import { type LintIssue, lintContent } from '~/build/lint.ts';
 import { loadRoutesYaml } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
@@ -57,6 +58,16 @@ export async function runCheck(args: string[]): Promise<number> {
     );
     validateThemeCustom({ config, pkg: theme.pkg });
 
+    const lintReport = await lintContent({ cwd, config, content });
+    for (const issue of lintReport.warnings) emitIssue(issue, 'warning');
+    for (const issue of lintReport.errors) emitIssue(issue, 'error');
+    if (lintReport.errors.length > 0) {
+      logger.error(
+        `Lint found ${lintReport.errors.length} error${lintReport.errors.length === 1 ? '' : 's'}`,
+      );
+      return 1;
+    }
+
     if (strict) {
       const warnings = getWarningCount();
       if (warnings > 0) {
@@ -70,4 +81,11 @@ export async function runCheck(args: string[]): Promise<number> {
     reportError(err, cwd);
     return 1;
   }
+}
+
+function emitIssue(issue: LintIssue, level: 'warning' | 'error'): void {
+  const location = issue.file ? `${issue.file}: ` : '';
+  const message = `${location}${issue.message} [${issue.code}]`;
+  if (level === 'error') logger.error(message);
+  else logger.warn(message);
 }
