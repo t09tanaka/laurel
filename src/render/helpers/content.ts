@@ -141,10 +141,17 @@ export function registerContentHelpers(engine: NectarEngine): void {
         const author = ctx.author as { meta_description?: string; bio?: string } | undefined;
         return author?.meta_description || author?.bio || fallback;
       }
+      // Ghost emits the first sentence of the post body when no explicit
+      // description, excerpt, or site default is available, so search engines
+      // never see an empty meta tag. Mirror that chain end-to-end here.
       return (
         (ctx.meta_description as string | undefined) ||
+        (ctx.custom_excerpt as string | undefined) ||
+        (ctx.og_description as string | undefined) ||
         (ctx.excerpt as string | undefined) ||
-        fallback
+        fallback ||
+        firstSentence(ctx.plaintext) ||
+        ''
       );
     },
   );
@@ -297,6 +304,21 @@ export function renderRecommendationListItem(item: RecommendationItem): string {
     ? `<img class="recommendation-favicon" src="${escapeAttr(item.favicon)}" alt="" loading="lazy">`
     : '';
   return `<li class="recommendation"><a href="${href}" rel="noopener" target="_blank">${favicon}<span class="recommendation-title">${title}</span></a>${desc}</li>`;
+}
+
+// Last-resort meta description fallback: take the first sentence of the
+// plaintext body so search snippets are never empty. We collapse whitespace
+// before searching so an early newline cannot mask the first terminator, and
+// we cap the no-punctuation case so a wall-of-text body does not produce a
+// 5KB <meta> tag. Abbreviations like "Dr." can split early; we accept that
+// tradeoff because the SEO surface prefers a short, real sentence over none.
+function firstSentence(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const match = text.match(/[.!?](?=\s|$)/);
+  if (match?.index !== undefined) return text.slice(0, match.index + 1);
+  return text.length > 200 ? text.slice(0, 200) : text;
 }
 
 function parseNum(value: unknown): number | undefined {
