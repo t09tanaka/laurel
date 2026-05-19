@@ -1,6 +1,6 @@
 import { writeHeadersFile } from './headers.ts';
 
-export async function emitCloudflarePagesHeaders(opts: {
+export async function emitNetlifyHeaders(opts: {
   outputDir: string;
   enabled: boolean;
 }): Promise<void> {
