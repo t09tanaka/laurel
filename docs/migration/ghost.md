@@ -19,6 +19,61 @@ deployment notes.
 
 ---
 
+## Before you begin: if you have paying members
+
+If your Ghost site sells paid subscriptions, runs a members-only newsletter, or
+gates content with `visibility: paid` / `visibility: members`, **stop and read
+[`docs/MEMBERS.md`](../MEMBERS.md) before you migrate anything**. Nectar is a
+static site generator with no server runtime, no user database, and no payment
+integration. That changes what Ghost's Members feature can and cannot do after
+the move.
+
+**What you keep:**
+
+- Every post and page, including those marked `visibility: members` or `paid`.
+  The Markdown frontmatter preserves the `visibility` field.
+- The theme's members UI shell (sign-in button, subscribe CTAs, paywall stubs)
+  — provided you wire an external provider via `[components.portal]`.
+- Your member list as a CSV, which you import into a third-party newsletter or
+  subscription service of your choosing.
+
+**What you lose, with no in-process replacement:**
+
+- **The Ghost Members database itself.** Nectar does not store emails,
+  password hashes, or tier flags. You export the list from Ghost and hand it
+  to your replacement provider (Buttondown, Beehiiv, Substack, or a
+  self-hosted Members API). See [`docs/MEMBERS.md` § 1](../MEMBERS.md#1-migration-paths-off-ghost-members).
+- **Server-side paywalls.** A post with `visibility: paid` is truncated to a
+  stub for *every* visitor at build time. The static page cannot check
+  "did this person pay" — that is a server query Nectar does not perform.
+  Wiring a JS-side reveal after auth is your provider's job, not Nectar's.
+- **`{{#access}}` content gating.** The `{{access}}` helper always returns
+  `false` in a static build. Theme blocks wrapped in `{{#access}}...{{/access}}`
+  render only the `{{else}}` branch. See
+  [`docs/MEMBERS.md` § 2](../MEMBERS.md#2-what-the-nectar-members-surface-actually-exposes).
+- **Per-viewer personalisation.** `@member.name`, `@member.email`,
+  `@member.paid` are empty strings for every visitor. "Welcome back,
+  {{@member.name}}" cannot work without a client-side script from your
+  provider.
+- **Sign-in, account, billing, and upgrade pages.** The Ghost Portal hash
+  routes (`#/portal/signin`, `#/portal/account`, `#/portal/upgrade`) are
+  inert in the static build. Account management — billing, tier changes,
+  comps, invoices — lives on the provider's hosted page after the move, not
+  on your Nectar site.
+- **Newsletter email sending.** Ghost's per-post email send pipeline does not
+  exist in Nectar. Schedule sends from your provider's dashboard instead.
+- **Comments tied to membership.** `{{comments}}` is an empty hook. Wire
+  Giscus / Disqus / Utterances client-side — none of them check Ghost member
+  identity.
+
+If any of the above is a hard requirement for your site, the honest answer is
+that Nectar is the wrong tool, and you should keep running Ghost (or a
+Ghost-compatible backend) for the dynamic surface and use Nectar only for the
+public reading surface. [`docs/MEMBERS.md` § 5](../MEMBERS.md#5-known-parity-gaps)
+spells out the parity gaps in full.
+
+---
+
 ## What you will end up with
 
 ```
