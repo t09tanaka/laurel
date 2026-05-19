@@ -71,7 +71,7 @@ export async function build({
       config,
       content,
       outputDir,
-      urls: routes.map((r) => r.url),
+      urls: routes.map((r) => ({ url: r.url, lastmod: r.lastmod })),
     });
   }
   if (config.components.rss.enabled) {
