@@ -75,6 +75,14 @@ Frontmatter keys you'll use most often: `title`, `date`, `slug`, `tags`,
 `draft` | `scheduled`). Drafts are skipped at build time. The full list is
 documented inline in `src/content/loader.ts`.
 
+> **Headings in body content.** Your post or page title (from frontmatter
+> `title:`) is already rendered as an `<h1>` by the theme's article header. To
+> keep one `<h1>` per page — better for screen reader outlines and Lighthouse
+> SEO — Nectar automatically downshifts every heading inside your Markdown body
+> by one level when rendering `{{content}}`: a `#` becomes `<h2>`, `##` becomes
+> `<h3>`, and so on, capped at `<h6>`. Write your sections at whatever level
+> reads naturally in Markdown; the static output will be well-nested.
+
 A faster way to scaffold:
 
 ```bash

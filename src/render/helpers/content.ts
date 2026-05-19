@@ -11,7 +11,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       if (typeof words === 'number') {
         return new engine.hb.SafeString(truncateWords(html, words));
       }
-      return new engine.hb.SafeString(html);
+      return new engine.hb.SafeString(downshiftHeadings(html));
     },
   );
 
@@ -175,6 +175,17 @@ function truncateWords(html: string, words: number): string {
   const text = html.replace(/<[^>]*>/g, ' ');
   const parts = text.split(/\s+/).filter(Boolean);
   return parts.slice(0, words).join(' ');
+}
+
+// The post/page layout already emits the title as an <h1>, so any body-content
+// headings would otherwise create a duplicate h1 outline that Lighthouse flags
+// and that screen readers announce confusingly. We shift body headings down one
+// level, capping at h6, which keeps the document outline well-nested.
+function downshiftHeadings(html: string): string {
+  return html.replace(/<(\/?)h([1-5])\b/gi, (_match, slash: string, level: string) => {
+    const next = Number(level) + 1;
+    return `<${slash}h${next}`;
+  });
 }
 
 function truncateWordsText(text: string, words: number): string {
