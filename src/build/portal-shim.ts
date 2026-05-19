@@ -1,4 +1,5 @@
 import { joinPath } from '~/theme/assets.ts';
+import type { PortalTrigger, ResolvedPortalUrls } from './portal-urls.ts';
 
 // Source theme's sidebar "See all" recommendations button is rendered as
 // `<button data-portal="recommendations">` — in Ghost this attribute binds the
@@ -7,7 +8,7 @@ import { joinPath } from '~/theme/assets.ts';
 // HTML and rewrites it to an `<a>` deep-linking to the
 // `<section id="all-recommendations">` block on the auto-emitted
 // `/recommendations/` page. Other `data-portal` values (signin, signup,
-// upgrade) stay untouched; their behaviour is owned by future members work.
+// upgrade) are handled by `rewritePortalLinks` below.
 //
 // We rewrite to a link rather than wiring a JS click handler so the deep-link
 // works without JavaScript: crawlers and keyboard users follow the anchor,
@@ -49,6 +50,75 @@ export function rewriteRecommendationsButton(opts: {
     out += '</a>';
     cursor = closeIdx + CLOSE_BUTTON.length;
     RECOMMENDATIONS_BUTTON_RE.lastIndex = cursor;
+  }
+  out += html.slice(cursor);
+  return out;
+}
+
+const PORTAL_TRIGGERS: readonly PortalTrigger[] = ['signup', 'signin', 'account', 'upgrade'];
+
+// Ghost themes ship `<a href="#/portal/signup" data-portal="signup">…</a>` and
+// `<button data-portal="signup">…</button>` markers that the Ghost Portal
+// script intercepts at runtime. Nectar is static-only, so when the operator
+// has named an external provider in `[components.portal]`, we rewrite those
+// buttons to point at the provider's hosted page (signup form, sign-in page,
+// account page, upgrade checkout). Anchors get their `href` patched in place;
+// `<button>` elements are upgraded to `<a>` so the link works without JS and
+// is reachable by crawlers and keyboard users.
+//
+// Recommendations buttons are owned by `rewriteRecommendationsButton` and are
+// skipped here.
+export function rewritePortalLinks(opts: {
+  html: string;
+  urls: ResolvedPortalUrls;
+}): string {
+  const { html, urls } = opts;
+  const wired = PORTAL_TRIGGERS.filter((t) => Boolean(urls[t]));
+  if (wired.length === 0) return html;
+  let out = html;
+  for (const trigger of wired) {
+    const href = urls[trigger];
+    if (!href) continue;
+    out = rewriteAnchors(out, trigger, href);
+    out = rewriteButtons(out, trigger, href);
+  }
+  return out;
+}
+
+function rewriteAnchors(html: string, trigger: PortalTrigger, href: string): string {
+  const re = new RegExp(`<a\\b([^>]*?)\\bdata-portal="${trigger}"([^>]*)>`, 'gi');
+  return html.replace(re, (_match, before: string, after: string) => {
+    const combined = `${before ?? ''}${after ?? ''}`;
+    const stripped = combined.replace(/\s+href\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/i, '');
+    const prefix = stripped.startsWith(' ') || stripped.length === 0 ? stripped : ` ${stripped}`;
+    return `<a href="${escapeAttr(href)}"${prefix} data-portal="${trigger}">`;
+  });
+}
+
+function rewriteButtons(html: string, trigger: PortalTrigger, href: string): string {
+  const openRe = new RegExp(`<button\\b([^>]*?)\\bdata-portal="${trigger}"([^>]*)>`, 'gi');
+  let out = '';
+  let cursor = 0;
+  openRe.lastIndex = 0;
+  while (true) {
+    const match = openRe.exec(html);
+    if (match === null) break;
+    const start = match.index;
+    const openEnd = start + match[0].length;
+    const before = match[1] ?? '';
+    const after = match[2] ?? '';
+    const closeIdx = html.indexOf(CLOSE_BUTTON, openEnd);
+    if (closeIdx === -1) {
+      out += html.slice(cursor);
+      cursor = html.length;
+      break;
+    }
+    out += html.slice(cursor, start);
+    out += `<a${before}${after} href="${escapeAttr(href)}" role="button">`;
+    out += html.slice(openEnd, closeIdx);
+    out += '</a>';
+    cursor = closeIdx + CLOSE_BUTTON.length;
+    openRe.lastIndex = cursor;
   }
   out += html.slice(cursor);
   return out;

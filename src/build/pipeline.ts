@@ -35,7 +35,8 @@ import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
-import { rewriteRecommendationsButton } from './portal-shim.ts';
+import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
+import { resolvePortalUrls } from './portal-urls.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
@@ -159,17 +160,21 @@ async function runBuild({
 
   const subscribeConfig = config.components.subscribe;
   const recommendationsEnabled = config.recommendations.length > 0;
+  const portalUrls = resolvePortalUrls(config.components.portal);
   const htmlOutputs: HtmlOutput[] = [];
   let renderedBytes = 0;
   for (const route of routes) {
     const stop = profiler?.start('render', route.url);
     try {
-      const html = rewriteRecommendationsButton({
-        html: stripUnusedLightbox(
-          transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
-        ),
-        basePath: config.build.base_path,
-        enabled: recommendationsEnabled,
+      const html = rewritePortalLinks({
+        html: rewriteRecommendationsButton({
+          html: stripUnusedLightbox(
+            transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
+          ),
+          basePath: config.build.base_path,
+          enabled: recommendationsEnabled,
+        }),
+        urls: portalUrls,
       });
       const bytes = Buffer.byteLength(html, 'utf8');
       renderedBytes += bytes;
