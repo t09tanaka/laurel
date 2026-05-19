@@ -43,7 +43,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       const jsonLd = buildJsonLd(ctx, site, meta);
       if (jsonLd) {
-        parts.push(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`);
+        parts.push(
+          `<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(jsonLd))}</script>`,
+        );
       }
 
       const head = ctx.codeinjection_head;
@@ -155,4 +157,16 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Escape characters that could break out of a <script> block or be misparsed as JS.
+// JSON.stringify leaves `<`, `>`, `&`, U+2028, U+2029 as-is, which allows
+// payloads like `</script>` in user content to terminate the script tag.
+function escapeJsonForScript(json: string): string {
+  return json
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
