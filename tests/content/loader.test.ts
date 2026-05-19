@@ -172,6 +172,51 @@ name: Escape
     }
   });
 
+  test('strips raw <script> from post body by default', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-xss-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/xss.md'),
+      `---
+title: XSS
+date: 2026-01-01T00:00:00Z
+---
+
+Body
+
+<script>alert(1)</script>
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const html = graph.posts[0]?.html ?? '';
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('alert(1)');
+  });
+
+  test('passes raw HTML through when unsafe_html: true', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-xss-optout-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/trusted.md'),
+      `---
+title: Trusted
+date: 2026-01-01T00:00:00Z
+unsafe_html: true
+---
+
+<div data-trusted="1"><em>raw</em></div>
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const html = graph.posts[0]?.html ?? '';
+    expect(html).toContain('<div data-trusted="1">');
+    expect(html).toContain('<em>raw</em>');
+  });
+
   test('throws when explicit frontmatter slug sanitizes to empty', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
