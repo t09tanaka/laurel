@@ -82,6 +82,11 @@ export async function runImportGhost(args: string[]): Promise<number> {
         `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,
       );
     }
+    if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
+      logger.info(
+        `Wrote migration/redirects/ snippets (${summary.redirectsImported} custom, ${summary.slugRedirects} from slug changes): _redirects, vercel.json, nginx.conf`,
+      );
+    }
     return 0;
   } catch (err) {
     reportError(err, cwd);
@@ -137,6 +142,16 @@ function formatDryRunSummary(
       label: 'Conflicts (would rename)',
       value: summary.renamed,
     },
+    {
+      label: 'Redirects (custom)',
+      value: summary.redirectsImported,
+      note: 'from content/data/redirects.json',
+    },
+    {
+      label: 'Redirects (slug changes)',
+      value: summary.slugRedirects,
+      note: 'auto-generated for slugs rewritten by safeSlug',
+    },
   ];
   const labelWidth = Math.max(...rows.map((r) => r.label.length));
   const valueWidth = Math.max(...rows.map((r) => String(r.value).length));
@@ -149,6 +164,12 @@ function formatDryRunSummary(
   if (ctx.downloadImages) {
     lines.push('');
     lines.push('  Note: --download-images is set, but no images were fetched in dry-run mode.');
+  }
+  if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
+    lines.push('');
+    lines.push(
+      '  Note: redirect snippets (_redirects, vercel.json, nginx.conf) would land in migration/redirects/.',
+    );
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
