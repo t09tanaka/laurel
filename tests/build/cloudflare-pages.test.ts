@@ -4,16 +4,23 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emitCloudflarePagesHeaders } from '~/build/cloudflare-pages.ts';
+import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'nectar-cf-pages-'));
 }
 
+const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
+
 describe('emitCloudflarePagesHeaders', () => {
   test('does not emit _headers when disabled', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: false });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: false,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(false);
   });
@@ -21,7 +28,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('emits _headers at the output root when enabled', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
   });
@@ -29,7 +40,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('pins fingerprinted theme assets to a year of immutable caching', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain('/assets/*\n  Cache-Control: public, max-age=31536000, immutable');
@@ -38,7 +53,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('pins content image paths to a year of immutable caching', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain(
@@ -49,7 +68,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('forces the catch-all rule to revalidate so HTML never goes stale', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toMatch(
@@ -60,7 +83,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('sets baseline security headers on the catch-all rule', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain('X-Content-Type-Options: nosniff');
@@ -70,7 +97,11 @@ describe('emitCloudflarePagesHeaders', () => {
   test('places the catch-all rule after the more specific rules so asset overrides win', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     const assetsIdx = body.indexOf('/assets/*');
@@ -83,7 +114,11 @@ describe('emitCloudflarePagesHeaders', () => {
     const root = await makeOutputDir();
     const outputDir = join(root, 'nested', 'dist');
 
-    await emitCloudflarePagesHeaders({ outputDir, enabled: true });
+    await emitCloudflarePagesHeaders({
+      outputDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
   });

@@ -4,16 +4,19 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emitNetlifyHeaders } from '~/build/netlify.ts';
+import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'nectar-netlify-'));
 }
 
+const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
+
 describe('emitNetlifyHeaders', () => {
   test('does not emit _headers when disabled', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: false });
+    await emitNetlifyHeaders({ outputDir, enabled: false, headers: DEFAULT_HEADERS_CONFIG });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(false);
   });
@@ -21,7 +24,7 @@ describe('emitNetlifyHeaders', () => {
   test('emits _headers at the output root when enabled', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
   });
@@ -29,7 +32,7 @@ describe('emitNetlifyHeaders', () => {
   test('pins fingerprinted theme assets to a year of immutable caching', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain('/assets/*\n  Cache-Control: public, max-age=31536000, immutable');
@@ -38,7 +41,7 @@ describe('emitNetlifyHeaders', () => {
   test('pins content image paths to a year of immutable caching', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain(
@@ -49,7 +52,7 @@ describe('emitNetlifyHeaders', () => {
   test('forces the catch-all rule to revalidate so HTML never goes stale', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toMatch(
@@ -60,7 +63,7 @@ describe('emitNetlifyHeaders', () => {
   test('sets baseline security headers on the catch-all rule', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain('X-Content-Type-Options: nosniff');
@@ -70,7 +73,7 @@ describe('emitNetlifyHeaders', () => {
   test('places the catch-all rule after the more specific rules so asset overrides win', async () => {
     const outputDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     const assetsIdx = body.indexOf('/assets/*');
@@ -83,7 +86,7 @@ describe('emitNetlifyHeaders', () => {
     const root = await makeOutputDir();
     const outputDir = join(root, 'nested', 'dist');
 
-    await emitNetlifyHeaders({ outputDir, enabled: true });
+    await emitNetlifyHeaders({ outputDir, enabled: true, headers: DEFAULT_HEADERS_CONFIG });
 
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
   });
@@ -93,8 +96,16 @@ describe('emitNetlifyHeaders', () => {
     const netlifyDir = await makeOutputDir();
     const cfDir = await makeOutputDir();
 
-    await emitNetlifyHeaders({ outputDir: netlifyDir, enabled: true });
-    await emitCloudflarePagesHeaders({ outputDir: cfDir, enabled: true });
+    await emitNetlifyHeaders({
+      outputDir: netlifyDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
+    await emitCloudflarePagesHeaders({
+      outputDir: cfDir,
+      enabled: true,
+      headers: DEFAULT_HEADERS_CONFIG,
+    });
 
     const netlifyBody = await readFile(join(netlifyDir, '_headers'), 'utf8');
     const cfBody = await readFile(join(cfDir, '_headers'), 'utf8');

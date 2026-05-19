@@ -238,6 +238,118 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Netlify-specific deploy hints.'),
+        headers: z
+          .object({
+            security: z
+              .object({
+                content_type_options: z
+                  .string()
+                  .nullable()
+                  .default('nosniff')
+                  .describe(
+                    'Value of the `X-Content-Type-Options` header applied to the catch-all route. `null` omits the header.',
+                  ),
+                frame_options: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the legacy `X-Frame-Options` header (e.g. `DENY`, `SAMEORIGIN`). Off by default because modern sites prefer `frame-ancestors` in CSP; set when older browsers still matter.',
+                  ),
+                referrer_policy: z
+                  .string()
+                  .nullable()
+                  .default('strict-origin-when-cross-origin')
+                  .describe(
+                    'Value of the `Referrer-Policy` header applied to the catch-all route. `null` omits the header.',
+                  ),
+                strict_transport_security: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the `Strict-Transport-Security` header. Off by default; set to e.g. `max-age=63072000; includeSubDomains` once you are confident the site only serves over HTTPS.',
+                  ),
+                content_security_policy: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup.',
+                  ),
+                permissions_policy: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the `Permissions-Policy` header (e.g. `camera=(), microphone=(), geolocation=()`). Off by default; opt in to deny features the site does not need.',
+                  ),
+                cross_origin_opener_policy: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the `Cross-Origin-Opener-Policy` header. Off by default; set to `same-origin` to isolate the browsing context group for stronger XS-Leak protection.',
+                  ),
+                cross_origin_embedder_policy: z
+                  .string()
+                  .nullable()
+                  .default(null)
+                  .describe(
+                    'Value of the `Cross-Origin-Embedder-Policy` header. Off by default; pair with `cross_origin_opener_policy` to enable cross-origin isolation. Can break themes that load third-party assets without CORP, so opt in deliberately.',
+                  ),
+                custom: z
+                  .record(z.string())
+                  .default({})
+                  .describe(
+                    'Free-form map of additional header name → value pairs applied to the catch-all route. Useful for headers without a first-class field (e.g. `X-Robots-Tag`, vendor-specific cache hints).',
+                  ),
+              })
+              .strict()
+              .default({})
+              .describe(
+                'Security-related response headers attached to the catch-all (`/*`) route. Each platform emitter translates these into its native `_headers` syntax. Set any field to `null` (or omit) to skip the header entirely.',
+              ),
+            cache_rules: z
+              .array(
+                z
+                  .object({
+                    pattern: z
+                      .string()
+                      .describe(
+                        'URL pattern matched by the deploy platform. Cloudflare Pages and Netlify both honor glob-style patterns like `/assets/*` and the catch-all `/*`. Patterns are emitted in array order and most platforms use first-match, so put specific rules before catch-alls.',
+                      ),
+                    cache_control: z
+                      .string()
+                      .describe(
+                        'Value of the `Cache-Control` header applied to requests matching `pattern`.',
+                      ),
+                  })
+                  .strict(),
+              )
+              .default([
+                {
+                  pattern: '/assets/*',
+                  cache_control: 'public, max-age=31536000, immutable',
+                },
+                {
+                  pattern: '/content/images/*',
+                  cache_control: 'public, max-age=31536000, immutable',
+                },
+                {
+                  pattern: '/*',
+                  cache_control: 'public, max-age=0, must-revalidate',
+                },
+              ])
+              .describe(
+                'Ordered list of `Cache-Control` rules emitted into the deploy platform `_headers` file. Defaults pin fingerprinted assets to a year of immutable caching and force HTML to revalidate every request. The catch-all `/*` rule is always emitted last regardless of position so security headers attach to it without shadowing more specific patterns.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`) into their native `_headers` format.',
+          ),
       })
       .strict()
       .default({})
