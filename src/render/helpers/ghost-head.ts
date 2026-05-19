@@ -8,6 +8,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
     function ghostHeadHelper(this: unknown, options: Handlebars.HelperOptions) {
       const route = options.data?.route as
         | {
+            kind?: string;
             url?: string;
             data?: Record<string, unknown>;
             meta?: { canonical?: string };
@@ -193,7 +194,12 @@ function mimeTypeForImage(url: string): string | undefined {
 function buildJsonLd(
   ctx: Record<string, unknown>,
   route:
-    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | {
+        kind?: string;
+        url?: string;
+        data?: Record<string, unknown>;
+        meta?: { canonical?: string };
+      }
     | undefined,
   site: {
     title: string;
@@ -205,6 +211,7 @@ function buildJsonLd(
   meta: ComputedMeta,
 ): Record<string, unknown>[] {
   const entities: Record<string, unknown>[] = [];
+  const kind = route?.kind;
 
   if (meta.ogType === 'article' && ctx.id) {
     entities.push({
@@ -231,6 +238,10 @@ function buildJsonLd(
         logo: buildPublisherLogo(site),
       },
     });
+  } else if (kind === 'tag' || kind === 'author' || kind === 'index') {
+    entities.push(buildCollectionPage(route, site, meta));
+  } else if (kind === 'home') {
+    entities.push(buildHomeWebSite(site));
   } else {
     entities.push({
       '@context': 'https://schema.org',
@@ -246,13 +257,76 @@ function buildJsonLd(
   return entities;
 }
 
+// CollectionPage with an ItemList of posts is the Schema.org-recommended shape for
+// archive index pages (tag/author/paginated home). The previous stub WebSite was
+// semantically wrong because archives aren't the site root and they list posts.
+function buildCollectionPage(
+  route: { data?: Record<string, unknown> } | undefined,
+  site: { title: string; url: string },
+  meta: ComputedMeta,
+): Record<string, unknown> {
+  const posts = Array.isArray(route?.data?.posts)
+    ? (route.data.posts as { url?: unknown; title?: unknown }[])
+    : [];
+  const itemListElement = posts
+    .filter(
+      (p): p is { url: string; title: string } =>
+        !!p && typeof p.url === 'string' && typeof p.title === 'string',
+    )
+    .map((post, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      url: post.url,
+      name: post.title,
+    }));
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: meta.title,
+    url: meta.canonical,
+    description: meta.description,
+    isPartOf: { '@type': 'WebSite', name: site.title, url: site.url },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: itemListElement.length,
+      itemListElement,
+    },
+  };
+}
+
+// Emit SearchAction on the home WebSite entity so Google can surface a sitelinks
+// search box when applicable. We point at `/?s={search_term_string}` which is the
+// Ghost convention; client-side search components in themes resolve `?s=` to a query.
+function buildHomeWebSite(site: { title: string; url: string }): Record<string, unknown> {
+  const base = site.url.replace(/\/$/, '');
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: site.title,
+    url: site.url,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${base}/?s={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+}
+
 // Emit BreadcrumbList JSON-LD so search results can render the path
 // (Home > Tag > Post for posts, Home > Tag/Author for archive pages).
 // Skipped for the home route and standalone static pages — no useful path there.
 function buildBreadcrumbList(
   ctx: Record<string, unknown>,
   route:
-    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | {
+        kind?: string;
+        url?: string;
+        data?: Record<string, unknown>;
+        meta?: { canonical?: string };
+      }
     | undefined,
   site: { title: string; url: string },
   meta: ComputedMeta,
