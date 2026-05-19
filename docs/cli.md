@@ -102,7 +102,7 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>]
+nectar serve [--port <n>] [--host <host>] [--watch]
 ```
 
 Options:
@@ -111,6 +111,7 @@ Options:
 | --- | --- | --- |
 | `--port <n>` | string | Port to listen on (defaults to 4321) |
 | `--host <host>` | string | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
+| `-w, --watch` | boolean | Rebuild on content/theme/config changes and push a reload signal to connected browsers |
 
 ### `nectar check`
 

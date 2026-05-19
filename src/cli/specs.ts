@@ -69,6 +69,12 @@ export const SERVE_SPEC: CommandSpec = {
       description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
       placeholder: '<host>',
     },
+    watch: {
+      type: 'boolean',
+      short: 'w',
+      description:
+        'Rebuild on content/theme/config changes and push a reload signal to connected browsers',
+    },
   },
   positionals: [],
 };
