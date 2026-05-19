@@ -85,16 +85,18 @@ describe('Ghost Turndown rules — kg-image-card', () => {
 });
 
 describe('Ghost Turndown rules — kg-gallery-card', () => {
-  test('lists every gallery image with a stable shortcode wrapper', () => {
+  test('preserves per-row grouping, image dimensions, and figcaption', () => {
     const html = `
       <figure class="kg-card kg-gallery-card kg-width-wide">
         <div class="kg-gallery-container">
           <div class="kg-gallery-row">
-            <div class="kg-gallery-image"><img src="/img/a.jpg" alt="A" /></div>
-            <div class="kg-gallery-image"><img src="/img/b.jpg" alt="B" /></div>
+            <div class="kg-gallery-image"><img src="/img/a.jpg" alt="A" width="800" height="600" /></div>
+            <div class="kg-gallery-image"><img src="/img/b.jpg" alt="B" width="1200" height="800" /></div>
+            <div class="kg-gallery-image"><img src="/img/c.jpg" alt="C" width="900" height="900" /></div>
           </div>
           <div class="kg-gallery-row">
-            <div class="kg-gallery-image"><img src="/img/c.jpg" alt="C" /></div>
+            <div class="kg-gallery-image"><img src="/img/d.jpg" alt="D" width="1600" height="900" /></div>
+            <div class="kg-gallery-image"><img src="/img/e.jpg" alt="E" width="1000" height="1500" /></div>
           </div>
         </div>
         <figcaption>Roll one</figcaption>
@@ -102,10 +104,86 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
     `;
     const md = td.turndown(html);
     expect(md).toContain('{{< gallery caption="Roll one" >}}');
-    expect(md).toContain('![A](/img/a.jpg)');
-    expect(md).toContain('![B](/img/b.jpg)');
-    expect(md).toContain('![C](/img/c.jpg)');
+    expect(md).toContain('{{< gallery-row >}}');
+    expect(md).toContain('{{< /gallery-row >}}');
+    expect(md).toContain(
+      '{{< gallery-image src="/img/a.jpg" alt="A" width="800" height="600" />}}',
+    );
+    expect(md).toContain(
+      '{{< gallery-image src="/img/b.jpg" alt="B" width="1200" height="800" />}}',
+    );
+    expect(md).toContain(
+      '{{< gallery-image src="/img/c.jpg" alt="C" width="900" height="900" />}}',
+    );
+    expect(md).toContain(
+      '{{< gallery-image src="/img/d.jpg" alt="D" width="1600" height="900" />}}',
+    );
+    expect(md).toContain(
+      '{{< gallery-image src="/img/e.jpg" alt="E" width="1000" height="1500" />}}',
+    );
     expect(md).toContain('{{< /gallery >}}');
+
+    // Row grouping is preserved: two distinct row blocks, in source order.
+    const rowOpenCount = (md.match(/\{\{< gallery-row >\}\}/g) ?? []).length;
+    const rowCloseCount = (md.match(/\{\{< \/gallery-row >\}\}/g) ?? []).length;
+    expect(rowOpenCount).toBe(2);
+    expect(rowCloseCount).toBe(2);
+    expect(md.indexOf('/img/c.jpg')).toBeLessThan(md.indexOf('/img/d.jpg'));
+  });
+
+  test('omits width/height attributes that are missing on the source img', () => {
+    const html = `
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-container">
+          <div class="kg-gallery-row">
+            <div class="kg-gallery-image"><img src="/img/a.jpg" alt="A" /></div>
+          </div>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< gallery-image src="/img/a.jpg" alt="A" />}}');
+    expect(md).not.toContain('width=""');
+    expect(md).not.toContain('height=""');
+    expect(md).not.toContain('caption=');
+  });
+
+  test('falls back to a single synthesized row when no kg-gallery-row wrappers exist', () => {
+    const html = `
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-container">
+          <div class="kg-gallery-image"><img src="/img/a.jpg" alt="A" width="100" height="50" /></div>
+          <div class="kg-gallery-image"><img src="/img/b.jpg" alt="B" width="200" height="100" /></div>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< gallery');
+    expect((md.match(/\{\{< gallery-row >\}\}/g) ?? []).length).toBe(1);
+    expect(md).toContain('{{< gallery-image src="/img/a.jpg" alt="A" width="100" height="50" />}}');
+    expect(md).toContain(
+      '{{< gallery-image src="/img/b.jpg" alt="B" width="200" height="100" />}}',
+    );
+  });
+
+  test('deduplicates repeated src across rows', () => {
+    const html = `
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-container">
+          <div class="kg-gallery-row">
+            <div class="kg-gallery-image"><img src="/img/a.jpg" alt="A" /></div>
+          </div>
+          <div class="kg-gallery-row">
+            <div class="kg-gallery-image"><img src="/img/a.jpg" alt="Dup" /></div>
+            <div class="kg-gallery-image"><img src="/img/b.jpg" alt="B" /></div>
+          </div>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    const occurrences = (md.match(/src="\/img\/a\.jpg"/g) ?? []).length;
+    expect(occurrences).toBe(1);
+    expect(md).toContain('src="/img/b.jpg"');
   });
 });
 
