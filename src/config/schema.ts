@@ -238,6 +238,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Netlify-specific deploy hints.'),
+        vercel: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                "Emit a single `vercel.json` at the output root folding both `deploy.headers` and `redirects.yaml` into Vercel's native config shape. `headers` mirrors the cross-cutting cache + security rules (with glob `*` translated to path-to-regexp `(.*)` so the same patterns match the same paths on every deploy target). `redirects` mirrors `redirects.yaml` ([{from, to, status, force}] with status one of 301/302/307/308) using `statusCode` for the HTTP status. Vercel always honors redirects regardless of static-file collisions (the same semantics as Cloudflare Pages), so the `force` flag is informational on this target. Leave disabled when deploying somewhere other than Vercel.",
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Vercel-specific deploy hints.'),
         headers: z
           .object({
             security: z
