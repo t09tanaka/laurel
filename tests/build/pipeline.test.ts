@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -70,5 +71,14 @@ describe('build pipeline strict mode wiring', () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
     const summary = await build({ cwd });
     expect(summary.warningCount).toBeGreaterThan(0);
+  });
+
+  test('emits dist/robots.txt with sitemap URL by default', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(body).toContain('User-agent: *');
+    expect(body).toContain('Allow: /');
+    expect(body).toContain('Sitemap: https://strict.test/sitemap.xml');
   });
 });

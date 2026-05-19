@@ -57,6 +57,12 @@ export const configSchema = z.object({
       sitemap: z.object({ enabled: z.boolean().default(true) }).default({}),
       opengraph: z.object({ enabled: z.boolean().default(true) }).default({}),
       content_api: z.object({ enabled: z.boolean().default(true) }).default({}),
+      robots: z
+        .object({
+          enabled: z.boolean().default(true),
+          disallow: z.boolean().default(false),
+        })
+        .default({}),
     })
     .default({}),
 });
