@@ -30,15 +30,45 @@ Bootstrap in progress. See `docs/DESIGN.md` for the full architecture,
 `docs/migration/ghost.md` for the step-by-step guide to moving a
 real blog off Ghost.
 
+## Install
+
+Nectar ships as a self-contained binary for each tagged release, so you do not
+need Bun on your machine to use it. Grab the artifact that matches your platform
+from the latest [GitHub Release](https://github.com/t09tanaka/nectar/releases),
+verify the checksum, and drop it on your `$PATH`.
+
+```bash
+# macOS (Apple Silicon) — substitute the triple that matches your machine
+curl -L -o nectar \
+  https://github.com/t09tanaka/nectar/releases/latest/download/nectar-darwin-arm64
+chmod +x nectar
+./nectar --help
+```
+
+Available triples: `nectar-linux-x64`, `nectar-linux-arm64`,
+`nectar-darwin-x64`, `nectar-darwin-arm64`, `nectar-windows-x64.exe`. Each
+release also publishes `SHASUMS256.txt` for verification.
+
+Prefer npm? `npm i -g nectar` works too once Bun is installed locally.
+
 ## Quickstart
 
-Requires [Bun](https://bun.sh) >= 1.3.
+Requires [Bun](https://bun.sh) >= 1.3 for development. End users running a
+prebuilt binary do not need Bun.
 
 ```bash
 bun install
 bun run build
 cd example && bun ../src/cli/index.ts build
 open example/dist/index.html
+```
+
+To produce a single-file binary locally (useful for smoke-testing the release
+artifact before tagging):
+
+```bash
+bun run compile            # host platform only → dist-bin/nectar-<triple>
+bun run compile:all        # every CI target → dist-bin/nectar-*
 ```
 
 ## Layout
