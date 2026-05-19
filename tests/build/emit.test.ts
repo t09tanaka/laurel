@@ -75,4 +75,65 @@ describe('copyContentAssets', () => {
     expect(existsSync(join(outputDir, 'content/files'))).toBe(false);
     expect(existsSync(join(outputDir, 'content/media'))).toBe(false);
   });
+
+  test('skips raster images larger than maxImageBytes and logs a warning (#138)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    // 5KB cap, with a 4KB image (under) and a 6KB image (over).
+    await writeFile(join(cwd, 'content/images/small.jpg'), Buffer.alloc(4 * 1024, 0));
+    await writeFile(join(cwd, 'content/images/huge.jpg'), Buffer.alloc(6 * 1024, 0));
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      maxImageBytes: 5 * 1024,
+    });
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/small.jpg'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/huge.jpg'))).toBe(false);
+  });
+
+  test('maxImageBytes=0 disables the cap (#138)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-off-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-off-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/huge.jpg'), Buffer.alloc(6 * 1024, 0));
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      maxImageBytes: 0,
+    });
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/huge.jpg'))).toBe(true);
+  });
+
+  test('maxImageBytes does not skip SVG or non-image files (#138)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-other-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-other-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/huge.svg'), Buffer.alloc(10 * 1024, 0));
+    await mkdir(join(cwd, 'content/files'), { recursive: true });
+    await writeFile(join(cwd, 'content/files/huge.pdf'), Buffer.alloc(10 * 1024, 0));
+    await mkdir(join(cwd, 'content/media'), { recursive: true });
+    await writeFile(join(cwd, 'content/media/huge.mp4'), Buffer.alloc(10 * 1024, 0));
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      maxImageBytes: 1024,
+    });
+    expect(count).toBe(3);
+    expect(existsSync(join(outputDir, 'content/images/huge.svg'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/files/huge.pdf'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/media/huge.mp4'))).toBe(true);
+  });
+
+  test('image exactly at maxImageBytes is allowed (#138)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-eq-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-eq-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/at-limit.png'), Buffer.alloc(2048, 0));
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      maxImageBytes: 2048,
+    });
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/at-limit.png'))).toBe(true);
+  });
 });

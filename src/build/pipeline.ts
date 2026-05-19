@@ -82,7 +82,9 @@ export async function build({
 
   const assetCount = await copyAssets(theme, outputDir);
   if (config.build.copy_content_assets) {
-    await copyContentAssets(cwd, config.content.assets_dir, outputDir);
+    await copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+      maxImageBytes: config.build.max_image_bytes,
+    });
     await generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan });
   }
 
