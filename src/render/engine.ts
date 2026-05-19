@@ -2,6 +2,7 @@ import Handlebars from 'handlebars';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { textColorClassFor } from '~/util/color.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { splitLayout } from './layouts.ts';
 import type { RouteContext } from './types.ts';
@@ -132,16 +133,20 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
 }
 
 function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+  const custom = buildCustom(engine);
+  const backgroundColor =
+    typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
   return {
     site: engine.content.site,
     blog: engine.content.site,
     config: engine.config,
-    custom: buildCustom(engine),
+    custom,
     page: route.kind === 'page' ? route.data.page : undefined,
     route,
     locale: engine.content.site.locale,
     labs: {},
     member: undefined,
+    text_color_class: textColorClassFor(backgroundColor),
   };
 }
 
