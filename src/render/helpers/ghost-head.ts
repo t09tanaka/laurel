@@ -223,7 +223,10 @@ function buildJsonLd(
       description: meta.description,
       image: buildImageObject(meta.image, ctx),
       datePublished: ctx.published_at,
-      dateModified: ctx.updated_at,
+      // Loader defaults updated_at to published_at when frontmatter omits it.
+      // Emitting an identical dateModified signals "never updated" to Google,
+      // so suppress it unless the post was genuinely revised.
+      dateModified: ctx.updated_at !== ctx.published_at ? ctx.updated_at : undefined,
       author: Array.isArray(ctx.authors)
         ? (ctx.authors as { name: string; url?: string }[]).map((a) => ({
             '@type': 'Person',

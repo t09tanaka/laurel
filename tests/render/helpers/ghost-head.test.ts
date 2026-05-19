@@ -351,6 +351,36 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
     expect(parsed['@type']).toBe('WebSite');
     expect(parsed.mainEntityOfPage).toBeUndefined();
   });
+
+  test('omits dateModified when updated_at equals published_at (post never revised)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished: string;
+      dateModified?: string;
+    };
+    expect(parsed.datePublished).toBe('2026-01-01T00:00:00.000Z');
+    expect(parsed.dateModified).toBeUndefined();
+  });
+
+  test('emits dateModified when updated_at differs from published_at', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-02-15T10:30:00.000Z',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished: string;
+      dateModified?: string;
+    };
+    expect(parsed.datePublished).toBe('2026-01-01T00:00:00.000Z');
+    expect(parsed.dateModified).toBe('2026-02-15T10:30:00.000Z');
+  });
 });
 
 describe('ghost_head og:image supplementary tags', () => {
