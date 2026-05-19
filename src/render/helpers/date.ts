@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import dayjs from 'dayjs';
 import advancedFormat from 'dayjs/plugin/advancedFormat.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
@@ -15,7 +16,11 @@ dayjs.extend(relativeTime);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+const requireDayjsLocale = createRequire(import.meta.url);
+
 export function registerDateHelpers(engine: NectarEngine): void {
+  const locale = loadDayjsLocale(engine.content.site.locale);
+
   engine.hb.registerHelper('date', function dateHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const inputs = args.slice(0, -1);
@@ -36,8 +41,27 @@ export function registerDateHelpers(engine: NectarEngine): void {
     const format = typeof options.hash.format === 'string' ? options.hash.format : 'DD MMM YYYY';
     const timezoneName = engine.content.site.timezone ?? 'UTC';
     if (options.hash.timeago === true || options.hash.timeago === 'true') {
-      return dayjs(value).fromNow();
+      return dayjs(value).locale(locale).fromNow();
     }
-    return dayjs(value).tz(timezoneName).format(format);
+    return dayjs(value).tz(timezoneName).locale(locale).format(format);
   });
+}
+
+function loadDayjsLocale(raw: string | undefined): string {
+  if (!raw) return 'en';
+  const normalized = raw.toLowerCase().replace(/_/g, '-');
+  // 'en' is dayjs's built-in default and doesn't ship as a side-effect import.
+  if (normalized === 'en') return 'en';
+  const candidates = [normalized];
+  const langOnly = normalized.split('-')[0];
+  if (langOnly && langOnly !== normalized) candidates.push(langOnly);
+  for (const code of candidates) {
+    try {
+      requireDayjsLocale(`dayjs/locale/${code}.js`);
+      return code;
+    } catch {
+      // try next candidate; dayjs locale file may not exist for this code
+    }
+  }
+  return 'en';
 }
