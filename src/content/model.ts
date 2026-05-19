@@ -5,6 +5,7 @@ export interface SiteData {
   description: string;
   url: string;
   locale: string;
+  direction: 'ltr' | 'rtl';
   timezone: string;
   cover_image: string | undefined;
   logo: string | undefined;

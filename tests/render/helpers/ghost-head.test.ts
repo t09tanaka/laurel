@@ -11,6 +11,7 @@ function makeEngine(site: Partial<SiteData> = {}): NectarEngine {
     description: 'desc',
     url: 'https://example.com',
     locale: 'en',
+    direction: 'ltr',
     timezone: 'UTC',
     cover_image: undefined,
     logo: undefined,

@@ -157,6 +157,7 @@ function makeGraph(): ContentGraph {
       description: 'desc',
       url: 'https://example.com',
       locale: 'en',
+      direction: 'ltr',
       timezone: 'UTC',
       cover_image: undefined,
       logo: undefined,
@@ -201,6 +202,8 @@ describe('emitContentApiShadows', () => {
     );
     expect(settings.settings.title).toBe('Site');
     expect(settings.settings.url).toBe('https://example.com');
+    expect(settings.settings.locale).toBe('en');
+    expect(settings.settings.direction).toBe('ltr');
   });
 
   test('writes per-slug single-resource files under ghost/api/content/<resource>/slug/<slug>.json', async () => {

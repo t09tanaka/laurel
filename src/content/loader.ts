@@ -4,6 +4,7 @@ import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
+import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
 import { asBool, asDateISO, asString, asStringArray, parseFrontmatter } from './frontmatter.ts';
 import { renderMarkdown } from './markdown.ts';
@@ -80,6 +81,7 @@ function buildSite(config: NectarConfig): SiteData {
     url: config.site.url,
     locale: config.site.locale,
     lang: config.site.locale,
+    direction: directionForLocale(config.site.locale),
     timezone: config.site.timezone,
     cover_image: config.site.cover_image,
     logo: config.site.logo,
