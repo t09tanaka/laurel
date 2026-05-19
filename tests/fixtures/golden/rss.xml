@@ -5,7 +5,9 @@
 <link>https://nectar.example.com</link>
 <description>A demo blog built with Nectar against the Ghost Source theme</description>
 <language>en</language>
+<lastBuildDate>Tue, 19 May 2026 09:00:00 GMT</lastBuildDate>
 <atom:link href="https://nectar.example.com/rss.xml" rel="self" type="application/rss+xml"/>
+<image><url>https://nectar.example.com/content/images/logo.svg</url><title>Nectar Example</title><link>https://nectar.example.com</link></image>
 <item><title>Hello, Nectar</title><link>https://nectar.example.com/hello-nectar/</link><guid isPermaLink="true">https://nectar.example.com/hello-nectar/</guid><pubDate>Tue, 19 May 2026 09:00:00 GMT</pubDate><description>First post! A quick tour of what&apos;s working and what&apos;s coming next.</description><content:encoded><![CDATA[<p>Welcome to <strong>Nectar</strong> — a static site generator built around Ghost themes and
 Markdown content.</p>
 <h2 id="what-works-today">What works today</h2>
