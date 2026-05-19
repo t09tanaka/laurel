@@ -121,9 +121,11 @@ describe('loadContent', () => {
     expect(rtl.site.direction).toBe('rtl');
   });
 
-  test('site.members_enabled / paid_members_enabled / recommendations_enabled default to false', async () => {
-    // Ghost Source theme branches sidebar/footer/CTA on these. Nectar has no
-    // members backend, so they must be stable booleans (false), not undefined.
+  test('site.members_* / recommendations_enabled default to false when no portal is configured', async () => {
+    // Ghost Source theme branches sidebar/footer/CTA/navigation on these.
+    // Default config has no Portal backend, so they must be stable booleans
+    // (false), not undefined — otherwise Handlebars `#if` reads as falsy but a
+    // future typo could ship `undefined` past the type check.
     const cwd = await fixture();
     const graph = await loadContent({
       cwd,
@@ -131,7 +133,51 @@ describe('loadContent', () => {
     });
     expect(graph.site.members_enabled).toBe(false);
     expect(graph.site.paid_members_enabled).toBe(false);
+    expect(graph.site.members_invite_only).toBe(false);
     expect(graph.site.recommendations_enabled).toBe(false);
+  });
+
+  test('site.members_enabled flips on when `[components.portal].provider != "none"`', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        components: { portal: { provider: 'ghost' } },
+      }),
+    });
+    expect(graph.site.members_enabled).toBe(true);
+    // paid + invite_only stay false unless explicitly opted in.
+    expect(graph.site.paid_members_enabled).toBe(false);
+    expect(graph.site.members_invite_only).toBe(false);
+  });
+
+  test('site.paid_members_enabled / members_invite_only follow portal sub-flags only when portal is on', async () => {
+    const cwd = await fixture();
+    const enabled = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        components: { portal: { provider: 'ghost', paid: true, invite_only: true } },
+      }),
+    });
+    expect(enabled.site.paid_members_enabled).toBe(true);
+    expect(enabled.site.members_invite_only).toBe(true);
+
+    // With provider="none" the sub-flags are forced false: a paid=true setting
+    // alongside provider="none" must not flip @site.paid_members_enabled, or
+    // the Source sidebar would render an Upgrade button against a portal
+    // surface that never loads.
+    const disabled = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        components: { portal: { provider: 'none', paid: true, invite_only: true } },
+      }),
+    });
+    expect(disabled.site.members_enabled).toBe(false);
+    expect(disabled.site.paid_members_enabled).toBe(false);
+    expect(disabled.site.members_invite_only).toBe(false);
   });
 
   test('site.recommendations_enabled flips to true once `[[recommendations]]` is populated', async () => {

@@ -181,6 +181,7 @@ function makeGraph(): ContentGraph {
       facebook: undefined,
       members_enabled: false,
       paid_members_enabled: false,
+      members_invite_only: false,
       recommendations_enabled: false,
     },
   };
@@ -220,6 +221,7 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.direction).toBe('ltr');
     expect(settings.settings.members_enabled).toBe(false);
     expect(settings.settings.paid_members_enabled).toBe(false);
+    expect(settings.settings.members_invite_only).toBe(false);
     expect(settings.settings.recommendations_enabled).toBe(false);
   });
 

@@ -185,6 +185,14 @@ async function loadContentWithPool({
 }
 
 function buildSite(config: NectarConfig): SiteData {
+  // Ghost's Source theme branches sidebar/footer/CTA/navigation on these flags.
+  // They drive UI rendering only — Nectar is static-only, so the actual
+  // sign-in/signup/account hrefs (#/portal/*) are inert without a Portal
+  // script. Tying `members_enabled` to `[components.portal].provider != "none"`
+  // lets operators opt-in to the UI shell when they wire their own
+  // Portal-compatible backend, while keeping the default config quiet for
+  // plain blogs.
+  const portalEnabled = config.components.portal.provider !== 'none';
   return {
     title: config.site.title,
     description: config.site.description,
@@ -203,10 +211,12 @@ function buildSite(config: NectarConfig): SiteData {
     secondary_navigation: config.secondary_navigation,
     twitter: config.site.twitter,
     facebook: config.site.facebook,
-    // Ghost's Source theme branches on these in sidebar/footer/cta partials.
-    // Nectar is static-only with no members backend, so they are always false.
-    members_enabled: false,
-    paid_members_enabled: false,
+    members_enabled: portalEnabled,
+    // Paid / invite-only flags are only meaningful when Portal itself is on;
+    // collapsing them otherwise prevents a misconfigured paid=true from
+    // silently flipping `@site.paid_members_enabled` while members is off.
+    paid_members_enabled: portalEnabled && config.components.portal.paid,
+    members_invite_only: portalEnabled && config.components.portal.invite_only,
     // Drives the Source theme's `{{#if @site.recommendations_enabled}}` block
     // that renders the sidebar list and the "See all" portal button. Only flip
     // it on once the user has populated `[[recommendations]]` so empty configs
