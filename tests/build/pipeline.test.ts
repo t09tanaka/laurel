@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
@@ -398,5 +398,65 @@ describe('build pipeline HTML minification (#1109)', () => {
     expect(htmlMin.length).toBeLessThan(htmlUnmin.length);
     expect(htmlMin).toContain('Hello');
     expect(htmlMin).not.toMatch(/<!--[^[]/);
+  });
+});
+
+describe('build pipeline --no-atomic escape hatch (#247)', () => {
+  test('default atomic build leaves no sibling .dist.tmp- or dist.old- tree behind', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const parent = dirname(summary.outputDir);
+    const siblings = await readdir(parent);
+    expect(siblings.filter((s) => s.startsWith('.dist.tmp-'))).toEqual([]);
+    expect(siblings.filter((s) => s.startsWith('dist.old-'))).toEqual([]);
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+  });
+
+  test('--no-atomic writes directly into output_dir without creating a staging sibling', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, noAtomic: true });
+    expect(summary.outputDir).toBe(resolve(cwd, 'dist'));
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+    const parent = dirname(summary.outputDir);
+    const siblings = await readdir(parent);
+    expect(siblings.filter((s) => s.startsWith('.dist.tmp-'))).toEqual([]);
+    expect(siblings.filter((s) => s.startsWith('dist.old-'))).toEqual([]);
+  });
+
+  test('--no-atomic clears stale files from a previous build out of output_dir', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const distDir = resolve(cwd, 'dist');
+    await mkdir(distDir, { recursive: true });
+    await writeFile(join(distDir, 'leftover.txt'), 'stale', 'utf8');
+
+    const summary = await build({ cwd, noAtomic: true });
+
+    expect(existsSync(join(summary.outputDir, 'leftover.txt'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+  });
+
+  test('--no-atomic skips .nectarignore preservation (documented tradeoff)', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const distDir = resolve(cwd, 'dist');
+    await mkdir(distDir, { recursive: true });
+    await writeFile(join(distDir, 'CNAME'), 'example.test', 'utf8');
+    await writeFile(join(cwd, '.nectarignore'), 'CNAME\n', 'utf8');
+
+    const summary = await build({ cwd, noAtomic: true });
+
+    // Atomic mode would have copied CNAME forward; --no-atomic explicitly does not.
+    expect(existsSync(join(summary.outputDir, 'CNAME'))).toBe(false);
+  });
+
+  test('default atomic mode preserves .nectarignore-listed files across rebuilds', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await build({ cwd });
+    const distDir = resolve(cwd, 'dist');
+    await writeFile(join(distDir, 'CNAME'), 'example.test', 'utf8');
+    await writeFile(join(cwd, '.nectarignore'), 'CNAME\n', 'utf8');
+
+    const summary = await build({ cwd });
+
+    expect(readFileSync(join(summary.outputDir, 'CNAME'), 'utf8')).toBe('example.test');
   });
 });

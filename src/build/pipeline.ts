@@ -50,7 +50,12 @@ import { minifyHtmlOutputs } from './minify.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
+import {
+  clearDirContents,
+  commitStagingDir,
+  prepareStagingDir,
+  resolveOutputDir,
+} from './output-dir.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { preserveUserFiles } from './preserve.ts';
@@ -72,6 +77,7 @@ export interface BuildOptions {
   outputDir?: string | undefined;
   basePath?: string | undefined;
   profile?: boolean | undefined;
+  noAtomic?: boolean | undefined;
 }
 
 export interface BuildSummary {
@@ -126,6 +132,7 @@ export async function build({
   outputDir: outputDirOverride,
   basePath: basePathOverride,
   profile,
+  noAtomic,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -144,7 +151,17 @@ export async function build({
   // see "index.html missing for 200ms"; staging confines the half-written
   // state to a path no one is watching. (2) On build failure the previous
   // good `dist/` is left untouched instead of being half-deleted.
-  const outputDir = await prepareStagingDir(finalOutputDir);
+  //
+  // `--no-atomic` opts out: writes go straight into the final dir. Used as an
+  // escape hatch for sandboxed runners where the staging-rename step is
+  // blocked, at the cost of dropping the two protections above.
+  const outputDir = noAtomic ? finalOutputDir : await prepareStagingDir(finalOutputDir);
+  if (noAtomic) {
+    // Match the pre-staging behaviour so a previous build's stale files do
+    // not bleed into this one. Wipes the previous manifest's on-disk HTML,
+    // which forces a full rebuild — acceptable since `--no-atomic` is opt-in.
+    await clearDirContents(finalOutputDir);
+  }
 
   try {
     return await runBuild({
@@ -154,9 +171,12 @@ export async function build({
       finalOutputDir,
       profiler,
       previousManifest,
+      noAtomic: noAtomic === true,
     });
   } catch (err) {
-    await rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    if (!noAtomic) {
+      await rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    }
     throw err;
   }
 }
@@ -168,6 +188,7 @@ async function runBuild({
   finalOutputDir,
   profiler,
   previousManifest,
+  noAtomic,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -175,6 +196,7 @@ async function runBuild({
   finalOutputDir: string;
   profiler: Profiler | null;
   previousManifest: BuildManifest | undefined;
+  noAtomic: boolean;
 }): Promise<BuildSummary> {
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
@@ -500,11 +522,13 @@ async function runBuild({
   };
   await saveManifest(outputDir, nextManifest);
 
-  // Copy user-owned files (CNAME, .well-known/*, …) from the previous build's
-  // final dir into staging so the upcoming atomic swap does not drop them.
-  await preserveUserFiles({ cwd, finalOutputDir, stagingDir: outputDir });
+  if (!noAtomic) {
+    // Copy user-owned files (CNAME, .well-known/*, …) from the previous build's
+    // final dir into staging so the upcoming atomic swap does not drop them.
+    await preserveUserFiles({ cwd, finalOutputDir, stagingDir: outputDir });
 
-  await commitStagingDir(outputDir, finalOutputDir);
+    await commitStagingDir(outputDir, finalOutputDir);
+  }
 
   return {
     outputDir: finalOutputDir,

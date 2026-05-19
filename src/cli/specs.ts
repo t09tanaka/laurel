@@ -31,6 +31,11 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Write dist/.nectar/profile.json with per-phase timing + bytes_emitted (and per-route render durations) for diagnosing slow builds',
     },
+    'no-atomic': {
+      type: 'boolean',
+      description:
+        'Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted',
+    },
   },
   positionals: [],
 };
