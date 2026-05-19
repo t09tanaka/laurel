@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RSS_MAX_ITEMS_PER_PAGE } from '~/build/feeds.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
@@ -276,6 +277,11 @@ function checkRssSitemap(config: NectarConfig): CheckResult {
   const issues: string[] = [];
   if (config.components.rss.enabled && config.components.rss.items <= 0) {
     issues.push('components.rss.items must be > 0 when rss is enabled');
+  }
+  if (config.components.rss.enabled && config.components.rss.items > RSS_MAX_ITEMS_PER_PAGE) {
+    issues.push(
+      `components.rss.items=${config.components.rss.items} exceeds the per-page cap of ${RSS_MAX_ITEMS_PER_PAGE}; overflow posts will paginate into rss-N.xml`,
+    );
   }
   if (issues.length === 0) {
     return {

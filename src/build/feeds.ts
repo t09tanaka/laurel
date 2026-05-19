@@ -34,6 +34,13 @@ function formatLastmod(value: string): string {
   return Number.isNaN(d.getTime()) ? value : d.toISOString();
 }
 
+// Hard upper bound on items emitted in a single RSS page. Users who set
+// components.rss.items above this number get clamped silently — feed readers
+// choke on multi-megabyte XML payloads, and Ghost itself paginates at 15-25
+// per page. 250 is generous enough to cover non-paginated callers while still
+// keeping each file bounded.
+export const RSS_MAX_ITEMS_PER_PAGE = 250;
+
 export async function emitRss(opts: {
   config: NectarConfig;
   content: ContentGraph;
@@ -42,36 +49,65 @@ export async function emitRss(opts: {
 }): Promise<void> {
   const { config, content, outputDir, limit } = opts;
   const base = config.site.url.replace(/\/$/, '');
-  const items = content.posts
-    .slice(0, limit)
-    .map((post) => {
-      const link = `${base}${new URL(post.url).pathname}`;
-      const html = absolutizeHtmlUrls(post.feed_html, base);
-      return [
-        '<item>',
-        `<title>${escapeXml(post.title)}</title>`,
-        `<link>${escapeXml(link)}</link>`,
-        `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
-        `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
-        `<description>${escapeXml(post.feed_excerpt)}</description>`,
-        `<content:encoded><![CDATA[${html}]]></content:encoded>`,
-        '</item>',
-      ].join('');
-    })
-    .join('');
-  const selfHref = `${base}/rss.xml`;
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(content.posts.length / perPage));
+
+  for (let page = 1; page <= totalPages; page++) {
+    const start = (page - 1) * perPage;
+    const pagePosts = content.posts.slice(start, start + perPage);
+    const items = pagePosts.map((post) => renderItem(post, base)).join('');
+    const filename = rssPageFilename(page);
+    const selfHref = `${base}/${filename}`;
+    const atomLinks: string[] = [
+      `<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>`,
+    ];
+    if (page > 1) {
+      const prevHref = `${base}/${rssPageFilename(page - 1)}`;
+      atomLinks.push(
+        `<atom:link href="${escapeXml(prevHref)}" rel="prev" type="application/rss+xml"/>`,
+      );
+    }
+    if (page < totalPages) {
+      const nextHref = `${base}/${rssPageFilename(page + 1)}`;
+      atomLinks.push(
+        `<atom:link href="${escapeXml(nextHref)}" rel="next" type="application/rss+xml"/>`,
+      );
+    }
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
 <title>${escapeXml(config.site.title)}</title>
 <link>${escapeXml(base)}</link>
 <description>${escapeXml(config.site.description)}</description>
 <language>${escapeXml(config.site.locale)}</language>
-<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>
+${atomLinks.join('\n')}
 ${items}
 </channel>
 </rss>`;
-  await writeHtml(outputDir, 'rss.xml', xml);
+    await writeHtml(outputDir, filename, xml);
+  }
+}
+
+// Page 1 keeps the canonical `rss.xml` filename so existing feed-reader
+// subscriptions and `<link rel="alternate">` autodiscovery URLs stay valid.
+// Subsequent pages use `rss-N.xml` (N >= 2).
+function rssPageFilename(page: number): string {
+  return page === 1 ? 'rss.xml' : `rss-${page}.xml`;
+}
+
+function renderItem(post: ContentGraph['posts'][number], base: string): string {
+  const link = `${base}${new URL(post.url).pathname}`;
+  const html = absolutizeHtmlUrls(post.feed_html, base);
+  return [
+    '<item>',
+    `<title>${escapeXml(post.title)}</title>`,
+    `<link>${escapeXml(link)}</link>`,
+    `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
+    `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
+    `<description>${escapeXml(post.feed_excerpt)}</description>`,
+    `<content:encoded><![CDATA[${html}]]></content:encoded>`,
+    '</item>',
+  ].join('');
 }
 
 function escapeXml(value: string): string {
