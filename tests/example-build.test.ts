@@ -94,5 +94,25 @@ describe('example build', () => {
 
     const sitemap = readFileSync(join(distRoot, 'sitemap.xml'), 'utf8');
     expect(sitemap).toContain('<loc>https://nectar.example.com/hello-nectar/</loc>');
+
+    // a11y/perf (issue #199): the contrast class must be emitted on <html>
+    // at build time so there is no FOUC, and the inline script that reads
+    // --background-color via getComputedStyle must be gone.
+    for (const [label, html] of [
+      ['home', indexHtml],
+      ['post', postHtml],
+      ['tag', tagHtml],
+      ['author', authorHtml],
+    ] as const) {
+      expect(html, `${label} page <html> must carry a precomputed text color class`).toMatch(
+        /<html[^>]*\bclass="(?:[^"]*\s)?has-(?:dark|light)-text(?:\s[^"]*)?"/,
+      );
+      expect(html, `${label} page must not run the legacy inline contrast script`).not.toContain(
+        "getComputedStyle(document.documentElement).getPropertyValue('--background-color')",
+      );
+      expect(html, `${label} page must not assign has-NaN-text via JS`).not.toContain(
+        'document.documentElement.className = `has-${textColor}-text`',
+      );
+    }
   });
 });
