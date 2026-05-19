@@ -46,6 +46,9 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const downloadImages = parsed.values['download-images'] === true;
 
+  const rawSourceUrl = parsed.values['source-url'];
+  const sourceUrl = typeof rawSourceUrl === 'string' ? rawSourceUrl : undefined;
+
   const cwd = process.cwd();
   try {
     const summary = await importGhostExport({
@@ -54,6 +57,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       onConflict,
       assetsDir,
       downloadImages,
+      sourceUrl,
     });
     logger.info(
       `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,

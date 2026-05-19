@@ -1363,3 +1363,285 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).toContain(throwUrl);
   });
 });
+
+describe('importGhostExport — --source-url (#500)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-srcurl-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('rewrites markdown links pointing at the source host to site-relative paths', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Has link',
+                  slug: 'has-link',
+                  html: '<p>See <a href="https://oldblog.com/old-slug">prior post</a> for context.</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/has-link.md'), 'utf8');
+    expect(md).toContain('[prior post](/old-slug)');
+    expect(md).not.toContain('oldblog.com');
+  });
+
+  test('leaves links to other hosts untouched', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'External link',
+                  slug: 'ext',
+                  html: '<p><a href="https://example.com/external">external</a> and <a href="https://oldblog.com/internal">internal</a></p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/ext.md'), 'utf8');
+    expect(md).toContain('https://example.com/external');
+    expect(md).toContain('](/internal)');
+    expect(md).not.toContain('https://oldblog.com');
+  });
+
+  test('matches http and https variants of the source host', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Mixed schemes',
+                  slug: 'mixed',
+                  html: '<p><a href="http://oldblog.com/a">a</a> and <a href="https://oldblog.com/b">b</a></p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/mixed.md'), 'utf8');
+    expect(md).toContain('[a](/a)');
+    expect(md).toContain('[b](/b)');
+    expect(md).not.toContain('oldblog.com');
+  });
+
+  test('preserves query strings and fragments when rewriting', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Query',
+                  slug: 'query',
+                  html: '<p><a href="https://oldblog.com/post?ref=feed#top">link</a></p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/query.md'), 'utf8');
+    expect(md).toContain('[link](/post?ref=feed#top)');
+  });
+
+  test('leaves image markdown alone (image-downloader owns that syntax)', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Image only',
+                  slug: 'img',
+                  html: '<p><img src="https://oldblog.com/content/images/foo.jpg" alt="x" /></p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/img.md'), 'utf8');
+    // The link rewriter must NOT touch `![alt](url)` — that's the image
+    // downloader's domain. Without --download-images, the URL stays as-is.
+    expect(md).toContain('https://oldblog.com/content/images/foo.jpg');
+  });
+
+  test('composes with --download-images: images downloaded, links rewritten', async () => {
+    const imageUrl = 'https://oldblog.com/content/images/2024/01/cover.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Both',
+                  slug: 'both',
+                  html: `<p><img src="${imageUrl}" alt="c"/> Read <a href="https://oldblog.com/older">older</a></p>`,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const fetcher = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === imageUrl) {
+        return new Response('BYTES', {
+          status: 200,
+          headers: { 'content-type': 'image/jpeg' },
+        });
+      }
+      return new Response('', { status: 404 });
+    }) as typeof fetch;
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: 'https://oldblog.com',
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    const md = await readFile(join(cwd, 'content/posts/both.md'), 'utf8');
+    expect(md).toContain('/content/images/2024/01/cover.jpg');
+    expect(md).toContain('[older](/older)');
+    expect(md).not.toContain('https://oldblog.com');
+  });
+
+  test('throws when sourceUrl is not a valid http(s) URL', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [{ data: { posts: [] } }] }));
+
+    await expect(
+      importGhostExport({ cwd, file: exportFile, sourceUrl: 'not a url' }),
+    ).rejects.toThrow(/Invalid --source-url/);
+
+    await expect(
+      importGhostExport({ cwd, file: exportFile, sourceUrl: 'ftp://oldblog.com' }),
+    ).rejects.toThrow(/Only http\(s\)/);
+  });
+
+  test('matches hostname case-insensitively', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Case',
+                  slug: 'case',
+                  html: '<p><a href="https://OldBlog.com/CasePath">x</a></p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      sourceUrl: 'https://oldblog.com',
+    });
+
+    const md = await readFile(join(cwd, 'content/posts/case.md'), 'utf8');
+    expect(md).toContain('[x](/CasePath)');
+    expect(md).not.toContain('OldBlog.com');
+  });
+});

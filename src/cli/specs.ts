@@ -117,6 +117,12 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths',
     },
+    'source-url': {
+      type: 'string',
+      description:
+        'Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths',
+      placeholder: '<url>',
+    },
   },
   positionals: [
     {
