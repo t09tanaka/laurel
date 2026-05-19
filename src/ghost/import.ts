@@ -1,15 +1,15 @@
 import { access, copyFile, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
-import TurndownService from 'turndown';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { createGhostTurndown } from './turndown-rules.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
 
 export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', 'rename'];
 
-const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+const turndown = createGhostTurndown();
 
 // Ghost exports replace site URLs with the literal `__GHOST_URL__` placeholder
 // in HTML bodies and image/URL fields. We rewrite to the empty string so the
