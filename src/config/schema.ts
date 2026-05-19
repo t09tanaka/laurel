@@ -35,6 +35,8 @@ export const configSchema = z.object({
       authors_dir: z.string().default('content/authors'),
       tags_dir: z.string().default('content/tags'),
       assets_dir: z.string().default('content/images'),
+      visibility_policy: z.enum(['truncate', 'render-full', 'skip']).default('truncate'),
+      paywall_word_count: z.number().int().positive().default(300),
     })
     .default({}),
   build: z
