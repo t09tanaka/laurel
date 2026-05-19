@@ -1,5 +1,3 @@
-import { rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
@@ -9,6 +7,7 @@ import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
+import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { emitRobots } from './robots.ts';
 import { planRoutes } from './routes.ts';
 
@@ -27,8 +26,8 @@ export interface BuildSummary {
 export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const config = await loadConfig({ cwd, configPath });
-  const outputDir = join(cwd, config.build.output_dir);
-  await rm(outputDir, { recursive: true, force: true });
+  const outputDir = resolveOutputDir(cwd, config.build.output_dir);
+  await clearDirContents(outputDir);
 
   const [content, theme] = await Promise.all([
     loadContent({ cwd, config }),
