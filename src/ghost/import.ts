@@ -883,9 +883,20 @@ function sanitizeImageUrl(
 // Re-slugify any string from an untrusted Ghost export so it is safe to use as
 // a single path segment. `strict: true` strips path separators, dots, and
 // other punctuation that could otherwise enable path traversal (#160).
+//
+// Final result must match SAFE_SLUG_RE before being returned. slugify with
+// `lower: true, strict: true` should already emit only [a-z0-9-], but we
+// re-check the postcondition so a future slugify upgrade, option drift, or
+// dependency-pinning slip can't quietly reintroduce traversal chars like `/`
+// or `.` into a path segment (#115).
+const SAFE_SLUG_RE = /^[a-z0-9-]+$/;
+
 function safeSlug(input: unknown): string {
   if (typeof input !== 'string' || input.length === 0) return '';
-  return slugify(input, { lower: true, strict: true });
+  const result = slugify(input, { lower: true, strict: true });
+  if (result.length === 0) return '';
+  if (!SAFE_SLUG_RE.test(result)) return '';
+  return result;
 }
 
 // Defense in depth: even after safeSlug, refuse to write anywhere outside the

@@ -350,6 +350,81 @@ describe('importGhostExport — slug sanitization (#160)', () => {
   });
 });
 
+describe('importGhostExport — slug postcondition /^[a-z0-9-]+$/ (#115)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-sluggate-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('every written post/tag/author filename matches /^[a-z0-9-]+\\.md$/', async () => {
+    const nastySlugs = [
+      '../../etc/passwd',
+      '/etc/pwned',
+      'A/B/C',
+      '..\\..\\windows\\system32',
+      'foo bar',
+      'résumé café',
+      '日本語スラッグ',
+      'foo.bar.baz',
+      '%2e%2e%2fescape',
+      'mixed-Case-123',
+      '   trim-me   ',
+    ];
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: nastySlugs.map((slug, i) => ({
+                id: `p-${i}`,
+                title: `Fallback Title ${i}`,
+                slug,
+                html: `<p>${i}</p>`,
+                status: 'published',
+                type: 'post',
+              })),
+              tags: nastySlugs.map((slug, i) => ({
+                id: `t-${i}`,
+                slug,
+                name: `Tag ${i}`,
+                description: 'forces a write',
+              })),
+              users: nastySlugs.map((slug, i) => ({
+                id: `u-${i}`,
+                slug,
+                name: `Author ${i}`,
+              })),
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({ cwd, file: exportFile, onConflict: 'rename' });
+
+    const postcondition = /^[a-z0-9][a-z0-9-]*\.md$/;
+    for (const sub of ['content/posts', 'content/tags', 'content/authors']) {
+      const dir = join(cwd, sub);
+      const entries = await readdir(dir);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const name of entries) {
+        expect(name).toMatch(postcondition);
+        expect(name).not.toContain('/');
+        expect(name).not.toContain('\\');
+        expect(name).not.toContain('..');
+      }
+    }
+  });
+});
+
 describe('importGhostExport — folder input + asset copy (#73)', () => {
   let exportDir: string;
 
