@@ -79,3 +79,91 @@ describe('loadContent', () => {
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
   });
 });
+
+describe('loadContent slug sanitization', () => {
+  test('sanitizes malicious frontmatter slug for posts (path traversal)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/evil.md'),
+      `---
+title: Evil
+slug: "../../../../etc/cron.d/evil"
+date: 2026-01-01T00:00:00Z
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const slug = graph.posts[0]?.slug ?? '';
+    expect(slug.length).toBeGreaterThan(0);
+    expect(slug).not.toContain('..');
+    expect(slug).not.toContain('/');
+    expect(slug).not.toContain('\\');
+  });
+
+  test('sanitizes malicious tag slugs from post frontmatter', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/p.md'),
+      `---
+title: P
+tags: ["../../evil"]
+date: 2026-01-01T00:00:00Z
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    for (const tag of graph.tags) {
+      expect(tag.slug).not.toContain('..');
+      expect(tag.slug).not.toContain('/');
+    }
+  });
+
+  test('sanitizes malicious author slug from author markdown frontmatter', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/authors/x.md'),
+      `---
+slug: "../../escape"
+name: Escape
+---
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    for (const author of graph.authors) {
+      expect(author.slug).not.toContain('..');
+      expect(author.slug).not.toContain('/');
+    }
+  });
+
+  test('throws when explicit frontmatter slug sanitizes to empty', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/p.md'),
+      `---
+title: P
+slug: "///"
+date: 2026-01-01T00:00:00Z
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    await expect(loadContent({ cwd, config })).rejects.toThrow(/Invalid slug/);
+  });
+});

@@ -1,7 +1,16 @@
 import { copyFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
+
+function assertWithinOutputDir(outputDir: string, dest: string): void {
+  const root = resolve(outputDir);
+  const target = resolve(dest);
+  const rel = relative(root, target);
+  if (rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../')) {
+    throw new Error(`Refusing to write outside output directory: outputDir=${root} dest=${target}`);
+  }
+}
 
 export async function writeHtml(
   outputDir: string,
@@ -9,6 +18,7 @@ export async function writeHtml(
   html: string,
 ): Promise<void> {
   const dest = join(outputDir, outputPath);
+  assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
   await writeFile(dest, html, 'utf8');
 }
