@@ -1,0 +1,51 @@
+title: "[Q&A] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking. A few seconds spent filling this in saves a lot of
+        back-and-forth.
+
+        **If you have a reproducible bug, please open an [issue](https://github.com/t09tanaka/nectar/issues/new/choose) instead** — Q&A is for usage and "how does this work" questions.
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: One or two sentences on the end goal. "I'm trying to render
+        a Ghost Source theme that uses the `{{lang}}` helper inside a partial
+        and the output is empty."
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Commands you ran, config snippets, the part of the docs you
+        looked at. Even "nothing yet, I don't know where to start" is fine —
+        just say so.
+    validations:
+      required: false
+  - type: input
+    id: nectar-version
+    attributes:
+      label: Nectar version
+      description: Output of `nectar --version`, or the commit you're on if
+        running from source.
+      placeholder: "0.1.0"
+    validations:
+      required: false
+  - type: input
+    id: bun-version
+    attributes:
+      label: Bun version
+      description: Output of `bun --version`.
+      placeholder: "1.3.0"
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Logs, screenshots, links to a repo that reproduces it.
+    validations:
+      required: false

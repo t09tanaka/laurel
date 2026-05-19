@@ -111,6 +111,19 @@ docs/       # Design notes
 example/    # Reference blog: content + nectar.toml + vendored Source theme
 ```
 
+## Community
+
+- **Questions / how-do-I:** [GitHub Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a)
+- **Show off a site or theme you built:** [Discussions → Show and tell](https://github.com/t09tanaka/nectar/discussions/categories/show-and-tell)
+- **Propose a feature or bounce an idea:** [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+- **Releases and project-wide notices:** [Discussions → Announcements](https://github.com/t09tanaka/nectar/discussions/categories/announcements)
+- **Reproducible bugs:** [open an issue](https://github.com/t09tanaka/nectar/issues/new/choose)
+- **Security vulnerabilities:** see [`SECURITY.md`](./SECURITY.md) — please don't file public issues
+
+Picking the right venue gets you a faster answer and keeps the issue tracker
+scannable. See [`.github/SUPPORT.md`](./.github/SUPPORT.md) for the long
+version.
+
 ## License
 
 MIT

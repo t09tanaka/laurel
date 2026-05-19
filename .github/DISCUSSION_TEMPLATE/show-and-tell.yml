@@ -1,0 +1,43 @@
+title: "[Show and tell] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Built something with Nectar? Migrated a real Ghost blog over? Wrote a
+        custom theme? We want to see it. Posts here are great fodder for the
+        eventual showcase / examples list.
+  - type: input
+    id: project-name
+    attributes:
+      label: Project name
+      description: What do you call it?
+      placeholder: "My blog / Theme name / Plugin name"
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Live URL
+      description: A link to the deployed site, theme repo, or screenshot
+        gallery. Don't worry about it being polished — we like seeing
+        in-progress work too.
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: What is it?
+      description: One paragraph on what you built. Include the Ghost theme
+        you used (or "custom") and which optional components you wired up
+        (search, RSS, comments, etc.).
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything tricky?
+      description: Workarounds you needed, helpers that didn't quite fit, or
+        things you wish Nectar did natively. These are some of our best
+        signals for what to build next.
+    validations:
+      required: false

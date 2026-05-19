@@ -1,0 +1,35 @@
+title: "[Announcement] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Announcements is a maintainer-curated category for releases, breaking
+        changes, deprecations, and project-wide notices. If you're a
+        contributor and not sure whether your post belongs here, post in
+        Ideas or Show and tell instead — a maintainer can move the thread if
+        it warrants top-of-list visibility.
+  - type: input
+    id: headline
+    attributes:
+      label: Headline
+      description: One-line summary that reads well in the Discussions list.
+      placeholder: "Nectar 0.5 released — first stable Ghost Source theme coverage"
+    validations:
+      required: true
+  - type: textarea
+    id: body
+    attributes:
+      label: Details
+      description: What changed, why, and what (if anything) users need to do.
+        For releases, link the release notes; for deprecations, give a
+        timeline; for policy changes, link the PR or issue that decided it.
+    validations:
+      required: true
+  - type: input
+    id: links
+    attributes:
+      label: Related links
+      description: Release tag, blog post, migration guide, related issue.
+      placeholder: "https://github.com/t09tanaka/nectar/releases/tag/v0.5.0"
+    validations:
+      required: false
