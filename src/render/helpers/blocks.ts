@@ -1,5 +1,6 @@
 import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
+import { applyGetFilter } from './get-filter.ts';
 
 interface HelperOptions extends Handlebars.HelperOptions {
   hash: {
@@ -140,7 +141,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
     let results: unknown[] = filter
-      ? applyFilter(sorted as unknown[], filter, this)
+      ? applyGetFilter(engine, resource, sorted, filter, this)
       : sorted.slice();
     results = results.slice(0, limit);
     if (results.length === 0 && options.inverse) {
@@ -283,90 +284,6 @@ function compare(left: unknown, op: string, right: unknown): boolean {
       return String(left).endsWith(String(right));
     default:
       return false;
-  }
-}
-
-function applyFilter(items: unknown[], filter: string, ctx: unknown): unknown[] {
-  return items.filter((item) => evaluateFilterExpr(item, filter, ctx));
-}
-
-function evaluateFilterExpr(item: unknown, filter: string, ctx: unknown): boolean {
-  // Split on '+' (AND) at top level; ignore commas inside [].
-  const clauses = filter
-    .split('+')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return clauses.every((clause) => evaluateClause(item, clause, ctx));
-}
-
-function evaluateClause(item: unknown, clause: string, ctx: unknown): boolean {
-  // pattern: key:value, key:-value (not), key:[a,b]
-  const colon = clause.indexOf(':');
-  if (colon < 0) return true;
-  const key = clause.slice(0, colon).trim();
-  let value = clause.slice(colon + 1).trim();
-  // Interpolate {{post.id}}-style references against ctx
-  value = value.replace(/\{\{([^}]+)\}\}/g, (_, expr) => {
-    const path = String(expr).trim().split('.');
-    let cursor: unknown = ctx;
-    for (const segment of path) {
-      cursor =
-        cursor && typeof cursor === 'object'
-          ? (cursor as Record<string, unknown>)[segment]
-          : undefined;
-    }
-    return cursor == null ? '' : String(cursor);
-  });
-
-  let negate = false;
-  if (value.startsWith('-')) {
-    negate = true;
-    value = value.slice(1);
-  }
-  const itemObj = item as Record<string, unknown>;
-  let matched = false;
-  if (value.startsWith('[') && value.endsWith(']')) {
-    const list = value
-      .slice(1, -1)
-      .split(',')
-      .map((s) => s.trim());
-    matched = list.some((needle) => fieldMatches(itemObj, key, needle));
-  } else {
-    matched = fieldMatches(itemObj, key, value);
-  }
-  return negate ? !matched : matched;
-}
-
-function fieldMatches(item: Record<string, unknown>, key: string, value: string): boolean {
-  switch (key) {
-    case 'id':
-      return String(item.id ?? '') === value;
-    case 'slug':
-      return String(item.slug ?? '') === value;
-    case 'featured':
-      return Boolean(item.featured) === (value === 'true');
-    case 'tag':
-    case 'tags':
-      return (
-        Array.isArray(item.tags) &&
-        item.tags.some((t) => {
-          const tag = t as { slug?: string; name?: string };
-          return tag.slug === value || tag.name === value;
-        })
-      );
-    case 'author':
-    case 'authors':
-      return (
-        Array.isArray(item.authors) &&
-        item.authors.some((a) => {
-          const author = a as { slug?: string; name?: string };
-          return author.slug === value || author.name === value;
-        })
-      );
-    case 'visibility':
-      return String(item.visibility ?? 'public') === value;
-    default:
-      return String(item[key] ?? '') === value;
   }
 }
 
