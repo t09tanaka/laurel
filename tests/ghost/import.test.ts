@@ -141,6 +141,158 @@ describe('importGhostExport — --on-conflict policy', () => {
   });
 });
 
+describe('importGhostExport — intra-export slug collisions (#1138)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-coll-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('refuses the second post when two posts share a slug, regardless of onConflict=overwrite', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'duplicate', title: 'First', html: '<p>FIRST</p>' },
+        { slug: 'duplicate', title: 'Second (tampered)', html: '<p>SECOND</p>' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+    });
+
+    // Only the first occurrence is written. The second is refused as an
+    // intra-export collision — silently overwriting a freshly-written file
+    // from the same export would hide a tampered export.
+    expect(summary.posts).toBe(1);
+    expect(summary.slugCollisions).toBe(1);
+    expect(summary.overwritten).toBe(0);
+    const dest = join(cwd, 'content/posts/duplicate.md');
+    const body = await readFile(dest, 'utf8');
+    expect(body).toContain('title: "First"');
+    expect(body).not.toContain('SECOND');
+    expect(captured.data).toContain('Slug collision within Ghost export');
+    expect(captured.data).toContain(dest);
+  });
+
+  test('refuses the second post under onConflict=skip and reports the collision distinctly', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'twin', title: 'First' },
+        { slug: 'twin', title: 'Second' },
+      ]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'skip' });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.slugCollisions).toBe(1);
+    // The collision counter is separate from `skipped`, which is reserved for
+    // pre-existing files (re-import case).
+    expect(summary.skipped).toBe(0);
+  });
+
+  test('rename policy avoids the collision by writing the second post to a numbered file', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'rename-me', title: 'First' },
+        { slug: 'rename-me', title: 'Second' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'rename',
+    });
+
+    // Rename was already explicit opt-in for keeping both, so we honor it.
+    // No collision is counted because no overwrite was attempted.
+    expect(summary.posts).toBe(2);
+    expect(summary.renamed).toBe(1);
+    expect(summary.slugCollisions).toBe(0);
+    const original = join(cwd, 'content/posts/rename-me.md');
+    const numbered = join(cwd, 'content/posts/rename-me-2.md');
+    expect(await readFile(original, 'utf8')).toContain('title: "First"');
+    expect(await readFile(numbered, 'utf8')).toContain('title: "Second"');
+  });
+
+  test('dry-run still detects intra-export collisions without writing', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'preview', title: 'First' },
+        { slug: 'preview', title: 'Second' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+      dryRun: true,
+    });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.slugCollisions).toBe(1);
+    expect(summary.posts).toBe(1);
+    await expect(access(join(cwd, 'content/posts/preview.md'))).rejects.toThrow();
+  });
+
+  test('collision is independent across kinds (post slug == tag slug does not collide)', async () => {
+    // Posts and tags write under different base directories, so sharing a slug
+    // is safe and must not be flagged as a collision.
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'shared',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [
+                {
+                  id: 't1',
+                  slug: 'shared',
+                  name: 'Shared',
+                  description: 'a tag named the same as the post slug',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.tags).toBe(1);
+    expect(summary.slugCollisions).toBe(0);
+  });
+});
+
 describe('importGhostExport — slug sanitization (#160)', () => {
   let cwd: string;
   let outside: string;

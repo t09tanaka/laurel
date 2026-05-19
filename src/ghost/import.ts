@@ -174,6 +174,13 @@ export interface ImportSummary {
   // `keepCodeInjection` was not set. Surfaced so the operator can audit the
   // source and re-run with `--keep-code-injection` if they trust it (#561).
   codeInjectionSkipped: number;
+  // Entries (posts/pages/tags/authors) that resolved to the same destination
+  // path as another entry already written in THIS import run. Ghost rejects
+  // duplicate slugs in normal admin flows, so an intra-export collision
+  // indicates a malformed or tampered export trying to mask one entity with
+  // another. Refused regardless of `onConflict` (first-write wins); the count
+  // is surfaced so operators can audit the source export (#1138).
+  slugCollisions: number;
 }
 
 export interface ImportGhostOptions {
@@ -269,6 +276,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     statusFiltered: 0,
     bodiesEmpty: 0,
     codeInjectionSkipped: 0,
+    slugCollisions: 0,
   };
 
   let extractedZipRoot: string | undefined;
@@ -300,6 +308,7 @@ async function importFromResolvedInput(
     statusFiltered: number;
     bodiesEmpty: number;
     codeInjectionSkipped: number;
+    slugCollisions: number;
   },
 ): Promise<ImportSummary> {
   const keepCodeInjection = opts.keepCodeInjection === true;
@@ -321,6 +330,13 @@ async function importFromResolvedInput(
 
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
+
+  // Destinations successfully claimed (written, overwritten, or renamed-into)
+  // during this import run. Used to detect intra-export slug collisions, which
+  // are distinct from re-import conflicts and refused regardless of
+  // `onConflict` so a tampered export cannot silently substitute one entity
+  // for another (#1138).
+  const writtenThisRun = new Set<string>();
 
   const slugChanges: SlugChange[] = [];
   const recordSlugChange = (
@@ -459,6 +475,7 @@ async function importFromResolvedInput(
       onConflict,
       counters,
       dryRun,
+      writtenThisRun,
     );
     if (!written) continue;
     if (isPage) pageCount += 1;
@@ -501,6 +518,7 @@ async function importFromResolvedInput(
       onConflict,
       counters,
       dryRun,
+      writtenThisRun,
     );
     if (written) tagCount += 1;
   }
@@ -553,6 +571,7 @@ async function importFromResolvedInput(
       onConflict,
       counters,
       dryRun,
+      writtenThisRun,
     );
     if (written) authorCount += 1;
   }
@@ -591,6 +610,7 @@ async function importFromResolvedInput(
     redirectsImported: redirectMaps.customCount,
     slugRedirects: redirectMaps.slugCount,
     codeInjectionSkipped: counters.codeInjectionSkipped,
+    slugCollisions: counters.slugCollisions,
   };
 }
 
@@ -808,11 +828,29 @@ async function writeWithConflictPolicy(
   dest: string,
   contents: string,
   onConflict: OnConflict,
-  counters: { skipped: number; overwritten: number; renamed: number },
+  counters: { skipped: number; overwritten: number; renamed: number; slugCollisions: number },
   dryRun: boolean,
+  writtenThisRun: Set<string>,
 ): Promise<boolean> {
+  // Intra-export slug collision: another entity in the same import run has
+  // already claimed this destination. Ghost rejects duplicate slugs in normal
+  // admin flows, so a duplicate inside a single export indicates a malformed
+  // or tampered source that should not be allowed to silently substitute one
+  // entity for another (#1138). For `skip` and `overwrite` policies we refuse
+  // the second occurrence (first-write wins) regardless of the user's choice;
+  // for `rename` we honor the policy because it preserves both items in
+  // separately-named files. The collision is surfaced via the
+  // `slugCollisions` counter so operators can audit the source export.
+  if (writtenThisRun.has(dest) && onConflict !== 'rename') {
+    process.stderr.write(
+      `Slug collision within Ghost export (refusing to overwrite item already written in this run): ${dest}\n`,
+    );
+    counters.slugCollisions += 1;
+    return false;
+  }
   if (!(await pathExists(dest))) {
     if (!dryRun) await writeFile(dest, contents, 'utf8');
+    writtenThisRun.add(dest);
     return true;
   }
   switch (onConflict) {
@@ -824,12 +862,14 @@ async function writeWithConflictPolicy(
       process.stderr.write(`Overwrote: ${dest}\n`);
       if (!dryRun) await writeFile(dest, contents, 'utf8');
       counters.overwritten += 1;
+      writtenThisRun.add(dest);
       return true;
     case 'rename': {
-      const renamed = await nextAvailablePath(dest);
+      const renamed = await nextAvailablePath(dest, writtenThisRun);
       process.stderr.write(`Renamed (conflict with ${dest}): ${renamed}\n`);
       if (!dryRun) await writeFile(renamed, contents, 'utf8');
       counters.renamed += 1;
+      writtenThisRun.add(renamed);
       return true;
     }
   }
@@ -941,11 +981,12 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function nextAvailablePath(dest: string): Promise<string> {
+async function nextAvailablePath(dest: string, writtenThisRun?: Set<string>): Promise<string> {
   const ext = extname(dest);
   const base = ext ? dest.slice(0, -ext.length) : dest;
   for (let i = 2; i < 10000; i++) {
     const candidate = `${base}-${i}${ext}`;
+    if (writtenThisRun?.has(candidate)) continue;
     if (!(await pathExists(candidate))) return candidate;
   }
   throw new Error(`Could not find a non-conflicting filename for ${dest} after many attempts`);

@@ -100,6 +100,11 @@ export async function runImportGhost(args: string[]): Promise<number> {
         `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,
       );
     }
+    if (summary.slugCollisions > 0) {
+      logger.warn(
+        `Detected ${summary.slugCollisions} intra-export slug collision(s). The first entity to claim each path was kept; later duplicates were refused. Audit the export for tampered or malformed slug data.`,
+      );
+    }
     if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
       logger.info(
         `Wrote migration/redirects/ snippets (${summary.redirectsImported} custom, ${summary.slugRedirects} from slug changes): _redirects, vercel.json, nginx.conf`,
@@ -164,6 +169,11 @@ function formatDryRunSummary(
     {
       label: 'Conflicts (would rename)',
       value: summary.renamed,
+    },
+    {
+      label: 'Slug collisions (in export)',
+      value: summary.slugCollisions,
+      note: 'duplicate slugs within the same export; refused regardless of --on-conflict',
     },
     {
       label: 'Redirects (custom)',
