@@ -84,10 +84,24 @@ Wiring the actual click handlers is step 3 (see below).
 
 ### `@member.*`
 
-Always undefined / empty. In a static build there is no logged-in viewer, so
-fields like `@member.name`, `@member.email`, `@member.paid` resolve to empty
-strings (Nectar's context proxy returns `""` for unknown keys). Templates that
-read `@member.*` won't crash, but they also won't render anything useful.
+Always `undefined`. In a static build there is no logged-in viewer, so the
+`@member` data frame is set to `undefined` on every route (see `buildRootData`
+in `src/render/engine.ts`). The key is *present* on the data frame — it just
+holds `undefined` — so themes never see a partially populated or missing
+member context.
+
+The practical fallout for Source-style themes:
+
+| Template idiom                              | Result in Nectar                                                                                  |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `{{#unless @member}} … {{/unless}}`         | Always renders the body (the visitor is never a member).                                          |
+| `{{#if @member}} … {{/if}}`                 | Never renders the body.                                                                           |
+| `{{@member.name}}` / `{{@member.email}}`    | Renders as the empty string — Handlebars' standard behaviour for property access on `undefined`.  |
+| `{{#if @member.paid}} … {{/if}}`            | Never renders the body.                                                                           |
+| `{{#unless @member.paid}} … {{/unless}}`    | Always renders the body — paid CTAs show to everyone.                                             |
+
+Templates that read `@member.*` won't crash, but they also won't render
+anything useful per-visitor.
 
 Themes that need to greet a logged-in user (`Welcome back, {{@member.name}}`)
 can't get that data from Nectar. You have two options:

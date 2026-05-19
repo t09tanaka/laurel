@@ -172,6 +172,14 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     route,
     locale: engine.content.site.locale,
     labs: {},
+    // Static builds have no logged-in viewer, so `@member` is always undefined.
+    // Source-style themes branch on `{{#unless @member}}` (header/footer/CTA)
+    // and probe `{{@member.paid}}` / `{{@member.name}}`. Handlebars treats
+    // undefined as falsy and yields empty for missing property access, so the
+    // unauthenticated branch is what every visitor sees. Keep this key present
+    // (set to undefined) so the data frame is shaped the same across every
+    // route — never absent, never partially populated. Docs: docs/MEMBERS.md
+    // §2 "@member.*" and §5 "No per-user state".
     member: undefined,
     text_color_class: textColorClassFor(backgroundColor),
   };

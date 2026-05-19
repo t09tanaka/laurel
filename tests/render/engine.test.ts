@@ -357,4 +357,50 @@ describe('buildRootData', () => {
     const out = tpl({}, { data });
     expect(out).toBe('p0,p1,p2,p3,');
   });
+
+  // Issue #122: Source theme reads `@member` in header / footer / CTA / nav /
+  // post-list. Nectar has no logged-in viewer, so `@member` must be undefined
+  // on every route. The data frame must still ship the key so themes don't see
+  // a missing-property warning under strict mode and so the falsy-branch
+  // semantics are deterministic across routes.
+  test('@member is undefined on every route kind (issue #122)', () => {
+    const engine = makeEngine();
+    const routes: RouteContext['kind'][] = ['home', 'post', 'page', 'tag', 'author', 'index'];
+    for (const kind of routes) {
+      const route: RouteContext = {
+        kind,
+        url: '/',
+        outputPath: 'index.html',
+        template: 'home',
+        data: {},
+        meta: baseMeta,
+      };
+      const data = buildRootData(engine, route);
+      expect(data).toHaveProperty('member');
+      expect(data.member).toBeUndefined();
+    }
+  });
+
+  test('Source-style {{#unless @member}} / {{@member.paid}} idioms behave as unauthenticated (issue #122)', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      [
+        '{{#unless @member}}signin{{/unless}}',
+        '|{{#if @member}}greeting{{/if}}',
+        '|name:{{@member.name}}',
+        '|{{#unless @member.paid}}upsell{{/unless}}',
+      ].join(''),
+    );
+    expect(tpl({}, { data })).toBe('signin||name:|upsell');
+  });
 });
