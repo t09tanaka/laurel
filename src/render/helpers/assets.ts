@@ -36,10 +36,16 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     const formatKey =
       typeof options.hash.format === 'string' ? normalizeFormat(options.hash.format) : undefined;
     const absolute = options.hash.absolute === true;
-    const url = applyTransformSegments(candidate, sizeDef, formatKey);
-    if (absolute) {
+    const siteUrl = engine.content.site.url;
+    // External URLs (different host, or non-http(s) schemes like data:) must not
+    // be rewritten — Nectar only controls resizing for its own /content/images/.
+    // Applying size/format segments to an external host produces a broken URL
+    // that the remote service cannot serve.
+    const external = isExternalUrl(candidate, siteUrl);
+    const url = external ? candidate : applyTransformSegments(candidate, sizeDef, formatKey);
+    if (absolute && !external) {
       try {
-        return new URL(url, engine.content.site.url).toString();
+        return new URL(url, siteUrl).toString();
       } catch {
         return url;
       }
@@ -87,6 +93,32 @@ function buildSizeSegment(size: ThemeImageSize): string {
   if (size.height) s += `h${size.height}`;
   return s;
 }
+
+// A URL is "external" when it has its own scheme/host and that host differs
+// from the configured site URL. Protocol-relative `//host/...` is also treated
+// as external. Non-http(s) schemes (e.g. `data:`, `mailto:`) are always
+// external since they don't share an origin with siteUrl. Failures in parsing
+// siteUrl fall back to treating any URL with a scheme as external — safer than
+// rewriting something we can't reason about.
+function isExternalUrl(candidate: string, siteUrl: string): boolean {
+  if (candidate.startsWith('//')) return true;
+  if (!URL_SCHEME_RE.test(candidate)) return false;
+  let candidateUrl: URL;
+  try {
+    candidateUrl = new URL(candidate);
+  } catch {
+    return false;
+  }
+  if (candidateUrl.protocol !== 'http:' && candidateUrl.protocol !== 'https:') return true;
+  try {
+    const siteHost = new URL(siteUrl).host;
+    return candidateUrl.host !== siteHost;
+  } catch {
+    return true;
+  }
+}
+
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
 function extractImage(value: unknown): string | undefined {
   if (!value || typeof value !== 'object') return undefined;
