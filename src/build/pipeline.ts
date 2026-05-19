@@ -5,6 +5,7 @@ import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { logger } from '~/util/logger.ts';
+import { emitContentApiShadows } from './api.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { planRoutes } from './routes.ts';
@@ -63,6 +64,9 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
       outputDir,
       limit: config.components.rss.items,
     });
+  }
+  if (config.components.content_api.enabled) {
+    await emitContentApiShadows({ config, content, outputDir });
   }
 
   return {
