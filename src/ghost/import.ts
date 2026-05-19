@@ -244,10 +244,14 @@ async function importFromResolvedInput(
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
 
+  // Bucket postsTags / postsAuthors by post_id once so per-post lookups are O(k)
+  // (k = tags/authors on that post) instead of O(M) (scan the entire join table).
+  // Without this, a 50k-post export with 200k posts_tags rows is ~10^10 ops.
+  const postsTagsByPost = groupBySortedByOrder(postsTags, (r) => r.post_id);
+  const postsAuthorsByPost = groupBySortedByOrder(postsAuthors, (r) => r.post_id);
+
   const tagSlugsForPost = (postId: string): string[] =>
-    postsTags
-      .filter((r) => r.post_id === postId)
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    (postsTagsByPost.get(postId) ?? [])
       .map((r) => {
         const t = tagById.get(r.tag_id);
         if (!t) return '';
@@ -256,9 +260,7 @@ async function importFromResolvedInput(
       .filter((slug): slug is string => slug.length > 0);
 
   const authorSlugsForPost = (postId: string): string[] =>
-    postsAuthors
-      .filter((r) => r.post_id === postId)
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    (postsAuthorsByPost.get(postId) ?? [])
       .map((r) => {
         const u = userById.get(r.user_id);
         if (!u) return '';
@@ -642,6 +644,26 @@ function assertWithin(baseDir: string, candidate: string): void {
       `Refusing to write outside target directory: candidate=${resolvedCandidate} base=${resolvedBase}`,
     );
   }
+}
+
+// Group rows by a key (post_id) and sort each bucket by sort_order so callers
+// can drop the per-call filter+sort. Single pass over the input plus one sort
+// per bucket — O(M + sum(k log k)) instead of O(N*M).
+function groupBySortedByOrder<T extends { sort_order?: number }, K>(
+  rows: T[],
+  keyOf: (row: T) => K,
+): Map<K, T[]> {
+  const out = new Map<K, T[]>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const bucket = out.get(key);
+    if (bucket) bucket.push(row);
+    else out.set(key, [row]);
+  }
+  for (const bucket of out.values()) {
+    bucket.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }
+  return out;
 }
 
 async function pathExists(path: string): Promise<boolean> {
