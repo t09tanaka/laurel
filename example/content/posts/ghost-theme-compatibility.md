@@ -12,20 +12,20 @@ Nectar implements the Ghost theme helper surface needed to render real-world
 themes against static Markdown content. The full coverage matrix lives in
 `docs/GHOST_COMPATIBILITY.md` — here are the highlights.
 
-### Implemented
+## Implemented
 
 `asset`, `img_url`, `ghost_head`, `ghost_foot`, `date`, `t`, `url`, `concat`,
 `encode`, `link`, `link_class`, `navigation`, `pagination`, `reading_time`,
 `excerpt`, `content`, `authors`, `tags`, `social_url`, `lang`, `foreach`,
 `is`, `match`, `has`, and a `get` resolver against the local content graph.
 
-### Deliberately scoped out
+## Deliberately scoped out
 
 Members, subscriptions, paywall, comments. `{{comments}}` outputs an empty
 container; the optional components system is where you'd wire Giscus / Disqus
 in.
 
-### Currently best-effort
+## Currently best-effort
 
 `{{img_url size=...}}` doesn't transcode images yet — the size parameter is
 recognised, but the same source URL is returned. We'll add real resizing as

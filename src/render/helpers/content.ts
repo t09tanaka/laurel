@@ -226,15 +226,13 @@ function sliceByCharacters(text: string, characters: number): string {
   return text.slice(0, end);
 }
 
-// The post/page layout already emits the title as an <h1>, so any body-content
-// headings would otherwise create a duplicate h1 outline that Lighthouse flags
-// and that screen readers announce confusingly. We shift body headings down one
-// level, capping at h6, which keeps the document outline well-nested.
+// The post/page layout already emits the title as an <h1>, so a body-level <h1>
+// would duplicate the page heading. We promote only body <h1> tags to <h2>;
+// deeper levels stay as authored so the outline does not skip levels (e.g.
+// authoring an `##` no longer produces an `<h3>` after the title `<h1>`, which
+// html-validate flags as heading-level skip).
 function downshiftHeadings(html: string): string {
-  return html.replace(/<(\/?)h([1-5])\b/gi, (_match, slash: string, level: string) => {
-    const next = Number(level) + 1;
-    return `<${slash}h${next}`;
-  });
+  return html.replace(/<(\/?)h1\b/gi, (_match, slash: string) => `<${slash}h2`);
 }
 
 function parseNum(value: unknown): number | undefined {

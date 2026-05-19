@@ -68,6 +68,7 @@ Biome handles lint and format. TypeScript handles type checking.
 bun run check           # biome check (lint + format check)
 bun run format          # biome format --write
 bun run typecheck       # tsc --noEmit
+bun run lint:html       # html-validate against example/dist (run build:example first)
 ```
 
 ## Repo Layout
