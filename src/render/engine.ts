@@ -15,6 +15,11 @@ export interface NectarEngine {
   config: NectarConfig;
   content: ContentGraph;
   theme: ThemeBundle;
+  // Project root used by helpers that need filesystem access (image_dimensions
+  // resolves `/content/images/...` URLs to local files for intrinsic dimension
+  // probing). Optional because unit tests build engines directly and most
+  // helpers don't touch the filesystem.
+  cwd?: string;
   // Resolved at build time from theme assets + site.icon. Optional because
   // unit tests construct engines directly without going through createEngine
   // and have no need to set this up.
@@ -43,6 +48,7 @@ export function createEngine(opts: {
   content: ContentGraph;
   theme: ThemeBundle;
   favicons?: FaviconSet;
+  cwd?: string;
 }): NectarEngine {
   const hb = Handlebars.create();
   registerPartials(hb, opts.theme);
@@ -73,6 +79,7 @@ export function createEngine(opts: {
     config: opts.config,
     content: opts.content,
     theme: opts.theme,
+    cwd: opts.cwd,
     favicons: opts.favicons ?? EMPTY_FAVICON_SET,
     templates,
     layouts,

@@ -6,6 +6,7 @@ import { registerDateHelpers } from './date.ts';
 import { registerFlowHelpers } from './flow.ts';
 import { registerGhostHeadFootHelpers } from './ghost-head.ts';
 import { registerI18nHelpers } from './i18n.ts';
+import { registerImageDimensionHelpers } from './image-dimensions.ts';
 import { registerNavigationHelpers } from './navigation.ts';
 import { registerNumberHelpers } from './numbers.ts';
 import { registerStringHelpers } from './strings.ts';
@@ -19,6 +20,7 @@ export function registerHelpers(engine: NectarEngine): void {
   registerFlowHelpers(engine);
   registerGhostHeadFootHelpers(engine);
   registerI18nHelpers(engine);
+  registerImageDimensionHelpers(engine);
   registerNavigationHelpers(engine);
   registerNumberHelpers(engine);
   registerStringHelpers(engine);
