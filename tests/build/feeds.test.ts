@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { absolutizeHtmlUrls, emitRss, emitSitemap } from '~/build/feeds.ts';
+import { RSS_MAX_ITEMS_PER_PAGE, absolutizeHtmlUrls, emitRss, emitSitemap } from '~/build/feeds.ts';
 import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
@@ -144,6 +145,117 @@ describe('emitRss', () => {
     expect(xml).toContain(
       '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
     );
+  });
+
+  test('single-page feeds emit only rss.xml without prev/next atom links', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).not.toContain('rel="next"');
+    expect(xml).not.toContain('rel="prev"');
+    expect(existsSync(join(outputDir, 'rss-2.xml'))).toBe(false);
+  });
+
+  test('paginates overflow posts into rss-N.xml with atom prev/next links', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = Array.from({ length: 5 }, (_, i) =>
+      makePost({
+        id: `post-${i + 1}`,
+        slug: `post-${i + 1}`,
+        title: `Post ${i + 1}`,
+        url: `https://example.com/post-${i + 1}/`,
+      }),
+    );
+
+    await emitRss({ config, content, outputDir, limit: 2 });
+
+    const page1 = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+    const page2 = readFileSync(join(outputDir, 'rss-2.xml'), 'utf8');
+    const page3 = readFileSync(join(outputDir, 'rss-3.xml'), 'utf8');
+
+    expect(page1).toContain(
+      '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
+    );
+    expect(page1).toContain(
+      '<atom:link href="https://example.com/rss-2.xml" rel="next" type="application/rss+xml"/>',
+    );
+    expect(page1).not.toContain('rel="prev"');
+    expect(page1).toContain('<title>Post 1</title>');
+    expect(page1).toContain('<title>Post 2</title>');
+    expect(page1).not.toContain('<title>Post 3</title>');
+
+    expect(page2).toContain(
+      '<atom:link href="https://example.com/rss.xml" rel="prev" type="application/rss+xml"/>',
+    );
+    expect(page2).toContain(
+      '<atom:link href="https://example.com/rss-3.xml" rel="next" type="application/rss+xml"/>',
+    );
+    expect(page2).toContain('<title>Post 3</title>');
+    expect(page2).toContain('<title>Post 4</title>');
+
+    expect(page3).toContain(
+      '<atom:link href="https://example.com/rss-2.xml" rel="prev" type="application/rss+xml"/>',
+    );
+    expect(page3).not.toContain('rel="next"');
+    expect(page3).toContain('<title>Post 5</title>');
+
+    expect(existsSync(join(outputDir, 'rss-4.xml'))).toBe(false);
+  });
+
+  test('hard-clamps items per page to RSS_MAX_ITEMS_PER_PAGE', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = Array.from({ length: RSS_MAX_ITEMS_PER_PAGE + 5 }, (_, i) =>
+      makePost({
+        id: `post-${i + 1}`,
+        slug: `post-${i + 1}`,
+        title: `Post ${i + 1}`,
+        url: `https://example.com/post-${i + 1}/`,
+      }),
+    );
+
+    await emitRss({ config, content, outputDir, limit: 10_000 });
+
+    const page1 = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+    const page2 = readFileSync(join(outputDir, 'rss-2.xml'), 'utf8');
+
+    expect(page1).toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE}</title>`);
+    expect(page1).not.toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE + 1}</title>`);
+    expect(page1).toContain('rel="next"');
+    expect(page2).toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE + 5}</title>`);
+    expect(existsSync(join(outputDir, 'rss-3.xml'))).toBe(false);
+  });
+
+  test('non-positive limit falls back to a single item per page', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 0 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<title>Hello, world</title>');
+  });
+
+  test('empty content emits a single rss.xml with no items', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [];
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).not.toContain('<item>');
+    expect(xml).not.toContain('rel="next"');
+    expect(existsSync(join(outputDir, 'rss-2.xml'))).toBe(false);
   });
 });
 
