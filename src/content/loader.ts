@@ -6,6 +6,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { asBool, asDateISO, asString, asStringArray, parseFrontmatter } from './frontmatter.ts';
 import { renderMarkdown } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
+import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
 export interface LoadContentOptions {
   cwd: string;
@@ -132,7 +133,13 @@ interface RawPage extends Omit<RawPost, 'featured' | 'visibility'> {
 
 async function loadPosts(cwd: string, config: NectarConfig): Promise<RawPost[]> {
   const dir = join(cwd, config.content.posts_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizePost(file, raw, cwd, dir));
+  const posts = await loadMarkdownDir(dir, async (file, raw) =>
+    normalizePost(file, raw, cwd, dir, config),
+  );
+  if (config.content.visibility_policy === 'skip') {
+    return posts.filter((p) => p.visibility === 'public');
+  }
+  return posts;
 }
 
 async function loadPages(cwd: string, config: NectarConfig): Promise<RawPage[]> {
@@ -177,6 +184,7 @@ async function normalizePost(
   raw: string,
   _cwd: string,
   rootDir: string,
+  config?: NectarConfig,
 ): Promise<RawPost> {
   const { data, body } = parseFrontmatter(raw);
   const rendered = await renderMarkdown(body);
@@ -194,15 +202,32 @@ async function normalizePost(
   const visibility = (asString(data.visibility) ?? 'public') as RawPost['visibility'];
   const customExcerpt = asString(data.custom_excerpt ?? data.excerpt);
 
+  let html = rendered.html;
+  let plaintext = rendered.plaintext;
+  let word_count = rendered.word_count;
+  let reading_time = rendered.reading_time;
+  if (
+    config &&
+    (visibility === 'members' || visibility === 'paid') &&
+    config.content.visibility_policy === 'truncate'
+  ) {
+    const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
+    const reRendered = await renderMarkdown(truncated);
+    html = `${reRendered.html}${buildPaywallStub(visibility)}`;
+    plaintext = reRendered.plaintext;
+    word_count = reRendered.word_count;
+    reading_time = reRendered.reading_time;
+  }
+
   return {
     id: `post-${slug}`,
     slug,
     title,
-    html: rendered.html,
-    plaintext: rendered.plaintext,
-    word_count: rendered.word_count,
-    reading_time: rendered.reading_time,
-    excerpt: customExcerpt ?? rendered.plaintext.slice(0, 200),
+    html,
+    plaintext,
+    word_count,
+    reading_time,
+    excerpt: customExcerpt ?? plaintext.slice(0, 200),
     custom_excerpt: customExcerpt,
     feature_image: asString(data.feature_image),
     feature_image_alt: asString(data.feature_image_alt),
