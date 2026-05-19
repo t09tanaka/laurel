@@ -4,9 +4,17 @@ import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
+import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
-import { asBool, asDateISO, asString, asStringArray, parseFrontmatter } from './frontmatter.ts';
+import {
+  asBool,
+  asDateISO,
+  asPositiveInt,
+  asString,
+  asStringArray,
+  parseFrontmatter,
+} from './frontmatter.ts';
 import { renderMarkdown } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
@@ -107,6 +115,8 @@ interface RawPost {
   feature_image: string | undefined;
   feature_image_alt: string | undefined;
   feature_image_caption: string | undefined;
+  feature_image_width: number | undefined;
+  feature_image_height: number | undefined;
   featured: boolean;
   published_at: string;
   updated_at: string;
@@ -148,7 +158,7 @@ async function loadPosts(cwd: string, config: NectarConfig): Promise<RawPost[]> 
 
 async function loadPages(cwd: string, config: NectarConfig): Promise<RawPage[]> {
   const dir = join(cwd, config.content.pages_dir);
-  return loadMarkdownDir(dir, async (file, raw) => normalizePage(file, raw, cwd, dir));
+  return loadMarkdownDir(dir, async (file, raw) => normalizePage(file, raw, cwd, dir, config));
 }
 
 async function loadAuthors(cwd: string, config: NectarConfig): Promise<Author[]> {
@@ -211,7 +221,7 @@ function sanitizeUserSlugList(values: string[], context: string): string[] {
 async function normalizePost(
   filePath: string,
   raw: string,
-  _cwd: string,
+  cwd: string,
   rootDir: string,
   config?: NectarConfig,
 ): Promise<RawPost> {
@@ -251,6 +261,14 @@ async function normalizePost(
     reading_time = reRendered.reading_time;
   }
 
+  const featureImage = asString(data.feature_image);
+  const explicitWidth = asPositiveInt(data.feature_image_width);
+  const explicitHeight = asPositiveInt(data.feature_image_height);
+  const dims =
+    explicitWidth && explicitHeight
+      ? { width: explicitWidth, height: explicitHeight }
+      : resolveLocalImageDimensions(featureImage, cwd, config);
+
   return {
     id: `post-${slug}`,
     slug,
@@ -261,9 +279,11 @@ async function normalizePost(
     reading_time,
     excerpt: customExcerpt ?? plaintext.slice(0, 200),
     custom_excerpt: customExcerpt,
-    feature_image: asString(data.feature_image),
+    feature_image: featureImage,
     feature_image_alt: asString(data.feature_image_alt),
     feature_image_caption: asString(data.feature_image_caption),
+    feature_image_width: explicitWidth ?? dims?.width,
+    feature_image_height: explicitHeight ?? dims?.height,
     featured: asBool(data.featured, false),
     published_at: published,
     updated_at: updated,
@@ -299,8 +319,9 @@ async function normalizePage(
   raw: string,
   cwd: string,
   rootDir: string,
+  config?: NectarConfig,
 ): Promise<RawPage> {
-  const base = await normalizePost(filePath, raw, cwd, rootDir);
+  const base = await normalizePost(filePath, raw, cwd, rootDir, config);
   const { data } = parseFrontmatter(raw);
   return {
     ...base,
@@ -364,6 +385,34 @@ async function normalizeTag(filePath: string, raw: string, config: NectarConfig)
   };
 }
 
+// Resolves an in-repo image URL (e.g. `/content/images/foo.svg`) to a file
+// path under the configured assets_dir and reads its intrinsic dimensions.
+// Returns undefined for remote URLs, absolute filesystem references, or any
+// path that escapes the assets root.
+function resolveLocalImageDimensions(
+  featureImage: string | undefined,
+  cwd: string,
+  config: NectarConfig | undefined,
+): { width: number; height: number } | undefined {
+  if (!featureImage || !config) return undefined;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(featureImage)) return undefined;
+  const marker = '/content/images/';
+  const idx = featureImage.indexOf(marker);
+  if (idx < 0) return undefined;
+  const rest = featureImage.slice(idx + marker.length).split(/[?#]/)[0] ?? '';
+  if (rest === '' || rest.includes('..')) return undefined;
+  const assetsRoot = join(cwd, config.content.assets_dir);
+  const filePath = join(assetsRoot, rest);
+  const rel = relative(assetsRoot, filePath);
+  if (rel.startsWith('..') || rel.includes(`..${'/'}`)) return undefined;
+  if (!existsSync(filePath)) return undefined;
+  const dims = readImageDimensions(filePath);
+  if (!dims) {
+    logger.warn(`Could not determine image dimensions for ${filePath}`);
+  }
+  return dims;
+}
+
 function resolvePostRelations(
   raw: RawPost,
   authors: Map<string, Author>,
@@ -389,6 +438,8 @@ function resolvePostRelations(
     feature_image: raw.feature_image,
     feature_image_alt: raw.feature_image_alt,
     feature_image_caption: raw.feature_image_caption,
+    feature_image_width: raw.feature_image_width,
+    feature_image_height: raw.feature_image_height,
     featured: raw.featured,
     page: false,
     published_at: raw.published_at,
@@ -445,6 +496,8 @@ function resolvePageRelations(
     feature_image: raw.feature_image,
     feature_image_alt: raw.feature_image_alt,
     feature_image_caption: raw.feature_image_caption,
+    feature_image_width: raw.feature_image_width,
+    feature_image_height: raw.feature_image_height,
     page: true,
     published_at: raw.published_at,
     updated_at: raw.updated_at,
