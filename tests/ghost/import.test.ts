@@ -832,3 +832,472 @@ describe('importGhostExport — Koenig card comment fences', () => {
     expect(md).toContain('Body paragraph.');
   });
 });
+
+describe('importGhostExport — --download-images (#128)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-dl-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  interface FakeFetchOptions {
+    // URLs that should respond with the given body bytes + content-type.
+    ok?: Record<string, { body: string; contentType?: string }>;
+    // URLs that should respond with an HTTP error status.
+    error?: Record<string, number>;
+    // URLs that should make fetch throw (simulating a connection failure).
+    throw?: string[];
+  }
+
+  function fakeFetch(opts: FakeFetchOptions): {
+    fetcher: typeof fetch;
+    calls: string[];
+  } {
+    const calls: string[] = [];
+    const fetcher = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      calls.push(url);
+      if (opts.throw?.includes(url)) {
+        throw new Error(`simulated network failure for ${url}`);
+      }
+      if (opts.error && url in opts.error) {
+        return new Response('', { status: opts.error[url] });
+      }
+      if (opts.ok && url in opts.ok) {
+        const { body, contentType } = opts.ok[url];
+        return new Response(body, {
+          status: 200,
+          headers: { 'content-type': contentType ?? 'image/jpeg' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+    return { fetcher, calls };
+  }
+
+  test('downloads Ghost CDN URLs to content/images and preserves the path', async () => {
+    const ghostUrl = 'https://my-ghost-site.com/content/images/2024/01/cover.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: `<p>See <img src="${ghostUrl}" alt="cover" /></p>`,
+                  feature_image: ghostUrl,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher, calls } = fakeFetch({
+      ok: { [ghostUrl]: { body: 'GHOSTBYTES', contentType: 'image/jpeg' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.imagesFailed).toBe(0);
+    // Same URL appears in body + feature_image; only one fetch.
+    expect(calls.length).toBe(1);
+
+    const written = await readFile(join(cwd, 'content/images/2024/01/cover.jpg'), 'utf8');
+    expect(written).toBe('GHOSTBYTES');
+
+    const md = await readFile(join(cwd, 'content/posts/hello.md'), 'utf8');
+    expect(md).not.toContain(ghostUrl);
+    expect(md).toContain('feature_image: "/content/images/2024/01/cover.jpg"');
+    expect(md).toContain('/content/images/2024/01/cover.jpg');
+  });
+
+  test('downloads external Unsplash-style URLs under content/images/external/', async () => {
+    const unsplashUrl = 'https://images.unsplash.com/photo-12345?w=1200';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Unsplash',
+                  slug: 'unsplash',
+                  html: `<p><img src="${unsplashUrl}" alt="hero" /></p>`,
+                  feature_image: unsplashUrl,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({
+      ok: { [unsplashUrl]: { body: 'UNSPLASH', contentType: 'image/jpeg' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+
+    const externalDir = join(cwd, 'content/images/external');
+    const files = await readdir(externalDir);
+    expect(files.length).toBe(1);
+    expect(files[0]).toMatch(/^[a-f0-9]{16}\.jpg$/);
+
+    const md = await readFile(join(cwd, 'content/posts/unsplash.md'), 'utf8');
+    expect(md).not.toContain('images.unsplash.com');
+    expect(md).toContain(`/content/images/external/${files[0]}`);
+    expect(md).toContain(`feature_image: "/content/images/external/${files[0]}"`);
+  });
+
+  test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {
+    // Turndown converts <img src=... alt=...> into ![alt](url), so the
+    // rewriter sees markdown image syntax in the final body. Verify that
+    // path explicitly.
+    const remoteUrl = 'https://images.unsplash.com/inline.png';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Md',
+                  slug: 'md',
+                  html: `<p>before <img src="${remoteUrl}" alt="alt text"> after</p>`,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({
+      ok: { [remoteUrl]: { body: 'PNG', contentType: 'image/png' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    const md = await readFile(join(cwd, 'content/posts/md.md'), 'utf8');
+    expect(md).not.toContain(remoteUrl);
+    expect(md).toMatch(/!\[alt text\]\(\/content\/images\/external\/[a-f0-9]{16}\.png\)/);
+  });
+
+  test('leaves URLs untouched and counts failures when downloads fail', async () => {
+    const failUrl = 'https://images.unsplash.com/missing.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'F',
+                  slug: 'f',
+                  html: `<p><img src="${failUrl}" alt="x" /></p>`,
+                  feature_image: failUrl,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({ error: { [failUrl]: 404 } });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    // Failure cached: same URL in body + feature_image counts as one failure.
+    expect(summary.imagesFailed).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/f.md'), 'utf8');
+    expect(md).toContain(failUrl);
+    expect(md).toContain(`feature_image: "${failUrl}"`);
+  });
+
+  test('also rewrites tag feature_image and author profile_image / cover_image', async () => {
+    const tagImg = 'https://images.unsplash.com/tag.jpg';
+    const profileImg = 'https://images.unsplash.com/profile.jpg';
+    const coverImg = 'https://my-ghost-site.com/content/images/cover.jpg';
+
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [
+                {
+                  id: 't1',
+                  slug: 'news',
+                  name: 'News',
+                  description: 'd',
+                  feature_image: tagImg,
+                },
+              ],
+              users: [
+                {
+                  id: 'u1',
+                  slug: 'casper',
+                  name: 'Casper',
+                  profile_image: profileImg,
+                  cover_image: coverImg,
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({
+      ok: {
+        [tagImg]: { body: 'T', contentType: 'image/jpeg' },
+        [profileImg]: { body: 'P', contentType: 'image/jpeg' },
+        [coverImg]: { body: 'C', contentType: 'image/jpeg' },
+      },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.imagesDownloaded).toBe(3);
+    expect(await readFile(join(cwd, 'content/images/cover.jpg'), 'utf8')).toBe('C');
+
+    const tagMd = await readFile(join(cwd, 'content/tags/news.md'), 'utf8');
+    expect(tagMd).not.toContain('images.unsplash.com');
+    expect(tagMd).toMatch(/feature_image: "\/content\/images\/external\/[a-f0-9]{16}\.jpg"/);
+
+    const authorMd = await readFile(join(cwd, 'content/authors/casper.md'), 'utf8');
+    expect(authorMd).not.toContain('images.unsplash.com');
+    expect(authorMd).toMatch(/profile_image: "\/content\/images\/external\/[a-f0-9]{16}\.jpg"/);
+    expect(authorMd).toContain('cover_image: "/content/images/cover.jpg"');
+  });
+
+  test('leaves relative / data: URLs alone and does not fetch them', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Skip',
+                  slug: 'skip',
+                  html: '<p><img src="/content/images/already-local.jpg" alt="a" /><img src="data:image/png;base64,AAAA" alt="b" /></p>',
+                  feature_image: '/content/images/local.jpg',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher, calls } = fakeFetch({});
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls.length).toBe(0);
+
+    const md = await readFile(join(cwd, 'content/posts/skip.md'), 'utf8');
+    expect(md).toContain('/content/images/already-local.jpg');
+    expect(md).toContain('data:image/png;base64,AAAA');
+    expect(md).toContain('feature_image: "/content/images/local.jpg"');
+  });
+
+  test('disabled by default: URLs are kept verbatim (back-compat)', async () => {
+    const ghostUrl = 'https://my-ghost-site.com/content/images/2024/01/cover.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'X',
+                  slug: 'x',
+                  html: `<p><img src="${ghostUrl}" alt="c" /></p>`,
+                  feature_image: ghostUrl,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    const md = await readFile(join(cwd, 'content/posts/x.md'), 'utf8');
+    expect(md).toContain(ghostUrl);
+    expect(md).toContain(`feature_image: "${ghostUrl}"`);
+  });
+
+  test('infers extension from Content-Type when URL has none', async () => {
+    const extlessUrl = 'https://cdn.example.com/random-id';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'E',
+                  slug: 'e',
+                  html: `<p><img src="${extlessUrl}" alt="e" /></p>`,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({
+      ok: { [extlessUrl]: { body: 'WEBP', contentType: 'image/webp' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    const externalDir = join(cwd, 'content/images/external');
+    const files = await readdir(externalDir);
+    expect(files.length).toBe(1);
+    expect(files[0]).toMatch(/^[a-f0-9]{16}\.webp$/);
+  });
+
+  test('survives a thrown fetch error and continues importing', async () => {
+    const throwUrl = 'https://images.unsplash.com/boom.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'B',
+                  slug: 'b',
+                  html: `<p><img src="${throwUrl}" alt="b" /></p>`,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher } = fakeFetch({ throw: [throwUrl] });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/b.md'), 'utf8');
+    expect(md).toContain(throwUrl);
+  });
+});
