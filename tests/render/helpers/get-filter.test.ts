@@ -150,3 +150,123 @@ describe('get helper filter via secondary indexes', () => {
     expect(elapsed).toBeLessThan(500);
   });
 });
+
+// Source theme's `partials/components/featured.hbs` wraps its `<section>` inside
+// `{{#get "posts" filter="featured:true"}}` so that when no post is marked
+// featured the whole section is suppressed. Before #1007 we only ever
+// exercised the path where featured posts existed; these tests pin down the
+// empty-result behavior so a future change to `applyGetFilter` can't silently
+// start emitting an empty `<section class="gh-featured">` on the home page.
+describe('get helper filter on empty featured result', () => {
+  test('skips the block body when filter="featured:true" matches nothing', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        title: 'A',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        title: 'B',
+        published_at: '2026-05-18T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `<wrap>{{#get "posts" filter="featured:true" as |featured|}}<section>{{#foreach featured}}{{id}},{{/foreach}}</section>{{/get}}</wrap>`,
+    );
+    expect(tpl({})).toBe('<wrap></wrap>');
+  });
+
+  test('renders the {{else}} branch when filter="featured:true" matches nothing', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        title: 'A',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:true" as |featured|}}<section>{{#foreach featured}}{{id}},{{/foreach}}</section>{{else}}no-featured{{/get}}`,
+    );
+    expect(tpl({})).toBe('no-featured');
+  });
+
+  test('returns empty when the posts collection itself is empty', () => {
+    const engine = buildEngine({ posts: [] });
+    const tpl = engine.hb.compile(
+      `<wrap>{{#get "posts" filter="featured:true" as |featured|}}<section>{{#foreach featured}}{{id}},{{/foreach}}</section>{{/get}}</wrap>`,
+    );
+    expect(tpl({})).toBe('<wrap></wrap>');
+  });
+
+  test('builds the featured index bucket even when no post is featured', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        title: 'A',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:true" as |featured|}}hit{{else}}miss{{/get}}`,
+    );
+    tpl({});
+    // Index must be populated so subsequent `featured:false` lookups also use
+    // the secondary index instead of falling back to a linear scan.
+    const featuredMap = engine.filterIndexCache?.get('posts')?.get('featured');
+    expect(featuredMap).toBeDefined();
+    expect(featuredMap?.get('false')?.size).toBe(1);
+    expect(featuredMap?.has('true')).toBe(false);
+  });
+
+  test('still hits the index on subsequent featured:false call after empty featured:true', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        title: 'A',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        title: 'B',
+        published_at: '2026-05-18T00:00:00.000Z',
+        featured: false,
+        tags: [],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tplTrue = engine.hb.compile(
+      `{{#get "posts" filter="featured:true" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{else}}empty{{/get}}`,
+    );
+    const tplFalse = engine.hb.compile(
+      `{{#get "posts" filter="featured:false" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tplTrue({})).toBe('empty');
+    expect(tplFalse({})).toBe('a,b,');
+  });
+});
