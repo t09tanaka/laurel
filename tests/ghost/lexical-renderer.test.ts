@@ -1,0 +1,245 @@
+import { describe, expect, test } from 'bun:test';
+import { renderLexicalToHtml } from '~/ghost/lexical-renderer.ts';
+
+function lex(children: unknown[]): string {
+  return JSON.stringify({ root: { type: 'root', children, version: 1 } });
+}
+
+function text(value: string, format = 0): Record<string, unknown> {
+  return { type: 'extended-text', text: value, format, version: 1 };
+}
+
+describe('renderLexicalToHtml', () => {
+  test('renders an empty input as empty string', () => {
+    expect(renderLexicalToHtml('')).toBe('');
+    expect(renderLexicalToHtml(null)).toBe('');
+    expect(renderLexicalToHtml(undefined)).toBe('');
+  });
+
+  test('returns empty string for invalid JSON', () => {
+    expect(renderLexicalToHtml('not json')).toBe('');
+  });
+
+  test('renders a paragraph with plain text', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('Hello world')], version: 1 }]),
+    );
+    expect(out).toBe('<p>Hello world</p>');
+  });
+
+  test('renders headings with the given tag', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        { type: 'heading', tag: 'h1', children: [text('Title')], version: 1 },
+        { type: 'heading', tag: 'h3', children: [text('Sub')], version: 1 },
+      ]),
+    );
+    expect(out).toBe('<h1>Title</h1><h3>Sub</h3>');
+  });
+
+  test('defaults invalid heading tag to h2', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'heading', tag: 'h99', children: [text('X')], version: 1 }]),
+    );
+    expect(out).toBe('<h2>X</h2>');
+  });
+
+  test('renders bullet and numbered lists', () => {
+    const ul = renderLexicalToHtml(
+      lex([
+        {
+          type: 'list',
+          listType: 'bullet',
+          children: [
+            { type: 'listitem', children: [text('a')], version: 1 },
+            { type: 'listitem', children: [text('b')], version: 1 },
+          ],
+          version: 1,
+        },
+      ]),
+    );
+    expect(ul).toBe('<ul><li>a</li><li>b</li></ul>');
+
+    const ol = renderLexicalToHtml(
+      lex([
+        {
+          type: 'list',
+          listType: 'number',
+          children: [{ type: 'listitem', children: [text('one')], version: 1 }],
+          version: 1,
+        },
+      ]),
+    );
+    expect(ol).toBe('<ol><li>one</li></ol>');
+  });
+
+  test('applies inline formatting from the format bitfield', () => {
+    const bold = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('B', 1)], version: 1 }]),
+    );
+    expect(bold).toBe('<p><strong>B</strong></p>');
+
+    const italic = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('I', 2)], version: 1 }]),
+    );
+    expect(italic).toBe('<p><em>I</em></p>');
+
+    const boldItalic = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('BI', 1 | 2)], version: 1 }]),
+    );
+    expect(boldItalic).toBe('<p><strong><em>BI</em></strong></p>');
+
+    const code = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('c', 16)], version: 1 }]),
+    );
+    expect(code).toBe('<p><code>c</code></p>');
+  });
+
+  test('renders links with href', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'link',
+              url: 'https://example.com',
+              children: [text('click')],
+              version: 1,
+            },
+          ],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe('<p><a href="https://example.com">click</a></p>');
+  });
+
+  test('escapes HTML-special characters in text', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'paragraph', children: [text('<script>&amp;</script>')], version: 1 }]),
+    );
+    expect(out).toBe('<p>&lt;script&gt;&amp;amp;&lt;/script&gt;</p>');
+  });
+
+  test('renders horizontalrule and linebreak nodes', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        { type: 'horizontalrule', version: 1 },
+        {
+          type: 'paragraph',
+          children: [text('a'), { type: 'linebreak', version: 1 }, text('b')],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe('<hr><p>a<br>b</p>');
+  });
+
+  test('renders blockquote nodes', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'quote',
+          children: [text('To be')],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe('<blockquote>To be</blockquote>');
+  });
+
+  test('renders an image card with caption and href', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'image',
+          src: '/content/images/2024/01/x.jpg',
+          alt: 'A picture',
+          caption: 'My caption',
+          href: 'https://example.com',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('kg-image-card');
+    expect(out).toContain('href="https://example.com"');
+    expect(out).toContain('src="/content/images/2024/01/x.jpg"');
+    expect(out).toContain('alt="A picture"');
+    expect(out).toContain('<figcaption>My caption</figcaption>');
+  });
+
+  test('renders a code card with language and caption', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'code',
+          code: 'console.log("hi");',
+          language: 'javascript',
+          caption: 'Example',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('<pre><code class="language-javascript">');
+    expect(out).toContain('console.log("hi");');
+    expect(out).toContain('<figcaption>Example</figcaption>');
+  });
+
+  test('renders an html card inside a kg-card fence', () => {
+    const out = renderLexicalToHtml(lex([{ type: 'html', html: '<div>raw</div>', version: 1 }]));
+    expect(out).toBe('<!--kg-card-begin: html--><div>raw</div><!--kg-card-end: html-->');
+  });
+
+  test('renders a bookmark card with metadata', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'bookmark',
+          url: 'https://example.com',
+          metadata: {
+            title: 'Example',
+            description: 'A site',
+            publisher: 'Example Inc',
+          },
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('kg-bookmark-card');
+    expect(out).toContain('Example');
+    expect(out).toContain('https://example.com');
+  });
+
+  test('omits members-only cards', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        { type: 'paywall', version: 1 },
+        { type: 'email', html: '<p>only members</p>', version: 1 },
+        { type: 'email-cta', version: 1 },
+        { type: 'signup', version: 1 },
+        { type: 'paragraph', children: [text('public')], version: 1 },
+      ]),
+    );
+    expect(out).toBe('<p>public</p>');
+  });
+
+  test('walks children of unknown node types so nested text survives', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'something-weird',
+              children: [text('still here')],
+              version: 1,
+            },
+          ],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe('<p>still here</p>');
+  });
+});
