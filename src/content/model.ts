@@ -18,6 +18,9 @@ export interface SiteData {
   lang: string;
   twitter: string | undefined;
   facebook: string | undefined;
+  members_enabled: boolean;
+  paid_members_enabled: boolean;
+  recommendations_enabled: boolean;
 }
 
 export interface Author {

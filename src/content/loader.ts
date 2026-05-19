@@ -151,6 +151,11 @@ function buildSite(config: NectarConfig): SiteData {
     secondary_navigation: config.secondary_navigation,
     twitter: config.site.twitter,
     facebook: config.site.facebook,
+    // Ghost's Source theme branches on these in sidebar/footer/cta partials.
+    // Nectar is static-only with no members backend, so they are always false.
+    members_enabled: false,
+    paid_members_enabled: false,
+    recommendations_enabled: false,
   };
 }
 

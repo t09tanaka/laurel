@@ -36,6 +36,9 @@ See `DESIGN.md` §4 for the master matrix.
 | `accent_color`   | `nectar.toml [site].accent_color` |
 | `navigation`     | `nectar.toml [[navigation]]` |
 | `secondary_navigation` | `nectar.toml [[secondary_navigation]]` |
+| `members_enabled` | Always `false`. Nectar has no members backend; this stable default makes Source's sidebar/header/footer/CTA `{{#if @site.members_enabled}}` branches collapse to the public path. |
+| `paid_members_enabled` | Always `false`. Same rationale as `members_enabled`; gates the paid-only badge in `post-list.hbs`. |
+| `recommendations_enabled` | Always `false`. Gates Source's recommendations widget in `post-list.hbs`. Recommendations are a Ghost server feature with no static equivalent. |
 
 ### `@custom`
 Built from the theme's `package.json` `config.custom.*` defaults, with

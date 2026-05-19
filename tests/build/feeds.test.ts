@@ -467,6 +467,9 @@ function makeGraph(): ContentGraph {
       lang: 'en',
       twitter: undefined,
       facebook: undefined,
+      members_enabled: false,
+      paid_members_enabled: false,
+      recommendations_enabled: false,
     },
   };
 }

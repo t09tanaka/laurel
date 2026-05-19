@@ -32,6 +32,9 @@ const site: SiteData = {
   secondary_navigation: [],
   twitter: undefined,
   facebook: undefined,
+  members_enabled: false,
+  paid_members_enabled: false,
+  recommendations_enabled: false,
 };
 
 function makeAuthor(overrides: Partial<Author> = {}): Author {
