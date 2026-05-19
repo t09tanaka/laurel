@@ -162,3 +162,157 @@ describe('cli new — slug collision handling', () => {
     expect(body).toContain('slug: hello-equals');
   });
 });
+
+describe('cli new — frontmatter flags', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-flags-')));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--draft writes status: draft into the frontmatter', async () => {
+    const { exitCode } = await runCli(['new', 'post', 'Hello World', '--draft'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/hello-world.md'), 'utf8');
+    expect(body).toContain('status: draft');
+  });
+
+  test('--date overrides the published date with an ISO-normalized value', async () => {
+    const { exitCode } = await runCli(
+      ['new', 'post', 'Backdated Post', '--date', '2024-01-02T03:04:05Z'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/backdated-post.md'), 'utf8');
+    expect(body).toContain('date: 2024-01-02T03:04:05.000Z');
+  });
+
+  test('--date rejects values that do not parse as a date', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['new', 'post', 'Bad Date', '--date', 'not-a-date'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --date value');
+  });
+
+  test('--tags slugifies each item and writes the list into the frontmatter', async () => {
+    const { exitCode } = await runCli(
+      ['new', 'post', 'Tagged', '--tags', 'News, Getting Started ,migration'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/tagged.md'), 'utf8');
+    expect(body).toContain('tags: ["news", "getting-started", "migration"]');
+  });
+
+  test('--author writes a single-element authors array', async () => {
+    const { exitCode } = await runCli(['new', 'post', 'By Casper', '--author', 'casper'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/by-casper.md'), 'utf8');
+    expect(body).toContain('authors: ["casper"]');
+  });
+
+  test('--draft is allowed on page but --tags / --author / --date are not', async () => {
+    const ok = await runCli(['new', 'page', 'About', '--draft'], dir);
+    expect(ok.exitCode).toBe(0);
+    const pageBody = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
+    expect(pageBody).toContain('status: draft');
+
+    const bad = await runCli(['new', 'page', 'About Two', '--tags', 'news'], dir);
+    expect(bad.exitCode).toBe(2);
+    expect(bad.stderr).toContain('only valid for "post" kind');
+  });
+
+  test('--open warns and continues when $EDITOR is unset', async () => {
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'new', 'post', 'No Editor', '--open'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, EDITOR: '' },
+    });
+    const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('--open was passed but $EDITOR is not set');
+    const body = await readFile(join(dir, 'content/posts/no-editor.md'), 'utf8');
+    expect(body).toContain('slug: no-editor');
+  });
+
+  test('--open invokes $EDITOR with the created file path', async () => {
+    const marker = join(dir, 'editor-was-called.txt');
+    const editor = join(dir, 'fake-editor.sh');
+    await Bun.write(editor, `#!/bin/sh\nprintf '%s' "$1" > '${marker}'\n`);
+    await Bun.spawn(['chmod', '+x', editor]).exited;
+
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'new', 'post', 'With Editor', '--open'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, EDITOR: editor },
+    });
+    const exitCode = await proc.exited;
+    expect(exitCode).toBe(0);
+    const captured = await readFile(marker, 'utf8');
+    expect(captured).toBe(join(dir, 'content/posts/with-editor.md'));
+  });
+});
+
+describe('cli new — tag and author kinds', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-meta-')));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('"new tag <slug>" writes into content.tags_dir with slug + name', async () => {
+    const { exitCode } = await runCli(['new', 'tag', 'getting-started'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/tags/getting-started.md'), 'utf8');
+    expect(body).toContain('slug: getting-started');
+    expect(body).toContain('name: "Getting Started"');
+    expect(body).toContain('description:');
+    expect(body).not.toContain('date:');
+    expect(body).not.toContain('tags:');
+  });
+
+  test('"new author <slug>" writes into content.authors_dir with slug + name + bio', async () => {
+    const { exitCode } = await runCli(['new', 'author', 'casper'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/authors/casper.md'), 'utf8');
+    expect(body).toContain('slug: casper');
+    expect(body).toContain('name: "Casper"');
+    expect(body).toContain('bio:');
+  });
+
+  test('"new tag" rejects --date / --tags / --author / --slug', async () => {
+    const r = await runCli(['new', 'tag', 'news', '--tags', 'x'], dir);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toContain('only valid for "post" kind');
+  });
+
+  test('"new author" honors content.authors_dir override', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      ['[site]', 'title = "T"', '', '[content]', 'authors_dir = "team"', ''].join('\n'),
+    );
+    const { exitCode } = await runCli(['new', 'author', 'jane'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'team/jane.md'), 'utf8');
+    expect(body).toContain('slug: jane');
+  });
+
+  test('unknown kind produces a usage error listing all valid kinds', async () => {
+    const { stderr, exitCode } = await runCli(['new', 'widget', 'Hello'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid kind: widget');
+    expect(stderr).toContain('post, page, tag, author');
+  });
+});

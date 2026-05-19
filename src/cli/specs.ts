@@ -37,7 +37,7 @@ export const BUILD_SPEC: CommandSpec = {
 
 export const NEW_SPEC: CommandSpec = {
   name: 'new',
-  summary: 'Scaffold a new post or page',
+  summary: 'Scaffold a new post, page, tag, or author',
   options: {
     config: {
       type: 'string',
@@ -50,13 +50,46 @@ export const NEW_SPEC: CommandSpec = {
     },
     slug: {
       type: 'string',
-      description: 'Use this slug instead of one derived from the title',
+      description:
+        'Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug)',
       placeholder: '<slug>',
+    },
+    draft: {
+      type: 'boolean',
+      description:
+        'Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only)',
+    },
+    date: {
+      type: 'string',
+      description:
+        'Override the published date with an ISO-8601 timestamp instead of the current time (post only)',
+      placeholder: '<iso>',
+    },
+    tags: {
+      type: 'string',
+      description: 'Comma-separated list of tag slugs to seed in frontmatter (post only)',
+      placeholder: '<a,b,c>',
+    },
+    author: {
+      type: 'string',
+      description: 'Author slug to seed in frontmatter (post only)',
+      placeholder: '<slug>',
+    },
+    open: {
+      type: 'boolean',
+      description:
+        'Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset)',
     },
   },
   positionals: [
-    { name: 'kind', description: 'post or page', required: true },
-    { name: 'title', description: 'Title of the post or page', required: true, variadic: true },
+    { name: 'kind', description: 'post, page, tag, or author', required: true },
+    {
+      name: 'title',
+      description:
+        'Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles',
+      required: true,
+      variadic: true,
+    },
   ],
 };
 

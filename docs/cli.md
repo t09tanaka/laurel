@@ -27,7 +27,7 @@ nectar [global options] <command> [options]
 | --- | --- |
 | [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
 | [`nectar build`](#nectar-build) | Build the site into the configured output directory |
-| [`nectar new`](#nectar-new) | Scaffold a new post or page |
+| [`nectar new`](#nectar-new) | Scaffold a new post, page, tag, or author |
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
@@ -74,20 +74,20 @@ Options:
 
 ### `nectar new`
 
-Scaffold a new post or page
+Scaffold a new post, page, tag, or author
 
 Usage:
 
 ```
-nectar new [--config <path>] [--force] [--slug <slug>] <kind> <title...>
+nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] <kind> <title...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<kind>` | required | post or page |
-| `<title...>` | required (variadic) | Title of the post or page |
+| `<kind>` | required | post, page, tag, or author |
+| `<title...>` | required (variadic) | Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles |
 
 Options:
 
@@ -95,7 +95,12 @@ Options:
 | --- | --- | --- |
 | `--config <path>` | string | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--force` | boolean | Overwrite the destination file if it already exists |
-| `--slug <slug>` | string | Use this slug instead of one derived from the title |
+| `--slug <slug>` | string | Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug) |
+| `--draft` | boolean | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
+| `--date <iso>` | string | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
+| `--tags <a,b,c>` | string | Comma-separated list of tag slugs to seed in frontmatter (post only) |
+| `--author <slug>` | string | Author slug to seed in frontmatter (post only) |
+| `--open` | boolean | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
 
 ### `nectar serve`
 
