@@ -155,7 +155,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] <file>
 ```
 
 Arguments:
@@ -170,3 +170,4 @@ Options:
 | --- | --- | --- |
 | `--on-conflict <skip\|overwrite\|rename>` | string | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
 | `--assets <dir>` | string | Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
+| `--download-images` | boolean | Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths |

@@ -112,6 +112,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         "Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/",
       placeholder: '<dir>',
     },
+    'download-images': {
+      type: 'boolean',
+      description:
+        'Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths',
+    },
   },
   positionals: [
     {

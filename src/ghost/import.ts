@@ -13,6 +13,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { GhostImageDownloader } from './image-downloader.ts';
 import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
@@ -122,6 +123,8 @@ export interface ImportSummary {
   overwritten: number;
   renamed: number;
   assetsCopied: number;
+  imagesDownloaded: number;
+  imagesFailed: number;
 }
 
 export interface ImportGhostOptions {
@@ -134,6 +137,13 @@ export interface ImportGhostOptions {
   // Override the asset source directory. Should contain images/, files/,
   // and/or media/ subdirs that will be copied into <cwd>/content/.
   assetsDir?: string;
+  // When true, walk every image URL in post bodies and frontmatter image
+  // fields, fetch them to <cwd>/content/images/, and rewrite the references
+  // to site-relative paths. Defaults to false (URLs are written verbatim).
+  downloadImages?: boolean;
+  // Test seam: override the fetch implementation used by the downloader.
+  // Defaults to globalThis.fetch.
+  fetcher?: typeof fetch;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -182,6 +192,10 @@ async function importFromResolvedInput(
   const postsTags = data.posts_tags ?? [];
   const postsAuthors = data.posts_authors ?? [];
 
+  const downloader = opts.downloadImages
+    ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
+    : undefined;
+
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
 
@@ -220,14 +234,24 @@ async function importFromResolvedInput(
       continue;
     }
     const dir = isPage ? 'content/pages' : 'content/posts';
-    const body = renderPostBody(post);
+    const rawBody = renderPostBody(post);
+    const body = downloader ? await downloader.rewriteText(rawBody) : rawBody;
+    const feature_image = downloader
+      ? await downloader.rewriteField(post.feature_image ?? undefined)
+      : (post.feature_image ?? undefined);
+    const og_image = downloader
+      ? await downloader.rewriteField(post.og_image ?? undefined)
+      : (post.og_image ?? undefined);
+    const twitter_image = downloader
+      ? await downloader.rewriteField(post.twitter_image ?? undefined)
+      : (post.twitter_image ?? undefined);
     const frontmatter = buildFrontmatter({
       slug,
       title: post.title,
       date: post.published_at ?? post.created_at ?? undefined,
       updated_at: post.updated_at ?? undefined,
       featured: !!post.featured,
-      feature_image: post.feature_image ?? undefined,
+      feature_image,
       feature_image_alt: post.feature_image_alt ?? undefined,
       feature_image_caption: post.feature_image_caption ?? undefined,
       visibility: post.visibility ?? 'public',
@@ -239,10 +263,10 @@ async function importFromResolvedInput(
       meta_description: post.meta_description ?? undefined,
       og_title: post.og_title ?? undefined,
       og_description: post.og_description ?? undefined,
-      og_image: post.og_image ?? undefined,
+      og_image,
       twitter_title: post.twitter_title ?? undefined,
       twitter_description: post.twitter_description ?? undefined,
-      twitter_image: post.twitter_image ?? undefined,
+      twitter_image,
       canonical_url: post.canonical_url ?? undefined,
       codeinjection_head: post.codeinjection_head ?? undefined,
       codeinjection_foot: post.codeinjection_foot ?? undefined,
@@ -276,11 +300,14 @@ async function importFromResolvedInput(
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
     await ensureDir(baseDir);
+    const tagFeatureImage = downloader
+      ? await downloader.rewriteField(tag.feature_image ?? undefined)
+      : (tag.feature_image ?? undefined);
     const frontmatter = buildFrontmatter({
       slug: tagSlug,
       name: tag.name,
       description: tag.description ?? undefined,
-      feature_image: tag.feature_image ?? undefined,
+      feature_image: tagFeatureImage,
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
     });
@@ -301,12 +328,18 @@ async function importFromResolvedInput(
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
     await ensureDir(baseDir);
+    const profileImage = downloader
+      ? await downloader.rewriteField(user.profile_image ?? undefined)
+      : (user.profile_image ?? undefined);
+    const coverImage = downloader
+      ? await downloader.rewriteField(user.cover_image ?? undefined)
+      : (user.cover_image ?? undefined);
     const frontmatter = buildFrontmatter({
       slug: userSlug,
       name: user.name,
       bio: user.bio ?? undefined,
-      profile_image: user.profile_image ?? undefined,
-      cover_image: user.cover_image ?? undefined,
+      profile_image: profileImage,
+      cover_image: coverImage,
       website: user.website ?? undefined,
       location: user.location ?? undefined,
       twitter: user.twitter ?? undefined,
@@ -331,6 +364,8 @@ async function importFromResolvedInput(
     overwritten: counters.overwritten,
     renamed: counters.renamed,
     assetsCopied,
+    imagesDownloaded: downloader?.downloaded ?? 0,
+    imagesFailed: downloader?.failed ?? 0,
   };
 }
 
