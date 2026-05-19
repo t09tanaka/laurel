@@ -83,3 +83,77 @@ describe('sanitizeRenderedHtml', () => {
     expect(out).toContain('<p>ok</p>');
   });
 });
+
+describe('renderMarkdown — bookmark shortcode expansion', () => {
+  test('expands full kg-bookmark-card metadata', async () => {
+    const md =
+      'Intro.\n\n{{< bookmark url="https://example.com/post" title="Title Here" description="A description." author="Jane" publisher="Example" icon="https://example.com/icon.png" thumbnail="https://example.com/thumb.jpg" />}}\n\nOutro.';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<a class="kg-bookmark-container" href="https://example.com/post">');
+    expect(html).toContain('<div class="kg-bookmark-title">Title Here</div>');
+    expect(html).toContain('<div class="kg-bookmark-description">A description.</div>');
+    expect(html).toContain('<div class="kg-bookmark-metadata">');
+    expect(html).toContain('<img class="kg-bookmark-icon" src="https://example.com/icon.png"');
+    expect(html).toContain('<span class="kg-bookmark-author">Jane</span>');
+    expect(html).toContain('<span class="kg-bookmark-publisher">Example</span>');
+    expect(html).toContain(
+      '<div class="kg-bookmark-thumbnail"><img src="https://example.com/thumb.jpg"',
+    );
+    expect(html).not.toContain('{{< bookmark');
+  });
+
+  test('omits optional pieces when absent', async () => {
+    const md = '{{< bookmark url="https://example.com/" title="Only Title" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('href="https://example.com/"');
+    expect(html).toContain('<div class="kg-bookmark-title">Only Title</div>');
+    expect(html).not.toContain('kg-bookmark-description');
+    expect(html).not.toContain('kg-bookmark-metadata');
+    expect(html).not.toContain('kg-bookmark-thumbnail');
+    expect(html).not.toContain('<figcaption>');
+  });
+
+  test('drops bookmark shortcode silently when url is missing', async () => {
+    const md = 'before\n\n{{< bookmark title="No URL" />}}\n\nafter';
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-bookmark-card');
+    expect(html).not.toContain('{{< bookmark');
+    expect(html).toContain('before');
+    expect(html).toContain('after');
+  });
+
+  test('decodes escaped quotes and backslashes in attributes', async () => {
+    const md =
+      '{{< bookmark url="https://example.com/q?x=1" title="Quotes \\"and\\" backslashes \\\\ live here" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('Quotes "and" backslashes \\ live here');
+    expect(html).not.toContain('\\"');
+  });
+
+  test('renders optional figcaption when caption attr is present', async () => {
+    const md = '{{< bookmark url="https://example.com/" title="T" caption="Source: Example" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figcaption>Source: Example</figcaption>');
+  });
+
+  test('expands multiple bookmark shortcodes independently', async () => {
+    const md =
+      '{{< bookmark url="https://a.test/" title="A" />}}\n\n{{< bookmark url="https://b.test/" title="B" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html.match(/kg-bookmark-card/g)?.length).toBe(2);
+    expect(html).toContain('href="https://a.test/"');
+    expect(html).toContain('href="https://b.test/"');
+  });
+
+  test('escapes HTML-significant characters in attribute values', async () => {
+    const md =
+      '{{< bookmark url="https://example.com/?a=1&b=2" title="<script>x</script>" description="A & B" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('href="https://example.com/?a=1&amp;b=2"');
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(html).not.toContain('<script>x</script>');
+    expect(html).toContain('A &amp; B');
+  });
+});
