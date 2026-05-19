@@ -61,6 +61,8 @@
     "build:example": "cd example && bun ../src/cli/index.ts build",
     "build:cli": "bun run scripts/build-cli.ts",
     "build:types": "tsc -p tsconfig.types.json",
+    "compile": "bun run scripts/compile.ts",
+    "compile:all": "bun run scripts/compile.ts --all",
     "prepublishOnly": "bun run build:cli && bun run build:types",
     "test": "bun test",
     "test:watch": "bun test --watch",
