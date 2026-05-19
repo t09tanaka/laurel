@@ -36,6 +36,19 @@ describe('parseCommand', () => {
     expect(result.helpRequested).toBe(false);
   });
 
+  test('accepts --key=value form for string options', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--config=./nectar.config.ts', '--watch']);
+    expect(result.values.config).toBe('./nectar.config.ts');
+    expect(result.values.watch).toBe(true);
+  });
+
+  test('--key value and --key=value resolve to identical values', () => {
+    const space = parseCommand(SAMPLE_SPEC, ['--config', 'a=b/c.toml']);
+    const equals = parseCommand(SAMPLE_SPEC, ['--config=a=b/c.toml']);
+    expect(equals.values.config).toBe(space.values.config);
+    expect(equals.values.config).toBe('a=b/c.toml');
+  });
+
   test('accepts short flags', () => {
     const result = parseCommand(SAMPLE_SPEC, ['-w']);
     expect(result.values.watch).toBe(true);
