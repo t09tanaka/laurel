@@ -57,13 +57,19 @@ describe('buildNginxServerBlock', () => {
     expect(out).toContain('    brotli_static on;');
   });
 
-  test('emits try_files for SPA-style index.html resolution inside every location', () => {
+  test('emits try_files with trailing-slash variant for SPA-style index.html resolution inside every location', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
-    const matches = out.match(/try_files \$uri \$uri\/index\.html =404;/g) ?? [];
+    // The `$uri/` trailing-slash variant must sit between `$uri` and
+    // `$uri/index.html` so requests like `/about` fall back to `/about/`
+    // (directory) and pick up the canonical trailing-slash redirect before
+    // index.html resolution.
+    const matches = out.match(/try_files \$uri \$uri\/ \$uri\/index\.html =404;/g) ?? [];
     // One per non-catchall cache rule (assets, content/images) + the catch-all
     // location. The default schema declares 3 cache rules and one is the
     // catch-all, so we expect at least 3 `try_files` lines.
     expect(matches.length).toBeGreaterThanOrEqual(3);
+    // Guard against accidental regression to the no-trailing-slash form.
+    expect(out).not.toMatch(/try_files \$uri \$uri\/index\.html =404;/);
   });
 
   test('emits one location per cache rule with the matching Cache-Control header', () => {
