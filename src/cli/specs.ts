@@ -82,11 +82,33 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
   positionals: [{ name: 'file', description: 'Path to the Ghost export JSON', required: true }],
 };
 
+export const DOCTOR_SPEC: CommandSpec = {
+  name: 'doctor',
+  summary: 'Run health checks on the project (bun, config, theme, content, network)',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit results as JSON (for CI consumption)',
+    },
+    'no-network': {
+      type: 'boolean',
+      description: 'Skip the network reachability check',
+    },
+  },
+  positionals: [],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   build: BUILD_SPEC,
   new: NEW_SPEC,
   serve: SERVE_SPEC,
   check: CHECK_SPEC,
+  doctor: DOCTOR_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
 };
 

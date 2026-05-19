@@ -49,6 +49,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runServe } = await import('./commands/serve.ts');
       return runServe(rest);
     }
+    case 'doctor': {
+      const { runDoctor } = await import('./commands/doctor.ts');
+      return runDoctor(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }
