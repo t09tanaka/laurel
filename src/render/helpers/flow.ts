@@ -10,7 +10,7 @@ export function registerFlowHelpers(engine: NectarEngine): void {
     const values = args.slice(0, -1);
     const matched = values.some(Boolean);
     if (options.fn) return matched ? options.fn(this) : options.inverse(this);
-    return matched ? values.find(Boolean) ?? '' : '';
+    return matched ? (values.find(Boolean) ?? '') : '';
   });
 
   engine.hb.registerHelper('and', function andHelper(this: unknown, ...args: unknown[]) {
@@ -28,10 +28,13 @@ export function registerFlowHelpers(engine: NectarEngine): void {
     return value;
   });
 
-  engine.hb.registerHelper('eq', function eqHelper(this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
-    if (options && options.fn) {
-      return a === b ? options.fn(this) : options.inverse(this);
-    }
-    return a === b;
-  });
+  engine.hb.registerHelper(
+    'eq',
+    function eqHelper(this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
+      if (options?.fn) {
+        return a === b ? options.fn(this) : options.inverse(this);
+      }
+      return a === b;
+    },
+  );
 }

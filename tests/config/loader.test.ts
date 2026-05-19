@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, test } from 'bun:test';
 import { loadConfig } from '~/config/loader.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {

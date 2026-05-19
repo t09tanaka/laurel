@@ -30,7 +30,9 @@ export function createEngine(opts: {
     templates[name] = hb.compile(split.body, { noEscape: false });
     if (split.layout) {
       // mark for later resolution
-      templates[`${name}__layout`] = hb.compile(`{{__layout '${split.layout}'}}`, { noEscape: false });
+      templates[`${name}__layout`] = hb.compile(`{{__layout '${split.layout}'}}`, {
+        noEscape: false,
+      });
     }
     if (isLayoutName(name)) {
       layouts[name] = hb.compile(source, { noEscape: false });

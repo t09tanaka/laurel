@@ -15,17 +15,17 @@ export function registerStringHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('upper', (value: unknown) => String(value ?? '').toUpperCase());
   engine.hb.registerHelper('lower', (value: unknown) => String(value ?? '').toLowerCase());
 
-  engine.hb.registerHelper('plural', function pluralHelper(
-    count: unknown,
-    options: Handlebars.HelperOptions,
-  ) {
-    const n = Number(count ?? 0);
-    const empty = String(options.hash.empty ?? '');
-    const singular = String(options.hash.singular ?? '');
-    const plural = String(options.hash.plural ?? '');
-    let template = plural;
-    if (n === 0) template = empty || plural;
-    else if (n === 1) template = singular;
-    return template.replace(/%/g, String(n));
-  });
+  engine.hb.registerHelper(
+    'plural',
+    function pluralHelper(count: unknown, options: Handlebars.HelperOptions) {
+      const n = Number(count ?? 0);
+      const empty = String(options.hash.empty ?? '');
+      const singular = String(options.hash.singular ?? '');
+      const plural = String(options.hash.plural ?? '');
+      let template = plural;
+      if (n === 0) template = empty || plural;
+      else if (n === 1) template = singular;
+      return template.replace(/%/g, String(n));
+    },
+  );
 }

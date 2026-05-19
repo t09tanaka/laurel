@@ -14,30 +14,33 @@ const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
 };
 
 export function registerUrlHelpers(engine: NectarEngine): void {
-  engine.hb.registerHelper('url', function urlHelper(this: unknown, options: Handlebars.HelperOptions) {
-    const ctx = this as { url?: string };
-    const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
-    if (!ctx.url) return '';
-    if (!absolute) return ctx.url;
-    try {
-      return new URL(ctx.url, engine.content.site.url).toString();
-    } catch {
-      return ctx.url;
-    }
-  });
+  engine.hb.registerHelper(
+    'url',
+    function urlHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const ctx = this as { url?: string };
+      const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
+      if (!ctx.url) return '';
+      if (!absolute) return ctx.url;
+      try {
+        return new URL(ctx.url, engine.content.site.url).toString();
+      } catch {
+        return ctx.url;
+      }
+    },
+  );
 
-  engine.hb.registerHelper('social_url', function socialUrlHelper(
-    this: unknown,
-    options: Handlebars.HelperOptions,
-  ) {
-    const ctx = this as Record<string, unknown>;
-    const type = String(options.hash.type ?? '');
-    const builder = SOCIAL_PATTERNS[type];
-    if (!builder) return '';
-    const handle = ctx[type];
-    if (typeof handle !== 'string' || !handle) return '';
-    return builder(handle);
-  });
+  engine.hb.registerHelper(
+    'social_url',
+    function socialUrlHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const ctx = this as Record<string, unknown>;
+      const type = String(options.hash.type ?? '');
+      const builder = SOCIAL_PATTERNS[type];
+      if (!builder) return '';
+      const handle = ctx[type];
+      if (typeof handle !== 'string' || !handle) return '';
+      return builder(handle);
+    },
+  );
 }
 
 function stripAt(handle: string): string {

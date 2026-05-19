@@ -49,7 +49,9 @@ export const configSchema = z.object({
   secondary_navigation: z.array(navigationItemSchema).default([]),
   components: z
     .object({
-      rss: z.object({ enabled: z.boolean().default(true), items: z.number().default(20) }).default({}),
+      rss: z
+        .object({ enabled: z.boolean().default(true), items: z.number().default(20) })
+        .default({}),
       sitemap: z.object({ enabled: z.boolean().default(true) }).default({}),
       opengraph: z.object({ enabled: z.boolean().default(true) }).default({}),
     })

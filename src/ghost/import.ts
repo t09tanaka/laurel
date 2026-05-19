@@ -131,7 +131,7 @@ export async function importGhostExport(opts: {
       title: post.title,
       date: post.published_at ?? post.created_at ?? undefined,
       updated_at: post.updated_at ?? undefined,
-      featured: post.featured ? true : false,
+      featured: !!post.featured,
       feature_image: post.feature_image ?? undefined,
       feature_image_alt: post.feature_image_alt ?? undefined,
       feature_image_caption: post.feature_image_caption ?? undefined,
@@ -201,7 +201,7 @@ export async function importGhostExport(opts: {
 }
 
 function renderPostBody(post: GhostPost): string {
-  if (post.html && post.html.trim()) {
+  if (post.html?.trim()) {
     return turndown.turndown(post.html);
   }
   if (post.lexical || post.mobiledoc) {

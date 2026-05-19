@@ -2,7 +2,12 @@ import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
 
 interface HelperOptions extends Handlebars.HelperOptions {
-  hash: { visibility?: string; limit?: number | string; from?: number | string; to?: number | string };
+  hash: {
+    visibility?: string;
+    limit?: number | string;
+    from?: number | string;
+    to?: number | string;
+  };
 }
 
 export function registerBlockHelpers(engine: NectarEngine): void {
@@ -20,7 +25,9 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const sliced = visible.slice(from - 1, to);
     for (let i = 0; i < sliced.length; i += 1) {
       const item = sliced[i];
-      const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
+      const data = engine.hb.createFrame(
+        (options.data as Record<string, unknown> | undefined) ?? {},
+      );
       data.index = i;
       data.number = i + 1;
       data.first = i === 0;
@@ -45,7 +52,10 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       .flatMap((a) => (typeof a === 'string' ? a.split(',') : []))
       .map((s) => s.trim())
       .filter(Boolean);
-    const route = (options.data?.['route'] ?? {}) as { kind?: string; data?: { pagination?: { page: number } } };
+    const route = (options.data?.route ?? {}) as {
+      kind?: string;
+      data?: { pagination?: { page: number } };
+    };
     const kind = route.kind;
     const aliases: Record<string, string[]> = {
       home: ['home', 'index'],
@@ -64,50 +74,55 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     return matches ? options.fn(this) : options.inverse(this);
   });
 
-  engine.hb.registerHelper('has', function hasHelper(this: unknown, options: Handlebars.HelperOptions) {
-    const hash = options.hash as Record<string, unknown>;
-    const ctx = this as Record<string, unknown>;
-    let matched = false;
-    for (const [key, raw] of Object.entries(hash)) {
-      const value = String(raw ?? '');
-      switch (key) {
-        case 'tag': {
-          const tags = (ctx.tags as { slug: string; name: string }[]) ?? [];
-          matched = value
-            .split(',')
-            .map((s) => s.trim())
-            .some((needle) => tags.some((t) => t.slug === needle || t.name === needle));
-          break;
+  engine.hb.registerHelper(
+    'has',
+    function hasHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const hash = options.hash as Record<string, unknown>;
+      const ctx = this as Record<string, unknown>;
+      let matched = false;
+      for (const [key, raw] of Object.entries(hash)) {
+        const value = String(raw ?? '');
+        switch (key) {
+          case 'tag': {
+            const tags = (ctx.tags as { slug: string; name: string }[]) ?? [];
+            matched = value
+              .split(',')
+              .map((s) => s.trim())
+              .some((needle) => tags.some((t) => t.slug === needle || t.name === needle));
+            break;
+          }
+          case 'author': {
+            const authors = (ctx.authors as { slug: string; name: string }[]) ?? [];
+            matched = value
+              .split(',')
+              .map((s) => s.trim())
+              .some((needle) => authors.some((a) => a.slug === needle || a.name === needle));
+            break;
+          }
+          case 'visibility': {
+            matched = String(ctx.visibility ?? '') === value;
+            break;
+          }
+          case 'slug': {
+            matched = String(ctx.slug ?? '') === value;
+            break;
+          }
+          case 'number': {
+            const n = Number(value);
+            const route = options.data?.route as
+              | { data?: { pagination?: { page?: number } } }
+              | undefined;
+            matched = (route?.data?.pagination?.page ?? 1) === n;
+            break;
+          }
+          default:
+            matched = String((ctx as Record<string, unknown>)[key] ?? '') === value;
         }
-        case 'author': {
-          const authors = (ctx.authors as { slug: string; name: string }[]) ?? [];
-          matched = value
-            .split(',')
-            .map((s) => s.trim())
-            .some((needle) => authors.some((a) => a.slug === needle || a.name === needle));
-          break;
-        }
-        case 'visibility': {
-          matched = String(ctx.visibility ?? '') === value;
-          break;
-        }
-        case 'slug': {
-          matched = String(ctx.slug ?? '') === value;
-          break;
-        }
-        case 'number': {
-          const n = Number(value);
-          const route = options.data?.['route'] as { data?: { pagination?: { page?: number } } } | undefined;
-          matched = (route?.data?.pagination?.page ?? 1) === n;
-          break;
-        }
-        default:
-          matched = String((ctx as Record<string, unknown>)[key] ?? '') === value;
+        if (matched) break;
       }
-      if (matched) break;
-    }
-    return matched ? options.fn(this) : options.inverse(this);
-  });
+      return matched ? options.fn(this) : options.inverse(this);
+    },
+  );
 
   registerContextBlock(engine, 'post', (route) => pickFromRoute(route, 'post'));
   registerContextBlock(engine, 'page', (route) => pickFromRoute(route, 'page'));
@@ -182,15 +197,15 @@ function registerContextBlock(
   name: 'post' | 'page' | 'tag' | 'author',
   pick: (route: Record<string, unknown> | undefined) => unknown,
 ): void {
-  engine.hb.registerHelper(name, function contextBlockHelper(
-    this: unknown,
-    options: Handlebars.HelperOptions,
-  ) {
-    const route = options.data?.['route'] as Record<string, unknown> | undefined;
-    const value = pick(route) ?? (this as Record<string, unknown>)?.[name];
-    if (!value) return options.inverse ? options.inverse(this) : '';
-    return options.fn(value);
-  });
+  engine.hb.registerHelper(
+    name,
+    function contextBlockHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const route = options.data?.route as Record<string, unknown> | undefined;
+      const value = pick(route) ?? (this as Record<string, unknown>)?.[name];
+      if (!value) return options.inverse ? options.inverse(this) : '';
+      return options.fn(value);
+    },
+  );
 }
 
 function toArray(value: unknown): unknown[] {
@@ -248,7 +263,10 @@ function applyFilter(items: unknown[], filter: string, ctx: unknown): unknown[] 
 
 function evaluateFilterExpr(item: unknown, filter: string, ctx: unknown): boolean {
   // Split on '+' (AND) at top level; ignore commas inside [].
-  const clauses = filter.split('+').map((s) => s.trim()).filter(Boolean);
+  const clauses = filter
+    .split('+')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return clauses.every((clause) => evaluateClause(item, clause, ctx));
 }
 
@@ -263,7 +281,10 @@ function evaluateClause(item: unknown, clause: string, ctx: unknown): boolean {
     const path = String(expr).trim().split('.');
     let cursor: unknown = ctx;
     for (const segment of path) {
-      cursor = cursor && typeof cursor === 'object' ? (cursor as Record<string, unknown>)[segment] : undefined;
+      cursor =
+        cursor && typeof cursor === 'object'
+          ? (cursor as Record<string, unknown>)[segment]
+          : undefined;
     }
     return cursor == null ? '' : String(cursor);
   });
@@ -297,16 +318,22 @@ function fieldMatches(item: Record<string, unknown>, key: string, value: string)
       return Boolean(item.featured) === (value === 'true');
     case 'tag':
     case 'tags':
-      return Array.isArray(item.tags) && item.tags.some((t) => {
-        const tag = t as { slug?: string; name?: string };
-        return tag.slug === value || tag.name === value;
-      });
+      return (
+        Array.isArray(item.tags) &&
+        item.tags.some((t) => {
+          const tag = t as { slug?: string; name?: string };
+          return tag.slug === value || tag.name === value;
+        })
+      );
     case 'author':
     case 'authors':
-      return Array.isArray(item.authors) && item.authors.some((a) => {
-        const author = a as { slug?: string; name?: string };
-        return author.slug === value || author.name === value;
-      });
+      return (
+        Array.isArray(item.authors) &&
+        item.authors.some((a) => {
+          const author = a as { slug?: string; name?: string };
+          return author.slug === value || author.name === value;
+        })
+      );
     case 'visibility':
       return String(item.visibility ?? 'public') === value;
     default:

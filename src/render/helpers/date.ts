@@ -22,13 +22,16 @@ export function registerDateHelpers(engine: NectarEngine): void {
     const candidate = inputs[0];
     const ctx = this as { published_at?: string; updated_at?: string; created_at?: string };
     let value: Date | string | number | undefined;
-    if (typeof candidate === 'string' || candidate instanceof Date || typeof candidate === 'number') {
+    if (
+      typeof candidate === 'string' ||
+      candidate instanceof Date ||
+      typeof candidate === 'number'
+    ) {
       value = candidate;
     } else if (candidate && typeof candidate === 'object') {
       value = (candidate as { date?: string }).date;
     } else {
-      value =
-        ctx.published_at ?? ctx.updated_at ?? ctx.created_at ?? new Date().toISOString();
+      value = ctx.published_at ?? ctx.updated_at ?? ctx.created_at ?? new Date().toISOString();
     }
     const format = typeof options.hash.format === 'string' ? options.hash.format : 'DD MMM YYYY';
     const timezoneName = engine.content.site.timezone ?? 'UTC';

@@ -2,54 +2,56 @@ import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
-  engine.hb.registerHelper('ghost_head', function ghostHeadHelper(
-    this: unknown,
-    options: Handlebars.HelperOptions,
-  ) {
-    const route = options.data?.['route'] as { url?: string; data?: Record<string, unknown> } | undefined;
-    const site = engine.content.site;
-    const ctx = this as Record<string, unknown>;
-    const meta = computeMeta(ctx, route, site);
+  engine.hb.registerHelper(
+    'ghost_head',
+    function ghostHeadHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const route = options.data?.route as
+        | { url?: string; data?: Record<string, unknown> }
+        | undefined;
+      const site = engine.content.site;
+      const ctx = this as Record<string, unknown>;
+      const meta = computeMeta(ctx, route, site);
 
-    const parts: string[] = [];
-    parts.push(`<meta name="generator" content="Nectar">`);
-    if (meta.canonical) {
-      parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
-    }
-    if (meta.description) {
-      parts.push(`<meta name="description" content="${escapeAttr(meta.description)}">`);
-    }
-    parts.push(`<meta property="og:site_name" content="${escapeAttr(site.title)}">`);
-    parts.push(`<meta property="og:type" content="${meta.ogType}">`);
-    parts.push(`<meta property="og:title" content="${escapeAttr(meta.title)}">`);
-    if (meta.description) {
-      parts.push(`<meta property="og:description" content="${escapeAttr(meta.description)}">`);
-    }
-    if (meta.canonical) {
-      parts.push(`<meta property="og:url" content="${escapeAttr(meta.canonical)}">`);
-    }
-    if (meta.image) {
-      parts.push(`<meta property="og:image" content="${escapeAttr(meta.image)}">`);
-    }
-    parts.push(`<meta name="twitter:card" content="summary_large_image">`);
-    parts.push(`<meta name="twitter:title" content="${escapeAttr(meta.title)}">`);
-    if (meta.description) {
-      parts.push(`<meta name="twitter:description" content="${escapeAttr(meta.description)}">`);
-    }
-    if (meta.image) {
-      parts.push(`<meta name="twitter:image" content="${escapeAttr(meta.image)}">`);
-    }
+      const parts: string[] = [];
+      parts.push(`<meta name="generator" content="Nectar">`);
+      if (meta.canonical) {
+        parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
+      }
+      if (meta.description) {
+        parts.push(`<meta name="description" content="${escapeAttr(meta.description)}">`);
+      }
+      parts.push(`<meta property="og:site_name" content="${escapeAttr(site.title)}">`);
+      parts.push(`<meta property="og:type" content="${meta.ogType}">`);
+      parts.push(`<meta property="og:title" content="${escapeAttr(meta.title)}">`);
+      if (meta.description) {
+        parts.push(`<meta property="og:description" content="${escapeAttr(meta.description)}">`);
+      }
+      if (meta.canonical) {
+        parts.push(`<meta property="og:url" content="${escapeAttr(meta.canonical)}">`);
+      }
+      if (meta.image) {
+        parts.push(`<meta property="og:image" content="${escapeAttr(meta.image)}">`);
+      }
+      parts.push(`<meta name="twitter:card" content="summary_large_image">`);
+      parts.push(`<meta name="twitter:title" content="${escapeAttr(meta.title)}">`);
+      if (meta.description) {
+        parts.push(`<meta name="twitter:description" content="${escapeAttr(meta.description)}">`);
+      }
+      if (meta.image) {
+        parts.push(`<meta name="twitter:image" content="${escapeAttr(meta.image)}">`);
+      }
 
-    const jsonLd = buildJsonLd(ctx, site, meta);
-    if (jsonLd) {
-      parts.push(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`);
-    }
+      const jsonLd = buildJsonLd(ctx, site, meta);
+      if (jsonLd) {
+        parts.push(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`);
+      }
 
-    const head = ctx.codeinjection_head;
-    if (typeof head === 'string' && head) parts.push(head);
+      const head = ctx.codeinjection_head;
+      if (typeof head === 'string' && head) parts.push(head);
 
-    return new engine.hb.SafeString(parts.join('\n'));
-  });
+      return new engine.hb.SafeString(parts.join('\n'));
+    },
+  );
 
   engine.hb.registerHelper('ghost_foot', function ghostFootHelper(this: unknown) {
     const ctx = this as { codeinjection_foot?: string };
@@ -85,7 +87,7 @@ function computeMeta(
   const canonical = absoluteUrl(site.url, route?.url ?? '/');
 
   let ogType = 'website';
-  if (route?.data?.['post']) ogType = 'article';
+  if (route?.data?.post) ogType = 'article';
 
   return {
     title: titleFromCtx || site.title,

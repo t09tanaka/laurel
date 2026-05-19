@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import TOML from '@iarna/toml';
-import { configSchema, type NectarConfig } from './schema.ts';
+import { type NectarConfig, configSchema } from './schema.ts';
 
 const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml'];
 

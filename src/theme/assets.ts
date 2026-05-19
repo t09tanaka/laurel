@@ -17,15 +17,16 @@ export async function loadThemeAssets(rootDir: string): Promise<Map<string, Them
     const ext = extname(rel);
     const base = logical.slice(0, logical.length - ext.length);
     const fingerprinted = shouldFingerprint(ext) ? `${base}.${hash}${ext}` : logical;
-    out.set(logical, {
+    const entry = {
       logicalPath: logical,
       fingerprintedPath: fingerprinted,
       sourcePath: file,
       hash,
       size: stat.size,
-    });
+    };
+    out.set(logical, entry);
     // Also let bare references (e.g. "built/screen.css") resolve without the assets/ prefix.
-    out.set(rel.replaceAll('\\', '/'), out.get(logical)!);
+    out.set(rel.replaceAll('\\', '/'), entry);
   }
   return out;
 }

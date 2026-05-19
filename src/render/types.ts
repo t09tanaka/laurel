@@ -13,15 +13,7 @@ export interface PaginationInfo {
   next_url: string | undefined;
 }
 
-export type RouteKind =
-  | 'index'
-  | 'home'
-  | 'post'
-  | 'page'
-  | 'tag'
-  | 'author'
-  | 'custom'
-  | 'error';
+export type RouteKind = 'index' | 'home' | 'post' | 'page' | 'tag' | 'author' | 'custom' | 'error';
 
 export interface RouteContext {
   kind: RouteKind;

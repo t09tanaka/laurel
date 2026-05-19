@@ -1,7 +1,7 @@
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
-import type { ThemeBundle } from '~/theme/types.ts';
 import type { PaginationInfo, RouteContext } from '~/render/types.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
 
 export function planRoutes(opts: {
   config: NectarConfig;
@@ -28,7 +28,10 @@ export function planRoutes(opts: {
           posts: slice,
           pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/'),
         },
-        meta: defaultMeta(config, idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`),
+        meta: defaultMeta(
+          config,
+          idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`,
+        ),
       });
     });
   }
@@ -40,7 +43,12 @@ export function planRoutes(opts: {
       outputPath: `${post.slug}/index.html`,
       template: 'post',
       data: { post },
-      meta: defaultMeta(config, post.meta_title ?? post.title, post.meta_description ?? post.excerpt, post.feature_image),
+      meta: defaultMeta(
+        config,
+        post.meta_title ?? post.title,
+        post.meta_description ?? post.excerpt,
+        post.feature_image,
+      ),
     });
   }
 
@@ -52,7 +60,12 @@ export function planRoutes(opts: {
         outputPath: `${page.slug}/index.html`,
         template: 'page',
         data: { page },
-        meta: defaultMeta(config, page.meta_title ?? page.title, page.meta_description ?? page.excerpt, page.feature_image),
+        meta: defaultMeta(
+          config,
+          page.meta_title ?? page.title,
+          page.meta_description ?? page.excerpt,
+          page.feature_image,
+        ),
       });
     }
   }
@@ -63,9 +76,8 @@ export function planRoutes(opts: {
       const pages = paginatePosts(tagPosts, perPage);
       pages.forEach((slice, idx) => {
         const url = idx === 0 ? `/tag/${tag.slug}/` : `/tag/${tag.slug}/page/${idx + 1}/`;
-        const outputPath = idx === 0
-          ? `tag/${tag.slug}/index.html`
-          : `tag/${tag.slug}/page/${idx + 1}/index.html`;
+        const outputPath =
+          idx === 0 ? `tag/${tag.slug}/index.html` : `tag/${tag.slug}/page/${idx + 1}/index.html`;
         routes.push({
           kind: 'tag',
           url,
@@ -76,7 +88,12 @@ export function planRoutes(opts: {
             posts: slice,
             pagination: paginationInfo(idx, pages, perPage, tagPosts.length, `/tag/${tag.slug}/`),
           },
-          meta: defaultMeta(config, tag.meta_title ?? tag.name, tag.meta_description ?? tag.description, tag.feature_image),
+          meta: defaultMeta(
+            config,
+            tag.meta_title ?? tag.name,
+            tag.meta_description ?? tag.description,
+            tag.feature_image,
+          ),
         });
       });
     }
@@ -84,13 +101,17 @@ export function planRoutes(opts: {
 
   if (theme.templates.author) {
     for (const author of content.authors) {
-      const authorPosts = content.posts.filter((p) => p.authors.some((a) => a.slug === author.slug));
+      const authorPosts = content.posts.filter((p) =>
+        p.authors.some((a) => a.slug === author.slug),
+      );
       const pages = paginatePosts(authorPosts, perPage);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? `/author/${author.slug}/` : `/author/${author.slug}/page/${idx + 1}/`;
-        const outputPath = idx === 0
-          ? `author/${author.slug}/index.html`
-          : `author/${author.slug}/page/${idx + 1}/index.html`;
+        const url =
+          idx === 0 ? `/author/${author.slug}/` : `/author/${author.slug}/page/${idx + 1}/`;
+        const outputPath =
+          idx === 0
+            ? `author/${author.slug}/index.html`
+            : `author/${author.slug}/page/${idx + 1}/index.html`;
         routes.push({
           kind: 'author',
           url,
@@ -99,9 +120,20 @@ export function planRoutes(opts: {
           data: {
             author,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, authorPosts.length, `/author/${author.slug}/`),
+            pagination: paginationInfo(
+              idx,
+              pages,
+              perPage,
+              authorPosts.length,
+              `/author/${author.slug}/`,
+            ),
           },
-          meta: defaultMeta(config, author.meta_title ?? author.name, author.meta_description ?? author.bio, author.cover_image),
+          meta: defaultMeta(
+            config,
+            author.meta_title ?? author.name,
+            author.meta_description ?? author.bio,
+            author.cover_image,
+          ),
         });
       });
     }
@@ -131,8 +163,7 @@ function paginationInfo(
   const numPages = pages.length;
   const prev = page > 1 ? page - 1 : undefined;
   const next = page < numPages ? page + 1 : undefined;
-  const prevUrl =
-    prev === undefined ? undefined : prev === 1 ? baseUrl : `${baseUrl}page/${prev}/`;
+  const prevUrl = prev === undefined ? undefined : prev === 1 ? baseUrl : `${baseUrl}page/${prev}/`;
   const nextUrl = next === undefined ? undefined : `${baseUrl}page/${next}/`;
   return {
     page,
@@ -146,12 +177,7 @@ function paginationInfo(
   };
 }
 
-function defaultMeta(
-  config: NectarConfig,
-  title: string,
-  description?: string,
-  image?: string,
-) {
+function defaultMeta(config: NectarConfig, title: string, description?: string, image?: string) {
   return {
     title,
     description: description ?? config.site.description,

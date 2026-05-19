@@ -1,11 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type {
-  ThemeCustomSettingDefinition,
-  ThemeImageSize,
-  ThemePackage,
-} from './types.ts';
+import type { ThemeCustomSettingDefinition, ThemeImageSize, ThemePackage } from './types.ts';
 
 interface RawPkg {
   name?: string;

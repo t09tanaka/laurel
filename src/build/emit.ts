@@ -3,7 +3,11 @@ import { dirname, join } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
 
-export async function writeHtml(outputDir: string, outputPath: string, html: string): Promise<void> {
+export async function writeHtml(
+  outputDir: string,
+  outputPath: string,
+  html: string,
+): Promise<void> {
   const dest = join(outputDir, outputPath);
   await ensureDir(dirname(dest));
   await writeFile(dest, html, 'utf8');
@@ -13,8 +17,8 @@ export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise
   const seen = new Set<string>();
   let count = 0;
   for (const asset of theme.assets.values()) {
-    if (seen.has(asset.sourcePath + '|' + asset.fingerprintedPath)) continue;
-    seen.add(asset.sourcePath + '|' + asset.fingerprintedPath);
+    if (seen.has(`${asset.sourcePath}|${asset.fingerprintedPath}`)) continue;
+    seen.add(`${asset.sourcePath}|${asset.fingerprintedPath}`);
     await emitAsset(asset, outputDir);
     count += 1;
   }
@@ -32,7 +36,11 @@ async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
   }
 }
 
-export async function copyContentAssets(cwd: string, contentImagesDir: string, outputDir: string): Promise<number> {
+export async function copyContentAssets(
+  cwd: string,
+  contentImagesDir: string,
+  outputDir: string,
+): Promise<number> {
   const source = join(cwd, contentImagesDir);
   const target = join(outputDir, 'content/images');
   const glob = new Bun.Glob('**/*');

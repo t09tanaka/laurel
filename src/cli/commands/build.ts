@@ -13,7 +13,7 @@ export async function runBuild(args: string[]): Promise<number> {
     );
     return 0;
   } catch (err) {
-    logger.error(err instanceof Error ? err.stack ?? err.message : String(err));
+    logger.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
     return 1;
   }
 }

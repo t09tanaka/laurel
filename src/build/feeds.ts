@@ -1,5 +1,5 @@
-import type { ContentGraph } from '~/content/model.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import type { ContentGraph } from '~/content/model.ts';
 import { writeHtml } from './emit.ts';
 
 export async function emitSitemap(opts: {
@@ -24,19 +24,22 @@ export async function emitRss(opts: {
 }): Promise<void> {
   const { config, content, outputDir, limit } = opts;
   const base = config.site.url.replace(/\/$/, '');
-  const items = content.posts.slice(0, limit).map((post) => {
-    const link = `${base}${new URL(post.url).pathname}`;
-    return [
-      '<item>',
-      `<title>${escapeXml(post.title)}</title>`,
-      `<link>${escapeXml(link)}</link>`,
-      `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
-      `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
-      `<description>${escapeXml(post.excerpt)}</description>`,
-      `<content:encoded><![CDATA[${post.html}]]></content:encoded>`,
-      '</item>',
-    ].join('');
-  }).join('');
+  const items = content.posts
+    .slice(0, limit)
+    .map((post) => {
+      const link = `${base}${new URL(post.url).pathname}`;
+      return [
+        '<item>',
+        `<title>${escapeXml(post.title)}</title>`,
+        `<link>${escapeXml(link)}</link>`,
+        `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
+        `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
+        `<description>${escapeXml(post.excerpt)}</description>`,
+        `<content:encoded><![CDATA[${post.html}]]></content:encoded>`,
+        '</item>',
+      ].join('');
+    })
+    .join('');
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
 <channel>
