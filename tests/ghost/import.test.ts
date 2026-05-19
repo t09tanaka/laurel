@@ -1959,3 +1959,83 @@ describe('importGhostExport — Lexical/Mobiledoc body rendering (#127)', () => 
     expect(body.trim().endsWith('---')).toBe(true);
   });
 });
+
+describe('importGhostExport — posts_tags/posts_authors bucketing (#139)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('emits tags and authors in sort_order, scoped to each post', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'First',
+                slug: 'first',
+                html: '<p>first</p>',
+                status: 'published',
+                type: 'post',
+              },
+              {
+                id: 'p2',
+                title: 'Second',
+                slug: 'second',
+                html: '<p>second</p>',
+                status: 'published',
+                type: 'post',
+              },
+            ],
+            tags: [
+              { id: 't-a', slug: 'alpha', name: 'Alpha' },
+              { id: 't-b', slug: 'beta', name: 'Beta' },
+              { id: 't-c', slug: 'gamma', name: 'Gamma' },
+            ],
+            users: [
+              { id: 'u-a', slug: 'ann', name: 'Ann' },
+              { id: 'u-b', slug: 'bob', name: 'Bob' },
+            ],
+            // Intentionally shuffled so the implementation must respect
+            // sort_order rather than insertion order to produce alpha, beta, gamma.
+            posts_tags: [
+              { post_id: 'p1', tag_id: 't-c', sort_order: 2 },
+              { post_id: 'p2', tag_id: 't-b', sort_order: 0 },
+              { post_id: 'p1', tag_id: 't-a', sort_order: 0 },
+              { post_id: 'p1', tag_id: 't-b', sort_order: 1 },
+            ],
+            posts_authors: [
+              { post_id: 'p1', user_id: 'u-b', sort_order: 1 },
+              { post_id: 'p2', user_id: 'u-a', sort_order: 0 },
+              { post_id: 'p1', user_id: 'u-a', sort_order: 0 },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(2);
+
+    const p1 = await readFile(join(cwd, 'content/posts/first.md'), 'utf8');
+    expect(p1).toContain('tags: ["alpha", "beta", "gamma"]');
+    expect(p1).toContain('authors: ["ann", "bob"]');
+
+    const p2 = await readFile(join(cwd, 'content/posts/second.md'), 'utf8');
+    expect(p2).toContain('tags: ["beta"]');
+    expect(p2).toContain('authors: ["ann"]');
+  });
+});
