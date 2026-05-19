@@ -34,6 +34,11 @@ export const NEW_SPEC: CommandSpec = {
   name: 'new',
   summary: 'Scaffold a new post or page',
   options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
     force: {
       type: 'boolean',
       description: 'Overwrite the destination file if it already exists',

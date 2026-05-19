@@ -1,9 +1,11 @@
 import { access, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import slugify from 'slugify';
+import { loadConfig } from '~/config/loader.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { reportError } from '../report.ts';
 import { NEW_SPEC } from '../specs.ts';
 
 export async function runNew(args: string[]): Promise<number> {
@@ -47,8 +49,18 @@ export async function runNew(args: string[]): Promise<number> {
     return 2;
   }
 
-  const baseDir = kind === 'post' ? 'content/posts' : 'content/pages';
-  const dest = join(process.cwd(), baseDir, `${slug}.md`);
+  const cwd = process.cwd();
+  const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  let config: Awaited<ReturnType<typeof loadConfig>>;
+  try {
+    config = await loadConfig({ cwd, configPath });
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+
+  const baseDir = kind === 'post' ? config.content.posts_dir : config.content.pages_dir;
+  const dest = isAbsolute(baseDir) ? join(baseDir, `${slug}.md`) : join(cwd, baseDir, `${slug}.md`);
   await ensureDir(dirname(dest));
 
   if (!force && (await fileExists(dest))) {
