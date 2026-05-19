@@ -48,6 +48,7 @@ import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
+import { preserveUserFiles } from './preserve.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
@@ -426,6 +427,10 @@ async function runBuild({
     routes: nextRoutes,
   };
   await saveManifest(outputDir, nextManifest);
+
+  // Copy user-owned files (CNAME, .well-known/*, …) from the previous build's
+  // final dir into staging so the upcoming atomic swap does not drop them.
+  await preserveUserFiles({ cwd, finalOutputDir, stagingDir: outputDir });
 
   await commitStagingDir(outputDir, finalOutputDir);
 
