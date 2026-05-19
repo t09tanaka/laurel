@@ -486,6 +486,72 @@ body
   });
 });
 
+describe('loadContent page custom_template (issue #1005)', () => {
+  test('reads `template` frontmatter and stores it as the canonical custom-<name>', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-'));
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      `---
+title: About
+template: about
+---
+
+About body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.pages[0]?.custom_template).toBe('custom-about');
+  });
+
+  test('accepts pre-prefixed `custom-foo` without double-prefixing', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-pref-'));
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      `---
+title: About
+custom_template: custom-about
+---
+
+About body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.pages[0]?.custom_template).toBe('custom-about');
+  });
+
+  test('rejects unsafe template names (path traversal, slashes, dots)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-bad-'));
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      `---
+title: About
+template: "../etc/passwd"
+---
+
+About body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.pages[0]?.custom_template).toBeUndefined();
+  });
+
+  test('leaves custom_template undefined when frontmatter is missing', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.pages[0]?.custom_template).toBeUndefined();
+  });
+});
+
 describe('loadContent scheduled posts', () => {
   test('excludes scheduled posts whose published_at is still in the future', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-future-'));

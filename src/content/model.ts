@@ -139,6 +139,7 @@ export interface Page {
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
   show_title_and_feature_image: boolean;
+  custom_template: string | undefined;
 }
 
 export interface ContentGraph {

@@ -197,6 +197,7 @@ interface RawPost {
 interface RawPage extends Omit<RawPost, 'featured' | 'visibility'> {
   show_title_and_feature_image: boolean;
   status: 'published' | 'draft';
+  custom_template: string | undefined;
 }
 
 async function loadPosts(
@@ -471,7 +472,31 @@ async function normalizePage(
     ...base,
     show_title_and_feature_image: asBool(data.show_title_and_feature_image, true),
     status: base.status === 'draft' ? 'draft' : 'published',
+    custom_template: sanitizeCustomTemplate(
+      asString(data.template ?? data.custom_template),
+      filePath,
+    ),
   };
+}
+
+// Ghost admins select a `custom-{slug}.hbs` per page from a dropdown. We accept
+// the slug via frontmatter `template:` (or `custom_template:`), normalize to the
+// canonical `custom-<slug>` form, and reject anything that could escape the
+// theme's template namespace (path separators, traversal, leading dots). The
+// final theme lookup happens in `planRoutes`, which falls back to `page.hbs`
+// when the resolved template doesn't exist.
+function sanitizeCustomTemplate(value: string | undefined, filePath: string): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+  const base = trimmed.startsWith('custom-') ? trimmed.slice('custom-'.length) : trimmed;
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(base)) {
+    logger.warn(
+      `Ignoring custom template ${JSON.stringify(value)} in ${filePath}: must match [a-z0-9][a-z0-9-]*`,
+    );
+    return undefined;
+  }
+  return `custom-${base}`;
 }
 
 async function normalizeAuthor(
@@ -669,6 +694,7 @@ function resolvePageRelations(
     codeinjection_head: raw.codeinjection_head,
     codeinjection_foot: raw.codeinjection_foot,
     show_title_and_feature_image: raw.show_title_and_feature_image,
+    custom_template: raw.custom_template,
   };
 }
 
