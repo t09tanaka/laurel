@@ -645,6 +645,139 @@ describe('authors helper', () => {
   });
 });
 
+describe('tags helper', () => {
+  const ctx = {
+    tags: [
+      { name: 'News', slug: 'news', url: '/tag/news/' },
+      { name: 'R&D', slug: 'r-d', url: '/tag/r-d/' },
+      { name: 'Ops', slug: 'ops', url: '/tag/ops/' },
+    ],
+  };
+
+  test('default inline output joins with ", " and autolinks', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags}}')(ctx);
+    expect(out).toBe(
+      '<a href="/tag/news/">News</a>, <a href="/tag/r-d/">R&amp;D</a>, <a href="/tag/ops/">Ops</a>',
+    );
+  });
+
+  test('separator= overrides the join character', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags separator=" | " autolink=false}}')(ctx);
+    expect(out).toBe('News | R&amp;D | Ops');
+  });
+
+  test('autolink="false" (string) matches Ghost and disables linking', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags autolink="false"}}')(ctx);
+    expect(out).toBe('News, R&amp;D, Ops');
+  });
+
+  test('limit= truncates from the start', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags limit=2 autolink=false}}')(ctx);
+    expect(out).toBe('News, R&amp;D');
+  });
+
+  test('from= is 1-indexed (Ghost semantics) and skips earlier entries', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags from=2 autolink=false}}')(ctx);
+    expect(out).toBe('R&amp;D, Ops');
+  });
+
+  test('to= is 1-indexed inclusive', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags to=2 autolink=false}}')(ctx);
+    expect(out).toBe('News, R&amp;D');
+  });
+
+  test('limit= is applied before from/to (Ghost order)', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags limit=2 from=2 autolink=false}}')(ctx);
+    expect(out).toBe('R&amp;D');
+  });
+
+  test('prefix=/suffix= wrap a non-empty list', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags prefix="Tagged: " suffix="." autolink=false}}')(ctx);
+    expect(out).toBe('Tagged: News, R&amp;D, Ops.');
+  });
+
+  test('prefix/suffix do not render against an empty list', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags prefix="Tagged: " suffix="."}}')({ tags: [] });
+    expect(out).toBe('');
+  });
+
+  test('HTML-special tag names are escaped in autolinked output', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags}}')({
+      tags: [{ name: 'A&B<x>', slug: 'a-b-x', url: '/tag/a&b/' }],
+    });
+    expect(out).toBe('<a href="/tag/a&amp;b/">A&amp;B&lt;x&gt;</a>');
+  });
+
+  test('hides internal tags by default to match Ghost visibility', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags autolink=false}}')({
+      tags: [
+        { name: 'News', slug: 'news', url: '/tag/news/', visibility: 'public' },
+        { name: 'Hidden', slug: 'hash-hidden', url: '/tag/hash-hidden/', visibility: 'internal' },
+        { name: 'Ops', slug: 'ops', url: '/tag/ops/', visibility: 'public' },
+      ],
+    });
+    expect(out).toBe('News, Ops');
+  });
+
+  test('visibility="all" surfaces internal tags too', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags visibility="all" autolink=false}}')({
+      tags: [
+        { name: 'News', slug: 'news', url: '/tag/news/', visibility: 'public' },
+        { name: 'Hidden', slug: 'hash-hidden', url: '/tag/hash-hidden/', visibility: 'internal' },
+      ],
+    });
+    expect(out).toBe('News, Hidden');
+  });
+
+  test('visibility="internal" returns only internal tags', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags visibility="internal" autolink=false}}')({
+      tags: [
+        { name: 'News', slug: 'news', url: '/tag/news/', visibility: 'public' },
+        { name: 'Hidden', slug: 'hash-hidden', url: '/tag/hash-hidden/', visibility: 'internal' },
+      ],
+    });
+    expect(out).toBe('Hidden');
+  });
+
+  test('block form still iterates with the original this context (filtered by visibility)', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{#tags}}[{{name}}]{{/tags}}')({
+      tags: [
+        { name: 'News', slug: 'news', url: '/tag/news/', visibility: 'public' },
+        { name: 'Hidden', slug: 'hash-hidden', url: '/tag/hash-hidden/', visibility: 'internal' },
+      ],
+    });
+    expect(out).toBe('[News]');
+  });
+});
+
 describe('post_class helper', () => {
   // The helper runs from `{{post_class}}` inside `{{#foreach posts}}` blocks
   // (Source's post-card.hbs is the canonical caller), so `this` is the
