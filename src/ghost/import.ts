@@ -1,4 +1,14 @@
-import { access, copyFile, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  copyFile,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
@@ -135,13 +145,30 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
   const onConflict: OnConflict = opts.onConflict ?? 'skip';
   const counters = { skipped: 0, overwritten: 0, renamed: 0 };
 
+  let extractedZipRoot: string | undefined;
+  let inputFile = opts.file;
   if (opts.file.toLowerCase().endsWith('.zip')) {
-    throw new Error(
-      `ZIP Ghost exports are not yet supported. Unzip ${opts.file} and pass the folder (or the JSON file inside) instead.`,
-    );
+    const extracted = await extractZipExport(opts.file);
+    extractedZipRoot = extracted.cleanupRoot;
+    inputFile = extracted.contentRoot;
   }
 
-  const resolved = await resolveInput(opts.file, opts.assetsDir);
+  try {
+    return await importFromResolvedInput(inputFile, opts, onConflict, counters);
+  } finally {
+    if (extractedZipRoot) {
+      await rm(extractedZipRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+async function importFromResolvedInput(
+  inputFile: string,
+  opts: ImportGhostOptions,
+  onConflict: OnConflict,
+  counters: { skipped: number; overwritten: number; renamed: number },
+): Promise<ImportSummary> {
+  const resolved = await resolveInput(inputFile, opts.assetsDir);
   const raw = await readFile(resolved.jsonFile, 'utf8');
   const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
   const data = parsed.db?.[0]?.data;
@@ -305,6 +332,71 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     renamed: counters.renamed,
     assetsCopied,
   };
+}
+
+interface ExtractedZip {
+  // Always the temp directory itself, used for `rm` on cleanup. Never a nested
+  // path — that would leak the parent temp dir.
+  cleanupRoot: string;
+  // The path to treat as the Ghost export folder. Equals `cleanupRoot` when the
+  // archive was flat, or `cleanupRoot/<wrapper>` when it had a single top-level
+  // wrapper directory (the common Ghost export shape).
+  contentRoot: string;
+}
+
+// Extract a Ghost `.zip` export into a fresh temp directory and return both the
+// cleanup root and the resolved content root. The caller is responsible for
+// `rm`ing the cleanup root when done. We shell out to the `unzip` system
+// command because Bun has no built-in ZIP archive reader and `unzip` is
+// ubiquitous on macOS and Linux (the supported Bun platforms).
+async function extractZipExport(zipPath: string): Promise<ExtractedZip> {
+  try {
+    const st = await stat(zipPath);
+    if (!st.isFile()) {
+      throw new Error(`Not a file: ${zipPath}`);
+    }
+  } catch (err) {
+    throw new Error(
+      `Cannot read Ghost export at ${zipPath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const dir = await mkdtemp(join(tmpdir(), 'nectar-ghost-zip-'));
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn(['unzip', '-q', '-o', zipPath, '-d', dir], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+  } catch (err) {
+    await rm(dir, { recursive: true, force: true });
+    throw new Error(
+      `Failed to invoke unzip while extracting ${zipPath}. Install unzip or pre-extract the archive. (${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
+  await proc.exited;
+  if (proc.exitCode !== 0) {
+    const stderrText = await new Response(proc.stderr).text();
+    await rm(dir, { recursive: true, force: true });
+    throw new Error(
+      `Failed to extract ${zipPath}: unzip exited with code ${proc.exitCode}${stderrText ? `: ${stderrText.trim()}` : ''}`,
+    );
+  }
+  const contentRoot = await unwrapSingleSubdir(dir);
+  return { cleanupRoot: dir, contentRoot };
+}
+
+// Ghost's export ZIPs commonly contain a single top-level wrapper directory
+// (e.g. `my-blog.ghost.2024-01-01/`) holding the JSON and `content/` folder.
+// Unwrap that one level so downstream `resolveInput` finds the JSON and asset
+// dirs without needing a recursive search. Falls back to the original dir when
+// the archive was flat.
+async function unwrapSingleSubdir(dir: string): Promise<string> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  if (entries.length !== 1) return dir;
+  const only = entries[0];
+  if (!only.isDirectory()) return dir;
+  return join(dir, only.name);
 }
 
 interface ResolvedInput {

@@ -162,7 +162,7 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<file>` | required | Path to the Ghost export JSON file or to an unzipped Ghost export folder |
+| `<file>` | required | Path to a Ghost export: the JSON file, an unzipped folder, or the .zip archive itself |
 
 Options:
 
