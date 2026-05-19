@@ -14,11 +14,13 @@ import { computeFavicons, copyFavicons } from './favicons.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
+  type ImageFormat,
   generateImageFormatVariants,
   generateImageVariants,
   injectImageDimensionsIntoContent,
   injectImagePictureSourcesIntoContent,
   injectImageSrcsetIntoContent,
+  isSharpAvailable,
   planImageVariants,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
@@ -66,7 +68,13 @@ export async function build({
   const imageVariantPlan = await planImageVariants({ cwd, config });
   injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
   const imagesCfg = config.components.images;
-  const formatVariants = imagesCfg.enabled ? imagesCfg.formats : [];
+  // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
+  // referenced variants — otherwise modern browsers would pick the WebP/AVIF
+  // <source> and 404 instead of falling back to the original <img>.
+  const formatVariants: readonly ImageFormat[] =
+    imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
+      ? imagesCfg.formats
+      : [];
   if (formatVariants.length > 0) {
     injectImagePictureSourcesIntoContent({
       content,

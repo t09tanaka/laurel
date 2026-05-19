@@ -173,7 +173,7 @@ Per-format image transcoder. Generates WebP/AVIF variants of responsive widths a
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.images.enabled` | `boolean` | no | `false` | Emit per-format image variants (WebP/AVIF) alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`. |
+| `components.images.enabled` | `boolean` | no | `true` | Emit per-format image variants (WebP/AVIF) for jpg/png sources alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`; when sharp is not installed the `<picture>` wrap is skipped so themes keep working with the original `<img>`. |
 | `components.images.formats` | `array<"webp" \| "avif">` | no | `["webp"]` | Image formats to transcode the responsive variants into. Order matters: the first entry is preferred by browsers that understand it. |
 | `components.images.webp_quality` | `number` | no | `80` | Quality factor passed to sharp when encoding WebP variants. |
 | `components.images.avif_quality` | `number` | no | `50` | Quality factor passed to sharp when encoding AVIF variants. AVIF is much slower than WebP, so default is conservative. |
