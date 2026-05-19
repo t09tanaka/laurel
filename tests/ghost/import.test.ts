@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { access, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { importGhostExport } from '~/ghost/import.ts';
 import { ensureDir } from '~/util/fs.ts';
 
@@ -532,12 +532,12 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     }
   });
 
-  test('passing a .zip path rejects with a helpful message', async () => {
+  test('passing a missing .zip path rejects with a clear error', async () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
     try {
-      await expect(importGhostExport({ cwd, file: join(exportDir, 'export.zip') })).rejects.toThrow(
-        /ZIP Ghost exports are not yet supported/,
-      );
+      await expect(
+        importGhostExport({ cwd, file: join(exportDir, 'does-not-exist.zip') }),
+      ).rejects.toThrow(/Cannot read Ghost export/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -551,6 +551,147 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
       expect(summary.posts).toBe(1);
       expect(summary.assetsCopied).toBe(0);
       await expect(access(join(cwd, 'content/images'))).rejects.toThrow();
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('importGhostExport — ZIP archive input (#88)', () => {
+  let stagingDir: string;
+
+  beforeEach(async () => {
+    stagingDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-')));
+  });
+
+  afterEach(async () => {
+    await rm(stagingDir, { recursive: true, force: true });
+  });
+
+  async function makeGhostExportFolder(root: string): Promise<void> {
+    await ensureDir(root);
+    await writeFile(
+      join(root, 'my-blog.ghost.2024-01-01.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Zipped Hello',
+                  slug: 'zipped-hello',
+                  html: '<p><a href="__GHOST_URL__/content/files/handout.pdf">PDF</a> and <img src="__GHOST_URL__/content/images/2024/01/pic.jpg" alt="pic"></p>',
+                  feature_image: '__GHOST_URL__/content/images/2024/01/cover.jpg',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    await ensureDir(join(root, 'content/images/2024/01'));
+    await writeFile(join(root, 'content/images/2024/01/cover.jpg'), 'COVER');
+    await writeFile(join(root, 'content/images/2024/01/pic.jpg'), 'PIC');
+    await ensureDir(join(root, 'content/files'));
+    await writeFile(join(root, 'content/files/handout.pdf'), 'PDF');
+    await ensureDir(join(root, 'content/media'));
+    await writeFile(join(root, 'content/media/intro.mp4'), 'MP4');
+  }
+
+  async function makeZip(
+    zipPath: string,
+    sourceDir: string,
+    includeWrapper: boolean,
+  ): Promise<void> {
+    // `zip -r out.zip <name>` (run inside the parent dir) preserves the wrapper
+    // folder. To produce a flat zip, run inside `sourceDir` and pass `.`.
+    const cwd = includeWrapper ? dirname(sourceDir) : sourceDir;
+    const target = includeWrapper ? sourceDir.slice(cwd.length + 1) : '.';
+    const proc = Bun.spawn(['zip', '-rq', zipPath, target], {
+      cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await proc.exited;
+    if (proc.exitCode !== 0) {
+      const errText = await new Response(proc.stderr).text();
+      throw new Error(`Failed to build test zip: ${errText}`);
+    }
+  }
+
+  test('extracts a wrapper-style Ghost zip and imports posts + assets', async () => {
+    const exportFolder = join(stagingDir, 'my-blog.ghost.2024-01-01');
+    await makeGhostExportFolder(exportFolder);
+    const zipPath = join(stagingDir, 'my-blog.ghost.2024-01-01.zip');
+    await makeZip(zipPath, exportFolder, true);
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(4);
+
+      const postMd = await readFile(join(cwd, 'content/posts/zipped-hello.md'), 'utf8');
+      expect(postMd).not.toContain('__GHOST_URL__');
+      expect(postMd).toContain('feature_image: "/content/images/2024/01/cover.jpg"');
+      expect(postMd).toContain('/content/files/handout.pdf');
+
+      expect(await readFile(join(cwd, 'content/images/2024/01/cover.jpg'), 'utf8')).toBe('COVER');
+      expect(await readFile(join(cwd, 'content/images/2024/01/pic.jpg'), 'utf8')).toBe('PIC');
+      expect(await readFile(join(cwd, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+      expect(await readFile(join(cwd, 'content/media/intro.mp4'), 'utf8')).toBe('MP4');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('extracts a flat (no wrapper folder) Ghost zip', async () => {
+    const exportFolder = join(stagingDir, 'flat');
+    await makeGhostExportFolder(exportFolder);
+    const zipPath = join(stagingDir, 'flat-export.zip');
+    await makeZip(zipPath, exportFolder, false);
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(4);
+      expect(await readFile(join(cwd, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('cleans up the temp extraction dir after a successful import', async () => {
+    const exportFolder = join(stagingDir, 'my-blog');
+    await makeGhostExportFolder(exportFolder);
+    const zipPath = join(stagingDir, 'my-blog.zip');
+    await makeZip(zipPath, exportFolder, true);
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    try {
+      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
+      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      expect(after.length).toBe(before.length);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects a corrupt .zip with a clear error and cleans up the temp dir', async () => {
+    const zipPath = join(stagingDir, 'corrupt.zip');
+    await writeFile(zipPath, 'NOT A ZIP');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    try {
+      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      await expect(importGhostExport({ cwd, file: zipPath })).rejects.toThrow(/Failed to extract/);
+      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      expect(after.length).toBe(before.length);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

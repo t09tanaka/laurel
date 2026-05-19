@@ -91,7 +91,7 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['import-ghost', '--help']);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('<file>');
-    expect(stdout).toContain('Ghost export JSON');
+    expect(stdout).toContain('Ghost export');
   });
 
   test('top-level help mentions global --quiet and --verbose options', async () => {

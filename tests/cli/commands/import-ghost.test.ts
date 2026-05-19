@@ -131,11 +131,12 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('help advertises both the file/folder positional and --assets', async () => {
+  test('help advertises the file/folder/zip positional and --assets', async () => {
     const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('--assets');
-    expect(stdout).toContain('unzipped Ghost export folder');
+    expect(stdout).toContain('unzipped folder');
+    expect(stdout).toContain('.zip archive');
   });
 
   test('passing a folder ingests JSON and copies image/file assets', async () => {
@@ -164,11 +165,32 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     expect(await readFile(join(dir, 'content/images/cover.jpg'), 'utf8')).toBe('EXTERNAL');
   });
 
-  test('passing a .zip exits non-zero with a helpful message', async () => {
+  test('passing a corrupt .zip exits non-zero with a clear error', async () => {
     const fakeZip = join(dir, 'export.zip');
     await Bun.write(fakeZip, 'not really a zip');
     const { stderr, exitCode } = await runCli(['import-ghost', fakeZip], dir);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('ZIP Ghost exports are not yet supported');
+    expect(stderr).toContain('Failed to extract');
+  });
+
+  test('passing a real .zip extracts and imports posts + assets', async () => {
+    const zipPath = join(dir, 'ghost-export.zip');
+    const proc = Bun.spawn(['zip', '-rq', zipPath, 'ghost-export'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+
+    const { exitCode, stderr } = await runCli(
+      ['import-ghost', zipPath, '--on-conflict', 'overwrite'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('Copied 2 asset files');
+    expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
+    expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
   });
 });
