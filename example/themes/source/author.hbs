@@ -7,13 +7,12 @@
         <section class="gh-archive{{#if @custom.show_publication_info_sidebar}} has-sidebar{{/if}} gh-inner">
             <div class="gh-archive-inner">
                 <div class="gh-archive-wrapper">
-                    <h1 class="gh-article-title is-title">
-                        {{#if website}}
-                            <a class="gh-author-social-link" href="{{website}}" target="_blank" rel="noopener">{{name}}</a>
-                        {{else}}
-                            {{name}}
-                        {{/if}}
-                    </h1>
+                    <h1 class="gh-article-title is-title">{{name}}</h1>
+                    {{#if website}}
+                        <p class="gh-author-website">
+                            <a href="{{website}}" target="_blank" rel="noopener">{{website}}</a>
+                        </p>
+                    {{/if}}
                     {{#if bio}}
                         <p class="gh-article-excerpt">{{bio}}</p>
                     {{/if}}
