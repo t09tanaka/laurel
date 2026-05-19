@@ -34,6 +34,50 @@ const recommendationItemSchema = z
   })
   .strict();
 
+// Declarative pricing tiers surfaced via `{{#get "tiers"}}` so Ghost themes
+// with pricing pages can render against a static config. Ghost ships richer
+// tier objects (Stripe price ids, trial days, currency_symbol) that only
+// matter when a live Portal backend processes payments. Nectar keeps the
+// surface minimal — name, blurb, prices, signup link, benefits — and lets
+// themes format prices via the existing `{{currency}}` helper.
+const tierItemSchema = z
+  .object({
+    name: z.string().describe('Display name of the tier (e.g. "Free", "Premium"). Required.'),
+    description: z
+      .string()
+      .default('')
+      .describe('Short blurb shown alongside the tier name in pricing tables.'),
+    monthly_price: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe(
+        'Monthly price in whole units of `currency` (e.g. `9` for $9/mo). Omit on free tiers.',
+      ),
+    yearly_price: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe(
+        'Yearly price in whole units of `currency`. Omit on free tiers or to hide the yearly option.',
+      ),
+    currency: z
+      .string()
+      .default('USD')
+      .describe('ISO 4217 currency code for `monthly_price` / `yearly_price`. Defaults to `USD`.'),
+    welcome_page_url: z
+      .string()
+      .optional()
+      .describe(
+        'Destination URL for Subscribe buttons targeting this tier (e.g. an external checkout / signup page).',
+      ),
+    benefits: z
+      .array(z.string())
+      .default([])
+      .describe('Bullet-point benefits surfaced on pricing tables, in display order.'),
+  })
+  .strict();
+
 export const configSchema = z
   .object({
     site: z
@@ -234,6 +278,12 @@ export const configSchema = z
       .default([])
       .describe(
         'External sites surfaced through Ghost\'s `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme\'s "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section.',
+      ),
+    tiers: z
+      .array(tierItemSchema)
+      .default([])
+      .describe(
+        'Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops.',
       ),
     deploy: z
       .object({
@@ -739,3 +789,4 @@ export const configSchema = z
 export type NectarConfig = z.infer<typeof configSchema>;
 export type NavigationItem = z.infer<typeof navigationItemSchema>;
 export type RecommendationItem = z.infer<typeof recommendationItemSchema>;
+export type TierItem = z.infer<typeof tierItemSchema>;

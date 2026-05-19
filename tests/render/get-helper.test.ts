@@ -8,6 +8,7 @@ function buildEngine(content: {
   tags?: unknown[];
   authors?: unknown[];
   pages?: unknown[];
+  tiers?: unknown[];
   postsByAuthor?: Map<string, unknown[]>;
 }): NectarEngine {
   const hb = Handlebars.create();
@@ -19,6 +20,7 @@ function buildEngine(content: {
       tags: content.tags ?? [],
       authors: content.authors ?? [],
       pages: content.pages ?? [],
+      tiers: content.tiers ?? [],
       postsByAuthor: content.postsByAuthor ?? new Map<string, unknown[]>(),
     } as unknown as NectarEngine['content'],
     theme: {} as NectarEngine['theme'],
@@ -270,5 +272,37 @@ describe('get helper include= parameter', () => {
       `{{#get "authors" include="count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
     );
     expect(tpl({})).toBe('0');
+  });
+});
+
+describe('get helper tiers resource', () => {
+  test('iterates declarative tiers in config order', () => {
+    const tiers = [
+      { id: 'free', slug: 'free', name: 'Free', type: 'free', monthly_price: undefined },
+      { id: 'premium', slug: 'premium', name: 'Premium', type: 'paid', monthly_price: 9 },
+    ];
+    const engine = buildEngine({ tiers });
+    const tpl = engine.hb.compile(
+      `{{#get "tiers" as |items|}}{{#each items}}{{slug}}:{{type}};{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('free:free;premium:paid;');
+  });
+
+  test('filters tiers by indexed `slug` clause', () => {
+    const tiers = [
+      { id: 'free', slug: 'free', name: 'Free', type: 'free' },
+      { id: 'premium', slug: 'premium', name: 'Premium', type: 'paid', monthly_price: 9 },
+    ];
+    const engine = buildEngine({ tiers });
+    const tpl = engine.hb.compile(
+      `{{#get "tiers" filter="slug:premium" as |items|}}{{#each items}}{{name}}={{monthly_price}}{{/each}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('Premium=9');
+  });
+
+  test('renders inverse block when tiers is empty', () => {
+    const engine = buildEngine({ tiers: [] });
+    const tpl = engine.hb.compile(`{{#get "tiers"}}has tiers{{else}}no tiers{{/get}}`);
+    expect(tpl({})).toBe('no tiers');
   });
 });

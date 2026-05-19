@@ -146,11 +146,33 @@ export interface Page {
   custom_template: string | undefined;
 }
 
+// Shape that mirrors Ghost's `Tier` resource closely enough for themes that
+// iterate `{{#get "tiers"}}` and branch on `type` / `monthly_price`. Stripe
+// price ids and `currency_symbol` are intentionally omitted — Nectar is
+// static and never settles payments, so those fields would be cosmetic
+// noise. `trial_days` is always `0` for the same reason.
+export interface Tier {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  type: 'free' | 'paid';
+  active: true;
+  visibility: 'public';
+  trial_days: 0;
+  monthly_price: number | undefined;
+  yearly_price: number | undefined;
+  currency: string | undefined;
+  welcome_page_url: string | undefined;
+  benefits: string[];
+}
+
 export interface ContentGraph {
   posts: Post[];
   pages: Page[];
   tags: Tag[];
   authors: Author[];
+  tiers: Tier[];
   bySlug: {
     posts: Map<string, Post>;
     pages: Map<string, Page>;

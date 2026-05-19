@@ -223,6 +223,7 @@ function makeGraph(opts: {
     pages,
     tags,
     authors,
+    tiers: [],
     bySlug: {
       posts: new Map(posts.map((p) => [p.slug, p])),
       pages: new Map(pages.map((p) => [p.slug, p])),

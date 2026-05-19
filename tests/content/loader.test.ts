@@ -209,6 +209,80 @@ describe('loadContent', () => {
     );
   });
 
+  test('graph.tiers is empty by default and the helper resolves it as a no-op resource', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+    expect(graph.tiers).toEqual([]);
+  });
+
+  test('graph.tiers projects each [[tiers]] entry into a Ghost-shaped tier object', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        tiers: [
+          {
+            name: 'Free',
+            description: 'Weekly newsletter',
+            benefits: ['Weekly digest'],
+          },
+          {
+            name: 'Premium',
+            description: 'Plus archives + Discord',
+            monthly_price: 9,
+            yearly_price: 90,
+            currency: 'USD',
+            welcome_page_url: 'https://buttondown.example/pay/premium',
+            benefits: ['Full archives', 'Discord access'],
+          },
+        ],
+      }),
+    });
+    expect(graph.tiers.length).toBe(2);
+    const free = graph.tiers[0];
+    expect(free).toBeDefined();
+    if (!free) throw new Error('unreachable');
+    expect(free.slug).toBe('free');
+    expect(free.type).toBe('free');
+    expect(free.active).toBe(true);
+    expect(free.visibility).toBe('public');
+    expect(free.monthly_price).toBeUndefined();
+    expect(free.yearly_price).toBeUndefined();
+    // Currency is dropped on free tiers so themes can branch on `tier.currency`
+    // without an extra `tier.type === 'paid'` guard.
+    expect(free.currency).toBeUndefined();
+    expect(free.benefits).toEqual(['Weekly digest']);
+
+    const premium = graph.tiers[1];
+    expect(premium).toBeDefined();
+    if (!premium) throw new Error('unreachable');
+    expect(premium.slug).toBe('premium');
+    expect(premium.type).toBe('paid');
+    expect(premium.monthly_price).toBe(9);
+    expect(premium.yearly_price).toBe(90);
+    expect(premium.currency).toBe('USD');
+    expect(premium.welcome_page_url).toBe('https://buttondown.example/pay/premium');
+    expect(premium.benefits).toEqual(['Full archives', 'Discord access']);
+  });
+
+  test('graph.tiers disambiguates duplicate names by appending a numeric suffix to the slug', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        tiers: [{ name: 'Premium' }, { name: 'Premium', monthly_price: 12 }],
+      }),
+    });
+    expect(graph.tiers.map((t) => t.slug)).toEqual(['premium', 'premium-2']);
+    // The second entry kept its price-driven `paid` type.
+    expect(graph.tiers[1]?.type).toBe('paid');
+  });
+
   test('tag.url is blank when the tag taxonomy is disabled via routes.yaml', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

@@ -153,6 +153,7 @@ function makeGraph(): ContentGraph {
     pages: [page],
     tags: [tag],
     authors: [author],
+    tiers: [],
     bySlug: {
       posts: new Map([[post.slug, post]]),
       pages: new Map([[page.slug, page]]),
