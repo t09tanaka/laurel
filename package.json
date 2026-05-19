@@ -1,10 +1,31 @@
 {
   "name": "nectar",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "description": "Ghost-theme-compatible static site generator powered by Markdown and Bun",
   "license": "MIT",
+  "author": "Takuto Tanaka <t09tanaka@gmail.com>",
+  "homepage": "https://github.com/t09tanaka/nectar#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t09tanaka/nectar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/t09tanaka/nectar/issues"
+  },
+  "keywords": [
+    "ghost",
+    "ghost-theme",
+    "static-site-generator",
+    "ssg",
+    "handlebars",
+    "markdown",
+    "bun",
+    "blog"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "nectar": "./dist/cli.mjs"
   },
