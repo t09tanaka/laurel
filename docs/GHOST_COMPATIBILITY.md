@@ -7,6 +7,12 @@ For a practical, signature-level reference of every helper and context with
 worked examples, see [`THEME_DEV.md`](./THEME_DEV.md). This document tracks
 status and edge cases as we discover them.
 
+For the members / portal compatibility surface in particular — what
+`@member`, `@site.members_enabled`, `{{#unless access}}`, and the
+`data-portal="…"` rewrites mean in a static build, plus migration
+recipes for Buttondown / Beehiiv / Substack — see
+[`MEMBERS.md`](./MEMBERS.md).
+
 ## Helpers
 
 See `DESIGN.md` §4 for the master matrix.

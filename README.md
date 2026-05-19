@@ -28,7 +28,9 @@ Ghost admin JSON export into Markdown content.
 Bootstrap in progress. See `docs/DESIGN.md` for the full architecture,
 `docs/GHOST_COMPATIBILITY.md` for the helper coverage matrix, and
 `docs/migration/ghost.md` for the step-by-step guide to moving a
-real blog off Ghost.
+real blog off Ghost. If your Ghost site uses Members / Portal, read
+`docs/MEMBERS.md` for what does and doesn't translate to a static build,
+plus wiring examples for Buttondown / Beehiiv / Substack.
 
 ## Install
 
