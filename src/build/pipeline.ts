@@ -44,6 +44,7 @@ import { loadRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
+import { emitSearchJson, runPagefind } from './search.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 import { emitVercelJson } from './vercel.ts';
 
@@ -285,6 +286,13 @@ async function runBuild({
   }
   if (config.components.robots.enabled) {
     await timed(profiler, 'robots', () => emitRobots({ config, outputDir }));
+  }
+  if (config.components.search.enabled) {
+    await timed(profiler, 'search_json', () => emitSearchJson({ config, content, outputDir }));
+    // Pagefind walks the staged HTML and emits a `pagefind/` index. Run it
+    // here (before `commitStagingDir`) so the index is part of the atomic
+    // swap into `dist/` — never a half-indexed live deploy.
+    await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
   }
   await emitNojekyll({ outputDir });
   await emitCname({

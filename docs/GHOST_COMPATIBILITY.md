@@ -110,3 +110,11 @@ allowlist, which would silently apply to every future re-import.
 - Ghost-only HTML transforms (responsive image srcsets via Ghost's image
   service) — pass-through; users can plug an optional `[components.images]`
   later.
+- Ghost's `/search/` endpoint and the `sodo-search` integration — Nectar
+  does not replicate the live `/content/search/` API shape. The
+  `[components.search]` component instead emits a flat
+  `content/search.json` ({ `posts`, `pages`, `tags`, `authors` }) for
+  client-side fuzzy search libraries (lunr / Fuse / minisearch), and can
+  optionally shell out to Pagefind (`engine = "pagefind"` /
+  `"json+pagefind"`) to emit `pagefind/*`. Themes that hard-code the
+  `/search/` POST shape need to be re-wired to one of these consumers.
