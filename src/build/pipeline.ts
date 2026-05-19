@@ -4,7 +4,7 @@ import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
-import { logger } from '~/util/logger.ts';
+import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { planRoutes } from './routes.ts';
@@ -18,9 +18,11 @@ export interface BuildSummary {
   outputDir: string;
   routeCount: number;
   assetCount: number;
+  warningCount: number;
 }
 
 export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSummary> {
+  resetWarningCount();
   const config = await loadConfig({ cwd, configPath });
   const outputDir = join(cwd, config.build.output_dir);
   await rm(outputDir, { recursive: true, force: true });
@@ -69,5 +71,6 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
     outputDir,
     routeCount: routes.length,
     assetCount,
+    warningCount: getWarningCount(),
   };
 }

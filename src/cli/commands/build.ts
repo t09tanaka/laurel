@@ -21,6 +21,7 @@ export async function runBuild(args: string[]): Promise<number> {
   }
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  const strict = parsed.values.strict === true;
   const cwd = process.cwd();
 
   try {
@@ -28,6 +29,14 @@ export async function runBuild(args: string[]): Promise<number> {
     logger.info(
       `Built ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );
+    if (strict && summary.warningCount > 0) {
+      logger.error(
+        `Strict mode: build emitted ${summary.warningCount} warning${
+          summary.warningCount === 1 ? '' : 's'
+        }`,
+      );
+      return 1;
+    }
     return 0;
   } catch (err) {
     logger.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
