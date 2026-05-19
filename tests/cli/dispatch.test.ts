@@ -9,10 +9,11 @@ interface RunResult {
   exitCode: number;
 }
 
-async function runCli(args: string[]): Promise<RunResult> {
+async function runCli(args: string[], env?: Record<string, string>): Promise<RunResult> {
   const proc = Bun.spawn(['bun', CLI_ENTRY, ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
+    env: env === undefined ? undefined : { ...process.env, ...env },
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -123,5 +124,25 @@ describe('cli dispatch', () => {
     const { stderr, exitCode } = await runCli(['--quiet', '--verbose', 'build']);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('--quiet and --verbose cannot be used together');
+  });
+
+  test('build --help footer documents the env var convention', async () => {
+    const { stdout, exitCode } = await runCli(['build', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Environment variables:');
+    expect(stdout).toContain('NECTAR_<COMMAND>_<FLAG>');
+    expect(stdout).toContain('NECTAR_BUILD_CONFIG');
+  });
+
+  test('invalid NECTAR_QUIET surfaces a usage error from the global flag parser', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--help'], { NECTAR_QUIET: 'maybe' });
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('NECTAR_QUIET');
+  });
+
+  test('invalid boolean env var on a subcommand surfaces a usage error', async () => {
+    const { stderr, exitCode } = await runCli(['build'], { NECTAR_BUILD_STRICT: 'maybe' });
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('NECTAR_BUILD_STRICT');
   });
 });

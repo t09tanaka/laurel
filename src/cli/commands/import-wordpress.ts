@@ -7,7 +7,7 @@ import { IMPORT_WORDPRESS_SPEC } from '../specs.ts';
 export async function runImportWordPress(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(IMPORT_WORDPRESS_SPEC, args);
+    parsed = parseCommand(IMPORT_WORDPRESS_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

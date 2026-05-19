@@ -13,7 +13,7 @@ import { CHECK_SPEC } from '../specs.ts';
 export async function runCheck(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(CHECK_SPEC, args);
+    parsed = parseCommand(CHECK_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

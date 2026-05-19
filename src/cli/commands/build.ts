@@ -7,7 +7,7 @@ import { BUILD_SPEC } from '../specs.ts';
 export async function runBuild(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(BUILD_SPEC, args);
+    parsed = parseCommand(BUILD_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

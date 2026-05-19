@@ -90,7 +90,7 @@ async function main(argv: string[]): Promise<number> {
 
   let filtered: string[];
   try {
-    const result = extractGlobalFlags(raw);
+    const result = extractGlobalFlags(raw, process.env);
     applyGlobalFlags(result.flags);
     filtered = result.rest;
   } catch (err) {

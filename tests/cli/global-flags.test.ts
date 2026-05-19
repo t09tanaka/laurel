@@ -60,3 +60,54 @@ describe('extractGlobalFlags', () => {
     expect(rest).toEqual(['new', '-V=something', 'page']);
   });
 });
+
+describe('extractGlobalFlags env var fallbacks', () => {
+  test('NECTAR_QUIET enables quiet mode when CLI did not set it', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_QUIET: '1' });
+    expect(flags.quiet).toBe(true);
+  });
+
+  test('CLI --quiet takes priority over NECTAR_QUIET=false', () => {
+    const { flags } = extractGlobalFlags(['--quiet', 'build'], { NECTAR_QUIET: 'false' });
+    expect(flags.quiet).toBe(true);
+  });
+
+  test('NECTAR_QUIET=false leaves quiet false', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_QUIET: 'false' });
+    expect(flags.quiet).toBe(false);
+  });
+
+  test('throws on unparseable NECTAR_QUIET', () => {
+    expect(() => extractGlobalFlags(['build'], { NECTAR_QUIET: 'maybe' })).toThrow();
+  });
+
+  test('NECTAR_VERBOSE=2 sets verboseCount=2', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_VERBOSE: '2' });
+    expect(flags.verboseCount).toBe(2);
+  });
+
+  test('CLI -V overrides NECTAR_VERBOSE', () => {
+    const { flags } = extractGlobalFlags(['-V', 'build'], { NECTAR_VERBOSE: '3' });
+    expect(flags.verboseCount).toBe(1);
+  });
+
+  test('NECTAR_VERBOSE=0 is a no-op', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_VERBOSE: '0' });
+    expect(flags.verboseCount).toBe(0);
+  });
+
+  test('throws on non-integer NECTAR_VERBOSE', () => {
+    expect(() => extractGlobalFlags(['build'], { NECTAR_VERBOSE: 'foo' })).toThrow(
+      /NECTAR_VERBOSE/,
+    );
+  });
+
+  test('throws on negative NECTAR_VERBOSE', () => {
+    expect(() => extractGlobalFlags(['build'], { NECTAR_VERBOSE: '-1' })).toThrow();
+  });
+
+  test('default env source is empty (hermetic)', () => {
+    const { flags } = extractGlobalFlags(['build']);
+    expect(flags).toEqual({ quiet: false, verboseCount: 0 });
+  });
+});

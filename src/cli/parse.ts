@@ -40,7 +40,11 @@ const HELP_OPTION: OptionSpec = {
   description: 'Show help for this command',
 };
 
-export function parseCommand(spec: CommandSpec, args: string[]): ParsedCommand {
+export function parseCommand(
+  spec: CommandSpec,
+  args: string[],
+  env: Record<string, string | undefined> = {},
+): ParsedCommand {
   const options: NonNullable<ParseArgsConfig['options']> = {};
   options.help = { type: HELP_OPTION.type, short: HELP_OPTION.short };
   for (const [name, opt] of Object.entries(spec.options)) {
@@ -68,11 +72,57 @@ export function parseCommand(spec: CommandSpec, args: string[]): ParsedCommand {
     validatePositionals(spec, positionals);
   }
 
+  const values = result.values as Record<string, string | boolean | undefined>;
+  applyEnvFallbacks(spec, values, env);
+
   return {
-    values: result.values as Record<string, string | boolean | undefined>,
+    values,
     positionals,
     helpRequested,
   };
+}
+
+function applyEnvFallbacks(
+  spec: CommandSpec,
+  values: Record<string, string | boolean | undefined>,
+  env: Record<string, string | undefined>,
+): void {
+  for (const [name, opt] of Object.entries(spec.options)) {
+    if (name === 'help') continue;
+    if (values[name] !== undefined) continue;
+    const envKey = envVarName(spec.name, name);
+    const envValue = env[envKey];
+    if (envValue === undefined) continue;
+    if (opt.type === 'boolean') {
+      values[name] = parseBooleanEnv(envValue, envKey);
+    } else if (envValue !== '') {
+      values[name] = envValue;
+    }
+  }
+}
+
+export function envVarName(commandName: string, flagName: string): string {
+  return `NECTAR_${toEnvSegment(commandName)}_${toEnvSegment(flagName)}`;
+}
+
+export function globalEnvVarName(flagName: string): string {
+  return `NECTAR_${toEnvSegment(flagName)}`;
+}
+
+function toEnvSegment(s: string): string {
+  return s.toUpperCase().replace(/-/g, '_');
+}
+
+const ENV_BOOLEAN_TRUE = new Set(['1', 'true', 'yes', 'on']);
+const ENV_BOOLEAN_FALSE = new Set(['0', 'false', 'no', 'off', '']);
+
+export function parseBooleanEnv(value: string, envKey: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (ENV_BOOLEAN_TRUE.has(v)) return true;
+  if (ENV_BOOLEAN_FALSE.has(v)) return false;
+  throw new CliUsageError(
+    `Invalid boolean value for ${envKey}: ${JSON.stringify(value)} (expected one of: 1, 0, true, false, yes, no, on, off)`,
+  );
 }
 
 function validatePositionals(spec: CommandSpec, positionals: string[]): void {
@@ -125,6 +175,15 @@ export function formatCommandHelp(spec: CommandSpec): string {
     lines.push(`  ${pad(flag, 20)}${def.description}`);
   }
   lines.push(`  ${pad('-h, --help', 20)}${HELP_OPTION.description}`);
+
+  const firstOption = Object.keys(spec.options)[0];
+  if (firstOption !== undefined) {
+    lines.push('');
+    lines.push('Environment variables:');
+    lines.push('  Every flag has an env var fallback (CLI flag > env var > config > default).');
+    lines.push('  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).');
+    lines.push(`  Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`);
+  }
   lines.push('');
   return lines.join('\n');
 }

@@ -14,7 +14,7 @@ const VALID_KINDS: readonly Kind[] = ['post', 'page', 'tag', 'author'];
 export async function runNew(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(NEW_SPEC, args);
+    parsed = parseCommand(NEW_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

@@ -2,8 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import {
   CliUsageError,
   type CommandSpec,
+  envVarName,
   formatCommandHelp,
   formatUsageLine,
+  globalEnvVarName,
+  parseBooleanEnv,
   parseCommand,
   suggestCommand,
 } from '~/cli/parse.ts';
@@ -116,6 +119,119 @@ describe('formatCommandHelp', () => {
     expect(help).toContain('Arguments:');
     expect(help).toContain('kind');
     expect(help).toContain('title');
+  });
+});
+
+describe('parseCommand env var fallbacks', () => {
+  test('fills missing string flag from NECTAR_<COMMAND>_<FLAG>', () => {
+    const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_CONFIG: 'env.toml' });
+    expect(result.values.config).toBe('env.toml');
+  });
+
+  test('CLI flag overrides env var', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--config', 'cli.toml'], {
+      NECTAR_BUILD_CONFIG: 'env.toml',
+    });
+    expect(result.values.config).toBe('cli.toml');
+  });
+
+  test('boolean env var accepts the documented truthy spellings', () => {
+    for (const truthy of ['1', 'true', 'yes', 'on', 'TRUE', 'On', ' yes ']) {
+      const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: truthy });
+      expect(result.values.watch).toBe(true);
+    }
+  });
+
+  test('boolean env var accepts the documented falsy spellings', () => {
+    for (const falsy of ['0', 'false', 'no', 'off', '', 'NO']) {
+      const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: falsy });
+      expect(result.values.watch).toBe(false);
+    }
+  });
+
+  test('throws CliUsageError on an unparseable boolean env var', () => {
+    expect(() => parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: 'maybe' })).toThrow(
+      CliUsageError,
+    );
+  });
+
+  test('dashed flag names map to underscored env var names', () => {
+    const spec: CommandSpec = {
+      name: 'import-ghost',
+      summary: 'Import',
+      options: { 'on-conflict': { type: 'string', description: 'conflict mode' } },
+      positionals: [],
+    };
+    const result = parseCommand(spec, [], { NECTAR_IMPORT_GHOST_ON_CONFLICT: 'overwrite' });
+    expect(result.values['on-conflict']).toBe('overwrite');
+  });
+
+  test('empty string env var is treated as not set for string options', () => {
+    const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_CONFIG: '' });
+    expect(result.values.config).toBeUndefined();
+  });
+
+  test('default env source is empty (hermetic)', () => {
+    const result = parseCommand(SAMPLE_SPEC, []);
+    expect(result.values.config).toBeUndefined();
+    expect(result.values.watch).toBeUndefined();
+  });
+
+  test('unrelated env vars are ignored', () => {
+    const result = parseCommand(SAMPLE_SPEC, [], {
+      NECTAR_SERVE_PORT: '9999',
+      PATH: '/usr/bin',
+    });
+    expect(result.values.config).toBeUndefined();
+    expect(result.values.watch).toBeUndefined();
+  });
+});
+
+describe('envVarName / globalEnvVarName', () => {
+  test('uppercases and converts dashes to underscores', () => {
+    expect(envVarName('serve', 'port')).toBe('NECTAR_SERVE_PORT');
+    expect(envVarName('build', 'base-path')).toBe('NECTAR_BUILD_BASE_PATH');
+    expect(envVarName('import-ghost', 'on-conflict')).toBe('NECTAR_IMPORT_GHOST_ON_CONFLICT');
+    expect(envVarName('serve', 'no-watch')).toBe('NECTAR_SERVE_NO_WATCH');
+  });
+
+  test('globalEnvVarName drops the command segment', () => {
+    expect(globalEnvVarName('quiet')).toBe('NECTAR_QUIET');
+    expect(globalEnvVarName('verbose')).toBe('NECTAR_VERBOSE');
+  });
+});
+
+describe('parseBooleanEnv', () => {
+  test('rejects unknown values with a clear CliUsageError message', () => {
+    try {
+      parseBooleanEnv('maybe', 'NECTAR_X');
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliUsageError);
+      const message = err instanceof Error ? err.message : '';
+      expect(message).toContain('NECTAR_X');
+      expect(message).toContain('maybe');
+    }
+  });
+});
+
+describe('formatCommandHelp env footer', () => {
+  test('mentions the env var convention with a per-command example', () => {
+    const help = formatCommandHelp(SAMPLE_SPEC);
+    expect(help).toContain('Environment variables:');
+    expect(help).toContain('NECTAR_<COMMAND>_<FLAG>');
+    expect(help).toContain('--config → NECTAR_BUILD_CONFIG');
+  });
+
+  test('omits env section when the command has no options', () => {
+    const spec: CommandSpec = {
+      name: 'noop',
+      summary: 'do nothing',
+      options: {},
+      positionals: [],
+    };
+    const help = formatCommandHelp(spec);
+    expect(help).not.toContain('Environment variables:');
   });
 });
 

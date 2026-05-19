@@ -7,7 +7,7 @@ import { IMPORT_GHOST_SPEC } from '../specs.ts';
 export async function runImportGhost(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(IMPORT_GHOST_SPEC, args);
+    parsed = parseCommand(IMPORT_GHOST_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

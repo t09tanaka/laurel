@@ -26,7 +26,7 @@ const NETWORK_PROBE_URL = 'https://registry.npmjs.org/-/ping?write=true';
 export async function runDoctor(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(DOCTOR_SPEC, args);
+    parsed = parseCommand(DOCTOR_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

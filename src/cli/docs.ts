@@ -1,16 +1,25 @@
 import { resolve } from 'node:path';
 import type { CommandSpec, OptionSpec, PositionalSpec } from './parse.ts';
-import { formatUsageLine } from './parse.ts';
+import { envVarName, formatUsageLine, globalEnvVarName } from './parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
 export interface GlobalOptionDoc {
   flag: string;
   description: string;
+  envVar?: string;
 }
 
 export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
-  { flag: '--quiet', description: 'Suppress info/debug output (keeps warn/error)' },
-  { flag: '-V, --verbose', description: 'Increase verbosity to debug (stack `-VV` for trace)' },
+  {
+    flag: '--quiet',
+    description: 'Suppress info/debug output (keeps warn/error)',
+    envVar: globalEnvVarName('quiet'),
+  },
+  {
+    flag: '-V, --verbose',
+    description: 'Increase verbosity to debug (stack `-VV` for trace)',
+    envVar: globalEnvVarName('verbose'),
+  },
   { flag: '-h, --help', description: 'Show help for the top-level CLI or any subcommand' },
   { flag: '-v, --version', description: 'Print the Nectar version and exit' },
 ];
@@ -51,9 +60,37 @@ export function renderCliReference(
   lines.push('');
   lines.push(
     ...renderTable(
-      ['Flag', 'Description'],
-      globals.map((g) => [code(g.flag), g.description]),
+      ['Flag', 'Env var', 'Description'],
+      globals.map((g) => [code(g.flag), g.envVar ? code(g.envVar) : '—', g.description]),
     ),
+  );
+  lines.push('');
+
+  lines.push('## Environment variables');
+  lines.push('');
+  lines.push(
+    'Every flag has an env-var fallback so flags can be set without touching the',
+    'command line. Useful for `docker-compose`, CI, devcontainers, and `.env` files.',
+  );
+  lines.push('');
+  lines.push(
+    '- **Naming:** `NECTAR_<COMMAND>_<FLAG>`, uppercased, with dashes turned into',
+    '  underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,',
+    '  and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.',
+    '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`.',
+    '- **Precedence:** CLI flag → env var → config file → built-in default.',
+    '- **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,',
+    '  `off`, and the empty string are false (case-insensitive). Anything else is',
+    '  rejected as a usage error.',
+    '- **String values:** used verbatim. An empty string is treated as unset so',
+    '  the next layer (config file or default) wins.',
+    '- **Verbosity:** `NECTAR_VERBOSE` takes a non-negative integer (`0` = info,',
+    '  `1` = debug, `2+` = trace), matching how `-V` / `-VV` stack on the CLI.',
+  );
+  lines.push('');
+  lines.push(
+    'Each command section below lists the env-var name for every flag in its',
+    '`Env var` column.',
   );
   lines.push('');
 
@@ -119,10 +156,11 @@ function renderCommandSection(spec: CommandSpec): string[] {
   lines.push('');
   lines.push(
     ...renderTable(
-      ['Flag', 'Type', 'Description'],
+      ['Flag', 'Type', 'Env var', 'Description'],
       Object.entries(spec.options).map(([name, opt]) => [
         code(formatFlagLabel(name, opt)),
         opt.type,
+        code(envVarName(spec.name, name)),
         opt.description,
       ]),
     ),

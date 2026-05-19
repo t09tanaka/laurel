@@ -19,7 +19,7 @@ const CLIENT_SCRIPT = `<script>(function(){if(window.__nectarLiveReload)return;w
 export async function runServe(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(SERVE_SPEC, args);
+    parsed = parseCommand(SERVE_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);

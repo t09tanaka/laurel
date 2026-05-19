@@ -33,7 +33,7 @@ const DEFAULT_ANSWERS: InitAnswers = {
 export async function runInit(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(INIT_SPEC, args);
+    parsed = parseCommand(INIT_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);
