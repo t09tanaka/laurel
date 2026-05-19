@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" aria-label="File tree of a Nectar project after running import-ghost">
+  <title>Project file tree after import</title>
+  <desc>The content/ directory contains posts, pages, tags, authors, images, files, and media subfolders, with a sample Markdown file shown.</desc>
+  <rect width="720" height="360" fill="#ffffff"/>
+  <rect x="0" y="0" width="720" height="360" fill="#fafafa"/>
+  <g font-family="SF Mono, ui-monospace, Menlo, monospace" font-size="13" fill="#15171a">
+    <text x="24" y="40">my-blog/</text>
+    <text x="48" y="64">nectar.toml</text>
+    <text x="48" y="88">themes/</text>
+    <text x="72" y="112">source/</text>
+    <text x="48" y="136">content/</text>
+    <text x="72" y="160">posts/</text>
+    <text x="96" y="184">2026-04-12-welcome-to-our-blog.md</text>
+    <text x="96" y="208">2026-04-15-shipping-the-redesign.md</text>
+    <text x="72" y="232">pages/about.md</text>
+    <text x="72" y="256">tags/announcements.md</text>
+    <text x="72" y="280">authors/jane-doe.md</text>
+    <text x="72" y="304">images/ files/ media/   <tspan fill="#54666d">← copied from Ghost media export</tspan></text>
+    <text x="48" y="328">ghost-export.json   <tspan fill="#54666d">(can be deleted after import)</tspan></text>
+  </g>
+  <rect x="420" y="20" width="280" height="320" rx="6" fill="#ffffff" stroke="#e0e3e8"/>
+  <text x="436" y="44" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#15171a">content/posts/welcome.md</text>
+  <g font-family="SF Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#15171a">
+    <text x="436" y="72">---</text>
+    <text x="436" y="88">title: "Welcome to our blog"</text>
+    <text x="436" y="104">slug: welcome-to-our-blog</text>
+    <text x="436" y="120">date: 2026-04-12T09:00:00Z</text>
+    <text x="436" y="136">tags: [announcements]</text>
+    <text x="436" y="152">authors: [jane-doe]</text>
+    <text x="436" y="168">feature_image: "/content/images/welcome.jpg"</text>
+    <text x="436" y="184">visibility: public</text>
+    <text x="436" y="200">status: published</text>
+    <text x="436" y="216">---</text>
+    <text x="436" y="240">Hi everyone, this is our new blog.</text>
+    <text x="436" y="260">It runs on **Nectar**, but reads</text>
+    <text x="436" y="280">like Ghost.</text>
+  </g>
+</svg>
