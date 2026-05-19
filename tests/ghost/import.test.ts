@@ -1645,3 +1645,129 @@ describe('importGhostExport — --source-url (#500)', () => {
     expect(md).not.toContain('OldBlog.com');
   });
 });
+
+describe('importGhostExport — multi-db export merging (#126)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-multidb-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('merges posts, tags, users, and join rows split across multiple db[i] blocks', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Post One',
+                  slug: 'post-one',
+                  html: '<p>one</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [{ id: 't1', slug: 'tag-one', name: 'Tag One', description: 'd1' }],
+              users: [{ id: 'u1', slug: 'alice', name: 'Alice', bio: 'b1' }],
+              posts_tags: [{ post_id: 'p1', tag_id: 't1' }],
+              posts_authors: [{ post_id: 'p1', user_id: 'u1' }],
+            },
+          },
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p2',
+                  title: 'Post Two',
+                  slug: 'post-two',
+                  html: '<p>two</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [{ id: 't2', slug: 'tag-two', name: 'Tag Two', description: 'd2' }],
+              users: [{ id: 'u2', slug: 'bob', name: 'Bob', bio: 'b2' }],
+              posts_tags: [{ post_id: 'p2', tag_id: 't2' }],
+              posts_authors: [{ post_id: 'p2', user_id: 'u2' }],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(2);
+    expect(summary.tags).toBe(2);
+    expect(summary.authors).toBe(2);
+
+    const postOne = await readFile(join(cwd, 'content/posts/post-one.md'), 'utf8');
+    const postTwo = await readFile(join(cwd, 'content/posts/post-two.md'), 'utf8');
+    expect(postOne).toContain('tags: ["tag-one"]');
+    expect(postOne).toContain('authors: ["alice"]');
+    expect(postTwo).toContain('tags: ["tag-two"]');
+    expect(postTwo).toContain('authors: ["bob"]');
+    await readFile(join(cwd, 'content/tags/tag-one.md'), 'utf8');
+    await readFile(join(cwd, 'content/tags/tag-two.md'), 'utf8');
+    await readFile(join(cwd, 'content/authors/alice.md'), 'utf8');
+    await readFile(join(cwd, 'content/authors/bob.md'), 'utf8');
+  });
+
+  test('handles a db[i] block with no data field (e.g. members-only split block)', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Solo',
+                  slug: 'solo',
+                  html: '<p>solo</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+          { meta: { exported_on: 0 } },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+  });
+
+  test('throws when db array is missing', async () => {
+    await writeFile(exportFile, JSON.stringify({ meta: { exported_on: 0 } }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /db array missing or empty/,
+    );
+  });
+
+  test('throws when db array is present but empty', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [] }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /db array missing or empty/,
+    );
+  });
+
+  test('throws when every db[i] entry is missing its data field', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [{ meta: 1 }, { meta: 2 }] }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /no db\[i\]\.data block present/,
+    );
+  });
+});
