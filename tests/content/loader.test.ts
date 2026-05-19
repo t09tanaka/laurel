@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { configSchema } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import { NectarError } from '~/util/errors.ts';
@@ -143,6 +144,38 @@ describe('loadContent', () => {
       }),
     });
     expect(graph.site.recommendations_enabled).toBe(true);
+  });
+
+  test('tag.url and author.url honour routes.yaml taxonomy paths (issue #233)', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({
+      cwd,
+      config,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/category/{slug}/', author: '/writer/{slug}/' },
+      },
+    });
+    expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('https://x.test/category/news/');
+    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe(
+      'https://x.test/writer/casper/',
+    );
+  });
+
+  test('tag.url is blank when the tag taxonomy is disabled via routes.yaml', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({
+      cwd,
+      config,
+      routesYaml: { ...emptyRoutesYaml(), taxonomies: { author: '/author/{slug}/' } },
+    });
+    expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('');
+    // author archive remains enabled, so its URL stays populated
+    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe(
+      'https://x.test/author/casper/',
+    );
   });
 });
 

@@ -3,9 +3,11 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  applyTaxonomyTemplate,
   emptyRoutesYaml,
   loadRoutesYaml,
   resolveRouteEntries,
+  resolveTaxonomies,
   routeUrlToOutputPath,
 } from '~/build/routes-yaml.ts';
 
@@ -104,6 +106,25 @@ describe('loadRoutesYaml', () => {
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
+  test('rejects taxonomy permalinks that do not end with /', async () => {
+    const cwd = await makeTmp('nectar-ry-tax-noslash-');
+    await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: /tag/{slug}\n');
+    await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
+  });
+
+  test('rejects taxonomy permalinks missing the {slug} placeholder', async () => {
+    const cwd = await makeTmp('nectar-ry-tax-noslug-');
+    await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: /tag/all/\n');
+    await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
+  });
+
+  test('accepts null as a taxonomy value to mean "disabled"', async () => {
+    const cwd = await makeTmp('nectar-ry-tax-null-');
+    await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: ~\n  author: /author/{slug}/\n');
+    const yaml = await loadRoutesYaml(cwd);
+    expect(yaml.taxonomies).toEqual({ tag: null, author: '/author/{slug}/' });
+  });
+
   test('rejects unsupported content_type values', async () => {
     const cwd = await makeTmp('nectar-ry-bad-ct-');
     await writeFile(
@@ -138,6 +159,47 @@ describe('resolveRouteEntries', () => {
       content_type: 'json',
       data: 'tag.info',
     });
+  });
+});
+
+describe('resolveTaxonomies', () => {
+  test('returns the Ghost defaults when the taxonomies block is omitted', () => {
+    expect(resolveTaxonomies(emptyRoutesYaml())).toEqual({
+      tag: '/tag/{slug}/',
+      author: '/author/{slug}/',
+    });
+  });
+
+  test('returns no kinds when the taxonomies block is explicitly empty', () => {
+    expect(resolveTaxonomies({ ...emptyRoutesYaml(), taxonomies: {} })).toEqual({});
+  });
+
+  test('treats keys with string values as enabled and null values as disabled', () => {
+    expect(
+      resolveTaxonomies({
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/categories/{slug}/', author: null },
+      }),
+    ).toEqual({ tag: '/categories/{slug}/' });
+  });
+
+  test('treats omitted keys in a present block as disabled (block is authoritative)', () => {
+    expect(
+      resolveTaxonomies({
+        ...emptyRoutesYaml(),
+        taxonomies: { tag: '/categories/{slug}/' },
+      }),
+    ).toEqual({ tag: '/categories/{slug}/' });
+  });
+});
+
+describe('applyTaxonomyTemplate', () => {
+  test('substitutes {slug} with the supplied value', () => {
+    expect(applyTaxonomyTemplate('/categories/{slug}/', 'news')).toBe('/categories/news/');
+  });
+
+  test('substitutes all occurrences when the template repeats {slug}', () => {
+    expect(applyTaxonomyTemplate('/{slug}/posts/{slug}/', 'x')).toBe('/x/posts/x/');
   });
 });
 
