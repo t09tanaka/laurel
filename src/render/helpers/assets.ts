@@ -1,5 +1,6 @@
 import type Handlebars from 'handlebars';
 import { joinPath } from '~/theme/assets.ts';
+import type { ThemeImageSize } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerAssetHelpers(engine: NectarEngine): void {
@@ -30,13 +31,10 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     const direct = inputs[0];
     const candidate = typeof direct === 'string' ? direct : extractImage(direct);
     if (!candidate) return '';
-    const size = typeof options.hash.size === 'string' ? options.hash.size : undefined;
+    const sizeKey = typeof options.hash.size === 'string' ? options.hash.size : undefined;
+    const sizeDef = sizeKey ? engine.theme.pkg.image_sizes[sizeKey] : undefined;
     const absolute = options.hash.absolute === true;
-    let url = candidate;
-    if (size && engine.theme.pkg.image_sizes[size] && !candidate.startsWith('http')) {
-      const cleaned = candidate.replace(/^\//, '');
-      url = `/${cleaned}`;
-    }
+    const url = applySizeSegment(candidate, sizeDef);
     if (absolute) {
       try {
         return new URL(url, engine.content.site.url).toString();
@@ -46,6 +44,30 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     }
     return url;
   });
+}
+
+// Ghost-compat: rewrite `/content/images/...` URLs to include a `size/wXXX[hYYY]/`
+// segment so that `{{img_url ... size="x"}}` produces distinct URLs per size
+// (otherwise srcset entries collapse to the same source). Actual image resizing
+// is a separate concern; this only emits the canonical sized-URL shape.
+function applySizeSegment(candidate: string, sizeDef: ThemeImageSize | undefined): string {
+  if (!sizeDef) return candidate;
+  const segment = buildSizeSegment(sizeDef);
+  if (!segment) return candidate;
+  const marker = '/content/images/';
+  const idx = candidate.indexOf(marker);
+  if (idx < 0) return candidate;
+  const before = candidate.slice(0, idx + marker.length);
+  const after = candidate.slice(idx + marker.length);
+  if (after.startsWith('size/')) return candidate;
+  return `${before}size/${segment}/${after}`;
+}
+
+function buildSizeSegment(size: ThemeImageSize): string {
+  let s = '';
+  if (size.width) s += `w${size.width}`;
+  if (size.height) s += `h${size.height}`;
+  return s;
 }
 
 function extractImage(value: unknown): string | undefined {
