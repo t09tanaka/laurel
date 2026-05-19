@@ -9,6 +9,7 @@ import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
+import { emitRobots } from './robots.ts';
 import { planRoutes } from './routes.ts';
 
 export interface BuildOptions {
@@ -70,6 +71,9 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
   }
   if (config.components.content_api.enabled) {
     await emitContentApiShadows({ config, content, outputDir });
+  }
+  if (config.components.robots.enabled) {
+    await emitRobots({ config, outputDir });
   }
 
   return {
