@@ -17,6 +17,7 @@ const external = [
 const entries: Array<{ entrypoint: string; outName: string; bin?: true }> = [
   { entrypoint: 'src/cli/index.ts', outName: 'cli.mjs', bin: true },
   { entrypoint: 'src/build/index.ts', outName: 'build.mjs' },
+  { entrypoint: 'src/types.ts', outName: 'types.mjs' },
 ];
 
 for (const { entrypoint, outName, bin } of entries) {

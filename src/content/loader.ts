@@ -215,7 +215,7 @@ function sanitizeUserSlug(input: string | undefined, context: string): string | 
   return sanitized;
 }
 
-function sanitizeUserSlugList(values: string[], context: string): string[] {
+function sanitizeUserSlugList(values: string[], _context: string): string[] {
   const out: string[] = [];
   for (const v of values) {
     const sanitized = slugify(v, { lower: true, strict: true });
