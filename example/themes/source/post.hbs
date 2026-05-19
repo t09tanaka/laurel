@@ -41,9 +41,12 @@
                             </div>
                         </div>
                     </div>
-                    <a href="#/share" class="gh-button gh-button-share">
-                        {{t "Share"}}
-                    </a>
+                    <button type="button" class="gh-button gh-button-share" aria-label="{{t "Share this post"}}">
+                        <svg role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                            <title>{{t "Share this post"}}</title>
+                            <path d="M176,156a35.84,35.84,0,0,0-25.78,10.92l-46.39-23.2a35.78,35.78,0,0,0,0-19.44l46.39-23.2a36,36,0,1,0-7.16-14.31l-46.39,23.2a36,36,0,1,0,0,48.06l46.39,23.2A36,36,0,1,0,176,156Z"></path>
+                        </svg>
+                    </button>
                 </div>
             {{/if}}
 
