@@ -28,6 +28,7 @@ export async function emitRss(opts: {
     .slice(0, limit)
     .map((post) => {
       const link = `${base}${new URL(post.url).pathname}`;
+      const html = absolutizeHtmlUrls(post.html, base);
       return [
         '<item>',
         `<title>${escapeXml(post.title)}</title>`,
@@ -35,7 +36,7 @@ export async function emitRss(opts: {
         `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
         `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
         `<description>${escapeXml(post.excerpt)}</description>`,
-        `<content:encoded><![CDATA[${post.html}]]></content:encoded>`,
+        `<content:encoded><![CDATA[${html}]]></content:encoded>`,
         '</item>',
       ].join('');
     })
@@ -60,4 +61,50 @@ function escapeXml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+const URL_ATTR_RE = /\b(href|src|poster)\s*=\s*(["'])([^"']*)\2/gi;
+const SRCSET_ATTR_RE = /\bsrcset\s*=\s*(["'])([^"']*)\1/gi;
+
+// RSS readers fetch the feed from rss.xml's URL, but post content is hosted at the
+// post's canonical URL. Relative URLs in post.html misresolve against the feed
+// origin, so rewrite root-relative URLs to absolute form against site.url.
+export function absolutizeHtmlUrls(html: string, base: string): string {
+  if (!html || !base) return html;
+  const origin = base.replace(/\/$/, '');
+  const withAttrs = html.replace(URL_ATTR_RE, (match, attr, quote, value) => {
+    const abs = toAbsolute(value, origin);
+    return abs === value ? match : `${attr}=${quote}${abs}${quote}`;
+  });
+  return withAttrs.replace(SRCSET_ATTR_RE, (match, quote, value) => {
+    const rewritten = rewriteSrcset(value, origin);
+    return rewritten === value ? match : `srcset=${quote}${rewritten}${quote}`;
+  });
+}
+
+function toAbsolute(value: string, base: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return value;
+  if (trimmed.startsWith('//')) return value;
+  if (trimmed.startsWith('#')) return value;
+  if (!trimmed.startsWith('/')) return value;
+  return `${base}${trimmed}`;
+}
+
+function rewriteSrcset(value: string, base: string): string {
+  return value
+    .split(',')
+    .map((part) => {
+      const segment = part.trim();
+      if (!segment) return part;
+      const [url, ...descriptors] = segment.split(/\s+/);
+      if (!url) return part;
+      const abs = toAbsolute(url, base);
+      const leading = part.match(/^\s*/)?.[0] ?? '';
+      const trailing = part.match(/\s*$/)?.[0] ?? '';
+      const rest = descriptors.length > 0 ? ` ${descriptors.join(' ')}` : '';
+      return `${leading}${abs}${rest}${trailing}`;
+    })
+    .join(',');
 }
