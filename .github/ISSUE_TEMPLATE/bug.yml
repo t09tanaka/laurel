@@ -1,0 +1,109 @@
+name: Bug report
+description: Nectar throws, crashes, or produces wrong output for a specific, reproducible input.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. A focused report with a minimal
+        reproduction is the fastest path to a fix.
+
+        **Not sure if this is a bug?** Usage questions and "how does this work"
+        belong in [Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a).
+        Feature ideas go to [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas).
+        See [`SUPPORT.md`](https://github.com/t09tanaka/nectar/blob/main/.github/SUPPORT.md) if you're unsure.
+
+        **Security vulnerabilities:** do **not** open a public issue. See
+        [`SECURITY.md`](https://github.com/t09tanaka/nectar/blob/main/SECURITY.md).
+  - type: textarea
+    id: summary
+    attributes:
+      label: What's broken?
+      description: One or two sentences. "`nectar build` throws when a post's
+        frontmatter has an empty `tags:` array" is more useful than "build is
+        broken".
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The shortest set of files / config / commands that reproduces
+        the issue. A trimmed `nectar.toml`, one or two Markdown files, the
+        exact command you ran. A link to a small repo or gist is fine.
+      placeholder: |
+        # nectar.toml
+        [site]
+        title = "Demo"
+        url = "https://example.com"
+
+        # content/posts/hello.md
+        ---
+        title: Hello
+        tags: []
+        ---
+        Body.
+
+        # Command
+        $ bun ../src/cli/index.ts build
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you think would happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead? Paste the error message, stack trace,
+        or the wrong output. Trim to the relevant lines if it's huge.
+    validations:
+      required: true
+  - type: input
+    id: nectar-version
+    attributes:
+      label: Nectar version
+      description: Output of `nectar --version`, or the commit SHA you're on if
+        running from source.
+      placeholder: "0.1.0 / commit 5148f15"
+    validations:
+      required: true
+  - type: input
+    id: bun-version
+    attributes:
+      label: Bun version
+      description: Output of `bun --version`.
+      placeholder: "1.3.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: e.g. macOS 14.5, Ubuntu 22.04, Windows 11 + WSL2.
+      placeholder: macOS 14.5
+    validations:
+      required: false
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      description: Which Ghost theme triggered this? Vendored Source, a fork,
+        a third-party theme — name and version if known.
+      placeholder: "Source (vendored at example/themes/source/)"
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Logs, screenshots, the part of the docs you looked at, things
+        you already ruled out.
+    validations:
+      required: false

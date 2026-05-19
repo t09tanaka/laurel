@@ -1,0 +1,92 @@
+name: Feature request
+description: Track implementation of a feature that has already been agreed on.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are the maintainer's working queue, so we use them to track
+        implementation work — not to brainstorm.
+
+        **Before opening this:**
+        1. If you're proposing something new, post in
+           [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+           first. When discussion converges on "yes, let's build this", come
+           back and open this issue.
+        2. Check the explicit non-goals in
+           [`CLAUDE.md`](https://github.com/t09tanaka/nectar/blob/main/CLAUDE.md)
+           (members, server-side search, live drafts, multi-locale routing,
+           email-only posts). Those aren't up for revisiting via issues.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation, not the proposed solution. "I deploy
+        to Cloudflare Pages and the headers file isn't picked up" rather than
+        "Nectar should emit `_headers`".
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Be concrete — config shape, CLI surface, helper signature,
+        output file layout, etc. If the design was agreed in a Discussion,
+        link or quote the decision.
+    validations:
+      required: true
+  - type: input
+    id: discussion
+    attributes:
+      label: Linked Discussion (Ideas)
+      description: Link to the Ideas discussion this was agreed in. Leave blank
+        only if the change is small enough to skip that step (typo, trivial
+        helper extension, etc.) — maintainers will redirect otherwise.
+      placeholder: "https://github.com/t09tanaka/nectar/discussions/..."
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where does this live?
+      description: Best guess — maintainers may correct it.
+      options:
+        - Core SSG (build pipeline, content loader, theme loader)
+        - Ghost compatibility (helpers, contexts)
+        - Optional component (search, RSS, sitemap, comments, OG images)
+        - CLI / DX (commands, flags, error messages)
+        - Migration tooling (Ghost / WordPress import)
+        - Docs / examples / tutorials
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other shapes the feature could take, including the
+        do-nothing option. Helps reviewers weigh trade-offs.
+    validations:
+      required: false
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: Breaking change?
+      description: Tick whichever apply. If anything is ticked, describe the
+        migration story under "Anything else" below.
+      options:
+        - label: Breaking change to the public CLI (`nectar build`, `nectar import-*`, ...)
+        - label: Breaking change to `nectar.toml` schema
+        - label: Breaking change to the Ghost compatibility surface (helpers, contexts, theme API)
+        - label: Breaking change to the Markdown frontmatter / content layout under `content/`
+        - label: No breaking changes
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Migration notes (required if any breaking box is ticked),
+        prior art in other SSGs, sketches, links.
+    validations:
+      required: false
