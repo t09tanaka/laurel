@@ -68,6 +68,21 @@ describe('packaging', () => {
       expect((entry as { types?: string }).types).toBe('./dist/types/types.d.ts');
     });
 
+    // Guards against shipping raw .ts source as a runtime entry. Node consumers
+    // cannot execute TypeScript directly, so every `default` condition must
+    // resolve to the prepublish-compiled JS in dist/. See backlog task #134.
+    test('no subpath export defaults to source files outside dist/', () => {
+      for (const [subpath, entry] of Object.entries(exportsMap)) {
+        if (typeof entry === 'string') continue;
+        const def = entry.default;
+        if (def === undefined) continue;
+        expect(
+          def.startsWith('./dist/'),
+          `export "${subpath}" default must live under ./dist/ but was "${def}"`,
+        ).toBe(true);
+      }
+    });
+
     test('./package.json is exported so tooling can read metadata', () => {
       expect(exportsMap['./package.json']).toBe('./package.json');
     });

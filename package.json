@@ -45,7 +45,7 @@
     },
     "./types": {
       "types": "./dist/types/types.d.ts",
-      "default": "./src/types.ts"
+      "default": "./dist/types.mjs"
     },
     "./package.json": "./package.json"
   },

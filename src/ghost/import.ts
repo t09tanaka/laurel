@@ -359,11 +359,12 @@ async function findExportJson(dir: string): Promise<string> {
   const jsonFiles = entries
     .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.json'))
     .map((e) => e.name);
-  if (jsonFiles.length === 0) {
+  const fallback = jsonFiles[0];
+  if (!fallback) {
     throw new Error(`No .json export file found in ${dir}`);
   }
   const ghosty = jsonFiles.find((n) => /ghost/i.test(n));
-  return join(dir, ghosty ?? jsonFiles[0]);
+  return join(dir, ghosty ?? fallback);
 }
 
 async function isDirectory(p: string): Promise<boolean> {
