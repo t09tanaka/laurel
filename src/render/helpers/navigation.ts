@@ -58,12 +58,13 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const rawHref = String(options.hash.href ?? '#');
       const href = sanitizeLinkHref(rawHref);
       const cls = String(options.hash.class ?? '');
-      const target = options.hash.target
-        ? ` target="${escapeAttr(String(options.hash.target))}"`
-        : '';
+      const targetVal = options.hash.target ? String(options.hash.target) : '';
+      const target = targetVal ? ` target="${escapeAttr(targetVal)}"` : '';
+      const relVal = buildLinkRel(targetVal, options.hash.rel);
+      const rel = relVal ? ` rel="${escapeAttr(relVal)}"` : '';
       const inner = options.fn ? options.fn(this) : escapeHtml(href);
       return new engine.hb.SafeString(
-        `<a href="${escapeAttr(href)}"${cls ? ` class="${escapeAttr(cls)}"` : ''}${target}>${inner}</a>`,
+        `<a href="${escapeAttr(href)}"${cls ? ` class="${escapeAttr(cls)}"` : ''}${target}${rel}>${inner}</a>`,
       );
     },
   );
@@ -123,6 +124,27 @@ function normaliseUrl(url: string): string {
 // otherwise sneak past a naive prefix check.
 const URL_SCHEME_RE = /^([a-z][a-z0-9+.\-]*):/i;
 const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+
+// target="_blank" leaks window.opener to the destination page, letting it
+// navigate the opener via JS (reverse-tabnabbing). Force noopener+noreferrer
+// whenever a theme uses _blank, while preserving any rel tokens the theme
+// already supplied (so a deliberate `rel="external nofollow"` is kept and
+// merely augmented). Comparison is case-insensitive because HTML treats
+// target values that way; rel tokens are deduped after lower-casing.
+function buildLinkRel(targetVal: string, relHash: unknown): string {
+  const relInput = relHash === undefined || relHash === null ? '' : String(relHash);
+  const tokens = new Set(
+    relInput
+      .split(/\s+/)
+      .map((token) => token.toLowerCase())
+      .filter(Boolean),
+  );
+  if (targetVal.toLowerCase() === '_blank') {
+    tokens.add('noopener');
+    tokens.add('noreferrer');
+  }
+  return Array.from(tokens).join(' ');
+}
 
 function sanitizeLinkHref(value: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional sentinel for attacker-controlled bytes
