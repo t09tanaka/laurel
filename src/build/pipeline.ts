@@ -10,6 +10,7 @@ import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
+import { generateOgImages } from './generate-og-images.ts';
 import { injectImageDimensionsIntoContent } from './images.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
@@ -53,6 +54,7 @@ export async function build({
   injectImageDimensionsIntoContent({ content, cwd, config });
 
   await rasterizeOgImages({ cwd, config, content, outputDir });
+  await generateOgImages({ cwd, config, content, outputDir });
 
   const engine = createEngine({ config, content, theme });
   const routes = planRoutes({ config, content, theme });

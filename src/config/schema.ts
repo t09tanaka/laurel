@@ -76,6 +76,15 @@ export const configSchema = z
           })
           .strict()
           .default({}),
+        og_images: z
+          .object({
+            enabled: z.boolean().default(false),
+            template: z.string().optional(),
+            width: z.number().int().positive().default(1200),
+            height: z.number().int().positive().default(630),
+          })
+          .strict()
+          .default({}),
         content_api: z
           .object({ enabled: z.boolean().default(true) })
           .strict()
