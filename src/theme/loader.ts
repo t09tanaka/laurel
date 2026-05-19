@@ -8,20 +8,6 @@ import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
 import type { ThemeBundle } from './types.ts';
 
-const LAYOUT_TEMPLATES = new Set([
-  'index',
-  'home',
-  'post',
-  'page',
-  'tag',
-  'author',
-  'default',
-  'error',
-  'error-404',
-  'amp',
-  'private',
-]);
-
 export interface LoadThemeOptions {
   cwd: string;
   config: NectarConfig;
@@ -37,22 +23,27 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   const partials: Record<string, string> = {};
 
   const glob = new Bun.Glob('**/*.hbs');
+  const relPaths: string[] = [];
   for await (const rel of glob.scan({ cwd: rootDir })) {
-    const file = join(rootDir, rel);
     if (pathContainsSymlink(rootDir, rel)) {
-      logger.warn(`Skipping symlinked theme template: ${file}`);
+      logger.warn(`Skipping symlinked theme template: ${join(rootDir, rel)}`);
       continue;
     }
-    const raw = await readFile(file, 'utf8');
+    relPaths.push(rel);
+  }
+
+  const sources = await Promise.all(relPaths.map((rel) => readFile(join(rootDir, rel), 'utf8')));
+
+  for (let i = 0; i < relPaths.length; i++) {
+    const rel = relPaths[i];
+    const raw = sources[i];
+    if (rel === undefined || raw === undefined) continue;
     if (rel.startsWith('partials/') || rel.startsWith(`partials${separator()}`)) {
-      const name = stripExt(relative(join(rootDir, 'partials'), file));
+      const name = stripExt(relative(join(rootDir, 'partials'), join(rootDir, rel)));
       partials[normalizeName(name)] = raw;
     } else {
       const name = stripExt(rel);
       templates[normalizeName(name)] = raw;
-      if (!LAYOUT_TEMPLATES.has(normalizeName(name))) {
-        // Custom layouts (e.g. custom-foo.hbs) and view templates are both kept.
-      }
     }
   }
 
