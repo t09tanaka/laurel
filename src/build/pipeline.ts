@@ -8,6 +8,7 @@ import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
+import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
@@ -148,6 +149,10 @@ export async function build({
   await emitCname({
     outputDir,
     customDomain: config.deploy.github_pages.custom_domain,
+  });
+  await emitCloudflarePagesHeaders({
+    outputDir,
+    enabled: config.deploy.cloudflare_pages.enabled,
   });
 
   return {

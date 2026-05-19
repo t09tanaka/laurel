@@ -110,6 +110,14 @@ GitHub Pages-specific deploy hints.
 | --- | --- | --- | --- | --- |
 | `deploy.github_pages.custom_domain` | `string` | no | — | Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments. |
 
+## `deploy.cloudflare_pages`
+
+Cloudflare Pages-specific deploy hints.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.cloudflare_pages.enabled` | `boolean` | no | `false` | Emit a Cloudflare Pages `_headers` file at the output root. Defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). Leave disabled when deploying somewhere other than Cloudflare Pages. |
+
 ## `components`
 
 Optional components that emit extra files or inject markup.
