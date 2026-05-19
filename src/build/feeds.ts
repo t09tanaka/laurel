@@ -52,6 +52,9 @@ export async function emitRss(opts: {
   const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
   const totalPages = Math.max(1, Math.ceil(content.posts.length / perPage));
 
+  const lastBuildDate = computeLastBuildDate(content.posts);
+  const imageBlock = renderChannelImage(config, base);
+
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = content.posts.slice(start, start + perPage);
@@ -80,12 +83,47 @@ export async function emitRss(opts: {
 <link>${escapeXml(base)}</link>
 <description>${escapeXml(config.site.description)}</description>
 <language>${escapeXml(config.site.locale)}</language>
-${atomLinks.join('\n')}
+<lastBuildDate>${lastBuildDate}</lastBuildDate>
+${atomLinks.join('\n')}${imageBlock}
 ${items}
 </channel>
 </rss>`;
     await writeHtml(outputDir, filename, xml);
   }
+}
+
+// Use the most recent post timestamp so lastBuildDate is deterministic across
+// rebuilds when content hasn't changed; feed readers rely on it for polling
+// decisions. Fall back to wall-clock only when the feed has no posts at all.
+function computeLastBuildDate(posts: ContentGraph['posts']): string {
+  let latest = 0;
+  for (const post of posts) {
+    for (const candidate of [post.updated_at, post.published_at]) {
+      const ts = Date.parse(candidate);
+      if (!Number.isNaN(ts) && ts > latest) {
+        latest = ts;
+        break;
+      }
+    }
+  }
+  return new Date(latest > 0 ? latest : Date.now()).toUTCString();
+}
+
+function renderChannelImage(config: NectarConfig, base: string): string {
+  if (!config.site.logo) return '';
+  const logoUrl = toAbsoluteUrl(base, config.site.logo);
+  return [
+    '\n<image>',
+    `<url>${escapeXml(logoUrl)}</url>`,
+    `<title>${escapeXml(config.site.title)}</title>`,
+    `<link>${escapeXml(base)}</link>`,
+    '</image>',
+  ].join('');
+}
+
+function toAbsoluteUrl(base: string, value: string): string {
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${base}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
 // Page 1 keeps the canonical `rss.xml` filename so existing feed-reader

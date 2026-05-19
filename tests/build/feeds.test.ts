@@ -277,6 +277,86 @@ describe('emitRss', () => {
     expect(xml).not.toContain('rel="next"');
     expect(existsSync(join(outputDir, 'rss-2.xml'))).toBe(false);
   });
+
+  test('emits <lastBuildDate> derived from the most recent post timestamp', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [
+      makePost({
+        id: 'older',
+        slug: 'older',
+        title: 'Older',
+        url: 'https://example.com/older/',
+        published_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      }),
+      makePost({
+        id: 'newer',
+        slug: 'newer',
+        title: 'Newer',
+        url: 'https://example.com/newer/',
+        published_at: '2026-03-15T12:00:00.000Z',
+        updated_at: '2026-04-20T09:30:00.000Z',
+      }),
+    ];
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    const expected = new Date('2026-04-20T09:30:00.000Z').toUTCString();
+    expect(xml).toContain(`<lastBuildDate>${expected}</lastBuildDate>`);
+  });
+
+  test('emits <image> when site.logo is configured', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({
+      site: {
+        title: 'My Site',
+        url: 'https://example.com',
+        logo: '/assets/logo.svg',
+      },
+    });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<image>');
+    expect(xml).toContain('<url>https://example.com/assets/logo.svg</url>');
+    expect(xml.match(/<image>[\s\S]*?<title>My Site<\/title>[\s\S]*?<\/image>/)).not.toBeNull();
+    expect(
+      xml.match(/<image>[\s\S]*?<link>https:\/\/example\.com<\/link>[\s\S]*?<\/image>/),
+    ).not.toBeNull();
+  });
+
+  test('preserves absolute logo URLs without rewriting against site.url', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({
+      site: {
+        title: 'T',
+        url: 'https://example.com',
+        logo: 'https://cdn.example.org/logo.png',
+      },
+    });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<url>https://cdn.example.org/logo.png</url>');
+  });
+
+  test('omits <image> when site.logo is not set', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).not.toContain('<image>');
+  });
 });
 
 describe('emitSitemap', () => {
