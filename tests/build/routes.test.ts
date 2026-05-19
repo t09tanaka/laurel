@@ -633,6 +633,83 @@ describe('planRoutes — routes.yaml taxonomies (issue #233)', () => {
   });
 });
 
+describe('planRoutes — output path collisions (issue #230)', () => {
+  test('throws when a post slug and page slug both emit the same output path', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('about')],
+      pages: [makePage('about')],
+    });
+    const theme = makeTheme();
+    expect(() => planRoutes({ config, content, theme })).toThrow(/route output path collision/i);
+  });
+
+  test('collision error names both output path and both route origins', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('about')],
+      pages: [makePage('about')],
+    });
+    const theme = makeTheme();
+    let caught: Error | undefined;
+    try {
+      planRoutes({ config, content, theme });
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).toBeDefined();
+    const msg = caught?.message ?? '';
+    expect(msg).toContain('about/index.html');
+    expect(msg).toContain('post /about/');
+    expect(msg).toContain('page /about/');
+  });
+
+  test('throws when a routes.yaml entry collides with a page output path', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ pages: [makePage('about')] });
+    const theme = makeTheme();
+    theme.templates.featured = '{{!featured}}';
+    expect(() =>
+      planRoutes({
+        config,
+        content,
+        theme,
+        routesYaml: routesYamlWith({ '/about/': 'featured' }),
+      }),
+    ).toThrow(/route output path collision/i);
+  });
+
+  test('no error when post and page slugs are distinct', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello')],
+      pages: [makePage('about')],
+    });
+    const theme = makeTheme();
+    expect(() => planRoutes({ config, content, theme })).not.toThrow();
+  });
+
+  test('reports every colliding pair when multiple collisions occur', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('about'), makePost('contact')],
+      pages: [makePage('about'), makePage('contact')],
+    });
+    const theme = makeTheme();
+    let caught: Error | undefined;
+    try {
+      planRoutes({ config, content, theme });
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).toBeDefined();
+    const msg = caught?.message ?? '';
+    expect(msg).toContain('about/index.html');
+    expect(msg).toContain('contact/index.html');
+    expect(msg).toMatch(/2\)/);
+  });
+});
+
 describe('planRoutes — routes.yaml routes section', () => {
   test('emits a custom route for a string-form entry that resolves to a real theme template', () => {
     const config = makeConfig('https://example.com');

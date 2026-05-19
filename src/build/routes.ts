@@ -2,6 +2,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrl } from '~/util/url.ts';
 import {
@@ -212,7 +213,41 @@ export function planRoutes(opts: {
     }
   }
 
+  assertNoRouteCollisions(routes);
+
   return routes;
+}
+
+// Two routes writing the same file path silently overwrites the loser at the
+// `Bun.write` boundary — the user has no way to tell which version made it into
+// `dist/`. The classic case is `content/posts/about.md` plus
+// `content/pages/about.md` both emitting `about/index.html`. Fail the build
+// with both colliders surfaced so the author can rename one before deploy.
+function assertNoRouteCollisions(routes: readonly RouteContext[]): void {
+  const byOutputPath = new Map<string, RouteContext[]>();
+  for (const route of routes) {
+    const bucket = byOutputPath.get(route.outputPath);
+    if (bucket) bucket.push(route);
+    else byOutputPath.set(route.outputPath, [route]);
+  }
+  const collisions: { outputPath: string; routes: RouteContext[] }[] = [];
+  for (const [outputPath, bucket] of byOutputPath) {
+    if (bucket.length > 1) collisions.push({ outputPath, routes: bucket });
+  }
+  if (collisions.length === 0) return;
+
+  const lines = collisions.map(({ outputPath, routes: bucket }) => {
+    const origins = bucket.map((r) => `${r.kind} ${r.url}`).join(' and ');
+    return `  ${outputPath} <- ${origins}`;
+  });
+  const headline =
+    collisions.length === 1
+      ? 'route output path collision detected:'
+      : `route output path collisions detected (${collisions.length}):`;
+  throw new NectarError({
+    message: `${headline}\n${lines.join('\n')}`,
+    hint: 'Each route must emit a unique output path. Rename the conflicting post/page slug or routes.yaml entry.',
+  });
 }
 
 // Mirrors Ghost's per-page template override: when a page's frontmatter declares
