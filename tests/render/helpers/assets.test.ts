@@ -116,12 +116,58 @@ describe('img_url helper', () => {
     );
   });
 
-  test('injects size segment into absolute URLs that contain /content/images/', () => {
-    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+  test('injects size segment into same-host absolute URLs that contain /content/images/', () => {
+    const engine = makeEngine({
+      imageSizes: { m: { width: 600 } },
+      siteUrl: 'https://blog.example.com',
+    });
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
     expect(tpl({ feature_image: 'https://blog.example.com/content/images/x.jpg' })).toBe(
       'https://blog.example.com/content/images/size/w600/x.jpg',
+    );
+  });
+
+  test('passes external-host URLs through unchanged even when they contain /content/images/ (issue #1132)', () => {
+    const engine = makeEngine({
+      imageSizes: { m: { width: 600 } },
+      siteUrl: 'https://example.com',
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
+    expect(tpl({ feature_image: 'https://other.example.com/content/images/x.jpg' })).toBe(
+      'https://other.example.com/content/images/x.jpg',
+    );
+  });
+
+  test('passes protocol-relative URLs through unchanged (issue #1132)', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
+    expect(tpl({ feature_image: '//cdn.example.com/content/images/x.jpg' })).toBe(
+      '//cdn.example.com/content/images/x.jpg',
+    );
+  });
+
+  test('passes data: URIs through unchanged (issue #1132)', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    // Use {{{ }}} to bypass Handlebars HTML escaping when asserting the raw URL.
+    const tpl = engine.hb.compile('{{{img_url feature_image size="m"}}}');
+    expect(tpl({ feature_image: 'data:image/png;base64,iVBORw0KGgo=' })).toBe(
+      'data:image/png;base64,iVBORw0KGgo=',
+    );
+  });
+
+  test('absolute=true leaves external URLs unchanged (no re-resolution via siteUrl, issue #1132)', () => {
+    const engine = makeEngine({
+      imageSizes: { m: { width: 600 } },
+      siteUrl: 'https://blog.example.com',
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image absolute=true}}');
+    expect(tpl({ feature_image: 'https://images.unsplash.com/photo.jpg' })).toBe(
+      'https://images.unsplash.com/photo.jpg',
     );
   });
 
