@@ -132,7 +132,9 @@ without it, the build runs Node and `bunx` will fail.
 GitHub Pages does not run Bun, so the build has to happen in GitHub Actions
 and the resulting `dist/` is uploaded as the Pages artifact.
 
-Create `.github/workflows/pages.yml`:
+Copy [`examples/ci/github-pages.yml`](../../examples/ci/github-pages.yml)
+to `.github/workflows/pages.yml` in your repo — it's the workflow below,
+ready to use as-is:
 
 ```yaml
 name: Deploy to GitHub Pages
@@ -153,19 +155,22 @@ concurrency:
 
 jobs:
   build:
+    name: Build site
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.3'
-      - run: bun install
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
       - run: bunx nectar build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
+    name: Deploy to Pages
     needs: build
     runs-on: ubuntu-latest
     environment:
