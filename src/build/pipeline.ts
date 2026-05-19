@@ -8,6 +8,7 @@ import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
+import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
@@ -41,6 +42,7 @@ import {
   loadManifest,
   saveManifest,
 } from './manifest.ts';
+import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNginxConf } from './nginx.ts';
@@ -362,6 +364,13 @@ async function runBuild({
     await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
     await timed(profiler, 'lunr_index', () => emitLunrIndex({ config, content, outputDir }));
     await timed(profiler, 'lunr_widget', () => emitLunrWidget({ config, outputDir }));
+    await timed(profiler, 'algolia_records', () =>
+      emitAlgoliaRecords({ config, content, outputDir }),
+    );
+    await timed(profiler, 'algolia_docsearch_css', () => emitDocSearchCss({ config, outputDir }));
+    await timed(profiler, 'meilisearch_records', () =>
+      emitMeilisearchRecords({ config, content, outputDir }),
+    );
   }
   await emitNojekyll({ outputDir });
   await emitCname({
