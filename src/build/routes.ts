@@ -2,6 +2,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { absoluteUrl } from '~/util/url.ts';
 
 export function planRoutes(opts: {
   config: NectarConfig;
@@ -31,6 +32,7 @@ export function planRoutes(opts: {
         },
         meta: defaultMeta(
           config,
+          url,
           idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`,
         ),
       });
@@ -38,15 +40,17 @@ export function planRoutes(opts: {
   }
 
   for (const post of content.posts) {
+    const url = `/${post.slug}/`;
     routes.push({
       kind: 'post',
-      url: `/${post.slug}/`,
+      url,
       outputPath: `${post.slug}/index.html`,
       template: 'post',
       lastmod: post.updated_at ?? post.published_at,
       data: { post },
       meta: defaultMeta(
         config,
+        url,
         post.meta_title ?? post.title,
         post.meta_description ?? post.excerpt,
         post.feature_image,
@@ -56,15 +60,17 @@ export function planRoutes(opts: {
 
   if (theme.templates.page) {
     for (const page of content.pages) {
+      const url = `/${page.slug}/`;
       routes.push({
         kind: 'page',
-        url: `/${page.slug}/`,
+        url,
         outputPath: `${page.slug}/index.html`,
         template: 'page',
         lastmod: page.updated_at ?? page.published_at,
         data: { page },
         meta: defaultMeta(
           config,
+          url,
           page.meta_title ?? page.title,
           page.meta_description ?? page.excerpt,
           page.feature_image,
@@ -94,6 +100,7 @@ export function planRoutes(opts: {
           },
           meta: defaultMeta(
             config,
+            url,
             tag.meta_title ?? `${tag.name} | ${config.site.title}`,
             tag.meta_description ?? tag.description,
             tag.feature_image,
@@ -135,6 +142,7 @@ export function planRoutes(opts: {
           },
           meta: defaultMeta(
             config,
+            url,
             author.meta_title ?? `${author.name} | ${config.site.title}`,
             author.meta_description ?? author.bio,
             author.cover_image,
@@ -192,11 +200,17 @@ function paginationInfo(
   };
 }
 
-function defaultMeta(config: NectarConfig, title: string, description?: string, image?: string) {
+function defaultMeta(
+  config: NectarConfig,
+  routeUrl: string,
+  title: string,
+  description?: string,
+  image?: string,
+) {
   return {
     title,
     description: description ?? config.site.description,
-    canonical: config.site.url,
+    canonical: absoluteUrl(config.site.url, routeUrl),
     image,
   };
 }
