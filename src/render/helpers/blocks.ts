@@ -83,41 +83,45 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       let matched = false;
       for (const [key, raw] of Object.entries(hash)) {
         const value = String(raw ?? '');
-        switch (key) {
-          case 'tag': {
-            const tags = (ctx.tags as { slug: string; name: string }[]) ?? [];
-            matched = value
-              .split(',')
-              .map((s) => s.trim())
-              .some((needle) => tags.some((t) => t.slug === needle || t.name === needle));
-            break;
+        if (key.startsWith('count:')) {
+          matched = evaluateCountAttr(ctx, key.slice('count:'.length), value);
+        } else {
+          switch (key) {
+            case 'tag': {
+              const tags = (ctx.tags as { slug: string; name: string }[]) ?? [];
+              matched = value
+                .split(',')
+                .map((s) => s.trim())
+                .some((needle) => tags.some((t) => t.slug === needle || t.name === needle));
+              break;
+            }
+            case 'author': {
+              const authors = (ctx.authors as { slug: string; name: string }[]) ?? [];
+              matched = value
+                .split(',')
+                .map((s) => s.trim())
+                .some((needle) => authors.some((a) => a.slug === needle || a.name === needle));
+              break;
+            }
+            case 'visibility': {
+              matched = String(ctx.visibility ?? '') === value;
+              break;
+            }
+            case 'slug': {
+              matched = String(ctx.slug ?? '') === value;
+              break;
+            }
+            case 'number': {
+              const n = Number(value);
+              const route = options.data?.route as
+                | { data?: { pagination?: { page?: number } } }
+                | undefined;
+              matched = (route?.data?.pagination?.page ?? 1) === n;
+              break;
+            }
+            default:
+              matched = String((ctx as Record<string, unknown>)[key] ?? '') === value;
           }
-          case 'author': {
-            const authors = (ctx.authors as { slug: string; name: string }[]) ?? [];
-            matched = value
-              .split(',')
-              .map((s) => s.trim())
-              .some((needle) => authors.some((a) => a.slug === needle || a.name === needle));
-            break;
-          }
-          case 'visibility': {
-            matched = String(ctx.visibility ?? '') === value;
-            break;
-          }
-          case 'slug': {
-            matched = String(ctx.slug ?? '') === value;
-            break;
-          }
-          case 'number': {
-            const n = Number(value);
-            const route = options.data?.route as
-              | { data?: { pagination?: { page?: number } } }
-              | undefined;
-            matched = (route?.data?.pagination?.page ?? 1) === n;
-            break;
-          }
-          default:
-            matched = String((ctx as Record<string, unknown>)[key] ?? '') === value;
         }
         if (matched) break;
       }
@@ -381,6 +385,38 @@ function visibilityFilter(item: unknown, visibility: string | undefined): boolea
   if (!obj || typeof obj !== 'object') return true;
   if (visibility === 'public') return (obj.visibility ?? 'public') === 'public';
   return (obj.visibility ?? 'public') === visibility;
+}
+
+// Ghost themes write `{{#has count:tags=">2"}}` to branch on collection size.
+// Handlebars parses `count:tags` as the hash key and `">2"` as its string value,
+// so we resolve `this[property]` (treating arrays by length and plain numbers as
+// is), then parse a leading comparison operator off the value.
+function evaluateCountAttr(ctx: Record<string, unknown>, property: string, value: string): boolean {
+  if (!property) return false;
+  const target = ctx[property];
+  const actual = Array.isArray(target)
+    ? target.length
+    : typeof target === 'number' && Number.isFinite(target)
+      ? target
+      : 0;
+  const m = value.trim().match(/^(<=|>=|=|<|>)?\s*(-?\d+)$/);
+  if (!m) return false;
+  const op = m[1] ?? '=';
+  const expected = Number(m[2]);
+  switch (op) {
+    case '>':
+      return actual > expected;
+    case '<':
+      return actual < expected;
+    case '>=':
+      return actual >= expected;
+    case '<=':
+      return actual <= expected;
+    case '=':
+      return actual === expected;
+    default:
+      return false;
+  }
 }
 
 function compare(left: unknown, op: string, right: unknown): boolean {
