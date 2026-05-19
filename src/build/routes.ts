@@ -11,7 +11,7 @@ export function planRoutes(opts: {
 }): RouteContext[] {
   const { config, content, theme } = opts;
   const routes: RouteContext[] = [];
-  const perPage = theme.pkg.posts_per_page || config.build.posts_per_page;
+  const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
 
   const homeTemplate = theme.templates.home ? 'home' : 'index';
   const indexTemplate = theme.templates.index ?? theme.templates.home;
