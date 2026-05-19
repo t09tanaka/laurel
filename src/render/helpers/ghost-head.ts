@@ -49,10 +49,10 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         );
       }
 
-      const jsonLd = buildJsonLd(ctx, site, meta);
-      if (jsonLd) {
+      const jsonLdEntities = buildJsonLd(ctx, route, site, meta);
+      for (const entity of jsonLdEntities) {
         parts.push(
-          `<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(jsonLd))}</script>`,
+          `<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(entity))}</script>`,
         );
       }
 
@@ -111,6 +111,7 @@ function computeMeta(
 
 function buildJsonLd(
   ctx: Record<string, unknown>,
+  route: { url?: string; data?: Record<string, unknown> } | undefined,
   site: {
     title: string;
     url: string;
@@ -119,9 +120,11 @@ function buildJsonLd(
     logo_height?: number;
   },
   meta: ComputedMeta,
-): Record<string, unknown> | undefined {
+): Record<string, unknown>[] {
+  const entities: Record<string, unknown>[] = [];
+
   if (meta.ogType === 'article' && ctx.id) {
-    return {
+    entities.push({
       '@context': 'https://schema.org',
       '@type': 'Article',
       mainEntityOfPage: { '@type': 'WebPage', '@id': meta.canonical },
@@ -144,13 +147,61 @@ function buildJsonLd(
         url: site.url,
         logo: buildPublisherLogo(site),
       },
-    };
+    });
+  } else {
+    entities.push({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: site.title,
+      url: site.url,
+    });
   }
+
+  const breadcrumb = buildBreadcrumbList(ctx, route, site, meta);
+  if (breadcrumb) entities.push(breadcrumb);
+
+  return entities;
+}
+
+// Emit BreadcrumbList JSON-LD so search results can render the path
+// (Home > Tag > Post for posts, Home > Tag/Author for archive pages).
+// Skipped for the home route and standalone static pages — no useful path there.
+function buildBreadcrumbList(
+  ctx: Record<string, unknown>,
+  route: { url?: string; data?: Record<string, unknown> } | undefined,
+  site: { title: string; url: string },
+  meta: ComputedMeta,
+): Record<string, unknown> | undefined {
+  const home = absoluteUrl(site.url, '/');
+  const items: { name: string; item: string }[] = [{ name: site.title, item: home }];
+
+  if (route?.data?.post && ctx.id) {
+    const primaryTag = ctx.primary_tag as { name?: string; url?: string } | undefined;
+    if (primaryTag?.name && primaryTag?.url) {
+      items.push({ name: primaryTag.name, item: primaryTag.url });
+    }
+    items.push({ name: meta.title, item: meta.canonical });
+  } else if (route?.data?.tag) {
+    const tag = route.data.tag as { name?: string; url?: string };
+    if (!tag.name || !tag.url) return undefined;
+    items.push({ name: tag.name, item: tag.url });
+  } else if (route?.data?.author) {
+    const author = route.data.author as { name?: string; url?: string };
+    if (!author.name || !author.url) return undefined;
+    items.push({ name: author.name, item: author.url });
+  } else {
+    return undefined;
+  }
+
   return {
     '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: site.title,
-    url: site.url,
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((entry, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: entry.name,
+      item: entry.item,
+    })),
   };
 }
 

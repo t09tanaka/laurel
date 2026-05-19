@@ -45,14 +45,18 @@ function makeEngine(
 function renderGhostHead(
   ctx: Record<string, unknown>,
   routeUrl = '/some-post/',
-  opts: { site?: Partial<SiteData>; config?: Partial<NectarEngine['config']> } = {},
+  opts: {
+    site?: Partial<SiteData>;
+    config?: Partial<NectarEngine['config']>;
+    routeData?: Record<string, unknown>;
+  } = {},
 ): string {
   const engine = makeEngine(opts.site, opts.config);
   registerGhostHeadFootHelpers(engine);
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
     data: {
-      route: { url: routeUrl, data: { post: ctx } },
+      route: { url: routeUrl, data: opts.routeData ?? { post: ctx } },
     },
   });
 }
@@ -61,6 +65,35 @@ function extractJsonLd(html: string): string {
   const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   if (!match) throw new Error(`no JSON-LD found in: ${html}`);
   return match[1];
+}
+
+function extractAllJsonLd(html: string): string[] {
+  const re = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g;
+  const out: string[] = [];
+  let m: RegExpExecArray | null = re.exec(html);
+  while (m !== null) {
+    out.push(m[1]);
+    m = re.exec(html);
+  }
+  return out;
+}
+
+interface BreadcrumbItem {
+  '@type': string;
+  position: number;
+  name: string;
+  item: string;
+}
+interface BreadcrumbList {
+  '@type': string;
+  itemListElement: BreadcrumbItem[];
+}
+function findBreadcrumb(html: string): BreadcrumbList | undefined {
+  for (const raw of extractAllJsonLd(html)) {
+    const parsed = JSON.parse(raw) as { '@type'?: string };
+    if (parsed['@type'] === 'BreadcrumbList') return parsed as BreadcrumbList;
+  }
+  return undefined;
 }
 
 describe('ghost_head JSON-LD escaping', () => {
@@ -72,16 +105,19 @@ describe('ghost_head JSON-LD escaping', () => {
       updated_at: '2026-01-01',
     });
 
-    // Only the outer </script> closing the JSON-LD block may appear; the payload must be escaped.
+    // Posts emit two JSON-LD blocks (Article + BreadcrumbList); both must be properly closed
+    // exactly once each, and neither may leak an unescaped </script> from the payload.
+    const blocks = extractAllJsonLd(html);
+    expect(blocks.length).toBe(2);
     const closings = html.match(/<\/script>/g) ?? [];
-    expect(closings.length).toBe(1);
+    expect(closings.length).toBe(blocks.length);
     expect(html).not.toContain('</script><script>alert(1)');
 
-    const jsonLd = extractJsonLd(html);
-    expect(jsonLd).toContain('\\u003C/script\\u003E');
-    // Parsing the escaped payload back through JSON must restore the original title.
-    const parsed = JSON.parse(jsonLd) as { headline: string };
-    expect(parsed.headline).toBe('Evil </script><script>alert(1)</script>');
+    for (const raw of blocks) {
+      expect(raw).toContain('\\u003C/script\\u003E');
+    }
+    const article = JSON.parse(blocks[0]) as { headline: string };
+    expect(article.headline).toBe('Evil </script><script>alert(1)</script>');
   });
 
   test('escapes <, >, & in JSON-LD payload', () => {
@@ -309,5 +345,158 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
     };
     expect(parsed['@type']).toBe('WebSite');
     expect(parsed.mainEntityOfPage).toBeUndefined();
+  });
+});
+
+describe('ghost_head BreadcrumbList JSON-LD', () => {
+  test('emits Home > Tag > Post for a post with a primary tag', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        primary_tag: {
+          name: 'News',
+          url: 'https://example.com/tag/news/',
+        },
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/a-post/',
+    );
+    const breadcrumb = findBreadcrumb(html);
+    expect(breadcrumb).toBeDefined();
+    expect(breadcrumb?.itemListElement).toEqual([
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Nectar Test',
+        item: 'https://example.com/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'News',
+        item: 'https://example.com/tag/news/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: 'A post',
+        item: 'https://example.com/a-post/',
+      },
+    ]);
+  });
+
+  test('emits Home > Post when the post has no primary tag', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'Tagless',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/tagless/',
+    );
+    const breadcrumb = findBreadcrumb(html);
+    expect(breadcrumb?.itemListElement).toEqual([
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Nectar Test',
+        item: 'https://example.com/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Tagless',
+        item: 'https://example.com/tagless/',
+      },
+    ]);
+  });
+
+  test('emits Home > Tag for a tag archive page', () => {
+    const html = renderGhostHead(
+      { meta_title: 'News - Nectar Test', meta_description: 'News posts' },
+      '/tag/news/',
+      {
+        routeData: {
+          tag: { name: 'News', url: 'https://example.com/tag/news/' },
+        },
+      },
+    );
+    const breadcrumb = findBreadcrumb(html);
+    expect(breadcrumb?.itemListElement).toEqual([
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Nectar Test',
+        item: 'https://example.com/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'News',
+        item: 'https://example.com/tag/news/',
+      },
+    ]);
+  });
+
+  test('emits Home > Author for an author archive page', () => {
+    const html = renderGhostHead(
+      { meta_title: 'Jane Doe - Nectar Test', meta_description: 'Author archive' },
+      '/author/jane/',
+      {
+        routeData: {
+          author: { name: 'Jane Doe', url: 'https://example.com/author/jane/' },
+        },
+      },
+    );
+    const breadcrumb = findBreadcrumb(html);
+    expect(breadcrumb?.itemListElement).toEqual([
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Nectar Test',
+        item: 'https://example.com/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Jane Doe',
+        item: 'https://example.com/author/jane/',
+      },
+    ]);
+  });
+
+  test('omits BreadcrumbList on the home route', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', { routeData: {} });
+    expect(findBreadcrumb(html)).toBeUndefined();
+  });
+
+  test('omits BreadcrumbList on standalone static pages', () => {
+    const html = renderGhostHead(
+      { id: 'pg1', title: 'About', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/about/',
+      { routeData: { page: { id: 'pg1', slug: 'about', title: 'About' } } },
+    );
+    expect(findBreadcrumb(html)).toBeUndefined();
+  });
+
+  test('Article JSON-LD is emitted before BreadcrumbList JSON-LD', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/a-post/',
+    );
+    const blocks = extractAllJsonLd(html);
+    expect(blocks.length).toBe(2);
+    const first = JSON.parse(blocks[0]) as { '@type': string };
+    const second = JSON.parse(blocks[1]) as { '@type': string };
+    expect(first['@type']).toBe('Article');
+    expect(second['@type']).toBe('BreadcrumbList');
   });
 });
