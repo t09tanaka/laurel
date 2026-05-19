@@ -109,10 +109,16 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
     ctx.page = data.page;
   }
   if (data.tag) {
-    Object.assign(ctx, { tag: data.tag });
+    ctx.tag = data.tag;
+    ctx.meta_title = route.meta.title;
+    ctx.meta_description = route.meta.description;
+    ctx.feature_image = data.tag.feature_image;
   }
   if (data.author) {
-    Object.assign(ctx, { author: data.author });
+    ctx.author = data.author;
+    ctx.meta_title = route.meta.title;
+    ctx.meta_description = route.meta.description;
+    ctx.feature_image = data.author.cover_image;
   }
   if (data.posts) {
     ctx.posts = data.posts;

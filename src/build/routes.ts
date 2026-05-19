@@ -90,7 +90,7 @@ export function planRoutes(opts: {
           },
           meta: defaultMeta(
             config,
-            tag.meta_title ?? tag.name,
+            tag.meta_title ?? `${tag.name} | ${config.site.title}`,
             tag.meta_description ?? tag.description,
             tag.feature_image,
           ),
@@ -130,7 +130,7 @@ export function planRoutes(opts: {
           },
           meta: defaultMeta(
             config,
-            author.meta_title ?? author.name,
+            author.meta_title ?? `${author.name} | ${config.site.title}`,
             author.meta_description ?? author.bio,
             author.cover_image,
           ),
