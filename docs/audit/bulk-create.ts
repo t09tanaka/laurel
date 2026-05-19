@@ -126,8 +126,9 @@ async function worker(): Promise<void> {
     } finally {
       inFlight -= 1;
     }
-    // Small stagger to be polite even within concurrency budget.
-    await new Promise((r) => setTimeout(r, 250));
+    // Pace under GitHub's ~80/min secondary rate limit for content creation.
+    // 850ms between requests per worker → ~70/min at concurrency 1.
+    await new Promise((r) => setTimeout(r, 850));
   }
 }
 

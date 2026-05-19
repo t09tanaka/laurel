@@ -30,3 +30,7 @@ yarn-error.log*
 # Coverage
 coverage/
 *.lcov
+
+# Ephemeral progress file from docs/audit/bulk-create.ts
+docs/audit/created.ndjson
+docs/audit/bulk-create.log
