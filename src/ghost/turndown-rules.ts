@@ -49,6 +49,39 @@ function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
 }
 
+// Map an embed URL's host to an oEmbed provider key the renderer can use to
+// look up cached metadata. Ghost's export strips the original oEmbed `provider`
+// field, so we recover it from the iframe src / blockquote anchor at import
+// time — otherwise downstream re-rendering can't tell YouTube from Spotify
+// without parsing the URL again.
+function providerFromUrl(url: string): string {
+  if (!url) return '';
+  let host: string;
+  try {
+    host = new URL(url).host.toLowerCase();
+  } catch {
+    return '';
+  }
+  if (/(?:^|\.)(?:youtube\.com|youtu\.be)$/.test(host)) return 'youtube';
+  if (/(?:^|\.)vimeo\.com$/.test(host)) return 'vimeo';
+  if (/(?:^|\.)spotify\.com$/.test(host)) return 'spotify';
+  if (/(?:^|\.)soundcloud\.com$/.test(host)) return 'soundcloud';
+  if (/(?:^|\.)tiktok\.com$/.test(host)) return 'tiktok';
+  if (/(?:^|\.)(?:twitter\.com|x\.com)$/.test(host)) return 'twitter';
+  if (/(?:^|\.)instagram\.com$/.test(host)) return 'instagram';
+  if (/(?:^|\.)codepen\.io$/.test(host)) return 'codepen';
+  return '';
+}
+
+function lastAnchorHref(node: DomNode): string {
+  const anchors = Array.from(node.querySelectorAll('a') as ArrayLike<DomNode>);
+  for (let i = anchors.length - 1; i >= 0; i--) {
+    const href = attr(anchors[i], 'href');
+    if (href) return href;
+  }
+  return '';
+}
+
 function escapeAttr(v: string): string {
   return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
@@ -156,20 +189,73 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Embed card: <figure class="kg-card kg-embed-card"><iframe>
+  // Embed card: <figure class="kg-card kg-embed-card">
+  //   - <iframe>                 (YouTube / Vimeo / Spotify / SoundCloud / TikTok / CodePen / …)
+  //   - <blockquote.twitter-tweet>   (Twitter/X — hydrated client-side via widgets.js)
+  //   - <blockquote.instagram-media> (Instagram — hydrated client-side via embed.js)
+  //   - <a> only                 (generic "rich"/"link" oEmbed fallback)
+  //
+  // Default turndown drops the iframe entirely and reduces social blockquotes
+  // to a plain quoted line without their hydration script, so the embed
+  // becomes invisible (video) or context-less plain text (social). The
+  // shortcode below carries the source URL plus an inferred provider so the
+  // renderer can re-resolve oEmbed at build time against a cache.
   turndown.addRule('kg-embed-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-embed-card'),
     replacement: (_content, node) => {
+      const caption = text(node.querySelector('figcaption'));
+
       const iframe = node.querySelector('iframe');
-      return wrap(
-        shortcode('embed', {
-          url: attr(iframe, 'src'),
-          title: attr(iframe, 'title'),
-          width: attr(iframe, 'width'),
-          height: attr(iframe, 'height'),
-          caption: text(node.querySelector('figcaption')),
-        }),
-      );
+      if (iframe) {
+        const url = attr(iframe, 'src');
+        return wrap(
+          shortcode('embed', {
+            url,
+            provider: providerFromUrl(url),
+            title: attr(iframe, 'title'),
+            width: attr(iframe, 'width'),
+            height: attr(iframe, 'height'),
+            caption,
+          }),
+        );
+      }
+
+      const twitter = node.querySelector('blockquote.twitter-tweet');
+      if (twitter) {
+        return wrap(
+          shortcode('embed', {
+            url: lastAnchorHref(twitter),
+            provider: 'twitter',
+            caption,
+          }),
+        );
+      }
+
+      const instagram = node.querySelector('blockquote.instagram-media');
+      if (instagram) {
+        const permalink = attr(instagram, 'data-instgrm-permalink');
+        return wrap(
+          shortcode('embed', {
+            url: permalink || lastAnchorHref(instagram),
+            provider: 'instagram',
+            caption,
+          }),
+        );
+      }
+
+      const fallbackAnchor = node.querySelector('a');
+      if (fallbackAnchor) {
+        const url = attr(fallbackAnchor, 'href');
+        return wrap(
+          shortcode('embed', {
+            url,
+            provider: providerFromUrl(url),
+            caption,
+          }),
+        );
+      }
+
+      return '';
     },
   });
 

@@ -120,10 +120,88 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     const md = td.turndown(html);
     expect(md).toContain('{{< embed');
     expect(md).toContain('url="https://www.youtube.com/embed/abc123"');
+    expect(md).toContain('provider="youtube"');
     expect(md).toContain('title="A talk"');
     expect(md).toContain('width="560"');
     expect(md).toContain('height="315"');
     expect(md).toContain('caption="Talk transcript"');
+  });
+
+  test('detects vimeo provider from player.vimeo.com', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://player.vimeo.com/video/76979871" width="640" height="360"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="vimeo"');
+    expect(md).toContain('url="https://player.vimeo.com/video/76979871"');
+  });
+
+  test('detects spotify provider from open.spotify.com', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://open.spotify.com/embed/track/abc"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="spotify"');
+  });
+
+  test('converts twitter blockquote to embed shortcode with provider twitter', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <blockquote class="twitter-tweet">
+          <p lang="en" dir="ltr">Hello world</p>
+          &mdash; Jane (@jane)
+          <a href="https://twitter.com/jane/status/123456789">May 1, 2024</a>
+        </blockquote>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('provider="twitter"');
+    expect(md).toContain('url="https://twitter.com/jane/status/123456789"');
+  });
+
+  test('converts instagram blockquote using data-instgrm-permalink', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/CXYZ/">
+          <a href="https://www.instagram.com/p/CXYZ/">View on Instagram</a>
+        </blockquote>
+        <figcaption>A photo</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('provider="instagram"');
+    expect(md).toContain('url="https://www.instagram.com/p/CXYZ/"');
+    expect(md).toContain('caption="A photo"');
+  });
+
+  test('falls back to anchor href for non-iframe non-blockquote embed', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <a href="https://codepen.io/user/pen/abc">View on CodePen</a>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('url="https://codepen.io/user/pen/abc"');
+    expect(md).toContain('provider="codepen"');
+  });
+
+  test('omits provider attribute when host is unrecognised', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://example.invalid/embed/xyz"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('url="https://example.invalid/embed/xyz"');
+    expect(md).not.toContain('provider=');
   });
 });
 
