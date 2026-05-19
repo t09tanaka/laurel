@@ -8,6 +8,7 @@ interface HelperOptions extends Handlebars.HelperOptions {
     limit?: number | string;
     from?: number | string;
     to?: number | string;
+    columns?: number | string;
   };
 }
 
@@ -29,6 +30,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     // the first three *public* items, not three positions from the raw input.
     const visible = items.filter((item) => visibilityFilter(item, options.hash.visibility));
     const sliced = visible.slice(from - 1, to);
+    const columns = parseColumns(options.hash.columns);
     for (let i = 0; i < sliced.length; i += 1) {
       const item = sliced[i];
       const data = engine.hb.createFrame(
@@ -40,8 +42,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       data.last = i === sliced.length - 1;
       data.even = i % 2 === 0;
       data.odd = i % 2 !== 0;
-      data.rowStart = false;
-      data.rowEnd = false;
+      data.rowStart = i % columns === 0;
+      data.rowEnd = (i + 1) % columns === 0;
       buffer += options.fn(item, { data });
       renderedIndex += 1;
     }
@@ -384,6 +386,19 @@ function parseNum(value: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
+}
+
+// Ghost's `{{#foreach columns=N}}` drives masonry / grid wrapping by exposing
+// `@rowStart` / `@rowEnd` on each iteration. A 1-column layout (the default)
+// marks every item as both start and end of its own row; higher column counts
+// flip the flags at the row boundaries. Non-positive or unparseable values
+// collapse to 1 so themes that pass a garbage value still render coherently
+// instead of dividing by zero.
+function parseColumns(value: unknown): number {
+  const n = parseNum(value);
+  if (n === undefined) return 1;
+  const truncated = Math.trunc(n);
+  return truncated >= 1 ? truncated : 1;
 }
 
 // Ghost's `visibility=` hash on `{{#foreach}}` reads the iterated item's own
