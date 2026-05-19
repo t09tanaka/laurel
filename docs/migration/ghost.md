@@ -11,7 +11,8 @@ This document is the version with all the edge cases, screenshots, and
 deployment notes.
 
 > **About the screenshots.** The illustrations in this guide live in
-> `docs/migration-from-ghost/` as SVGs. They are schematic — they show the
+> `docs/migration-from-ghost/` as SVGs (referenced from this page as
+> `../migration-from-ghost/`). They are schematic — they show the
 > shape of each Ghost or Nectar screen and which control you are about to
 > click. Your Ghost admin will look slightly different depending on your Ghost
 > version and any custom branding, but the labels and locations are stable.
@@ -50,7 +51,7 @@ You will need:
   the Nectar repo at `example/themes/source/`) or a `.zip` you downloaded from
   Ghost's *Settings → Design → Change theme → Advanced → Download*. Any theme
   that uses standard Ghost helpers will render — see
-  [`docs/GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md) for the helper
+  [`docs/GHOST_COMPATIBILITY.md`](../GHOST_COMPATIBILITY.md) for the helper
   coverage matrix.
 - **A new empty directory** for the Nectar project. Don't try to migrate
   in-place over a running Ghost install.
@@ -73,7 +74,7 @@ because `nectar import-ghost` writes into `content/`.
 Open your Ghost admin and navigate to **Settings → Labs**. Scroll to the
 **Export your content** section.
 
-![Ghost admin Labs panel with the Export button highlighted](./migration-from-ghost/01-ghost-labs-export.svg)
+![Ghost admin Labs panel with the Export button highlighted](../migration-from-ghost/01-ghost-labs-export.svg)
 
 Click **Export**. Ghost downloads a single JSON file, typically named
 `your-site.ghost.YYYY-MM-DD.json`. This file contains every post (published,
@@ -128,7 +129,7 @@ The importer:
    into `content/` so that the `/content/images/...` URLs Ghost wrote into your
    post bodies continue to resolve.
 
-![Terminal output for nectar import-ghost](./migration-from-ghost/02-import-cli.svg)
+![Terminal output for nectar import-ghost](../migration-from-ghost/02-import-cli.svg)
 
 A typical run looks like the screenshot above:
 
@@ -215,7 +216,7 @@ These are explicitly out of scope and the importer drops them silently:
 
 After import, your project should look like the diagram below.
 
-![File tree after import showing content/ with posts, pages, tags, authors, images](./migration-from-ghost/03-content-tree.svg)
+![File tree after import showing content/ with posts, pages, tags, authors, images](../migration-from-ghost/03-content-tree.svg)
 
 A few sanity checks before you build:
 
@@ -247,7 +248,7 @@ enabled.
 
 `nectar init` already wrote a `nectar.toml` skeleton. Open it and fill in
 your real values. The shape mirrors the example project's
-[`example/nectar.toml`](../example/nectar.toml); the most important sections
+[`example/nectar.toml`](../../example/nectar.toml); the most important sections
 to update for migration are:
 
 ```toml
@@ -365,7 +366,7 @@ mv themes/my-ghost-theme themes/my-theme
 
 If your theme references Ghost helpers that Nectar does not yet implement,
 the build will throw with the helper name. Check
-[`docs/GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md) for the supported
+[`docs/GHOST_COMPATIBILITY.md`](../GHOST_COMPATIBILITY.md) for the supported
 surface. The MVP set covers what real-world themes (including Source) use,
 but a deliberately minimal subset of admin-only / members-only helpers is
 out of scope and stubbed empty.
@@ -379,7 +380,7 @@ bunx nectar build
 bunx nectar serve
 ```
 
-![Terminal output for nectar build and nectar serve](./migration-from-ghost/04-nectar-build.svg)
+![Terminal output for nectar build and nectar serve](../migration-from-ghost/04-nectar-build.svg)
 
 `nectar build` writes the static site into `dist/`. `nectar serve` then
 hosts `dist/` on `http://localhost:4321` so you can click through and verify
@@ -576,10 +577,10 @@ the post's frontmatter — `status: draft` and `visibility: members` or
 
 ## Where to go next
 
-- [`docs/DESIGN.md`](./DESIGN.md) — the architectural picture: how the
+- [`docs/DESIGN.md`](../DESIGN.md) — the architectural picture: how the
   build pipeline, theme loader, and Ghost context layer fit together.
-- [`docs/GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md) — exactly which
+- [`docs/GHOST_COMPATIBILITY.md`](../GHOST_COMPATIBILITY.md) — exactly which
   Ghost helpers and context fields Nectar implements, and what is stubbed
   or out of scope.
-- [`example/`](../example/) — a working Nectar project you can `bun
+- [`example/`](../../example/) — a working Nectar project you can `bun
   ../src/cli/index.ts build` to see the full output.
