@@ -1,7 +1,7 @@
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { loadTheme } from '~/theme/loader.ts';
-import { logger } from '~/util/logger.ts';
+import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { CHECK_SPEC } from '../specs.ts';
@@ -24,7 +24,10 @@ export async function runCheck(args: string[]): Promise<number> {
   }
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  const strict = parsed.values.strict === true;
   const cwd = process.cwd();
+
+  resetWarningCount();
 
   try {
     const config = await loadConfig({ cwd, configPath });
@@ -39,6 +42,14 @@ export async function runCheck(args: string[]): Promise<number> {
     logger.info(
       `Theme OK: ${theme.name} (${Object.keys(theme.templates).length} templates, ${Object.keys(theme.partials).length} partials)`,
     );
+
+    if (strict) {
+      const warnings = getWarningCount();
+      if (warnings > 0) {
+        logger.error(`Strict mode: check emitted ${warnings} warning${warnings === 1 ? '' : 's'}`);
+        return 1;
+      }
+    }
 
     return 0;
   } catch (err) {
