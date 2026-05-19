@@ -375,15 +375,28 @@ async function importFromResolvedInput(
     if (rawBody === '') counters.bodiesEmpty += 1;
     const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
     const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
-    const feature_image = downloader
-      ? await downloader.rewriteField(post.feature_image ?? undefined)
-      : (post.feature_image ?? undefined);
-    const og_image = downloader
-      ? await downloader.rewriteField(post.og_image ?? undefined)
-      : (post.og_image ?? undefined);
-    const twitter_image = downloader
-      ? await downloader.rewriteField(post.twitter_image ?? undefined)
-      : (post.twitter_image ?? undefined);
+    const postLabel = `post ${JSON.stringify(post.slug ?? post.id ?? '')}`;
+    const feature_image = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(post.feature_image ?? undefined)
+        : (post.feature_image ?? undefined),
+      'feature_image',
+      postLabel,
+    );
+    const og_image = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(post.og_image ?? undefined)
+        : (post.og_image ?? undefined),
+      'og_image',
+      postLabel,
+    );
+    const twitter_image = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(post.twitter_image ?? undefined)
+        : (post.twitter_image ?? undefined),
+      'twitter_image',
+      postLabel,
+    );
     const frontmatter = buildFrontmatter({
       slug,
       title: post.title,
@@ -441,9 +454,13 @@ async function importFromResolvedInput(
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
     if (!dryRun) await ensureDir(baseDir);
-    const tagFeatureImage = downloader
-      ? await downloader.rewriteField(tag.feature_image ?? undefined)
-      : (tag.feature_image ?? undefined);
+    const tagFeatureImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(tag.feature_image ?? undefined)
+        : (tag.feature_image ?? undefined),
+      'feature_image',
+      `tag ${JSON.stringify(tag.slug ?? tag.id ?? '')}`,
+    );
     const frontmatter = buildFrontmatter({
       slug: tagSlug,
       name: tag.name,
@@ -476,12 +493,21 @@ async function importFromResolvedInput(
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
     if (!dryRun) await ensureDir(baseDir);
-    const profileImage = downloader
-      ? await downloader.rewriteField(user.profile_image ?? undefined)
-      : (user.profile_image ?? undefined);
-    const coverImage = downloader
-      ? await downloader.rewriteField(user.cover_image ?? undefined)
-      : (user.cover_image ?? undefined);
+    const userLabel = `author ${JSON.stringify(user.slug ?? user.id ?? '')}`;
+    const profileImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(user.profile_image ?? undefined)
+        : (user.profile_image ?? undefined),
+      'profile_image',
+      userLabel,
+    );
+    const coverImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(user.cover_image ?? undefined)
+        : (user.cover_image ?? undefined),
+      'cover_image',
+      userLabel,
+    );
     const frontmatter = buildFrontmatter({
       slug: userSlug,
       name: user.name,
@@ -780,6 +806,51 @@ async function writeWithConflictPolicy(
       return true;
     }
   }
+}
+
+// Image URL fields (feature_image, og_image, twitter_image, profile_image,
+// cover_image) flow from the untrusted Ghost export straight into frontmatter
+// and from there into <img src> / <meta og:image> in the rendered HTML. A
+// compromised export could set them to `javascript:alert(1)` or
+// `data:text/html,<script>…</script>` to smuggle script into pages that
+// surface the field (e.g. social card meta tags, lightboxes that echo the
+// URL). Allow only http(s):// and relative paths; refuse everything else and
+// log a warning so the operator can audit the source export (#562).
+//
+// Control characters and surrounding whitespace are stripped before scheme
+// detection because browsers do the same when resolving URLs in attribute
+// values, so `\tjavascript:alert(1)` would otherwise sneak past a naive
+// startsWith check.
+const URL_SCHEME_RE = /^([a-z][a-z0-9+.\-]*):/i;
+
+function sanitizeImageUrl(
+  value: string | null | undefined,
+  fieldName: string,
+  ownerLabel: string,
+): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  // Strip C0 control chars (U+0000–U+001F) and DEL (U+007F) before scheme
+  // detection: browsers remove these when resolving URLs in attribute values,
+  // so `\tjavascript:alert(1)` would otherwise sneak past a startsWith check.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional sentinel for attacker-controlled bytes
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (normalized.length === 0) {
+    logger.warn(
+      `Refusing empty/control-only ${fieldName} URL on ${ownerLabel}: ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  const match = normalized.match(URL_SCHEME_RE);
+  if (match) {
+    const scheme = match[1].toLowerCase();
+    if (scheme !== 'http' && scheme !== 'https') {
+      logger.warn(
+        `Refusing unsafe ${fieldName} URL on ${ownerLabel}: ${JSON.stringify(value)} (scheme: ${scheme}:)`,
+      );
+      return undefined;
+    }
+  }
+  return value;
 }
 
 // Re-slugify any string from an untrusted Ghost export so it is safe to use as
