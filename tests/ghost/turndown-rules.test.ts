@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { createGhostTurndown, preprocessKoenigCardFences } from '~/ghost/turndown-rules.ts';
+import {
+  createGhostTurndown,
+  preprocessKoenigCardFences,
+  sanitizeImportedHtmlCard,
+} from '~/ghost/turndown-rules.ts';
 
 const td = createGhostTurndown();
 
@@ -685,6 +689,105 @@ describe('Ghost Turndown rules — html card (comment-fenced)', () => {
   test('drops empty html card', () => {
     const html = preprocessKoenigCardFences('<!--kg-card-begin: html--><!--kg-card-end: html-->');
     expect(td.turndown(html).trim()).toBe('');
+  });
+
+  test('strips <script> tags from comment-fenced html card', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html--><div>safe</div><script>alert(1)</script><!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('<div>safe</div>');
+    expect(md).not.toContain('<script');
+    expect(md).not.toContain('alert(1)');
+  });
+
+  test('strips inline event handlers from comment-fenced html card', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html--><button onclick="alert(1)">x</button><!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).not.toContain('onclick');
+    expect(md).not.toContain('alert(1)');
+  });
+
+  test('drops javascript: URLs from anchors in html card', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html--><a href="javascript:alert(1)">x</a><!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).not.toContain('javascript:');
+  });
+
+  test('allows https iframes for custom embeds', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html--><iframe src="https://codepen.io/embed/abc" allowfullscreen></iframe><!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('<iframe');
+    expect(md).toContain('src="https://codepen.io/embed/abc"');
+  });
+
+  test('drops http and javascript iframe sources', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html-->' +
+        '<iframe src="http://insecure.example/widget"></iframe>' +
+        '<iframe src="javascript:alert(1)"></iframe>' +
+        '<!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).not.toContain('http://insecure.example/widget');
+    expect(md).not.toContain('javascript:');
+  });
+
+  test('strips <style> block element but keeps inline style attribute', () => {
+    const html = preprocessKoenigCardFences(
+      '<!--kg-card-begin: html-->' +
+        '<style>body{display:none}</style>' +
+        '<div style="color:red">visible</div>' +
+        '<!--kg-card-end: html-->',
+    );
+    const md = td.turndown(html);
+    expect(md).not.toContain('<style');
+    expect(md).not.toContain('display:none');
+    expect(md).toContain('style="color:red"');
+    expect(md).toContain('visible');
+  });
+});
+
+describe('Ghost Turndown rules — kg-html-card class-wrapped sanitisation', () => {
+  test('strips <script> nested inside a kg-html-card div', () => {
+    const html = '<div class="kg-card kg-html-card"><p>keep me</p><script>alert(1)</script></div>';
+    const md = td.turndown(html);
+    expect(md).toContain('<p>keep me</p>');
+    expect(md).not.toContain('<script');
+    expect(md).not.toContain('alert(1)');
+  });
+});
+
+describe('sanitizeImportedHtmlCard', () => {
+  test('keeps inline style attributes and safe markup', () => {
+    const out = sanitizeImportedHtmlCard(
+      '<div class="custom"><span style="color:red">x</span></div>',
+    );
+    expect(out).toBe('<div class="custom"><span style="color:red">x</span></div>');
+  });
+
+  test('strips all <script> regardless of attributes', () => {
+    expect(sanitizeImportedHtmlCard('<script src="https://cdn.example/x.js"></script>')).toBe('');
+    expect(sanitizeImportedHtmlCard('<script>alert(1)</script>')).toBe('');
+  });
+
+  test('keeps tables, lists, and figure structure', () => {
+    const out = sanitizeImportedHtmlCard(
+      '<table><thead><tr><th>h</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>',
+    );
+    expect(out).toContain('<table>');
+    expect(out).toContain('<th>h</th>');
+    expect(out).toContain('<td>1</td>');
+  });
+
+  test('returns empty string for whitespace-only input', () => {
+    expect(sanitizeImportedHtmlCard('   \n  ')).toBe('');
   });
 });
 

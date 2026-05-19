@@ -1,3 +1,4 @@
+import sanitizeHtml, { type IOptions } from 'sanitize-html';
 import TurndownService from 'turndown';
 
 // Ghost emits Koenig "cards" as HTML wrappers (figure/div) with `kg-*` class
@@ -131,6 +132,84 @@ export function preprocessKoenigCardFences(html: string): string {
     KG_CARD_FENCE_RE,
     (_match, type: string, body: string) => `<div data-kg-card="${type}">${body}</div>`,
   );
+}
+
+// Sanitisation policy for Ghost HTML cards. Both the comment-fenced form
+// (`<!--kg-card-begin: html-->…<!--kg-card-end: html-->`) and the class-wrapped
+// form (`<div class="kg-html-card">…</div>`) carry arbitrary author-supplied
+// HTML straight from Ghost's editor. Ghost itself does no scrubbing on export,
+// so an HTML card lifted from a compromised or careless source can contain
+// `<script>`, inline event handlers (`onclick`, `onerror`, …), or
+// `javascript:` URLs that turn into stored XSS once the imported markdown is
+// rendered.
+//
+// We strip the dangerous surface and keep the structural HTML authors actually
+// reach for (custom layouts, inline `style="…"` attributes, tables, embeds).
+// `<iframe>` is allowed but restricted to `https` so the common
+// YouTube/CodePen/Spotify custom-embed use case survives; `<script>` and
+// `<style>` block elements are dropped unconditionally — if an author needs a
+// vendor widget loader or stylesheet they should inject it via the theme's
+// `{{ghost_head}}` hook, not per-post HTML. See `docs/GHOST_COMPATIBILITY.md`
+// for the rationale.
+const HTML_CARD_SANITIZE_OPTIONS: IOptions = {
+  allowedTags: [
+    ...sanitizeHtml.defaults.allowedTags,
+    'img',
+    'figure',
+    'figcaption',
+    'picture',
+    'source',
+    'video',
+    'audio',
+    'track',
+    'details',
+    'summary',
+    'iframe',
+    'mark',
+    'sub',
+    'sup',
+    'kbd',
+    'abbr',
+  ],
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['id', 'class', 'lang', 'dir', 'title', 'style'],
+    a: ['href', 'name', 'target', 'rel', 'hreflang'],
+    img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+    iframe: [
+      'src',
+      'width',
+      'height',
+      'allow',
+      'allowfullscreen',
+      'frameborder',
+      'title',
+      'loading',
+      'referrerpolicy',
+      'sandbox',
+    ],
+    source: ['src', 'srcset', 'type', 'media', 'sizes'],
+    video: ['src', 'poster', 'controls', 'preload', 'width', 'height', 'muted', 'loop'],
+    audio: ['src', 'controls', 'preload', 'loop'],
+    track: ['src', 'kind', 'srclang', 'label', 'default'],
+    th: ['scope', 'colspan', 'rowspan'],
+    td: ['colspan', 'rowspan'],
+    abbr: ['title'],
+  },
+  allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+  allowedSchemesByTag: {
+    img: ['http', 'https'],
+    source: ['http', 'https'],
+    video: ['http', 'https'],
+    audio: ['http', 'https'],
+    iframe: ['https'],
+  },
+  allowProtocolRelative: false,
+  disallowedTagsMode: 'discard',
+};
+
+export function sanitizeImportedHtmlCard(html: string): string {
+  return sanitizeHtml(html, HTML_CARD_SANITIZE_OPTIONS).trim();
 }
 
 // kg-card classes that get their own rule. The plain-figure fallback uses this
@@ -417,12 +496,14 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   });
 
   // HTML card: <div class="kg-card kg-html-card">...raw HTML...</div>
-  // Preserve the inner HTML verbatim — markdown allows inline HTML, and any
-  // attempt to convert handcrafted HTML to markdown is going to lose intent.
+  // Preserve the inner HTML so handcrafted layouts survive, but pass it
+  // through `sanitizeImportedHtmlCard` first to strip the stored-XSS surface
+  // (`<script>`, event-handler attributes, `javascript:` URLs). See the
+  // policy comment on `HTML_CARD_SANITIZE_OPTIONS` for what stays vs goes.
   turndown.addRule('kg-html-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-html-card'),
     replacement: (_content, node) => {
-      const inner = node.innerHTML.trim();
+      const inner = sanitizeImportedHtmlCard(node.innerHTML);
       return inner ? wrap(inner) : '';
     },
   });
@@ -501,12 +582,14 @@ export function registerGhostCardRules(turndown: TurndownService): void {
 
   // `html`: Ghost emits the card without the `kg-html-card` div in `post.html`,
   // so the comment fence is the only signal that this region is hand-crafted
-  // HTML. Preserve it verbatim; markdown conversion would destroy attributes,
-  // inline styles, and any structure the user intended.
+  // HTML. Preserve the structure (attributes, inline styles, layout) but
+  // route it through `sanitizeImportedHtmlCard` first — without it, any
+  // `<script>` an author embedded in the editor reaches the rendered page
+  // as stored XSS.
   turndown.addRule('kg-card-fence-html', {
     filter: (node) => isDataKgCard(node, 'html'),
     replacement: (_content, node) => {
-      const inner = node.innerHTML.trim();
+      const inner = sanitizeImportedHtmlCard(node.innerHTML);
       return inner ? wrap(inner) : '';
     },
   });
