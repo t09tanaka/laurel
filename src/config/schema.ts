@@ -226,6 +226,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Cloudflare Pages-specific deploy hints.'),
+        netlify: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit Netlify `_headers` at the output root. Defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). Leave disabled when deploying somewhere other than Netlify.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Netlify-specific deploy hints.'),
       })
       .strict()
       .default({})

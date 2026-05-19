@@ -27,6 +27,7 @@ import {
   planImageVariants,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import { emitNetlifyHeaders } from './netlify.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
@@ -202,6 +203,10 @@ export async function build({
   await emitCloudflarePagesHeaders({
     outputDir,
     enabled: config.deploy.cloudflare_pages.enabled,
+  });
+  await emitNetlifyHeaders({
+    outputDir,
+    enabled: config.deploy.netlify.enabled,
   });
   await emitCustomRedirects({
     outputDir,
