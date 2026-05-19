@@ -347,6 +347,25 @@ describe('emitRss', () => {
     expect(xml).toContain('<url>https://cdn.example.org/logo.png</url>');
   });
 
+  test('uses post.id with isPermaLink="false" so guids stay stable across site.url changes', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [
+      makePost({
+        id: 'post-hello-world',
+        slug: 'hello-world',
+        url: 'https://example.com/hello-world/',
+      }),
+    ];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<guid isPermaLink="false">post-hello-world</guid>');
+    expect(xml).not.toContain('isPermaLink="true"');
+  });
+
   test('omits <image> when site.logo is not set', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
