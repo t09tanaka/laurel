@@ -78,8 +78,20 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'How to handle existing files when slugs collide: skip (default), overwrite, or rename',
       placeholder: '<skip|overwrite|rename>',
     },
+    assets: {
+      type: 'string',
+      description:
+        "Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/",
+      placeholder: '<dir>',
+    },
   },
-  positionals: [{ name: 'file', description: 'Path to the Ghost export JSON', required: true }],
+  positionals: [
+    {
+      name: 'file',
+      description: 'Path to the Ghost export JSON file or to an unzipped Ghost export folder',
+      required: true,
+    },
+  ],
 };
 
 export const DOCTOR_SPEC: CommandSpec = {

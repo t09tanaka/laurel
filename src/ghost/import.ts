@@ -1,8 +1,8 @@
-import { access, readFile, writeFile } from 'node:fs/promises';
-import { extname, join, resolve, sep } from 'node:path';
+import { access, copyFile, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import TurndownService from 'turndown';
-import { ensureDir } from '~/util/fs.ts';
+import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
@@ -111,19 +111,38 @@ export interface ImportSummary {
   skipped: number;
   overwritten: number;
   renamed: number;
+  assetsCopied: number;
 }
 
 export interface ImportGhostOptions {
   cwd: string;
+  // Path to either a Ghost export JSON file or a directory containing one.
+  // When a directory is given, `<dir>/content/` is used as the default asset
+  // source (images/, files/, media/ subdirs) unless `assetsDir` is set.
   file: string;
   onConflict?: OnConflict;
+  // Override the asset source directory. Should contain images/, files/,
+  // and/or media/ subdirs that will be copied into <cwd>/content/.
+  assetsDir?: string;
 }
+
+// Ghost subfolder names whose contents should be copied verbatim into
+// <cwd>/content/<name>/ so that imported markdown's /content/<name>/... URLs
+// resolve at build time.
+const GHOST_ASSET_SUBDIRS = ['images', 'files', 'media'] as const;
 
 export async function importGhostExport(opts: ImportGhostOptions): Promise<ImportSummary> {
   const onConflict: OnConflict = opts.onConflict ?? 'skip';
   const counters = { skipped: 0, overwritten: 0, renamed: 0 };
 
-  const raw = await readFile(opts.file, 'utf8');
+  if (opts.file.toLowerCase().endsWith('.zip')) {
+    throw new Error(
+      `ZIP Ghost exports are not yet supported. Unzip ${opts.file} and pass the folder (or the JSON file inside) instead.`,
+    );
+  }
+
+  const resolved = await resolveInput(opts.file, opts.assetsDir);
+  const raw = await readFile(resolved.jsonFile, 'utf8');
   const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
   const data = parsed.db?.[0]?.data;
   if (!data) {
@@ -272,6 +291,10 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     if (written) authorCount += 1;
   }
 
+  const assetsCopied = resolved.assetsDir
+    ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit)
+    : 0;
+
   return {
     posts: postCount,
     pages: pageCount,
@@ -280,7 +303,120 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     skipped: counters.skipped,
     overwritten: counters.overwritten,
     renamed: counters.renamed,
+    assetsCopied,
   };
+}
+
+interface ResolvedInput {
+  jsonFile: string;
+  assetsDir: string | undefined;
+  // True when the user passed --assets explicitly; missing subdirs become a
+  // warning rather than silent skip. When false (auto-detected from folder
+  // input), absent subdirs are normal and quiet.
+  assetsDirIsExplicit: boolean;
+}
+
+async function resolveInput(file: string, explicitAssetsDir?: string): Promise<ResolvedInput> {
+  let st: Awaited<ReturnType<typeof stat>>;
+  try {
+    st = await stat(file);
+  } catch (err) {
+    throw new Error(
+      `Cannot read Ghost export at ${file}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  let jsonFile: string;
+  let folderAssetsDir: string | undefined;
+
+  if (st.isDirectory()) {
+    jsonFile = await findExportJson(file);
+    const candidateContent = join(file, 'content');
+    if (await isDirectory(candidateContent)) {
+      folderAssetsDir = candidateContent;
+    } else if (await hasAnyAssetSubdir(file)) {
+      folderAssetsDir = file;
+    }
+  } else {
+    jsonFile = file;
+  }
+
+  if (explicitAssetsDir) {
+    const resolvedExplicit = resolve(explicitAssetsDir);
+    if (!(await isDirectory(resolvedExplicit))) {
+      throw new Error(
+        `--assets directory does not exist or is not a directory: ${resolvedExplicit}`,
+      );
+    }
+    return { jsonFile, assetsDir: resolvedExplicit, assetsDirIsExplicit: true };
+  }
+
+  return { jsonFile, assetsDir: folderAssetsDir, assetsDirIsExplicit: false };
+}
+
+async function findExportJson(dir: string): Promise<string> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const jsonFiles = entries
+    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.json'))
+    .map((e) => e.name);
+  if (jsonFiles.length === 0) {
+    throw new Error(`No .json export file found in ${dir}`);
+  }
+  const ghosty = jsonFiles.find((n) => /ghost/i.test(n));
+  return join(dir, ghosty ?? jsonFiles[0]);
+}
+
+async function isDirectory(p: string): Promise<boolean> {
+  try {
+    const s = await stat(p);
+    return s.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function hasAnyAssetSubdir(dir: string): Promise<boolean> {
+  for (const name of GHOST_ASSET_SUBDIRS) {
+    if (await isDirectory(join(dir, name))) return true;
+  }
+  return false;
+}
+
+// Copy images/, files/, media/ from the Ghost export's content/ folder into
+// <cwd>/content/<name>/, preserving relative paths. Existing files are not
+// overwritten (the import is meant to be additive; rerunning shouldn't clobber
+// edits). Symlinks are skipped to prevent the same "follow the link out of the
+// project" risk that build-time asset copying already defends against.
+async function copyGhostAssets(
+  assetsRoot: string,
+  cwd: string,
+  isExplicit: boolean,
+): Promise<number> {
+  let total = 0;
+  for (const name of GHOST_ASSET_SUBDIRS) {
+    const src = join(assetsRoot, name);
+    if (!(await isDirectory(src))) {
+      if (isExplicit) {
+        logger.warn(`Assets subdir not found, skipping: ${src}`);
+      }
+      continue;
+    }
+    const dst = join(cwd, 'content', name);
+    const glob = new Bun.Glob('**/*');
+    for await (const rel of glob.scan({ cwd: src, onlyFiles: true })) {
+      if (pathContainsSymlink(src, rel)) {
+        logger.warn(`Skipping symlinked Ghost asset: ${join(src, rel)}`);
+        continue;
+      }
+      const from = join(src, rel);
+      const to = join(dst, rel);
+      if (await pathExists(to)) continue;
+      await ensureDir(dirname(to));
+      await copyFile(from, to);
+      total += 1;
+    }
+  }
+  return total;
 }
 
 async function writeWithConflictPolicy(
