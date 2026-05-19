@@ -33,6 +33,7 @@ import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
+import { loadRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { planRoutes } from './routes.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
@@ -238,9 +239,14 @@ async function runBuild({
     enabled: config.deploy.netlify.enabled,
     headers: config.deploy.headers,
   });
+  // Load `redirects.yaml` once and hand the canonical rules to every emitter
+  // that consumes them. Today only the Cloudflare Pages `_redirects` emitter
+  // is wired up; Netlify / Vercel / Apache / nginx / S3 emitters will read
+  // from the same parsed list when added.
+  const redirects = await loadRedirects(cwd);
   await emitCustomRedirects({
     outputDir,
-    cwd,
+    rules: redirects,
     enabled: config.deploy.cloudflare_pages.enabled,
   });
 

@@ -32,13 +32,17 @@ describe('loadCustomRedirects', () => {
       join(cwd, 'redirects.yaml'),
       ['- from: /old', '  to: /new', '  status: 301'].join('\n'),
     );
-    expect(await loadCustomRedirects(cwd)).toEqual([{ from: '/old', to: '/new', status: 301 }]);
+    expect(await loadCustomRedirects(cwd)).toEqual([
+      { from: '/old', to: '/new', status: 301, force: false },
+    ]);
   });
 
   test('also accepts redirects.yml as a fallback extension', async () => {
     const cwd = await makeTmp('nectar-cr-load-yml-');
     await writeFile(join(cwd, 'redirects.yml'), ['- from: /a', '  to: /b'].join('\n'));
-    expect(await loadCustomRedirects(cwd)).toEqual([{ from: '/a', to: '/b', status: 301 }]);
+    expect(await loadCustomRedirects(cwd)).toEqual([
+      { from: '/a', to: '/b', status: 301, force: false },
+    ]);
   });
 
   test('defaults missing status to 301', async () => {
@@ -96,20 +100,20 @@ describe('loadCustomRedirects', () => {
 describe('collapseRedirectRules', () => {
   test('drops later rules whose `from` repeats an earlier rule', () => {
     const out = collapseRedirectRules([
-      { from: '/a', to: '/A', status: 301 },
-      { from: '/b', to: '/B', status: 301 },
-      { from: '/a', to: '/A2', status: 302 },
+      { from: '/a', to: '/A', status: 301, force: false },
+      { from: '/b', to: '/B', status: 301, force: false },
+      { from: '/a', to: '/A2', status: 302, force: false },
     ]);
     expect(out).toEqual([
-      { from: '/a', to: '/A', status: 301 },
-      { from: '/b', to: '/B', status: 301 },
+      { from: '/a', to: '/A', status: 301, force: false },
+      { from: '/b', to: '/B', status: 301, force: false },
     ]);
   });
 
   test('keeps the original order of first-seen `from` values', () => {
     const out = collapseRedirectRules([
-      { from: '/z', to: '/Z', status: 301 },
-      { from: '/a', to: '/A', status: 301 },
+      { from: '/z', to: '/Z', status: 301, force: false },
+      { from: '/a', to: '/A', status: 301, force: false },
     ]);
     expect(out.map((r) => r.from)).toEqual(['/z', '/a']);
   });
@@ -118,15 +122,15 @@ describe('collapseRedirectRules', () => {
 describe('formatRedirectsBody', () => {
   test('emits one space-separated rule per line with the status code', () => {
     const body = formatRedirectsBody([
-      { from: '/old', to: '/new', status: 301 },
-      { from: '/feed', to: '/rss.xml', status: 302 },
+      { from: '/old', to: '/new', status: 301, force: false },
+      { from: '/feed', to: '/rss.xml', status: 302, force: false },
     ]);
     expect(body).toContain('/old  /new  301');
     expect(body).toContain('/feed  /rss.xml  302');
   });
 
   test('terminates the body with a trailing newline', () => {
-    const body = formatRedirectsBody([{ from: '/a', to: '/b', status: 301 }]);
+    const body = formatRedirectsBody([{ from: '/a', to: '/b', status: 301, force: false }]);
     expect(body.endsWith('\n')).toBe(true);
   });
 });
@@ -136,7 +140,11 @@ describe('emitCustomRedirects', () => {
     const { cwd, outputDir } = await makeCwdAndOutput();
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /a\n  to: /b\n');
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: false });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: false,
+    });
 
     expect(existsSync(join(outputDir, '_redirects'))).toBe(false);
   });
@@ -144,7 +152,11 @@ describe('emitCustomRedirects', () => {
   test('does not emit _redirects when redirects.yaml is missing', async () => {
     const { cwd, outputDir } = await makeCwdAndOutput();
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     expect(existsSync(join(outputDir, '_redirects'))).toBe(false);
   });
@@ -156,7 +168,11 @@ describe('emitCustomRedirects', () => {
       ['- from: /old', '  to: /new', '  status: 301'].join('\n'),
     );
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     const body = await readFile(join(outputDir, '_redirects'), 'utf8');
     expect(body).toContain('/old  /new  301');
@@ -170,7 +186,11 @@ describe('emitCustomRedirects', () => {
     );
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /feed\n  to: /rss.xml\n');
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     const body = await readFile(join(outputDir, '_redirects'), 'utf8');
     const customIdx = body.indexOf('/feed  /rss.xml');
@@ -193,7 +213,11 @@ describe('emitCustomRedirects', () => {
       ].join('\n'),
     );
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     const body = await readFile(join(outputDir, '_redirects'), 'utf8');
     expect(body).toContain('/dup  /first  301');
@@ -220,7 +244,11 @@ describe('emitCustomRedirects', () => {
       ].join('\n'),
     );
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     const body = await readFile(join(outputDir, '_redirects'), 'utf8');
     expect(body).toContain('/p  /P  301');
@@ -235,7 +263,11 @@ describe('emitCustomRedirects', () => {
     const outputDir = join(outputRoot, 'nested', 'dist');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /a\n  to: /b\n');
 
-    await emitCustomRedirects({ outputDir, cwd, enabled: true });
+    await emitCustomRedirects({
+      outputDir,
+      rules: await loadCustomRedirects(cwd),
+      enabled: true,
+    });
 
     expect(existsSync(join(outputDir, '_redirects'))).toBe(true);
   });
