@@ -1,0 +1,92 @@
+[site]
+title = "Nectar Docs"
+description = "Documentation for Nectar — the Ghost-theme-compatible static site generator powered by Markdown and Bun."
+url = "https://nectar.dev"
+locale = "en"
+timezone = "UTC"
+accent_color = "#FF5722"
+
+[theme]
+name = "source"
+dir = "../example/themes"
+
+[theme.custom]
+navigation_layout = "Logo on the left"
+site_background_color = "#ffffff"
+header_and_footer_color = "Background color"
+title_font = "Modern sans-serif"
+body_font = "Modern sans-serif"
+header_style = "Magazine"
+header_text = "Build a Ghost-themed site from Markdown."
+show_featured_posts = false
+post_feed_style = "List"
+show_images_in_feed = false
+show_author = false
+show_publish_date = false
+show_publication_info_sidebar = false
+show_post_metadata = false
+enable_drop_caps_on_posts = false
+show_related_articles = false
+
+[content]
+posts_dir = "content/posts"
+pages_dir = "content/pages"
+authors_dir = "content/authors"
+tags_dir = "content/tags"
+assets_dir = "content/images"
+
+[build]
+output_dir = "dist"
+base_path = "/"
+posts_per_page = 10
+copy_content_assets = true
+
+[[navigation]]
+label = "Home"
+url = "/"
+
+[[navigation]]
+label = "Install"
+url = "/install/"
+
+[[navigation]]
+label = "Config"
+url = "/config-reference/"
+
+[[navigation]]
+label = "Theme Dev"
+url = "/theme-development/"
+
+[[navigation]]
+label = "Helpers"
+url = "/helper-matrix/"
+
+[[navigation]]
+label = "Plugins"
+url = "/plugin-api/"
+
+[[navigation]]
+label = "Migrate"
+url = "/migration-from-ghost/"
+
+[[navigation]]
+label = "FAQ"
+url = "/faq/"
+
+[[secondary_navigation]]
+label = "GitHub"
+url = "https://github.com/t09tanaka/nectar"
+
+[[secondary_navigation]]
+label = "RSS"
+url = "/rss.xml"
+
+[components.rss]
+enabled = true
+items = 20
+
+[components.sitemap]
+enabled = true
+
+[components.opengraph]
+enabled = true
