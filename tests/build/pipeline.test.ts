@@ -195,6 +195,92 @@ describe('build pipeline --profile', () => {
   });
 });
 
+describe('build pipeline content assets emission (#109)', () => {
+  test('copies content/images/** into dist/content/images/** so Ghost-style feature_image URLs resolve', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'content/images/2024/01'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/2024/01/foo.jpg'), 'FOO');
+    await writeFile(join(cwd, 'content/images/welcome-cover.svg'), '<svg/>');
+
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'content/images/2024/01/foo.jpg'))).toBe(true);
+    expect(readFileSync(join(summary.outputDir, 'content/images/2024/01/foo.jpg'), 'utf8')).toBe(
+      'FOO',
+    );
+    expect(existsSync(join(summary.outputDir, 'content/images/welcome-cover.svg'))).toBe(true);
+  });
+
+  test('honours content.assets_dir override when copying to dist/content/images/', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'media/blog'), { recursive: true });
+    await writeFile(join(cwd, 'media/blog/hero.png'), 'HERO');
+
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[content]',
+        'assets_dir = "media/blog"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'content/images/hero.png'))).toBe(true);
+    expect(readFileSync(join(summary.outputDir, 'content/images/hero.png'), 'utf8')).toBe('HERO');
+  });
+
+  test('skips content asset copy entirely when build.copy_content_assets is false', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/skipme.png'), 'SKIP');
+
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[build]',
+        'copy_content_assets = false',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'content/images/skipme.png'))).toBe(false);
+  });
+});
+
 describe('build pipeline favicon emission', () => {
   test('copies site.icon into dist root and emits a <link rel="icon"> in rendered HTML', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-favicon-'));
