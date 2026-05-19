@@ -3,6 +3,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { textColorClassFor } from '~/util/color.ts';
+import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { splitLayout } from './layouts.ts';
 import type { RouteContext } from './types.ts';
@@ -20,6 +21,10 @@ export interface NectarEngine {
   // `{{#get "posts"}}` re-sorts the full post list — 10k pages × N log N
   // collapses fast on themes that use `get` in headers or sidebars.
   sortedCache: Map<string, readonly unknown[]>;
+  // Lazy secondary indexes for `{{#get}}` filter clauses, keyed by resource.
+  // Built on first filtered `get` against the resource; without this, every
+  // call scans the full list per indexable key.
+  filterIndexCache?: Map<string, FilterIndex>;
 }
 
 export function createEngine(opts: {
