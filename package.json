@@ -59,6 +59,7 @@
   "scripts": {
     "build": "bun run src/cli/index.ts build",
     "build:example": "cd example && bun ../src/cli/index.ts build",
+    "build:docs-site": "cd docs-site && bun ../src/cli/index.ts build",
     "build:cli": "bun run scripts/build-cli.ts",
     "build:types": "tsc -p tsconfig.types.json",
     "compile": "bun run scripts/compile.ts",
