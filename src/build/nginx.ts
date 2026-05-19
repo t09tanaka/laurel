@@ -167,7 +167,15 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
     for (const h of securityHeaders) {
       lines.push(`        add_header ${h.name} "${escapeNginxValue(h.value)}" always;`);
     }
-    lines.push('        try_files $uri $uri/index.html =404;');
+    // `$uri/` between the literal path and the explicit `index.html` lookup
+    // is the trailing-slash variant: when the request is `/about`, nginx tries
+    // `/about` (file), then `/about/` (directory — which triggers the `index`
+    // directive's redirect to `/about/index.html` with a 301 to the canonical
+    // trailing-slash URL), and only then `/about/index.html` directly. Without
+    // `$uri/` the request would still resolve content via `$uri/index.html`
+    // but skip the directory-style internal redirect, so links that depend on
+    // a canonical trailing slash (relative URLs inside the served HTML) break.
+    lines.push('        try_files $uri $uri/ $uri/index.html =404;');
     lines.push('    }');
   }
 
