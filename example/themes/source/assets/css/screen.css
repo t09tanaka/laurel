@@ -2329,6 +2329,40 @@ unless a heading is the very first element in the post content */
     font-family: var(--font-mono);
 }
 
+/*
+ * Native <details>-based toggle rendering. Nectar swaps Ghost's JS-driven
+ * div/heading/content structure for <details>/<summary> so toggles work
+ * without bundling kg-toggle.js. The class hooks above still apply because we
+ * keep .kg-toggle-card / .kg-toggle-heading / .kg-toggle-content names.
+ */
+details.kg-toggle-card > summary.kg-toggle-heading {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+details.kg-toggle-card > summary.kg-toggle-heading::-webkit-details-marker {
+    display: none;
+}
+
+details.kg-toggle-card > summary.kg-toggle-heading::before {
+    content: "";
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+details.kg-toggle-card[open] > summary.kg-toggle-heading::before {
+    transform: rotate(45deg);
+}
+
 /* Callout */
 
 .kg-callout-card.kg-card {
