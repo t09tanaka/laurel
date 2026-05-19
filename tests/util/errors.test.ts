@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  EXIT_CODES,
   NectarError,
+  exitCodeForError,
   formatNectarError,
   isNectarError,
   levenshtein,
@@ -91,6 +93,63 @@ describe('toNectarError', () => {
     expect(wrapped).not.toBe(original);
     expect(wrapped.file).toBe('/repo/a.md');
     expect(wrapped.message).toBe('x');
+  });
+});
+
+describe('exitCodeForError', () => {
+  test('maps each NectarErrorCode to its reserved exit code', () => {
+    expect(exitCodeForError(new NectarError({ message: 'c', code: 'config' }))).toBe(
+      EXIT_CODES.config,
+    );
+    expect(exitCodeForError(new NectarError({ message: 'c', code: 'content' }))).toBe(
+      EXIT_CODES.content,
+    );
+    expect(exitCodeForError(new NectarError({ message: 'c', code: 'theme' }))).toBe(
+      EXIT_CODES.theme,
+    );
+    expect(exitCodeForError(new NectarError({ message: 'c', code: 'render' }))).toBe(
+      EXIT_CODES.render,
+    );
+    expect(exitCodeForError(new NectarError({ message: 'c', code: 'emit' }))).toBe(EXIT_CODES.emit);
+  });
+
+  test('untagged NectarError falls back to generic (1)', () => {
+    expect(exitCodeForError(new NectarError({ message: 'no code' }))).toBe(EXIT_CODES.generic);
+  });
+
+  test('plain Error and non-Error values fall back to generic (1)', () => {
+    expect(exitCodeForError(new Error('plain'))).toBe(EXIT_CODES.generic);
+    expect(exitCodeForError('string')).toBe(EXIT_CODES.generic);
+    expect(exitCodeForError(undefined)).toBe(EXIT_CODES.generic);
+  });
+
+  test('reserved exit-code table is stable', () => {
+    expect(EXIT_CODES).toEqual({
+      ok: 0,
+      generic: 1,
+      usage: 2,
+      config: 3,
+      content: 4,
+      theme: 5,
+      render: 6,
+      emit: 7,
+      sigint: 130,
+    });
+  });
+});
+
+describe('toNectarError preserves code', () => {
+  test('keeps code when augmenting with file', () => {
+    const original = new NectarError({ message: 'x', code: 'content' });
+    const wrapped = toNectarError(original, { file: '/repo/a.md' });
+    expect(wrapped).not.toBe(original);
+    expect(wrapped.code).toBe('content');
+    expect(wrapped.file).toBe('/repo/a.md');
+  });
+
+  test('plain Error wrapped without a code stays untagged', () => {
+    const wrapped = toNectarError(new Error('boom'), { file: '/repo/x.md' });
+    expect(wrapped.code).toBeUndefined();
   });
 });
 

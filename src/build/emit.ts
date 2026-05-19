@@ -2,6 +2,7 @@ import { copyFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
+import { NectarError } from '~/util/errors.ts';
 import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -21,7 +22,10 @@ function assertWithinOutputDir(outputDir: string, dest: string): void {
   const target = resolve(dest);
   const rel = relative(root, target);
   if (rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../')) {
-    throw new Error(`Refusing to write outside output directory: outputDir=${root} dest=${target}`);
+    throw new NectarError({
+      message: `Refusing to write outside output directory: outputDir=${root} dest=${target}`,
+      code: 'emit',
+    });
   }
 }
 

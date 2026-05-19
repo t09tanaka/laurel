@@ -36,7 +36,11 @@ function wrapYamlError(err: unknown, filePath: string | undefined): NectarError 
   const message = e.reason
     ? `invalid frontmatter: ${e.reason}`
     : `invalid frontmatter: ${e.message ?? String(err)}`;
-  const init: ConstructorParameters<typeof NectarError>[0] = { message, cause: err };
+  const init: ConstructorParameters<typeof NectarError>[0] = {
+    message,
+    cause: err,
+    code: 'content',
+  };
   if (filePath) init.file = filePath;
   if (mark?.line !== undefined) init.line = mark.line + 1;
   if (mark?.column !== undefined) init.col = mark.column + 1;

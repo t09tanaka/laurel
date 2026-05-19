@@ -1,5 +1,26 @@
 import { relative } from 'node:path';
 
+// Categories used to drive the `nectar build` process exit code. Each value
+// maps to a reserved code in `EXIT_CODES` so callers (CI, shell scripts) can
+// distinguish a config typo from a missing template without parsing stderr.
+// Add a value here when introducing a new boundary; do not reuse codes.
+export type NectarErrorCode = 'config' | 'content' | 'theme' | 'render' | 'emit';
+
+// Reserved process exit codes for the CLI. Keep in sync with docs and any
+// shell wrappers that grep on exit status. 0/1/2/130 are POSIX/Node defaults;
+// 3-7 are nectar-specific and tied to `NectarErrorCode`.
+export const EXIT_CODES = {
+  ok: 0,
+  generic: 1,
+  usage: 2,
+  config: 3,
+  content: 4,
+  theme: 5,
+  render: 6,
+  emit: 7,
+  sigint: 130,
+} as const;
+
 export interface NectarErrorLocation {
   file?: string;
   line?: number;
@@ -10,6 +31,7 @@ export interface NectarErrorInit extends NectarErrorLocation {
   message: string;
   hint?: string;
   cause?: unknown;
+  code?: NectarErrorCode;
 }
 
 export class NectarError extends Error {
@@ -17,6 +39,7 @@ export class NectarError extends Error {
   readonly line?: number;
   readonly col?: number;
   readonly hint?: string;
+  readonly code?: NectarErrorCode;
 
   constructor(init: NectarErrorInit) {
     super(init.message, init.cause === undefined ? undefined : { cause: init.cause });
@@ -25,11 +48,17 @@ export class NectarError extends Error {
     this.line = init.line;
     this.col = init.col;
     this.hint = init.hint;
+    this.code = init.code;
   }
 }
 
 export function isNectarError(value: unknown): value is NectarError {
   return value instanceof NectarError;
+}
+
+export function exitCodeForError(err: unknown): number {
+  if (!isNectarError(err) || err.code === undefined) return EXIT_CODES.generic;
+  return EXIT_CODES[err.code];
 }
 
 export interface FormatOptions {
@@ -98,14 +127,16 @@ export function suggestClosest(input: string, candidates: readonly string[]): st
 export function toNectarError(err: unknown, fallback: NectarErrorLocation = {}): NectarError {
   if (err instanceof NectarError) {
     if ((err.file ?? fallback.file) === err.file) return err;
-    return new NectarError({
+    const init: NectarErrorInit = {
       message: err.message,
       file: err.file ?? fallback.file,
       line: err.line ?? fallback.line,
       col: err.col ?? fallback.col,
       hint: err.hint,
       cause: err.cause ?? err,
-    });
+    };
+    if (err.code !== undefined) init.code = err.code;
+    return new NectarError(init);
   }
   const message = err instanceof Error ? err.message : String(err);
   return new NectarError({

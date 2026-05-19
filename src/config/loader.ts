@@ -53,7 +53,12 @@ function wrapTomlError(err: unknown, file: string): NectarError {
   const e = err as TomlParseError;
   const rawMsg = e.message ?? String(err);
   const message = `invalid TOML: ${stripTomlContext(rawMsg)}`;
-  const init: ConstructorParameters<typeof NectarError>[0] = { message, file, cause: err };
+  const init: ConstructorParameters<typeof NectarError>[0] = {
+    message,
+    file,
+    cause: err,
+    code: 'config',
+  };
   if (typeof e.line === 'number') init.line = e.line + 1;
   if (typeof e.col === 'number') init.col = e.col + 1;
   return new NectarError(init);
@@ -70,11 +75,12 @@ function wrapZodError(err: unknown, file: string): NectarError {
       message: err instanceof Error ? err.message : String(err),
       file,
       cause: err,
+      code: 'config',
     });
   }
   const issue = err.issues[0];
   if (!issue) {
-    return new NectarError({ message: 'invalid config', file, cause: err });
+    return new NectarError({ message: 'invalid config', file, cause: err, code: 'config' });
   }
   if (issue.code === 'unrecognized_keys') {
     return buildUnrecognizedKeysError(err, issue, file);
@@ -82,7 +88,12 @@ function wrapZodError(err: unknown, file: string): NectarError {
   const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
   const message = `invalid config at \`${path}\`: ${issue.message.toLowerCase()}`;
   const hint = remainingIssuesHint(err);
-  const init: ConstructorParameters<typeof NectarError>[0] = { message, file, cause: err };
+  const init: ConstructorParameters<typeof NectarError>[0] = {
+    message,
+    file,
+    cause: err,
+    code: 'config',
+  };
   if (hint) init.hint = hint;
   return new NectarError(init);
 }
@@ -106,7 +117,12 @@ function buildUnrecognizedKeysError(
     }
   }
   if (!hint) hint = remainingIssuesHint(err);
-  const init: ConstructorParameters<typeof NectarError>[0] = { message, file, cause: err };
+  const init: ConstructorParameters<typeof NectarError>[0] = {
+    message,
+    file,
+    cause: err,
+    code: 'config',
+  };
   if (hint) init.hint = hint;
   return new NectarError(init);
 }

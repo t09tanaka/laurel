@@ -26,6 +26,7 @@ export function resolveSubscribeForm(cfg: SubscribeFormConfig): Resolved {
         throw new NectarError({
           message: 'components.subscribe.username is required when provider is "buttondown"',
           hint: 'Set components.subscribe.username in nectar.toml to your Buttondown username',
+          code: 'config',
         });
       }
       return {
@@ -39,6 +40,7 @@ export function resolveSubscribeForm(cfg: SubscribeFormConfig): Resolved {
         throw new NectarError({
           message: 'components.subscribe.action is required when provider is "mailchimp"',
           hint: 'Set components.subscribe.action in nectar.toml to your Mailchimp list URL',
+          code: 'config',
         });
       }
       return {
@@ -52,6 +54,7 @@ export function resolveSubscribeForm(cfg: SubscribeFormConfig): Resolved {
         throw new NectarError({
           message: 'components.subscribe.action is required when provider is "custom"',
           hint: 'Set components.subscribe.action in nectar.toml to the form endpoint URL',
+          code: 'config',
         });
       }
       return {

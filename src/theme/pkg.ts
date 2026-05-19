@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import type { ThemeCustomSettingDefinition, ThemeImageSize, ThemePackage } from './types.ts';
 
@@ -48,9 +49,12 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
   try {
     json = JSON.parse(raw);
   } catch (err) {
-    throw new Error(
-      `invalid theme package.json at ${path}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    throw new NectarError({
+      message: `invalid theme package.json at ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      file: path,
+      cause: err,
+      code: 'theme',
+    });
   }
   const result = rawPkgSchema.safeParse(json);
   if (!result.success) {

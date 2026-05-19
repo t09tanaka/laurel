@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, rename, rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { NectarError } from '~/util/errors.ts';
 
 /**
  * Validate a user-supplied `build.output_dir` and resolve it to an absolute
@@ -11,29 +12,32 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
  */
 export function resolveOutputDir(cwd: string, configuredOutputDir: string): string {
   if (typeof configuredOutputDir !== 'string') {
-    throw new Error('build.output_dir must be a string');
+    throw new NectarError({ message: 'build.output_dir must be a string', code: 'config' });
   }
   const trimmed = configuredOutputDir.trim();
   if (trimmed === '') {
-    throw new Error('build.output_dir must not be empty');
+    throw new NectarError({ message: 'build.output_dir must not be empty', code: 'config' });
   }
   if (isAbsolute(trimmed)) {
-    throw new Error(
-      `build.output_dir must be a relative path inside the project root; got absolute path ${JSON.stringify(configuredOutputDir)}`,
-    );
+    throw new NectarError({
+      message: `build.output_dir must be a relative path inside the project root; got absolute path ${JSON.stringify(configuredOutputDir)}`,
+      code: 'config',
+    });
   }
   const absoluteCwd = resolve(cwd);
   const absolute = resolve(absoluteCwd, trimmed);
   const rel = relative(absoluteCwd, absolute);
   if (rel === '' || rel === '.') {
-    throw new Error(
-      `build.output_dir must not point at the project root; got ${JSON.stringify(configuredOutputDir)}`,
-    );
+    throw new NectarError({
+      message: `build.output_dir must not point at the project root; got ${JSON.stringify(configuredOutputDir)}`,
+      code: 'config',
+    });
   }
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error(
-      `build.output_dir must resolve inside the project root; got ${JSON.stringify(configuredOutputDir)} (resolves to ${absolute})`,
-    );
+    throw new NectarError({
+      message: `build.output_dir must resolve inside the project root; got ${JSON.stringify(configuredOutputDir)} (resolves to ${absolute})`,
+      code: 'config',
+    });
   }
   return absolute;
 }

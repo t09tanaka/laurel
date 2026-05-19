@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
+import { NectarError } from '~/util/errors.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
@@ -16,7 +17,10 @@ export interface LoadThemeOptions {
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
   const rootDir = join(cwd, config.theme.dir, config.theme.name);
   if (!existsSync(rootDir)) {
-    throw new Error(`Theme directory not found: ${rootDir}`);
+    throw new NectarError({
+      message: `Theme directory not found: ${rootDir}`,
+      code: 'theme',
+    });
   }
 
   const templates: Record<string, string> = {};

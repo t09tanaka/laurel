@@ -5,6 +5,7 @@ import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { textColorClassFor } from '~/util/color.ts';
+import { NectarError } from '~/util/errors.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
@@ -132,7 +133,10 @@ function registerPartials(
 function renderRoute(engine: NectarEngine, route: RouteContext): string {
   const innerCompiled = engine.templates[route.template];
   if (!innerCompiled) {
-    throw new Error(`Template '${route.template}' not found in theme '${engine.theme.name}'`);
+    throw new NectarError({
+      message: `Template '${route.template}' not found in theme '${engine.theme.name}'`,
+      code: 'theme',
+    });
   }
   const layout = engine.templateLayoutNames?.get(route.template);
   const context = buildContext(engine, route);
@@ -142,7 +146,10 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   }
   const layoutCompiled = engine.layouts[layout];
   if (!layoutCompiled) {
-    throw new Error(`Layout '${layout}' referenced by '${route.template}' not found`);
+    throw new NectarError({
+      message: `Layout '${layout}' referenced by '${route.template}' not found`,
+      code: 'theme',
+    });
   }
   const innerHtml = innerCompiled(context, { data });
   return layoutCompiled({ ...context, body: new engine.hb.SafeString(innerHtml) }, { data });

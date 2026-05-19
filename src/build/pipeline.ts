@@ -581,10 +581,12 @@ function wrapRenderError(err: unknown, url: string, template: string): NectarErr
       col: err.col,
       hint: err.hint,
       cause: err.cause ?? err,
+      code: err.code ?? 'render',
     });
   }
   return new NectarError({
     message: err instanceof Error ? `${prefix}: ${err.message}` : `${prefix}: ${String(err)}`,
     cause: err,
+    code: 'render',
   });
 }

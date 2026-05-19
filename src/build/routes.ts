@@ -247,6 +247,7 @@ function assertNoRouteCollisions(routes: readonly RouteContext[]): void {
   throw new NectarError({
     message: `${headline}\n${lines.join('\n')}`,
     hint: 'Each route must emit a unique output path. Rename the conflicting post/page slug or routes.yaml entry.',
+    code: 'content',
   });
 }
 

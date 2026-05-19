@@ -446,6 +446,7 @@ async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise
     file,
     message: `Markdown file is ${formatBytes(info.size)}, exceeding the configured limit of ${formatBytes(maxBytes)}.`,
     hint: 'Split the file into smaller documents, raise `content.max_markdown_bytes` in nectar.toml, or set it to 0 to disable the cap.',
+    code: 'content',
   });
 }
 
