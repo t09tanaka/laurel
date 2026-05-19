@@ -91,6 +91,37 @@ describe('ghost_head JSON-LD escaping', () => {
     expect(parsed.headline).toBe('A & B < C > D');
   });
 
+  test('og:image and twitter:image are absolute URLs when feature_image is a site-relative path', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      feature_image: '/content/images/welcome-cover.svg',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain(
+      '<meta property="og:image" content="https://example.com/content/images/welcome-cover.svg">',
+    );
+    expect(html).toContain(
+      '<meta name="twitter:image" content="https://example.com/content/images/welcome-cover.svg">',
+    );
+    const jsonLd = extractJsonLd(html);
+    const parsed = JSON.parse(jsonLd) as { image: string };
+    expect(parsed.image).toBe('https://example.com/content/images/welcome-cover.svg');
+  });
+
+  test('og:image keeps already-absolute URLs untouched', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'cover',
+      og_image: 'https://cdn.example.org/img.jpg',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta property="og:image" content="https://cdn.example.org/img.jpg">');
+    expect(html).toContain('<meta name="twitter:image" content="https://cdn.example.org/img.jpg">');
+  });
+
   test('escapes U+2028 / U+2029 which are valid JSON but invalid JS string literals', () => {
     const html = renderGhostHead({
       id: 'p1',

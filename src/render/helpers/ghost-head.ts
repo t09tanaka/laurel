@@ -82,10 +82,11 @@ function computeMeta(
     (ctx.meta_description as string | undefined) ||
     (ctx.og_description as string | undefined) ||
     (ctx.excerpt as string | undefined);
-  const image =
+  const rawImage =
     (ctx.og_image as string | undefined) ||
     (ctx.twitter_image as string | undefined) ||
     (ctx.feature_image as string | undefined);
+  const image = rawImage ? absoluteUrl(site.url, rawImage) : undefined;
   const canonical = absoluteUrl(site.url, route?.url ?? '/');
 
   let ogType = 'website';
