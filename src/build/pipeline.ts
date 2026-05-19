@@ -350,7 +350,7 @@ async function runBuild({
     );
   }
   if (config.components.robots.enabled) {
-    await timed(profiler, 'robots', () => emitRobots({ config, outputDir }));
+    await timed(profiler, 'robots', () => emitRobots({ cwd, config, outputDir }));
   }
   if (config.components.search.enabled) {
     await timed(profiler, 'search_json', () => emitSearchJson({ config, content, outputDir }));
