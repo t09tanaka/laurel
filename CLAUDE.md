@@ -99,6 +99,10 @@ real-world themes against static Markdown content. The current explicit scope is
 - Server-side search; client-side search can be wired as an optional component.
 - Admin/edit links inside themes.
 - Live preview / drafts via API.
+- Multi-locale routing. One build = one locale (set via `[site].locale`).
+  No `/en/foo/` + `/ja/foo/` split, no per-locale content subdir convention,
+  no language switcher. Run one Nectar build per locale and stitch at the
+  host. See `docs/DESIGN.md` §1 Non-goals.
 
 ## Workflow rules
 
