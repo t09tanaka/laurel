@@ -22,6 +22,11 @@ export function registerBlockHelpers(engine: NectarEngine): void {
 
     let buffer = '';
     let renderedIndex = 0;
+    // Ghost applies the visibility filter first, then slices by from/to/limit
+    // against the already-filtered collection (see TryGhost/Ghost
+    // `core/frontend/helpers/foreach.js`). The order matters when public and
+    // members posts are interleaved: `visibility="public" limit=3` must yield
+    // the first three *public* items, not three positions from the raw input.
     const visible = items.filter((item) => visibilityFilter(item, options.hash.visibility));
     const sliced = visible.slice(from - 1, to);
     for (let i = 0; i < sliced.length; i += 1) {

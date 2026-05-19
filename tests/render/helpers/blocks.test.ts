@@ -66,6 +66,63 @@ describe('foreach helper', () => {
     ];
     expect(tpl({ items })).toBe('a|c|');
   });
+
+  // Ghost evaluates visibility before from/to/limit. With public and members
+  // posts interleaved, `visibility="public" limit=3` must return the first
+  // three *public* posts, not the public-survivors of the first three raw
+  // positions. The latter would only yield two items here, off by one.
+  // Reference: TryGhost/Ghost core/frontend/helpers/foreach.js.
+  test('visibility filter is applied before limit (Ghost order)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items visibility="public" limit=3}}{{slug}}|{{/foreach}}',
+    );
+    const items = [
+      { slug: 'a', visibility: 'public' },
+      { slug: 'b', visibility: 'members' },
+      { slug: 'c', visibility: 'public' },
+      { slug: 'd', visibility: 'members' },
+      { slug: 'e', visibility: 'public' },
+      { slug: 'f', visibility: 'public' },
+    ];
+    expect(tpl({ items })).toBe('a|c|e|');
+  });
+
+  test('visibility filter is applied before from/to window (Ghost order)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items visibility="public" from=2 to=3}}{{slug}}|{{/foreach}}',
+    );
+    const items = [
+      { slug: 'a', visibility: 'public' },
+      { slug: 'b', visibility: 'members' },
+      { slug: 'c', visibility: 'public' },
+      { slug: 'd', visibility: 'members' },
+      { slug: 'e', visibility: 'public' },
+    ];
+    // Public-only view is [a, c, e]; positions 2..3 are [c, e].
+    expect(tpl({ items })).toBe('c|e|');
+  });
+
+  test('visibility filter combined with from + limit honours filtered indices', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items visibility="public" from=2 limit=2}}{{slug}}|{{/foreach}}',
+    );
+    const items = [
+      { slug: 'a', visibility: 'public' },
+      { slug: 'b', visibility: 'members' },
+      { slug: 'c', visibility: 'public' },
+      { slug: 'd', visibility: 'members' },
+      { slug: 'e', visibility: 'public' },
+      { slug: 'f', visibility: 'public' },
+    ];
+    // Public-only view is [a, c, e, f]; from=2 limit=2 yields [c, e].
+    expect(tpl({ items })).toBe('c|e|');
+  });
 });
 
 describe('is helper', () => {
