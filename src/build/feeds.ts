@@ -2,18 +2,36 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { writeHtml } from './emit.ts';
 
+export interface SitemapEntry {
+  url: string;
+  lastmod?: string | undefined;
+}
+
 export async function emitSitemap(opts: {
   config: NectarConfig;
   content: ContentGraph;
   outputDir: string;
-  urls: string[];
+  urls: SitemapEntry[];
 }): Promise<void> {
   const base = opts.config.site.url.replace(/\/$/, '');
   const entries = opts.urls
-    .map((u) => `<url><loc>${escapeXml(`${base}${u}`)}</loc></url>`)
+    .map((entry) => {
+      const loc = `<loc>${escapeXml(`${base}${entry.url}`)}</loc>`;
+      const lastmod = entry.lastmod
+        ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
+        : '';
+      return `<url>${loc}${lastmod}</url>`;
+    })
     .join('');
   const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`;
   await writeHtml(opts.outputDir, 'sitemap.xml', xml);
+}
+
+// Sitemap protocol accepts W3C datetime; pass ISO timestamps through and fall back
+// to the raw string so callers can pre-format if they prefer date-only.
+function formatLastmod(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toISOString();
 }
 
 export async function emitRss(opts: {

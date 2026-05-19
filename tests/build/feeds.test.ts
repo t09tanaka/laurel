@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { absolutizeHtmlUrls, emitRss } from '~/build/feeds.ts';
+import { absolutizeHtmlUrls, emitRss, emitSitemap } from '~/build/feeds.ts';
 import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
@@ -122,6 +122,44 @@ describe('emitRss', () => {
     expect(xml).toContain(
       '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
     );
+  });
+});
+
+describe('emitSitemap', () => {
+  test('emits <lastmod> for entries that provide one', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [{ url: '/hello-world/', lastmod: '2026-01-02T03:04:05.000Z' }, { url: '/no-date/' }],
+    });
+    const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+
+    expect(xml).toContain(
+      '<url><loc>https://example.com/hello-world/</loc><lastmod>2026-01-02T03:04:05.000Z</lastmod></url>',
+    );
+    expect(xml).toContain('<url><loc>https://example.com/no-date/</loc></url>');
+    expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
+  });
+
+  test('non-ISO lastmod strings pass through unchanged', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [{ url: '/x/', lastmod: 'not-a-date' }],
+    });
+    const xml = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+
+    expect(xml).toContain('<lastmod>not-a-date</lastmod>');
   });
 });
 

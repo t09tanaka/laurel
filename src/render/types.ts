@@ -20,6 +20,7 @@ export interface RouteContext {
   url: string;
   outputPath: string;
   template: string;
+  lastmod?: string;
   data: {
     posts?: Post[];
     pagination?: PaginationInfo;

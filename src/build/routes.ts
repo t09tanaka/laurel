@@ -24,6 +24,7 @@ export function planRoutes(opts: {
         url,
         outputPath,
         template: idx === 0 ? homeTemplate : 'index',
+        lastmod: latestPostTimestamp(slice),
         data: {
           posts: slice,
           pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/'),
@@ -42,6 +43,7 @@ export function planRoutes(opts: {
       url: `/${post.slug}/`,
       outputPath: `${post.slug}/index.html`,
       template: 'post',
+      lastmod: post.updated_at ?? post.published_at,
       data: { post },
       meta: defaultMeta(
         config,
@@ -59,6 +61,7 @@ export function planRoutes(opts: {
         url: `/${page.slug}/`,
         outputPath: `${page.slug}/index.html`,
         template: 'page',
+        lastmod: page.updated_at ?? page.published_at,
         data: { page },
         meta: defaultMeta(
           config,
@@ -83,6 +86,7 @@ export function planRoutes(opts: {
           url,
           outputPath,
           template: 'tag',
+          lastmod: latestPostTimestamp(slice),
           data: {
             tag,
             posts: slice,
@@ -117,6 +121,7 @@ export function planRoutes(opts: {
           url,
           outputPath,
           template: 'author',
+          lastmod: latestPostTimestamp(slice),
           data: {
             author,
             posts: slice,
@@ -140,6 +145,16 @@ export function planRoutes(opts: {
   }
 
   return routes;
+}
+
+function latestPostTimestamp(posts: Post[]): string | undefined {
+  let max: string | undefined;
+  for (const p of posts) {
+    const ts = p.updated_at ?? p.published_at;
+    if (!ts) continue;
+    if (max === undefined || ts > max) max = ts;
+  }
+  return max;
 }
 
 function paginatePosts(posts: Post[], perPage: number): Post[][] {
