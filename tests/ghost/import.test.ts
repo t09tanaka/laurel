@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { importGhostExport } from '~/ghost/import.ts';
@@ -138,5 +138,214 @@ describe('importGhostExport — --on-conflict policy', () => {
     expect(captured.data).toBe('');
     const dest = join(cwd, 'content/posts/fresh.md');
     expect(await readFile(dest, 'utf8')).toContain('slug: "fresh"');
+  });
+});
+
+describe('importGhostExport — slug sanitization (#160)', () => {
+  let cwd: string;
+  let outside: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    const tmp = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-sec-')));
+    cwd = join(tmp, 'project');
+    outside = join(tmp, 'outside');
+    await ensureDir(cwd);
+    await ensureDir(outside);
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  test('post slug `../../escape` is re-slugified and stays under content/posts', async () => {
+    const escapeTarget = join(outside, 'escape.md');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Bad',
+                  slug: '../../outside/escape',
+                  html: '<p>Bad</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.posts).toBe(1);
+    await expect(access(escapeTarget)).rejects.toThrow();
+    const postsDir = join(cwd, 'content/posts');
+    const entries = await readdir(postsDir);
+    expect(entries.length).toBe(1);
+    expect(entries[0]).toMatch(/\.md$/);
+    expect(entries[0]).not.toContain('..');
+    expect(entries[0]).not.toContain('/');
+  });
+
+  test('post with absolute-path slug stays under content/posts', async () => {
+    const absTarget = join(outside, 'pwned.md');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Title-Fallback',
+                  slug: '/etc/pwned',
+                  html: '<p>x</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.posts).toBe(1);
+    await expect(access(absTarget)).rejects.toThrow();
+    const entries = await readdir(join(cwd, 'content/posts'));
+    expect(entries.length).toBe(1);
+    expect(entries[0]).not.toContain('/');
+  });
+
+  test('tag slug `../tagjacked` is re-slugified and stays under content/tags', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              tags: [
+                {
+                  id: 't1',
+                  slug: '../../outside/tagjacked',
+                  name: 'Bad Tag',
+                  description: 'has description so it gets written',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.tags).toBe(1);
+    await expect(access(join(outside, 'tagjacked.md'))).rejects.toThrow();
+    const entries = await readdir(join(cwd, 'content/tags'));
+    expect(entries.length).toBe(1);
+    expect(entries[0]).not.toContain('..');
+    expect(entries[0]).not.toContain('/');
+  });
+
+  test('author slug `../authorjacked` is re-slugified and stays under content/authors', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              users: [
+                {
+                  id: 'u1',
+                  slug: '../../outside/authorjacked',
+                  name: 'Bad Author',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.authors).toBe(1);
+    await expect(access(join(outside, 'authorjacked.md'))).rejects.toThrow();
+    const entries = await readdir(join(cwd, 'content/authors'));
+    expect(entries.length).toBe(1);
+    expect(entries[0]).not.toContain('..');
+    expect(entries[0]).not.toContain('/');
+  });
+
+  test('post slug that becomes empty after sanitization falls back to title', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Recoverable Title',
+                  slug: '../..',
+                  html: '<p>Body</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.posts).toBe(1);
+    const entries = await readdir(join(cwd, 'content/posts'));
+    expect(entries).toEqual(['recoverable-title.md']);
+  });
+
+  test('post with no recoverable slug or title is skipped', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: '../..',
+                  slug: '...',
+                  html: '<p>Body</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+
+    expect(summary.posts).toBe(0);
+    await expect(access(join(cwd, 'content/posts'))).rejects.toThrow();
   });
 });

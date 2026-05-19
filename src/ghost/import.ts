@@ -1,5 +1,5 @@
 import { access, readFile, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import TurndownService from 'turndown';
 import { ensureDir } from '~/util/fs.ts';
@@ -121,22 +121,36 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     postsTags
       .filter((r) => r.post_id === postId)
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((r) => tagById.get(r.tag_id)?.slug)
-      .filter((slug): slug is string => Boolean(slug));
+      .map((r) => {
+        const t = tagById.get(r.tag_id);
+        if (!t) return '';
+        return safeSlug(t.slug) || safeSlug(t.name);
+      })
+      .filter((slug): slug is string => slug.length > 0);
 
   const authorSlugsForPost = (postId: string): string[] =>
     postsAuthors
       .filter((r) => r.post_id === postId)
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((r) => userById.get(r.user_id)?.slug)
-      .filter((slug): slug is string => Boolean(slug));
+      .map((r) => {
+        const u = userById.get(r.user_id);
+        if (!u) return '';
+        return safeSlug(u.slug) || safeSlug(u.name);
+      })
+      .filter((slug): slug is string => slug.length > 0);
 
   let postCount = 0;
   let pageCount = 0;
   for (const post of posts) {
     if (post.status && post.status !== 'published' && post.status !== 'draft') continue;
     const isPage = post.type === 'page';
-    const slug = post.slug || slugify(post.title, { lower: true, strict: true });
+    const slug = safeSlug(post.slug) || safeSlug(post.title);
+    if (!slug) {
+      logger.warn(
+        `Skipping post ${post.id ?? '(no id)'}: cannot derive a safe slug from slug=${JSON.stringify(post.slug)} title=${JSON.stringify(post.title)}`,
+      );
+      continue;
+    }
     const dir = isPage ? 'content/pages' : 'content/posts';
     const body = renderPostBody(post);
     const frontmatter = buildFrontmatter({
@@ -165,8 +179,10 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
       codeinjection_head: post.codeinjection_head ?? undefined,
       codeinjection_foot: post.codeinjection_foot ?? undefined,
     });
-    const dest = join(opts.cwd, dir, `${slug}.md`);
-    await ensureDir(join(opts.cwd, dir));
+    const baseDir = join(opts.cwd, dir);
+    const dest = join(baseDir, `${slug}.md`);
+    assertWithin(baseDir, dest);
+    await ensureDir(baseDir);
     const written = await writeWithConflictPolicy(
       dest,
       `${frontmatter}\n\n${body}\n`,
@@ -181,10 +197,19 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
   let tagCount = 0;
   for (const tag of tags) {
     if (!tag.description && !tag.feature_image && !tag.meta_title) continue;
-    const dest = join(opts.cwd, 'content/tags', `${tag.slug}.md`);
-    await ensureDir(join(opts.cwd, 'content/tags'));
+    const tagSlug = safeSlug(tag.slug) || safeSlug(tag.name);
+    if (!tagSlug) {
+      logger.warn(
+        `Skipping tag ${tag.id ?? '(no id)'}: cannot derive a safe slug from slug=${JSON.stringify(tag.slug)} name=${JSON.stringify(tag.name)}`,
+      );
+      continue;
+    }
+    const baseDir = join(opts.cwd, 'content/tags');
+    const dest = join(baseDir, `${tagSlug}.md`);
+    assertWithin(baseDir, dest);
+    await ensureDir(baseDir);
     const frontmatter = buildFrontmatter({
-      slug: tag.slug,
+      slug: tagSlug,
       name: tag.name,
       description: tag.description ?? undefined,
       feature_image: tag.feature_image ?? undefined,
@@ -197,10 +222,19 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
 
   let authorCount = 0;
   for (const user of users) {
-    const dest = join(opts.cwd, 'content/authors', `${user.slug}.md`);
-    await ensureDir(join(opts.cwd, 'content/authors'));
+    const userSlug = safeSlug(user.slug) || safeSlug(user.name);
+    if (!userSlug) {
+      logger.warn(
+        `Skipping author ${user.id ?? '(no id)'}: cannot derive a safe slug from slug=${JSON.stringify(user.slug)} name=${JSON.stringify(user.name)}`,
+      );
+      continue;
+    }
+    const baseDir = join(opts.cwd, 'content/authors');
+    const dest = join(baseDir, `${userSlug}.md`);
+    assertWithin(baseDir, dest);
+    await ensureDir(baseDir);
     const frontmatter = buildFrontmatter({
-      slug: user.slug,
+      slug: userSlug,
       name: user.name,
       bio: user.bio ?? undefined,
       profile_image: user.profile_image ?? undefined,
@@ -254,6 +288,27 @@ async function writeWithConflictPolicy(
       counters.renamed += 1;
       return true;
     }
+  }
+}
+
+// Re-slugify any string from an untrusted Ghost export so it is safe to use as
+// a single path segment. `strict: true` strips path separators, dots, and
+// other punctuation that could otherwise enable path traversal (#160).
+function safeSlug(input: unknown): string {
+  if (typeof input !== 'string' || input.length === 0) return '';
+  return slugify(input, { lower: true, strict: true });
+}
+
+// Defense in depth: even after safeSlug, refuse to write anywhere outside the
+// expected base directory. Catches future regressions where a caller forgets
+// to sanitize a slug before joining it into a path.
+function assertWithin(baseDir: string, candidate: string): void {
+  const resolvedBase = resolve(baseDir);
+  const resolvedCandidate = resolve(candidate);
+  if (resolvedCandidate !== resolvedBase && !resolvedCandidate.startsWith(resolvedBase + sep)) {
+    throw new Error(
+      `Refusing to write outside target directory: candidate=${resolvedCandidate} base=${resolvedBase}`,
+    );
   }
 }
 
