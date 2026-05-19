@@ -1,0 +1,40 @@
+name: Spell check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "src/**/*.ts"
+      - "_typos.toml"
+      - ".github/workflows/spellcheck.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "src/**/*.ts"
+      - "_typos.toml"
+      - ".github/workflows/spellcheck.yml"
+
+concurrency:
+  group: spellcheck-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run typos
+        uses: crate-ci/typos@v1.28.4
+        with:
+          files: ./docs ./README.md ./src
+          config: ./_typos.toml
