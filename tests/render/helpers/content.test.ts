@@ -49,3 +49,13 @@ describe('access helper', () => {
     expect(engine.hb.compile('{{#access}}YES{{else}}NO{{/access}}')({})).toBe('NO');
   });
 });
+
+describe('recommendations helper', () => {
+  test('emits an empty placeholder so the Source theme sidebar renders without a missing-helper warning', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    expect(engine.hb.compile('{{recommendations}}')({})).toBe(
+      '<ul class="recommendations" data-nectar-recommendations></ul>',
+    );
+  });
+});
