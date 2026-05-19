@@ -552,6 +552,58 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('JSON content API component.'),
+        search: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(true)
+              .describe(
+                "Emit a client-side search index. When `engine` is `json` or `json+pagefind`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch). When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*`. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent.",
+              ),
+            engine: z
+              .enum(['json', 'pagefind', 'json+pagefind'])
+              .default('json')
+              .describe(
+                'Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime.',
+              ),
+            excerpt_words: z
+              .number()
+              .int()
+              .nonnegative()
+              .default(30)
+              .describe(
+                'Maximum number of words from `custom_excerpt` (or auto-excerpt) included in each entry. Keeps `search.json` small so a multi-hundred-post site still ships in a single fetch. `0` omits excerpts entirely.',
+              ),
+            include_pages: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Include static pages in `search.json`. Set to `false` to index posts only.',
+              ),
+            include_tags: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Include public tags in `search.json` so a search UI can surface tag pages alongside posts.',
+              ),
+            include_authors: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Include authors in `search.json` so a search UI can surface author pages.',
+              ),
+            pagefind_bin: z
+              .string()
+              .optional()
+              .describe(
+                'Optional path or command for the `pagefind` CLI. Defaults to `pagefind` resolved via `PATH`. Only consulted when `engine` includes `pagefind`.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            "Client-side search component. Emits a flat `content/search.json` and/or runs Pagefind. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent and consumers must wire a client-side search library (lunr / Fuse / minisearch) themselves.",
+          ),
         robots: z
           .object({
             enabled: z.boolean().default(true).describe('Emit a `robots.txt` file.'),

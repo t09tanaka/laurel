@@ -89,6 +89,17 @@ describe('build pipeline strict mode wiring', () => {
     expect(existsSync(nojekyll)).toBe(true);
     expect(readFileSync(nojekyll, 'utf8')).toBe('');
   });
+
+  test('emits dist/content/search.json with the post in the flat index', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const indexPath = join(summary.outputDir, 'content', 'search.json');
+    expect(existsSync(indexPath)).toBe(true);
+    const body = JSON.parse(readFileSync(indexPath, 'utf8'));
+    expect(Array.isArray(body.posts)).toBe(true);
+    expect(body.posts.find((p: { slug: string }) => p.slug === 'hello')).toBeDefined();
+    expect(body.meta.site_url).toBe('https://strict.test');
+  });
 });
 
 describe('build pipeline outputDir override', () => {
