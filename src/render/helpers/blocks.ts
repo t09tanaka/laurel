@@ -138,20 +138,10 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
-    let results: unknown[] = [];
-    if (resource === 'posts') {
-      results = engine.content.posts.slice();
-    } else if (resource === 'tags') {
-      results = engine.content.tags.slice();
-    } else if (resource === 'authors') {
-      results = engine.content.authors.slice();
-    } else if (resource === 'pages') {
-      results = engine.content.pages.slice();
-    }
-    if (filter) {
-      results = applyFilter(results, filter, this);
-    }
-    results = applyOrder(results, order);
+    const sorted = getSortedResource(engine, resource, order);
+    let results: unknown[] = filter
+      ? applyFilter(sorted as unknown[], filter, this)
+      : sorted.slice();
     results = results.slice(0, limit);
     if (results.length === 0 && options.inverse) {
       return options.inverse(this);
@@ -181,6 +171,45 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     }
     return result;
   });
+}
+
+// The loader pre-sorts posts by `published_at desc` and pages by `title asc`.
+// When the `get` helper's order matches that, we can reuse the loader's
+// array directly and skip sorting entirely.
+const DEFAULT_ORDERS: Record<string, string> = {
+  posts: 'published_at desc',
+  pages: 'title asc',
+};
+
+function getSortedResource(
+  engine: NectarEngine,
+  resource: string,
+  order: string,
+): readonly unknown[] {
+  const base = baseResource(engine, resource);
+  if (base.length === 0) return base;
+  if (DEFAULT_ORDERS[resource] === order) return base;
+  const cacheKey = `${resource}|${order}`;
+  const cached = engine.sortedCache.get(cacheKey);
+  if (cached) return cached;
+  const sorted: readonly unknown[] = applyOrder(base as unknown[], order);
+  engine.sortedCache.set(cacheKey, sorted);
+  return sorted;
+}
+
+function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {
+  switch (resource) {
+    case 'posts':
+      return engine.content.posts;
+    case 'tags':
+      return engine.content.tags;
+    case 'authors':
+      return engine.content.authors;
+    case 'pages':
+      return engine.content.pages;
+    default:
+      return [];
+  }
 }
 
 function pickFromRoute(
