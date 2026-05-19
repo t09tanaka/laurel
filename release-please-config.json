@@ -8,16 +8,17 @@
   "pull-request-title-pattern": "chore(release): ${version}",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
-    { "type": "fix", "section": "Bug Fixes" },
     { "type": "perf", "section": "Performance" },
-    { "type": "revert", "section": "Reverts" },
-    { "type": "docs", "section": "Documentation" },
-    { "type": "refactor", "section": "Refactors" },
-    { "type": "build", "section": "Build System" },
-    { "type": "ci", "section": "Continuous Integration", "hidden": true },
-    { "type": "test", "section": "Tests", "hidden": true },
-    { "type": "chore", "section": "Chores", "hidden": true },
-    { "type": "style", "section": "Styles", "hidden": true }
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "deps", "section": "Dependencies" },
+    { "type": "revert", "section": "Internal" },
+    { "type": "refactor", "section": "Internal" },
+    { "type": "build", "section": "Internal" },
+    { "type": "docs", "section": "Internal" },
+    { "type": "ci", "section": "Internal", "hidden": true },
+    { "type": "test", "section": "Internal", "hidden": true },
+    { "type": "chore", "section": "Internal", "hidden": true },
+    { "type": "style", "section": "Internal", "hidden": true }
   ],
   "packages": {
     ".": {

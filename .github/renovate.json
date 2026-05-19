@@ -6,6 +6,8 @@
     ":semanticCommits",
     ":timezone(Asia/Tokyo)"
   ],
+  "semanticCommitType": "deps",
+  "semanticCommitScope": "",
   "schedule": ["before 9am on Monday"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 10,
