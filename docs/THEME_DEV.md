@@ -483,6 +483,14 @@ Source values, in priority order:
 Emits the context's `codeinjection_foot` verbatim. No member portal, no
 analytics scripts.
 
+`codeinjection_head` (in `{{ghost_head}}`) and `codeinjection_foot` are the
+only two render helpers that ship author-controlled HTML without escaping.
+Both are gated behind `build.allow_code_injection`; the loader strips the
+fields when the flag is off. When the flag is on, treat `codeinjection_*`
+PRs as code review and consider an operator-side CSP (edge-injected nonces
+or precomputed hashes) for defence in depth — see
+[`docs/security/threat-model.md` § Render-side raw-HTML exits](security/threat-model.md#render-side-raw-html-exits--ghost_head--ghost_foot).
+
 ### 5.7 i18n (`src/render/helpers/i18n.ts`)
 
 #### `{{t "key" [name=value …]}}` — inline

@@ -95,6 +95,11 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         );
       }
 
+      // Raw HTML exit (1/2): codeinjection_head ships verbatim into <head>.
+      // The loader already drops the field unless `build.allow_code_injection`
+      // is true, so reaching here means the operator opted in. See
+      // docs/security/threat-model.md §"Render-side raw-HTML exits" for the
+      // CSP / review posture this requires.
       const head = ctx.codeinjection_head;
       if (typeof head === 'string' && head) parts.push(head);
 
@@ -102,6 +107,10 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
     },
   );
 
+  // Raw HTML exit (2/2): codeinjection_foot ships verbatim before </body>.
+  // Same opt-in gate (`build.allow_code_injection`) as ghost_head; the helper
+  // itself never escapes because Ghost themes rely on this being a pass-through
+  // for analytics, comments bootstrap, and similar trailing snippets.
   engine.hb.registerHelper('ghost_foot', function ghostFootHelper(this: unknown) {
     const ctx = this as { codeinjection_foot?: string };
     return new engine.hb.SafeString(ctx.codeinjection_foot ?? '');
