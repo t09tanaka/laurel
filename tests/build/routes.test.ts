@@ -309,3 +309,17 @@ describe('planRoutes — defaultMeta.canonical', () => {
     expect(post?.meta.canonical).toBe('https://example.com/hello/');
   });
 });
+
+describe('planRoutes — posts_per_page precedence', () => {
+  test('user config posts_per_page overrides theme pkg.json posts_per_page', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 3;
+    const posts = Array.from({ length: 10 }, (_, i) => makePost(`p${i}`));
+    const content = makeGraph({ posts });
+    const theme = makeTheme();
+    theme.pkg.posts_per_page = 5;
+    const routes = planRoutes({ config, content, theme });
+    const indexPages = routes.filter((r) => r.kind === 'home' || r.kind === 'index');
+    expect(indexPages).toHaveLength(Math.ceil(10 / 3));
+  });
+});
