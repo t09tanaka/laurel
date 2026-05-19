@@ -66,9 +66,17 @@ async function loadContentWithPool({
   const authorMap = new Map(authors.map((a) => [a.slug, a]));
   const tagMap = new Map(tags.map((t) => [t.slug, t]));
 
+  // Scheduled posts must stay hidden until their `published_at` timestamp has
+  // passed. Without this check a contributor who sets `status: scheduled` with
+  // a future date — the standard Ghost embargo workflow — would have the post
+  // ship publicly on the next build, leaking embargoed announcements via HTML,
+  // RSS, and sitemap. Captured once so every post is judged against the same
+  // wall-clock instant within a build.
+  const nowMs = Date.now();
   const resolvedPosts: Post[] = [];
   for (const raw of posts) {
     if (raw.status === 'draft') continue;
+    if (raw.status === 'scheduled' && new Date(raw.published_at).getTime() > nowMs) continue;
     const resolved = resolvePostRelations(raw, authorMap, tagMap, site);
     resolvedPosts.push(resolved);
   }

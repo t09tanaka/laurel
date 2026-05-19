@@ -485,3 +485,78 @@ body
     await expect(loadContent({ cwd, config })).rejects.toThrow(/Invalid slug/);
   });
 });
+
+describe('loadContent scheduled posts', () => {
+  test('excludes scheduled posts whose published_at is still in the future', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-future-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/embargo.md'),
+      `---
+title: Embargo
+status: scheduled
+date: ${futureIso}
+---
+
+Secret announcement.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/live.md'),
+      `---
+title: Live
+date: 2026-01-01T00:00:00Z
+---
+
+Public.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.map((p) => p.slug)).toEqual(['live']);
+  });
+
+  test('includes scheduled posts whose published_at has already passed', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-past-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const pastIso = new Date(Date.now() - 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/late.md'),
+      `---
+title: Late
+status: scheduled
+date: ${pastIso}
+---
+
+Now live.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.map((p) => p.slug)).toEqual(['late']);
+  });
+
+  test('always excludes drafts regardless of date', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/wip.md'),
+      `---
+title: WIP
+status: draft
+date: 2020-01-01T00:00:00Z
+---
+
+Not ready.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts).toHaveLength(0);
+  });
+});
