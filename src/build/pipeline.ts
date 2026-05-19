@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
@@ -29,7 +30,7 @@ import {
 import { stripUnusedLightbox } from './lightbox.ts';
 import { emitNetlifyHeaders } from './netlify.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import { clearDirContents, resolveOutputDir } from './output-dir.ts';
+import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRobots } from './robots.ts';
@@ -75,10 +76,37 @@ export async function build({
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
   const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
-  const outputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
+  const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
-  await clearDirContents(outputDir);
+  // Stage the entire build into a sibling temp dir and swap it into place at
+  // the end. Two reasons: (1) `nectar dev` will produce overlapping rebuilds
+  // and a partially-cleared `dist/` lets readers (a browser, a deploy script)
+  // see "index.html missing for 200ms"; staging confines the half-written
+  // state to a path no one is watching. (2) On build failure the previous
+  // good `dist/` is left untouched instead of being half-deleted.
+  const outputDir = await prepareStagingDir(finalOutputDir);
 
+  try {
+    return await runBuild({ cwd, config, outputDir, finalOutputDir, profiler });
+  } catch (err) {
+    await rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
+}
+
+async function runBuild({
+  cwd,
+  config,
+  outputDir,
+  finalOutputDir,
+  profiler,
+}: {
+  cwd: string;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  outputDir: string;
+  finalOutputDir: string;
+  profiler: Profiler | null;
+}): Promise<BuildSummary> {
   const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
     Promise.all([loadContent({ cwd, config }), loadTheme({ cwd, config })]),
   );
@@ -218,8 +246,10 @@ export async function build({
     await writeProfile(outputDir, profiler);
   }
 
+  await commitStagingDir(outputDir, finalOutputDir);
+
   return {
-    outputDir,
+    outputDir: finalOutputDir,
     routeCount: routes.length,
     assetCount,
     warningCount: getWarningCount(),
