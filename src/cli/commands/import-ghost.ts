@@ -1,4 +1,4 @@
-import { importGhostExport } from '~/ghost/import.ts';
+import { ON_CONFLICT_VALUES, type OnConflict, importGhostExport } from '~/ghost/import.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { IMPORT_GHOST_SPEC } from '../specs.ts';
@@ -27,12 +27,30 @@ export async function runImportGhost(args: string[]): Promise<number> {
     return 2;
   }
 
+  const rawOnConflict = parsed.values['on-conflict'];
+  let onConflict: OnConflict = 'skip';
+  if (typeof rawOnConflict === 'string') {
+    if (!(ON_CONFLICT_VALUES as readonly string[]).includes(rawOnConflict)) {
+      process.stderr.write(
+        `Invalid --on-conflict value: ${rawOnConflict}. Expected one of: ${ON_CONFLICT_VALUES.join(', ')}.\n\n`,
+      );
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
+    onConflict = rawOnConflict as OnConflict;
+  }
+
   const cwd = process.cwd();
   try {
-    const summary = await importGhostExport({ cwd, file });
+    const summary = await importGhostExport({ cwd, file, onConflict });
     logger.info(
       `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,
     );
+    if (summary.skipped > 0 || summary.overwritten > 0 || summary.renamed > 0) {
+      logger.info(
+        `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,
+      );
+    }
     return 0;
   } catch (err) {
     logger.error(err instanceof Error ? err.message : String(err));

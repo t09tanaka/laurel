@@ -71,7 +71,14 @@ export const CHECK_SPEC: CommandSpec = {
 export const IMPORT_GHOST_SPEC: CommandSpec = {
   name: 'import-ghost',
   summary: 'Convert a Ghost JSON export into Markdown content',
-  options: {},
+  options: {
+    'on-conflict': {
+      type: 'string',
+      description:
+        'How to handle existing files when slugs collide: skip (default), overwrite, or rename',
+      placeholder: '<skip|overwrite|rename>',
+    },
+  },
   positionals: [{ name: 'file', description: 'Path to the Ghost export JSON', required: true }],
 };
 
