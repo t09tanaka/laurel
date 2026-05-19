@@ -1,0 +1,11 @@
+# These are supported funding model platforms.
+#
+# Nectar is a side-project. We don't expect revenue early, but we list a
+# sustainability channel so people evaluating us — especially folks who
+# burned out on hosted CMS pricing — can see this isn't a one-off dump.
+#
+# Add additional platforms (open_collective, ko_fi, polar, patreon, …) here
+# once we actually have accounts for them. Listing unverified handles would
+# produce broken sponsor buttons, which is worse than listing fewer.
+
+github: [t09tanaka]
