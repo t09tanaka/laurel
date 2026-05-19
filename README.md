@@ -27,7 +27,7 @@ Ghost admin JSON export into Markdown content.
 
 Bootstrap in progress. See `docs/DESIGN.md` for the full architecture,
 `docs/GHOST_COMPATIBILITY.md` for the helper coverage matrix, and
-`docs/MIGRATION_FROM_GHOST.md` for the step-by-step guide to moving a
+`docs/migration/ghost.md` for the step-by-step guide to moving a
 real blog off Ghost.
 
 ## Quickstart
