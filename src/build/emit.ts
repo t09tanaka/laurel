@@ -70,6 +70,10 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
   );
 }
 
+// Only the fingerprinted copy is emitted. The `{{asset}}` helper always
+// resolves to `fingerprintedPath` (see src/render/helpers/assets.ts), so the
+// logical-path duplicate was dead weight on disk and double the upload —
+// themes with megabytes of fonts/CSS used to pay 2x. See backlog #1106.
 export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise<number> {
   const seen = new Set<string>();
   const unique: ThemeAsset[] = [];
@@ -81,14 +85,7 @@ export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise
   }
   if (unique.length === 0) return 0;
 
-  const dirs: string[] = [];
-  for (const asset of unique) {
-    dirs.push(dirname(join(outputDir, asset.fingerprintedPath)));
-    if (asset.fingerprintedPath !== asset.logicalPath) {
-      dirs.push(dirname(join(outputDir, asset.logicalPath)));
-    }
-  }
-  await ensureDirs(dirs);
+  await ensureDirs(unique.map((asset) => dirname(join(outputDir, asset.fingerprintedPath))));
 
   const limit = pLimit(EMIT_CONCURRENCY);
   await Promise.all(unique.map((asset) => limit(() => emitAsset(asset, outputDir))));
@@ -98,10 +95,6 @@ export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise
 async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
   const dest = join(outputDir, asset.fingerprintedPath);
   await copyFile(asset.sourcePath, dest);
-  if (asset.fingerprintedPath !== asset.logicalPath) {
-    const logicalDest = join(outputDir, asset.logicalPath);
-    await copyFile(asset.sourcePath, logicalDest);
-  }
 }
 
 export interface CopyContentAssetsOptions {

@@ -3,7 +3,40 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
+import { copyAssets, copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
+import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
+
+function makeThemeAsset(
+  overrides: Partial<ThemeAsset> & Pick<ThemeAsset, 'sourcePath'>,
+): ThemeAsset {
+  return {
+    logicalPath: 'assets/built/screen.css',
+    fingerprintedPath: 'assets/built/screen.abc123.css',
+    hash: 'abc123',
+    size: 0,
+    ...overrides,
+  };
+}
+
+function makeThemeBundle(assets: Map<string, ThemeAsset>): ThemeBundle {
+  return {
+    name: 'stub',
+    rootDir: '',
+    templates: {},
+    partials: {},
+    pkg: {
+      name: 'stub',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    },
+    locales: {},
+    assets,
+  };
+}
 
 describe('writeHtml', () => {
   test('writes file when path resolves under outputDir', async () => {
@@ -72,6 +105,48 @@ describe('writeHtmlBatch', () => {
     for (let i = 0; i < n; i++) {
       expect(await readFile(join(dir, `post-${i}/index.html`), 'utf8')).toContain(`<h1>${i}</h1>`);
     }
+  });
+});
+
+describe('copyAssets', () => {
+  test('emits only the fingerprinted file when fingerprinted differs from logical (#1106)', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-out-'));
+    const srcCss = join(srcDir, 'screen.css');
+    await writeFile(srcCss, 'body{}');
+
+    const asset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+    });
+    const assets = new Map<string, ThemeAsset>([
+      ['assets/built/screen.css', asset],
+      ['built/screen.css', asset],
+    ]);
+
+    const count = await copyAssets(makeThemeBundle(assets), outputDir);
+    expect(count).toBe(1);
+    expect(existsSync(join(outputDir, 'assets/built/screen.abc123.css'))).toBe(true);
+    expect(existsSync(join(outputDir, 'assets/built/screen.css'))).toBe(false);
+  });
+
+  test('emits non-fingerprinted assets (e.g. fonts) exactly once', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-src2-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-out2-'));
+    const srcFont = join(srcDir, 'Inter.woff2');
+    await writeFile(srcFont, 'FONTBYTES');
+
+    const asset = makeThemeAsset({
+      sourcePath: srcFont,
+      logicalPath: 'assets/fonts/Inter.woff2',
+      fingerprintedPath: 'assets/fonts/Inter.woff2',
+    });
+    const assets = new Map<string, ThemeAsset>([['assets/fonts/Inter.woff2', asset]]);
+
+    const count = await copyAssets(makeThemeBundle(assets), outputDir);
+    expect(count).toBe(1);
+    expect(await readFile(join(outputDir, 'assets/fonts/Inter.woff2'), 'utf8')).toBe('FONTBYTES');
   });
 });
 
