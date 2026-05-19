@@ -51,12 +51,13 @@ export function createEngine(opts: {
   cwd?: string;
 }): NectarEngine {
   const hb = Handlebars.create();
-  registerPartials(hb, opts.theme);
+  const templateBodies: Record<string, string> = {};
   const templates: Record<string, Handlebars.TemplateDelegate> = {};
   const layouts: Record<string, Handlebars.TemplateDelegate> = {};
   const templateLayoutNames = new Map<string, string | undefined>();
   for (const [name, source] of Object.entries(opts.theme.templates)) {
     const split = splitLayout(source);
+    templateBodies[name] = split.body;
     templates[name] = hb.compile(split.body, { noEscape: false });
     templateLayoutNames.set(name, split.layout);
     if (split.layout) {
@@ -73,6 +74,7 @@ export function createEngine(opts: {
     // render).
     layouts[name] = hb.compile(source, { noEscape: false });
   }
+  registerPartials(hb, opts.theme, templateBodies);
 
   const engine: NectarEngine = {
     hb,
@@ -94,7 +96,11 @@ export function createEngine(opts: {
   return engine;
 }
 
-function registerPartials(hb: typeof Handlebars, theme: ThemeBundle): void {
+function registerPartials(
+  hb: typeof Handlebars,
+  theme: ThemeBundle,
+  templateBodies: Record<string, string>,
+): void {
   for (const [name, source] of Object.entries(theme.partials)) {
     hb.registerPartial(name, source);
     if (!name.includes('/')) {
@@ -102,9 +108,13 @@ function registerPartials(hb: typeof Handlebars, theme: ThemeBundle): void {
     }
   }
   // Templates are also reachable as partials under their bare name to allow
-  // {{> "post"}} from custom layouts.
-  for (const [name, source] of Object.entries(theme.templates)) {
-    hb.registerPartial(name, source);
+  // `{{> "post"}}` from custom layouts. Register the layout-stripped body, not
+  // the raw template source: themes that declare `{{!< default}}` at the top
+  // of `post.hbs` would otherwise re-invoke the default layout from the
+  // calling template's body, producing duplicated layout output or compile
+  // surprises (issue #1131).
+  for (const [name, body] of Object.entries(templateBodies)) {
+    hb.registerPartial(name, body);
   }
 }
 

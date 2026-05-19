@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { Page, Post, Tag } from '~/content/model.ts';
-import { type NectarEngine, buildContext, buildRootData } from '~/render/engine.ts';
+import type { NectarConfig } from '~/config/schema.ts';
+import type { ContentGraph, Page, Post, Tag } from '~/content/model.ts';
+import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import type { RouteContext } from '~/render/types.ts';
-import type { ThemePackage } from '~/theme/types.ts';
+import type { ThemeBundle, ThemePackage } from '~/theme/types.ts';
 
 const engine = {} as NectarEngine;
 
@@ -512,5 +513,138 @@ describe('buildRootData', () => {
       ].join(''),
     );
     expect(tpl({}, { data })).toBe('signin||name:|upsell');
+  });
+});
+
+// Regression coverage for issue #1131: some Ghost themes use `{{> post}}` from
+// a custom layout to render the post body. Templates were registered as
+// partials using the raw source, which still carried the `{{!< default}}`
+// layout directive. That directive must not survive into the partial — when a
+// custom layout already extends `default`, re-including the post template
+// would otherwise re-stamp the layout into the inner body, producing
+// duplicated output or surprising the helpers that walk `@root.body`.
+describe('createEngine — templates registered as partials (issue #1131)', () => {
+  function makeTheme(templates: Record<string, string>): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'fixture',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    };
+    return {
+      name: 'fixture',
+      rootDir: '/tmp/themes/fixture',
+      templates,
+      partials: {},
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'fixture', custom: {} },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        direction: 'ltr',
+        timezone: 'UTC',
+        cover_image: undefined,
+        logo: undefined,
+        logo_width: undefined,
+        logo_height: undefined,
+        icon: undefined,
+        accent_color: '#000',
+        navigation: [],
+        secondary_navigation: [],
+        lang: 'en',
+        twitter: undefined,
+        facebook: undefined,
+        members_enabled: false,
+        paid_members_enabled: false,
+        members_invite_only: false,
+        recommendations_enabled: false,
+      },
+    } as unknown as ContentGraph;
+  }
+
+  test('registers the layout-stripped body for templates that declare a layout', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><body>{{{body}}}</body>',
+      post: '{{!< default}}\n<article>{{post.title}}</article>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const partial = engine.hb.partials.post;
+    expect(typeof partial).toBe('string');
+    const partialSource = partial as string;
+    expect(partialSource).not.toContain('{{!< default}}');
+    expect(partialSource).toContain('<article>{{post.title}}</article>');
+  });
+
+  test('templates with no layout directive register as partials with the original source', () => {
+    const theme = makeTheme({
+      home: '<section>{{@site.title}}</section>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials.home).toBe('<section>{{@site.title}}</section>');
+  });
+
+  test('custom layout that includes {{> post}} renders only one layout wrapper, not two', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><html><body data-layout="default">{{{body}}}</body></html>',
+      post: '{{!< default}}\n<article class="post">{{post.title}}</article>',
+      'custom-post': '{{!< default}}\n<section class="custom">{{> post}}</section>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const post: Post = makePost({ title: 'Hello' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'custom-post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html.match(/data-layout="default"/g) ?? []).toHaveLength(1);
+    expect(html).toContain('<section class="custom">');
+    expect(html).toContain('<article class="post">Hello</article>');
   });
 });
