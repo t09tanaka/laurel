@@ -32,15 +32,15 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | --- | --- | --- | --- | --- |
 | `site.title` | `string` | yes | — | Display title of the site, used by themes and feeds. |
 | `site.description` | `string` | no | `""` | Short tagline rendered alongside the title in many themes and in feed metadata. |
-| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. |
-| `site.locale` | `string` | no | `"en"` | BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file. |
+| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. |
+| `site.locale` | `string` | no | `"en"` | BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping. |
 | `site.timezone` | `string` | no | `"UTC"` | IANA timezone used when formatting dates in templates via `{{date}}`. |
 | `site.cover_image` | `string` | no | — | Optional URL or content-relative path to a site-wide cover image. |
 | `site.logo` | `string` | no | — | Optional URL or content-relative path to the site logo. |
 | `site.logo_width` | `number` | no | — | Intrinsic width of the logo in pixels. Used by themes to avoid layout shift. |
 | `site.logo_height` | `number` | no | — | Intrinsic height of the logo in pixels. Used by themes to avoid layout shift. |
 | `site.icon` | `string` | no | — | Optional URL or content-relative path to the favicon / app icon. |
-| `site.accent_color` | `string` | no | `"#222222"` | Brand accent color as a CSS color string. Surfaced to themes as `@site.accent_color`. |
+| `site.accent_color` | `string` | no | `"#222222"` | Brand accent color as a CSS hex color string (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Surfaced to themes as `@site.accent_color` and dropped into theme CSS without escaping, so the schema rejects anything that is not a literal hex triplet to prevent CSS injection. |
 | `site.twitter` | `string` | no | — | Optional Twitter / X handle (e.g. `@nectar`). Used to populate `twitter:site` meta tags. |
 | `site.facebook` | `string` | no | — | Optional Facebook page slug. Used to populate `og:article:publisher` meta tags. |
 

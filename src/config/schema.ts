@@ -91,15 +91,20 @@ export const configSchema = z
           ),
         url: z
           .string()
+          .url('site.url must be an absolute URL (e.g. `https://example.com`)')
           .default('http://localhost:4321')
           .describe(
-            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs.',
+            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads.',
           ),
         locale: z
           .string()
+          .regex(
+            /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/,
+            'site.locale must be a BCP 47 language tag (e.g. `en`, `en-US`, `zh-Hant-TW`)',
+          )
           .default('en')
           .describe(
-            "BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file.",
+            'BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme\'s `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping.',
           ),
         timezone: z
           .string()
@@ -133,9 +138,13 @@ export const configSchema = z
           .describe('Optional URL or content-relative path to the favicon / app icon.'),
         accent_color: z
           .string()
+          .regex(
+            /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/,
+            'site.accent_color must be a CSS hex color (e.g. `#222`, `#222222`, `#22222288`)',
+          )
           .default('#222222')
           .describe(
-            'Brand accent color as a CSS color string. Surfaced to themes as `@site.accent_color`.',
+            'Brand accent color as a CSS hex color string (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Surfaced to themes as `@site.accent_color` and dropped into theme CSS without escaping, so the schema rejects anything that is not a literal hex triplet to prevent CSS injection.',
           ),
         twitter: z
           .string()

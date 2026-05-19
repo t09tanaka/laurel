@@ -191,6 +191,107 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('rejects site.url values that are not parseable URLs', async () => {
+    // Task #1145: site.url is interpolated into canonical links, sitemap
+    // entries, and RSS GUIDs. A bare string like `javascript:alert(1)` or
+    // `"><img src=x>` would otherwise reach the output verbatim, so the schema
+    // must hard-reject anything that does not parse as an absolute URL.
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, `[site]\ntitle = "Blog"\nurl = "not a url"\n`, 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/site\.url/);
+        expect(ne.message).toMatch(/url/i);
+      }
+    });
+  });
+
+  test('accepts a valid absolute https URL for site.url', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({ cwd });
+      expect(config.site.url).toBe('https://example.com');
+    });
+  });
+
+  test('rejects site.accent_color values that are not hex CSS colors', async () => {
+    // Task #1145: accent_color is dropped into theme CSS via @site.accent_color
+    // (and some themes use it for inline style attributes). A value like
+    // `red; background: url(//evil)` would inject arbitrary CSS, so the schema
+    // restricts it to a literal `#RGB` / `#RRGGBB` / `#RRGGBBAA` hex triplet.
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(
+        file,
+        `[site]\ntitle = "Blog"\naccent_color = "red; background: url(//evil)"\n`,
+        'utf8',
+      );
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/accent_color/);
+      }
+    });
+  });
+
+  test('accepts 3, 6, and 8 digit hex colors for site.accent_color', async () => {
+    for (const value of ['#abc', '#abcdef', '#abcdef80']) {
+      await withTempDir(async (cwd) => {
+        await writeFile(
+          join(cwd, 'nectar.toml'),
+          `[site]\ntitle = "Blog"\naccent_color = "${value}"\n`,
+          'utf8',
+        );
+        const config = await loadConfig({ cwd });
+        expect(config.site.accent_color).toBe(value);
+      });
+    }
+  });
+
+  test('rejects site.locale values that are not BCP 47 language tags', async () => {
+    // Task #1145: locale is rendered into `<html lang="…">` without escaping,
+    // so a value containing `"` or `>` would break out of the attribute. The
+    // schema restricts it to a BCP 47-shaped tag.
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, `[site]\ntitle = "Blog"\nlocale = "en_US"\n`, 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/site\.locale/);
+      }
+    });
+  });
+
+  test('accepts common BCP 47 locale shapes', async () => {
+    for (const locale of ['en', 'en-US', 'zh-Hant-TW', 'ar-EG', 'pt-BR']) {
+      await withTempDir(async (cwd) => {
+        await writeFile(
+          join(cwd, 'nectar.toml'),
+          `[site]\ntitle = "Blog"\nlocale = "${locale}"\n`,
+          'utf8',
+        );
+        const config = await loadConfig({ cwd });
+        expect(config.site.locale).toBe(locale);
+      });
+    }
+  });
+
   test('rejects build.csp_nonce with characters outside the base64 alphabet', async () => {
     // The renderer injects the nonce into HTML attributes without escaping (the
     // schema is the trust boundary). A value like `"><script>...` must be
