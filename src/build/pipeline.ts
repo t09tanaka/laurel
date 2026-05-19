@@ -28,7 +28,7 @@ import {
   planImageVariants,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
-import { emitNetlifyHeaders } from './netlify.ts';
+import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { commitStagingDir, prepareStagingDir, resolveOutputDir } from './output-dir.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
@@ -243,14 +243,20 @@ async function runBuild({
     headers: config.deploy.headers,
   });
   // Load `redirects.yaml` once and hand the canonical rules to every emitter
-  // that consumes them. Today only the Cloudflare Pages `_redirects` emitter
-  // is wired up; Netlify / Vercel / Apache / nginx / S3 emitters will read
-  // from the same parsed list when added.
+  // that consumes them. Cloudflare Pages and Netlify both consume `_redirects`
+  // at the publish root; the Netlify emitter translates `force: true` into the
+  // `!` status suffix Netlify needs. Vercel / Apache / nginx / S3 emitters
+  // will read from the same parsed list when added.
   const redirects = await loadRedirects(cwd);
   await emitCustomRedirects({
     outputDir,
     rules: redirects,
     enabled: config.deploy.cloudflare_pages.enabled,
+  });
+  await emitNetlifyRedirects({
+    outputDir,
+    rules: redirects,
+    enabled: config.deploy.netlify.enabled,
   });
 
   if (profiler) {

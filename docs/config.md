@@ -124,7 +124,7 @@ Netlify-specific deploy hints.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.netlify.enabled` | `boolean` | no | `false` | Emit Netlify `_headers` at the output root. Defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). Leave disabled when deploying somewhere other than Netlify. |
+| `deploy.netlify.enabled` | `boolean` | no | `false` | Emit Netlify `_headers` and (when a `redirects.yaml` exists at the project root) `_redirects` at the output root. `_headers` defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). The `_redirects` emitter loads rules from `redirects.yaml` (`[{from, to, status, force}]` with status one of 301/302/307/308, default 301), maps `force: true` to a Netlify `!` suffix on the status (e.g. `301!`) so the rule fires even when a static file exists at `from`, drops later rules whose `from` repeats an earlier one (Netlify uses first-match), and prepends them before any existing `_redirects` entries. Leave disabled when deploying somewhere other than Netlify. |
 
 ## `deploy.headers`
 
