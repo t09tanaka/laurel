@@ -57,7 +57,13 @@ export const configSchema = z.object({
         .object({ enabled: z.boolean().default(true), items: z.number().default(20) })
         .default({}),
       sitemap: z.object({ enabled: z.boolean().default(true) }).default({}),
-      opengraph: z.object({ enabled: z.boolean().default(true) }).default({}),
+      opengraph: z
+        .object({
+          enabled: z.boolean().default(true),
+          rasterize_svg: z.boolean().default(true),
+          rasterize_width: z.number().int().positive().default(1200),
+        })
+        .default({}),
       content_api: z.object({ enabled: z.boolean().default(true) }).default({}),
       robots: z
         .object({

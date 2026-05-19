@@ -84,6 +84,9 @@
     "turndown": "^7.2.0",
     "zod": "^3.23.8"
   },
+  "optionalDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/bun": "latest",
