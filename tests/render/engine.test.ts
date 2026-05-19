@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import Handlebars from 'handlebars';
 import type { Page, Post } from '~/content/model.ts';
 import { type NectarEngine, buildContext, buildRootData } from '~/render/engine.ts';
+import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemePackage } from '~/theme/types.ts';
 
@@ -208,5 +210,62 @@ describe('buildRootData', () => {
     const config = data.config as Record<string, unknown>;
     expect(config.build).toBeUndefined();
     expect(config.theme).toBeUndefined();
+  });
+
+  // Regression coverage for issue #111: the Source theme renders the home grid
+  // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
+  // `get` helper falls back to 15 when `limit` is undefined, which would mask
+  // a broken `@config.posts_per_page` plumb. Confirm the helper actually picks
+  // up the theme's value via the data frame buildRootData hands to render.
+  test('{{#get "posts" limit=@config.posts_per_page}} honors the theme value (issue #111)', () => {
+    const themePkg: ThemePackage = {
+      name: 'theme',
+      version: '0.0.0',
+      posts_per_page: 4,
+      image_sizes: {},
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+    };
+    const posts = Array.from({ length: 20 }, (_, i) => ({
+      id: `p${i}`,
+      title: `T${i}`,
+      published_at: `2026-05-${String(20 - i).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+    const hb = Handlebars.create();
+    const engine = {
+      hb,
+      config: {
+        theme: { custom: {} },
+        build: { posts_per_page: 99 },
+      } as unknown as NectarEngine['config'],
+      content: {
+        site: { locale: 'en' },
+        posts,
+        pages: [],
+        tags: [],
+        authors: [],
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+      templates: {},
+      layouts: {},
+      sortedCache: new Map<string, readonly unknown[]>(),
+      render: () => '',
+    } as NectarEngine;
+    registerBlockHelpers(engine);
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const tpl = hb.compile(
+      `{{#get "posts" limit=@config.posts_per_page as |items|}}{{#each items}}{{id}},{{/each}}{{/get}}`,
+    );
+    const out = tpl({}, { data });
+    expect(out).toBe('p0,p1,p2,p3,');
   });
 });
