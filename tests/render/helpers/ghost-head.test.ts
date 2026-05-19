@@ -49,6 +49,7 @@ function renderGhostHead(
     site?: Partial<SiteData>;
     config?: Partial<NectarEngine['config']>;
     routeData?: Record<string, unknown>;
+    routeKind?: string;
   } = {},
 ): string {
   const engine = makeEngine(opts.site, opts.config);
@@ -56,7 +57,11 @@ function renderGhostHead(
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
     data: {
-      route: { url: routeUrl, data: opts.routeData ?? { post: ctx } },
+      route: {
+        kind: opts.routeKind,
+        url: routeUrl,
+        data: opts.routeData ?? { post: ctx },
+      },
     },
   });
 }
@@ -637,6 +642,148 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
     const second = JSON.parse(blocks[1]) as { '@type': string };
     expect(first['@type']).toBe('Article');
     expect(second['@type']).toBe('BreadcrumbList');
+  });
+});
+
+describe('ghost_head JSON-LD route-aware shapes', () => {
+  test('home route emits WebSite with SearchAction potentialAction', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', {
+      routeKind: 'home',
+      routeData: {},
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      '@type': string;
+      potentialAction: {
+        '@type': string;
+        target: { '@type': string; urlTemplate: string };
+        'query-input': string;
+      };
+    };
+    expect(parsed['@type']).toBe('WebSite');
+    expect(parsed.potentialAction).toEqual({
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://example.com/?s={search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    });
+  });
+
+  test('tag archive emits CollectionPage with ItemList referencing each post', () => {
+    const html = renderGhostHead(
+      { meta_title: 'News - Nectar Test', meta_description: 'News posts' },
+      '/tag/news/',
+      {
+        routeKind: 'tag',
+        routeData: {
+          tag: { name: 'News', url: 'https://example.com/tag/news/' },
+          posts: [
+            { url: 'https://example.com/a/', title: 'A' },
+            { url: 'https://example.com/b/', title: 'B' },
+          ],
+        },
+      },
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      '@type': string;
+      name: string;
+      url: string;
+      isPartOf: { '@type': string; name: string; url: string };
+      mainEntity: {
+        '@type': string;
+        numberOfItems: number;
+        itemListElement: {
+          '@type': string;
+          position: number;
+          url: string;
+          name: string;
+        }[];
+      };
+    };
+    expect(parsed['@type']).toBe('CollectionPage');
+    expect(parsed.name).toBe('News - Nectar Test');
+    expect(parsed.url).toBe('https://example.com/tag/news/');
+    expect(parsed.isPartOf).toEqual({
+      '@type': 'WebSite',
+      name: 'Nectar Test',
+      url: 'https://example.com',
+    });
+    expect(parsed.mainEntity['@type']).toBe('ItemList');
+    expect(parsed.mainEntity.numberOfItems).toBe(2);
+    expect(parsed.mainEntity.itemListElement).toEqual([
+      { '@type': 'ListItem', position: 1, url: 'https://example.com/a/', name: 'A' },
+      { '@type': 'ListItem', position: 2, url: 'https://example.com/b/', name: 'B' },
+    ]);
+  });
+
+  test('author archive emits CollectionPage with ItemList referencing each post', () => {
+    const html = renderGhostHead(
+      { meta_title: 'Jane - Nectar Test', meta_description: 'Author archive' },
+      '/author/jane/',
+      {
+        routeKind: 'author',
+        routeData: {
+          author: { name: 'Jane', url: 'https://example.com/author/jane/' },
+          posts: [{ url: 'https://example.com/x/', title: 'X' }],
+        },
+      },
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      '@type': string;
+      mainEntity: { '@type': string; itemListElement: unknown[] };
+    };
+    expect(parsed['@type']).toBe('CollectionPage');
+    expect(parsed.mainEntity['@type']).toBe('ItemList');
+    expect(parsed.mainEntity.itemListElement).toHaveLength(1);
+  });
+
+  test('paginated home (index kind) emits CollectionPage', () => {
+    const html = renderGhostHead({}, '/page/2/', {
+      routeKind: 'index',
+      routeData: {
+        posts: [{ url: 'https://example.com/p1/', title: 'P1' }],
+        pagination: {
+          page: 2,
+          pages: 3,
+          prev: 1,
+          next: 3,
+          total: 30,
+          limit: 10,
+          prev_url: '/',
+          next_url: '/page/3/',
+        },
+      },
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { '@type': string };
+    expect(parsed['@type']).toBe('CollectionPage');
+  });
+
+  test('CollectionPage ItemList omits posts missing url or title', () => {
+    const html = renderGhostHead({}, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: {
+        tag: { name: 'News', url: 'https://example.com/tag/news/' },
+        posts: [
+          { url: 'https://example.com/a/', title: 'A' },
+          { url: 'https://example.com/b/' },
+          { title: 'no url' },
+        ],
+      },
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      mainEntity: { numberOfItems: number; itemListElement: unknown[] };
+    };
+    expect(parsed.mainEntity.numberOfItems).toBe(1);
+    expect(parsed.mainEntity.itemListElement).toHaveLength(1);
+  });
+
+  test('home kind still emits BreadcrumbList suppression (no breadcrumb)', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', {
+      routeKind: 'home',
+      routeData: {},
+    });
+    expect(findBreadcrumb(html)).toBeUndefined();
   });
 });
 
