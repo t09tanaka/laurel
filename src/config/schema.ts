@@ -200,6 +200,24 @@ export const configSchema = z
       .describe(
         'Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`.',
       ),
+    deploy: z
+      .object({
+        github_pages: z
+          .object({
+            custom_domain: z
+              .string()
+              .optional()
+              .describe(
+                'Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('GitHub Pages-specific deploy hints.'),
+      })
+      .strict()
+      .default({})
+      .describe('Deploy-target-specific hints that influence files emitted alongside the site.'),
     components: z
       .object({
         rss: z
