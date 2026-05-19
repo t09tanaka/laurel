@@ -105,9 +105,17 @@ function renderItem(post: ContentGraph['posts'][number], base: string): string {
     `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
     `<description>${escapeXml(post.feed_excerpt)}</description>`,
-    `<content:encoded><![CDATA[${html}]]></content:encoded>`,
+    `<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`,
     '</item>',
   ].join('');
+}
+
+// A literal `]]>` inside post.html (e.g. a code sample about XML CDATA) would
+// terminate the surrounding CDATA section prematurely and corrupt the feed.
+// Per the XML spec, split each occurrence so the first `]]` closes the current
+// section and a fresh `<![CDATA[>` opens a new one around the trailing `>`.
+function escapeCdata(value: string): string {
+  return value.replace(/]]>/g, ']]]]><![CDATA[>');
 }
 
 function escapeXml(value: string): string {
