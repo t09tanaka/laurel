@@ -155,7 +155,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--source-url <url>] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--source-url <url>] [--dry-run] <file>
 ```
 
 Arguments:
@@ -172,3 +172,4 @@ Options:
 | `--assets <dir>` | string | Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
 | `--download-images` | boolean | Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths |
 | `--source-url <url>` | string | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
+| `--dry-run` | boolean | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |

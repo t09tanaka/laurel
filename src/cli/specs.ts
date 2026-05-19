@@ -123,6 +123,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths',
       placeholder: '<url>',
     },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images',
+    },
   },
   positionals: [
     {

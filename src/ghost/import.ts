@@ -138,6 +138,21 @@ export interface ImportSummary {
   assetsCopied: number;
   imagesDownloaded: number;
   imagesFailed: number;
+  // True when the import was a `--dry-run`: no files were written and no
+  // images were downloaded. The other counters reflect what *would* have
+  // happened (#502).
+  dryRun: boolean;
+  // Posts/pages with status === 'draft'. These are imported with the same
+  // policy as published content; the count is split out so dry-run callers
+  // can see how many drafts would land before committing to the write.
+  drafts: number;
+  // Posts/pages whose status is neither 'published' nor 'draft' (e.g.
+  // 'scheduled', 'sent'). These are filtered out and not imported.
+  statusFiltered: number;
+  // Posts whose lexical/mobiledoc body rendered to empty content and so
+  // would be written as empty markdown. Surfaced separately so users with
+  // large exports can spot silent body loss before importing.
+  bodiesEmpty: number;
 }
 
 export interface ImportGhostOptions {
@@ -162,6 +177,11 @@ export interface ImportGhostOptions {
   // Test seam: override the fetch implementation used by the downloader.
   // Defaults to globalThis.fetch.
   fetcher?: typeof fetch;
+  // When true, walk the export and count what would happen without writing
+  // markdown, copying assets, or downloading images. Used by the CLI's
+  // `--dry-run` flag so users with large exports can preview before
+  // committing (#502).
+  dryRun?: boolean;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -206,7 +226,14 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
 
 export async function importGhostExport(opts: ImportGhostOptions): Promise<ImportSummary> {
   const onConflict: OnConflict = opts.onConflict ?? 'skip';
-  const counters = { skipped: 0, overwritten: 0, renamed: 0 };
+  const counters = {
+    skipped: 0,
+    overwritten: 0,
+    renamed: 0,
+    drafts: 0,
+    statusFiltered: 0,
+    bodiesEmpty: 0,
+  };
 
   let extractedZipRoot: string | undefined;
   let inputFile = opts.file;
@@ -229,16 +256,28 @@ async function importFromResolvedInput(
   inputFile: string,
   opts: ImportGhostOptions,
   onConflict: OnConflict,
-  counters: { skipped: number; overwritten: number; renamed: number },
+  counters: {
+    skipped: number;
+    overwritten: number;
+    renamed: number;
+    drafts: number;
+    statusFiltered: number;
+    bodiesEmpty: number;
+  },
 ): Promise<ImportSummary> {
+  const dryRun = opts.dryRun === true;
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   const raw = await readFile(resolved.jsonFile, 'utf8');
   const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
   const { posts, tags, users, postsTags, postsAuthors } = mergeGhostDbEntries(parsed.db);
 
-  const downloader = opts.downloadImages
-    ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
-    : undefined;
+  // Image download requires network and writes to content/images. In dry-run
+  // mode we skip the downloader entirely; the dry-run summary should preview
+  // local-only side effects rather than perform fetches.
+  const downloader =
+    opts.downloadImages && !dryRun
+      ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
+      : undefined;
   const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;
 
   const tagById = new Map(tags.map((t) => [t.id, t]));
@@ -271,7 +310,10 @@ async function importFromResolvedInput(
   let postCount = 0;
   let pageCount = 0;
   for (const post of posts) {
-    if (post.status && post.status !== 'published' && post.status !== 'draft') continue;
+    if (post.status && post.status !== 'published' && post.status !== 'draft') {
+      counters.statusFiltered += 1;
+      continue;
+    }
     const isPage = post.type === 'page';
     const slug = safeSlug(post.slug) || safeSlug(post.title);
     if (!slug) {
@@ -280,8 +322,10 @@ async function importFromResolvedInput(
       );
       continue;
     }
+    if (post.status === 'draft') counters.drafts += 1;
     const dir = isPage ? 'content/pages' : 'content/posts';
     const rawBody = renderPostBody(post);
+    if (rawBody === '') counters.bodiesEmpty += 1;
     const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
     const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
     const feature_image = downloader
@@ -322,12 +366,13 @@ async function importFromResolvedInput(
     const baseDir = join(opts.cwd, dir);
     const dest = join(baseDir, `${slug}.md`);
     assertWithin(baseDir, dest);
-    await ensureDir(baseDir);
+    if (!dryRun) await ensureDir(baseDir);
     const written = await writeWithConflictPolicy(
       dest,
       `${frontmatter}\n\n${body}\n`,
       onConflict,
       counters,
+      dryRun,
     );
     if (!written) continue;
     if (isPage) pageCount += 1;
@@ -347,7 +392,7 @@ async function importFromResolvedInput(
     const baseDir = join(opts.cwd, 'content/tags');
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
-    await ensureDir(baseDir);
+    if (!dryRun) await ensureDir(baseDir);
     const tagFeatureImage = downloader
       ? await downloader.rewriteField(tag.feature_image ?? undefined)
       : (tag.feature_image ?? undefined);
@@ -359,7 +404,13 @@ async function importFromResolvedInput(
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
     });
-    const written = await writeWithConflictPolicy(dest, `${frontmatter}\n`, onConflict, counters);
+    const written = await writeWithConflictPolicy(
+      dest,
+      `${frontmatter}\n`,
+      onConflict,
+      counters,
+      dryRun,
+    );
     if (written) tagCount += 1;
   }
 
@@ -375,7 +426,7 @@ async function importFromResolvedInput(
     const baseDir = join(opts.cwd, 'content/authors');
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
-    await ensureDir(baseDir);
+    if (!dryRun) await ensureDir(baseDir);
     const profileImage = downloader
       ? await downloader.rewriteField(user.profile_image ?? undefined)
       : (user.profile_image ?? undefined);
@@ -395,12 +446,18 @@ async function importFromResolvedInput(
       meta_title: user.meta_title ?? undefined,
       meta_description: user.meta_description ?? undefined,
     });
-    const written = await writeWithConflictPolicy(dest, `${frontmatter}\n`, onConflict, counters);
+    const written = await writeWithConflictPolicy(
+      dest,
+      `${frontmatter}\n`,
+      onConflict,
+      counters,
+      dryRun,
+    );
     if (written) authorCount += 1;
   }
 
   const assetsCopied = resolved.assetsDir
-    ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit)
+    ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit, dryRun)
     : 0;
 
   return {
@@ -414,6 +471,10 @@ async function importFromResolvedInput(
     assetsCopied,
     imagesDownloaded: downloader?.downloaded ?? 0,
     imagesFailed: downloader?.failed ?? 0,
+    dryRun,
+    drafts: counters.drafts,
+    statusFiltered: counters.statusFiltered,
+    bodiesEmpty: counters.bodiesEmpty,
   };
 }
 
@@ -567,6 +628,7 @@ async function copyGhostAssets(
   assetsRoot: string,
   cwd: string,
   isExplicit: boolean,
+  dryRun: boolean,
 ): Promise<number> {
   let total = 0;
   for (const name of GHOST_ASSET_SUBDIRS) {
@@ -587,8 +649,10 @@ async function copyGhostAssets(
       const from = join(src, rel);
       const to = join(dst, rel);
       if (await pathExists(to)) continue;
-      await ensureDir(dirname(to));
-      await copyFile(from, to);
+      if (!dryRun) {
+        await ensureDir(dirname(to));
+        await copyFile(from, to);
+      }
       total += 1;
     }
   }
@@ -600,9 +664,10 @@ async function writeWithConflictPolicy(
   contents: string,
   onConflict: OnConflict,
   counters: { skipped: number; overwritten: number; renamed: number },
+  dryRun: boolean,
 ): Promise<boolean> {
   if (!(await pathExists(dest))) {
-    await writeFile(dest, contents, 'utf8');
+    if (!dryRun) await writeFile(dest, contents, 'utf8');
     return true;
   }
   switch (onConflict) {
@@ -612,13 +677,13 @@ async function writeWithConflictPolicy(
       return false;
     case 'overwrite':
       process.stderr.write(`Overwrote: ${dest}\n`);
-      await writeFile(dest, contents, 'utf8');
+      if (!dryRun) await writeFile(dest, contents, 'utf8');
       counters.overwritten += 1;
       return true;
     case 'rename': {
       const renamed = await nextAvailablePath(dest);
       process.stderr.write(`Renamed (conflict with ${dest}): ${renamed}\n`);
-      await writeFile(renamed, contents, 'utf8');
+      if (!dryRun) await writeFile(renamed, contents, 'utf8');
       counters.renamed += 1;
       return true;
     }

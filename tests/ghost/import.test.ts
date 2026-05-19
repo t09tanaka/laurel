@@ -2039,3 +2039,228 @@ describe('importGhostExport — posts_tags/posts_authors bucketing (#139)', () =
     expect(p2).toContain('authors: ["ann"]');
   });
 });
+
+describe('importGhostExport — --dry-run (#502)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('counts what would land without writing markdown files', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Published',
+                  slug: 'published',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+                {
+                  id: 'p2',
+                  title: 'A Draft',
+                  slug: 'a-draft',
+                  html: '<p>draft body</p>',
+                  status: 'draft',
+                  type: 'post',
+                },
+                {
+                  id: 'p3',
+                  title: 'Scheduled',
+                  slug: 'scheduled',
+                  html: '<p>x</p>',
+                  status: 'scheduled',
+                  type: 'post',
+                },
+                {
+                  id: 'p4',
+                  title: 'Empty Body',
+                  slug: 'empty-body',
+                  html: null,
+                  lexical: 'not json',
+                  status: 'published',
+                  type: 'post',
+                },
+                {
+                  id: 'p5',
+                  title: 'About',
+                  slug: 'about',
+                  html: '<p>about</p>',
+                  status: 'published',
+                  type: 'page',
+                },
+              ],
+              tags: [
+                {
+                  id: 't1',
+                  slug: 'news',
+                  name: 'News',
+                  description: 'newsy',
+                },
+              ],
+              users: [{ id: 'u1', slug: 'jane', name: 'Jane' }],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, dryRun: true });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.posts).toBe(3);
+    expect(summary.pages).toBe(1);
+    expect(summary.drafts).toBe(1);
+    expect(summary.statusFiltered).toBe(1);
+    expect(summary.bodiesEmpty).toBe(1);
+    expect(summary.tags).toBe(1);
+    expect(summary.authors).toBe(1);
+
+    await expect(access(join(cwd, 'content/posts/published.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/posts/a-draft.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/pages/about.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/tags/news.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/authors/jane.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/posts'))).rejects.toThrow();
+  });
+
+  test('counts assets that would be copied without copying them', async () => {
+    const exportFolder = join(cwd, 'ghost-export');
+    await Bun.write(
+      join(exportFolder, 'my-blog.ghost.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    await Bun.write(join(exportFolder, 'content/images/2024/cover.jpg'), 'COVER');
+    await Bun.write(join(exportFolder, 'content/files/handout.pdf'), 'PDF');
+
+    const summary = await importGhostExport({ cwd, file: exportFolder, dryRun: true });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.posts).toBe(1);
+    expect(summary.assetsCopied).toBe(2);
+    await expect(access(join(cwd, 'content/posts/hello.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/images/2024/cover.jpg'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/files/handout.pdf'))).rejects.toThrow();
+  });
+
+  test('skips network entirely when --download-images is combined with --dry-run', async () => {
+    let fetchCalls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      fetchCalls += 1;
+      return new Response('IMG', {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    };
+
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'WithImage',
+                  slug: 'with-image',
+                  html: '<p><img src="https://example.com/a.jpg"></p>',
+                  feature_image: 'https://example.com/cover.jpg',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      dryRun: true,
+      downloadImages: true,
+      fetcher: fakeFetch,
+    });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    expect(fetchCalls).toBe(0);
+    await expect(access(join(cwd, 'content/posts/with-image.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'content/images'))).rejects.toThrow();
+  });
+
+  test('reports would-skip conflict counts but never writes', async () => {
+    const dest = join(cwd, 'content/posts/hello.md');
+    await ensureDir(join(cwd, 'content/posts'));
+    await writeFile(dest, 'EXISTING');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      dryRun: true,
+      onConflict: 'skip',
+    });
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.posts).toBe(0);
+    expect(summary.skipped).toBe(1);
+    expect(await readFile(dest, 'utf8')).toBe('EXISTING');
+  });
+});

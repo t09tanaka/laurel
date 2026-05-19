@@ -49,6 +49,8 @@ export async function runImportGhost(args: string[]): Promise<number> {
   const rawSourceUrl = parsed.values['source-url'];
   const sourceUrl = typeof rawSourceUrl === 'string' ? rawSourceUrl : undefined;
 
+  const dryRun = parsed.values['dry-run'] === true;
+
   const cwd = process.cwd();
   try {
     const summary = await importGhostExport({
@@ -58,7 +60,12 @@ export async function runImportGhost(args: string[]): Promise<number> {
       assetsDir,
       downloadImages,
       sourceUrl,
+      dryRun,
     });
+    if (dryRun) {
+      process.stdout.write(formatDryRunSummary(summary, { downloadImages }));
+      return 0;
+    }
     logger.info(
       `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,
     );
@@ -80,4 +87,69 @@ export async function runImportGhost(args: string[]): Promise<number> {
     reportError(err, cwd);
     return 1;
   }
+}
+
+interface DryRunSummaryRow {
+  label: string;
+  value: number;
+  note?: string;
+}
+
+function formatDryRunSummary(
+  summary: Awaited<ReturnType<typeof importGhostExport>>,
+  ctx: { downloadImages: boolean },
+): string {
+  const rows: DryRunSummaryRow[] = [
+    { label: 'Posts to import', value: summary.posts },
+    { label: 'Pages to import', value: summary.pages },
+    {
+      label: 'Drafts (included above)',
+      value: summary.drafts,
+      note: 'imported alongside published; pass --on-conflict to control writes',
+    },
+    {
+      label: 'Status-filtered',
+      value: summary.statusFiltered,
+      note: 'status not in {published, draft}; not imported',
+    },
+    {
+      label: 'Empty bodies',
+      value: summary.bodiesEmpty,
+      note: 'lexical/mobiledoc rendered to empty markdown',
+    },
+    { label: 'Tags', value: summary.tags },
+    { label: 'Authors', value: summary.authors },
+    {
+      label: 'Assets to copy',
+      value: summary.assetsCopied,
+      note: 'images/files/media into content/',
+    },
+    {
+      label: 'Conflicts (would skip)',
+      value: summary.skipped,
+      note: 'existing files; default policy is skip',
+    },
+    {
+      label: 'Conflicts (would overwrite)',
+      value: summary.overwritten,
+    },
+    {
+      label: 'Conflicts (would rename)',
+      value: summary.renamed,
+    },
+  ];
+  const labelWidth = Math.max(...rows.map((r) => r.label.length));
+  const valueWidth = Math.max(...rows.map((r) => String(r.value).length));
+  const lines = ['Dry run: no files written. Summary of what would land:', ''];
+  for (const r of rows) {
+    const padLabel = r.label.padEnd(labelWidth);
+    const padValue = String(r.value).padStart(valueWidth);
+    lines.push(`  ${padLabel}  ${padValue}${r.note ? `   (${r.note})` : ''}`);
+  }
+  if (ctx.downloadImages) {
+    lines.push('');
+    lines.push('  Note: --download-images is set, but no images were fetched in dry-run mode.');
+  }
+  lines.push('');
+  return `${lines.join('\n')}\n`;
 }
