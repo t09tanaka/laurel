@@ -8,9 +8,23 @@
   "bin": {
     "nectar": "src/cli/index.ts"
   },
+  "types": "./dist/types/types.d.ts",
+  "exports": {
+    "./types": {
+      "types": "./dist/types/types.d.ts",
+      "default": "./src/types.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist/types",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "bun run src/cli/index.ts build",
     "build:example": "cd example && bun ../src/cli/index.ts build",
+    "build:types": "tsc -p tsconfig.types.json",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
