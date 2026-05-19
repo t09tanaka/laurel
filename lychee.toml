@@ -31,9 +31,13 @@ exclude_mail = true
 
 # Allowlist for hosts/URLs that are known to misbehave or are placeholders.
 # example.com / example.org are RFC 2606 reserved names used in docs.
+# The discussions/categories/* paths point at GitHub Discussions categories
+# that exist as soon as Discussions is enabled on the repo; until the toggle
+# is flipped they 404, so they're allowlisted to avoid flapping CI.
 exclude = [
   "^https?://(?:[a-z0-9-]+\\.)*example\\.com(?:/|$)",
   "^https?://(?:[a-z0-9-]+\\.)*example\\.org(?:/|$)",
   "^https?://localhost(?::\\d+)?(?:/|$)",
   "^https?://127\\.0\\.0\\.1(?::\\d+)?(?:/|$)",
+  "^https?://github\\.com/t09tanaka/nectar/discussions(?:/|$)",
 ]

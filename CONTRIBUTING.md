@@ -16,9 +16,17 @@ issues or PRs that violate this in spirit even if no formal CoC document exists.
 
 - **Bug reports** — open a GitHub issue with a minimal reproduction (a small
   theme/content pair that triggers the bug is gold).
-- **Feature ideas** — open an issue first so we can discuss scope before you
-  write code. Nectar deliberately keeps the Ghost compatibility surface focused;
-  see [`CLAUDE.md`](./CLAUDE.md) for what's in and out of scope.
+- **Questions / "how do I…?"** — use
+  [GitHub Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a)
+  rather than the issue tracker. See [`.github/SUPPORT.md`](./.github/SUPPORT.md)
+  for which venue fits which question.
+- **Feature ideas** — bounce them in
+  [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+  first so we can talk through scope before any code is written. Nectar
+  deliberately keeps the Ghost compatibility surface focused; see
+  [`CLAUDE.md`](./CLAUDE.md) for what's in and out of scope.
+- **Show off a site / theme you built** — post in
+  [Discussions → Show and tell](https://github.com/t09tanaka/nectar/discussions/categories/show-and-tell).
 - **Pull requests** — see [Pull Request workflow](#pull-request-workflow) below.
 - **Docs improvements** — `README.md`, `docs/`, and tutorial fixes are always
   welcome and tend to merge quickly.
@@ -312,6 +320,9 @@ project's [MIT License](./LICENSE).
 
 ## Questions
 
-If you're unsure whether a change is in scope or how to structure it, open a
-GitHub issue and ask before writing the code. Saving a wasted afternoon is
-worth a five-minute discussion.
+If you're unsure whether a change is in scope or how to structure it, ask in
+[Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a)
+or [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+before writing the code. Saving a wasted afternoon is worth a five-minute
+discussion. See [`.github/SUPPORT.md`](./.github/SUPPORT.md) if you're unsure
+which venue to use.
