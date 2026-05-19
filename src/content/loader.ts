@@ -179,6 +179,27 @@ function slugFromPath(filePath: string, rootDir: string): string {
   return slugify(candidate.split('/').pop() ?? basename(filePath), { lower: true, strict: true });
 }
 
+function sanitizeUserSlug(input: string | undefined, context: string): string | undefined {
+  if (input === undefined) return undefined;
+  const sanitized = slugify(input, { lower: true, strict: true });
+  if (sanitized.length === 0) {
+    throw new Error(
+      `Invalid slug ${JSON.stringify(input)} in ${context}: produces empty value after sanitization`,
+    );
+  }
+  return sanitized;
+}
+
+function sanitizeUserSlugList(values: string[], context: string): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    const sanitized = slugify(v, { lower: true, strict: true });
+    if (sanitized.length === 0) continue;
+    out.push(sanitized);
+  }
+  return out;
+}
+
 async function normalizePost(
   filePath: string,
   raw: string,
@@ -188,7 +209,9 @@ async function normalizePost(
 ): Promise<RawPost> {
   const { data, body } = parseFrontmatter(raw);
   const rendered = await renderMarkdown(body);
-  const slug = asString(data.slug) ?? slugFromPath(filePath, rootDir);
+  const slug =
+    sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
+    slugFromPath(filePath, rootDir);
   const title = asString(data.title) ?? slug;
   const dateContext = `${filePath}`;
   const published = asDateISO(
@@ -238,10 +261,16 @@ async function normalizePost(
     created_at: created,
     visibility,
     status,
-    tagSlugs: asStringArray(data.tags),
-    authorSlugs: asStringArray(data.authors ?? data.author),
-    primaryTag: asString(data.primary_tag),
-    primaryAuthor: asString(data.primary_author),
+    tagSlugs: sanitizeUserSlugList(asStringArray(data.tags), `${filePath} frontmatter tags`),
+    authorSlugs: sanitizeUserSlugList(
+      asStringArray(data.authors ?? data.author),
+      `${filePath} frontmatter authors`,
+    ),
+    primaryTag: sanitizeUserSlug(asString(data.primary_tag), `${filePath} frontmatter primary_tag`),
+    primaryAuthor: sanitizeUserSlug(
+      asString(data.primary_author),
+      `${filePath} frontmatter primary_author`,
+    ),
     canonical_url: asString(data.canonical_url),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
@@ -278,7 +307,7 @@ async function normalizeAuthor(
 ): Promise<Author> {
   const { data, body } = parseFrontmatter(raw);
   const slug =
-    asString(data.slug) ??
+    sanitizeUserSlug(asString(data.slug), `${filePath} author slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
   const name = asString(data.name) ?? slug;
   const bio = asString(data.bio) ?? body.trim();
@@ -309,7 +338,7 @@ async function normalizeAuthor(
 async function normalizeTag(filePath: string, raw: string, config: NectarConfig): Promise<Tag> {
   const { data } = parseFrontmatter(raw);
   const slug =
-    asString(data.slug) ??
+    sanitizeUserSlug(asString(data.slug), `${filePath} tag slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
   const name = asString(data.name) ?? slug;
   return {
