@@ -231,10 +231,12 @@ async function runBuild({
   await emitCloudflarePagesHeaders({
     outputDir,
     enabled: config.deploy.cloudflare_pages.enabled,
+    headers: config.deploy.headers,
   });
   await emitNetlifyHeaders({
     outputDir,
     enabled: config.deploy.netlify.enabled,
+    headers: config.deploy.headers,
   });
   await emitCustomRedirects({
     outputDir,

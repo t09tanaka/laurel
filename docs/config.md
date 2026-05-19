@@ -126,6 +126,36 @@ Netlify-specific deploy hints.
 | --- | --- | --- | --- | --- |
 | `deploy.netlify.enabled` | `boolean` | no | `false` | Emit Netlify `_headers` at the output root. Defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). Leave disabled when deploying somewhere other than Netlify. |
 
+## `deploy.headers`
+
+Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`) into their native `_headers` format.
+
+
+## `deploy.headers.security`
+
+Security-related response headers attached to the catch-all (`/*`) route. Each platform emitter translates these into its native `_headers` syntax. Set any field to `null` (or omit) to skip the header entirely.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.headers.security.content_type_options` | `string` | no | `"nosniff"` | Value of the `X-Content-Type-Options` header applied to the catch-all route. `null` omits the header. |
+| `deploy.headers.security.frame_options` | `string` | no | `null` | Value of the legacy `X-Frame-Options` header (e.g. `DENY`, `SAMEORIGIN`). Off by default because modern sites prefer `frame-ancestors` in CSP; set when older browsers still matter. |
+| `deploy.headers.security.referrer_policy` | `string` | no | `"strict-origin-when-cross-origin"` | Value of the `Referrer-Policy` header applied to the catch-all route. `null` omits the header. |
+| `deploy.headers.security.strict_transport_security` | `string` | no | `null` | Value of the `Strict-Transport-Security` header. Off by default; set to e.g. `max-age=63072000; includeSubDomains` once you are confident the site only serves over HTTPS. |
+| `deploy.headers.security.content_security_policy` | `string` | no | `null` | Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. |
+| `deploy.headers.security.permissions_policy` | `string` | no | `null` | Value of the `Permissions-Policy` header (e.g. `camera=(), microphone=(), geolocation=()`). Off by default; opt in to deny features the site does not need. |
+| `deploy.headers.security.cross_origin_opener_policy` | `string` | no | `null` | Value of the `Cross-Origin-Opener-Policy` header. Off by default; set to `same-origin` to isolate the browsing context group for stronger XS-Leak protection. |
+| `deploy.headers.security.cross_origin_embedder_policy` | `string` | no | `null` | Value of the `Cross-Origin-Embedder-Policy` header. Off by default; pair with `cross_origin_opener_policy` to enable cross-origin isolation. Can break themes that load third-party assets without CORP, so opt in deliberately. |
+| `deploy.headers.security.custom` | `record<string, string>` | no | `{}` | Free-form map of additional header name → value pairs applied to the catch-all route. Useful for headers without a first-class field (e.g. `X-Robots-Tag`, vendor-specific cache hints). |
+
+## `deploy.headers.cache_rules[]`
+
+Ordered list of `Cache-Control` rules emitted into the deploy platform `_headers` file. Defaults pin fingerprinted assets to a year of immutable caching and force HTML to revalidate every request. The catch-all `/*` rule is always emitted last regardless of position so security headers attach to it without shadowing more specific patterns.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.headers.cache_rules[].pattern` | `string` | yes | — | URL pattern matched by the deploy platform. Cloudflare Pages and Netlify both honor glob-style patterns like `/assets/*` and the catch-all `/*`. Patterns are emitted in array order and most platforms use first-match, so put specific rules before catch-alls. |
+| `deploy.headers.cache_rules[].cache_control` | `string` | yes | — | Value of the `Cache-Control` header applied to requests matching `pattern`. |
+
 ## `components`
 
 Optional components that emit extra files or inject markup.
