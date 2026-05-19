@@ -1,8 +1,20 @@
-type Level = 'debug' | 'info' | 'warn' | 'error';
+export type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
-const order: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
-const envLevel = (process.env.NECTAR_LOG_LEVEL ?? 'info') as Level;
-const threshold = order[envLevel] ?? order.info;
+const order: Record<Level, number> = {
+  trace: 5,
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+
+function parseLevel(raw: string | undefined): Level | undefined {
+  if (raw === undefined) return undefined;
+  return raw in order ? (raw as Level) : undefined;
+}
+
+const envLevel = parseLevel(process.env.NECTAR_LOG_LEVEL);
+let threshold = envLevel ? order[envLevel] : order.info;
 
 let warningCount = 0;
 
@@ -24,11 +36,23 @@ function formatPart(part: unknown): string {
 }
 
 export const logger = {
+  trace: (...parts: unknown[]) => emit('trace', parts),
   debug: (...parts: unknown[]) => emit('debug', parts),
   info: (...parts: unknown[]) => emit('info', parts),
   warn: (...parts: unknown[]) => emit('warn', parts),
   error: (...parts: unknown[]) => emit('error', parts),
 };
+
+export function setLogLevel(level: Level): void {
+  threshold = order[level];
+}
+
+export function getLogLevel(): Level {
+  for (const [name, value] of Object.entries(order)) {
+    if (value === threshold) return name as Level;
+  }
+  return 'info';
+}
 
 export function getWarningCount(): number {
   return warningCount;

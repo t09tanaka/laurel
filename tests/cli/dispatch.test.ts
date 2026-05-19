@@ -91,4 +91,35 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('<file>');
     expect(stdout).toContain('Ghost export JSON');
   });
+
+  test('top-level help mentions global --quiet and --verbose options', async () => {
+    const { stdout, exitCode } = await runCli(['--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--quiet');
+    expect(stdout).toContain('-V, --verbose');
+  });
+
+  test('--quiet is stripped before subcommand parsing', async () => {
+    const { stdout, exitCode } = await runCli(['--quiet', 'build', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Build the site');
+  });
+
+  test('-VV is stripped before subcommand parsing', async () => {
+    const { stdout, exitCode } = await runCli(['-VV', 'build', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Build the site');
+  });
+
+  test('global flag after the command name is also stripped', async () => {
+    const { stdout, exitCode } = await runCli(['build', '--help', '-V']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Build the site');
+  });
+
+  test('combining --quiet and --verbose is rejected with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(['--quiet', '--verbose', 'build']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--quiet and --verbose cannot be used together');
+  });
 });

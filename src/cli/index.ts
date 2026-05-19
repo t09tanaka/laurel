@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { setLogLevel } from '~/util/logger.ts';
+import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
@@ -10,7 +12,7 @@ function printTopUsage(stream: NodeJS.WriteStream = process.stdout): void {
   lines.push(`nectar ${VERSION}`);
   lines.push('');
   lines.push('Usage:');
-  lines.push('  nectar <command> [options]');
+  lines.push('  nectar [global options] <command> [options]');
   lines.push('');
   lines.push('Commands:');
   const width = Math.max(...COMMAND_NAMES.map((n) => n.length)) + 2;
@@ -21,6 +23,10 @@ function printTopUsage(stream: NodeJS.WriteStream = process.stdout): void {
   }
   lines.push(`  ${'version'.padEnd(width)}Print the version`);
   lines.push(`  ${'help'.padEnd(width)}Show this help (or pass --help to any command)`);
+  lines.push('');
+  lines.push('Global options:');
+  lines.push(`  ${'--quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
+  lines.push(`  ${'-V, --verbose'.padEnd(width)}Increase verbosity to debug (stack -VV for trace)`);
   lines.push('');
   lines.push('Run `nectar <command> --help` for more details on a specific command.');
   lines.push('');
@@ -62,8 +68,34 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
   }
 }
 
+function applyGlobalFlags(flags: GlobalFlags): void {
+  if (flags.quiet && flags.verboseCount > 0) {
+    throw new Error('--quiet and --verbose cannot be used together');
+  }
+  if (flags.quiet) {
+    setLogLevel('warn');
+  } else if (flags.verboseCount === 1) {
+    setLogLevel('debug');
+  } else if (flags.verboseCount >= 2) {
+    setLogLevel('trace');
+  }
+}
+
 async function main(argv: string[]): Promise<number> {
-  const [, , command, ...rest] = argv;
+  const raw = argv.slice(2);
+
+  let filtered: string[];
+  try {
+    const result = extractGlobalFlags(raw);
+    applyGlobalFlags(result.flags);
+    filtered = result.rest;
+  } catch (err) {
+    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n\n`);
+    printTopUsage(process.stderr);
+    return 2;
+  }
+
+  const [command, ...rest] = filtered;
 
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     printTopUsage();
