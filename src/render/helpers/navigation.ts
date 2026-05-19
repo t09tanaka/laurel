@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import { logger } from '~/util/logger.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerNavigationHelpers(engine: NectarEngine): void {
@@ -54,7 +55,8 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'link',
     function linkHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const href = String(options.hash.href ?? '#');
+      const rawHref = String(options.hash.href ?? '#');
+      const href = sanitizeLinkHref(rawHref);
       const cls = String(options.hash.class ?? '');
       const target = options.hash.target
         ? ` target="${escapeAttr(String(options.hash.target))}"`
@@ -107,4 +109,31 @@ function escapeAttr(value: string): string {
 
 function normaliseUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
+}
+
+// Theme-supplied href values flow straight into <a href="…"> after HTML-escape,
+// which blocks attribute-injection but NOT scheme-based XSS like
+// `javascript:alert(1)` or `data:text/html,<script>…</script>`. A theme is
+// effectively trusted source code, but Ghost themes are frequently downloaded
+// from third parties or composed of partials whose origin the operator did not
+// audit, so we treat the href as untrusted at the render boundary. Allow only
+// http(s), mailto, tel, and relative URLs; anything else collapses to `#` so
+// the rendered <a> is harmless. Control characters are stripped first because
+// browsers ignore them when resolving URLs, so `\tjavascript:alert(1)` would
+// otherwise sneak past a naive prefix check.
+const URL_SCHEME_RE = /^([a-z][a-z0-9+.\-]*):/i;
+const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+
+function sanitizeLinkHref(value: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional sentinel for attacker-controlled bytes
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (normalized.length === 0) return '#';
+  const match = normalized.match(URL_SCHEME_RE);
+  if (!match) return value;
+  const scheme = match[1].toLowerCase();
+  if (SAFE_LINK_SCHEMES.has(scheme)) return value;
+  logger.warn(
+    `Refusing unsafe href in {{link}} helper: ${JSON.stringify(value)} (scheme: ${scheme}:)`,
+  );
+  return '#';
 }
