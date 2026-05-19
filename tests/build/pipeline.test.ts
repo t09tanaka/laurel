@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
@@ -80,5 +80,25 @@ describe('build pipeline strict mode wiring', () => {
     expect(body).toContain('User-agent: *');
     expect(body).toContain('Allow: /');
     expect(body).toContain('Sitemap: https://strict.test/sitemap.xml');
+  });
+});
+
+describe('build pipeline outputDir override', () => {
+  test('writes into outputDir override instead of config.build.output_dir', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, outputDir: 'dist-preview' });
+    expect(summary.outputDir).toBe(resolve(cwd, 'dist-preview'));
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+    expect(existsSync(join(cwd, 'dist'))).toBe(false);
+  });
+
+  test('rejects an absolute outputDir override', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    expect(build({ cwd, outputDir: '/tmp/escape' })).rejects.toThrow(/absolute path/);
+  });
+
+  test('rejects an outputDir override that escapes cwd', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    expect(build({ cwd, outputDir: '../escape' })).rejects.toThrow(/inside the project/);
   });
 });
