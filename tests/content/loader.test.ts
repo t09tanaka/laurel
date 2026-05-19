@@ -319,6 +319,55 @@ unsafe_html: true
     expect(html).toContain('<em>raw</em>');
   });
 
+  test('drops codeinjection_head/codeinjection_foot from frontmatter by default', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-codeinj-default-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/evil.md'),
+      `---
+title: Evil
+date: 2026-01-01T00:00:00Z
+codeinjection_head: "<script src=//evil.tld/x.js></script>"
+codeinjection_foot: "<script>steal()</script>"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+    expect(post?.codeinjection_head).toBeUndefined();
+    expect(post?.codeinjection_foot).toBeUndefined();
+  });
+
+  test('passes codeinjection through when build.allow_code_injection: true', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-codeinj-optin-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/trusted.md'),
+      `---
+title: Trusted
+date: 2026-01-01T00:00:00Z
+codeinjection_head: "<meta name=x>"
+codeinjection_foot: "<script>ok()</script>"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { allow_code_injection: true },
+    });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+    expect(post?.codeinjection_head).toBe('<meta name=x>');
+    expect(post?.codeinjection_foot).toBe('<script>ok()</script>');
+  });
+
   test('surfaces malformed YAML frontmatter as a NectarError with the offending file path', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-yaml-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });

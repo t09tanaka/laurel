@@ -412,9 +412,31 @@ async function normalizePost(
     twitter_title: asString(data.twitter_title),
     twitter_description: asString(data.twitter_description),
     twitter_image: asString(data.twitter_image),
-    codeinjection_head: asString(data.codeinjection_head),
-    codeinjection_foot: asString(data.codeinjection_foot),
+    ...resolveCodeInjection(data, filePath, config),
   };
+}
+
+// `codeinjection_head` / `codeinjection_foot` get spliced verbatim into every
+// rendered page via `{{ghost_head}}` / `{{ghost_foot}}`. Treat them as raw HTML
+// injection and gate behind `build.allow_code_injection` (default false) so a
+// contributor PR cannot ship site-wide `<script>` by adding a single frontmatter
+// field. When disallowed, drop the value and warn so the misconfiguration is
+// visible at build time instead of silently shipping unsanitized markup.
+function resolveCodeInjection(
+  data: Record<string, unknown>,
+  filePath: string,
+  config: NectarConfig | undefined,
+): { codeinjection_head: string | undefined; codeinjection_foot: string | undefined } {
+  const head = asString(data.codeinjection_head);
+  const foot = asString(data.codeinjection_foot);
+  const allow = config?.build?.allow_code_injection ?? false;
+  if (!allow && (head !== undefined || foot !== undefined)) {
+    logger.warn(
+      `Ignoring codeinjection_head/codeinjection_foot in ${filePath}: set build.allow_code_injection = true in nectar.toml to enable raw HTML/JS injection from frontmatter.`,
+    );
+    return { codeinjection_head: undefined, codeinjection_foot: undefined };
+  }
+  return { codeinjection_head: head, codeinjection_foot: foot };
 }
 
 async function normalizePage(

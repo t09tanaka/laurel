@@ -87,6 +87,25 @@ Out of scope:
   treated as bugs rather than security issues unless they enable code
   execution or data exfiltration.
 
+## Trust model for frontmatter fields
+
+A handful of frontmatter fields let an author splice raw HTML / JS into the
+rendered site. These bypass Markdown sanitization by design, so anyone with
+write access to `content/` (including PR contributors before merge) can ship
+site-wide script if they are enabled. They are gated behind explicit opt-in
+config so the default build is safe even when accepting outside PRs:
+
+- `codeinjection_head` / `codeinjection_foot` on posts and pages — ignored
+  unless `build.allow_code_injection = true` is set in `nectar.toml`. The
+  loader logs a warning when it drops these fields so the misconfiguration is
+  visible at build time.
+- `unsafe_html: true` on a single post / page — disables the HTML sanitizer
+  for that file's Markdown body. Apply only to files you trust.
+
+If you enable either flag, treat PRs that touch `codeinjection_*` /
+`unsafe_html` (or files with those fields set) as code review for raw HTML/JS
+shipped to every visitor.
+
 ## Safe Harbor
 
 We will not pursue or support legal action against researchers who:
