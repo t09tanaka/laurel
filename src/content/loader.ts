@@ -214,7 +214,8 @@ async function normalizePost(
   config?: NectarConfig,
 ): Promise<RawPost> {
   const { data, body } = parseFrontmatter(raw);
-  const rendered = await renderMarkdown(body);
+  const unsafeHtml = asBool(data.unsafe_html, false);
+  const rendered = await renderMarkdown(body, { unsafe: unsafeHtml });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
@@ -241,7 +242,7 @@ async function normalizePost(
     config.content.visibility_policy === 'truncate'
   ) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
-    const reRendered = await renderMarkdown(truncated);
+    const reRendered = await renderMarkdown(truncated, { unsafe: unsafeHtml });
     html = `${reRendered.html}${buildPaywallStub(visibility)}`;
     plaintext = reRendered.plaintext;
     word_count = reRendered.word_count;
