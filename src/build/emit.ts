@@ -43,6 +43,10 @@ export async function writeHtml(
 export interface HtmlOutput {
   outputPath: string;
   html: string;
+  // True when `html` was loaded from the previous build's output instead of
+  // being freshly rendered. The minify pass uses this flag to skip work that
+  // has already been done; writers treat reused and rendered entries the same.
+  reused?: boolean;
 }
 
 // Batched companion to writeHtml: validate + dedupe parent dirs up front, then

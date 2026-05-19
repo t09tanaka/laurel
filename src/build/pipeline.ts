@@ -1,4 +1,5 @@
 import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
@@ -30,6 +31,15 @@ import {
   resolveCacheDir,
 } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import {
+  type BuildManifest,
+  MANIFEST_VERSION,
+  type ManifestEntry,
+  computeGlobalHash,
+  computeRouteHash,
+  loadManifest,
+  saveManifest,
+} from './manifest.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNginxConf } from './nginx.ts';
@@ -61,6 +71,8 @@ export interface BuildSummary {
   routeCount: number;
   assetCount: number;
   warningCount: number;
+  renderedCount: number;
+  skippedCount: number;
 }
 
 async function timed<T>(
@@ -89,6 +101,12 @@ export async function build({
   const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
   const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
+
+  // Read the previous manifest from the live output dir BEFORE staging so the
+  // incremental decision and any reused-HTML reads see the last successful
+  // build's tree, not the empty staging directory we are about to create.
+  const previousManifest = await loadManifest(finalOutputDir);
+
   // Stage the entire build into a sibling temp dir and swap it into place at
   // the end. Two reasons: (1) `nectar dev` will produce overlapping rebuilds
   // and a partially-cleared `dist/` lets readers (a browser, a deploy script)
@@ -98,7 +116,14 @@ export async function build({
   const outputDir = await prepareStagingDir(finalOutputDir);
 
   try {
-    return await runBuild({ cwd, config, outputDir, finalOutputDir, profiler });
+    return await runBuild({
+      cwd,
+      config,
+      outputDir,
+      finalOutputDir,
+      profiler,
+      previousManifest,
+    });
   } catch (err) {
     await rm(outputDir, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -111,12 +136,14 @@ async function runBuild({
   outputDir,
   finalOutputDir,
   profiler,
+  previousManifest,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
   outputDir: string;
   finalOutputDir: string;
   profiler: Profiler | null;
+  previousManifest: BuildManifest | undefined;
 }): Promise<BuildSummary> {
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
@@ -164,7 +191,37 @@ async function runBuild({
   const portalUrls = resolvePortalUrls(config.components.portal);
   const htmlOutputs: HtmlOutput[] = [];
   let renderedBytes = 0;
+
+  const globalHash = computeGlobalHash({ config, site: content.site, theme });
+  const nextRoutes: Record<string, ManifestEntry> = {};
+  const previousRoutes = previousManifest?.routes ?? {};
+  let skippedCount = 0;
+  let renderedCount = 0;
+
   for (const route of routes) {
+    const routeHash = computeRouteHash({ globalHash, route, theme });
+    nextRoutes[route.url] = { hash: routeHash, outputPath: route.outputPath };
+
+    const previous = previousRoutes[route.url];
+    const reusableEntry =
+      previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+        ? previous
+        : undefined;
+
+    if (reusableEntry) {
+      const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
+      if (await previousFile.exists()) {
+        const stop = profiler?.start('render', route.url);
+        const html = await previousFile.text();
+        const bytes = Buffer.byteLength(html, 'utf8');
+        renderedBytes += bytes;
+        stop?.({ bytes_emitted: bytes });
+        htmlOutputs.push({ outputPath: route.outputPath, html, reused: true });
+        skippedCount += 1;
+        continue;
+      }
+    }
+
     const stop = profiler?.start('render', route.url);
     try {
       const html = rewritePortalLinks({
@@ -184,23 +241,28 @@ async function runBuild({
       renderedBytes += bytes;
       stop?.({ bytes_emitted: bytes });
       htmlOutputs.push({ outputPath: route.outputPath, html });
+      renderedCount += 1;
     } catch (err) {
       stop?.();
       throw wrapRenderError(err, route.url, route.template);
     }
   }
   if (config.build.minify_html) {
+    // Reused outputs already went through minification on the build that
+    // emitted them; re-minifying would just pay the cost again and risk
+    // skewing the stats line below.
+    const toMinify = htmlOutputs.filter((o) => !o.reused);
     const stats = await timed(
       profiler,
       'minify_html',
-      () => minifyHtmlOutputs(htmlOutputs),
+      () => minifyHtmlOutputs(toMinify),
       (r) => r.outputBytes,
     );
     if (stats.minified && stats.inputBytes > 0) {
       const saved = stats.inputBytes - stats.outputBytes;
       const pct = ((saved / stats.inputBytes) * 100).toFixed(1);
       logger.info(
-        `HTML minified: ${stats.inputBytes} -> ${stats.outputBytes} bytes (${pct}% smaller across ${htmlOutputs.length} files)`,
+        `HTML minified: ${stats.inputBytes} -> ${stats.outputBytes} bytes (${pct}% smaller across ${toMinify.length} files)`,
       );
     }
   }
@@ -347,6 +409,13 @@ async function runBuild({
     await writeProfile(outputDir, profiler);
   }
 
+  const nextManifest: BuildManifest = {
+    version: MANIFEST_VERSION,
+    globalHash,
+    routes: nextRoutes,
+  };
+  await saveManifest(outputDir, nextManifest);
+
   await commitStagingDir(outputDir, finalOutputDir);
 
   return {
@@ -354,6 +423,8 @@ async function runBuild({
     routeCount: routes.length,
     assetCount,
     warningCount: getWarningCount(),
+    renderedCount,
+    skippedCount,
   };
 }
 
