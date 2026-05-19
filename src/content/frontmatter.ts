@@ -1,4 +1,5 @@
 import matter from 'gray-matter';
+import { logger } from '~/util/logger.ts';
 
 export interface ParsedFrontmatter {
   data: Record<string, unknown>;
@@ -36,11 +37,20 @@ export function asBool(value: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-export function asDateISO(value: unknown, fallback?: string): string {
+export function asDateISO(value: unknown, fallback?: string, context?: string): string {
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'string') {
-    const d = new Date(value);
+    const trimmed = value.trim();
+    if (trimmed === '') return fallback ?? new Date(0).toISOString();
+    const d = new Date(trimmed);
     if (!Number.isNaN(d.getTime())) return d.toISOString();
+    logger.warn(
+      `Invalid date in frontmatter${context ? ` (${context})` : ''}: ${JSON.stringify(value)}`,
+    );
+  } else if (value !== undefined && value !== null) {
+    logger.warn(
+      `Invalid date type in frontmatter${context ? ` (${context})` : ''}: ${typeof value}`,
+    );
   }
   return fallback ?? new Date(0).toISOString();
 }

@@ -182,9 +182,14 @@ async function normalizePost(
   const rendered = await renderMarkdown(body);
   const slug = asString(data.slug) ?? slugFromPath(filePath, rootDir);
   const title = asString(data.title) ?? slug;
-  const published = asDateISO(data.date ?? data.published_at, new Date().toISOString());
-  const updated = asDateISO(data.updated_at ?? data.date, published);
-  const created = asDateISO(data.created_at ?? data.date, published);
+  const dateContext = `${filePath}`;
+  const published = asDateISO(
+    data.date ?? data.published_at,
+    new Date().toISOString(),
+    `${dateContext} date`,
+  );
+  const updated = asDateISO(data.updated_at ?? data.date, published, `${dateContext} updated_at`);
+  const created = asDateISO(data.created_at ?? data.date, published, `${dateContext} created_at`);
   const status = (asString(data.status) ?? 'published') as RawPost['status'];
   const visibility = (asString(data.visibility) ?? 'public') as RawPost['visibility'];
   const customExcerpt = asString(data.custom_excerpt ?? data.excerpt);

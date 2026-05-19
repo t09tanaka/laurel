@@ -63,6 +63,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Build the site');
     expect(stdout).toContain('--config <path>');
+    expect(stdout).toContain('--strict');
   });
 
   test('serve --help prints subcommand help with --port flag', async () => {
