@@ -12,6 +12,7 @@ import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { injectImageDimensionsIntoContent } from './images.ts';
+import { stripUnusedLightbox } from './lightbox.ts';
 import { clearDirContents, resolveOutputDir } from './output-dir.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRobots } from './robots.ts';
@@ -62,7 +63,9 @@ export async function build({
   const subscribeConfig = config.components.subscribe;
   for (const route of routes) {
     try {
-      const html = transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig);
+      const html = stripUnusedLightbox(
+        transformSubscribeForms(injectSkipLink(engine.render(route)), subscribeConfig),
+      );
       await writeHtml(outputDir, route.outputPath, html);
     } catch (err) {
       throw wrapRenderError(err, route.url, route.template);
