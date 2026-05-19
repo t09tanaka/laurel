@@ -2,6 +2,7 @@ import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
+import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
@@ -46,6 +47,8 @@ export async function build({
     loadContent({ cwd, config }),
     loadTheme({ cwd, config }),
   ]);
+
+  validateThemeCustom({ config, pkg: theme.pkg });
 
   injectImageDimensionsIntoContent({ content, cwd, config });
 
