@@ -167,6 +167,78 @@ describe('Ghost Turndown rules — kg-audio-card', () => {
     expect(md).toContain('duration="12:34"');
     expect(md).toContain('thumbnail="/cover.jpg"');
   });
+
+  // Mirrors the full Koenig audio card shape Ghost actually emits — placeholder
+  // SVG sibling div shares the `kg-audio-thumbnail` class, and the player
+  // contains a `kg-audio-current-time` span that must NOT be mistaken for the
+  // duration. Regression for the structure documented on backlog task #81.
+  test('handles full Ghost output with placeholder div and current-time span', () => {
+    const html = `
+      <div class="kg-card kg-audio-card">
+        <img class="kg-audio-thumbnail" src="/content/images/cover.jpg" alt="" />
+        <div class="kg-audio-thumbnail kg-audio-hide kg-audio-thumbnail-placeholder">
+          <svg><path d="M0 0"/></svg>
+        </div>
+        <div class="kg-audio-player-container">
+          <audio src="/content/media/podcast.mp3" preload="metadata"></audio>
+          <div class="kg-audio-title">Episode 5: Goldilocks</div>
+          <div class="kg-audio-player">
+            <button class="kg-audio-play-icon"></button>
+            <span class="kg-audio-current-time">0:00</span>
+            <span class="kg-audio-time-divider">/</span>
+            <span class="kg-audio-duration">42:07</span>
+            <input type="range" class="kg-audio-seek-slider" />
+          </div>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< audio');
+    expect(md).toContain('src="/content/media/podcast.mp3"');
+    expect(md).toContain('title="Episode 5: Goldilocks"');
+    expect(md).toContain('duration="42:07"');
+    expect(md).not.toContain('duration="0:00"');
+    expect(md).toContain('thumbnail="/content/images/cover.jpg"');
+  });
+
+  test('omits thumbnail when only the SVG placeholder is present', () => {
+    const html = `
+      <div class="kg-card kg-audio-card">
+        <div class="kg-audio-thumbnail kg-audio-thumbnail-placeholder">
+          <svg></svg>
+        </div>
+        <div class="kg-audio-player-container">
+          <audio src="/no-cover.mp3"></audio>
+          <div class="kg-audio-title">Cover-less</div>
+          <div class="kg-audio-player">
+            <span class="kg-audio-duration">5:00</span>
+          </div>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('src="/no-cover.mp3"');
+    expect(md).toContain('duration="5:00"');
+    expect(md).not.toContain('thumbnail=');
+  });
+
+  test('falls back to <source> when <audio> has no src attribute', () => {
+    const html = `
+      <div class="kg-card kg-audio-card">
+        <div class="kg-audio-player-container">
+          <audio preload="metadata"><source src="/song.ogg" type="audio/ogg" /></audio>
+          <div class="kg-audio-title">Source fallback</div>
+          <div class="kg-audio-player">
+            <span class="kg-audio-duration">3:14</span>
+          </div>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('src="/song.ogg"');
+    expect(md).toContain('title="Source fallback"');
+    expect(md).toContain('duration="3:14"');
+  });
 });
 
 describe('Ghost Turndown rules — kg-file-card', () => {
