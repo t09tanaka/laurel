@@ -51,6 +51,20 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const dryRun = parsed.values['dry-run'] === true;
 
+  const rawMaxSize = parsed.values['max-size'];
+  let maxFileSizeBytes: number | undefined;
+  if (typeof rawMaxSize === 'string') {
+    const parsedSize = parseSizeSpec(rawMaxSize);
+    if (parsedSize === null) {
+      process.stderr.write(
+        `Invalid --max-size value: ${rawMaxSize}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 256MB, 1GB, 0 to disable).\n\n`,
+      );
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
+    maxFileSizeBytes = parsedSize;
+  }
+
   const cwd = process.cwd();
   try {
     const summary = await importGhostExport({
@@ -61,6 +75,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       downloadImages,
       sourceUrl,
       dryRun,
+      maxFileSizeBytes,
     });
     if (dryRun) {
       process.stdout.write(formatDryRunSummary(summary, { downloadImages }));
@@ -173,4 +188,30 @@ function formatDryRunSummary(
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
+}
+
+// Parse a human-readable size spec (e.g. "256MB", "1GB", "512KB", "1024") into
+// a non-negative byte count. Returns null when the input cannot be interpreted
+// so the caller can surface a usage error. Accepts a decimal number with an
+// optional B/KB/MB/GB/TB suffix using powers of 1024 to match how Ghost
+// exports and operating systems typically report file sizes. `0` is allowed
+// and means "disable the cap" (callers translate that into skipping the check).
+export function parseSizeSpec(input: string): number | null {
+  const s = input.trim();
+  if (s.length === 0) return null;
+  const m = /^(\d+(?:\.\d+)?)\s*([kmgt]?b)?$/i.exec(s);
+  if (!m) return null;
+  const value = Number.parseFloat(m[1]);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const unit = (m[2] ?? 'B').toUpperCase();
+  const multipliers: Record<string, number> = {
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024,
+  };
+  const mult = multipliers[unit];
+  if (mult === undefined) return null;
+  return Math.floor(value * mult);
 }

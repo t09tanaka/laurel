@@ -2264,3 +2264,76 @@ describe('importGhostExport — --dry-run (#502)', () => {
     expect(await readFile(dest, 'utf8')).toBe('EXISTING');
   });
 });
+
+describe('importGhostExport — JSON size cap (#558)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-size-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('rejects an export whose JSON exceeds maxFileSizeBytes before parsing', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello' }]));
+    const fileSize = (await readFile(exportFile)).byteLength;
+    expect(fileSize).toBeGreaterThan(10);
+
+    await expect(
+      importGhostExport({ cwd, file: exportFile, maxFileSizeBytes: 10 }),
+    ).rejects.toThrow(/exceeds the configured cap/);
+
+    const exists = await access(join(cwd, 'content/posts/hello.md'))
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
+  });
+
+  test('default cap (256 MiB) admits a normal-sized export', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello' }]));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+  });
+
+  test('explicit maxFileSizeBytes raises the cap as expected', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello' }]));
+    const fileSize = (await readFile(exportFile)).byteLength;
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      maxFileSizeBytes: fileSize + 1,
+    });
+
+    expect(summary.posts).toBe(1);
+  });
+
+  test('maxFileSizeBytes=0 disables the size check', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello' }]));
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      maxFileSizeBytes: 0,
+    });
+
+    expect(summary.posts).toBe(1);
+  });
+
+  test('size cap is enforced against the JSON inside a folder input, not the directory entry', async () => {
+    const exportDir = join(cwd, 'ghost-export');
+    await ensureDir(exportDir);
+    const jsonPath = join(exportDir, 'ghost.json');
+    await writeFile(jsonPath, makeExport([{ slug: 'hello', title: 'Hello' }]));
+
+    await expect(importGhostExport({ cwd, file: exportDir, maxFileSizeBytes: 5 })).rejects.toThrow(
+      /exceeds the configured cap/,
+    );
+  });
+});

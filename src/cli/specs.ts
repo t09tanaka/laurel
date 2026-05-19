@@ -128,6 +128,12 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images',
     },
+    'max-size': {
+      type: 'string',
+      description:
+        'Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.',
+      placeholder: '<size>',
+    },
   },
   positionals: [
     {
