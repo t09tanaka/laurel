@@ -422,6 +422,30 @@ describe('planRoutes — error-404 route', () => {
     const routes = planRoutes({ config, content, theme });
     expect(routes.find((r) => r.kind === 'error')).toBeUndefined();
   });
+
+  test('falls back to error.hbs when error-404 is absent (issue #225)', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    theme.templates.error = '{{!error}}';
+    const routes = planRoutes({ config, content, theme });
+    const errorRoute = routes.find((r) => r.kind === 'error');
+    expect(errorRoute).toBeDefined();
+    expect(errorRoute?.outputPath).toBe('404.html');
+    expect(errorRoute?.template).toBe('error');
+    expect(errorRoute?.data.error).toEqual({ statusCode: 404, message: 'Page not found' });
+  });
+
+  test('prefers error-404 over error.hbs when both exist', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    theme.templates['error-404'] = '{{!error-404}}';
+    theme.templates.error = '{{!error}}';
+    const routes = planRoutes({ config, content, theme });
+    const errorRoute = routes.find((r) => r.kind === 'error');
+    expect(errorRoute?.template).toBe('error-404');
+  });
 });
 
 describe('planRoutes — page custom_template (issue #1005)', () => {
