@@ -187,6 +187,44 @@ helper still emits a path (`<basePath>/assets/<your-path>`). It just isn't
 fingerprinted — useful for build artefacts produced by an external pipeline,
 but you lose cache busting.
 
+### Favicons and touch icons
+
+Nectar emits browser favicon `<link>` tags from `{{ghost_head}}` and copies
+the source files into the dist root with stable (un-fingerprinted) URLs so
+bookmarks and the legacy `/favicon.ico` fallback keep working.
+
+Two sources are recognised, in this order of priority:
+
+1. **Theme `assets/` directory** — if any of the well-known filenames below
+   exists under your theme's `assets/`, Nectar copies it to the dist root and
+   emits a matching `<link>` tag:
+
+   | Filename                          | Emitted link                                                                |
+   | --------------------------------- | --------------------------------------------------------------------------- |
+   | `favicon.ico`                     | `<link rel="icon" type="image/x-icon" href="/favicon.ico">`                 |
+   | `favicon.svg`                     | `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`                |
+   | `favicon.png`                     | `<link rel="icon" type="image/png" href="/favicon.png">`                    |
+   | `favicon-16x16.png`               | `<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">` |
+   | `favicon-32x32.png`               | `… sizes="32x32" …`                                                         |
+   | `favicon-96x96.png`               | `… sizes="96x96" …`                                                         |
+   | `favicon-192x192.png`             | `… sizes="192x192" …`                                                       |
+   | `apple-touch-icon.png`            | `<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">` |
+   | `apple-touch-icon-precomposed.png`| `<link rel="apple-touch-icon-precomposed" href="…">`                        |
+   | `apple-touch-icon-{152,167,180}x{…}.png` | sized `apple-touch-icon` variants                                    |
+   | `safari-pinned-tab.svg`           | `<link rel="mask-icon" color="<site.accent_color>" href="…">`               |
+   | `site.webmanifest` / `manifest.webmanifest` | `<link rel="manifest" href="…">`                                  |
+
+2. **`site.icon` in `nectar.toml`** — if the theme didn't ship a primary
+   `favicon.*`, the configured icon is copied to `dist/favicon.<ext>` and an
+   `<link rel="icon">` is emitted for it. PNG / JPG icons also produce an
+   `apple-touch-icon` link (SVG sources are skipped for Apple devices because
+   they cannot render SVG home-screen icons). Remote URLs (`https://…`) are
+   referenced as-is without copying.
+
+The output paths are intentionally not fingerprinted so the favicon URLs are
+stable across builds. The links emitted from `{{ghost_head}}` honour
+`build.base_path` (a `/blog/` deploy gets `/blog/favicon.svg`).
+
 ## 5. Helpers — signatures and behaviour
 
 This section is the working reference. Each entry lists the call shape, the

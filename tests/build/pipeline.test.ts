@@ -144,3 +144,50 @@ describe('build pipeline 404 emission', () => {
     expect(html).toContain('content="noindex"');
   });
 });
+
+describe('build pipeline favicon emission', () => {
+  test('copies site.icon into dist root and emits a <link rel="icon"> in rendered HTML', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-favicon-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/logo.svg'), '<svg/>');
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Favicon Test"',
+        'url = "https://favicon.test"',
+        'icon = "/content/images/logo.svg"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+      'utf8',
+    );
+    await writeFile(join(cwd, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(cwd, 'themes/source'), { recursive: true });
+
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, 'favicon.svg'))).toBe(true);
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(postHtml).toContain('rel="icon"');
+    expect(postHtml).toContain('href="/favicon.svg"');
+    expect(postHtml).toContain('type="image/svg+xml"');
+  });
+});

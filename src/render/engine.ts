@@ -1,4 +1,5 @@
 import Handlebars from 'handlebars';
+import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
@@ -13,6 +14,10 @@ export interface NectarEngine {
   config: NectarConfig;
   content: ContentGraph;
   theme: ThemeBundle;
+  // Resolved at build time from theme assets + site.icon. Optional because
+  // unit tests construct engines directly without going through createEngine
+  // and have no need to set this up.
+  favicons?: FaviconSet;
   templates: Record<string, Handlebars.TemplateDelegate>;
   layouts: Record<string, Handlebars.TemplateDelegate>;
   render(route: RouteContext): string;
@@ -31,6 +36,7 @@ export function createEngine(opts: {
   config: NectarConfig;
   content: ContentGraph;
   theme: ThemeBundle;
+  favicons?: FaviconSet;
 }): NectarEngine {
   const hb = Handlebars.create();
   registerPartials(hb, opts.theme);
@@ -55,6 +61,7 @@ export function createEngine(opts: {
     config: opts.config,
     content: opts.content,
     theme: opts.theme,
+    favicons: opts.favicons ?? EMPTY_FAVICON_SET,
     templates,
     layouts,
     sortedCache: new Map(),

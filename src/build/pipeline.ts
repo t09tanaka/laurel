@@ -10,6 +10,7 @@ import { emitContentApiShadows } from './api.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
+import { computeFavicons, copyFavicons } from './favicons.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
@@ -66,7 +67,8 @@ export async function build({
   await rasterizeOgImages({ cwd, config, content, outputDir });
   await generateOgImages({ cwd, config, content, outputDir });
 
-  const engine = createEngine({ config, content, theme });
+  const favicons = computeFavicons({ config, theme, cwd });
+  const engine = createEngine({ config, content, theme, favicons });
   const routes = planRoutes({ config, content, theme });
 
   const subscribeConfig = config.components.subscribe;
@@ -82,10 +84,11 @@ export async function build({
   }
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
-    await emitDefault404({ config, content, outputDir });
+    await emitDefault404({ config, content, outputDir, favicons });
   }
 
   const assetCount = await copyAssets(theme, outputDir);
+  await copyFavicons(favicons, outputDir);
   if (config.build.copy_content_assets) {
     await copyContentAssets(cwd, config.content.assets_dir, outputDir, {
       maxImageBytes: config.build.max_image_bytes,
