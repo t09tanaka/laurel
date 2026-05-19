@@ -161,4 +161,85 @@ describe('img_url helper', () => {
     const tpl = engine.hb.compile('{{img_url undef size="m"}}');
     expect(tpl({})).toBe('');
   });
+
+  test('appends format segment after size when format="webp" (issue #112)', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      '/content/images/size/w600/format/webp/cover.jpg',
+    );
+  });
+
+  test('applies format segment without size when only format is provided', () => {
+    const engine = makeEngine({});
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image format="webp"}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      '/content/images/format/webp/cover.jpg',
+    );
+  });
+
+  test('supports avif, jpg, png, gif format values', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const cases = [
+      ['avif', '/content/images/size/w600/format/avif/cover.jpg'],
+      ['jpg', '/content/images/size/w600/format/jpg/cover.jpg'],
+      ['png', '/content/images/size/w600/format/png/cover.jpg'],
+      ['gif', '/content/images/size/w600/format/gif/cover.jpg'],
+    ] as const;
+    for (const [fmt, expected] of cases) {
+      const tpl = engine.hb.compile(`{{img_url feature_image size="m" format="${fmt}"}}`);
+      expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(expected);
+    }
+  });
+
+  test('unknown format value is ignored (no segment injected)', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="bmp"}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      '/content/images/size/w600/cover.jpg',
+    );
+  });
+
+  test('does not double-inject format segment when URL already contains it', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
+    expect(tpl({ feature_image: '/content/images/size/w600/format/webp/cover.jpg' })).toBe(
+      '/content/images/size/w600/format/webp/cover.jpg',
+    );
+  });
+
+  test('format works with absolute=true and resolves against site URL', () => {
+    const engine = makeEngine({
+      imageSizes: { m: { width: 600 } },
+      siteUrl: 'https://blog.example.com',
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp" absolute=true}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      'https://blog.example.com/content/images/size/w600/format/webp/cover.jpg',
+    );
+  });
+
+  test('format is case-insensitive ("WEBP" -> "webp")', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="WEBP"}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      '/content/images/size/w600/format/webp/cover.jpg',
+    );
+  });
+
+  test('format ignored when URL does not contain /content/images/', () => {
+    const engine = makeEngine({});
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image format="webp"}}');
+    expect(tpl({ feature_image: 'https://images.unsplash.com/photo.jpg' })).toBe(
+      'https://images.unsplash.com/photo.jpg',
+    );
+  });
 });

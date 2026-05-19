@@ -33,8 +33,10 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     if (!candidate) return '';
     const sizeKey = typeof options.hash.size === 'string' ? options.hash.size : undefined;
     const sizeDef = sizeKey ? engine.theme.pkg.image_sizes[sizeKey] : undefined;
+    const formatKey =
+      typeof options.hash.format === 'string' ? normalizeFormat(options.hash.format) : undefined;
     const absolute = options.hash.absolute === true;
-    const url = applySizeSegment(candidate, sizeDef);
+    const url = applyTransformSegments(candidate, sizeDef, formatKey);
     if (absolute) {
       try {
         return new URL(url, engine.content.site.url).toString();
@@ -46,21 +48,37 @@ export function registerAssetHelpers(engine: NectarEngine): void {
   });
 }
 
-// Ghost-compat: rewrite `/content/images/...` URLs to include a `size/wXXX[hYYY]/`
-// segment so that `{{img_url ... size="x"}}` produces distinct URLs per size
-// (otherwise srcset entries collapse to the same source). Actual image resizing
-// is a separate concern; this only emits the canonical sized-URL shape.
-function applySizeSegment(candidate: string, sizeDef: ThemeImageSize | undefined): string {
-  if (!sizeDef) return candidate;
-  const segment = buildSizeSegment(sizeDef);
-  if (!segment) return candidate;
+const SUPPORTED_FORMATS = new Set(['webp', 'avif', 'jpg', 'jpeg', 'png', 'gif']);
+
+function normalizeFormat(value: string): string | undefined {
+  const lower = value.toLowerCase();
+  return SUPPORTED_FORMATS.has(lower) ? lower : undefined;
+}
+
+// Ghost-compat: rewrite `/content/images/...` URLs to include `size/wXXX[hYYY]/`
+// and/or `format/<ext>/` segments so that `{{img_url ... size="x" format="webp"}}`
+// produces canonical Ghost image-API URLs (e.g.
+// `/content/images/size/w600/format/webp/cover.jpg`). Actual transcoding is a
+// separate concern; this only emits the canonical URL shape.
+function applyTransformSegments(
+  candidate: string,
+  sizeDef: ThemeImageSize | undefined,
+  format: string | undefined,
+): string {
+  const sizeSegment = sizeDef ? buildSizeSegment(sizeDef) : '';
+  if (!sizeSegment && !format) return candidate;
   const marker = '/content/images/';
   const idx = candidate.indexOf(marker);
   if (idx < 0) return candidate;
   const before = candidate.slice(0, idx + marker.length);
   const after = candidate.slice(idx + marker.length);
-  if (after.startsWith('size/')) return candidate;
-  return `${before}size/${segment}/${after}`;
+  const hasSizeSegment = after.startsWith('size/');
+  const hasFormatSegment = /(^|\/)format\//.test(after);
+  let prefix = '';
+  if (sizeSegment && !hasSizeSegment) prefix += `size/${sizeSegment}/`;
+  if (format && !hasFormatSegment) prefix += `format/${format}/`;
+  if (!prefix) return candidate;
+  return `${before}${prefix}${after}`;
 }
 
 function buildSizeSegment(size: ThemeImageSize): string {
