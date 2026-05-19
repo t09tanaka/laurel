@@ -289,3 +289,31 @@ describe('img_url helper', () => {
     );
   });
 });
+
+describe('asset helper (issue #1137 — context-aware encoding)', () => {
+  test('does not break out of an href="…" attribute when the filename contains quotes/angle brackets', () => {
+    const engine = makeEngine({});
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('<link href="{{asset "a\\"><script>x</script>.css"}}">');
+    const out = tpl({});
+    // Handlebars escapes the unsafe characters; no raw <script> tag survives.
+    expect(out).not.toContain('<script>');
+    expect(out).not.toContain('"><');
+    expect(out).toContain('&quot;');
+    expect(out).toContain('&lt;script&gt;');
+  });
+
+  test('basic URL emits without HTML-significant characters when filename is safe', () => {
+    const engine = makeEngine({ basePath: '/' });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "built/screen.css"}}');
+    expect(tpl({})).toBe('/assets/built/screen.css');
+  });
+
+  test('triple-stash {{{asset}}} returns the raw URL (user explicitly opts out of escape)', () => {
+    const engine = makeEngine({ basePath: '/' });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{{asset "built/screen.css"}}}');
+    expect(tpl({})).toBe('/assets/built/screen.css');
+  });
+});

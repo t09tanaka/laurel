@@ -6,24 +6,24 @@ import type { NectarEngine } from '../engine.ts';
 export function registerAssetHelpers(engine: NectarEngine): void {
   const basePath = engine.config.build.base_path;
 
-  engine.hb.registerHelper(
-    'asset',
-    function assetHelper(path: unknown, options: Handlebars.HelperOptions) {
-      const logical = String(path ?? '').replace(/^\//, '');
-      const candidates = [logical, `assets/${logical}`];
-      let resolved: string | undefined;
-      for (const key of candidates) {
-        const asset = engine.theme.assets.get(key);
-        if (asset) {
-          resolved = asset.fingerprintedPath;
-          break;
-        }
+  engine.hb.registerHelper('asset', function assetHelper(path: unknown) {
+    const logical = String(path ?? '').replace(/^\//, '');
+    const candidates = [logical, `assets/${logical}`];
+    let resolved: string | undefined;
+    for (const key of candidates) {
+      const asset = engine.theme.assets.get(key);
+      if (asset) {
+        resolved = asset.fingerprintedPath;
+        break;
       }
-      if (!resolved) resolved = `assets/${logical}`;
-      const url = joinPath(basePath, resolved);
-      return new engine.hb.SafeString(escapeHtml(url + (options.hash.hasMinFile ? '' : '')));
-    },
-  );
+    }
+    if (!resolved) resolved = `assets/${logical}`;
+    // Return a plain string so Handlebars applies its context-aware HTML
+    // escape (covers &, <, >, ", ', `). Wrapping in SafeString would skip
+    // that and let a filename like `a"><script>x</script>.css` break out
+    // of an `href="…"` attribute.
+    return joinPath(basePath, resolved);
+  });
 
   engine.hb.registerHelper('img_url', function imgUrlHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -127,13 +127,4 @@ function extractImage(value: unknown): string | undefined {
   if (typeof obj.profile_image === 'string') return obj.profile_image;
   if (typeof obj.url === 'string') return obj.url;
   return undefined;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
