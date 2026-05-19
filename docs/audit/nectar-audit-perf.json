@@ -1,0 +1,492 @@
+[
+  {
+    "title": "perf: render: re-compile inner+layout templates per route",
+    "body": "src/render/engine.ts renderRoute() calls hb.compile(body), hb.compile(layoutSource) on every single route. Templates are compiled once during createEngine() into the templates map but those compiled functions are then ignored and recompiled per render. For a 10k post site this is 10k * 2 wasted compiles (≈100MB+ ephemeral strings + AST garbage), and Handlebars.compile is the single most expensive call in the hot path.\n\nMeasurement: instrument createEngine.render with `performance.now()` deltas; sample heap with `process.memoryUsage().heapUsed` before/after planRoutes.forEach.\n\nFix: cache compiled inner and layout delegates on the engine — pre-compile `engine.templates[name]` and `engine.layouts[name]` once at startup (the engine already populates `templates`, just use them), index by template name + layout name, and in renderRoute look them up instead of recompiling. Expected 5-15x speedup on the render phase for medium sites.",
+    "labels": ["performance", "P0", "render"]
+  },
+  {
+    "title": "perf: pipeline: sequential for-of render loop blocks event loop",
+    "body": "src/build/pipeline.ts renders routes in a serial `for (const route of routes)` loop. Even though render itself is sync, the awaited writeHtml after every render serializes disk I/O. With 10k posts and ~5ms/render + ~2ms/write that is ~70s wall time when it could be ~25s.\n\nFix: split into two phases — (1) render all to in-memory strings (CPU-bound, can use worker_threads pool sharded by route), (2) write with `Promise.all` in batches of 256-1024 (or use a p-limit-style semaphore). Bun supports Workers; alternatively just batch writes with `Promise.all(chunks.map(writeHtml))` for an easy 3-5x win without workers.",
+    "labels": ["performance", "P0", "build"]
+  },
+  {
+    "title": "perf: routes: O(tags × posts) tag/author route planning",
+    "body": "src/build/routes.ts builds tag pages with `content.posts.filter((p) => p.tags.some((t) => t.slug === tag.slug))` for every tag (line 62) and the same pattern for authors (line 87). That is O(T × P × T_per_post). For 100k tags × 10k posts × avg 3 tags/post ≈ 3 × 10^9 ops — minutes of wall time.\n\nFix: build a `Map<tagSlug, Post[]>` and `Map<authorSlug, Post[]>` in loader.ts during the single sweep over posts, then `planRoutes` does an O(1) lookup. Also pre-sort once. Expected drop from O(T·P) to O(P + T).",
+    "labels": ["performance", "P0", "build"]
+  },
+  {
+    "title": "perf: loader: O(tags × posts) tag.count.posts recomputation",
+    "body": "src/content/loader.ts lines 54-56 loops over every tag and re-filters every post: `tag.count.posts = resolvedPosts.filter(...).length`. Same O(T·P) trap as routes.ts. With 100k tags and 10k posts: ~10^9 ops just to compute a counter.\n\nFix: single pass — iterate posts once and bump `tagMap.get(t.slug).count.posts++` per tag reference. O(P · t_per_post).",
+    "labels": ["performance", "P0", "loader"]
+  },
+  {
+    "title": "perf: loader: serial readFile in loadMarkdownDir",
+    "body": "src/content/loader.ts loadMarkdownDir (lines 153-166) uses `for await (const rel of glob.scan())` and then `await readFile(file)` + `await normalize(...)` inside the loop — strictly serial. For 10k posts at ~1ms/file this is ~10s of pure I/O wait that could be ~0.5s on an SSD.\n\nFix: collect file paths first, then `Promise.all(files.map(async f => normalize(f, await readFile(f))))`. To avoid running out of fds on 100k+ files, wrap with a concurrency limiter (e.g. 64-256 parallel reads). Even simpler: use Bun.file(path).text() which streams.",
+    "labels": ["performance", "P0", "loader"]
+  },
+  {
+    "title": "perf: loader: serial markdown rendering — no parallelism",
+    "body": "renderMarkdown is awaited per post inside the serial readFile loop in loader.ts:163. marked.parse is CPU-bound (~2-5ms per typical post). 10k posts × 3ms = 30s on the main thread.\n\nFix: option A — batch and Promise.all the markdown parsing once files are in memory (marked is sync but `parse` returns a Promise that resolves on next tick, so chunked Promise.all still helps). Option B — offload to worker_threads (Bun's Worker), shard posts across `navigator.hardwareConcurrency` workers. Expected 4-8x on multi-core.",
+    "labels": ["performance", "P0", "loader"]
+  },
+  {
+    "title": "perf: emit: copies fingerprinted AND logical asset (2× disk write)",
+    "body": "src/build/emit.ts emitAsset (lines 28-32) copies the same source twice — once to the fingerprinted path and once to the logical path — to support templates that reference either form. This doubles disk writes, doubles output size, and confuses caching (logical URL is served without long cache-control headers in practice).\n\nFix: emit only the fingerprinted file. For logical references, either (a) generate an HTTP redirect file / `_redirects`, (b) symlink, or (c) resolve all logical references at build time so the logical copy is never needed. Cuts asset-stage time and dist size by ~50%.",
+    "labels": ["performance", "P1", "emit"]
+  },
+  {
+    "title": "perf: assets: sha1 hash reads entire file into RAM",
+    "body": "src/theme/assets.ts sha1Short does `await readFile(file)` returning a full Buffer before hashing. For a 40MB image this materialises 40MB in heap per file, repeated for every asset. Memory spikes and OOMs on themes with many large assets.\n\nFix: stream the file through Bun.CryptoHasher with `Bun.file(file).stream()` piped through the hasher (`hash.update` on each chunk), or use `Bun.hash(Bun.file(file))` if available. Constant memory regardless of file size.",
+    "labels": ["performance", "P1", "assets"]
+  },
+  {
+    "title": "perf: assets: synchronous statSync inside async glob loop",
+    "body": "src/theme/assets.ts:13 uses `statSync(file)` inside an `await glob.scan()` loop. statSync blocks the event loop on every asset, preventing the concurrent readFile from kicking off. For large asset trees this serialises everything.\n\nFix: replace with `await stat(file)` from node:fs/promises, or call `Bun.file(file).size` which is async and lazy.",
+    "labels": ["performance", "P2", "assets"]
+  },
+  {
+    "title": "perf: assets: serial readFile + hash per asset",
+    "body": "src/theme/assets.ts loadThemeAssets awaits readFile and sha1Short per file in a sequential `for await` loop. With 500+ theme assets (a typical Ghost theme has images, fonts, CSS, JS, sourcemaps), this is hundreds of serial round-trips.\n\nFix: collect paths via glob, then Promise.all(paths.map(processAsset)) with a concurrency limit. 5-10x speedup on asset stage.",
+    "labels": ["performance", "P1", "assets"]
+  },
+  {
+    "title": "perf: assets: no on-disk hash cache — rehash every build",
+    "body": "loadThemeAssets hashes every asset on every build, even when nothing changed. Hashing a 100MB asset tree is multiple seconds of pure CPU + I/O that recurs on every `nectar build`.\n\nFix: persist a `.nectar-cache/asset-hashes.json` keyed by (mtimeMs, size). If the (path, mtime, size) tuple matches the cache, reuse the hash. Invalidate on theme version bump. Expected near-instant asset stage on incremental rebuilds.",
+    "labels": ["performance", "P1", "assets", "caching"]
+  },
+  {
+    "title": "perf: build: no incremental builds — full rebuild every invocation",
+    "body": "build() removes the entire output dir (`rm(outputDir, { recursive: true, force: true })`) on every run and re-renders every route from scratch. For a 10k-post site with one edit, this is 100% wasted work — and aggressive on SSD write cycles.\n\nFix: detect changed inputs (post file mtimes vs a manifest of last-build mtimes) and only rerender affected routes. Tag/author/index pages must be recomputed when any post in their set changes; everything else can be skipped. Companion: keep a `.nectar-cache/manifest.json`. Provides 50-1000x speedup on watch/dev workflows.",
+    "labels": ["performance", "P0", "build", "caching"]
+  },
+  {
+    "title": "perf: build: sitemap/RSS rebuilt from scratch every build",
+    "body": "src/build/feeds.ts emitSitemap and emitRss regenerate the entire feed every build, even when no posts changed. For a 100k-URL sitemap this is a multi-MB string concatenation in memory.\n\nFix: cache the serialized feed by content hash of (post list + mtimes). If the hash is unchanged, skip writing. Use a streaming writer (write XML to a stream rather than building one giant string) for large feeds.",
+    "labels": ["performance", "P2", "build", "feeds"]
+  },
+  {
+    "title": "perf: build: sitemap not split at 50k URL limit",
+    "body": "src/build/feeds.ts emitSitemap writes a single sitemap.xml with all URLs. Google's spec caps sitemaps at 50,000 URLs / 50MB uncompressed; sitemaps beyond that are silently truncated or rejected.\n\nFix: when urls.length > 50000, emit sitemap-1.xml, sitemap-2.xml, ... and a sitemap-index.xml pointing to them. Also enable gzipped variants. Required for any blog with 50k+ posts/tags/authors.",
+    "labels": ["performance", "P1", "feeds", "seo"]
+  },
+  {
+    "title": "perf: build: RSS embeds full post.html — feed bloat",
+    "body": "src/build/feeds.ts:36 emits `<content:encoded><![CDATA[${post.html}]]></content:encoded>` for every item. With 10k items × avg 30KB html = 300MB single feed. Ghost paginates RSS by 25 items for exactly this reason.\n\nFix: cap items at config.components.rss.items (default 20 already exists — good), and add a `full_content` flag defaulting to false so the feed contains excerpt only. Optionally paginate into rss-1.xml, rss-2.xml via `<atom:link rel=next>`.",
+    "labels": ["performance", "P1", "feeds"]
+  },
+  {
+    "title": "perf: render: ghost_head rebuilds JSON-LD per render — cache per post id",
+    "body": "src/render/helpers/ghost-head.ts buildJsonLd executes for every route render (including paginated index pages where the same site-level JSON-LD is rebuilt 100s of times). Computing the author array, publisher block, absoluteUrl etc allocates a fresh object every call.\n\nFix: memoize by route.template + (post?.id ?? 'site'). Store the serialized JSON string on the engine in a WeakMap<Post, string>. Eliminates ~30-50µs/render plus a few KB of garbage per render.",
+    "labels": ["performance", "P2", "render", "seo"]
+  },
+  {
+    "title": "perf: render: ghost_head string-concats large parts array per call",
+    "body": "ghostHeadHelper allocates a fresh `parts: string[]` and calls `.join('\\n')` per render. For 10k routes that's 10k arrays + 10k joins. Combined with the rebuild cost above, this is measurable on cold builds.\n\nFix: build the meta tag block as a single template string (preserve newlines for readability) once helpers are registered. Or, with the memoization above, only the post-specific block needs to be recomputed.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: render: layout splitLayout regex runs per render",
+    "body": "src/render/engine.ts renderRoute calls `splitLayout(template)` on every render even though the result is deterministic per template name. Regex execution + slice is cheap (~µs) but unnecessary multiplied by route count.\n\nFix: precompute `engine.templateSplits[name] = splitLayout(source)` once during createEngine.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: render: buildRootData allocates fresh object per render",
+    "body": "engine.ts buildRootData (lines 127-139) constructs a new object including site/blog/config/custom every render. site, blog, config, custom are invariant per build — only `page` and `route` change.\n\nFix: precompute a frozen `engineRootDataBase` once and `{ ...base, route, page }` per render. Skips ~5 object allocations and re-evaluation of buildCustom (which itself spreads two records).",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: render: buildCustom called per render — spread cost",
+    "body": "buildCustom in engine.ts is invoked inside buildRootData → invoked per render. It spreads `theme.pkg.customDefaults` and `config.theme.custom` every time. With ~30 custom fields × 10k renders this is wasted work.\n\nFix: build customDefaults merged with config.theme.custom once at engine creation, reference the cached object.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: render: buildContext mutates ctx then Object.assigns post — duplicate refs",
+    "body": "engine.ts buildContext does `Object.assign(ctx, data.post)` AND `ctx.post = data.post`. This copies every key of the post (≈30 fields) AND keeps a reference. For 10k posts that is 300k unnecessary assignments and a bloated context object passed to Handlebars (slower hash lookups in compiled templates).\n\nFix: pass `data.post` as the context directly when route.kind === 'post'/'page'. Keep `ctx.post` only when the inner template references both `{{title}}` and `{{post.title}}` (it shouldn't have to). Saves allocations and improves Handlebars lookup speed.",
+    "labels": ["performance", "P2", "render"]
+  },
+  {
+    "title": "perf: render: computeBodyClass / computePostClass run per render",
+    "body": "engine.ts computes body_class and post_class strings per render. computePostClass iterates tags and concatenates strings each time — for a paginated index with 12 cards × 100 pages that's 1200 recomputations of the same class string.\n\nFix: precompute `post.post_class` once during loader.ts (resolvePostRelations) and just read it. Same for body_class per route kind — derive at planRoutes time.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: helpers/blocks: `get` helper applies sort on every invocation",
+    "body": "src/render/helpers/blocks.ts get helper (lines 117-150) does `applyOrder(results, order)` — a full sort — every time `{{#get \"posts\" ...}}` is invoked in any template. Themes typically call `{{#get \"posts\" limit=5 order=\"published_at desc\"}}` on every page. 10k pages × O(N log N) sort over 10k posts = catastrophe.\n\nFix: memoize sorted lists by `${resource}|${order}` on the engine. posts is already sorted by published_at desc in loader.ts — short-circuit when order matches the default.",
+    "labels": ["performance", "P0", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/blocks: `get` helper filters with O(N) scan per call",
+    "body": "Same helper: applyFilter does a linear scan over all posts per Handlebars call. A theme's related-posts block calls this per article render → for 10k posts that's 10k × 10k = 10^8 ops/build.\n\nFix: build secondary indexes (by tag, by author, by featured) at engine boot. Route the filter parser to use indexes for the supported keys (`tag`, `tags`, `author`, `authors`, `featured`, `id`, `slug`). Fall back to linear scan only for unindexed keys.",
+    "labels": ["performance", "P0", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/blocks: `get` slice copies entire array",
+    "body": "blocks.ts:128 does `results = engine.content.posts.slice()` to defend against mutation by sort. For a 10k-post array this is a 10k pointer copy per invocation.\n\nFix: keep the sorted/indexed list immutable and return the slice without copying. Or use `results = applyOrder([...content.posts], order)` only when order differs from canonical.",
+    "labels": ["performance", "P2", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/blocks: foreach allocates new frame per item — minor",
+    "body": "blocks.ts foreach calls `engine.hb.createFrame(...)` per iteration. createFrame returns a new object with a hidden prototype link. For a homepage feed of 12 cards this is fine; for big-tag pages with 1000+ cards this is measurable allocation churn. Note: the prompt itself notes 'foreach allocates new frame per item; fine' — keep as-is unless profiling shows it.\n\nFix: only if a profile shows it as a hot allocation, reuse a single mutated frame object across iterations (semantically equivalent since Handlebars copies on render).",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/date: dayjs().tz(...).format() per date helper call",
+    "body": "src/render/helpers/date.ts dateHelper instantiates a dayjs object and applies a timezone conversion every time `{{date}}` is rendered. Each post card has ≥1 date call; with paginated lists you get ~12-50 dayjs allocations per page × 10k pages = 500k dayjs objects.\n\nFix: precompute formatted date strings on the Post during loader.ts (cheap_date, iso_date, etc) and let the helper just look them up by format key. Or cache by `${value}|${format}|${tz}`.",
+    "labels": ["performance", "P2", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/i18n: t helper recomputes string interpolation per call",
+    "body": "i18n.ts interpolate iterates `Object.entries(hash)` per `{{t}}` call. Same key/hash is invoked thousands of times across renders (e.g. 'By {authors}' in post cards). No memoization.\n\nFix: memoize `(key, hashStableString) → resolvedString`. Use JSON.stringify of hash entries as cache key (or sort keys for stability).",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/i18n: t helper rebuilt with capture per engine but lookup runs per call",
+    "body": "i18n.ts captures `locale`, `active`, `fallback` once at registration — good. But the helper still does an Object property lookup chain plus interpolate on every call. For a card grid with 50 t() invocations × 10k pages = 500k lookups.\n\nFix: precompile a Map<key, (hash) => string> at registration to skip the per-call dict lookup + branching.",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/content: tags helper rebuilds <a> string per call",
+    "body": "content.ts tags helper allocates a fresh array of escaped anchors per invocation. Same tag list appears on every card of every paginated list for that post — duplicated work.\n\nFix: precompute `post.tags_html` (autolink=true) and `post.tags_text` (autolink=false) at loader time. Helper just selects.",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/content: post_class registered twice (engine + helper)",
+    "body": "engine.ts computePostClass writes `ctx.post_class` during buildContext, AND content.ts registers a `post_class` Handlebars helper that recomputes the same string. Whichever wins, one of them is wasted CPU + a confusing API.\n\nFix: pick one source of truth (recommend computing once at loader time and exposing as `post.post_class`); remove the duplicate helper.",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/assets: linear scan over candidates per asset helper call",
+    "body": "assets.ts assetHelper iterates `[logical, 'assets/'+logical]` and Map.get for each. Map.get is O(1) so fine, but escapeHtml runs on every call even though asset URLs are already URL-safe.\n\nFix: precompute the asset's public URL once and store on the ThemeAsset; helper just returns the cached SafeString.",
+    "labels": ["performance", "P3", "render", "helpers"]
+  },
+  {
+    "title": "perf: helpers/assets: img_url with size silently returns unsized URL",
+    "body": "assets.ts img_url helper (lines 24-45) accepts a `size` param but does NOT resize images — it just returns the original URL prefixed with `/`. The example HTML shows /content/images/welcome-cover.svg 2000w even though no 2000w variant exists. Browsers will download the full-resolution image regardless of which srcset candidate is picked → LCP regression on hero images.\n\nFix: implement build-time image resizing (sharp / Bun's Image API when available). For each `image_sizes` entry in theme package.json, emit a resized variant during copyContentAssets, and rewrite img_url to point to it. Critical for Web Vitals.",
+    "labels": ["performance", "P0", "images", "lcp"]
+  },
+  {
+    "title": "perf: emit/copyContentAssets: serial copyFile, no skip-unchanged",
+    "body": "src/build/emit.ts copyContentAssets (lines 35-52) awaits copyFile in series for every content image. A photo blog with 5000 images × 10ms = 50s. And it overwrites every file every build, defeating any downstream CDN's Last-Modified-based caching.\n\nFix: (1) Promise.all with concurrency limiter (32-64). (2) Skip copy when destination exists with matching size+mtime. (3) Use Bun.file().write() which is faster than fs.copyFile in Bun.",
+    "labels": ["performance", "P1", "emit", "images"]
+  },
+  {
+    "title": "perf: emit/copyContentAssets: no size cap on large feature_image (40MB raw photos)",
+    "body": "If a user drops a 40MB DSLR JPEG into content/images, the build copies it verbatim into dist/. The browser will then download 40MB for the LCP image — Web Vitals collapse, mobile users on cellular get charged real money.\n\nFix: during copyContentAssets, refuse to emit images over a configurable max (default 5MB), or auto-resize to a sane max dimension (e.g. 2400px) using sharp. Log a warning per oversize file with the fix command. Optional: emit WebP/AVIF variants automatically.",
+    "labels": ["performance", "P0", "images", "lcp"]
+  },
+  {
+    "title": "perf: emit/copyContentAssets: reads full file into memory via copyFile semantics",
+    "body": "node:fs/promises copyFile may buffer in user space depending on platform. For multi-GB asset trees, doing many in flight can spike memory.\n\nFix: prefer `Bun.file(src).stream().pipeTo(Bun.file(dst).writer())` for streaming copy, or copyFile with COPYFILE_FICLONE flag on supported filesystems (APFS, BTRFS) to zero-copy via reflinks.",
+    "labels": ["performance", "P2", "emit", "images"]
+  },
+  {
+    "title": "perf: loader: full content graph held in RAM",
+    "body": "ContentGraph holds posts[], pages[], tags[], authors[], plus bySlug maps — and each Post has full .html and .plaintext strings. For 10k posts × avg 50KB html = 500MB RSS minimum. With paginated index pages that hold references to posts[], GC can't reclaim until build ends.\n\nFix: (a) lazy-load post.html — only when route.template === 'post'. Index/tag/author pages need only the card-relevant fields (title, slug, excerpt, feature_image, dates, primary_tag, authors). (b) For scale, stream posts through the route planner instead of buffering all in memory.",
+    "labels": ["performance", "P1", "loader", "memory"]
+  },
+  {
+    "title": "perf: loader: post.plaintext stored alongside html — doubles memory",
+    "body": "loader.ts:197 stores both html and plaintext. plaintext is derived from html and used only for excerpt fallback + word_count. After loader runs, plaintext can be discarded.\n\nFix: drop `plaintext` from Post after computing excerpt + word_count. Saves ~50% of content RAM.",
+    "labels": ["performance", "P2", "loader", "memory"]
+  },
+  {
+    "title": "perf: loader: prev/next assigned as full Post references — memory cycles",
+    "body": "loader.ts:40-41 assigns `current.next = resolvedPosts[i-1]; current.prev = resolvedPosts[i+1];`. Each post then holds a reference to its neighbor, which holds a reference back. For 10k posts this is fine but means dropping any single post requires walking the chain to GC. Serializing the graph (e.g. for cache) becomes circular.\n\nFix: store only slug + title in prev/next, or compute prev/next on demand from the sorted array index. Avoids deep nested cloning if you ever JSON.stringify a post.",
+    "labels": ["performance", "P3", "loader", "memory"]
+  },
+  {
+    "title": "perf: loader: resolveTagSlugs creates new Tag per missing slug — no dedupe across calls",
+    "body": "loader.ts resolveTagSlugs is called once per post and may mutate the shared tagMap. That's safe, but inside Promise.all execution (when parallelised per the parallel-readFile fix above) it would race. Even without parallelism, the per-post `slugs.map` allocates a new array even when post tagSlugs is empty.\n\nFix: early-return when slugs.length === 0 (returns a shared empty array). When parallelising, build tagMap from a serial second pass over already-loaded raw posts.",
+    "labels": ["performance", "P3", "loader"]
+  },
+  {
+    "title": "perf: loader: titleCase + slug.split etc allocated per slug per post",
+    "body": "loader.ts titleCase splits + maps + joins per tag/author slug per post that references it. Same slug shared across N posts → N allocations of the same string.\n\nFix: memoize titleCase(slug) → name in a Map, reuse.",
+    "labels": ["performance", "P3", "loader"]
+  },
+  {
+    "title": "perf: loader: existsSync inside async loadMarkdownDir — blocking",
+    "body": "loader.ts:159 calls `existsSync(dir)` synchronously. Doing this on the event loop per content dir × 4 dirs is fine here but the pattern is repeated across loadTheme, loadThemeAssets, etc.\n\nFix: prefer `await Bun.file(dir).exists()` or `fs.access` with try/catch — non-blocking.",
+    "labels": ["performance", "P3", "loader"]
+  },
+  {
+    "title": "perf: theme: serial readFile of every .hbs in loadTheme",
+    "body": "src/theme/loader.ts loadTheme:38-51 does `await readFile(file)` per .hbs in series. A medium Ghost theme has ~30-80 hbs files. Each ~1ms × 80 = 80ms serial vs ~5ms parallel.\n\nFix: collect paths, Promise.all the reads, then assign into templates/partials maps.",
+    "labels": ["performance", "P2", "theme"]
+  },
+  {
+    "title": "perf: theme: locales loaded serially — same pattern",
+    "body": "loader.ts:85-99 loads each locale JSON in series. Likely <10 locales so impact is minor, but the pattern propagates.\n\nFix: Promise.all the JSON reads + parses.",
+    "labels": ["performance", "P3", "theme"]
+  },
+  {
+    "title": "perf: theme: assets Map double-indexed (logical + bare) doubles map size",
+    "body": "theme/assets.ts:28 sets `out.set(rel.replaceAll('\\\\', '/'), out.get(logical)!)` — duplicating every entry. Memory cost is O(2 × assets) and lookup speed is unchanged.\n\nFix: keep one canonical key; have assetHelper try both keys in resolution.",
+    "labels": ["performance", "P3", "theme"]
+  },
+  {
+    "title": "perf: pipeline: copyAssets runs AFTER all routes rendered — serializes phases",
+    "body": "pipeline.ts emits routes first, then assets, then content assets, then sitemap, then RSS — all sequentially. These are mostly independent.\n\nFix: kick off `copyAssets` and `copyContentAssets` as Promises while routes are still rendering. Sitemap can start once routes are planned (it only needs URLs, not html). RSS needs post.html so it remains last. Net: ~30% faster total wall time on small sites where assets dominate.",
+    "labels": ["performance", "P2", "build"]
+  },
+  {
+    "title": "perf: pipeline: writeHtml awaited per route — serial fsync",
+    "body": "pipeline.ts:39 awaits writeHtml inline. mkdir is recursive but called per route via ensureDir (emit.ts:8) — for routes in same directory this is wasted syscalls.\n\nFix: batch writes by directory, mkdir once per directory, then Promise.all the writeFile within. Or pre-create the directory tree once after planRoutes (we know all outputPaths upfront).",
+    "labels": ["performance", "P1", "build", "emit"]
+  },
+  {
+    "title": "perf: pipeline: ensureDir / mkdir recursive called per write",
+    "body": "emit.ts:8 calls `ensureDir(dirname(dest))` for every single writeHtml. mkdir recursive is cheap if the path exists (one stat syscall) but it still hits the filesystem. For 10k routes that's 10k stat calls.\n\nFix: precompute the set of unique directories from planned routes, mkdir each once at the start of the emit phase.",
+    "labels": ["performance", "P2", "build", "emit"]
+  },
+  {
+    "title": "perf: no worker_threads / parallelism for CPU-bound markdown + handlebars",
+    "body": "The entire build runs in a single thread. Markdown parse and Handlebars compile/execute are CPU-bound. On a modern 8-16 core dev box this leaves 80-95% of CPU idle.\n\nFix: shard renders across `os.availableParallelism()` Bun Workers. Each worker imports loader output (serialized) + theme, then renders its slice of routes. Combine HTML strings via SharedArrayBuffer or postMessage. Expected 4-8x on cold builds for content-heavy sites.",
+    "labels": ["performance", "P0", "build", "concurrency"]
+  },
+  {
+    "title": "perf: no Bun.Glob concurrency / async iteration is single-flight",
+    "body": "Every loader uses `for await (const rel of glob.scan(...))` which yields paths one at a time and the body awaits per iteration. The glob walk itself isn't parallelised against the per-file work.\n\nFix: collect all paths into an array first (`const paths = await Array.fromAsync(glob.scan(...))`), then process with Promise.all + concurrency limit. Decouples directory walk from file processing.",
+    "labels": ["performance", "P1", "loader", "concurrency"]
+  },
+  {
+    "title": "perf: scale: 10k posts estimated build time",
+    "body": "Back-of-envelope on current sequential code: 10k × (1ms readFile + 3ms markdown + 5ms render + 2ms write) = 110s wall + asset stage. Memory peak ~600MB (full html in graph). With the fixes proposed (parallelism, template caching, indexes, incremental, image cap) target is <15s cold, <1s incremental, <300MB peak.\n\nFix: ship benchmarks/bench-10k.ts that generates 10k synthetic posts and measures end-to-end. Track via CI to prevent regressions.",
+    "labels": ["performance", "P0", "scale", "benchmarks"]
+  },
+  {
+    "title": "perf: scale: 100k tags blows up routes.ts",
+    "body": "planRoutes builds a route per tag × per pagination page. 100k tags × avg 1.2 pages = ~120k tag routes alone. Combined with the O(T·P) filter bug (separate issue), planning phase becomes O(10^9) on input alone.\n\nFix: (1) fix the filter via indexed map (separate issue). (2) gate tag/author route generation behind a `min_posts_per_tag` config (e.g. default 1) — sites importing from Ghost often have hundreds of hash- tags with 0 posts. (3) consider on-demand 404 with a search index instead of pre-rendering ultra-long-tail tag pages.",
+    "labels": ["performance", "P0", "scale", "routes"]
+  },
+  {
+    "title": "perf: scale: chunked rendering required for >1k routes",
+    "body": "Holding all rendered HTML strings in memory while the loop runs is fine for small sites but at 10k × 50KB = 500MB extra peak. With the proposed Promise.all batching, we must cap concurrency or memory explodes.\n\nFix: pipeline must consume routes in batches of e.g. 500 — render batch, write batch, release html strings, GC, then next batch. Or stream HTML straight to disk without ever holding it.",
+    "labels": ["performance", "P1", "scale", "memory"]
+  },
+  {
+    "title": "perf: scale: sitemap.xml >50k URLs requires split index",
+    "body": "Companion to the feeds split issue. At 10k posts + 100k tags + paginated subpages, total URLs easily exceed 50k. Current emit creates one file.\n\nFix: see feeds split issue. Also gzip the sitemaps and reference .xml.gz from sitemap-index.xml — Google supports it natively.",
+    "labels": ["performance", "P1", "scale", "feeds", "seo"]
+  },
+  {
+    "title": "perf: scale: RSS >10k items needs pagination (Ghost paginates by 25)",
+    "body": "Even with the config.components.rss.items cap, users may set it to a high number. No safeguard.\n\nFix: hard-clamp items to a max (e.g. 250) and emit paginated rss-2.xml … with <atom:link rel=next>. Aligns with Ghost behavior.",
+    "labels": ["performance", "P2", "scale", "feeds"]
+  },
+  {
+    "title": "perf: output: CSS not critical-path inlined",
+    "body": "Generated HTML (example/dist/index.html line 24) loads `<link rel=stylesheet href=/assets/built/screen.css>` as a render-blocking external request. screen.css is 54KB. LCP element renders after this round trip. Modern best practice: inline the above-the-fold CSS (~14KB compressed) and async-load the rest.\n\nFix: integrate critical-css extraction (lightningcss / critters / postcss-extract-critical) into copyAssets. Emit per-template critical CSS as `<style>` in <head> and `<link rel=stylesheet media=print onload='this.media=...' >` for the rest.",
+    "labels": ["performance", "P1", "runtime", "lcp", "css"]
+  },
+  {
+    "title": "perf: output: JS preloaded AND <script src> — redundant fetch hint",
+    "body": "Generated HTML emits `<link rel=preload as=script href=source.js>` (line 10) AND later `<script src=source.js>` (line 363). Modern browsers handle the <script> tag with the same priority; the preload is at best redundant, at worst it causes a double-fetch on some browsers when the URLs differ slightly (e.g. trailing slash) or breaks integrity if SRI is added later.\n\nFix: drop the `<link rel=preload as=script>` for the deferred main bundle, and add `defer` to the <script> tag at the bottom. The script is below </body>-adjacent so its execution is already late; defer just guarantees it.",
+    "labels": ["performance", "P1", "runtime", "inp"]
+  },
+  {
+    "title": "perf: output: <script src=source.js> blocks rendering — no defer/async/module",
+    "body": "example/dist/hello-nectar/index.html:363 emits a plain `<script src=...></script>` with no `defer`, `async`, or `type=module`. Even though it's near the end of body, it's still parser-blocking from the moment the parser encounters it. JS payload is ~52KB.\n\nFix: theme should output `<script src=... defer></script>`. Better still: emit `type=module` for an ESM bundle so it's deferred by spec. Cheap INP/TBT win.",
+    "labels": ["performance", "P1", "runtime", "inp"]
+  },
+  {
+    "title": "perf: output: inline color-contrast script runs synchronously in <head>",
+    "body": "default.hbs lines 27-44 inject an inline script in <head> that calls getComputedStyle + writes documentElement.className. This blocks the parser before stylesheet has applied. The work is also unnecessary at runtime — it should be done at build time when the background color is known.\n\nFix: compute `has-dark-text` / `has-light-text` at build time from config.site.accent_color / @custom.site_background_color and emit it directly on <body class>. Removes a ~3KB inline script + the FOUC risk.",
+    "labels": ["performance", "P1", "runtime", "inp", "cls"]
+  },
+  {
+    "title": "perf: output: font-display: optional may hide text indefinitely",
+    "body": "default's typography/sans partial sets `font-display: optional`. 'optional' instructs the browser to use the fallback if the font isn't available within ~100ms — text never swaps later. On slow connections users see the fallback font for the entire session. Great for CLS but poor for brand consistency.\n\nFix: expose font-display as a theme custom setting (default 'swap' for most blogs, 'optional' as an opt-in). Document the tradeoff.",
+    "labels": ["performance", "P2", "runtime", "fonts", "cls"]
+  },
+  {
+    "title": "perf: output: LCP image not preloaded with fetchpriority",
+    "body": "Hero image on post pages (feature_image.hbs) is a normal <img> tag with no `fetchpriority=high` and no `<link rel=preload as=image>`. Browsers discover it only after parsing past the preload-scanner stylesheet step. LCP delay typically 200-800ms.\n\nFix: in default.hbs <head>, when route.kind === 'post' and post.feature_image exists, emit `<link rel=preload as=image href={img_url feature_image size=xl} fetchpriority=high>` plus `<img fetchpriority=high>` on the feature-image partial when it is the LCP candidate.",
+    "labels": ["performance", "P0", "runtime", "lcp", "images"]
+  },
+  {
+    "title": "perf: output: no <link rel=preconnect> to image CDN / cross-origin sources",
+    "body": "When post.feature_image points to an external host (e.g. Ghost Images CDN, Cloudinary), there's no preconnect hint emitted. Cold DNS + TLS handshake adds 100-300ms before the image fetch even starts.\n\nFix: at build time detect external image hosts (origin != site.url) and emit `<link rel=preconnect crossorigin href=...>` per unique origin in the page (cap at 3).",
+    "labels": ["performance", "P1", "runtime", "lcp"]
+  },
+  {
+    "title": "perf: output: images missing width/height — CLS risk",
+    "body": "post-card.hbs and feature-image.hbs `<img>` tags do not set `width`/`height` attributes. Without intrinsic dimensions the browser cannot reserve space, causing layout shift when the image loads. CLS budget is <0.1; a single un-sized hero typically scores 0.15-0.3.\n\nFix: store intrinsic image dimensions during copyContentAssets (use sharp/image-size to read PNG/JPEG/WebP headers — cheap, no full decode), expose as `feature_image_width`/`feature_image_height` on Post, and render them in the img tag.",
+    "labels": ["performance", "P0", "runtime", "cls", "images"]
+  },
+  {
+    "title": "perf: output: srcset emits same URL 5-6 times for unresized images",
+    "body": "example/dist/hello-nectar/index.html shows srcset='/content/images/welcome-cover.svg 320w, ... 2000w' — same URL six times. Browser picks 2000w and downloads the full file regardless of viewport. This is wasted bytes for every <img> on every page.\n\nFix: actually generate the resized variants (see img_url issue). If the source is SVG (vector), skip the srcset entirely and emit a single `<img>` since SVG scales losslessly.",
+    "labels": ["performance", "P1", "runtime", "lcp", "images"]
+  },
+  {
+    "title": "perf: output: SVG images run through srcset machinery — redundant",
+    "body": "Companion to the previous. SVGs are vectors — width descriptors mean nothing to them. The current template emits a 6-entry srcset on SVG covers, adding ~500B/img to every page and inviting the picker to download '2000w' which is just the original.\n\nFix: in post-card.hbs and feature-image.hbs, branch on `endsWith('.svg')` (or expose `is_vector` on the image) and omit srcset.",
+    "labels": ["performance", "P2", "runtime", "images"]
+  },
+  {
+    "title": "perf: output: no AVIF/WebP fallback chain via <picture>",
+    "body": "img_url helper accepts `format=webp` (used in post-card.hbs) but no transform actually emits a .webp file. Even if it did, modern best practice is `<picture><source type=image/avif><source type=image/webp><img src=...jpg></picture>`. AVIF saves 30-50% vs WebP at same quality.\n\nFix: pipeline emits avif+webp+jpeg variants per image_sizes entry; theme uses <picture>. Tied to image-resize implementation.",
+    "labels": ["performance", "P1", "runtime", "lcp", "images"]
+  },
+  {
+    "title": "perf: output: loading=lazy on cards above the fold",
+    "body": "example/dist/hello-nectar/index.html related-posts cards use `loading=lazy` — but they're often within the viewport on tall desktop layouts. Mobile fine; desktop loses parallel fetches.\n\nFix: lazy only beyond the first row of cards (theme decides). Or use `loading=auto` (default) and let the browser heuristic decide based on viewport.",
+    "labels": ["performance", "P3", "runtime", "images"]
+  },
+  {
+    "title": "perf: output: featured image card has no loading attribute (eager) — fine, but inconsistent",
+    "body": "Featured card in dist/index.html does not have loading=lazy (good for LCP) but the next sibling row also lacks loading=lazy on the first item. Inconsistency suggests the template logic depends on theme state, not on viewport.\n\nFix: theme determines `lazyLoad` flag based on card index (first 1-2 cards eager, rest lazy). Render once per card.",
+    "labels": ["performance", "P3", "runtime", "images"]
+  },
+  {
+    "title": "perf: output: no HTTP/2 Server-Push or 103 Early Hints support documented",
+    "body": "SSG output is just files — fine. But for hosts that support 103 Early Hints (Cloudflare, Fastly, Vercel), the generator can emit a `_headers` (Netlify/CF) or `_redirects` file listing critical preload hints. Currently nothing is emitted.\n\nFix: optional `early-hints.json` artifact per route, plus a `_headers` file for Netlify/Cloudflare Pages with `Link: </assets/built/screen.css>; rel=preload; as=style` etc. Documented in docs/.",
+    "labels": ["performance", "P2", "runtime", "infra"]
+  },
+  {
+    "title": "perf: output: no Cache-Control / immutable headers on fingerprinted assets",
+    "body": "Fingerprinted assets are content-addressed but the generator emits no hosting hint that they should be served with `Cache-Control: public, max-age=31536000, immutable`. Most hosts default to short TTLs.\n\nFix: emit a `_headers` (Netlify/CF Pages) and `nginx.conf` snippet and `vercel.json` example documenting the immutable strategy for /assets/*-<hash>.* paths and short TTLs for /index.html.",
+    "labels": ["performance", "P1", "runtime", "ttfb", "infra"]
+  },
+  {
+    "title": "perf: output: HTML not minified",
+    "body": "Generated HTML is whitespace-heavy from Handlebars + handlebars partials. example/dist/index.html is 8.8KB; minified would be ~5.5KB. Multiplied across pages and gzipped, savings are modest but consistent.\n\nFix: optional html-minifier-terser pass post-render (gated on config.build.minify_html=true). Defer to ship-it-fast for now but expose the knob.",
+    "labels": ["performance", "P2", "runtime", "ttfb"]
+  },
+  {
+    "title": "perf: output: no precompressed .br/.gz emitted",
+    "body": "Static HTML/CSS/JS can be pre-Brotli'd at build time so the host serves the .br file directly (most CDNs support this). Currently nothing.\n\nFix: in copyAssets/writeHtml, also emit `.br` (Brotli quality 11) and `.gz` companions for *.html/*.css/*.js/*.svg/*.xml. Gated on config.build.precompress (default true).",
+    "labels": ["performance", "P1", "runtime", "ttfb"]
+  },
+  {
+    "title": "perf: output: inline JSON-LD repeated across paginated index pages",
+    "body": "Every paginated /page/N/ embeds the same WebSite JSON-LD block (~150B). For 100 pages that's 15KB of identical bytes across the dist tree. Not huge but unnecessary.\n\nFix: emit JSON-LD once on / and rel=canonical the paginated pages to the root (or omit JSON-LD on paginated pages — search engines deduplicate via canonical anyway).",
+    "labels": ["performance", "P3", "runtime", "seo"]
+  },
+  {
+    "title": "perf: output: rss.xml grows unbounded — no streaming write",
+    "body": "feeds.ts builds the whole RSS string in memory before writing. For a 10k-item feed (~300MB) this OOMs. Even at 100 items it's wasteful for a streaming-capable runtime like Bun.\n\nFix: open `Bun.file(rss.xml).writer()`, write header, write each item with `writer.write(...)` inside the loop, then close. Constant memory.",
+    "labels": ["performance", "P2", "build", "feeds", "memory"]
+  },
+  {
+    "title": "perf: output: sitemap escapeXml runs 5 replace passes per URL",
+    "body": "feeds.ts escapeXml chains 5 .replace() calls per URL. For 200k URLs that's 1M regex operations.\n\nFix: single regex `/[&<>\"']/g` with a lookup table replacer. Or skip escaping for URLs entirely (URLs are already %-encoded so only `&` matters → single replace).",
+    "labels": ["performance", "P3", "feeds"]
+  },
+  {
+    "title": "perf: serve: Bun.serve uses Bun.file().exists() which stats per request",
+    "body": "cli/commands/serve.ts re-stats the filesystem on every request. For local dev this is fine; for any production-ish use case it's slow.\n\nFix: add an in-memory route → file map populated at startup from a recursive scan of distDir. Refresh on SIGHUP or fs.watch.",
+    "labels": ["performance", "P3", "serve"]
+  },
+  {
+    "title": "perf: serve: no Content-Encoding negotiation — always serves raw bytes",
+    "body": "Bun's Response from Bun.file does not auto-serve precompressed .br/.gz companions. Even if we add precompression (separate issue), serve.ts won't pick them up.\n\nFix: parse Accept-Encoding header, look for .br / .gz beside the requested file, serve with appropriate Content-Encoding header.",
+    "labels": ["performance", "P3", "serve"]
+  },
+  {
+    "title": "perf: build: rm output dir is destructive and slow on large dist",
+    "body": "pipeline.ts:26 `await rm(outputDir, { recursive: true, force: true })` deletes the entire dist before every build. For a 10k-route dist with ~50MB of assets this is multiple seconds of unlink syscalls. And it churns SSD write cycles.\n\nFix: don't rm; instead, write new files (idempotent), and at the end of the build delete only files in dist that are not in the planned-route + asset manifest (set difference). Tied to incremental-build issue.",
+    "labels": ["performance", "P1", "build"]
+  },
+  {
+    "title": "perf: helpers: every helper allocates a SafeString — escape cost",
+    "body": "Many helpers wrap their return in `new engine.hb.SafeString(...)`. SafeString is a thin wrapper but invocation per render × per helper-call (often 20+ per page) adds up to ~hundreds of allocations per page.\n\nFix: return raw strings when the content is already encoded; only use SafeString when truly necessary (e.g. helpers that emit <a>/<img> markup). Marginal but measurable.",
+    "labels": ["performance", "P3", "helpers"]
+  },
+  {
+    "title": "perf: helpers: navigation helper builds entire ul on every page",
+    "body": "navigation.ts navigationHelper joins escapeHtml + escapeAttr + slugify per nav item per page. Result is identical across the entire site (nav doesn't change between pages).\n\nFix: cache navigation html per (type, locale) at engine boot. Reuse via SafeString.",
+    "labels": ["performance", "P2", "helpers"]
+  },
+  {
+    "title": "perf: render: handlebars.create() per engine — fine; verify no global pollution",
+    "body": "engine.ts uses `Handlebars.create()` (not the global Handlebars) — good for isolation. But every helper is re-registered on every build invocation. For dev/watch mode this matters.\n\nFix: when serving in watch mode (future feature), reuse the engine across rebuilds; only re-register if theme files changed.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: ghost-import: O(N×M) tagSlugsForPost and authorSlugsForPost",
+    "body": "src/ghost/import.ts tagSlugsForPost / authorSlugsForPost (lines 107-119) filter the entire posts_tags / posts_authors array per post. For a 50k-post Ghost export with 200k posts_tags rows: 50k × 200k = 10^10 ops. Imports take hours.\n\nFix: build `Map<post_id, tag_ids[]>` and `Map<post_id, user_ids[]>` once outside the loop. O(N+M).",
+    "labels": ["performance", "P0", "ghost-import"]
+  },
+  {
+    "title": "perf: ghost-import: serial writeFile per post",
+    "body": "import.ts loop awaits writeFile + ensureDir per post (lines 156-157). For 50k posts × ~3ms = 150s wall time.\n\nFix: Promise.all in batches of 256. Pre-create the two destination dirs once outside the loop.",
+    "labels": ["performance", "P1", "ghost-import"]
+  },
+  {
+    "title": "perf: ghost-import: ensureDir called per post — repeated mkdir",
+    "body": "Same loop calls `ensureDir(join(opts.cwd, dir))` per post — same dir each time. Wasted syscall.\n\nFix: mkdir each of content/posts and content/pages once, before the loop.",
+    "labels": ["performance", "P2", "ghost-import"]
+  },
+  {
+    "title": "perf: ghost-import: turndown runs serially in-thread",
+    "body": "Each post's html is converted to Markdown via TurndownService synchronously. For 50k posts with avg 5KB html, turndown takes ~5-10ms each → 5-8 minutes total.\n\nFix: shard via worker_threads. turndown is dependency-isolated, can run cleanly per worker.",
+    "labels": ["performance", "P1", "ghost-import", "concurrency"]
+  },
+  {
+    "title": "perf: markdown: no syntax-highlighting cache",
+    "body": "renderMarkdown lacks a syntax highlighter (good — keeps it lean) but if/when one is added (shiki, highlight.js), the per-codeblock highlight cost is huge. Pre-emptive note: cache highlighted snippets by sha1(language+code).\n\nFix: when highlighting lands, add a `.nectar-cache/highlight/` directory keyed by content hash.",
+    "labels": ["performance", "P3", "markdown", "caching"]
+  },
+  {
+    "title": "perf: markdown: htmlToPlaintext runs 9 sequential .replace passes",
+    "body": "content/markdown.ts htmlToPlaintext does 9 chained .replace calls per post. For 10k posts that's 90k regex operations and lots of intermediate strings.\n\nFix: single state-machine pass that strips tags + decodes entities in one go. Or skip plaintext entirely when custom_excerpt is set (the only consumer).",
+    "labels": ["performance", "P3", "markdown"]
+  },
+  {
+    "title": "perf: markdown: marked.parse is async but body of renderMarkdown is serial",
+    "body": "renderMarkdown awaits marked.parse then derives plaintext+word_count synchronously. Since renderMarkdown is called from the (currently serial) loader, the await suspends but no parallelism is enabled.\n\nFix: companion to loader parallelism — Promise.all the renderMarkdown calls across posts.",
+    "labels": ["performance", "P2", "markdown"]
+  },
+  {
+    "title": "perf: rss: <pubDate> creates a new Date per item per build",
+    "body": "feeds.ts:34 `new Date(post.published_at).toUTCString()` per item. Cheap, but redundant — could be precomputed on Post.\n\nFix: precompute `post.published_at_rfc2822` at loader time.",
+    "labels": ["performance", "P3", "feeds"]
+  },
+  {
+    "title": "perf: config: zod parse runs per build start — fine but no schema reuse for dev",
+    "body": "loader.ts parses TOML then zod-validates per build. For dev/watch mode this is wasted CPU when config hasn't changed.\n\nFix: cache the validated config keyed by mtime of the nectar.toml. Trivial when watch lands.",
+    "labels": ["performance", "P3", "config"]
+  },
+  {
+    "title": "perf: routes: defaultMeta string-concat per route — minor allocation churn",
+    "body": "routes.ts defaultMeta is called per route and allocates a fresh object literal each time. For 100k+ routes this is 100k object allocations.\n\nFix: precompute a frozen base meta, then `{ ...base, title, description, image }` per route. Marginal but visible in heap profiles.",
+    "labels": ["performance", "P3", "routes"]
+  },
+  {
+    "title": "perf: docs: no perf section / no published benchmarks",
+    "body": "README.md and docs/ contain no benchmarks, no scaling guidance, no recommended host config. Users have no way to know if their build is slow.\n\nFix: add docs/PERFORMANCE.md with: target metrics (build 1k posts in <3s, render <0.5ms/route), suggested hosting headers, image guidance (max 5MB, prefer webp/avif), and a worked example of incremental builds. Add tests/bench/*.bench.ts that prints results.",
+    "labels": ["performance", "P2", "docs"]
+  },
+  {
+    "title": "perf: handlebars: theme.templates also registered as partials by bare name — collision risk",
+    "body": "engine.ts:69-71 registers every template as a partial under its bare name. For a theme with 50 templates and 100 partials, every render walks a 150-entry partials map. Not slow but inflates Handlebars internal state.\n\nFix: only register the templates that are actually invoked as partials (post, post-card, etc.). Determine via static scan of template ASTs, or expose as theme config.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: handlebars: noEscape:false redundant — it's the default",
+    "body": "engine.ts passes `{ noEscape: false }` to every hb.compile call. It's the default; passing the option does nothing but adds bytes per call.\n\nFix: drop the option (cosmetic; not a runtime perf win but cleans up the hot path).",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: render: post.html injected as SafeString via {{{html}}} or content helper — re-escape risk",
+    "body": "content.ts content helper wraps post.html in SafeString. For a 50KB post that's a string copy (the SafeString wrapper is cheap but Handlebars may still traverse). Multiplied over 10k posts × 1 invocation per render this is hundreds of MB of string handling.\n\nFix: pre-wrap post.html as SafeString at loader time so engine.render never re-wraps. Or expose a raw-html marker that Handlebars skips.",
+    "labels": ["performance", "P3", "render"]
+  },
+  {
+    "title": "perf: scale: bySlug Maps doubled storage for posts/pages/tags/authors",
+    "body": "loader.ts:63-68 builds bySlug maps that hold references to all posts/pages/tags/authors — doubling pointer storage. For 10k posts that's 10k extra pointers (small) but the map overhead is ~100 bytes/entry on V8/Bun.\n\nFix: lazy-build bySlug only when a helper needs it. Most templates use `{{#get \"posts\"}}` (array iteration) more than slug lookups.",
+    "labels": ["performance", "P3", "loader", "memory"]
+  },
+  {
+    "title": "perf: build: no telemetry / per-phase timing reported",
+    "body": "pipeline.ts logs only final route+asset counts. With no per-phase breakdown (load: Xms, plan: Yms, render: Zms, assets: Wms, feeds: Vms), users and devs cannot identify regressions.\n\nFix: wrap each phase in `performance.now()` and log a one-line summary on completion. Optional --verbose flag dumps per-route render times.",
+    "labels": ["performance", "P2", "build", "observability"]
+  },
+  {
+    "title": "perf: output: theme bundle source.js is 52KB unminified-ish — verify gzip size",
+    "body": "example/dist/assets/built/source.js is 52613 bytes. Without measuring Brotli/gzip we don't know the over-the-wire cost. For a static site, this is the main INP contributor.\n\nFix: add a Lighthouse / size-limit check to CI on example/dist; alert if bundle grows beyond 60KB Brotli'd.",
+    "labels": ["performance", "P2", "runtime", "inp"]
+  }
+]

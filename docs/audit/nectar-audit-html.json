@@ -1,0 +1,387 @@
+[
+  {
+    "title": "a11y: Search and burger buttons emit empty aria-label",
+    "body": "In every generated page (example/dist/index.html lines 76-80, 86-87; same on hello-nectar, about, tag, author), the search button (`<button class=\"gh-search gh-icon-button\" aria-label=\"\" data-ghost-search>`) and burger button (`<button class=\"gh-burger gh-icon-button\" aria-label=\"\">`) have an explicitly empty aria-label, while their only visible content is an SVG icon with no <title>. Screen readers will announce them as 'button' with no purpose. This is a WCAG 4.1.2 / 2.4.4 failure. Verify with `npx pa11y file:///.../example/dist/index.html` or open the file in axe DevTools. Fix: the template hand-off should pass non-empty translation strings into the icon buttons (e.g. {{t \"Search\"}} / {{t \"Menu\"}}) and Nectar's `t` helper should fall back to the English label when no translation exists rather than emitting an empty string.",
+    "labels": ["a11y", "P0", "buttons"]
+  },
+  {
+    "title": "a11y: PhotoSwipe and pagination icon buttons have empty title attributes",
+    "body": "example/dist/hello-nectar/index.html lines 336-339 and 354-355 emit `<button class=\"pswp__button pswp__button--close\" title=\"\">` and four other PhotoSwipe action buttons with empty `title=\"\"`. They have no aria-label, no text. Even though PhotoSwipe is a JS overlay these are present in the static markup and tools like axe / Lighthouse will flag them. Verify with `npx pa11y file://.../hello-nectar/index.html`. Fix: render localized titles via the {{t}} helper for each pswp button, or set aria-hidden=\"true\" on the entire `.pswp` container (it already has aria-hidden=true on the wrapper but the inner buttons are still in the a11y tree because tabindex / focusability is enabled by JS).",
+    "labels": ["a11y", "P1"]
+  },
+  {
+    "title": "a11y: No skip-to-content link emitted",
+    "body": "None of the audited pages emit a `<a class=\"skip-link\" href=\"#main\">Skip to content</a>` (or equivalent) as the first focusable element. Keyboard users have to tab through the entire header (logo, search, burger, full nav, search again) on every page. WCAG 2.4.1 Bypass Blocks. Verify by tabbing through file:///.../example/dist/index.html. Fix: have the engine prepend a skip link to every page body, or render one in the default theme partials. The `<main>` element exists but has no id, so even a manually added skip link wouldn't have a target — also add id=\"main\" to the primary <main>.",
+    "labels": ["a11y", "P1", "skip-link"]
+  },
+  {
+    "title": "a11y: <main> element has no id and there are sometimes multiple <main> elements per page",
+    "body": "On example/dist/tag/news/index.html the markup contains both `<main class=\"gh-main gh-outer\">` (line 93) and a nested `<main class=\"gh-main\">` (line 109). HTML5 allows only one non-hidden <main> per document. The same nesting occurs on author/casper/index.html (lines 93 and 121). On the post page (hello-nectar) only one <main> exists but it has no id, breaking any skip-link target. Verify with `npx html-validate example/dist/tag/news/index.html`. Fix: in the theme adapter, collapse the inner gh-main into a generic <div> (or render conditional logic so only the outer one survives), and add id=\"main\" to the surviving element.",
+    "labels": ["a11y", "P0", "landmarks"]
+  },
+  {
+    "title": "a11y: Navigation has no aria-current on active link",
+    "body": "src/render/helpers/navigation.ts renders the `{{navigation}}` <ul> without an aria-current attribute, and `link_class` only toggles a CSS class. On example/dist/tag/news/index.html, the 'Tags' nav item points to /tag/news/ which is the current page, but no `aria-current=\"page\"` is emitted. Verify by inspecting the <a> tags inside `<ul class=\"nav\">` on each page. Fix: in navigation.ts, when the URL matches route.url, render `aria-current=\"page\"` on the anchor (and ideally on the parent <li>).",
+    "labels": ["a11y", "P1", "navigation"]
+  },
+  {
+    "title": "a11y: Two <h2> elements emitted empty",
+    "body": "On the home page (example/dist/index.html lines 98 and 139) two headings render empty: `<h2 class=\"gh-featured-title\"></h2>` and `<h2 class=\"gh-container-title\"></h2>`. Empty headings break screen reader heading navigation and fail axe rule 'empty-heading'. Same pattern at lines 175 of hello-nectar/index.html. Verify with `npx axe file://.../example/dist/index.html` or check Lighthouse Accessibility. Fix: only render the wrapper heading when a title string exists (`{{#if title}}<h2>{{title}}</h2>{{/if}}`).",
+    "labels": ["a11y", "P1", "headings"]
+  },
+  {
+    "title": "a11y: Heading hierarchy skips levels on post page",
+    "body": "example/dist/hello-nectar/index.html: h1 'Hello, Nectar' (line 103), then an h4 'Casper' for author name (line 114), then h2s inside content. h4 follows h1 with nothing between. On the home, in-feed cards use <h3 class=\"gh-card-title\"> (line 118) but the section heading <h2 class=\"gh-featured-title\"> is empty (line 98). WCAG 1.3.1 / 2.4.6. Verify with axe / Lighthouse. Fix: promote the author-name from h4 to a styled <p>/<span> (it is metadata, not a section heading), and ensure every card grid has a visible/visually-hidden h2 above it.",
+    "labels": ["a11y", "P1", "headings"]
+  },
+  {
+    "title": "a11y: about/index.html contains two consecutive <h1> tags",
+    "body": "example/dist/about/index.html line 100 emits `<h1 class=\"gh-article-title is-title\">About Nectar</h1>`, and the body content (rendered Markdown) starts with `<h1 id=\"what-is-nectar\">What is Nectar?</h1>` on line 116. Two h1s on one page is permitted under HTML5 sectioning but is considered a Lighthouse/SEO smell and confuses screen readers that announce the outline. Fix: in src/render/helpers/content.ts, downshift h1 in post/page body content to h2 (and adjust subsequent headings) before injecting into a layout whose title is already an h1. Document this in the markdown writing guide.",
+    "labels": ["a11y", "seo", "P1", "headings"]
+  },
+  {
+    "title": "a11y: Featured-image and card images lack width/height attributes",
+    "body": "Every `<img>` emitted by the card / article-image partials (e.g. example/dist/index.html lines 103-114, hello-nectar lines 127-136) sets src/srcset but omits intrinsic width and height. This causes Cumulative Layout Shift (CLS) and prevents browsers from reserving space. Verify with Lighthouse Performance. Fix: store image dimensions in the content graph (read once at build with sharp or image-size) and pass them through the `gh-card-image` / `gh-article-image` helpers.",
+    "labels": ["a11y", "performance", "P1"]
+  },
+  {
+    "title": "a11y: Featured/hero image is not lazy-loaded but other cards are — but the LCP image has no fetchpriority",
+    "body": "On example/dist/index.html the featured card image (line 103) intentionally omits loading=\"lazy\" while other cards have it. Good, but the LCP image is missing `fetchpriority=\"high\"` and `decoding=\"async\"`. Same on hello-nectar/index.html: the article-image (line 127-136) is the LCP element and has neither attribute. Fix: in card/article-image helpers, when index === 0 (or post.feature_image is the article hero), add fetchpriority=\"high\" decoding=\"async\"; on all other images add decoding=\"async\" and loading=\"lazy\".",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "a11y: alt text uses post titles verbatim for decorative cards",
+    "body": "All card images on every page reuse the post title as the alt text (e.g. 'Optional Components', 'Ghost Theme Compatibility' on example/dist/tag/news/index.html lines 184, 167). The full card is wrapped in a single `<a class=\"gh-card-link\">` that already exposes the title via its text — so the image alt duplicates the link text. WCAG/axe rule 'image-redundant-alt'. Fix: when an image lives inside a link whose accessible name already includes the post title, emit alt=\"\" so the image is treated as decorative.",
+    "labels": ["a11y", "P2"]
+  },
+  {
+    "title": "a11y: Author 'social link' wraps the page <h1> heading text",
+    "body": "example/dist/author/casper/index.html lines 98-100 emit `<h1 class=\"gh-article-title is-title\"><a class=\"gh-author-social-link\" href=\"https://example.com\" target=\"_blank\" rel=\"noopener\">Casper</a></h1>`. The page title is therefore the linked text 'Casper'. This breaks the heading semantics (the h1 acts as both a heading and a navigation target) and means the page has no plain-text page title for accessible context. WCAG 2.4.6. Fix: render the h1 as plain text (Casper) and surface the social link as a separate <a> below the heading.",
+    "labels": ["a11y", "P1", "headings"]
+  },
+  {
+    "title": "a11y: <html lang> is hardcoded to 'en' — no per-page lang and no locale honoring",
+    "body": "Every emitted page begins with `<html lang=\"en\">` even though config.site.locale is plumbed through (it's used as RSS <language>). If a user sets site.locale = 'ja' in nectar.toml, the HTML lang attribute will still claim English. WCAG 3.1.1. Fix: in the layout default partial (or wherever <html lang=\"...\"> is rendered), interpolate `site.locale` (defaulting to 'en'). Also surface `dir=\"rtl\"` automatically for known RTL locales.",
+    "labels": ["a11y", "seo", "P1"]
+  },
+  {
+    "title": "a11y: Header logo link uses absolute origin and lacks aria-label/site name affordance",
+    "body": "example/dist/index.html line 73: `<a class=\"gh-navigation-logo is-title\" href=\"https://nectar.example.com\">`. The href is the absolute origin (causing a full reload from same-origin), and the link's accessible name comes only from the <img alt=\"Nectar Example\">. If a user disables images, the logo link becomes a blank focus stop with no accessible text. Fix: change the href to `/` to enable client-side caching/replay, and add a visually-hidden span with the site name (or aria-label=\"Nectar Example — Home\") for image-off scenarios.",
+    "labels": ["a11y", "P2"]
+  },
+  {
+    "title": "a11y: Share button is an anchor with href=\"#/share\" (button masquerading as link)",
+    "body": "example/dist/hello-nectar/index.html line 121: `<a href=\"#/share\" class=\"gh-button gh-button-share\">` with empty body. This is a button-like control (it triggers share JS) but uses an <a> with a non-route fragment, and its accessible name is empty. WCAG 2.4.4 link purpose, 4.1.2 name. Fix: render as `<button type=\"button\" class=\"gh-button gh-button-share\" aria-label=\"{{t \"Share this post\"}}\">…</button>` and include an SVG icon with role=\"img\" and a <title>.",
+    "labels": ["a11y", "P1", "semantics"]
+  },
+  {
+    "title": "a11y: Inline contrast script writes class on <html> after paint, causing FOUC and assumes 6-digit hex only",
+    "body": "Every page contains the inline script (example/dist/index.html lines 32-49) that reads --background-color from the document element and writes `has-light-text` / `has-dark-text` on <html>. Issues: (a) FOUC because <html> is bare until JS runs; (b) the script only handles 3- and 6-digit hex — `var(--background-color: rgb(…))` or oklch values silently parse to NaN and yield `has-NaN-text`; (c) the script blocks parsing in <head>. Fix: precompute the contrast at build time from `config.theme.custom.background_color` and emit either `<html class=\"has-dark-text\">` or write the class in a `<style>` rule. Drop the inline script.",
+    "labels": ["a11y", "performance", "P1"]
+  },
+  {
+    "title": "a11y: No focus-visible / focus-management CSS hints documented",
+    "body": "Inspecting the buttons and links shows no focus outline class is emitted (relies on UA default). The CSS file (`screen.css`) is theme-controlled, but Nectar should document a minimum-contrast focus-visible requirement for themes and warn at load-time if `:focus-visible` is missing. Verify by tabbing through file://.../example/dist/index.html. Fix: add a contrib doc to docs/THEME_GUIDE.md requiring themes to ship :focus-visible styles meeting WCAG 2.4.7.",
+    "labels": ["a11y", "P3", "docs"]
+  },
+  {
+    "title": "seo: Home page <title> is just 'Nectar Example' with no descriptor",
+    "body": "example/dist/index.html line 5: `<title>Nectar Example</title>`. There is no tagline or description in the title, so search engines and tab bars carry only the site name. Best practice: `<title>{{site.title}} — {{site.tagline_or_description}}</title>` on the home page only. Fix: thread `site.description` (already configured) into the home-route meta.title.",
+    "labels": ["seo", "P2"]
+  },
+  {
+    "title": "seo: Tag and author archive pages emit site-default meta description, title, and og:title",
+    "body": "On example/dist/tag/news/index.html and example/dist/author/casper/index.html lines 5, 53-61: the <title> is 'Nectar Example' (not 'News — Nectar Example'), the description is the site description (not the tag/author bio), and og:title/og:description follow suit. This means every archive page is indexed under the same title and description — pure duplicate-content signal for Google. Verify by opening each file and inspecting <head>. Fix: in src/build/routes.ts `defaultMeta()`, for kind=tag use `${tag.name} | ${site.title}`; for kind=author use `${author.name} | ${site.title}`. Also feed `tag.description` / `author.bio` into the meta description.",
+    "labels": ["seo", "P0"]
+  },
+  {
+    "title": "seo: defaultMeta() canonical is always site root, not route URL",
+    "body": "src/build/routes.ts `defaultMeta()` (lines 149-161) sets `canonical: config.site.url` for every route. The ghost-head helper happens to recompute canonical from `route.url` (ghost-head.ts line 85) so the rendered HTML ends up correct, but the meta object on the route is misleading and any future feature relying on it (sitemap lastmod? AMP? linkpreview?) will pick up the wrong value. Fix: in defaultMeta, build `canonical: absoluteUrl(config.site.url, route.url)` and remove the duplicate logic from ghost-head.ts.",
+    "labels": ["seo", "P2"]
+  },
+  {
+    "title": "seo: og:image and twitter:image emitted as relative URLs",
+    "body": "example/dist/hello-nectar/index.html line 59: `<meta property=\"og:image\" content=\"/content/images/welcome-cover.svg\">` and line 63 `<meta name=\"twitter:image\" content=\"/content/images/welcome-cover.svg\">`. Open Graph and Twitter Card validators require absolute URLs (https://...). Same issue in JSON-LD `image` field (line 64) and on about/index.html (lines 59-63). Verify with https://developers.facebook.com/tools/debug/ or Twitter's card validator. Fix: in src/render/helpers/ghost-head.ts `computeMeta`, run `meta.image` through `absoluteUrl(site.url, image)` before emission.",
+    "labels": ["seo", "P0"]
+  },
+  {
+    "title": "seo: og:image dimensions / type / alt are not emitted",
+    "body": "Open Graph spec recommends emitting og:image:width, og:image:height, og:image:type, and og:image:alt for proper preview cards on FB/LinkedIn/Slack. None of these are present in example/dist/hello-nectar/index.html. Also `twitter:image:alt` is missing. Verify with https://www.opengraph.xyz/ on the deployed URL. Fix: enrich ghost-head.ts to read image metadata at build time and emit the supplementary tags.",
+    "labels": ["seo", "P1"]
+  },
+  {
+    "title": "seo: og:image is an SVG — most platforms reject SVG previews",
+    "body": "hello-nectar uses og:image=/content/images/welcome-cover.svg. Facebook, LinkedIn, Slack and X all require raster images (JPG/PNG) for OG previews — SVG is ignored or shows a broken image. This is a Nectar-level concern because the build does not generate fallback raster OG images. Fix: add a build step that rasterises SVG feature images to PNG (via @resvg/resvg-js or sharp) when no explicit og_image is provided. Track as the 'OpenGraph image generation' bullet from the audit prompt.",
+    "labels": ["seo", "P1", "og-images"]
+  },
+  {
+    "title": "seo: No per-post OG image generation — only echoes feature_image",
+    "body": "ghost-head.ts (lines 81-84) selects og_image / twitter_image / feature_image. There is no code path that generates a per-post OG image from the title and author. Result: posts without a feature_image (e.g. if a user omits one) emit no og:image at all, and existing posts share the same generic cover art. Fix: introduce an optional component `components.og_images = { enabled = true, template = \"…\" }` that renders an SVG-to-PNG OG image per post at build time and rewrites the meta tag.",
+    "labels": ["seo", "P2", "og-images"]
+  },
+  {
+    "title": "seo: JSON-LD Article schema violations",
+    "body": "example/dist/hello-nectar/index.html line 64 JSON-LD: (a) `image` is a relative URL — schema.org/ImageObject requires an absolute URL; (b) `author[*].url` and `publisher.logo.url` are okay, but `image` should be an ImageObject with width/height/url; (c) `dateModified` equals `datePublished` even though the source has no updated_at — Google may treat the article as never-updated; (d) no `mainEntityOfPage`. Verify at https://validator.schema.org/. Fix: in ghost-head.ts buildJsonLd, run image through absoluteUrl, expand to ImageObject, only emit dateModified when post.updated_at differs from published_at, and add mainEntityOfPage = canonical.",
+    "labels": ["seo", "P1", "json-ld"]
+  },
+  {
+    "title": "seo: JSON-LD on home/tag/author archives is a stub WebSite — should be CollectionPage with hasPart",
+    "body": "On example/dist/index.html, /tag/news/, /author/casper/ JSON-LD is `{ \"@type\": \"WebSite\", name, url }`. For tag and author archives a `CollectionPage` (with `mainEntity` of ItemList referencing each post) is more semantically correct. Home is acceptable as WebSite but should include `potentialAction` for SearchAction. Fix: in ghost-head.ts buildJsonLd, switch on route.kind to emit WebSite (home) with SearchAction, CollectionPage (tag/author/index), and Article (post).",
+    "labels": ["seo", "P2", "json-ld"]
+  },
+  {
+    "title": "seo: No BreadcrumbList JSON-LD emitted on any page",
+    "body": "Posts on Nectar live under a tag and an author. Google strongly recommends BreadcrumbList structured data so result snippets render the path. None is present in any audited file. Verify with https://search.google.com/test/rich-results on the deployed URL. Fix: in buildJsonLd, for kind=post emit a BreadcrumbList with Home > Tag > Post, and for kind=tag/author emit Home > Tag (or Home > Author).",
+    "labels": ["seo", "P1", "json-ld"]
+  },
+  {
+    "title": "seo: No <link rel=\"alternate\" type=\"application/rss+xml\"> for feed discovery",
+    "body": "None of the pages emit `<link rel=\"alternate\" type=\"application/rss+xml\" href=\"/rss.xml\" title=\"Nectar Example\">` in <head>. Browsers and feed readers won't auto-discover the feed. Fix: in ghost-head.ts (or a new helper), append the alternate link when config.components.rss.enabled is true. Also add an Atom alternate if/when Atom is added.",
+    "labels": ["seo", "P1", "feeds"]
+  },
+  {
+    "title": "seo: No rel=\"prev\" / rel=\"next\" on paginated archives",
+    "body": "Tag/author/home archives can paginate via /tag/news/page/2/ etc., but no <link rel=\"prev\"> or <link rel=\"next\"> is emitted in <head>. Although Google deprecated rel=prev/next, Bing and feed crawlers still use them. Verify by inspecting <head> on a paginated tag page (when more than `posts_per_page` posts exist for a tag). Fix: in ghost-head.ts, read route.data.pagination.prev_url / next_url and emit alternate-pagination links.",
+    "labels": ["seo", "P2", "pagination"]
+  },
+  {
+    "title": "seo: No hreflang emitted even when site has multiple locales",
+    "body": "Nectar config supports `site.locale` but there is no hreflang emission and no concept of translated routes. For multi-language readers this means duplicate-content penalties if the same content exists at multiple URLs. Fix: document multi-locale strategy (sub-path /ja/, /en/) and emit `<link rel=\"alternate\" hreflang=\"…\" href=\"…\">` per available translation.",
+    "labels": ["seo", "P3", "i18n"]
+  },
+  {
+    "title": "seo: robots.txt is never emitted",
+    "body": "There is no /robots.txt file in example/dist/, and no code path in src/build/pipeline.ts or src/build/feeds.ts emits one. Without robots.txt, crawlers fall back to defaults but cannot discover the sitemap URL. Verify: `ls example/dist/robots.txt` returns nothing. Fix: add an `emitRobots()` step in pipeline.ts (or a `components.robots` component) that writes `User-agent: *\\nAllow: /\\nSitemap: {site.url}/sitemap.xml\\n`. Allow override via config (`[components.robots]`) for staging environments that need Disallow: /.",
+    "labels": ["seo", "P0"]
+  },
+  {
+    "title": "seo: sitemap.xml has no <lastmod>, <changefreq>, or <priority>",
+    "body": "example/dist/sitemap.xml emits only `<loc>` per URL. While these tags are optional per sitemaps.org/protocol.html, `<lastmod>` is the one signal Google still respects. Source: src/build/feeds.ts lines 12-15 emits only loc. Fix: change `urls` to `{ url, lastmod, changefreq? }[]`; in routes.ts populate lastmod from post.updated_at ?? post.published_at, and for tag/author archives use the most recent post.updated_at in that collection.",
+    "labels": ["seo", "P1", "sitemap"]
+  },
+  {
+    "title": "seo: sitemap.xml is a single flat file — no sitemap-index, no per-kind sitemap",
+    "body": "Ghost itself emits sitemap-pages.xml, sitemap-posts.xml, sitemap-tags.xml, sitemap-authors.xml and a sitemap.xml index. Nectar emits one flat sitemap.xml. For >50k URLs this will exceed the 50MB / 50,000 URL limit per the sitemaps.org spec. Fix: split feeds.ts into multiple sitemaps when post count exceeds threshold and emit a sitemap index file.",
+    "labels": ["seo", "P3", "sitemap"]
+  },
+  {
+    "title": "seo: sitemap.xml is missing newlines (single-line XML)",
+    "body": "example/dist/sitemap.xml is a single long line. While valid XML, this makes manual inspection and grep-based diff review painful, and a few crawler bugs (historical) choked on lines >65535 chars. Fix: in feeds.ts emit one <url> per line with leading whitespace.",
+    "labels": ["seo", "P3", "sitemap"]
+  },
+  {
+    "title": "seo: sitemap.xml emits paginated archive URLs but not the page URLs themselves",
+    "body": "Looking at example/dist/sitemap.xml, /tag/news/ is listed but /tag/news/page/2/ is not (because planRoutes() only contains pagination index 0 in this small example). However, if more posts exist, the planRoutes() emits page/2/, page/3/, … and they get pushed into urls[] (pipeline.ts line 56 `urls: routes.map(r => r.url)`). The result: paginated tag archives bloat the sitemap with low-value URLs. Best practice: omit paginated archive pages (page/2+) from the sitemap. Fix: in pipeline.ts filter routes whose url matches /page/\\d+/$/ before sending to emitSitemap.",
+    "labels": ["seo", "P2", "sitemap"]
+  },
+  {
+    "title": "seo: rss.xml has no <atom:link rel=\"self\">",
+    "body": "RSS 2.0 best practice (and the W3C feed validator) requires `<atom:link href=\"https://site/rss.xml\" rel=\"self\" type=\"application/rss+xml\"/>` in <channel>. example/dist/rss.xml is missing it. Source: src/build/feeds.ts line 41 does not declare the atom namespace either. Verify at https://validator.w3.org/feed/ on the deployed feed. Fix: add `xmlns:atom=\"http://www.w3.org/2005/Atom\"` and emit the atom:link self.",
+    "labels": ["seo", "P1", "feeds"]
+  },
+  {
+    "title": "seo: rss.xml is missing <lastBuildDate>, <generator>, <docs>, <ttl>",
+    "body": "src/build/feeds.ts (lines 40-50) channel skeleton lacks: <lastBuildDate>, <generator>Nectar</generator>, <docs>https://www.rssboard.org/rss-specification</docs>, optional <ttl>, and a channel-level <image>. Verify at https://validator.w3.org/feed/. Fix: add these channel-level elements with values pulled from build time and site config.",
+    "labels": ["seo", "P2", "feeds"]
+  },
+  {
+    "title": "seo: rss.xml items lack <author>, <category>, <enclosure> for feature_image, and <dc:creator>",
+    "body": "Each <item> in example/dist/rss.xml emits only title/link/guid/pubDate/description/content:encoded. There is no `<dc:creator>` for the post author, no `<category>` for each tag, no `<enclosure>` for the feature_image. Many feed readers (NetNewsWire, Feedly, Inoreader) render author and inline images poorly without these. Fix: add dc namespace, emit `<dc:creator>` per post.authors[0].name; emit one <category> per tag; emit <enclosure> if feature_image exists.",
+    "labels": ["seo", "P2", "feeds"]
+  },
+  {
+    "title": "seo: rss content:encoded contains relative URLs",
+    "body": "The Hello, Nectar post body in example/dist/rss.xml line 8 (`<![CDATA[ ... ]]>`) contains <code>{{img_url}}</code> textual fragments — that's fine — but for the longer posts, image URLs and internal links are relative (e.g. /content/images/... in real posts). RSS readers fetch the feed from rss.xml's URL but the post URL is the canonical one, so relative URLs misresolve. RSS 2.0 best practice is fully-qualified URLs in content:encoded. Fix: in feeds.ts, post-process post.html through a small DOM rewriter (cheerio / linkedom) that rewrites `src=\"/…\"` and `href=\"/…\"` to absolute URLs based on site.url.",
+    "labels": ["seo", "P1", "feeds"]
+  },
+  {
+    "title": "seo: RSS lacks pagination / <link rel=\"next\">",
+    "body": "Nectar only emits a single rss.xml capped at config.components.rss.items. For high-volume blogs, RFC 5005 (Feed Paging and Archiving) is the recognised pattern for paginated feeds. Fix: when posts.length > rss.items, emit an archive feed scheme (rss/2/, rss/3/) with `<atom:link rel=\"next\">` between them.",
+    "labels": ["seo", "P3", "feeds"]
+  },
+  {
+    "title": "web-standards: No 404.html / error page emitted",
+    "body": "src/cli/commands/serve.ts line 32-36 looks for dist/404.html but src/build/pipeline.ts never emits one (and theme.loader.ts merely lists 'error-404' as a known template name). Result: serve falls back to a hardcoded 'Not Found' string, and a static host (GitHub Pages, Cloudflare Pages, Netlify) gets a default error page from the host instead of a branded one. Verify: `ls example/dist/404.html` returns nothing. Fix: in planRoutes(), when theme.templates['error-404'] exists, push a route with url=/404.html and template='error-404'. Otherwise, emit a default 404.html that includes the site header/footer and a link home.",
+    "labels": ["seo", "a11y", "P0"]
+  },
+  {
+    "title": "web-standards: No favicon link or icon emission",
+    "body": "No `<link rel=\"icon\">`, `<link rel=\"apple-touch-icon\">`, or favicon.ico exists in example/dist. Browsers will fall back to /favicon.ico — which returns 404. Each page load logs a network error. Fix: copy theme.assets favicon files into the dist root and emit the appropriate `<link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/favicon-32x32.png\">` etc. Document the supported file conventions.",
+    "labels": ["seo", "P1", "favicon"]
+  },
+  {
+    "title": "web-standards: No web app manifest emitted",
+    "body": "No /site.webmanifest or /manifest.json exists in example/dist, and pages emit no `<link rel=\"manifest\">`. PWA installability, theme-color, and Android tab colouring are unavailable. Fix: when config.site provides a logo and a theme color, emit a minimal manifest with name, short_name, start_url, theme_color, background_color, icons and link to it.",
+    "labels": ["seo", "P2", "pwa"]
+  },
+  {
+    "title": "web-standards: No theme-color meta",
+    "body": "No `<meta name=\"theme-color\" content=\"…\">` in any page. Mobile Safari and Chrome use this to colourise the URL bar. Fix: emit `<meta name=\"theme-color\" content=\"{theme.config.background_color}\">` plus a `media=\"(prefers-color-scheme: dark)\"` variant.",
+    "labels": ["seo", "P2"]
+  },
+  {
+    "title": "web-standards: No <meta name=\"color-scheme\"> hint",
+    "body": "Without `<meta name=\"color-scheme\" content=\"light dark\">` browsers can't apply the correct default form/scrollbar colouring during the initial paint. Fix: emit color-scheme meta based on theme support.",
+    "labels": ["seo", "P3"]
+  },
+  {
+    "title": "web-standards: viewport meta lacks viewport-fit=cover for safe-area on notched devices",
+    "body": "example/dist/index.html line 7: `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">` — fine, but missing `viewport-fit=cover` means iOS Safari won't extend content into the safe-area on notched iPhones, and the theme's safe-area-inset-* CSS becomes a no-op. Fix: append `, viewport-fit=cover`.",
+    "labels": ["a11y", "P3"]
+  },
+  {
+    "title": "web-standards: no <meta name=\"referrer\"> guidance",
+    "body": "Nectar emits no `<meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">` meta. For privacy-respecting blogs this should be the default. Fix: emit the meta from ghost-head.ts (configurable via [site].referrer_policy).",
+    "labels": ["seo", "P3", "security"]
+  },
+  {
+    "title": "web-standards: No Content-Security-Policy guidance, no CSP <meta>",
+    "body": "Pages run inline scripts (the contrast-calc script in <head>) and inline styles, which would be blocked by any reasonable CSP. Nectar doesn't emit a CSP meta or document the recommended headers for the host. Fix: (a) compute a nonce for the inline contrast script (or remove it — see issue on FOUC); (b) ship a recommended `_headers` file (Cloudflare Pages) and `netlify.toml` snippet in docs; (c) optionally emit `<meta http-equiv=\"Content-Security-Policy\" …>` via a component.",
+    "labels": ["seo", "P2", "security"]
+  },
+  {
+    "title": "web-standards: No subresource integrity on assets",
+    "body": "example/dist/index.html lines 9-10 and 24 emit `<link rel=\"preload\" as=\"style\" href=\"/assets/built/screen.9d5b34cbe9.css\">` and `<link rel=\"stylesheet\" href=\"/assets/built/screen.9d5b34cbe9.css\">` without integrity= attributes. For first-party assets SRI is optional, but Nectar should at least produce SRI hashes alongside the fingerprinted filenames so they can be opted into. Fix: compute SHA-384 at fingerprint time in src/build/emit.ts (or wherever assets are versioned) and emit integrity=\"sha384-…\" crossorigin=\"anonymous\".",
+    "labels": ["security", "P3"]
+  },
+  {
+    "title": "web-standards: <script> and <link> tags miss type=\"text/css\" on some, lack type=module on JS",
+    "body": "example/dist/index.html line 179: `<script src=\"/assets/built/source.a573c212aa.js\"></script>` — no type=\"module\", no defer/async. Modern themes should ship ES modules so the renderer can output `<script type=\"module\" src=…>` and avoid blocking parsing. Fix: detect ESM-compatible bundles at theme load and emit type=\"module\"; otherwise emit defer.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "web-standards: Preload directives target both as=\"style\" and as=\"script\" but the JS preload is pointless",
+    "body": "example/dist/index.html line 10: `<link rel=\"preload\" as=\"script\" href=\"/assets/built/source.a573c212aa.js\">`. The same file is loaded at the bottom of <body> via a parser-blocking <script> tag. Preload of the same URL just before the bottom-of-body script wastes a connection slot and provides no perf win unless the script becomes async/defer. Fix: either drop the preload or move the actual <script> to <head> with defer.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "web-standards: Font preload references a font file that is also referenced inside an inline @font-face",
+    "body": "example/dist/index.html lines 12, 19: the preload `<link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/assets/fonts/inter-roman.woff2\" crossorigin=\"anonymous\">` and the inline @font-face src match — good. But font-display is `optional` (line 18), which Lighthouse flags as 'reducing text visibility' since the font often won't be applied if not cached. Fix: change font-display to `swap` (recommended for blog text content) — `optional` is only sensible when the build has good control of cache-control, which a static SSG doesn't.",
+    "labels": ["performance", "P2", "fonts"]
+  },
+  {
+    "title": "web-standards: No preconnect / dns-prefetch for third-party domains",
+    "body": "When themes embed Giscus, Disqus, Cloudinary, fonts.googleapis, etc., Nectar emits no `<link rel=\"preconnect\">` hints. The optional component for comments should register required preconnects. Fix: extend the components system with a `headHints()` hook that returns array of <link rel=preconnect|dns-prefetch> elements.",
+    "labels": ["performance", "P3"]
+  },
+  {
+    "title": "web-standards: No cache-busting on /content/images/ — only on /assets/built/",
+    "body": "example/dist/index.html line 24 references `/assets/built/screen.9d5b34cbe9.css` (fingerprinted) but content/images/welcome-cover.svg (line 111) is referenced by its raw path. If a user replaces the image without renaming, CDN caches will serve the stale file. Fix: add an option to fingerprint /content/images/* during build and rewrite references in HTML/RSS.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "web-standards: No critical CSS / above-the-fold inlining",
+    "body": "screen.css is fetched render-blocking on every page. For TTFB-bound first paint this is a major LCP cost. Other SSGs (Hugo, Astro) extract critical CSS at build. Fix: integrate a critical-css component (using `critters` or `penthouse`) that inlines first-paint rules and async-loads the rest.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "web-standards: No image optimization or responsive srcset variants",
+    "body": "All `srcset` declarations in example/dist/hello-nectar/index.html (lines 128-132 etc.) declare 320w through 2000w but point to the same SVG file. img_url with size= is documented as 'best-effort' (per ghost-theme-compatibility post). This means card and hero images do not actually pick the right size, wasting bandwidth on mobile. Fix: implement the `components.images` component that uses sharp to resize/encode to AVIF/WebP at build time and rewrite img_url tags accordingly.",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "web-standards: No <picture> with AVIF/WebP fallback",
+    "body": "Card and article images emit only <img srcset> with the source format. No <picture> wrapper with AVIF/WebP sources. This costs ~25-40% of image bytes vs modern formats. Fix: in the image helper, render <picture> with <source type=\"image/avif\"> and <source type=\"image/webp\"> when those variants exist on disk.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "web-standards: HTML output contains many empty / whitespace-only blocks",
+    "body": "example/dist/index.html lines 121-126, 138-141, etc. contain `<!-- --> <span class=\"gh-card-author\"></span> ...` and empty `<h2>` / `<div class=\"gh-footer-copyright\">` blocks. While valid HTML, this bloats payload (~10-15% in this example), and the empty author spans push assistive-tech to announce nothing where author should appear. Fix: guard partial output with `{{#if}}` blocks rather than rendering empty wrappers, and run output through an html-minifier pass for production builds.",
+    "labels": ["performance", "a11y", "P2"]
+  },
+  {
+    "title": "web-standards: <figcaption> is a sibling of <img> but figure structure is correct only on article hero — missing on cards",
+    "body": "example/dist/hello-nectar/index.html lines 126-138 emit `<figure>` with <img> and <figcaption> — correct. But the card figures (lines 103-115 of index.html) wrap the image in `<figure>` with no <figcaption>. The <figure> wrapper without a caption is semantically meaningless (use a plain <div>). WCAG ARIA. Fix: card image helper should render <div class=\"gh-card-image\"> unless a caption exists.",
+    "labels": ["a11y", "P3", "semantics"]
+  },
+  {
+    "title": "web-standards: html-validate finds multiple `<h4>` issues and other structural smells",
+    "body": "Run `npx html-validate example/dist/**/*.html`. Expected findings (manually verified): (a) `<h4>` after `<h1>` without intermediate h2/h3 (hello-nectar line 114); (b) multiple `<main>` per page on tag/author archives; (c) empty `aria-label`. Fix: integrate html-validate into the build / CI step (`bun run lint:html`) and fail the build on errors.",
+    "labels": ["a11y", "P1", "ci"]
+  },
+  {
+    "title": "build-pipeline: No HTML minification or whitespace normalization",
+    "body": "src/build/emit.ts `writeHtml()` simply writes the engine output, which preserves Handlebars indentation. Inspecting any dist file shows large runs of leading whitespace and HTML comments. Production builds should run output through @swc/html-minifier or html-minifier-terser. Fix: add a pipeline step `minifyHtml()` toggled by `build.minify_html` config flag (default true in production).",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "build-pipeline: writeHtml() doesn't compress, no gzip/brotli precompression option",
+    "body": "Hosts like GitHub Pages serve pre-compressed files only if they exist alongside (`.gz`/`.br`). Nectar emits only raw HTML/CSS/JS. Fix: add an optional `[build.precompress]` step using Bun.gunzipSync / zstd / brotli to emit `.br` and `.gz` next to each text asset.",
+    "labels": ["performance", "P3"]
+  },
+  {
+    "title": "build-pipeline: copyContentAssets() silently swallows errors",
+    "body": "src/build/emit.ts lines 48-50: the `try {} catch {}` block on copyContentAssets swallows every error (\"content/images is optional\"). If a permission error or partial read occurs the build silently emits missing images. Fix: distinguish ENOENT (silent) from other errors (re-throw with logger.warn).",
+    "labels": ["build", "P2"]
+  },
+  {
+    "title": "build-pipeline: emitAsset() copies fingerprinted + logical paths but doesn't dedupe across multiple themes",
+    "body": "src/build/emit.ts lines 24-33 copies each asset twice (fingerprinted + logical). For large themes this doubles I/O. Fix: write the file once and create a hardlink / symlink for the logical path on POSIX, or emit only one copy and add a build-time redirect file.",
+    "labels": ["build", "performance", "P3"]
+  },
+  {
+    "title": "build-pipeline: feeds.ts escapeXml replaces apostrophes with &apos; — invalid in HTML, fine in XML",
+    "body": "src/build/feeds.ts line 59 — `&apos;` is valid in XML 1.0 but **not** in HTML5 named entities. Since rss.xml is XML this is fine, but the same `escapeAttr` in ghost-head.ts replaces ' with &#39; (line 155). The two escapers are inconsistent. example/dist/hello-nectar/index.html line 53: `content=\"First post! A quick tour of what&#39;s working...\"` while RSS uses `&apos;`. Verify: grep `&apos;` in /dist HTML — should be zero. Fix: consolidate into one escape utility shared by feeds.ts and ghost-head.ts.",
+    "labels": ["build", "P3"]
+  },
+  {
+    "title": "build-pipeline: ghost-head.ts emits raw `codeinjection_head` without sanitization",
+    "body": "ghost-head.ts line 49: `if (typeof head === 'string' && head) parts.push(head)` injects arbitrary HTML from post/page front-matter into the document head. This is a stored-XSS sink if any markdown front-matter source is user-contributed (multi-author Git repo, PR-based content). Fix: document the security model clearly (`codeinjection_head/foot is trusted, must only be set by repository owners`), and gate it behind a config flag (`security.allow_codeinjection = false` by default).",
+    "labels": ["security", "P2"]
+  },
+  {
+    "title": "build-pipeline: ghost-head.ts uses ctx.published_at directly in JSON-LD — no ISO 8601 validation",
+    "body": "ghost-head.ts line 113: `datePublished: ctx.published_at` is emitted verbatim. If a markdown file has `date: 2026-05-19` (no time), the generated JSON-LD will contain just `\"2026-05-19\"` which is valid ISO 8601 date but Google Article guidelines prefer full timestamps with timezone. Verify by parsing example/dist/hello-nectar/index.html JSON-LD with `JSON.parse(...)`. Fix: normalize to RFC3339 (`new Date(ctx.published_at).toISOString()`) in buildJsonLd, falling back gracefully.",
+    "labels": ["seo", "P2", "json-ld"]
+  },
+  {
+    "title": "build-pipeline: JSON-LD emits `dateModified: undefined` when updated_at missing — silently dropped by JSON.stringify",
+    "body": "ghost-head.ts line 114 — `dateModified: ctx.updated_at` — when updated_at is missing the field is omitted by JSON.stringify (good) but the inverse (when both fields exist but equal) means search engines see a 'never updated' signal. Fix: only emit dateModified when it differs from datePublished by more than a few seconds.",
+    "labels": ["seo", "P3", "json-ld"]
+  },
+  {
+    "title": "build-pipeline: pagination helper hardcodes English '— Newer Posts' / 'Older Posts'",
+    "body": "src/render/helpers/navigation.ts lines 30, 34: ←/→ arrows and English labels are hardcoded into the pagination output. For non-English sites this leaks 'Newer Posts' / 'Older Posts' regardless of i18n config. Fix: route through the {{t}} helper (engine.i18n) with default fallback to English.",
+    "labels": ["a11y", "seo", "P2", "i18n"]
+  },
+  {
+    "title": "build-pipeline: link_class helper only highlights exact URL match — parent routes are never marked current",
+    "body": "src/render/helpers/navigation.ts lines 50-61: link_class returns the active class only when route.url === target (or normalised equal). A user reading /tag/news/page/2/ with nav-tag pointing to /tag/news/ will see no current-page state. Fix: also mark active when `target` is a prefix of `route.url` and target ends with '/'.",
+    "labels": ["a11y", "seo", "P2"]
+  },
+  {
+    "title": "build-pipeline: navigation slugify ignores unicode — 'カテゴリ' becomes 'nav-' with hyphens stripped",
+    "body": "src/render/helpers/navigation.ts lines 71-76: `slugify` uses `/[^\\w]+/g` which only matches ASCII. A nav item labeled 'カテゴリ' produces `<li class=\"nav-\">`, breaking class-based targeting. Fix: import or implement a unicode-aware slugifier (e.g. github-slugger or @sindresorhus/slugify) — already a likely dependency for content slugs.",
+    "labels": ["build", "P3", "i18n"]
+  },
+  {
+    "title": "build-pipeline: emitRss CDATA termination is naïve — \"]]>\" inside post.html would break the feed",
+    "body": "src/build/feeds.ts line 36: `<content:encoded><![CDATA[${post.html}]]></content:encoded>`. If a post's HTML contains the literal string `]]>` (e.g. a code sample about XML CDATA), it terminates the CDATA section prematurely and corrupts the feed. Fix: split occurrences of `]]>` into `]]]]><![CDATA[>` per the XML spec.",
+    "labels": ["feeds", "P1"]
+  },
+  {
+    "title": "build-pipeline: pipeline.ts feeds urls=routes.map() includes outputs that aren't user-facing",
+    "body": "src/build/pipeline.ts line 56: `urls: routes.map((r) => r.url)`. This includes paginated archive pages, error pages (when added), and any future internal routes. Sitemap will leak them. Fix: filter to only routes where `route.indexable !== false`, and add an `indexable` field to RouteContext.",
+    "labels": ["seo", "P2", "sitemap"]
+  },
+  {
+    "title": "build-pipeline: <html> emits no `data-build` / build hash attribute for cache invalidation diagnostics",
+    "body": "Useful for operators is a build hash on <html data-build=\"$git_sha\"> for traceability when a CDN serves stale content. Not present. Fix: thread build metadata into the root partial via a `<meta name=\"nectar:build\" content=\"$git_sha\">`.",
+    "labels": ["seo", "P3"]
+  },
+  {
+    "title": "build-pipeline: No HSTS / no documented host-headers file",
+    "body": "Nectar is a static SSG so security headers belong at the edge, but the project ships no `_headers` (Cloudflare/Netlify) or `nginx.conf` example. Newcomers will deploy with no HSTS, no X-Content-Type-Options, no Permissions-Policy. Fix: add `docs/HOSTING.md` with copy-paste `_headers` / `netlify.toml` / `cloudflare.json` / `nginx.conf` snippets recommending HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.",
+    "labels": ["security", "P2", "docs"]
+  },
+  {
+    "title": "a11y: PhotoSwipe markup is duplicated on post and page templates but missing on listing pages",
+    "body": "example/dist/hello-nectar/index.html and example/dist/about/index.html emit the entire `.pswp` overlay markup (lines 322-362 / 159-199). The same markup is omitted from index, tag, author. Inconsistency aside, this is a ~2KB payload added to every post page even when no images are clickable (the SVG covers aren't lightboxable). Fix: only emit the PhotoSwipe markup when at least one image in the page content has a lightbox attribute, or move it behind the components system.",
+    "labels": ["performance", "a11y", "P3"]
+  },
+  {
+    "title": "build-pipeline: ghost-head.ts emits og:type=\"website\" for pages (about) but article structure is more appropriate for content pages",
+    "body": "ghost-head.ts line 87-88: only `route.data?.post` triggers og:type=\"article\". The about page (a content-heavy /about/) gets og:type=website and the JSON-LD becomes WebSite. Better SEO is og:type=article (or 'profile' for author) with appropriate JSON-LD. Fix: extend computeMeta to map route.kind=page → og:type=article and emit Article JSON-LD with publisher set to the site.",
+    "labels": ["seo", "P3"]
+  }
+]

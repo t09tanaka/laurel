@@ -1,0 +1,302 @@
+[
+  {
+    "title": "api: GET /content/posts/: emit static dist/content/posts.json shadow for @tryghost/content-api consumers",
+    "body": "Ghost behavior: `GET /ghost/api/content/posts/?key=...` returns `{ posts: Post[], meta: { pagination } }` of *all* published posts (paginated, default `limit=15`).\n\nNectar gap: we emit zero JSON; only HTML routes. External SPAs / mobile apps / Zapier / `@tryghost/content-api` SDK cannot read the catalog.\n\nProposal: during `nectar build`, after `planRoutes`, write `dist/content/posts.json` containing the full posts array projected to the Ghost Content API shape (fields per `src/content/model.ts:Post` minus internal `prev`/`next` link refs; serialize `tags`, `authors`, `primary_tag`, `primary_author` as embedded objects so `?include=tags,authors` is satisfied by default). One file, full dump — pagination shards handled in a follow-up issue. Gate behind `[components.content_api] enabled = true` (default on).",
+    "labels": ["api", "ghost-compat", "P1", "feature"]
+  },
+  {
+    "title": "api: GET /content/posts/: emit paginated shards dist/content/posts/page/N.json matching meta.pagination shape",
+    "body": "Ghost behavior: paginated with `?page=N&limit=L`; response carries `meta.pagination = { page, limit, pages, total, next, prev }`. Default `limit=15`, max `limit=15` for posts (and `limit=all` for full dump).\n\nNectar gap: no pagination shards.\n\nProposal: for each `limit` in `[15, 'all']` (configurable list), emit:\n- `dist/content/posts.json` (page 1, default limit)\n- `dist/content/posts/page/2.json`, `.../3.json`, ...\n- `dist/content/posts/all.json` (limit=all)\n\nEach payload includes `meta.pagination` with `page`/`limit`/`pages`/`total`/`next`/`prev` (next/prev are page numbers, not URLs, per Ghost). Document that arbitrary `?limit=N&page=M` query combos won't be honored — only the canonical shards.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: GET /content/posts/:id/ and /content/posts/slug/:slug/: emit per-post JSON shadows",
+    "body": "Ghost behavior: `/content/posts/:id/` and `/content/posts/slug/:slug/` return `{ posts: [Post] }` (single-element array).\n\nNectar gap: no per-post JSON; we only have the HTML at `/:slug/`.\n\nProposal: alongside `dist/<slug>/index.html`, emit `dist/content/posts/slug/<slug>.json` and `dist/content/posts/<id>.json`. Same Post projection as the index shard. Allows `@tryghost/content-api`'s `posts.read({slug})` to work read-only against a static host.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: GET /content/pages/: emit dist/content/pages.json + per-page shards",
+    "body": "Ghost behavior: `/content/pages/` returns the static-page collection with same envelope as posts. Distinct from posts (filtered server-side, `page=true`).\n\nNectar gap: pages are loaded into `ContentGraph.pages` but never serialized.\n\nProposal: emit `dist/content/pages.json` (full list, paginated if >15) and `dist/content/pages/slug/<slug>.json`. Same field projection as Post minus post-only fields (`featured`, `prev`/`next`).",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: GET /content/tags/: emit dist/content/tags.json with count.posts populated",
+    "body": "Ghost behavior: returns all public tags with `count.posts` populated when `?include=count.posts` is set. Default order `?order=name asc`.\n\nNectar gap: `Tag.count.posts` is already on the model but never written out.\n\nProposal: emit `dist/content/tags.json` with the full public tag list (drop `visibility: internal`), each tag carrying `count.posts`. Also `dist/content/tags/slug/<slug>.json` for individual lookup.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: GET /content/authors/: emit dist/content/authors.json with count.posts",
+    "body": "Ghost behavior: returns all authors with `count.posts` when `?include=count.posts`.\n\nNectar gap: no authors JSON; `count.posts` not even computed on `Author` (model lacks the field — see separate issue).\n\nProposal: add `count.posts` to `Author` derived from `posts.filter(p => p.authors.some(a => a.id === author.id))`, then emit `dist/content/authors.json` and `dist/content/authors/slug/<slug>.json`. Drop email/internal-only fields per Content API contract.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: Author model lacks count.posts (blocker for /content/authors/ shadow)",
+    "body": "`src/content/model.ts:Author` has no `count` field. Ghost Content API exposes `count.posts` per-author when `?include=count.posts` is requested. Theme `{{#get \"authors\"}}` blocks would render without post counts, and the static JSON shadow can't be added without first extending the model.\n\nFix: add `count: { posts: number }` to `Author`, populate during content graph build in `src/content/loader.ts` after posts are linked.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: GET /content/settings/: emit dist/content/settings.json mirroring @site context",
+    "body": "Ghost behavior: `/content/settings/` returns the site-wide settings — `title`, `description`, `logo`, `icon`, `cover_image`, `accent_color`, `locale`, `timezone`, `url`, `navigation`, `secondary_navigation`, `meta_title`, `meta_description`, `og_image`, `twitter_image`, `members_signup_access`, `paid_members_enabled`, `firstpromoter_account`, etc.\n\nNectar gap: site config exists at `nectar.toml [site]` and is exposed via `@site` context but never serialized.\n\nProposal: emit `dist/content/settings.json` shaped as `{ settings: SiteData }` matching Ghost's envelope. Members-related fields hardcoded to `false`/empty (see /content/tiers/ stub issue).",
+    "labels": ["api", "ghost-compat", "P1", "feature"]
+  },
+  {
+    "title": "api: GET /content/tiers/: emit empty dist/content/tiers.json stub for SDK compatibility",
+    "body": "Ghost behavior: `/content/tiers/` returns membership tiers. Nectar is SSG-only with no membership.\n\nNectar gap: SDK consumers calling `api.tiers.browse()` get 404 / network error today.\n\nProposal: emit `dist/content/tiers.json = { tiers: [], meta: { pagination: { page:1, limit:15, pages:0, total:0, next:null, prev:null } } }` so the SDK call resolves to an empty array cleanly. Document in `GHOST_COMPATIBILITY.md` that members are out of scope.",
+    "labels": ["api", "ghost-compat", "P3", "feature"]
+  },
+  {
+    "title": "api: GET /content/newsletters/: emit empty dist/content/newsletters.json stub",
+    "body": "Ghost behavior: `/content/newsletters/` returns newsletter definitions; tied to members/email features.\n\nNectar gap: out of scope, but absence causes SDK 404s.\n\nProposal: emit empty-array shadow identical in shape to /content/tiers/ stub. Cheap, removes a class of consumer breakage.",
+    "labels": ["api", "ghost-compat", "P3", "feature"]
+  },
+  {
+    "title": "api: meta.pagination shape — define canonical projector helper",
+    "body": "Ghost pagination envelope (must match exactly for `@tryghost/content-api` to parse):\n\n```\n{ \"meta\": { \"pagination\": { \"page\": 1, \"limit\": 15, \"pages\": 3, \"total\": 42, \"next\": 2, \"prev\": null } } }\n```\n\nNectar gap: nothing emitting this today.\n\nProposal: introduce `src/build/api/pagination.ts` exporting `paginate<T>(items: T[], limit: number, page: number): { items: T[]; pagination: GhostPagination }`. All collection shadow emitters (posts/pages/tags/authors) share this helper. `limit='all'` produces `pages: 1, total: items.length, next: null, prev: null`.",
+    "labels": ["api", "ghost-compat", "P1", "infra"]
+  },
+  {
+    "title": "api: filter (NQL) — emit pre-baked tag/author filtered shards instead of supporting arbitrary NQL",
+    "body": "Ghost behavior: `?filter=tag:foo+published_at:>'2024-01-01'` uses NQL — a non-trivial query language (`tag:`, `tags:[a,b]`, `featured:true`, `visibility:public`, date comparators, AND `+` / OR `,`).\n\nNectar gap: static files can't run NQL.\n\nProposal: don't implement NQL. Instead emit **pre-baked shards** for the common filters that themes and SDKs hit:\n- `dist/content/posts/tag/<slug>.json` — `filter=tag:<slug>` equivalent\n- `dist/content/posts/author/<slug>.json` — `filter=author:<slug>` (deprecated Ghost name) and `authors:<slug>`\n- `dist/content/posts/featured.json` — `filter=featured:true`\n\nDocument that arbitrary `?filter=` will not work; recommend client-side filtering of the full `posts.json`. Issue a follow-up to add a tiny NQL→predicate shim in a future `nectar serve` if needed.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: filter NQL — document explicit non-support and 404 strategy",
+    "body": "Consumers will inevitably pass `?filter=...` to a static host. They'll get the unfiltered full dump (query string stripped) silently — which is *worse* than a 404 because results look correct but contain too many items.\n\nProposal: ship a `_headers` / `_redirects` snippet (Netlify/Cloudflare format) that 404s any request to `/content/*.json?filter=*` or similar. Better yet, document a `nectar.config.ts` flag `api.strict_query_rejection = true` that, when running behind a worker, returns 404 on unknown query params.\n\nMinimum for this issue: README/`GHOST_COMPATIBILITY.md` section listing which query params are honored vs ignored.",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  },
+  {
+    "title": "api: ?fields= projection — document non-support; emit full records only",
+    "body": "Ghost behavior: `?fields=title,slug` returns a projected subset.\n\nNectar gap: static JSON always returns the full record.\n\nProposal: don't implement field projection. Document that the static API always returns full objects; clients should project in-memory. Cite `@tryghost/content-api`'s behavior — it doesn't strictly require server-side projection.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: ?include=authors,tags — always embed by default (no opt-out cost)",
+    "body": "Ghost behavior: `?include=tags,authors` decides whether each post carries embedded tags/authors arrays vs id-only refs.\n\nNectar gap: model already has full `tags[]` / `authors[]` arrays.\n\nProposal: always emit posts with `tags`, `authors`, `primary_tag`, `primary_author` embedded. Adds ~hundreds of bytes per post but avoids needing client-side joins. Document as a deliberate divergence: `?include=` is ignored, includes are always on.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: ?include=count.posts — pre-populate on tags/authors shadows unconditionally",
+    "body": "Ghost requires explicit `?include=count.posts` on tags/authors endpoints to get post counts.\n\nProposal: in the static JSON, always include `count.posts`. Saves a request param consumers tend to forget, and the data is free at build time.",
+    "labels": ["api", "ghost-compat", "P3"]
+  },
+  {
+    "title": "api: ?order= — emit canonical orderings only (posts: published_at DESC; tags: name ASC; authors: name ASC)",
+    "body": "Ghost supports arbitrary `?order=field+direction`.\n\nProposal: static shards use Ghost's defaults — posts `published_at desc`, tags `name asc`, authors `name asc`. Document non-support of arbitrary `?order=`. Clients can re-sort in memory.\n\nVerify defaults match Ghost's actual defaults before shipping.",
+    "labels": ["api", "ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "api: ?formats=html,plaintext — both always emitted; ?formats= ignored",
+    "body": "Ghost: `?formats=html,plaintext,mobiledoc` toggles which content representations come back. Default is `html` only; `plaintext` and `mobiledoc` are opt-in.\n\nNectar gap: `Post` model already has `html` + `plaintext`. Mobiledoc/Lexical not supported (per GHOST_COMPATIBILITY.md).\n\nProposal: always emit both `html` and `plaintext` (cheap, already computed). Omit `mobiledoc`/`lexical` (would need source-of-truth content representation we don't keep). Document that `?formats=mobiledoc` returns no field — clients should fall back to `html`.",
+    "labels": ["api", "ghost-compat", "P3"]
+  },
+  {
+    "title": "api: CORS — emit dist/_headers granting Access-Control-Allow-Origin: * on /content/*.json",
+    "body": "Static JSON served from a different origin than the consumer SPA will be blocked by CORS unless headers are explicit.\n\nProposal: emit `dist/_headers` (Netlify format) and `dist/_headers.cf` (Cloudflare Pages format, identical syntax) granting:\n```\n/content/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=300\n```\nMake configurable via `[components.content_api] cors_origin = \"*\"`.",
+    "labels": ["api", "ghost-compat", "P1", "feature"]
+  },
+  {
+    "title": "api: CORS — Apache .htaccess + nginx snippet alternatives",
+    "body": "Not every host supports Netlify/Cloudflare's `_headers`. Self-hosters on nginx/Apache need CORS too.\n\nProposal: ship docs section + sample snippets at `docs/deploy/cors-{nginx,apache,caddy}.md` showing how to set the same headers. Optional flag `[components.content_api] emit_htaccess = true` writes a `.htaccess` to `dist/content/`.",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  },
+  {
+    "title": "api: Content API key (?key=) — accept and ignore; document stub for SDK init compatibility",
+    "body": "Ghost Content API requires `?key=<26 hex chars>`. `@tryghost/content-api` requires a key at SDK init or it throws.\n\nNectar gap: we don't auth; static files are world-readable. But SDK consumers still need a key value to pass.\n\nProposal: document that the SDK can be initialized with any 26-char hex placeholder (e.g. `nectarnectarnectarnectar00`) and Nectar will ignore it. Ship an example snippet in `docs/SDK.md`. Optionally add a build-time sanity check that emits a dummy key file like `dist/content/.key` for tooling that scrapes it.",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  },
+  {
+    "title": "api: Content API URL versioning — emit under /ghost/api/content/ path too (not just /content/)",
+    "body": "Ghost's canonical URL prefix is `/ghost/api/content/posts/`. `@tryghost/content-api` constructs URLs as `${host}/ghost/api/content/<resource>/?key=...&v=v5.0`.\n\nNectar gap: I proposed `dist/content/posts.json` for brevity, but the SDK won't hit that path.\n\nProposal: emit shadows under `dist/ghost/api/content/<resource>.json` to match the SDK's path. Optionally also under shorter `/content/` via a symlink or duplicate write. Verify by pointing `@tryghost/content-api` at a `nectar build` output.",
+    "labels": ["api", "ghost-compat", "P0", "feature"]
+  },
+  {
+    "title": "api: ?v=5.0 version query — strip and document; emit a single representation",
+    "body": "Ghost SDK appends `?v=v5.0` (or `?v=v3.0` for legacy). Static hosts ignore query strings.\n\nProposal: only emit the latest (v5) representation. Document that older `?v=` values won't get a different file. Future-proof by versioning the *path* (e.g. `/ghost/api/content/v5/posts.json`) if we ever ship a v6 schema differential.",
+    "labels": ["api", "ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "api: trailing-slash handling — emit both /posts.json and /posts/ (directory index) variants",
+    "body": "Ghost URLs are `/content/posts/` (trailing slash). With static hosting, `/content/posts/` is a directory request, so the file must be `dist/content/posts/index.json`. But `@tryghost/content-api` may not append `index.json`.\n\nProposal: investigate exactly what URL the SDK requests. Likely it's `/posts/?key=...` (trailing slash). Emit `dist/ghost/api/content/posts/index.json` AND ensure a `_redirects` rule rewrites `/posts/` → `/posts/index.json` if the host doesn't auto-resolve directory indexes for JSON.\n\nAcceptance: `await new ContentAPI({...}).posts.browse()` returns posts against a `nectar build` deployed to plain S3.",
+    "labels": ["api", "ghost-compat", "P0"]
+  },
+  {
+    "title": "api: SDK smoke test fixture — add tests/sdk/content-api.test.ts running @tryghost/content-api against dist/",
+    "body": "We have no test verifying that an actual Ghost SDK consumer can talk to a `nectar build` output. Without this we'll regress on URL paths, payload shape, pagination keys, etc.\n\nProposal: in `tests/sdk/content-api.test.ts`, build the example site, spin a `Bun.serve` over `dist/`, point `new ContentAPI({ url, key, version: 'v5.0' })` at it, and assert:\n- `posts.browse()` returns array + pagination meta\n- `posts.read({slug})` returns single post\n- `tags.browse()` returns tags with `count.posts`\n- `authors.browse()` returns authors\n- `settings.browse()` returns site settings\n\nGate behind a dev dep on `@tryghost/content-api`.",
+    "labels": ["api", "ghost-compat", "test", "P1"]
+  },
+  {
+    "title": "api: search — map /content/search/ to Pagefind output OR provide a flat search.json fallback",
+    "body": "Ghost has a `/search/` endpoint (and `sodo-search` integration). It returns hits across posts/pages/tags/authors.\n\nNectar gap: no search emission.\n\nProposal: emit two artifacts:\n1. `dist/content/search.json` — flat `{ posts: [{id, slug, title, excerpt, url}], tags: [...], authors: [...] }` suitable for client-side fuzzy search (lunr/Fuse/minisearch). Cheap.\n2. Optional Pagefind integration — `[components.search] engine = \"pagefind\"` runs `pagefind` over `dist/` post-build, emitting `dist/pagefind/*`. Document the consumer JS snippet.\n\nDocument that Ghost's exact `/search/` endpoint shape is NOT replicated; this is a divergent search API.",
+    "labels": ["api", "ghost-compat", "P1", "feature"]
+  },
+  {
+    "title": "api: search — sodo-search drop-in: emit posts list at /content/posts.json (already covered) is sufficient for sodo",
+    "body": "`sodo-search` (Ghost's official search widget) fetches `/ghost/api/content/posts/?limit=all&fields=id,slug,title,excerpt,url,updated_at,visibility&order=updated_at%20desc`. If we already emit `posts/all.json` with the right fields + path, sodo-search works without code change.\n\nProposal: verify by dropping sodo-search into the example theme and pointing it at a built site. File follow-up issues for any field/shape mismatch found.",
+    "labels": ["api", "ghost-compat", "P2", "test"]
+  },
+  {
+    "title": "api: oembed — explicitly skip and document",
+    "body": "Ghost has `GET /oembed/?url=...` that proxies to oembed providers (YouTube, Twitter, etc.) and is used by the editor to embed cards. Build-time SSG has no editor, no need for the endpoint.\n\nProposal: do not emit. Add a one-line note in `GHOST_COMPATIBILITY.md` under \"things we don't handle\".",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: webhooks — explicitly skip; document for tooling consumers",
+    "body": "Ghost Admin API has webhooks. Static SSG has nothing to webhook from.\n\nProposal: document non-support. If a CI/CD integration needs build-completion notifications, point users at GitHub Actions / their host's deploy hooks.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: Admin API — skip entirely; document that Nectar is read-only",
+    "body": "Ghost Admin API (`/ghost/api/admin/*`) is write-capable: posts CRUD, tags CRUD, members, integrations, etc.\n\nProposal: do not emit. Document loudly in README that `@tryghost/admin-api` is *not* compatible with Nectar — users author content via Markdown files + git, not via the Admin API. Link to the `nectar import` command for the migration path.",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  },
+  {
+    "title": "api: Admin API — provide a one-way Admin→Markdown import (already exists?) and document it as the migration path",
+    "body": "We have `src/ghost/import.ts`. Verify it covers: posts, pages, tags, authors, settings, images. If anything is missing, file separate issues.\n\nProposal for this issue: docs page `docs/MIGRATION.md` explaining the import flow and listing what's lost (members, custom integrations, snippets, custom fields not in frontmatter).",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  },
+  {
+    "title": "api: AMP — Ghost emits /post-slug/amp/; decide and either emit or 410",
+    "body": "Ghost themes ship an `amp.hbs` template; Ghost auto-generates `/post-slug/amp/`. Google has deprecated AMP ranking signals; many Ghost sites disable it.\n\nProposal: opt-in `[components.amp] enabled = false` default. When enabled, emit `dist/<slug>/amp/index.html` rendering through theme's `amp.hbs` (or a built-in fallback). When disabled, document that consumers should not link to `/amp/` paths.",
+    "labels": ["api", "ghost-compat", "P3", "feature"]
+  },
+  {
+    "title": "api: per-tag RSS at /tag/:slug/rss/ — already filed under feeds; cross-reference",
+    "body": "Per task instructions, RSS variants (per-tag, per-author) are already filed separately. Cross-link from this API audit: any consumer expecting `/tag/foo/rss/` is hitting an RSS endpoint, not the Content API, but `@tryghost/content-api` consumers may also want `/content/posts/?filter=tag:foo` to reflect the same set — covered by the tag-filtered shard issue above. No new work in this issue; ensure label hygiene only.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: ?key= validation — emit a key registry file dist/.well-known/ghost-content-keys.json (optional)",
+    "body": "Some Ghost integrations sniff allowed keys. For full SDK compatibility we don't need this, but a `.well-known` file documenting that any key is accepted may help integrations.\n\nProposal: low priority; mention in docs. Don't implement until a real consumer reports breakage.",
+    "labels": ["api", "ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "api: post.html field — verify it matches Ghost's serialization (no Ghost-specific card markup leaking)",
+    "body": "Ghost's `post.html` includes Ghost-specific markup: `<figure class=\"kg-card kg-image-card\">`, `<!--kg-card-begin: html-->` comments, member-only paywall splits, etc.\n\nNectar emits Markdown→HTML plain. Consumers reading `post.html` from the static API may rely on Ghost card classes (e.g. to apply CSS for kg-image-card layouts).\n\nProposal: document the divergence in `GHOST_COMPATIBILITY.md`. Optionally add `[components.markdown] emit_kg_classes = true` that wraps images in `<figure class=\"kg-card kg-image-card\">` and similar. Phase 2: a markdown plugin that renders inline `{% card %}` directives into kg-card HTML.",
+    "labels": ["api", "ghost-compat", "P2"]
+  },
+  {
+    "title": "api: post.excerpt vs post.custom_excerpt vs post.plaintext — verify Ghost's exact rules",
+    "body": "Ghost's Content API rules:\n- `excerpt` = `custom_excerpt` if set, else first ~50 words of `plaintext`\n- `custom_excerpt` = the field set in the editor, may be null\n- `plaintext` = HTML stripped\n\nNectar: `Post` model has all three. Need to verify `loader.ts` populates them with Ghost's exact precedence and word count (~50 words, not chars).\n\nProposal: audit `src/content/loader.ts:normalizePost` against Ghost's source. File a fix if mismatched.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: post.reading_time — verify Ghost's algorithm (275 wpm + image adjustment)",
+    "body": "Ghost's `reading_time` = `ceil(word_count / 275) + image_seconds/60`, where each image adds 12s decreasing to 3s. See `@tryghost/helpers/lib/utils/reading-time.js`.\n\nNectar: `Post.reading_time` exists but algorithm not verified.\n\nProposal: port Ghost's exact formula; add a test fixture comparing against `@tryghost/helpers`. Note: existing self-audit already flags word_count CJK bug — fix that first.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: post.access / post.visibility — emit visibility but document access is always 'public'",
+    "body": "Ghost: `post.access` boolean (true if current member can read), `post.visibility` (`public`/`members`/`paid`/`tiers`). Without a session, Content API returns posts based on the key's tier permissions.\n\nNectar: no members, no session, no paywall.\n\nProposal: always emit `access: true`, preserve `visibility` from frontmatter for completeness, but filter out `visibility: members`/`paid` posts from the public JSON by default (configurable). Document.",
+    "labels": ["api", "ghost-compat", "P2"]
+  },
+  {
+    "title": "api: post.email_only / post.email — set false/null on all posts",
+    "body": "Ghost has email-only posts (`email_only: true`, only sent to subscribers, never on the public site). Plus `post.email` object with stats.\n\nNectar: no email, no members.\n\nProposal: emit `email_only: false`, `email: null` on every post for shape compatibility with the SDK's TypeScript types.",
+    "labels": ["api", "ghost-compat", "P3"]
+  },
+  {
+    "title": "api: post.send_email_when_published — emit false constant",
+    "body": "Internal Ghost field. SDK types include it. Static API should emit `false` for shape parity.",
+    "labels": ["api", "ghost-compat", "P3"]
+  },
+  {
+    "title": "api: post.uuid — emit a stable UUID per post (separate from id)",
+    "body": "Ghost has both `id` (24-hex ObjectId) and `uuid` (RFC4122) on posts. Some consumers key off uuid.\n\nNectar: only `id` (we may be generating ObjectId-shaped or slug-shaped). Need to verify and add `uuid` (deterministically derived from content path + a project namespace, so it's stable across builds).\n\nProposal: add `uuid` to `Post`/`Page` derived via `uuid v5` with namespace = site URL, name = slug.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: post.id format — verify it's a 24-char hex ObjectId or document divergence",
+    "body": "Ghost IDs are MongoDB ObjectIds (24 hex). Some SDK consumers regex-validate.\n\nNectar: check `src/content/loader.ts` — if we're using slugs or random IDs, document divergence or generate deterministic 24-hex from a hash of slug+published_at.\n\nProposal: deterministic hex(sha1(slug+published_at)).slice(0,24).",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: tag.url — verify it matches Ghost's /tag/:slug/ convention and config.url is prefixed",
+    "body": "Ghost emits absolute URLs in API responses (`https://site.com/tag/foo/`). Theme helpers expect this.\n\nNectar: `Tag.url` exists; verify it's absolute (with `[site].url` prefix) and ends with trailing slash.\n\nProposal: spot-check in `loader.ts`; add a test.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: author.url — same audit as tag.url",
+    "body": "Mirror of the tag.url issue. Authors' URLs in the Content API are absolute `https://site.com/author/:slug/`. Verify.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: post.url — verify absolute, trailing-slash, respects custom permalink config",
+    "body": "Ghost has configurable permalink structures via routes.yaml. We don't support routes.yaml (separate issue elsewhere). For the API shadow, ensure `post.url` is absolute with trailing slash. If the user configures a permalink prefix later, the JSON shadow must update.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: meta.pagination.next/prev as numbers, not strings",
+    "body": "Ghost returns `next` and `prev` as numbers (or null), not strings. SDK parses them as numbers. Easy to get wrong with JSON serializers.\n\nProposal: ensure the pagination helper emits numbers. Add a test that does `typeof body.meta.pagination.next === 'number' || body.meta.pagination.next === null`.",
+    "labels": ["api", "ghost-compat", "P2"]
+  },
+  {
+    "title": "api: cache-control headers per resource — short TTL for posts, longer for tags/authors",
+    "body": "Ghost API typically returns `Cache-Control: no-cache` or short TTLs. For a static deploy we want longer TTLs to leverage CDN.\n\nProposal: in `dist/_headers`:\n- `/content/posts/*` → `max-age=300` (5 min)\n- `/content/tags/*`, `/content/authors/*`, `/content/settings/*` → `max-age=3600` (1 hour)\n- `/content/tiers/*`, `/content/newsletters/*` → `max-age=86400` (1 day, basically empty)\n\nConfigurable via `[components.content_api.cache]`.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: 404 envelope — emit Ghost-shaped error JSON for missing slug requests",
+    "body": "Ghost 404s return:\n```json\n{ \"errors\": [{ \"message\": \"Resource not found error, cannot read post.\", \"context\": \"...\", \"type\": \"NotFoundError\", \"details\": null, \"property\": null, \"help\": null, \"code\": null, \"id\": \"...\" }] }\n```\n\nStatic host returns its own 404 HTML. SDK will fail to JSON-parse.\n\nProposal: emit a `dist/content/404.json` with Ghost's error envelope. Hosts that support custom 404 status (Netlify `_redirects`, Cloudflare Pages) can route `/content/*` 404s to this file with the right status code. Document the hosting config.",
+    "labels": ["api", "ghost-compat", "P2", "feature"]
+  },
+  {
+    "title": "api: HEAD/OPTIONS support — document via _headers preflight",
+    "body": "Browsers fire OPTIONS preflight on cross-origin requests with auth headers. Many static hosts auto-handle OPTIONS, but not all.\n\nProposal: in the CORS `_headers` block, ensure preflight returns `Access-Control-Max-Age: 86400` to cache the preflight. Document host-specific quirks (S3 needs explicit OPTIONS in bucket policy).",
+    "labels": ["api", "ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "api: build flag --emit-content-api / config gate [components.content_api]",
+    "body": "All the JSON shadow work above should be gated, off-by-default during the unstable phase, on-by-default once stable.\n\nProposal: add to `nectar.toml`:\n```\n[components.content_api]\nenabled = true\npaginate_limit = 15\nemit_per_resource_shards = true\nemit_filtered_shards = [\"tag\", \"author\", \"featured\"]\ncors_origin = \"*\"\n```\nWire through `src/build/pipeline.ts` similar to existing `components.rss` / `components.sitemap` gating.",
+    "labels": ["api", "ghost-compat", "P1", "infra"]
+  },
+  {
+    "title": "api: emit dist/content/posts/index.json *and* dist/content/posts.json — host directory-index variance",
+    "body": "Hosts differ on whether `/foo/` serves `/foo/index.html` or 404s without `index.html`. JSON has no equivalent default. We must emit redundantly:\n- `dist/content/posts.json` (file at non-trailing-slash request)\n- `dist/content/posts/index.json` (file at trailing-slash directory request, if host serves *.json indexes)\n\nProposal: emit both. Or pick one + ship a `_redirects` rewriting `/posts/` → `/posts.json`. Document.",
+    "labels": ["api", "ghost-compat", "P1"]
+  },
+  {
+    "title": "api: TypeScript types — publish @nectar/content-api-types matching the emitted JSON shape",
+    "body": "Consumers writing TypeScript want types for the JSON they fetch. `@tryghost/content-api` ships its own types but they include fields we omit (members, mobiledoc).\n\nProposal: publish `@nectar/content-api-types` exporting `NectarPost`, `NectarPage`, `NectarTag`, `NectarAuthor`, `NectarSettings`, `NectarPagination`. Re-export from `src/content/model.ts` with API-only fields stripped/added. Lowest priority — wait for first external consumer to ask.",
+    "labels": ["api", "ghost-compat", "P3", "feature"]
+  },
+  {
+    "title": "api: document non-API endpoints we DO emit (sitemap.xml, rss.xml, robots.txt)",
+    "body": "Cross-link from `docs/GHOST_COMPATIBILITY.md` API section: which JSON we emit, which we don't. List existing emissions (sitemap, rss) and proposed (content/*.json). Saves consumers from wondering.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: emit dist/.well-known/ghost.json with site metadata (api version, generator) for service discovery",
+    "body": "Optional service-discovery file consumers could probe to detect a Nectar-served Ghost-compatible site vs a real Ghost.\n\n```json\n{ \"generator\": \"nectar\", \"version\": \"0.x\", \"ghost_api_version\": \"v5.0\", \"endpoints\": { \"content\": \"/ghost/api/content/\" } }\n```\n\nConsumers can use this to opt into Nectar-aware behavior (e.g. skip admin calls).",
+    "labels": ["api", "ghost-compat", "P3", "feature"]
+  },
+  {
+    "title": "api: members-only fields on Post — strip from public JSON (paywall_html, members content)",
+    "body": "Ghost posts can carry `<!--members-only-->` markers; Content API returns truncated content for non-members. Without members, we either emit full content or strip the marker.\n\nProposal: parse `<!--members-only-->` in Markdown, drop everything after it from `html` and `plaintext` for `visibility: members`/`paid` posts, OR (simpler) reject those visibilities at build with a clear error since Nectar doesn't support paywalls.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: posts include excerpt of first paragraph if custom_excerpt unset — verify Ghost's word count (50 words default)",
+    "body": "Ghost: auto-excerpt is *50 words* of plaintext, not characters, not full paragraph. Easy to get wrong.\n\nProposal: audit `src/content/loader.ts` excerpt generation; ensure it's `plaintext.split(/\\s+/).slice(0, 50).join(' ')` (or `Intl.Segmenter`-based for CJK). Add test.",
+    "labels": ["api", "ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "api: post.featured boolean — verify it's filterable via the featured shard",
+    "body": "Crosscheck: tag/author shards proposed above. `featured.json` should contain `posts.filter(p => p.featured)`. Trivial; just confirm it's wired.",
+    "labels": ["api", "ghost-compat", "P3"]
+  },
+  {
+    "title": "api: ?absolute_urls=true — Ghost option to rewrite relative URLs in html to absolute",
+    "body": "Ghost Content API supports `?absolute_urls=true` which rewrites relative `<img src=\"/content/...\">` to absolute. Useful for RSS readers / external consumers.\n\nProposal: emit `html` with absolute URLs by default in the Content API shadow (cheap, one-time rewrite at build). Document that the `?absolute_urls` query param is ignored because output is always absolute.\n\nFollow-up: keep relative URLs in the on-page HTML for portability; only rewrite in the JSON shadow.",
+    "labels": ["api", "ghost-compat", "P2"]
+  },
+  {
+    "title": "api: image URLs — Ghost's /content/images/size/wWIDTH/path responsive variants — document non-support",
+    "body": "Ghost's Image API resizes on-the-fly: `/content/images/size/w600/2024/01/foo.jpg`. Themes use this via `{{img_url ... size=\"w600\"}}`.\n\nNectar gap: covered separately as a helper. For the API shadow: image URLs in `post.html` / `post.feature_image` won't have responsive variants unless the user pre-generates them.\n\nProposal: document. Optional follow-up: `[components.images] sizes = [600, 1200, 2000]` pre-generates resized assets at build via `sharp`. Out of scope for this audit; file separately if not already.",
+    "labels": ["api", "ghost-compat", "docs", "P3"]
+  },
+  {
+    "title": "api: example consumer — ship docs/EXAMPLE_SPA.md showing @tryghost/content-api against a Nectar build",
+    "body": "Reference implementation. A 50-line React/Vue/Svelte snippet that fetches `posts.browse()` against a Nectar deployment, demonstrating the path setup and key stub. Acts as living documentation and a regression target.\n\nProposal: write the doc, link from README. Bonus: add to `example/` as a runnable subdir.",
+    "labels": ["api", "ghost-compat", "docs", "P2"]
+  }
+]

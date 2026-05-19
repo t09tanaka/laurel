@@ -1,0 +1,1167 @@
+[
+  {
+    "title": "ghost-compat: {{#is}} does not support \"private\" context",
+    "body": "Ghost's `{{#is}}` helper supports a `private` context that matches when a publication is password-protected. Our implementation in `src/render/helpers/blocks.ts` only maps `home`, `index`, `post`, `page`, `tag`, `author`, `paged`. Themes that have a `private.hbs` template or guard with `{{#is \"private\"}}` will silently render the wrong branch.\n\nVerify: grep Casper / Source for `{{#is \"private\"}}`. Build a theme that uses it and confirm Nectar never matches.\n\nFix: add `private` to the alias map in `registerBlockHelpers` (it always returns false unless we add a `private` flag to the route/config) and document the limitation.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#is}} does not support \"error\" context",
+    "body": "Ghost's `{{#is}}` helper accepts `error` to detect that the current route is an error page (`error.hbs`, `error-404.hbs`). Our `RouteKind` type even includes `error` but the alias table in `src/render/helpers/blocks.ts` (`aliases` object) has no entry for it, so `{{#is \"error\"}}` will always fall through to the inverse branch.\n\nFix: add `error: ['error']` to the aliases map, and make sure error routes set `route.kind = 'error'`.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#is}} does not support \"members\" or \"subscriber\" context",
+    "body": "Ghost supports membership-aware contexts. While `subscriber` was removed in newer versions, themes still ship using both `{{#is \"members\"}}` and the inverse pattern `{{^is \"subscriber\"}}`. Our implementation returns false for these unknown contexts.\n\nFix: even if we don't have members, recognise these names and resolve them deterministically (always false because no member context exists at build time) and document the behaviour.",
+    "labels": ["ghost-compat", "P3", "members"]
+  },
+  {
+    "title": "ghost-compat: {{#is}} accepts only a comma-separated string, not multiple positional args",
+    "body": "Ghost accepts both forms: `{{#is \"post, page\"}}` and `{{#is \"post\" \"page\"}}`. Our impl in `src/render/helpers/blocks.ts` flat-maps args and then splits on commas — multiple bare positional strings work, but the doc-blessed multi-arg form was never tested. Worse, if a theme passes a hash like `{{#is context=\"post\"}}` we ignore it (Ghost doesn't support that either, so this part is OK), but the lack of tests means regressions are easy.\n\nFix: add tests; ensure positional + comma-split both behave.",
+    "labels": ["ghost-compat", "P2", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: {{#has}} missing `count`, `any`, `all`, `count:>N`, `count:<N`, nth pattern",
+    "body": "Ghost's `{{#has}}` supports a wide surface: `tag=\"count:>1\"`, `tag=\"count:1\"`, `any=\"twitter, facebook\"`, `all=\"@labs.x,@labs.y\"`, `number=\"nth:3\"`, `index=\"0\"`. Our `src/render/helpers/blocks.ts` implementation only handles `tag`, `author`, `visibility`, `slug`, `number` (exact equality) and a catch-all string equality. Themes commonly use `{{#has tag=\"count:>1\"}}` to display multiple-tag UIs, and Source uses the `index`/`number` variants inside foreach.\n\nFix: parse `count:` prefix, comma list as OR within an attribute, `any=` / `all=` aggregators, `nth:N` modulus and ranges.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#has}} `tag=\"a,b\"` is OR within the attr, but multiple attrs should also OR (we currently OR but stop on first match for all attrs)",
+    "body": "Per Ghost docs, multiple hash attrs on `{{#has}}` are OR'd together (`{{#has tag=\"x\" author=\"y\"}}` → true if either). Our loop does break on first match, which is OR-correct, but we never test nested has (AND-via-nesting) and we never short-circuit `^has`. Need explicit test coverage and document that the negated form (`{{^has}}`) inverts the OR.\n\nFix: add tests for OR-of-attrs, nested-AND, and `{{^has}}` semantics.",
+    "labels": ["ghost-compat", "P2", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: {{#has}} ignores number range patterns (e.g. number=\"3,6,9\" inside foreach)",
+    "body": "Ghost lets you do `{{#has number=\"3, 6, 9\"}}` inside a `{{#foreach}}` to apply a special class on those rows. Our implementation in `src/render/helpers/blocks.ts` does a single `Number(value)` equality check against `route.data.pagination.page`, completely missing the foreach loop variable case. This means Source's home `{{#match @number 2}}` chains that rely on similar logic do work (because they use match), but any theme that uses `{{#has number=\"...\"}}` will break.\n\nFix: distinguish between the route-pagination case and the foreach-context case by reading `@number`/`@index` from `options.data`.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} resource `tiers` not supported",
+    "body": "Ghost's `{{#get}}` accepts five resources: `posts`, `pages`, `tags`, `authors`, `tiers`. Our `src/render/helpers/blocks.ts` handles only the first four. Themes that use `{{#get \"tiers\"}}` to render pricing tables will get an empty result with no warning.\n\nFix: at minimum, return an empty iterable for `tiers` and log a warning that membership tiers aren't supported in Nectar.",
+    "labels": ["ghost-compat", "P2", "render", "members"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} resource `newsletters` not supported",
+    "body": "Ghost added `newsletters` as a queryable resource. We don't model newsletters at all — themes querying `{{#get \"newsletters\"}}` will get an empty array with no signal. Same fix as tiers.",
+    "labels": ["ghost-compat", "P3", "render", "members"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} ignores `page` (pagination) attribute",
+    "body": "Per Ghost docs, `{{#get \"posts\" limit=\"5\" page=\"4\"}}` returns items 16-20. Our implementation in `src/render/helpers/blocks.ts` reads `limit` and `order` but never reads `hash.page`. Themes that page through results (e.g. an \"older posts\" widget) will always re-render the first page.\n\nFix: read `hash.page`, slice accordingly, and expose the resulting pagination object to the block-param form `as |posts pagination|`.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} block-param does not expose `pagination` as the second block param",
+    "body": "Ghost docs explicitly show `{{#get \"posts\" as |articles pages|}} {{pages.total}}`. Our `getHelper` does pass two block params (`[results, { resource }]`) but the second slot is a stub object with only `resource`, not a real pagination object with `page`, `pages`, `total`, `limit`, `prev`, `next`.\n\nFix: build a `PaginationInfo` for `{{#get}}` results based on `hash.limit`, `hash.page`, total items.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} ignores `include=\"authors,tags,count.posts\"`",
+    "body": "Ghost's `include` attribute expands relationships and aggregate counts. We blindly accept whatever `include=` value but never branch on it — `count.posts` for tags/authors is already on the resolved Tag/Author objects, but the doc-blessed expectation is that without `include` those fields are not populated. Conversely, our objects always include them. Themes that test `{{#if count.posts}}` will see truthy where Ghost would see undefined. In practice this is fine, but record the divergence and add tests.\n\nFix: document this lossy compatibility — Nectar always populates everything; the `include` attribute is a no-op.",
+    "labels": ["ghost-compat", "P3", "render", "docs"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} filter DSL supports only `+` (AND), not `,` (OR)",
+    "body": "Ghost's NQL filter supports `,` for OR (e.g. `tag:[news,intro]+featured:true` mixes both). Our `evaluateFilterExpr` in `src/render/helpers/blocks.ts` splits ONLY on `+`. Top-level `,` outside brackets is treated as part of a value, so `tag:news,tag:intro` is parsed as a single key/value rather than two ORed clauses.\n\nFix: tokenise the filter respecting bracket nesting, then handle `+` (AND) and `,` (OR).",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} filter DSL does not support comparison operators (>, <, >=, <=)",
+    "body": "Ghost NQL allows e.g. `filter=\"published_at:>2024-01-01\"` and `filter=\"count.posts:>5\"`. Our `evaluateClause` in `src/render/helpers/blocks.ts` only matches exact equality and the negation prefix `-`. The `>`/`<`/`>=`/`<=` operators are not parsed.\n\nFix: detect the operator after the colon and dispatch to numeric/date comparison.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} filter DSL does not support `null` checks (`featured:null`, `featured:-null`)",
+    "body": "Ghost's `{{recommendations filter=\"favicon:-null\"}}` and post filters with `:null` are common. Our impl treats `null` as a literal string, so `featured:null` would match a post whose featured field is literally the string \"null\".\n\nFix: special-case `null` (and `true`/`false`) literals in `fieldMatches`.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} filter DSL fields restricted to a hard-coded switch",
+    "body": "`fieldMatches` in `src/render/helpers/blocks.ts` hard-codes `id`, `slug`, `featured`, `tag`, `tags`, `author`, `authors`, `visibility`, and otherwise does generic string equality. Important fields are missing: `primary_tag`, `primary_author`, `published_at`, `updated_at`, `status`, `type`, `page`, `feature_image`, `tier`. Themes filtering by `primary_tag:news` will silently miss matches because `item['primary_tag']` is an object, not a slug.\n\nFix: per-field accessors that drill into related objects (e.g. `primary_tag` → `item.primary_tag.slug`).",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} filter DSL interpolation `{{post.id}}` swallows {{}} braces inside filter string",
+    "body": "Source's post.hbs uses `filter=\"id:-{{post.id}}\"` which Handlebars itself evaluates BEFORE the helper sees it. Casper uses `filter=\"id:-{{id}}\"`. Our impl ALSO re-interpolates `{{...}}` inside the filter string against `this`, which is a duplicate of Handlebars's own substitution. If Handlebars already substituted, the second pass does nothing. But if `hash.filter` was passed as a sub-expression, the second pass may corrupt the value.\n\nFix: remove the manual `{{...}}` re-interpolation in `evaluateClause`. Trust Handlebars to interpolate before the helper runs.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#get}} default `limit` is 15, Ghost's default is also 15 — verify behaviour when posts_per_page is requested",
+    "body": "Source uses `{{#get \"posts\" include=\"authors\" limit=@config.posts_per_page}}`. We pull from `engine.config.build.posts_per_page` via `@config`, but we also expose `@config` only as the raw NectarConfig (which has `build.posts_per_page`, not top-level `posts_per_page`). So `@config.posts_per_page` is undefined here, and `parseNum(undefined) ?? 15` yields 15 — silently wrong limit.\n\nFix: expose a flat `@config.posts_per_page` (Ghost-style) in `buildRootData`.",
+    "labels": ["ghost-compat", "P0", "render", "config"]
+  },
+  {
+    "title": "ghost-compat: @config context is exposed as raw NectarConfig — themes expect Ghost's flat shape",
+    "body": "In `src/render/engine.ts:131`, `buildRootData` sets `config: engine.config`. Ghost themes access `@config.posts_per_page`, not `@config.build.posts_per_page`. Source's `{{#get \"posts\" limit=@config.posts_per_page}}` will be `undefined`, leading to the helper falling back to 15 silently.\n\nFix: build a Ghost-shaped `@config` object: `{ posts_per_page, image_sizes, card_assets }` from the theme package, not the Nectar config.",
+    "labels": ["ghost-compat", "P0", "render", "config"]
+  },
+  {
+    "title": "ghost-compat: @site missing `members_enabled`, `paid_members_enabled`, `members_invite_only`",
+    "body": "Source's navigation, footer, header, cta, post-list partials all branch on `@site.members_enabled`, `@site.paid_members_enabled`, `@site.members_invite_only`. Our `SiteData` in `src/content/model.ts` and `buildSite` in `src/content/loader.ts` never set these. They evaluate as `undefined`/falsy, which is fine for sites that don't use members, but if a theme is built assuming \"members_enabled=true\" by default it will silently disable subscribe UI.\n\nFix: add an optional `[site.members]` config block and surface `members_enabled`, `paid_members_enabled`, `members_invite_only`, `comments_enabled` defaulting to false.",
+    "labels": ["ghost-compat", "P1", "members", "config"]
+  },
+  {
+    "title": "ghost-compat: @site missing `recommendations_enabled`",
+    "body": "Source's post-list partial guards the recommendations sidebar with `{{#if @site.recommendations_enabled}}`. We never set this field on `SiteData`. As a result the recommendations block is always hidden — even if a user wants to render a static list.\n\nFix: add `recommendations_enabled` to `SiteData`, default false, and let users opt in via config.",
+    "labels": ["ghost-compat", "P2", "members"]
+  },
+  {
+    "title": "ghost-compat: @site missing `comments_access`, `comments_enabled`",
+    "body": "Casper post.hbs guards subscribe CTA with `{{#unless @site.comments_enabled}}`. Themes also branch on `@site.comments_access` to decide what footer/comments UI to show. Our `SiteData` lacks both.\n\nFix: add to schema and config; default `comments_enabled = false`.",
+    "labels": ["ghost-compat", "P2", "members"]
+  },
+  {
+    "title": "ghost-compat: @site missing portal fields (portal_button, portal_button_icon, portal_button_signup_text, portal_button_style, portal_name, portal_plans, portal_signup_checkbox_required, portal_signup_terms_html, signup_url)",
+    "body": "Ghost themes that render their own portal triggers read these `@site.*` fields to honour admin settings. We don't expose any of them. Themes coded to gate on `@site.portal_button` will silently always hide the subscribe button.\n\nFix: add a `[site.portal]` config sub-table that surfaces all `portal_*` keys.",
+    "labels": ["ghost-compat", "P2", "members"]
+  },
+  {
+    "title": "ghost-compat: @site missing `members_support_address` and `allow_self_signup`",
+    "body": "Themes that show \"Contact support: {{@site.members_support_address}}\" or branch on `@site.allow_self_signup` will get undefined.\n\nFix: surface both via config; document defaults.",
+    "labels": ["ghost-compat", "P3", "members"]
+  },
+  {
+    "title": "ghost-compat: @site missing meta fields (meta_title, meta_description, og_image, og_title, og_description, twitter_image, twitter_title, twitter_description)",
+    "body": "Ghost exposes these site-level SEO overrides via `@site.*`. Our `SiteData` doesn't model them, so themes generating fallback OG meta from `@site.og_image` etc. always get blank.\n\nFix: add to `SiteData`, accept in `[site]` config block, and have `{{ghost_head}}` consult them.",
+    "labels": ["ghost-compat", "P1", "seo", "render"]
+  },
+  {
+    "title": "ghost-compat: @site missing `admin_url`",
+    "body": "Some themes show a small admin link; some assets resolve through `@site.admin_url`. Not exposed in `SiteData`.\n\nFix: surface as optional config, default to `${site.url}/ghost/`.",
+    "labels": ["ghost-compat", "P3", "config"]
+  },
+  {
+    "title": "ghost-compat: @site missing `codeinjection_head` and `codeinjection_foot`",
+    "body": "Ghost lets admins set site-wide head/foot code injection via Admin → Code injection. Themes read `@site.codeinjection_head`/`@site.codeinjection_foot` via `{{ghost_head}}`/`{{ghost_foot}}`. Our `SiteData` has no such fields and our `ghost_head` helper in `src/render/helpers/ghost-head.ts` only emits the post-level `codeinjection_head`.\n\nFix: add to config schema and inject in `{{ghost_head}}` / `{{ghost_foot}}`.",
+    "labels": ["ghost-compat", "P1", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: @site.navigation items are plain {label,url}, missing `slug` and `current`",
+    "body": "Per Ghost docs, navigation items inside `partials/navigation.hbs` foreach expose `{{label}}`, `{{url}}`, `{{slug}}`, `{{current}}`. Our `NavigationItem` type only has `label` and `url`. Themes using `{{#if current}}` on nav items won't ever see the active state, and `{{slug}}` for nav-* CSS classes is missing.\n\nFix: enrich navigation items at render time with a per-route computed `slug` (slugified label) and `current` (compare against `route.url`), and expose them in the `{{navigation}}` helper's iteration context.",
+    "labels": ["ghost-compat", "P1", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: {{navigation}} helper does NOT delegate to `partials/navigation.hbs` when present",
+    "body": "Ghost docs: \"Create `./partials/navigation.hbs` to customize markup.\" If a theme defines one, Ghost uses it; otherwise default `<ul class=\"nav\">…</ul>`. Our `src/render/helpers/navigation.ts` always emits hard-coded HTML — even when `partials/navigation.hbs` exists. This means Source's navigation customisation (the `is-secondary` styling, etc.) is broken even though the partial file is loaded.\n\nWait — Source actually invokes the partial directly (`{{> \"components/navigation\"}}`) so it doesn't hit this. BUT casper / many themes rely on the helper delegating. Either way we should match Ghost.\n\nFix: in `navigationHelper`, if `engine.theme.partials['navigation']` exists, render that partial with the navigation items as context.",
+    "labels": ["ghost-compat", "P1", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: {{navigation}} helper does not pass `isSecondary` to partial",
+    "body": "Ghost docs explicitly say: inside `partials/navigation.hbs` you may branch on `{{#if isSecondary}}` to detect which call (primary vs `type=\"secondary\"`) is rendering. Our helper has no such flag because it doesn't delegate to a partial at all.\n\nFix: once delegation is implemented, pass `isSecondary: type === 'secondary'` to the partial's context.",
+    "labels": ["ghost-compat", "P2", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: {{pagination}} helper does NOT delegate to `partials/pagination.hbs`",
+    "body": "Ghost docs: theme can override pagination by creating `partials/pagination.hbs`. Our impl in `src/render/helpers/navigation.ts` always emits hard-coded HTML. Source / Casper expect their own pagination partial to be honoured.\n\nFix: in `paginationHelper`, if `engine.theme.partials['pagination']` exists, render it with the pagination data as context.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{pagination}} helper missing the `{{page_url}}` helper for use inside pagination partial",
+    "body": "Ghost's pagination partial uses `{{page_url next}}`, `{{page_url prev}}`, `{{page_url N}}` to build page links. We never register a `page_url` helper. A custom `partials/pagination.hbs` that uses it will silently produce empty hrefs.\n\nFix: register a `page_url` helper that takes a number / 'prev' / 'next' and emits the corresponding URL based on `route.data.pagination.baseUrl`.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: pagination object missing `prev`/`next` integer fields under the conventional names",
+    "body": "We expose `prev` and `next` as integers (good), but Ghost also documents `prev_url` and `next_url` (we have these). However, themes also frequently iterate using `{{#if prev}}…{{/if}}` (just the integer). Currently if there's no prev, our value is `undefined` — handlebars treats that as falsy, OK. Verify with tests.\n\nFix: add tests that exercise both numeric and url forms.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: pagination.pages missing when posts.length === 0 (we coerce to 1)",
+    "body": "`planRoutes` in `src/build/routes.ts:118` does `if (pages.length === 0) pages.push([]);` to ensure at least one page. That means an empty site still emits `/`. But the resulting `PaginationInfo.pages = 1`, total = 0. Themes often guard `{{#if pagination.pages}}` which would render pagination on an empty site.\n\nFix: when there are zero posts, set `pages = 0` and skip pagination output. Or, mirror Ghost which doesn't emit pagination when there are 0 posts.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{img_url}} does not output Ghost's image-resize URLs (/content/images/size/wXXX/...)",
+    "body": "Ghost serves resized images at `/content/images/size/w600/2024/01/foo.jpg`. Our `img_url` in `src/render/helpers/assets.ts` ignores `size` entirely (writes the same URL irrespective), so a theme producing a `srcset=\"… size=\\\"xs\\\" … size=\\\"xxl\\\"\"` set will emit identical URLs at every width — `srcset` is useless and bandwidth multiplies.\n\nFix: at minimum, rewrite the URL to inject `/size/wXXX/` based on `theme.pkg.image_sizes`. Optional component to actually resize via sharp.",
+    "labels": ["ghost-compat", "P0", "image-pipeline", "render"]
+  },
+  {
+    "title": "ghost-compat: {{img_url}} does not honour `format=\"webp\"`",
+    "body": "Ghost's image API supports `format=webp|avif|jpg|png|gif` (rewrites the URL to e.g. `/content/images/size/w600/format/webp/...`). Source theme actively uses `{{img_url feature_image size=\"xl\" format=\"webp\"}}` in post-card.hbs. We never read `options.hash.format`.\n\nFix: read `hash.format`, append `/format/<value>/` to the URL.",
+    "labels": ["ghost-compat", "P0", "image-pipeline", "render"]
+  },
+  {
+    "title": "ghost-compat: {{img_url}} does not look up image_sizes from the theme — it just checks key existence",
+    "body": "`src/render/helpers/assets.ts:33` does `if (size && engine.theme.pkg.image_sizes[size])` but the body of that branch (`cleaned = candidate.replace(/^\\//, ''); url = '/' + cleaned`) doesn't actually USE the size to alter the URL. It only normalises a leading slash. The size attribute is effectively a no-op.\n\nFix: use the width from `image_sizes[size].width` to construct the Ghost-style `/content/images/size/w{width}/...` path.",
+    "labels": ["ghost-compat", "P0", "image-pipeline", "render"]
+  },
+  {
+    "title": "ghost-compat: {{img_url}} does not strip Ghost CDN host before re-injecting size segment",
+    "body": "Imported Ghost content keeps absolute `https://CDN/content/images/2024/01/foo.jpg` paths. If a theme calls `{{img_url feature_image size=\"m\"}}` on these, Ghost would rewrite the path to `/content/images/size/w600/2024/01/foo.jpg`. We bail at `if (… !candidate.startsWith('http'))`, returning the absolute URL unchanged. So srcsets containing CDN-hosted images won't be resized.\n\nFix: parse the URL, identify `/content/images/...` segment, and inject `size/wXXX` regardless of scheme.",
+    "labels": ["ghost-compat", "P1", "image-pipeline", "migration"]
+  },
+  {
+    "title": "ghost-compat: {{img_url}} returns plain string, not SafeString — theme HTML may be double-escaped via `&amp;`",
+    "body": "Most uses are inside attribute values (`src=\"{{img_url …}}\"`), which Handlebars will HTML-escape. That's fine. But if a theme uses `{{{img_url …}}}` (triple-stash) the value is unescaped — also fine. The risk is that the helper returns a plain string with `&amp;` already in it (we don't escape, so OK). Trace and confirm.\n\nFix: write a test that asserts the literal string returned is a clean URL.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: {{asset}} helper double-escapes the result via escapeHtml even though it's used as an href",
+    "body": "`src/render/helpers/assets.ts:21` does `return new engine.hb.SafeString(escapeHtml(url + …))`. Wrapping in SafeString tells Handlebars not to escape — but we've already escaped manually, so an URL containing `&` becomes `&amp;` and stays that way even in href/src context where Ghost emits raw `&`. The Ghost helper emits a SafeString of the raw URL.\n\nFix: drop the manual `escapeHtml` call on the URL; SafeString is sufficient.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{asset}} `hasMinFile` option is parsed but unused",
+    "body": "Ghost's `{{asset}}` accepts `hasMinFile=\"true\"` so themes can ship both `screen.css` and `screen.min.css` and have the helper choose the latter in production. Our handler in `src/render/helpers/assets.ts:21` reads `options.hash.hasMinFile` but the ternary appends `''` either way — it's a dead read.\n\nFix: when truthy, look up the `.min.<ext>` variant first via the asset map.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{asset}} does not output the file's fingerprinted name when the file isn't .css/.js (e.g. images)",
+    "body": "`src/theme/assets.ts:33` only fingerprints `.css`, `.js`, `.mjs`. Ghost fingerprints (via `v=hash` query param) every asset reference. Theme images (logos, icons) won't bust cache. Themes may reference e.g. `{{asset \"images/icon.svg\"}}` — works but no cache busting.\n\nFix: add `?v=<hash>` query string to non-fingerprintable assets so caches still bust.",
+    "labels": ["ghost-compat", "P2", "image-pipeline", "render"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not emit a `<link rel=\"alternate\" type=\"application/rss+xml\">` for the site feed",
+    "body": "Ghost's ghost_head emits `<link rel=\"alternate\" type=\"application/rss+xml\" title=\"…\" href=\"…/rss/\">`. Without it, RSS auto-discovery breaks (Reeder, browsers, podcatchers). Our `src/render/helpers/ghost-head.ts:14` doesn't emit anything for RSS.\n\nFix: add the alternate link tag.",
+    "labels": ["ghost-compat", "P1", "seo", "rss"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not emit `<meta name=\"twitter:site\">` from @site.twitter or @site.x",
+    "body": "Ghost emits both `twitter:site` (publication handle) and `twitter:creator` (per-post author handle). Our impl only emits `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`. Missing handles reduce Twitter Card validation.\n\nFix: include twitter:site (from `@site.twitter`) and twitter:creator (from `primary_author.twitter`).",
+    "labels": ["ghost-compat", "P2", "seo"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not emit `<meta property=\"article:published_time\">`, `article:modified_time`, `article:tag`, `article:author`",
+    "body": "These are OG article extensions Ghost emits on post pages. Useful for Facebook, LinkedIn, news aggregators. Currently absent in `src/render/helpers/ghost-head.ts`.\n\nFix: when `ogType === 'article'`, emit article:* tags from post fields.",
+    "labels": ["ghost-compat", "P1", "seo"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} JSON-LD missing `mainEntityOfPage`, `keywords` (tags), `wordCount`, `commentCount`",
+    "body": "Ghost's structured-data JSON-LD includes additional Schema.org fields. Our `buildJsonLd` is minimal. For SEO parity, themes that rely on rich snippets won't match Ghost.\n\nFix: extend the JSON-LD with `mainEntityOfPage`, `keywords` (joined tag names), `wordCount`, and (when known) `commentCount`.",
+    "labels": ["ghost-compat", "P2", "seo"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} JSON-LD only emits Article on post pages, never Person/WebSite for author/tag pages",
+    "body": "Ghost emits `@type: Person` for author pages, `@type: Series` for tag pages (or similar). Our `buildJsonLd` returns the generic `WebSite` for anything that's not a post.\n\nFix: branch on `route.kind` and emit Person / Series / WebPage as appropriate.",
+    "labels": ["ghost-compat", "P2", "seo"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not emit `<link rel=\"amphtml\">` or AMP support",
+    "body": "Ghost emits an AMP link when AMP is enabled and `amp.hbs` exists. We don't generate AMP routes at all (see separate gap), and don't emit the link.\n\nFix: scope-out AMP; document the absence; ensure no `amphtml` reference accidentally leaks.",
+    "labels": ["ghost-compat", "P3", "seo"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not emit `accent_color` CSS variable inline",
+    "body": "Ghost themes get `<style>:root { --ghost-accent-color: #xxx; }</style>` injected by `ghost_head` from the site's accent_color setting. Source's `default.hbs` works around this by manually emitting `--background-color: {{@custom.site_background_color}}` but Casper relies on Ghost's auto-injected `--ghost-accent-color`.\n\nFix: emit `<style>:root{--ghost-accent-color:{{@site.accent_color}}}</style>` from ghost_head.",
+    "labels": ["ghost-compat", "P1", "seo", "render"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_head}} does not inject Portal/Members/Search/Sodo-search JavaScript",
+    "body": "Ghost's real `ghost_head` injects `<script src=\"…/portal.min.js\" data-i18n=\"…\" data-ghost=\"…\">` and the search SDK. Without these, `data-portal` buttons and `data-ghost-search` triggers in themes do nothing. Our docs note this is out of scope, but at minimum we should emit a comment / log so theme devs aren't confused.\n\nFix: opt-in `[components.portal]` and `[components.search]` that inject stub or real client scripts.",
+    "labels": ["ghost-compat", "P1", "members", "search"]
+  },
+  {
+    "title": "ghost-compat: {{ghost_foot}} does not emit the site-level codeinjection_foot, only the post-level",
+    "body": "`src/render/helpers/ghost-head.ts:54` reads `ctx.codeinjection_foot` (post/page field) but never appends the site's `@site.codeinjection_foot`. On non-post routes (home, tag, author) it emits nothing.\n\nFix: concatenate `site.codeinjection_foot` + `ctx.codeinjection_foot`.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: `body_class` does not include `hash-<slug>` for internal-tag slugs",
+    "body": "Ghost's body_class includes `tag-<slug>` AND, when a tag is internal (slug starts with `hash-`), often a `hash-…` class. Our `computeBodyClass` only adds `tag-<slug>`. Themes that style hidden hash-tags need both.\n\nFix: when on a tag route and `tag.visibility === 'internal'`, also push `hash-…`.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `body_class` missing `post-template-<slug>`, `page-template-<slug>`, `author-template-<slug>`, `tag-template-<slug>` per-resource modifiers",
+    "body": "Ghost emits `post-template-<slug>` etc. so themes can target a specific post in CSS. Our `computeBodyClass` only emits the generic `post-template`. Themes with per-post CSS rules need the per-slug class.\n\nFix: append `post-template-${post.slug}` (and equivalent for page/tag/author).",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `body_class` missing `error-template` on error pages and `members-template` on members area",
+    "body": "Real Ghost emits these. Since we don't have error or members routes (see separate gaps), this is downstream.\n\nFix: when error routes are added, include `error-template` and `error-<statusCode>` body classes.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `post_class` missing `no-image`, `featured`, `access` modifiers",
+    "body": "Ghost emits `no-image` when post has no feature image, and visibility-based access classes. Our `computePostClass` in `src/render/engine.ts:165` only handles `tag-<slug>` + `featured`.\n\nFix: append `no-image` when `!post.feature_image`, append `access` / `members-only` / `paid-only` based on visibility.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{date}} default format is hard-coded \"DD MMM YYYY\", Ghost default is `ll` (locale-aware short)",
+    "body": "Per docs, when called without options Ghost uses Moment's `ll` format (e.g. \"Jan 15, 2026\"). Our `src/render/helpers/date.ts:31` defaults to `\"DD MMM YYYY\"`. Themes that omit format will produce a different visual result than on Ghost.\n\nFix: change default to `'ll'` and ensure dayjs/localizedFormat handles it.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{date}} does not honour `locale=` hash override",
+    "body": "Ghost docs: `{{date format=\"MMMM Do, YYYY\" locale=\"fr-fr\"}}`. Our impl never reads `options.hash.locale`. Multi-locale themes can't override per-call.\n\nFix: read `hash.locale`, call `dayjs.locale(locale)` for that invocation.",
+    "labels": ["ghost-compat", "P2", "render", "i18n"]
+  },
+  {
+    "title": "ghost-compat: {{date}} `timeago` accepts only `true`/'true' string, not Ghost's `timeago` (no value) idiom",
+    "body": "Ghost supports `{{date timeago=\"true\"}}` and bare `{{date timeago=true}}`. We check `options.hash.timeago === true || options.hash.timeago === 'true'`. The `=true` (boolean from Handlebars) form is fine, but Handlebars sometimes coerces the string `'true'` for hash-without-value attributes. Verify both paths.\n\nFix: also accept the string `'true'` and any truthy.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{date}} `timezone=` hash override not implemented",
+    "body": "Ghost lets themes override the global timezone with `{{date timezone=\"Europe/Paris\"}}`. We always use `engine.content.site.timezone`. Per-helper override absent.\n\nFix: read `hash.timezone`, fall back to site default.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{date}} uses dayjs but doesn't load locale data per @site.locale",
+    "body": "`src/render/helpers/date.ts` imports dayjs and `localizedFormat`, but never imports/loads non-English locale data. Sites set to `de`, `fr`, etc. will still output English month names. Themes calling `{{date format=\"MMMM\"}}` will all say \"January\".\n\nFix: dynamically import `dayjs/locale/<locale>.js` based on `site.locale` and call `dayjs.locale(locale)`.",
+    "labels": ["ghost-compat", "P1", "i18n", "render"]
+  },
+  {
+    "title": "ghost-compat: {{date}} doesn't gracefully handle invalid dates — emits 'Invalid Date'",
+    "body": "Themes may pass non-date data; Ghost emits an empty string or falls back. dayjs returns 'Invalid Date' as a literal string. Ghost themes that render `{{date custom_field}}` would show garbage.\n\nFix: check `dayjs(value).isValid()` and return empty string when invalid.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{t}} translation interpolation uses `{name}` braces but Ghost docs `{name}` AND positional `%` — verify ICU MessageFormat fragments",
+    "body": "`src/render/helpers/i18n.ts:22` does `out.replaceAll('{key}', value)`. Source's footer uses `{{t \"Powered by {ghostlink}\" ghostlink=\"…\"}}` — works. But Ghost supports plural-form ICU patterns (`{count, plural, one {…} other {…}}`); we don't.\n\nFix: at least document the limitation; long-term, integrate a real ICU lib (e.g. `@formatjs/intl-messageformat`).",
+    "labels": ["ghost-compat", "P2", "i18n"]
+  },
+  {
+    "title": "ghost-compat: {{t}} doesn't honour theme-translations key fallback (en.json shared keys empty → fallback to literal key)",
+    "body": "Source's en.json has empty values (`\" (Page %)\": \"\"`). Our code in `src/render/helpers/i18n.ts:12` does `active[key] ?? fallback[key] ?? key` — but an empty string is NOT nullish, so the empty value passes through and `{{t \" (Page %)\"}}` produces `\"\"`. Ghost falls back to the key when the value is empty.\n\nFix: treat empty string as fallback trigger: `active[key] || fallback[key] || key`.",
+    "labels": ["ghost-compat", "P1", "i18n"]
+  },
+  {
+    "title": "ghost-compat: {{t}} `%` positional placeholder substitutes the FIRST hash value indiscriminately",
+    "body": "`interpolate` in `src/render/helpers/i18n.ts:30` replaces every `%` with `Object.values(hash)[0]`. Source's `{{reading_time minute=(t \"1 min read\") minutes=(t \"% min read\")}}` works because the `reading_time` helper passes `count` separately. But any template that hash-passes other named values (e.g. `numberOfPosts=12`) AND has a `%` somewhere would substitute the wrong value because hash key order is non-deterministic.\n\nFix: prefer a numbered positional `%1`, `%2` or document that `%` only substitutes the singular numeric value.",
+    "labels": ["ghost-compat", "P2", "i18n"]
+  },
+  {
+    "title": "ghost-compat: {{t}} doesn't expose the `{{lang}}` short-form alias documented by Ghost",
+    "body": "Ghost has `{{lang}}` (returns locale code) — we have it (`src/render/helpers/i18n.ts:16`). However the docs also show a helper called `translate` (utility category alias for `t`). We don't register `translate`.\n\nFix: register `translate` as an alias of `t`.",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: `{{plural}}` does not handle Ghost's `count, plural, one, other` ICU style or pluralisation by locale",
+    "body": "Our `src/render/helpers/strings.ts:18` accepts `singular=`, `plural=`, `empty=` hashes, and substitutes `%`. Ghost's `{{plural}}` is similar (legacy) but newer themes use ICU via `{{t}}`. Document the limitation; tests show our helper works for English-only.\n\nFix: at minimum add a `dual=` hash and language-pack-aware switch.",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: {{authors}} does NOT support `separator`, `prefix`, `suffix`, `limit`, `from`, `to`, `visibility`, `autolink`",
+    "body": "Per docs, `{{authors}}` mirrors the `{{tags}}` helper. Our `src/render/helpers/content.ts:46` only joins by `\", \"` (hard-coded) and emits raw names. Source uses `{{authors autolink=\"false\" separator=\", \"}}` in post-card.hbs — those hashes are silently ignored, autolinking is OFF in our impl regardless.\n\nFix: bring `{{authors}}` to feature parity with `{{tags}}` (which itself has gaps below).",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{tags}} does not support `prefix`, `suffix`, `limit`, `from`, `to`, `visibility`",
+    "body": "Our `src/render/helpers/content.ts:60` reads only `separator` and `autolink`. Missing the rest. Themes that do `{{tags prefix=\"Tagged: \" limit=\"3\" visibility=\"public\"}}` get no prefix and a full unfiltered list.\n\nFix: implement the full hash surface.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{tags}} does not filter internal `hash-` tags by default — Ghost hides them unless `visibility=\"all\"`",
+    "body": "Ghost's default is `visibility=\"public\"` which omits internal tags (slug starts with `hash-`). Our impl emits ALL tags. Themes building visible tag lists will leak internal admin tags.\n\nFix: default to public-only; require `visibility=\"all\"` to include internal.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{tags}}` does not output `accent_color` field on tag objects, but Ghost themes read it",
+    "body": "Tag objects in Ghost expose `accent_color`. Our `Tag` model in `src/content/model.ts:43` lacks the field. Themes that render colored tag pills break.\n\nFix: add `accent_color: string | undefined` to Tag, read from frontmatter.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `Tag` model missing `og_image`, `og_title`, `og_description`, `twitter_image`, `twitter_title`, `twitter_description`, `codeinjection_head`, `codeinjection_foot`, `canonical_url`",
+    "body": "Ghost tags have per-tag SEO and OG overrides. Our model only has meta_title/meta_description. The `tag.hbs` ghost_head won't pick up these fields for tag-archive OG sharing.\n\nFix: add to `Tag` model and `normalizeTag` in `src/content/loader.ts`.",
+    "labels": ["ghost-compat", "P2", "seo", "content"]
+  },
+  {
+    "title": "ghost-compat: `Author` model missing `og_image`, `twitter_image`, `codeinjection_*`, `accent_color`",
+    "body": "Same as tags — per-author social/SEO overrides are missing. Themes that show per-author social images on archive pages won't get them.\n\nFix: extend `Author` model in `src/content/model.ts` and parsing in `normalizeAuthor`.",
+    "labels": ["ghost-compat", "P2", "seo", "content"]
+  },
+  {
+    "title": "ghost-compat: `Author` model missing `url` consistency — currently set to `/author/<slug>/` but Ghost uses absolute URLs in some contexts",
+    "body": "Our `normalizeAuthor` (`src/content/loader.ts:275`) builds the URL via `joinUrl(config.site.url, …)` — that's already absolute. But the `Post.url` (line 311) is also absolute. Themes calling `{{url}}` on relative output and `{{url absolute=true}}` on absolute output may double-prefix. Verify by snapshot.\n\nFix: store URLs as paths (relative) and let `{{url}}` decide absolute vs relative.",
+    "labels": ["ghost-compat", "P1", "content"]
+  },
+  {
+    "title": "ghost-compat: `Post.url`, `Page.url`, `Tag.url`, `Author.url` all baked as absolute strings — Ghost stores them as paths",
+    "body": "In Ghost, themes call `{{url}}` (relative) or `{{url absolute=\"true\"}}` (absolute). Our model stores absolute URLs (`joinUrl(site.url, '/post/')`). When a theme calls `{{url}}` without `absolute`, our `url` helper returns the same absolute string anyway — no relative form exists. This breaks self-hosted sites with paths like `/blog/` and breaks `<a href=\"{{url}}\">` patterns that expect a relative.\n\nFix: store the path internally; let `urlHelper` apply absolute prefix.",
+    "labels": ["ghost-compat", "P1", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: {{url}} helper doesn't accept a positional argument — only reads `this.url`",
+    "body": "`src/render/helpers/urls.ts:17` reads `ctx.url`. Ghost's `{{url}}` accepts a parameter: `{{url '/tag/foo/'}}` and `{{url absolute=\"true\"}}`. Themes that pass an arbitrary string to `{{url}}` will get empty.\n\nFix: accept first positional arg, fall back to `this.url`.",
+    "labels": ["ghost-compat", "P1", "render"]
+  },
+  {
+    "title": "ghost-compat: {{url}} helper does not accept `data` block params from `{{#get}}`",
+    "body": "Ghost's `{{url tag}}` inside a foreach-over-get accepts the iterated object directly. Our impl ignores any positional arg.\n\nFix: accept any positional `{ url }` object and prefer its `.url`.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `readable_url` helper not implemented",
+    "body": "Ghost's `{{readable_url}}` outputs a human-friendly URL (strips protocol, www, trailing slash). Used in bookmark cards. Not registered in `src/render/helpers/`.\n\nFix: register `readable_url` helper.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `social_accounts` helper not implemented",
+    "body": "Ghost's `{{#social_accounts}}` block iterates connected social handles on the site or author. Themes use it to render social icons dynamically. Not in our helper list.\n\nFix: register a block helper that iterates `[twitter, facebook, instagram, ...]` present on the active context.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{social_url}} only supports a fixed list, missing `x`, `youtube_channel`, `github`, `mailto`",
+    "body": "Source/Casper authors may set X (formerly Twitter) handles, GitHub, etc. Our `SOCIAL_PATTERNS` covers twitter/facebook/linkedin/bluesky/mastodon/threads/tiktok/youtube/instagram only. Newer themes add `x` and `github`.\n\nFix: extend SOCIAL_PATTERNS; treat `x` and `twitter` interchangeably.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{social_url}} ignores `social_url=\"@site\"` and `social_url=\"author\"` positional targets",
+    "body": "Ghost's `{{social_url type=\"twitter\"}}` reads from current scope, but you can also pass `{{social_url \"@site\" type=\"twitter\"}}`. We ignore positional args. Themes rendering both author and site social blocks from one helper invocation can't switch.\n\nFix: read first positional arg as the lookup scope.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `twitter_url` and `facebook_url` direct helpers not implemented",
+    "body": "Ghost also has `{{twitter_url}}` / `{{facebook_url}}` as standalone helpers (deprecated but used in old themes). We have only `social_url`.\n\nFix: register the deprecated aliases or document the requirement to use `social_url`.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#foreach}} doesn't support `columns` and the `@rowStart`/`@rowEnd` flags",
+    "body": "Our `src/render/helpers/blocks.ts:21` sets `data.rowStart = false; data.rowEnd = false;` unconditionally — never honouring the `columns=` hash option. Themes that do `{{#foreach posts columns=3}}` for grid layouts won't get `@rowStart`/`@rowEnd`, breaking row-aware CSS.\n\nFix: when `hash.columns` is set, compute `i % columns === 0` (rowStart) and `(i+1) % columns === 0 || i === last` (rowEnd).",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#foreach}} `from`/`to` semantics are 1-indexed inclusive — but our `to` defaults to `min(items.length, from+limit-1)` which conflicts with Ghost's documented behaviour",
+    "body": "Ghost docs: `from` and `to` are 1-indexed inclusive bounds. Without `to`, all remaining items are emitted (limited by `limit`). Our `parseNum(options.hash.to) ?? Math.min(items.length, from + limit - 1)` interacts badly when `to` is omitted AND `limit` is omitted (limit defaults to items.length → to = items.length+from-1 which is past end; slice handles it but mismatches Ghost).\n\nFix: separate the three: `from = hash.from ?? 1`, `to = hash.to ?? items.length`, `limit = hash.limit ?? Infinity`. Apply slice(from-1, to) then take .slice(0, limit).",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#foreach}} `as |alias|` block-param syntax not honoured",
+    "body": "Source/Casper use `{{#get \"posts\" as |alias|}}{{#foreach alias}}…{{/foreach}}{{/get}}` which works because Handlebars itself binds the block param. But Ghost also allows `{{#foreach posts as |post|}}` to alias the iterated item. Our `foreachHelper` calls `options.fn(item, …)` without block-param plumbing, so `as |post|` is silently ignored — the inner template sees the item as `this`, which is normally fine, but breaks templates using `{{post.title}}` rather than `{{title}}`.\n\nFix: when `options.fn.blockParams > 0`, pass `[item, { /* foreach state */ }]` as the second arg.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: {{#foreach}} `visibility=\"all|public|none|members|paid\"` filter is partial",
+    "body": "Our `visibilityFilter` (`src/render/helpers/blocks.ts:211`) accepts `all` (always true) and equality match. It correctly handles `members` and `paid` because we set `obj.visibility` to those exact strings. But `visibility=\"none\"` (display-only-hidden) is documented but not specially handled — `(obj.visibility ?? 'public') === 'none'` would never match because no item has visibility \"none\".\n\nFix: define `none` = filter out everything except items with visibility marker matching admin's `none`/`internal` visibility. Document the intent.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{content}}` helper does not gate by `access` (visibility/members)",
+    "body": "Ghost's `{{content}}` automatically renders the paywall (truncates content and inserts portal CTA) when a member doesn't have access. Our `src/render/helpers/content.ts:5` renders the full HTML unconditionally. For `members`/`paid` posts on a public render, we leak full content — exact opposite of Ghost.\n\nFix: when `visibility !== 'public'` and no member is signed in, truncate at the paywall marker and insert a paywall snippet (or skip body entirely).",
+    "labels": ["ghost-compat", "P1", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{content}}` `words=` option truncates HTML by stripping tags, breaking semantic markup",
+    "body": "Our `truncateWords` in `src/render/helpers/content.ts:147` regex-strips all HTML and joins by space — the result is plaintext, not HTML, so the SafeString wrapper outputs broken excerpts in places themes expect HTML.\n\nFix: write a real HTML-aware truncator that closes open tags (e.g. truncate-html or a hand-rolled one).",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{excerpt}}` `characters=` truncation has no smart-word-boundary handling",
+    "body": "Our `src/render/helpers/content.ts:30` slices at exact character count. Ghost soft-stops at the last word boundary, optionally appending `…`. Source uses `{{excerpt words=\"20\"}}` (which we implement via `truncateWordsText`, OK) but `characters=` is naive.\n\nFix: when `characters` is set, slice and back up to the last whitespace.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{reading_time}}` helper uses fixed strings, not localised via `{{t}}`",
+    "body": "Our `src/render/helpers/content.ts:34` reads `options.hash.minute` and `options.hash.minutes` defaults `'1 min read'`. Source / Casper pass localised strings via `{{t \"1 min read\"}}` so it works in their flow. But callers that omit the hash get English. Ghost's default also is English, so OK — but document.\n\nFix: docs note.",
+    "labels": ["ghost-compat", "P3", "i18n", "docs"]
+  },
+  {
+    "title": "ghost-compat: `{{meta_title}}` does not append `\" (Page %)\"` translation correctly on multi-page archives",
+    "body": "Source's default.hbs uses `{{meta_title page=(t \" (Page %)\")}}`. Our `metaTitleHelper` in `src/render/helpers/content.ts:79` reads `hash.page` and replaces `%` with `pagination.page`. The translated string is `\" (Page %)\"` (with leading space). Issue: we only emit the suffix when `pagination.page > 1`. The leading space stays, so output becomes `\"Site - Page 2\"` — wait actually format is `${baseTitle}${pageSuffix.replace('%', String(pagination.page))}` → `\"Site (Page 2)\"` — looks correct on archive pages. But on tag/author pages we don't pass a `pageSuffix`. Ghost emits `\"Tag - Sitename (Page 2)\"` style. Verify and align.\n\nFix: also append page suffix on tag/author paginated views (when `route.kind === 'tag'|'author'`).",
+    "labels": ["ghost-compat", "P2", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: `{{meta_title}}` does not include site title in tag/author pages",
+    "body": "Ghost emits `{{tag.name}} - {{site.title}}` style on tag pages by default; we just emit `tag.name`. SEO/preview impact.\n\nFix: combine resource name with site title for non-post/page routes.",
+    "labels": ["ghost-compat", "P2", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: `{{meta_description}}` falls back to `excerpt` instead of `site.description` when on tag/author routes",
+    "body": "On tag pages, our `metaDescriptionHelper` returns `ctx.meta_description ?? ctx.excerpt ?? site.description`. But on a tag context, `excerpt` doesn't exist (the Tag model has no excerpt). Same for authors. Tag pages will fall back to `site.description`, but for authors, `bio` is the analogue and we don't check it.\n\nFix: per-context fallback chain (tag → description, author → bio).",
+    "labels": ["ghost-compat", "P2", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: `meta_data` helper not implemented (referenced in docs as a data helper)",
+    "body": "Per Ghost docs there's a data helper `{{meta_data}}` that returns the full SEO blob (not just title/description) used for structured-data output. Used less today, but Casper-derived themes may reference it.\n\nFix: register a stub helper that returns an object with `meta_title`, `meta_description`, `og_*`, `twitter_*`.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{prev_post}}` and `{{next_post}}` helpers not implemented",
+    "body": "Ghost's docs list `{{#prev_post}}…{{/prev_post}}` / `{{#next_post}}…{{/next_post}}` block helpers that scope to the previous/next post on `post.hbs`. Our `Post` model has `prev` and `next` fields (good) but no helpers expose them as Ghost-style blocks. Themes coded against the helper get nothing.\n\nFix: register `prev_post` and `next_post` as block helpers that read `this.prev` / `this.next`.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{comments}}` outputs `<div data-nectar-comments></div>` — Ghost emits a full Comments embed",
+    "body": "Our stub in `src/render/helpers/content.ts:112` emits a div with `data-nectar-comments`. Ghost emits `<script data-ghost-comments-counts-api=…>` plus the comments iframe. Themes' CSS targets the Ghost classes; our stub gets none of that styling.\n\nFix: emit `<div data-ghost-comments></div>` with the conventional id/dataset so theme CSS hooks line up, even if non-functional.",
+    "labels": ["ghost-compat", "P2", "comments", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{comment_count}}` helper not implemented",
+    "body": "Themes display \"3 comments\" via `{{comment_count empty=\"\" singular=\"comment\" plural=\"comments\"}}`. Our helpers do not register this. Templates using it render `(empty string)`.\n\nFix: register `{{comment_count}}` returning 0 with proper singular/plural handling.",
+    "labels": ["ghost-compat", "P2", "comments", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{subscribe_form}}` stub doesn't post anywhere — but Ghost expects `<form data-members-form action=\"…\">`",
+    "body": "Our stub emits `<form data-nectar-subscribe action=\"#\" method=\"post\">`. Themes targeting Ghost's `data-members-form` attribute won't get progressive enhancement.\n\nFix: change attribute to `data-members-form` and include the documented hidden inputs Ghost emits.",
+    "labels": ["ghost-compat", "P2", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{input_email}}` does not emit Ghost's required class `gh-input` and `data-members-email` correctly with the surrounding form",
+    "body": "We emit `<input data-members-email type=\"email\" required …>`. That's mostly right but misses `class=\"gh-input\"` and the parent form context that Portal hooks into.\n\nFix: add the conventional class; document that without a Portal script the input is non-functional.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{input_password}}` helper not implemented",
+    "body": "Ghost's private/password-protected sites use `private.hbs` with `{{input_password}}` rendering the password form. Helper absent.\n\nFix: register as a stub (since we don't support private sites) that emits `<input type=\"password\" name=\"password\">`.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{cancel_link}}` helper not implemented",
+    "body": "Themes that render a portal `Cancel subscription` link use `{{cancel_link}}`. Absent from our helpers. Templates render empty.\n\nFix: register a stub helper emitting `<a href=\"#/portal/account/plans\">Cancel</a>`.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{price}}` helper not implemented",
+    "body": "Ghost's `{{price}}` formats a price with currency and interval. Used in pricing UIs. Absent.\n\nFix: register a stub that formats `{{price tier.monthly_price}}` → `$N/mo`.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{tier}}` and `{{tiers}}` helpers not implemented",
+    "body": "Ghost themes can iterate tiers with `{{#tiers}}…{{/tiers}}` and `{{#tier}}…{{/tier}}` on the post. Absent in our helpers and in our `Post`/`Page` models.\n\nFix: model tiers (optional, gated on members enabled); register helpers.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{products}}` and `{{product}}` helpers not implemented",
+    "body": "Older Ghost theme API used \"products\" before \"tiers\". Casper-vintage themes still reference them. Helper absent.\n\nFix: alias to `{{tiers}}` / `{{tier}}` for back-compat.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{total_members}}` and `{{total_paid_members}}` helpers not implemented",
+    "body": "Ghost data helpers documented: \"Outputs the number of members, rounded and humanised.\" Absent. Themes that show \"Join 10k+ subscribers\" will render empty.\n\nFix: register helpers; default to 0 with a config-overridable static number.",
+    "labels": ["ghost-compat", "P3", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{recommendations}}` helper not implemented (Source uses it!)",
+    "body": "`src/render/helpers/` has NO `recommendations` registration. Source's `partials/components/post-list.hbs:114` invokes `{{recommendations}}`. Currently the unregistered helper is rendered as `(empty)` by Handlebars — themes show a blank section under an `<h4>Recommendations</h4>` header.\n\nFix: register `recommendations` as a no-op or read from an optional `[recommendations]` config table; gate by `@site.recommendations_enabled`.",
+    "labels": ["ghost-compat", "P1", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{search}}` utility helper not implemented",
+    "body": "Ghost has a `{{search}}` utility helper that outputs a pre-styled search button + icon (uses Ghost's hosted search SDK). Absent. Source uses its own `data-ghost-search` triggers, so unaffected, but Casper-derived themes may invoke `{{search}}`.\n\nFix: register a stub that outputs the equivalent button markup.",
+    "labels": ["ghost-compat", "P3", "search", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{log}}` debug helper not implemented",
+    "body": "Ghost has `{{log foo}}` to console.log values in development. Useful for theme dev. Absent.\n\nFix: register `log` to print to stdout when `process.env.NECTAR_DEBUG`.",
+    "labels": ["ghost-compat", "P3", "dx", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{json}}` helper not implemented",
+    "body": "Per docs (utility): \"Safely serialize values for inline JSON output.\" Used by themes embedding analytics or hydration payloads.\n\nFix: register `json` that JSON.stringify-encodes its argument and wraps in SafeString.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{block}}` and `{{contentFor}}` helpers not implemented",
+    "body": "Documented utility helpers: \"Used along with `{{contentFor}}` to pass data up and down the template hierarchy.\" Themes use them to inject head-block content from child templates into `default.hbs`. Absent.\n\nFix: register handlebars-layouts plugin or hand-roll block/contentFor.",
+    "labels": ["ghost-compat", "P1", "render", "theme-dev"]
+  },
+  {
+    "title": "ghost-compat: `{{partials}}` registration helper not implemented",
+    "body": "Documented utility: \"Include chunks of reusable template code.\" The `{{partials}}` helper is shorthand for registering shared markup. Themes use it as a directive, but mostly they just call `{{> name}}` directly. Document and confirm whether action is needed.\n\nFix: document; usually no work required.",
+    "labels": ["ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "ghost-compat: `{{contrast_text_color}}` and `{{color_to_rgba}}` helpers not implemented",
+    "body": "Ghost utility helpers: convert colors. Used by themes to derive a readable text color from a user-chosen background (Source's inline JS replicates this manually, but Casper uses the helper). Absent in our helpers.\n\nFix: register both: `color_to_rgba(\"#fff\", alpha=0.5)` returns `rgba(…)`; `contrast_text_color(\"#fff\")` returns `\"dark\"` or `\"light\"`.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{split}}` utility helper not implemented",
+    "body": "Documented: \"Split a string into one or more iterable strings.\" Some themes use it to parse comma-separated config values.\n\nFix: register `split` that takes a string + separator and returns an array iterable by foreach.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{link}}` helper does not honour `data-*` attributes (e.g. data-portal)",
+    "body": "Ghost's `{{#link}}…{{/link}}` accepts arbitrary `data-*` hash attributes. Our `src/render/helpers/navigation.ts:40` only honours `href`, `class`, `target`. Themes that do `{{#link href=\"…\" data-portal=\"signin\"}}` will lose the `data-portal` attribute.\n\nFix: pass through any `data-*` hash attr verbatim.",
+    "labels": ["ghost-compat", "P2", "members", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{link}}` helper does not auto-add `nav-current` / active class based on URL match",
+    "body": "Ghost's `{{#link}}` automatically adds an active class when its `href` matches the current route. Useful for navigation. Our impl does not. Themes calling `{{#link href=\"/about/\" activeClass=\"current\"}}` get no auto-class.\n\nFix: integrate the `link_class` logic into `link` so the active class is auto-injected.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{link_class}}` only matches exact URL, not subpaths",
+    "body": "`src/render/helpers/navigation.ts:50` compares with `normaliseUrl` (strips trailing slash). Ghost matches on subpath: e.g. `/tag/news/` should make the `/tag/` nav item active. Our impl returns empty.\n\nFix: when the `for` URL is a prefix of the current URL, treat as active.",
+    "labels": ["ghost-compat", "P2", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: `{{concat}}` does not accept SafeStrings (loses HTML safety)",
+    "body": "Our `concatHelper` in `src/render/helpers/strings.ts:5` calls `args.slice(0, -1).map(String)` which on a SafeString instance returns `[object Object]`. Themes that concat a partial output with a literal will get garbage.\n\nFix: detect SafeString and call `.toString()` properly; consider returning SafeString when any input is SafeString.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{encode}}` only does `encodeURIComponent` — Ghost also encodes for HTML attribute contexts",
+    "body": "Our impl `encodeURIComponent(String(value ?? ''))` is URL encoding only. Ghost docs say \"Encode text to be safely used in a URL\" — matches our behaviour. OK, but verify the precise edge cases (spaces become `%20`, not `+`).\n\nFix: add tests asserting behaviour against Ghost's examples.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `{{or}}` / `{{and}}` / `{{not}}` / `{{eq}}` are Nectar-only — Ghost doesn't ship these",
+    "body": "Our `src/render/helpers/flow.ts` registers `or`, `and`, `not`, `eq`. These are not Ghost helpers. Themes won't depend on them, but if a Nectar-tuned theme uses them and is later moved to Ghost, it breaks. Document as Nectar extensions.\n\nFix: docs note in `docs/GHOST_COMPATIBILITY.md`.",
+    "labels": ["ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "ghost-compat: `{{#match}}` does not support `or` chains (Ghost supports `{{else match}}`) — verify behaviour",
+    "body": "Source heavily uses `{{#match … }} … {{else match …}} … {{/match}}`. Handlebars treats `{{else match …}}` as `{{else}}{{#match …}}…{{/match}}` (a chained helper). Our `matchHelper` doesn't track the chained-else state but Handlebars handles it natively. Verify with a test.\n\nFix: add explicit test for the `else match` chain.",
+    "labels": ["ghost-compat", "P2", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `{{#match}}` truthy-only mode swallows the inverse return on inline (non-block) invocation",
+    "body": "When `options.fn` is undefined (inline `{{match …}}`), our `matchHelper` returns the raw `result` boolean. Ghost returns the empty string for false and the matched value for true. Themes inline'ing `{{match val \"x\"}}` to print a class may get the literal string \"false\".\n\nFix: when inline and `!result`, return empty string. When inline and `result` and only one arg, return the truthy operand.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{#match}}` `~` substring operator does not work for arrays",
+    "body": "Ghost lets you do `{{#match @custom.header_style \"~\" \"Landing,Search\"}}` — string-contains. Our `compare` function casts both to String and uses `.includes()`. Works for strings. But Ghost ALSO permits matching against an array — our impl forces toString which yields `\"Landing,Search\"` and substring-matches against that — actually mostly OK. Verify edge cases (`null`, undefined, numbers).\n\nFix: add tests.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: routes.yaml support missing entirely",
+    "body": "Ghost ships `content/settings/routes.yaml` that defines collections, channels, taxonomies, and custom routes. Themes ship `routes.yaml` examples that customise permalinks (e.g. `/blog/{slug}/`) and add channels (e.g. `/featured/`). Our `src/build/routes.ts` hard-codes the route shape with no configuration surface beyond `posts_per_page`. Themes that rely on a custom permalink pattern won't work.\n\nFix: add `routes.yaml` loader + planner that supports collections, channels, taxonomies, and `template`/`data` mappings.",
+    "labels": ["ghost-compat", "P1", "routes"]
+  },
+  {
+    "title": "ghost-compat: redirects.yaml support missing",
+    "body": "Ghost users migrate via `content/data/redirects.yaml`. We have no redirect mechanism — imports lose their redirect history.\n\nFix: load `redirects.yaml` (and legacy `redirects.json`); emit a `_redirects` file or per-host static HTML redirects.",
+    "labels": ["ghost-compat", "P1", "routes", "migration"]
+  },
+  {
+    "title": "ghost-compat: Channels (multi-tag aggregation routes) not supported",
+    "body": "Ghost's `controller: channel` lets users define routes like `/apple-news/` with `filter: tag:[iphone,ipad,mac]`. We have no concept of channels — themes won't render them.\n\nFix: in `planRoutes`, after loading routes.yaml, emit channel routes with the appropriate `template` and filtered post list.",
+    "labels": ["ghost-compat", "P2", "routes"]
+  },
+  {
+    "title": "ghost-compat: Collections with custom `permalink` patterns not supported",
+    "body": "Ghost's collections accept `permalink: /{primary_tag}/{slug}/` to drive URL structure. Our `planRoutes` hard-codes `/{slug}/`. Themes (and existing imports) that expect `/blog/post-slug/` style routes break.\n\nFix: introduce a permalink template engine that supports `{slug}`, `{primary_tag}`, `{primary_author}`, `{year}`, `{month}`, `{day}`, `{id}`.",
+    "labels": ["ghost-compat", "P1", "routes"]
+  },
+  {
+    "title": "ghost-compat: Taxonomies are hard-coded to `/tag/` and `/author/` paths",
+    "body": "Ghost's routes.yaml lets you remap or disable taxonomies (e.g. `tag: /topics/{slug}/`). We hard-code `/tag/<slug>/` and `/author/<slug>/` in `src/build/routes.ts:65` and `:90`. Cannot customise.\n\nFix: derive these paths from routes.yaml (or `[taxonomies]` config block).",
+    "labels": ["ghost-compat", "P2", "routes"]
+  },
+  {
+    "title": "ghost-compat: Custom static routes (`/features/: features`) not supported",
+    "body": "Ghost lets you map any URL to any template. We have no mechanism to add additional static routes. Themes shipping with companion routes.yaml (e.g. a `/podcast/` overview page) need this.\n\nFix: support route entries `path: template` and `path: { template, data, content_type }`.",
+    "labels": ["ghost-compat", "P2", "routes"]
+  },
+  {
+    "title": "ghost-compat: `data: post.slug` / `data: page.slug` linking on custom routes not supported",
+    "body": "Ghost can attach a post/page object to a custom route so a static template can render it. We have no equivalent.\n\nFix: implement after routes.yaml; allow `data` field to inject a single resource into the route's render context.",
+    "labels": ["ghost-compat", "P2", "routes"]
+  },
+  {
+    "title": "ghost-compat: `content_type` override for custom routes not supported",
+    "body": "Ghost lets routes emit `text/xml` etc. for custom feeds. We emit only HTML. Themes that ship a custom JSON or XML feed in routes.yaml can't be replicated.\n\nFix: pass through to the emitter; set file extension and Content-Type appropriately.",
+    "labels": ["ghost-compat", "P3", "routes"]
+  },
+  {
+    "title": "ghost-compat: Per-collection RSS not supported (`/blog/rss/` for collection `/blog/`)",
+    "body": "Ghost auto-emits RSS at `<collection-path>/rss/`. Currently we emit only a single global RSS (in `components.rss`). Themes with multiple collections lose feeds.\n\nFix: once collections land, emit RSS per collection.",
+    "labels": ["ghost-compat", "P2", "rss", "routes"]
+  },
+  {
+    "title": "ghost-compat: RSS feed structure not implemented at all (no `src/build/feeds.ts` file present)",
+    "body": "DESIGN.md §3.6 says `feeds.ts` emits sitemap + RSS, but no such file exists in `src/build/`. The config schema has `components.rss.enabled` and `components.sitemap.enabled` but the implementation is missing. Themes shipping `<link rel=alternate type=application/rss+xml>` references will 404.\n\nFix: implement `src/build/feeds.ts` per design.",
+    "labels": ["ghost-compat", "P0", "rss"]
+  },
+  {
+    "title": "ghost-compat: When RSS is implemented, it must emit Ghost-conformant channel/items",
+    "body": "Ghost's RSS includes: channel (title, description, link, generator, language, lastBuildDate, atom:link self-reference, image), items (title, description, link, guid permaLink=false, category for each tag, dc:creator, pubDate, media:content for feature_image, content:encoded with full HTML). Many readers depend on these.\n\nFix: emit a Ghost-shape RSS 2.0 feed with all standard extension namespaces (dc, atom, media, content).",
+    "labels": ["ghost-compat", "P1", "rss"]
+  },
+  {
+    "title": "ghost-compat: RSS items must use `<![CDATA[...]]>` for HTML, not entity-escaped",
+    "body": "Ghost's RSS wraps content:encoded in CDATA so HTML renders in readers. If we naively XML-escape, readers (Feedly, NetNewsWire) show raw `<p>` tags.\n\nFix: emit CDATA blocks for title (when special chars) and content:encoded.",
+    "labels": ["ghost-compat", "P1", "rss"]
+  },
+  {
+    "title": "ghost-compat: RSS guid should be the post URL with `isPermaLink=\"true\"`",
+    "body": "Ghost emits `<guid isPermaLink=\"true\">{{url absolute=true}}</guid>`. Without this, feed readers will not de-duplicate items correctly across cache windows.\n\nFix: include guid in standard form.",
+    "labels": ["ghost-compat", "P1", "rss"]
+  },
+  {
+    "title": "ghost-compat: Sitemap file structure not implemented at all",
+    "body": "Ghost emits five files: `/sitemap.xml` (index), `/sitemap-pages.xml`, `/sitemap-posts.xml`, `/sitemap-tags.xml`, `/sitemap-authors.xml`. The config schema enables sitemap (`components.sitemap.enabled = true`) but no code emits the files (`src/build/feeds.ts` is missing).\n\nFix: implement multi-file sitemap matching Ghost's structure.",
+    "labels": ["ghost-compat", "P0", "sitemap", "seo"]
+  },
+  {
+    "title": "ghost-compat: Sitemap items must include `<image:image>` with feature images",
+    "body": "Ghost includes Schema.org image extension in sitemaps (image:loc, image:caption). Search engines use this for image indexing.\n\nFix: when emitting sitemap-posts.xml, add `<image:image><image:loc>…</image:loc></image:image>` for each post with a feature_image.",
+    "labels": ["ghost-compat", "P2", "sitemap", "seo"]
+  },
+  {
+    "title": "ghost-compat: Sitemap `lastmod` should reflect updated_at, not just published_at",
+    "body": "Ghost uses the latest of updated_at / published_at. We should follow suit so search engines refresh on edits.\n\nFix: use Math.max(updated, published) timestamp.",
+    "labels": ["ghost-compat", "P2", "sitemap"]
+  },
+  {
+    "title": "ghost-compat: robots.txt support — Ghost emits a default unless theme provides one",
+    "body": "Ghost serves a default `/robots.txt` (disallows admin paths, advertises sitemap). Theme may override. We don't ship a default; if a theme ships `robots.txt` we don't propagate it.\n\nFix: copy `robots.txt` from theme root if present; emit a default sitemap-referencing one otherwise.",
+    "labels": ["ghost-compat", "P2", "seo"]
+  },
+  {
+    "title": "ghost-compat: AMP route (`amp.hbs` + `/<slug>/amp/` URL) not generated",
+    "body": "Ghost optionally renders AMP versions of posts via `amp.hbs`. Our route planner doesn't emit any AMP routes. Themes that ship `amp.hbs` (Casper does) won't have it rendered.\n\nFix: when `amp.hbs` exists, emit `/<slug>/amp/index.html` for each post; emit corresponding `<link rel=amphtml>` in canonical post head.",
+    "labels": ["ghost-compat", "P3", "routes"]
+  },
+  {
+    "title": "ghost-compat: error.hbs / error-404.hbs templates never rendered",
+    "body": "Source ships error templates; Casper has `error.hbs` + `error-404.hbs`. Our `src/build/routes.ts` never emits a `/404.html` or `/error/` route. Most static hosts (Netlify, Vercel, Cloudflare Pages, Nginx) need a `404.html` file.\n\nFix: when `error-404.hbs` exists, render and emit to `404.html` with `{ statusCode: 404, message: 'Page not found' }` context.",
+    "labels": ["ghost-compat", "P1", "routes"]
+  },
+  {
+    "title": "ghost-compat: error templates expect `{{statusCode}}` and `{{message}}` context — not supplied",
+    "body": "Casper's `error.hbs` references `{{statusCode}}` and `{{message}}`. Even if we render the template, our `buildContext` doesn't populate them.\n\nFix: in `planRoutes`, set `route.data.error = { statusCode, message }` for error routes and extend `buildContext` to expose them.",
+    "labels": ["ghost-compat", "P2", "routes"]
+  },
+  {
+    "title": "ghost-compat: private.hbs and password-protected sites not supported",
+    "body": "Ghost users can password-protect their entire publication; theme renders `private.hbs` with `{{input_password}}` and `error` messages. We have no concept and no helper.\n\nFix: scope out, but document. Optionally support a build-time `[site.private]` config that pre-renders a static auth wall.",
+    "labels": ["ghost-compat", "P3", "members"]
+  },
+  {
+    "title": "ghost-compat: post-slug.hbs / page-slug.hbs / tag-slug.hbs / author-slug.hbs custom per-resource templates not supported",
+    "body": "Ghost picks `post-{slug}.hbs` over `post.hbs` when present (similarly for page/tag/author). Our `renderRoute` always uses the generic `route.template`. Themes shipping `post-welcome.hbs` for a special welcome post won't have it picked up.\n\nFix: in `planRoutes`, when emitting a post route, prefer `theme.templates[\\`post-${slug}\\`]` over `post`.",
+    "labels": ["ghost-compat", "P2", "render", "theme-dev"]
+  },
+  {
+    "title": "ghost-compat: custom-*.hbs (admin-selectable) per-page templates not supported",
+    "body": "Ghost lets admins pick a `custom-{template-name}.hbs` per page from a dropdown. Our pages always render via `page.hbs`. Pages whose frontmatter declares a custom template won't honour it.\n\nFix: read `template` from frontmatter; resolve via `theme.templates['custom-' + template]`.",
+    "labels": ["ghost-compat", "P2", "render", "content"]
+  },
+  {
+    "title": "ghost-compat: Koenig editor card markup not emitted by Markdown pipeline",
+    "body": "Ghost emits semantic HTML for bookmark, callout, gallery, audio, video, button, signup, product, header, toggle, paywall cards (each with `kg-card`/`kg-*-card` classes). Theme CSS targets these. Our Markdown pipeline emits plain HTML — bookmark links are bare anchors, no `<figure class=\"kg-bookmark-card\">`, no callout styling, no toggle card markup. Themes look broken on imported content.\n\nFix: add a custom Markdown extension or post-render transformer that converts conventional Markdown (e.g. blockquote-with-emoji → callout-card; horizontal rule + special syntax → bookmark-card; html `<details>` → toggle-card).",
+    "labels": ["ghost-compat", "P1", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-bookmark-card markup not emitted",
+    "body": "Specific to bookmarks: Ghost auto-generates a card from any URL pasted on its own line. We have no such logic. Imported posts with bookmark cards become bare links.\n\nFix: in the importer (`src/ghost/import.ts`) preserve the HTML rather than converting to Markdown; or post-process Markdown to re-render bookmark blocks.",
+    "labels": ["ghost-compat", "P2", "content", "migration"]
+  },
+  {
+    "title": "ghost-compat: kg-image-card markup with `kg-width-wide` / `kg-width-full` not emitted",
+    "body": "Ghost emits `<figure class=\"kg-card kg-image-card kg-width-wide\">` to let theme CSS render images breaking out of the article column. Our Markdown emits `<img>` only (no figure, no width class). Themes lose the wide/full-width layout entirely.\n\nFix: support a Markdown syntax for image width (e.g. `![alt|wide](url)`) → `<figure class=\"kg-card kg-image-card kg-width-wide\">`.",
+    "labels": ["ghost-compat", "P2", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-gallery-card markup not emitted",
+    "body": "Galleries in Ghost emit nested `<figure class=\"kg-gallery-card\"><div class=\"kg-gallery-container\">…</div></figure>` with rows. Markdown-only sites have no gallery primitive.\n\nFix: add a Markdown convention (e.g. table of images, or fenced ` ```gallery`) that emits the gallery markup.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-callout-card markup not emitted",
+    "body": "Themes have hover/colour styles tied to `.kg-callout-card`. Markdown blockquotes won't match.\n\nFix: support GFM-style alerts (`> [!NOTE]`) and emit `<div class=\"kg-callout-card kg-callout-card-blue\">`.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-file-card markup not emitted",
+    "body": "Inline file/attachment downloads use `<div class=\"kg-file-card\">` with a download anchor and metadata. Markdown links to files lack the card wrapper.\n\nFix: detect file-extension links and wrap in card markup.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-audio-card / kg-video-card markup not emitted",
+    "body": "Ghost renders custom player UI (progress, controls). Markdown's `<audio>`/`<video>` works but won't pick up theme card styling.\n\nFix: detect audio/video URLs or HTML, wrap in `kg-audio-card`/`kg-video-card`.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-button-card markup not emitted",
+    "body": "Ghost's button card renders `<div class=\"kg-card kg-button-card\"><a class=\"kg-btn kg-btn-accent\">`. Markdown has no native button.\n\nFix: support a Markdown convention (e.g. `[Click](url){.button}`) → button card.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-signup-card markup not emitted",
+    "body": "Ghost embeds signup CTAs mid-post via signup card. Our Markdown can't produce one. Themes lose mid-content lead capture.\n\nFix: introduce a fenced block (e.g. ` ```signup heading=…`) that emits the signup card.",
+    "labels": ["ghost-compat", "P3", "members", "content"]
+  },
+  {
+    "title": "ghost-compat: kg-toggle-card markup not emitted",
+    "body": "Accordion/collapsible content uses `<div class=\"kg-card kg-toggle-card\">`. Markdown `<details>` exists but doesn't match Ghost classes — theme styling won't apply.\n\nFix: post-process `<details>`/`<summary>` into Ghost's kg-toggle-card.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-header-card markup not emitted",
+    "body": "Ghost's header card is a large hero block placed mid-post. No equivalent in our pipeline.\n\nFix: convention via fenced block or a kg-style HTML block; emit the card.",
+    "labels": ["ghost-compat", "P3", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: kg-product-card markup not emitted",
+    "body": "Product card used by review themes. No equivalent.\n\nFix: out of scope unless explicitly requested; document.",
+    "labels": ["ghost-compat", "P3", "content", "docs"]
+  },
+  {
+    "title": "ghost-compat: paywall card and `{{content}}` paywall truncation not implemented",
+    "body": "Ghost splits content at the `<!--kg-card-begin: paywall-->` marker for `members`/`paid` posts; everything after is rendered only for matching members. We render full content always (see separate `{{content}}` gap).\n\nFix: detect a paywall marker (Markdown convention: `<!--paywall-->`) and gate the trailing content.",
+    "labels": ["ghost-compat", "P1", "members", "content", "render"]
+  },
+  {
+    "title": "ghost-compat: `<!--members-only-->` or visibility:members posts always emit full HTML",
+    "body": "Even outside paywall markers, `visibility: members` posts should not emit content to anonymous readers. Currently `Post.visibility = 'members'` is set but never enforced.\n\nFix: in `planRoutes` or render, when `post.visibility !== 'public'` AND no member exists in build, emit a placeholder body with a portal CTA — never the real content.",
+    "labels": ["ghost-compat", "P0", "members", "content"]
+  },
+  {
+    "title": "ghost-compat: drafts may be rendered via direct URL access — no preview token enforcement",
+    "body": "Drafts are filtered out at content load (`src/content/loader.ts:30` skips status:draft). But our import preserves the slug, so subsequent edits + re-import could leak. Document that drafts are hard-excluded from build.\n\nFix: docs note; consider an optional `[build].include_drafts` flag for staging.",
+    "labels": ["ghost-compat", "P3", "content", "docs"]
+  },
+  {
+    "title": "ghost-compat: scheduled posts (status:scheduled) silently included in build as if published",
+    "body": "Our loader only excludes `status === 'draft'`. Posts with `status: scheduled` (Ghost concept for future publication) pass through to the rendered site even before their publish date.\n\nFix: filter out scheduled posts whose `published_at` is in the future, or treat them like drafts.",
+    "labels": ["ghost-compat", "P1", "content"]
+  },
+  {
+    "title": "ghost-compat: posts with future `published_at` are included regardless of status",
+    "body": "If frontmatter sets a future date with status:published, the post appears immediately. Ghost waits until that date.\n\nFix: exclude posts where `new Date(published_at) > Date.now()` unless `[build].include_future_posts = true`.",
+    "labels": ["ghost-compat", "P1", "content"]
+  },
+  {
+    "title": "ghost-compat: tag visibility:internal computed only from `hash-` slug prefix, not from frontmatter",
+    "body": "`src/content/loader.ts:291` infers internal status from slug. Ghost honours `visibility: internal` directly on the tag record. Frontmatter `visibility:` field is ignored.\n\nFix: read `data.visibility` from tag frontmatter; fall back to slug-prefix heuristic.",
+    "labels": ["ghost-compat", "P2", "content"]
+  },
+  {
+    "title": "ghost-compat: Post `uuid` field absent — themes use it for RSS guid and analytics",
+    "body": "Ghost posts have a `uuid` distinct from `id`. We don't model `uuid`. Themes that emit `<guid>{{uuid}}</guid>` get nothing.\n\nFix: add `uuid` to Post (synthesize via `crypto.randomUUID` and persist if needed for stable RSS).",
+    "labels": ["ghost-compat", "P2", "content", "rss"]
+  },
+  {
+    "title": "ghost-compat: Post `comment_id` absent — Ghost themes display comment counts via this field",
+    "body": "Comments are keyed by `comment_id`. Without it, even our stub `{{comments}}` can't be enhanced later.\n\nFix: add `comment_id` (default to `id`).",
+    "labels": ["ghost-compat", "P3", "comments", "content"]
+  },
+  {
+    "title": "ghost-compat: Post `email_subject`, `email_only`, `send_email_when_published` absent",
+    "body": "Ghost themes don't usually render these, but some Casper-derived themes branch on `email_only` to skip rendering the body when the post was for email only.\n\nFix: add to Post model; map from frontmatter.",
+    "labels": ["ghost-compat", "P3", "content"]
+  },
+  {
+    "title": "ghost-compat: Post `count.*` (signups, clicks, comments, conversions, positive/negative_feedback) absent",
+    "body": "Some themes display post engagement counters. Always 0 is fine for our static-build model, but the field must exist.\n\nFix: add `count: { signups: 0, clicks: 0, comments: 0, conversions: 0, positive_feedback: 0, negative_feedback: 0 }` to Post.",
+    "labels": ["ghost-compat", "P3", "content"]
+  },
+  {
+    "title": "ghost-compat: Post `access` field absent — Ghost themes branch on `{{#if access}}`",
+    "body": "Ghost computes a runtime `access` boolean per post (does the current viewer have access). Source's post-card.hbs uses `{{#unless access}}{{^has visibility=\"public\"}}<lock>{{/has}}{{/unless}}`. We never set `access`. Result: lock icon shows on every public post (because `access` is undefined → falsy → `unless` is truthy).\n\nFix: compute `access = visibility === 'public' || @member.tier matches`. Without members, always `true` for public posts; never `true` for members/paid.",
+    "labels": ["ghost-compat", "P1", "members", "content"]
+  },
+  {
+    "title": "ghost-compat: Post `frontmatter` field absent — Ghost exposes the raw card-deck order, themes use it",
+    "body": "Ghost's Post.frontmatter is the structured Mobiledoc/Lexical. We don't expose anything. Most themes don't use it, but those that do (custom newsletter renderers) will fail.\n\nFix: out of scope; document.",
+    "labels": ["ghost-compat", "P3", "content", "docs"]
+  },
+  {
+    "title": "ghost-compat: Page `show_title_and_feature_image` defaults to true, Ghost defaults to true for new pages but admin can toggle",
+    "body": "We default true in `src/content/loader.ts:239`. Source uses `{{#match @page.show_title_and_feature_image}}` to decide whether to render the header. Verify that omitting the frontmatter key produces the right default.\n\nFix: add a test snapshot.",
+    "labels": ["ghost-compat", "P3", "content", "testing"]
+  },
+  {
+    "title": "ghost-compat: `@page` context populated only on page routes — Ghost populates it on every route",
+    "body": "`src/render/engine.ts:135` sets `page: route.kind === 'page' ? route.data.page : undefined`. Ghost's `@page` represents the page-specific metadata (title, slug, show_title_and_feature_image, etc.) and is undefined on non-page routes. OK.\n\nBut Source uses `{{@page.show_title_and_feature_image}}` only inside `#post` on page.hbs; works. Other themes may rely on global @page on non-page routes (e.g. error). Verify.\n\nFix: docs note: @page is page-only.",
+    "labels": ["ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "ghost-compat: `@labs` context exposes empty object; Ghost exposes a map of beta-feature flags",
+    "body": "`src/render/engine.ts:137` sets `labs: {}`. Themes that branch on `{{@labs.newsletters}}` get falsy — usually fine. Document.\n\nFix: docs note that `@labs` is always empty.",
+    "labels": ["ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "ghost-compat: `@member` is `undefined`, but Ghost themes use `{{#unless @member}}` extensively — verify our handling",
+    "body": "`src/render/engine.ts:138` sets `member: undefined`. Handlebars treats `{{#unless undefined}}` as truthy → the inverse runs, which is what themes want for \"not signed in\". But the docs `{{#if @member}}` should be falsy → fall-through. Verify both paths with tests.\n\nFix: test coverage.",
+    "labels": ["ghost-compat", "P2", "members", "testing"]
+  },
+  {
+    "title": "ghost-compat: `@member.paid` access path always undefined — themes branch on it everywhere",
+    "body": "Source footer/header use `{{#unless @member.paid}}` to upsell. Since `@member` is undefined, `@member.paid` is a property-access on undefined which Handlebars renders as empty. The branch behaves correctly (falsy) but if a theme uses `{{@member.paid}}` directly to render text, it gets empty string.\n\nFix: replace `member: undefined` with a Proxy that returns undefined for any path — same falsy semantics but no property-of-undefined warnings in strict mode.",
+    "labels": ["ghost-compat", "P2", "members"]
+  },
+  {
+    "title": "ghost-compat: `@custom` evaluation order — defaults from package.json should be overridden by user config",
+    "body": "Our `buildCustom` in `src/render/engine.ts:141` spreads `pkg.customDefaults` first, then `config.theme.custom`. Correct precedence. But for `select`-type defaults, we set the first option (`pkg.ts:36`) when no default is declared — Ghost leaves the value unset (null) so themes branch differently. Our `{{#match @custom.foo \"Bar\"}}` will incorrectly match the first option even when admin hadn't picked.\n\nFix: don't synthesize a default; let `@custom.foo` be undefined unless explicitly set.",
+    "labels": ["ghost-compat", "P2", "config"]
+  },
+  {
+    "title": "ghost-compat: theme `package.json` config `card_assets: true | false | [list]` only honoured as boolean",
+    "body": "Our `src/theme/pkg.ts:46` does `Boolean(cfg.card_assets)` — loses the array form (`card_assets: [\"bookmark\", \"gallery\"]`) which Ghost uses to selectively bundle card CSS/JS. Themes that opt in to specific cards will get either everything or nothing.\n\nFix: preserve the array form; when emitting `built/cards.css` (future), filter by the list.",
+    "labels": ["ghost-compat", "P3", "content", "theme-dev"]
+  },
+  {
+    "title": "ghost-compat: theme `package.json` `engines.ghost` is not checked",
+    "body": "Ghost enforces a `gscan` rule that the theme's engines.ghost matches the host's version. We ignore it. Themes declaring `\"ghost\": \">=5.0.0\"` won't get any compatibility warning.\n\nFix: read engines.ghost and emit a CLI warning if the theme requires newer features than we support.",
+    "labels": ["ghost-compat", "P3", "theme-dev", "infra"]
+  },
+  {
+    "title": "ghost-compat: gscan-style theme linting not provided (no nectar check theme)",
+    "body": "Ghost ships `gscan` to lint themes. Our `nectar check` exists (CLI commands enumerated) but it's unclear whether it warns on Ghost-incompatible patterns.\n\nFix: add a `gscan-lite` mode to `nectar check` that scans `.hbs` files for helpers/contexts we don't implement and reports.",
+    "labels": ["ghost-compat", "P2", "cli", "dx"]
+  },
+  {
+    "title": "ghost-compat: `{{!< layout}}` directive regex requires the directive to be on the first line",
+    "body": "`src/render/layouts.ts:1` regex is anchored with `^\\s*\\{\\{!<\\s*…\\}\\}\\s*`. If a theme has a comment or BOM before the directive, layout extension breaks silently and the template renders without the wrapper. Ghost is robust to whitespace and comments.\n\nFix: strip leading comments `{{!-- … --}}` and BOMs before applying the regex.",
+    "labels": ["ghost-compat", "P2", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{!< layout}}` only finds layouts at the template-root path, not in `layouts/` subdir or as nested partials",
+    "body": "Our `LAYOUT_TEMPLATES` set in `src/theme/loader.ts:9` includes specific names. Layouts referenced from `{{!< name}}` are looked up in `theme.templates`. If a theme keeps layouts in a subdir (e.g. `layouts/default.hbs`), they're loaded under `layouts/default`, but the directive `{{!< default}}` won't find them.\n\nFix: also probe `theme.templates[\\`layouts/${layout}\\`]`.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: partial registration name collides for partials whose path equals a template name",
+    "body": "`src/render/engine.ts:69` registers templates as partials by name. If a theme has `theme.partials['post']` AND `theme.templates['post']`, the latter overwrites the former. Source doesn't have this collision, but Casper-like layouts that ship both `partials/post.hbs` and `post.hbs` would silently break.\n\nFix: keep the partial namespace separate; prefix templates as e.g. `templates/post` when registered as fallback partials.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: partials with names like `components/header` only accessible with quotes — Handlebars requires `{{> \"components/header\"}}`",
+    "body": "Source uses `{{> \"components/navigation\"}}`. Our loader stores partials as `components/navigation`. This works because Handlebars accepts string-name partials. Verify edge cases (single quotes vs double quotes; case sensitivity).\n\nFix: tests.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: partial names containing dots/underscores not normalised",
+    "body": "Our `normalizeName` in `src/theme/loader.ts:73` only converts `\\\\` to `/`. Names like `partials/post.card.hbs` become partial id `post.card` — Handlebars interprets the dot as path access (`{{> post.card}}` → look up `post` then `card`). Subtle bug for any theme using dot-namespacing.\n\nFix: documentation + linter warning; or rename dots to dashes in the partial id.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: locales folder loaded from `theme/locales/*.json` only — Ghost also reads global `content/themes/<theme>/locales`",
+    "body": "Our `loadLocales` in `src/theme/loader.ts:80` reads only from the theme rootDir. Ghost loads from `content/data/translations/<locale>.json` as a global override. Site-level translation overrides not supported.\n\nFix: add an optional `content/translations/<locale>.json` loader and merge with priority over theme locales.",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: i18n active locale lookup is exact match — Ghost falls back from `en-GB` to `en`",
+    "body": "Our `src/render/helpers/i18n.ts:7` does `engine.theme.locales[locale]`. If site locale is `en-GB` but theme only ships `en.json`, the lookup returns undefined and we silently use English as fallback. OK behaviour by accident, but no real cascade.\n\nFix: implement BCP-47 fallback chain (en-GB → en → default).",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: navigation_secondary slug class not added to `<li>` — Ghost emits `nav-secondary` for secondary nav items",
+    "body": "Our `navigationHelper` outputs `nav-${slugify(label)}`. Doesn't differentiate primary vs secondary. Themes' CSS for `nav-secondary` won't apply.\n\nFix: when `type=\"secondary\"`, prefix classes with `nav-secondary-`.",
+    "labels": ["ghost-compat", "P3", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: assets directory only copied if theme has it — missing in build pipeline",
+    "body": "`loadThemeAssets` reads the assets but the build emitter (`src/build/emit.ts`, referenced in design) is not present in the tree. There's no code path that copies assets to `dist/`. Without it, the asset map points at sources that the served site can't reach.\n\nFix: implement `src/build/emit.ts` per design; copy fingerprinted assets to `dist/assets/`.",
+    "labels": ["ghost-compat", "P0", "render", "image-pipeline"]
+  },
+  {
+    "title": "ghost-compat: content/images directory not emitted under `/content/images/` URL path",
+    "body": "Ghost serves uploaded images at `/content/images/2024/01/foo.jpg`. Themes' `feature_image` paths follow this convention. We need to copy `content/images/` to `dist/content/images/`. The config has `content.assets_dir` defaulting to `content/images` but no emit logic exists.\n\nFix: in build emit, copy `content.assets_dir` → `dist/content/images/`.",
+    "labels": ["ghost-compat", "P0", "content", "image-pipeline"]
+  },
+  {
+    "title": "ghost-compat: relative image paths in posts not rewritten to public URLs",
+    "body": "Markdown posts can reference `./images/foo.jpg`. Our pipeline doesn't normalize these to `/content/images/foo.jpg` or whatever the public path is.\n\nFix: in `renderMarkdown` (or a post-process step), rewrite relative image URLs to absolute public paths.",
+    "labels": ["ghost-compat", "P2", "content"]
+  },
+  {
+    "title": "ghost-compat: `404.html` fallback file not generated even when error.hbs absent",
+    "body": "Static hosts expect `404.html`. We don't emit anything. Even a minimal fallback (static \"Page not found\") would help.\n\nFix: always emit `404.html`; use error template if present, else a built-in default.",
+    "labels": ["ghost-compat", "P1", "seo"]
+  },
+  {
+    "title": "ghost-compat: `/feed/` URL alias for RSS not emitted",
+    "body": "Ghost serves RSS at `/rss/` AND historically `/feed/`. Themes/social-media-cards may link `/feed/`.\n\nFix: when emitting RSS, also write a copy or HTTP-style redirect at `/feed/index.html` → `/rss/`.",
+    "labels": ["ghost-compat", "P3", "rss"]
+  },
+  {
+    "title": "ghost-compat: per-tag and per-author RSS feeds (`/tag/<slug>/rss/`) not emitted",
+    "body": "Ghost emits an RSS feed for every tag and author archive. Power users subscribe to specific tags.\n\nFix: in the RSS emitter, also emit per-tag and per-author feeds.",
+    "labels": ["ghost-compat", "P2", "rss"]
+  },
+  {
+    "title": "ghost-compat: `{{url absolute=true}}` on home returns `${site.url}/` — Ghost returns `${site.url}` (no trailing slash variance)",
+    "body": "Our `urlHelper` returns `ctx.url` then runs through `new URL(ctx.url, site.url)`. On the home route, `ctx.url` is `/` and URL resolution produces `${site.url}/`. Ghost is consistent with trailing slash but worth verifying on subpath setups.\n\nFix: tests for subpath + trailing slash edge cases.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: navigation items pointing to relative URLs (e.g. `/about/`) not absolutised by `{{navigation}}`",
+    "body": "Our impl emits `<a href=\"${item.url}\">` literally. Ghost passes the URL through its internal URL service which prepends subpaths. With `base_path = '/blog'`, our nav items still point at `/about/` (broken).\n\nFix: in the nav helper, prepend `base_path` when item.url starts with `/`.",
+    "labels": ["ghost-compat", "P1", "render", "navigation"]
+  },
+  {
+    "title": "ghost-compat: `base_path` (subpath hosting) not applied to URLs in Post/Page/Tag/Author models",
+    "body": "`config.build.base_path` defaults to `/`. URLs in models are built from `site.url` (`joinUrl(site.url, …)`) without subpath consideration. Subpath sites generate broken links.\n\nFix: incorporate base_path into all URL builders.",
+    "labels": ["ghost-compat", "P1", "config", "render"]
+  },
+  {
+    "title": "ghost-compat: `{{img_url}} absolute=true` always returns site.url-resolved value — doesn't honour @site.url when @site has a custom CDN",
+    "body": "Ghost themes that serve images from a CDN set `@site.url` to the CDN host. Our `img_url` always resolves against `engine.content.site.url`. If a future config splits image CDN from site URL, we'd need separate logic.\n\nFix: add `[site.cdn_url]` config for image hosting.",
+    "labels": ["ghost-compat", "P3", "config", "image-pipeline"]
+  },
+  {
+    "title": "ghost-compat: `Bun.Glob` is used for content discovery — non-Bun runtimes break",
+    "body": "`src/content/loader.ts:157`, `src/theme/loader.ts:37`, `src/theme/assets.ts:11` use `new Bun.Glob(...)`. Node-only runtimes (which Ghost users may have) can't run Nectar. Not a Ghost-compat issue per se, but a portability gap affecting theme devs.\n\nFix: behind a runtime check, fall back to `fast-glob`.",
+    "labels": ["ghost-compat", "P3", "infra", "dx"]
+  },
+  {
+    "title": "ghost-compat: build emitter (src/build/emit.ts) doesn't exist — RouteContext.outputPath leads nowhere",
+    "body": "Routes are planned but the emitter that actually writes HTML to disk is referenced only in DESIGN.md §3.6 (`emit.ts`) and CLI (`src/cli/commands/build.ts`). I see `planRoutes` but no emit. Builds may use an ad-hoc inline write — verify.\n\nFix: ensure `src/build/emit.ts` exists and writes each route's HTML to `${output_dir}/${outputPath}`.",
+    "labels": ["ghost-compat", "P0", "render"]
+  },
+  {
+    "title": "ghost-compat: theme `gulpfile.js` and built/built sources — Nectar doesn't run theme build steps",
+    "body": "Source ships a gulpfile that compiles CSS/JS into `assets/built/`. Themes that haven't run their own build will have an empty `built/` dir, and our asset map will miss `built/screen.css`. The `{{asset \"built/screen.css\"}}` helper will fall back to a non-existent path.\n\nFix: warn on `nectar build` when referenced assets resolve to missing files; document the requirement to run the theme's own build first.",
+    "labels": ["ghost-compat", "P2", "theme-dev", "docs"]
+  },
+  {
+    "title": "ghost-compat: `{{> \"icons/avatar\"}}` partial doesn't fall back gracefully when missing",
+    "body": "Source's post.hbs references `{{> \"icons/avatar\"}}`. Handlebars throws if the partial is missing — but we register many. A user-supplied theme missing an icon partial will crash the build, not skip the icon.\n\nFix: register a fallback `missing-partial` that renders an empty string and warns.",
+    "labels": ["ghost-compat", "P2", "render", "dx"]
+  },
+  {
+    "title": "ghost-compat: `data-portal` attribute is preserved in raw HTML but never wired up",
+    "body": "Source's navigation/footer/cta emit `<button data-portal=\"signup\">`. Without Ghost's Portal script (`portal.min.js`), these buttons do nothing in the rendered site. Theme appears broken to end users.\n\nFix: document the limitation; provide an optional `[components.portal]` that injects a polyfill or no-op handler.",
+    "labels": ["ghost-compat", "P2", "members", "docs"]
+  },
+  {
+    "title": "ghost-compat: `data-ghost-search` triggers do nothing without Sodo-search SDK",
+    "body": "Source's `search-toggle.hbs` and header search emit `<button data-ghost-search>`. Ghost loads Sodo-search via ghost_head; we don't. Static-site search needs an alternative wiring (e.g. Pagefind hooked into the same data attribute).\n\nFix: when `[components.search]` is configured (e.g. with pagefind), emit the necessary scripts and rewire the attribute.",
+    "labels": ["ghost-compat", "P2", "search"]
+  },
+  {
+    "title": "ghost-compat: import-ghost ignores Mobiledoc / Lexical post bodies — drops body silently",
+    "body": "`src/ghost/import.ts:203` warns and returns empty when no HTML is present. Most modern Ghost exports include Lexical only. Users without HTML in export get empty posts.\n\nFix: integrate `@tryghost/kg-lexical-html-renderer` (mentioned in DESIGN.md §3.8). Falling that, render a clear error and instruct user how to re-export with HTML.",
+    "labels": ["ghost-compat", "P1", "migration"]
+  },
+  {
+    "title": "ghost-compat: import-ghost doesn't migrate per-post `email_subject`, `email_only`, `send_email_when_published`",
+    "body": "Frontmatter generation in `src/ghost/import.ts:130` covers many fields but not these. Imported sites lose this state.\n\nFix: include them in `buildFrontmatter`.",
+    "labels": ["ghost-compat", "P3", "migration"]
+  },
+  {
+    "title": "ghost-compat: import-ghost doesn't migrate routes.yaml or redirects.yaml",
+    "body": "A Ghost export often ships these as separate files; users must copy them manually. We don't even prompt.\n\nFix: when a routes.yaml is present in the Ghost content dir, copy it to the Nectar config dir.",
+    "labels": ["ghost-compat", "P2", "migration", "routes"]
+  },
+  {
+    "title": "ghost-compat: import-ghost doesn't copy `content/images/` from the Ghost export",
+    "body": "Ghost exports include uploaded images. Our importer doesn't extract them. Users get post bodies with absolute CDN URLs that may go away when the Ghost site is shut down.\n\nFix: when importing, also scan the Ghost content dir for `images/` and copy.",
+    "labels": ["ghost-compat", "P2", "migration", "image-pipeline"]
+  },
+  {
+    "title": "ghost-compat: import-ghost loses `posts_meta` (per-post engagement metrics) and `posts_authors` ordering edge cases",
+    "body": "Sort order in `src/ghost/import.ts:117` uses `sort_order ?? 0` — null/undefined become 0 and may reorder authors. Per-post meta (posts_meta in newer exports) is ignored entirely.\n\nFix: read posts_meta if present; preserve original sort order via stable secondary key.",
+    "labels": ["ghost-compat", "P3", "migration"]
+  },
+  {
+    "title": "ghost-compat: Site `lang` and `locale` are unified — but Ghost distinguishes them (locale e.g. `en-gb`, lang short `en`)",
+    "body": "`src/content/loader.ts:79` sets both to the same value: `locale: config.site.locale, lang: config.site.locale`. Themes that want `<html lang=\"en\">` from `@site.lang` separately from `@site.locale` (`en-gb`) can't distinguish.\n\nFix: derive `lang` as the first BCP-47 segment of `locale`.",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: `@site.locale` exposed as e.g. `en` while Ghost uses `en-gb` lower-cased — verify the canonical form",
+    "body": "Some themes set `<html lang=\"{{@site.locale}}\">` directly. Ghost uses lower-case BCP-47 (`en`, `en-gb`). Our config accepts any string and passes through.\n\nFix: normalise to lower-case at load time; reject obviously-broken locales with a warning.",
+    "labels": ["ghost-compat", "P3", "i18n", "config"]
+  },
+  {
+    "title": "ghost-compat: timezone `UTC` default but dayjs needs IANA names — verify common values work",
+    "body": "`src/render/helpers/date.ts:35` calls `dayjs(value).tz(timezoneName)`. `UTC` is fine, but the dayjs `timezone` plugin requires the IANA database; ensure it's loaded for all common values (Europe/Paris, America/New_York, etc.).\n\nFix: tests with non-UTC timezones; document loaded plugins.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `@first` / `@last` / etc. exposed under foreach but Ghost also exposes them under built-in `{{#each}}` — verify Handlebars defaults",
+    "body": "Handlebars `{{#each}}` natively provides `@first`, `@last`, `@index`, `@key`. Ghost's foreach is documented as the preferred iteration helper but `{{#each}}` works too. We don't override `each`. Verify themes that use `{{#each posts}}` instead of foreach still get the loop variables.\n\nFix: tests.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `{{#unless}}` chains with `{{else unless}}` not specifically tested",
+    "body": "Source uses chained `{{#unless}} … {{else unless …}}` patterns rarely, but Ghost themes commonly nest them. Handlebars supports natively; verify our setup doesn't break anything.\n\nFix: tests.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `{{#post}}` block helper does not reset scope when post is absent (e.g. on tag pages)",
+    "body": "Source's post.hbs wraps all content in `{{#post}}…{{/post}}`. On the post route, our `registerContextBlock` correctly picks `route.data.post`. But the helper falls back to `this.post`, and on a tag page `this` is the tag — there's no `.post` property — so it returns inverse. OK.\n\nFix: documented; tests confirm.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `{{#post}}` on a paged post is not provided with prev/next context — themes calling `{{#prev_post}}` from inside need access",
+    "body": "Inside `{{#post}}…{{/post}}`, themes do `{{#prev_post}}{{title}}{{/prev_post}}`. Since we never register `prev_post`/`next_post`, this is a dead helper. (See separate gap.)",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `@site` exposed both as `@site` and `@blog` — verify `@blog` deprecated alias works in nested partials",
+    "body": "`src/render/engine.ts:131` sets both. Ghost deprecated `@blog` in 4.x but legacy themes still use it. OK.\n\nFix: tests confirm parity.",
+    "labels": ["ghost-compat", "P3", "render", "testing"]
+  },
+  {
+    "title": "ghost-compat: `@site.url` should never include trailing slash when accessed by themes — verify normalisation",
+    "body": "Ghost normalises `@site.url` to drop the trailing slash. Our config allows arbitrary input. If a user sets `url = \"https://example.com/\"`, themes that do `{{@site.url}}/about/` produce `//about/`.\n\nFix: strip trailing slash from `site.url` at config load.",
+    "labels": ["ghost-compat", "P2", "config"]
+  },
+  {
+    "title": "ghost-compat: image_sizes config defines width/height but our helper ignores both",
+    "body": "Even if `size=\"m\"` is recognised, the actual width/height (used in Ghost's image API URL) is never extracted. See related img_url issues. Cluster gap; track separately.\n\nFix: implement Ghost's image-URL rewriting using width.",
+    "labels": ["ghost-compat", "P1", "image-pipeline"]
+  },
+  {
+    "title": "ghost-compat: assets fingerprinting collides for files with the same name in different folders",
+    "body": "`src/theme/assets.ts:28` also stores `out.set(rel.replaceAll('\\\\', '/'), …)` — bare path. If two folders have `style.css`, the second overrides the first. Not commonly a problem in Source, but a real bug for themes with `light/style.css` + `dark/style.css`.\n\nFix: store only the canonical key; require theme code to use the full path.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: built `screen.css.map` and other sourcemap files are not gitignored or excluded from asset emission",
+    "body": "Source ships `assets/built/screen.css.map`. Our `loadThemeAssets` glob includes everything. We'd emit it to dist. Not a correctness issue but a privacy/bandwidth one.\n\nFix: skip `*.map` files in production emit (or behind a flag).",
+    "labels": ["ghost-compat", "P3", "render", "infra"]
+  },
+  {
+    "title": "ghost-compat: i18n locale `context.json` is also a real file — but our loader expects strings only",
+    "body": "Source ships `locales/context.json` (developer guidance file, not a real translation). Our loader includes it as `context` locale, which is bogus. Themes that set `locale: \"context\"` (impossible but) get noise.\n\nFix: skip `context.json` and any non-locale-named JSONs.",
+    "labels": ["ghost-compat", "P3", "i18n"]
+  },
+  {
+    "title": "ghost-compat: `{{secondary_navigation}}` global accessor not exposed",
+    "body": "Ghost exposes `@site.secondary_navigation` (we have it) but also a bare `{{secondary_navigation}}` accessor pattern in some legacy themes. We don't register one.\n\nFix: low priority; document.",
+    "labels": ["ghost-compat", "P3", "docs"]
+  },
+  {
+    "title": "ghost-compat: tag/author archive pages don't expose `posts` aggregated by year/month — themes may render chronological archives",
+    "body": "Some themes build a per-year/month archive view via `{{#foreach posts}}` and `{{#has number=\"…\"}}` on dates. We expose `posts` but no group_by accessor. Mostly a no-op gap.\n\nFix: optional future helper `{{group_by_year}}`.",
+    "labels": ["ghost-compat", "P3", "render"]
+  },
+  {
+    "title": "ghost-compat: `meta_title` helper inline mode emits empty string instead of site.title for tag pages with no override",
+    "body": "On a tag route, `route.kind === 'tag'`. Our `metaTitleHelper` reaches `route.kind !== 'post' && !== 'page'`, then computes `baseTitle = explicit ?? site.title`. `explicit` is `ctx.meta_title` (undefined) or `ctx.title` (undefined for tag context — tag uses `name`). So `explicit = undefined`, `baseTitle = site.title`. But for tag pages we want `tag.name` first.\n\nFix: when `route.kind === 'tag'` and on the tag context, fall back through `tag.meta_title → tag.name → site.title`.",
+    "labels": ["ghost-compat", "P1", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: `meta_description` falls back to `excerpt` which doesn't exist on tag/author objects",
+    "body": "Same shape issue as meta_title. The chain `meta_description ?? excerpt ?? site.description` lands on site.description for tags. We lose `tag.description`/`author.bio`.\n\nFix: per-resource fallback chain.",
+    "labels": ["ghost-compat", "P1", "render", "seo"]
+  },
+  {
+    "title": "ghost-compat: rendering pipeline doesn't strip leading `<p>` from custom_excerpt when source is HTML — Ghost outputs plaintext",
+    "body": "If a user puts HTML in `custom_excerpt`, themes that use it as a plain `<p>{{custom_excerpt}}</p>` will get nested `<p>` tags. Ghost coerces to plaintext.\n\nFix: when reading `custom_excerpt` from frontmatter, strip HTML.",
+    "labels": ["ghost-compat", "P3", "content"]
+  },
+  {
+    "title": "ghost-compat: feed for emailed-only posts not excluded — Ghost hides them from RSS / sitemap",
+    "body": "Posts with `email_only: true` are hidden from web in Ghost. Since we don't model `email_only` (separate gap) we'd emit them. Once added, the RSS/sitemap emitters need to filter accordingly.\n\nFix: filter in RSS/sitemap/index routes when `email_only: true`.",
+    "labels": ["ghost-compat", "P3", "content", "rss"]
+  },
+  {
+    "title": "ghost-compat: `excerpt` field default truncation length differs from Ghost (Ghost uses 50 words; we use 200 chars)",
+    "body": "`src/content/loader.ts:200` does `rendered.plaintext.slice(0, 200)`. Ghost's default excerpt is 50 words of plaintext (no trailing whitespace handling). The visible result differs from Ghost rendering, breaking visual parity in card views that don't pass `words=` / `characters=`.\n\nFix: change to first 50 words (matching Ghost).",
+    "labels": ["ghost-compat", "P2", "content"]
+  },
+  {
+    "title": "ghost-compat: `reading_time` divisor (275 wpm) close to Ghost's (~275) — verify exact match",
+    "body": "Ghost uses 275 wpm. We use 275 (`src/content/markdown.ts:18`). OK, but image-time-bonus (Ghost adds 12s per image) is not implemented.\n\nFix: add image bonus to match Ghost's actual algorithm.",
+    "labels": ["ghost-compat", "P3", "content"]
+  },
+  {
+    "title": "ghost-compat: feature_image attached to posts isn't surfaced via Ghost's `<meta>` image tags when only OG/Twitter overrides are set",
+    "body": "Our `computeMeta` in `src/render/helpers/ghost-head.ts:81` checks `og_image → twitter_image → feature_image`. Good. But Ghost also picks up `feature_image` for og:image even when og_image is set (uses feature_image as fallback only when og_image absent). Verify the ordering matches.\n\nFix: tests.",
+    "labels": ["ghost-compat", "P3", "seo", "testing"]
+  },
+  {
+    "title": "ghost-compat: Twitter card type is hard-coded `summary_large_image` — Ghost picks based on whether image exists",
+    "body": "`src/render/helpers/ghost-head.ts:35` always emits `summary_large_image`. Ghost emits `summary` when there's no image and `summary_large_image` when there is.\n\nFix: emit `summary` for no-image routes.",
+    "labels": ["ghost-compat", "P3", "seo"]
+  },
+  {
+    "title": "ghost-compat: `og:locale` not emitted by ghost_head",
+    "body": "Ghost emits `<meta property=\"og:locale\" content=\"en_US\">` (Facebook expects underscored locales). Helpful for international shares.\n\nFix: emit og:locale from `@site.locale`, mapped to OG format.",
+    "labels": ["ghost-compat", "P3", "seo"]
+  },
+  {
+    "title": "ghost-compat: prev/next navigation links in HTML head (`<link rel=\"prev\">` / `next`) not emitted",
+    "body": "Ghost adds prev/next link tags to paginated archives. Good for SEO. Our ghost_head doesn't.\n\nFix: when on a paged route, emit `<link rel=\"prev\" href=\"…\">` / `<link rel=\"next\" href=\"…\">`.",
+    "labels": ["ghost-compat", "P2", "seo"]
+  },
+  {
+    "title": "ghost-compat: `<link rel=\"alternate\" hreflang>` not emitted for multi-locale sites",
+    "body": "Future-proofing: when Nectar supports multi-locale we should emit hreflang alternates. Out of scope today but worth filing.\n\nFix: track for multi-locale milestone.",
+    "labels": ["ghost-compat", "P3", "seo", "i18n"]
+  },
+  {
+    "title": "ghost-compat: `<base>` tag for `base_path` deployment not emitted, but theme image URLs assume site root",
+    "body": "Sites hosted at subpaths need either a `<base href>` or rewritten URLs. We have neither. Combined with the navigation/asset URL gaps, subpath hosting is broken.\n\nFix: rewrite all URLs at emit time; optionally emit `<base href>` for fully relative HTML.",
+    "labels": ["ghost-compat", "P2", "render", "config"]
+  }
+]

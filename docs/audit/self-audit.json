@@ -1,0 +1,992 @@
+[
+  {
+    "title": "render: layout inheritance recompiles inner+layout per render",
+    "body": "src/render/engine.ts:renderRoute recompiles both inner and layout Handlebars templates on every route. With N routes × M layouts that's wasted CPU at build time and a hot path during dev rebuilds.\n\n**Fix**: cache compiled templates and layout pairs on engine init; key by template name.",
+    "labels": ["performance", "render", "P2"]
+  },
+  {
+    "title": "render: template-as-partial registration collides with same-named partial",
+    "body": "engine.ts:registerPartials registers every template (index, post, page, ...) under its bare name as a partial. A theme with a partial named `index` (legit Ghost theme pattern) would silently overwrite or be overwritten by the template registration. Namespace partials under a separate prefix and resolve `{{> name}}` accordingly.",
+    "labels": ["bug", "render", "P1"]
+  },
+  {
+    "title": "render: ctx.post is also set for page routes, breaking {{#post}}/{{#page}} disambiguation",
+    "body": "src/render/engine.ts:buildContext sets `ctx.post = data.page` when rendering a page. Ghost themes use `{{#post}}` and `{{#page}}` as mutually exclusive context blocks. Setting both means a theme that branches on `{{#post}}` would incorrectly enter that branch on a static page.\n\n**Fix**: set only the relevant context, not both.",
+    "labels": ["bug", "ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "render: post-as-partial does not exist for {{> post}} (custom layouts)",
+    "body": "Some Ghost themes use `{{> post}}` from a custom layout to render the post body. We register templates as partials, so this works in some cases but uses the raw template source not the body-after-layout-split, leading to double layout rendering or compile errors.",
+    "labels": ["bug", "render", "ghost-compat", "P2"]
+  },
+  {
+    "title": "content: slug derivation strips leading underscore filenames",
+    "body": "src/content/loader.ts:slugFromPath uses `basename(filePath)`, then runs `slugify` which removes underscores. A file like `_index.md` collapses to empty string slug, then the post becomes inaccessible. Reject empty slugs at load time with a clear error pointing to the file.",
+    "labels": ["bug", "content", "dx", "P2"]
+  },
+  {
+    "title": "content: empty title falls back to slug as title",
+    "body": "loader.ts:normalizePost — if `data.title` is missing, we use slug as title. That produces titles like `hello-nectar` instead of erroring. Either error out (preferred) or title-case it. Currently it's silently weird.",
+    "labels": ["content", "dx", "P2"]
+  },
+  {
+    "title": "content: asDateISO falls back to epoch 1970 with no warning",
+    "body": "src/content/frontmatter.ts:asDateISO returns `new Date(0).toISOString()` when a date string is unparseable. Posts with bad dates silently sort to the bottom of the feed instead of erroring. Surface a parse error mentioning the post path.",
+    "labels": ["bug", "content", "dx", "P1"]
+  },
+  {
+    "title": "content: word_count counts whitespace-tokenised words, underestimates CJK by 90%+",
+    "body": "markdown.ts:countWords splits on `/\\s+/` — Japanese, Chinese, Thai etc. produce a count near 0 because they don't use ASCII whitespace between characters. Reading time for a 4000-character Japanese post would be ~1 minute. Use `Intl.Segmenter` with grapheme/word granularity for accurate CJK counts.",
+    "labels": ["bug", "i18n", "content", "P1"]
+  },
+  {
+    "title": "content: drafts have no preview path; no way for authors to preview unpublished work",
+    "body": "We skip `status: draft` at build. To preview, an author would have to flip status and rebuild. Add a `nectar build --include-drafts` flag emitting to `dist/drafts/<slug>/index.html` with `noindex` and a banner.",
+    "labels": ["dx", "content", "P2"]
+  },
+  {
+    "title": "content: scheduled posts not supported",
+    "body": "Ghost has `status: scheduled` posts that publish at a future timestamp. We accept the status value but treat it like published. Either filter them out at build (default) or build with a `publishAt` time check + a `--rebuild-at <ISO>` hint.",
+    "labels": ["ghost-compat", "content", "P2"]
+  },
+  {
+    "title": "content: tag/author auto-creation does not warn",
+    "body": "loader.ts resolves unknown tag/author slugs into stub objects silently. A typo in `tags: [neews]` creates a phantom `neews` tag with a single post and no description. Emit a warning when this happens (per slug, deduped).",
+    "labels": ["dx", "content", "P2"]
+  },
+  {
+    "title": "render: {{img_url size=}} returns the same URL for every srcset entry",
+    "body": "helpers/assets.ts:imgUrlHelper recognises `size=` but doesn't actually pick a resized variant. The result is a `srcset` that lists the same source URL six times — wastes bandwidth on each fetch and disables responsive selection. Implement actual image resizing (separate issue) and emit unique URLs per size.",
+    "labels": ["bug", "image-pipeline", "ghost-compat", "P0"]
+  },
+  {
+    "title": "render: {{img_url absolute=true}} broken for external URLs",
+    "body": "imgUrlHelper passes `candidate` to `new URL(url, siteUrl)` only when relative. But the early `if (size && ...)` path always normalises to a leading slash, breaking absolute external URLs. Detect external before normalising.",
+    "labels": ["bug", "render", "P2"]
+  },
+  {
+    "title": "render: {{asset 'path'}} double-encodes URL when path contains %",
+    "body": "helpers/assets.ts:assetHelper joins the base path then runs `escapeHtml` over the result. Filenames containing `&`, `'`, `\"`, `<`, `>` are escaped, but a URL with `%20` is fine — however a path with literal `%` would get re-encoded by escapeHtml's `&amp;` rule indirectly via `&`. Use proper URL handling (`encodeURI` once at construction) rather than HTML-escaping.",
+    "labels": ["render", "P3"]
+  },
+  {
+    "title": "render: foreach `visibility` filter does not apply when filtering posts",
+    "body": "helpers/blocks.ts:foreachHelper applies visibilityFilter only on items with a `visibility` field. Tags and authors have no visibility; the filter passes them through. Document this and add explicit support for `visibility=\"public\"` filtering tags by `tag.visibility==='public'`.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: foreach `from=`/`to=` evaluate on visible-then-sliced data (Ghost slices first)",
+    "body": "Our foreach does `visibilityFilter(items).slice(from-1, to)`. Ghost's behaviour: it slices the input first, then filters. Worth verifying against Ghost's reference impl; can produce off-by-one when public+members posts are interleaved.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: foreach data frame missing `rowStart`/`rowEnd` for grid layouts",
+    "body": "Several Ghost themes use `@rowStart` / `@rowEnd` for masonry/grid wrapping. We set them to `false` unconditionally. Compute them from a `columns=` hash option (default 1) on the foreach call.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: foreach with empty input falls through inverse but emits no `{{else}}` block separator",
+    "body": "Sanity check: when items array is empty, we call `options.inverse(this)`. Verify this is exposed via `{{else}}` in foreach (Ghost docs say it is). Add a test.",
+    "labels": ["testing", "render", "P3"]
+  },
+  {
+    "title": "render: `is` helper does not recognise multi-target with space (Ghost accepts both ',' and space)",
+    "body": "Ghost themes write `{{#is \"post page\"}}` and `{{#is \"post, page\"}}`. We split on `,` only. Split on `[,\\s]+`.",
+    "labels": ["bug", "ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "render: `is` helper's `paged` check uses route.data.pagination but list views without pagination still set page=1; correct",
+    "body": "Verify that pages without pagination (single post route) don't return true for `{{#is \"paged\"}}`. Currently `route.data.pagination` is undefined for posts → ok, but for indexes with 1 page also ok. Add explicit test.",
+    "labels": ["testing", "render", "P3"]
+  },
+  {
+    "title": "render: `has` helper supports only first matched hash key; multi-key should AND not bail",
+    "body": "helpers/blocks.ts:hasHelper loops keys and `break`s on first match. Ghost's behaviour for `{{#has tag=\"x\" author=\"y\"}}` is an OR of provided constraints (default). With `any:` / `all:` prefixes it changes. Implement Ghost's semantics: parse `key:value` pairs from a single `match=` argument and honour `count:>N` and `slug:[a,b]`.",
+    "labels": ["bug", "ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "render: `has` helper does not support count comparators (count:>0)",
+    "body": "Real Ghost themes write `{{#has count:\"tags\">0}}`. Not implemented.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `match` helper does not coerce string \"true\"/\"false\" booleans",
+    "body": "`{{#match @custom.background_image \"true\"}}` — @custom comes through as boolean from package.json, but theme writes the string. Implement implicit string<->bool comparison.",
+    "labels": ["bug", "render", "ghost-compat", "P1"]
+  },
+  {
+    "title": "render: `match` 3-arg numeric operators force Number(left) > Number(right) on strings",
+    "body": "Comparing strings like `{{#match posts.length \">=\" 4}}` works because posts.length is a number. But `{{#match foo \">\" bar}}` with both strings gets `NaN > NaN === false`. Document this and add a `compareAs` hash option, or detect string vs number.",
+    "labels": ["bug", "render", "P2"]
+  },
+  {
+    "title": "render: `get` helper ignores `include=` parameter (authors, tags, count)",
+    "body": "Our Post model already has full authors/tags hydrated, so `include=\"authors\"` is a no-op. That's fine for now, but `include=\"count.posts\"` (Ghost's tag/author counts) is silently dropped. Resolve counts on the way out.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `get` helper filter DSL is a tiny subset of NQL",
+    "body": "Ghost uses NQL (https://ghost.org/docs/content-api/#filtering). We support `key:value`, `key:-value`, `key:[a,b]` and `+` AND. Missing: `,` OR, `>`, `<`, `>=`, `<=`, `~`, `~^`, `~$`, quoted strings, escapes, parens, `null`. Implement NQL grammar properly.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "render: `get` filter interpolation only expands {{post.id}} when ctx is post; misses nested",
+    "body": "blocks.ts:evaluateClause interpolates `{{post.id}}` from `this` (the surrounding context). On a non-post page, post is undefined and the interpolated value is empty, returning all posts. Either pass the route context or error.",
+    "labels": ["bug", "render", "P2"]
+  },
+  {
+    "title": "render: `get` does not return Pagination metadata to the block",
+    "body": "Ghost's `{{#get}}` exposes a `pagination` object to the block. We expose only the array. Themes that paginate inside `{{#get}}` cannot.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `get` mutates input arrays via slice().sort() — fine, but does not deep-clone",
+    "body": "If a downstream helper mutates a Post inside the block, it mutates our content graph. Freeze content models with `Object.freeze` after load, or deep-clone in `get`.",
+    "labels": ["bug", "render", "P3"]
+  },
+  {
+    "title": "render: `date` helper does not honour Ghost's `timeago` semantics (number unit)",
+    "body": "Our timeago path calls `dayjs(value).fromNow()`. Verify it matches Ghost's output (e.g., \"a day ago\" vs \"1 day ago\"). Probably fine; needs a test.",
+    "labels": ["testing", "render", "P3"]
+  },
+  {
+    "title": "render: `date` helper inflates timezone before tz plugin loaded if module ordering shifts",
+    "body": "We `dayjs.extend(timezone)` at module top; rely on import side-effects. If tree-shaking removes the side-effect, `dayjs(value).tz(...)` throws. Add a runtime guard / test that `dayjs.tz` is defined.",
+    "labels": ["bug", "render", "P3"]
+  },
+  {
+    "title": "render: `t` helper falls back to key when missing; but if active locale exists with empty string, returns empty",
+    "body": "helpers/i18n.ts: lookup chain is active[key] ?? fallback[key] ?? key. An empty string is NOT nullish, so an intentionally empty translation (like Source theme's `\"Featured\": \"\"`) gets returned. That's actually correct Ghost behavior — but it surprises users. Document.",
+    "labels": ["docs", "i18n", "P3"]
+  },
+  {
+    "title": "render: `t` helper interpolates {key} once but doesn't escape; injecting HTML risk via i18n",
+    "body": "Translation strings often contain `<strong>%</strong>`. We pass them through `new SafeString`? No — we return a raw string. If a theme uses `{{t}}` inline without triple-braces, the HTML is escaped. With triple, XSS surface from locale files. Document.",
+    "labels": ["security", "render", "i18n", "P2"]
+  },
+  {
+    "title": "render: `authors` inline rendering does not honour `separator=`/`autolink=`/`limit=`/`from=` like Ghost",
+    "body": "helpers/content.ts:authorsHelper inline returns `list.map(a=>a.name).join(', ')`. Ghost supports `separator`, `lastSeparator`, `prefix`, `suffix`, `autolink`, `limit`, `from`, `to`. Implement these.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `tags` inline renders <a> in HTML escape mode; `autolink=false` works but no `prefix`/`suffix`/`limit`",
+    "body": "Same gap as `authors`. Implement Ghost's full `tags` helper signature.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `reading_time` uses 275 wpm regardless of locale",
+    "body": "Ghost's algorithm: 275 wpm + 12 sec per image. We don't count images. With CJK we should switch units (chars / chars-per-min). Implement a locale-aware reading time.",
+    "labels": ["i18n", "ghost-compat", "P2"]
+  },
+  {
+    "title": "render: `meta_title` does not handle Ghost's title delimiters per route",
+    "body": "Ghost themes commonly do `{{meta_title}} | {{@site.title}}` themselves. Our implementation falls back to title alone. That's fine, but `page=\" (Page %)\"` suffix only applies on listing routes. Verify across home/index/tag/author.",
+    "labels": ["render", "ghost-compat", "P3"]
+  },
+  {
+    "title": "render: `meta_description` returns empty string when missing; Ghost returns first sentence of content",
+    "body": "Improve fallback chain: meta_description → custom_excerpt → og_description → excerpt → site.description → first sentence of plaintext.",
+    "labels": ["seo", "render", "P2"]
+  },
+  {
+    "title": "render: `ghost_head` does not emit pagination rel=prev/rel=next",
+    "body": "On a paginated index, `<link rel=\"prev\" href=\"...\">` and `<link rel=\"next\" href=\"...\">` improve SEO. Emit them from ghost_head when route.data.pagination exists.",
+    "labels": ["seo", "render", "P1"]
+  },
+  {
+    "title": "render: `ghost_head` does not emit RSS feed discovery link",
+    "body": "`<link rel=\"alternate\" type=\"application/rss+xml\" href=\"/rss.xml\">` is missing. Browser RSS detection and feed-reader autodiscovery require it.",
+    "labels": ["seo", "rss", "render", "P1"]
+  },
+  {
+    "title": "render: `ghost_head` JSON-LD `Article` schema missing required fields",
+    "body": "Google validator requires `mainEntityOfPage`, `publisher.logo.width/height`, `image` as object with width/height. Our payload is missing those. Use https://search.google.com/test/rich-results to verify and fix.",
+    "labels": ["seo", "render", "P1"]
+  },
+  {
+    "title": "render: `ghost_head` JSON-LD does not encode special characters before JSON.stringify",
+    "body": "If a post title contains `</script>`, JSON.stringify won't escape `<`. Embed the JSON-LD with `</` escaped to `<\\/` to prevent script-out injection.",
+    "labels": ["security", "render", "P0"]
+  },
+  {
+    "title": "render: `ghost_foot` outputs unescaped codeinjection_foot — intentional, but document risk",
+    "body": "Raw HTML by design. Document this as the one explicit XSS exit (only authors can edit content). Recommend CSP nonces.",
+    "labels": ["security", "docs", "P2"]
+  },
+  {
+    "title": "render: `navigation` helper renders bespoke HTML even if a `navigation.hbs` partial exists",
+    "body": "Source theme provides `partials/components/navigation.hbs`. When the theme has a navigation partial, prefer rendering that partial; only fall back to our minimal output when missing.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "render: `pagination` helper renders bespoke HTML; should defer to partials/pagination.hbs when present",
+    "body": "Same as navigation — Source's theme provides one. Use it when available.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "render: `pagination` helper does not include `page_url` blockParam style",
+    "body": "Ghost exposes `{{#pagination}}{{this.page_url}}{{/pagination}}` block form. Implement.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "render: `body_class` does not include `tag-hash-x` markers for internal tags",
+    "body": "Ghost's body_class includes tag tokens. We add `tag-<slug>` only on tag routes. Add per-post tag tokens too, and special-case internal tags (prefixed with `#`).",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `post_class` does not include `image` / `no-image`, `featured`, `no-content`, page-specific tokens",
+    "body": "Ghost's post_class is richer. Add tokens: `image` when feature_image exists, `no-image` otherwise, `no-content` when content empty.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: `concat` does not honour `separator` when given Handlebars SafeString",
+    "body": "concatHelper calls `String()` on each value. SafeString.toString() returns the wrapped string — fine. Edge case: when SafeString contains unescaped HTML, concat strips that information (downstream re-escapes). Mark concat result as SafeString when all inputs were SafeString.",
+    "labels": ["render", "P3"]
+  },
+  {
+    "title": "render: `social_url` mastodon assumes mastodon.social when host omitted",
+    "body": "Ghost themes pass `@user@host.tld` — we split correctly. But when only `@user` is given, defaulting to `mastodon.social` is presumptuous. Either return empty (require fully-qualified) or document.",
+    "labels": ["docs", "render", "P3"]
+  },
+  {
+    "title": "render: `social_url` does not support `discord`, `mastodon` profile URLs as-is",
+    "body": "If author.mastodon is already a URL, our builder wraps it as `https://mastodon.social/@<URL>` — broken. Detect existing URLs.",
+    "labels": ["bug", "render", "P2"]
+  },
+  {
+    "title": "render: missing helpers — `cancel_link`, `comment_count`, `member_count`, `signup`, `tiers`, `price`",
+    "body": "Themes that use members features call these. We don't implement them. Either stub safely (return empty) so themes don't crash, or implement.",
+    "labels": ["ghost-compat", "members", "render", "P1"]
+  },
+  {
+    "title": "render: missing helper — `recommendations`",
+    "body": "Source theme uses `{{recommendations}}` in the sidebar. Currently unimplemented — Handlebars emits a 'missing helper' warning or crash depending on version. Stub.",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "render: missing helper — `access`",
+    "body": "Themes use `{{#unless access}}` to gate content for non-members. Without it, the lock icon path in post-card.hbs may crash.",
+    "labels": ["ghost-compat", "members", "render", "P0"]
+  },
+  {
+    "title": "render: missing helper — `next_post` / `prev_post`",
+    "body": "Some themes use them (in addition to `post.prev`/`post.next`). Stub.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "render: missing helper — `lookup`",
+    "body": "Ghost's `{{lookup obj key}}` does dynamic property access. Useful for theme writers.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "render: missing helper — `raw`",
+    "body": "Outputs raw HTML, similar to triple-mustache. Used in some themes.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "render: missing helper — `data`",
+    "body": "Ghost has a `{{#data}}` block for loading additional content. We don't implement it.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "render: missing helper — `image_dimensions`",
+    "body": "Used by themes that emit width/height attributes. Requires reading image dimensions at build (`probe-image-size` or `sharp.metadata`).",
+    "labels": ["ghost-compat", "image-pipeline", "P2"]
+  },
+  {
+    "title": "render: missing helper — `is_active`",
+    "body": "Some Casper-style themes use this for nav highlighting. Implement as alias for our link_class.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "build: rm -rf outputDir destroys any user-managed files (e.g., a CNAME)",
+    "body": "src/build/pipeline.ts deletes the output dir entirely. Users hosting on GitHub Pages keep CNAME and `_headers` etc. there. Either: (a) write a `.nectarignore`-aware preserve list, or (b) clean only files we wrote in the previous build (track via a manifest).",
+    "labels": ["bug", "infra", "P1"]
+  },
+  {
+    "title": "build: route output paths can collide silently (post slug == page slug)",
+    "body": "A post 'about' and a page 'about' both emit `about/index.html`. Last one wins. Detect collisions and error with both file paths.",
+    "labels": ["bug", "content", "P1"]
+  },
+  {
+    "title": "build: emit.ts copies both fingerprinted and logical asset paths (2x disk)",
+    "body": "Production builds should only emit fingerprinted versions. Logical ones are useful for development and for compatibility with hand-written URLs in content; gate behind `[build].emit_logical_asset_aliases` flag (default false in production).",
+    "labels": ["performance", "infra", "P2"]
+  },
+  {
+    "title": "build: sequential rendering — N posts = N awaits in serial",
+    "body": "pipeline.ts loops `for (route of routes) { engine.render(route); writeHtml(...) }`. Parallelise with `Promise.all` chunked at CPU count. For 1000-post sites this is the difference between 3s and 30s.",
+    "labels": ["performance", "infra", "P1"]
+  },
+  {
+    "title": "build: no incremental builds; full rebuild every time",
+    "body": "Watch mode and large sites need content/template invalidation. Hash inputs per route; skip rerender when hash matches manifest.",
+    "labels": ["performance", "dx", "P1"]
+  },
+  {
+    "title": "build: asset hashing reads whole file into memory",
+    "body": "theme/assets.ts reads each file via readFile(). For big images/videos that's RAM-heavy. Stream via Bun.file().stream() into the hasher.",
+    "labels": ["performance", "image-pipeline", "P2"]
+  },
+  {
+    "title": "build: asset fingerprint hash is sha1 truncated to 10 hex chars",
+    "body": "sha1 is broken cryptographically but fine for cache-busting. The 10-char prefix has ~40 bits — birthday collision odds at 10k files = nontrivial. Switch to base64url of sha256 first 12 chars.",
+    "labels": ["render", "infra", "P3"]
+  },
+  {
+    "title": "build: feeds.ts double-prefixes site URL when post.url is absolute",
+    "body": "feeds.ts:emitRss does `base + new URL(post.url).pathname`. If post.url is already absolute, this is correct. But for the `<guid>`, Ghost uses a stable ID — ours regenerates per-build. Use post.id (e.g. `post-<slug>`).",
+    "labels": ["rss", "ghost-compat", "P1"]
+  },
+  {
+    "title": "build: RSS lacks atom:link self, channel image, language for content",
+    "body": "Add `<atom:link href=\".../rss.xml\" rel=\"self\" type=\"application/rss+xml\"/>`, `<image>` if site.logo, `<lastBuildDate>`.",
+    "labels": ["rss", "seo", "P1"]
+  },
+  {
+    "title": "build: RSS includes full content:encoded; some prefer summary-only",
+    "body": "Add `[components.rss].full_content = true|false` flag.",
+    "labels": ["rss", "config", "P2"]
+  },
+  {
+    "title": "build: sitemap has no lastmod, changefreq, priority; single-file only",
+    "body": "Per sitemap protocol, add lastmod (use updated_at). For >50k URLs Ghost splits into sitemap-posts/-pages/-tags/-authors with a sitemap index. Implement multi-file emission.",
+    "labels": ["seo", "sitemap", "P1"]
+  },
+  {
+    "title": "build: no robots.txt emitted",
+    "body": "Default emit `User-agent: *\\nAllow: /\\nSitemap: <site>/sitemap.xml`. Allow override via `static/robots.txt`.",
+    "labels": ["seo", "infra", "P1"]
+  },
+  {
+    "title": "build: no 404.html emitted",
+    "body": "Most hosts serve `404.html` for unknown paths. Emit one from a theme template (`error-404.hbs` or `error.hbs`), fall back to a built-in.",
+    "labels": ["infra", "ghost-compat", "P1"]
+  },
+  {
+    "title": "build: no static/ passthrough directory",
+    "body": "Many SSGs let users drop arbitrary files into `static/` and pass them through unchanged. We don't. Add `[content].static_dir`.",
+    "labels": ["dx", "infra", "P1"]
+  },
+  {
+    "title": "build: pagination URLs hard-code '/page/N/' — Ghost allows custom pagination prefix",
+    "body": "Routes.ts hard-codes `/page/N/`. Ghost lets themes override via routes.yaml. Make configurable.",
+    "labels": ["ghost-compat", "routes", "P2"]
+  },
+  {
+    "title": "build: tag/author archive routes always exist — Ghost themes can suppress them via routes.yaml",
+    "body": "Implement basic routes.yaml support: disabling tag or author collections; custom paths (e.g. `/category/` instead of `/tag/`).",
+    "labels": ["ghost-compat", "routes", "P1"]
+  },
+  {
+    "title": "build: no redirects.yaml support",
+    "body": "Ghost emits `_redirects` (Netlify) or nginx config from `redirects.yaml`. Implement.",
+    "labels": ["ghost-compat", "routes", "P2"]
+  },
+  {
+    "title": "build: home and index treat as the same template but URLs collide",
+    "body": "If `home.hbs` exists we route `/` to it; pagination uses index. If only `index.hbs` exists we route `/` to it. Confirm: when both exist, page 2 should go through index, not home. Test.",
+    "labels": ["testing", "routes", "P2"]
+  },
+  {
+    "title": "config: posts_per_page in nectar.toml is overridden by theme pkg.json",
+    "body": "routes.ts uses `theme.pkg.posts_per_page || config.build.posts_per_page`. User intent likely the other way — user config overrides theme defaults. Flip.",
+    "labels": ["bug", "config", "dx", "P1"]
+  },
+  {
+    "title": "config: schema does not validate theme custom-setting types against theme package.json",
+    "body": "User can set `nectar.toml [theme.custom].title_font = 'Comic Sans'` and we'll accept it even though Source's enum only allows 3 values. Validate against pkg.custom definitions.",
+    "labels": ["config", "dx", "P1"]
+  },
+  {
+    "title": "config: site.url must end without trailing slash; we don't normalise",
+    "body": "URL joins use `endsWith('/')` to decide. A user supplying `https://example.com//` breaks. Normalise on load.",
+    "labels": ["bug", "config", "P2"]
+  },
+  {
+    "title": "config: navigation entries lack icon/external-link/target metadata",
+    "body": "Real Ghost themes can read additional nav metadata. Extend schema.",
+    "labels": ["config", "ghost-compat", "P3"]
+  },
+  {
+    "title": "cli: `new` always lowercases slugs via strict slugify — losing CJK info",
+    "body": "`slugify('日本語')` returns empty. Use `slug` package with transliterate or accept the original as-is when ASCII percent-encode is acceptable.",
+    "labels": ["cli", "i18n", "P2"]
+  },
+  {
+    "title": "cli: `new` does not check existing file; overwrites silently",
+    "body": "Race against itself if user runs twice. Add `--force` flag and otherwise refuse to overwrite.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: `serve` doesn't watch; users have to restart after edits",
+    "body": "Wire up `fs.watch` over content/ and themes/, debounce, rebuild, send reload signal via Server-Sent Events to a tiny client snippet.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no `dev` subcommand combining build + watch + serve + reload",
+    "body": "Standard expectation in modern SSGs. Add.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: error stack traces dumped to stderr without source maps",
+    "body": "Production-builds map back to TypeScript via Bun's built-in support. Confirm `--source-map=external` or inline works; add to CI smoke.",
+    "labels": ["observability", "cli", "P2"]
+  },
+  {
+    "title": "cli: no progress reporter for builds",
+    "body": "For sites with many posts, the user has no feedback. Add a simple spinner+counter (`Rendering 12/150...`).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: no `--json` output mode for machine integration",
+    "body": "CI/CD pipelines want structured output. Add `--format=json` to all subcommands.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: `import-ghost` does not download images from Ghost CDN",
+    "body": "Image URLs in imported posts point to the original Ghost host. Add `--download-images` to fetch and rewrite paths.",
+    "labels": ["migration", "cli", "P1"]
+  },
+  {
+    "title": "cli: `import-ghost` accepts only a single export file",
+    "body": "Ghost's CLI export can split DBs into multiple files. Accept a directory.",
+    "labels": ["migration", "cli", "P3"]
+  },
+  {
+    "title": "cli: `import-ghost` does not preserve Mobiledoc / Lexical content",
+    "body": "Only HTML import works. Add Lexical→HTML via `@tryghost/kg-lexical-html-renderer`. Mobiledoc via `@tryghost/kg-mobiledoc-html-renderer`.",
+    "labels": ["migration", "cli", "P1"]
+  },
+  {
+    "title": "cli: `serve` does not select an open port if 4321 is taken",
+    "body": "Bun.serve throws. Try 4321, then 4322, ... up to 4400; log the chosen port.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: `check` does not actually compile templates",
+    "body": "We load templates as strings only. Compile them to surface syntax errors with file/line context.",
+    "labels": ["cli", "testing", "P1"]
+  },
+  {
+    "title": "cli: `check` does not validate frontmatter against schema",
+    "body": "Add a strict schema check (required title, valid dates, known status enum, known visibility enum). Emit a JSON report.",
+    "labels": ["cli", "content", "P1"]
+  },
+  {
+    "title": "cli: no shell completions (zsh/fish/bash)",
+    "body": "Use `commander`/`yargs` or hand-roll. Generate via `nectar completions <shell>`.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: no `version --json` and no version stability promise",
+    "body": "Document SemVer policy and stability of public surface.",
+    "labels": ["docs", "cli", "P3"]
+  },
+  {
+    "title": "ghost-import: no slug sanitisation against path traversal",
+    "body": "import.ts writes to `content/posts/<slug>.md`. If a malicious export contains `slug: \"../../etc/passwd\"`, we'd traverse. Validate slug matches `/^[a-z0-9-]+$/`.",
+    "labels": ["security", "migration", "P0"]
+  },
+  {
+    "title": "ghost-import: turndown is not configured for Ghost-specific cards (bookmark, gallery, callout, signup)",
+    "body": "Ghost cards have specific markup that turndown converts to gibberish or drops. Add per-card converters.",
+    "labels": ["migration", "P1"]
+  },
+  {
+    "title": "ghost-import: writes content with double newlines; not idempotent across runs",
+    "body": "Body trailing newline + frontmatter trailing newline = inconsistent. Define a canonical output format.",
+    "labels": ["migration", "P3"]
+  },
+  {
+    "title": "ghost-import: does not import settings (site title, description, navigation) from Ghost",
+    "body": "Ghost's export includes `settings: {...}`. Map to `nectar.toml` on import (with a confirmation).",
+    "labels": ["migration", "P2"]
+  },
+  {
+    "title": "ghost-import: tags imported only if they have description/feature_image/meta_title",
+    "body": "Otherwise auto-inferred. Importer should optionally emit all tags so users can edit them.",
+    "labels": ["migration", "P3"]
+  },
+  {
+    "title": "ghost-import: no detection of duplicate slugs between posts/pages",
+    "body": "If a Ghost site has a post and page with same slug, we overwrite. Detect and report.",
+    "labels": ["migration", "bug", "P2"]
+  },
+  {
+    "title": "ghost-import: HTML→Markdown lossy on code blocks with language hints",
+    "body": "turndown drops the language. Configure with `codeBlockStyle: 'fenced'` AND a custom rule for `<pre><code class=\"language-xxx\">`.",
+    "labels": ["migration", "P1"]
+  },
+  {
+    "title": "ghost-import: missing JSON Schema validation of the export file",
+    "body": "Right now we trust the shape and access nested properties. Validate top-level structure and report clear errors for partial/corrupt exports.",
+    "labels": ["migration", "dx", "P2"]
+  },
+  {
+    "title": "ghost-import: no dry-run mode",
+    "body": "Add `--dry-run` printing the plan (N posts, M pages, ...). Useful before nuking content/.",
+    "labels": ["migration", "cli", "P2"]
+  },
+  {
+    "title": "theme-loader: locale parse failures are silently swallowed",
+    "body": "src/theme/loader.ts:loadLocales has `try { JSON.parse } catch {}` that ignores broken locale files. Print a warning.",
+    "labels": ["theme-dev", "dx", "P2"]
+  },
+  {
+    "title": "theme-loader: only string values are kept; numbers/booleans in locales dropped silently",
+    "body": "Some themes store interpolation counters. Either keep all values or document the constraint.",
+    "labels": ["theme-dev", "i18n", "P3"]
+  },
+  {
+    "title": "theme-loader: partials cannot include / via ../ — by design — but no clear error",
+    "body": "Document.",
+    "labels": ["docs", "theme-dev", "P3"]
+  },
+  {
+    "title": "theme-loader: theme custom-settings group/visibility are parsed but unused",
+    "body": "Once a UI exists they matter. Today, no UI. Capture and expose to a future admin component.",
+    "labels": ["theme-dev", "api", "P3"]
+  },
+  {
+    "title": "theme: no `nectar theme:zip` to package a theme for distribution",
+    "body": "Source theme has `gulp zip`. Add equivalent.",
+    "labels": ["theme-dev", "cli", "P2"]
+  },
+  {
+    "title": "theme: no `nectar theme:new` scaffolder",
+    "body": "Add a CLI that creates a minimal theme skeleton.",
+    "labels": ["theme-dev", "cli", "P2"]
+  },
+  {
+    "title": "theme: no theme:lint analog of Ghost's gscan",
+    "body": "Validate that referenced helpers exist, partials resolve, custom settings are well-formed.",
+    "labels": ["theme-dev", "P1"]
+  },
+  {
+    "title": "test: no helper-level unit tests for any individual helper",
+    "body": "Every helper in src/render/helpers/ needs at least one happy-path and one edge-case test.",
+    "labels": ["testing", "P0"]
+  },
+  {
+    "title": "test: no golden test for Source theme rendering",
+    "body": "Add a golden-HTML test that builds the example and diffs against committed expected output. Catches regressions in any helper.",
+    "labels": ["testing", "P0"]
+  },
+  {
+    "title": "test: no fixture-based test for ghost-import",
+    "body": "Add a minimal Ghost JSON fixture (5 posts, 2 pages, 3 tags, 2 users with cross-references) and assert importer outputs.",
+    "labels": ["testing", "migration", "P1"]
+  },
+  {
+    "title": "test: no CLI integration tests",
+    "body": "Spawn `bun src/cli/index.ts <command>` and assert exit codes / stdout/stderr.",
+    "labels": ["testing", "cli", "P1"]
+  },
+  {
+    "title": "test: no coverage reporting",
+    "body": "Bun supports `bun test --coverage`. Wire into CI and threshold at e.g. 70% lines.",
+    "labels": ["testing", "infra", "P1"]
+  },
+  {
+    "title": "test: no property-based / fuzz tests for Markdown/frontmatter",
+    "body": "Use `fast-check` (works in Bun) to fuzz frontmatter parsing.",
+    "labels": ["testing", "P2"]
+  },
+  {
+    "title": "test: no Lighthouse / a11y CI gate",
+    "body": "Run `@axe-core/cli` over example/dist/ and fail on serious issues.",
+    "labels": ["testing", "a11y", "infra", "P1"]
+  },
+  {
+    "title": "infra: no .github/workflows for CI",
+    "body": "Add a workflow running typecheck + bun test + biome check on PRs to main.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "infra: no Renovate / Dependabot configuration",
+    "body": "Add `renovate.json` or `.github/dependabot.yml`.",
+    "labels": ["infra", "supply-chain", "P1"]
+  },
+  {
+    "title": "infra: no release automation",
+    "body": "Use release-please / semantic-release. Tag → GitHub Release → npm publish + binary upload.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "infra: package is `private: true` — cannot npm publish today",
+    "body": "Flip when ready and add `files`, `bin`, `publishConfig`.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "infra: no single-file binary build",
+    "body": "Use `bun build --compile` to produce `nectar` binary per platform.",
+    "labels": ["infra", "cli", "P1"]
+  },
+  {
+    "title": "infra: no Docker image",
+    "body": "Provide an Alpine-based image baking in bun + nectar.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "infra: no Homebrew tap",
+    "body": "Add a tap (`oven-sh/bun` style) for `brew install nectar`.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "infra: no CHANGELOG.md",
+    "body": "Generate from conventional commits via release-please.",
+    "labels": ["infra", "docs", "P1"]
+  },
+  {
+    "title": "docs: no CONTRIBUTING.md",
+    "body": "Describe dev setup, branching, commit style, testing expectations.",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "docs: no CODE_OF_CONDUCT.md",
+    "body": "Adopt Contributor Covenant 2.1.",
+    "labels": ["docs", "P2"]
+  },
+  {
+    "title": "docs: no SECURITY.md",
+    "body": "Define disclosure address and process; private vulnerability reporting via GitHub Security Advisories.",
+    "labels": ["docs", "security", "P0"]
+  },
+  {
+    "title": "docs: no issue templates",
+    "body": "Add `.github/ISSUE_TEMPLATE/{bug,feature,ghost-compat}.yml`.",
+    "labels": ["docs", "infra", "P2"]
+  },
+  {
+    "title": "docs: no PR template",
+    "body": "Add `.github/pull_request_template.md` with summary / test plan / breaking change checkboxes.",
+    "labels": ["docs", "infra", "P2"]
+  },
+  {
+    "title": "docs: no architecture diagram in DESIGN.md beyond ASCII art",
+    "body": "Add SVG diagrams via Mermaid.",
+    "labels": ["docs", "P3"]
+  },
+  {
+    "title": "docs: no config reference auto-generated from Zod schema",
+    "body": "Use `zod-to-json-schema` + a script to emit `docs/config-reference.md` and keep it in sync via CI.",
+    "labels": ["docs", "config", "P2"]
+  },
+  {
+    "title": "docs: no `nectar` CLI reference page",
+    "body": "Auto-emit usage docs from each command's help output.",
+    "labels": ["docs", "cli", "P2"]
+  },
+  {
+    "title": "docs: no theme dev guide",
+    "body": "Document our Ghost compatibility surface, helper signatures, partial conventions, asset pipeline. With examples.",
+    "labels": ["docs", "theme-dev", "P0"]
+  },
+  {
+    "title": "docs: no migration guide (long form) for Ghost users",
+    "body": "Step-by-step: export from Ghost, run import, copy images, edit nectar.toml, run build, deploy. Include screenshots.",
+    "labels": ["docs", "migration", "P0"]
+  },
+  {
+    "title": "docs: no published docs site",
+    "body": "Use Nectar to build its own docs site (dogfood).",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "api: no public extension API",
+    "body": "DESIGN mentions optional components but no actual API. Define hook points (beforeBuild, afterContentLoad, afterRender, afterEmit), helper registration, route augmentation, transform pipeline.",
+    "labels": ["api", "P0"]
+  },
+  {
+    "title": "api: types not exported from a stable entrypoint",
+    "body": "Add `nectar/types` exporting Post/Page/Tag/Author/SiteData/NectarConfig.",
+    "labels": ["api", "dx", "P1"]
+  },
+  {
+    "title": "api: no plugin discovery convention (`nectar-plugin-*` packages)",
+    "body": "Pick one — naming convention + import contract — and document.",
+    "labels": ["api", "docs", "P2"]
+  },
+  {
+    "title": "observability: no JSON log mode for CI / log shippers",
+    "body": "Add NECTAR_LOG_FORMAT=json mode in logger.ts.",
+    "labels": ["observability", "P2"]
+  },
+  {
+    "title": "observability: no per-route timing report",
+    "body": "Build summary should include slowest routes, helper hotspots.",
+    "labels": ["observability", "performance", "P2"]
+  },
+  {
+    "title": "observability: no error reporting integration (Sentry/Bugsnag)",
+    "body": "Provide hooks; document configuration.",
+    "labels": ["observability", "api", "P3"]
+  },
+  {
+    "title": "i18n: only one locale per build; no multi-locale routing",
+    "body": "Many international blogs need `/en/foo/` and `/ja/foo/`. Define a content layout convention (per-locale subdirs) and route accordingly.",
+    "labels": ["i18n", "routes", "P1"]
+  },
+  {
+    "title": "i18n: date format string is en-rooted (`DD MMM YYYY`)",
+    "body": "Use Intl.DateTimeFormat with options derived from locale.",
+    "labels": ["i18n", "render", "P2"]
+  },
+  {
+    "title": "i18n: pluralisation in `t` helper is `%`-based, not ICU MessageFormat",
+    "body": "Move to ICU when many locales are supported.",
+    "labels": ["i18n", "P3"]
+  },
+  {
+    "title": "search: no Pagefind integration",
+    "body": "Wire as an optional component that runs after emit and writes `dist/pagefind/`.",
+    "labels": ["search", "api", "P1"]
+  },
+  {
+    "title": "search: no fallback Lunr integration",
+    "body": "For users who can't ship Pagefind binary.",
+    "labels": ["search", "P3"]
+  },
+  {
+    "title": "search: no `<search>` widget partial in built-in helpers",
+    "body": "Expose a default search UI partial themes can include.",
+    "labels": ["search", "theme-dev", "P3"]
+  },
+  {
+    "title": "comments: no Giscus / Disqus / Utterances wiring",
+    "body": "Implement `[components.comments] provider = \"giscus|disqus|utterances\"` and inject the right snippet under `{{comments}}`.",
+    "labels": ["comments", "api", "P1"]
+  },
+  {
+    "title": "members: no stub for @member context",
+    "body": "Source theme reads `@member` extensively. Currently undefined; many template branches misbehave. Provide `@member = undefined` consistently and document.",
+    "labels": ["members", "ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "members: no docs explaining members are out of scope",
+    "body": "Users migrating from a Ghost site with paying members must know what they lose.",
+    "labels": ["docs", "members", "P0"]
+  },
+  {
+    "title": "image-pipeline: no resizing of feature_image to image_sizes",
+    "body": "Use sharp (optional) to produce per-size variants. Cache by content hash.",
+    "labels": ["image-pipeline", "P0"]
+  },
+  {
+    "title": "image-pipeline: no WebP/AVIF output",
+    "body": "Modern formats save 30-50% bytes. Emit when source is jpg/png.",
+    "labels": ["image-pipeline", "P1"]
+  },
+  {
+    "title": "image-pipeline: no LQIP/blurhash for above-the-fold images",
+    "body": "Improves CLS and perceived perf.",
+    "labels": ["image-pipeline", "a11y", "performance", "P2"]
+  },
+  {
+    "title": "image-pipeline: no EXIF strip / SVG sanitisation on import",
+    "body": "Privacy + XSS. Strip EXIF; sanitise SVGs via svgo or DOMPurify.",
+    "labels": ["security", "image-pipeline", "P1"]
+  },
+  {
+    "title": "image-pipeline: image_dimensions not embedded as width/height attributes",
+    "body": "Improves CLS. Compute at build via probe-image-size.",
+    "labels": ["image-pipeline", "seo", "P2"]
+  },
+  {
+    "title": "good-first-issue: add a `nectar version --check` to look up latest release",
+    "body": "Lightweight network call to GitHub Releases; cached for 24h.",
+    "labels": ["cli", "good first issue", "P3"]
+  },
+  {
+    "title": "good-first-issue: add `--quiet` / `--verbose` flags to all commands",
+    "body": "Bind to logger threshold.",
+    "labels": ["cli", "good first issue", "P3"]
+  },
+  {
+    "title": "good-first-issue: emit a build manifest (dist/.nectar/manifest.json) listing every file we wrote",
+    "body": "Powers safe re-emit (vs rm -rf).",
+    "labels": ["infra", "good first issue", "P2"]
+  },
+  {
+    "title": "infra: no spell check on docs/Markdown content",
+    "body": "Add cspell GitHub Action over docs/ and example/content/.",
+    "labels": ["infra", "docs", "P3"]
+  },
+  {
+    "title": "infra: no link checker for docs",
+    "body": "Use lychee in CI.",
+    "labels": ["infra", "docs", "P3"]
+  },
+  {
+    "title": "infra: no LICENSE in src/ headers; just root LICENSE file",
+    "body": "Optional but nice for users copying snippets.",
+    "labels": ["infra", "docs", "P3"]
+  },
+  {
+    "title": "infra: bun.lock not pinned to integrity-checked SHA per dep",
+    "body": "Confirm `bun install --frozen-lockfile` in CI.",
+    "labels": ["infra", "supply-chain", "P1"]
+  },
+  {
+    "title": "config: zod schema does not warn on unknown keys",
+    "body": "Use `.strict()` to reject typos in nectar.toml — currently `[sites]` (typo) is silently ignored.",
+    "labels": ["config", "dx", "P1"]
+  },
+  {
+    "title": "config: relative paths in config are not resolved against the config file location",
+    "body": "If a user passes `--config path/to/nectar.toml`, our content/theme dirs resolve from cwd not from the config dir. Document or change.",
+    "labels": ["config", "bug", "P2"]
+  },
+  {
+    "title": "config: no support for environment-variable overrides",
+    "body": "E.g. NECTAR_SITE_URL useful for staging vs prod builds.",
+    "labels": ["config", "dx", "P2"]
+  },
+  {
+    "title": "config: theme.dir is relative to cwd; cannot reference an installed npm theme",
+    "body": "Allow `theme = \"nectar-theme-foo\"` to resolve from node_modules.",
+    "labels": ["config", "theme-dev", "P2"]
+  },
+  {
+    "title": "config: no validation that [theme.custom] keys exist in theme package.json",
+    "body": "Typos like `[theme.custom].titel_font` silently use defaults. Warn.",
+    "labels": ["config", "dx", "P1"]
+  },
+  {
+    "title": "performance: theme assets re-read for fingerprinting on every build",
+    "body": "Cache by mtime + size in `.nectar/asset-cache.json`.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "performance: Markdown rendering is sequential",
+    "body": "Parallelise content load via Promise.all over file globs.",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "performance: handlebars compile per partial registration; pre-compile once at engine init",
+    "body": "Partial source is registered as raw string; Handlebars compiles lazily on first use. For sites with many partials, pre-compile to AOT.",
+    "labels": ["performance", "render", "P3"]
+  },
+  {
+    "title": "render: no nonce support for inline `<script>` and `<style>` in ghost_head",
+    "body": "For CSP. Accept `[build].csp_nonce` and emit `nonce=\"...\"` on our inline tags.",
+    "labels": ["security", "render", "P2"]
+  },
+  {
+    "title": "render: no Subresource Integrity (SRI) for asset links",
+    "body": "Emit `integrity=\"sha384-...\"` on external scripts/stylesheets where applicable.",
+    "labels": ["security", "render", "P3"]
+  },
+  {
+    "title": "render: HTML output not minified",
+    "body": "Add optional minifier (html-minifier-terser) post-render.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "render: CSS not purged/inlined",
+    "body": "Source theme ships ~50KB of unused CSS. Optional purge step (purgecss).",
+    "labels": ["performance", "P3"]
+  },
+  {
+    "title": "render: JS asset bundling/minification not done",
+    "body": "Source theme JS already minified; users with custom JS would want bun build pipeline.",
+    "labels": ["performance", "P3"]
+  },
+  {
+    "title": "ghost-compat: routes.yaml not parsed at all",
+    "body": "Ghost's `routes.yaml` defines custom collections, channels, and routes. Major feature; required for many real themes.",
+    "labels": ["ghost-compat", "routes", "release-blocker", "P0"]
+  },
+  {
+    "title": "ghost-compat: dynamic routing taxonomies",
+    "body": "Tag/author taxonomy paths configurable in routes.yaml; we hard-code /tag/ and /author/.",
+    "labels": ["ghost-compat", "routes", "P1"]
+  },
+  {
+    "title": "ghost-compat: featured posts highlight on home requires `featured` filter in {{#get}}",
+    "body": "Verified working in our example, but only because our content has featured posts. Test the empty case.",
+    "labels": ["testing", "ghost-compat", "P2"]
+  },
+  {
+    "title": "ghost-compat: visibility 'members' / 'paid' posts treated as 'public' in build",
+    "body": "We have no auth so we render everything. Either: (a) skip non-public at build (closer to Ghost's free-tier behaviour with paywall preview) or (b) gate behind a toggle.",
+    "labels": ["ghost-compat", "members", "P1"]
+  },
+  {
+    "title": "ghost-compat: @config.posts_per_page used by theme but only theme.pkg drives our value",
+    "body": "Source theme reads `@config.posts_per_page`. Expose it.",
+    "labels": ["ghost-compat", "render", "config", "P1"]
+  },
+  {
+    "title": "ghost-compat: @labs context undefined; themes that check it crash",
+    "body": "Expose as empty object so `{{#if @labs.foo}}` is safe.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-compat: @site.members_enabled / paid_members_enabled / recommendations_enabled need stable defaults",
+    "body": "Default to false; document. Source's sidebar branches on these.",
+    "labels": ["ghost-compat", "render", "members", "P0"]
+  },
+  {
+    "title": "ghost-compat: @site.lang vs @site.locale",
+    "body": "Ghost themes use both. We currently set both to the same value via SiteData; document.",
+    "labels": ["docs", "ghost-compat", "P3"]
+  },
+  {
+    "title": "ghost-compat: time helper missing (`{{time format=\"...\"}}` deprecated alias for date)",
+    "body": "Some older themes still use it. Alias.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-compat: encode helper supports `:component` vs `:full` modes",
+    "body": "We always use encodeURIComponent. Ghost has variants.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "build: emitter does not write atomically",
+    "body": "Concurrent reads of dist/ during build can serve partial files. Write to a temp file then rename.",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "build: feeds.ts emitSitemap signature takes `content` but doesn't use it",
+    "body": "Clean up signature.",
+    "labels": ["dx", "P3"]
+  },
+  {
+    "title": "build: no per-tag or per-author RSS feed",
+    "body": "Ghost emits `/tag/foo/rss/`. Add.",
+    "labels": ["rss", "ghost-compat", "P2"]
+  },
+  {
+    "title": "build: no `_redirects` / Netlify config emit",
+    "body": "From redirects.yaml when implemented.",
+    "labels": ["routes", "infra", "P3"]
+  },
+  {
+    "title": "infra: no GitHub Actions caching for bun install",
+    "body": "Use actions/cache or oven-sh/setup-bun's built-in cache.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "test: render engine smoke tests do not assert helper output byte-for-byte",
+    "body": "Add specific helper tests with exact-string assertions.",
+    "labels": ["testing", "P1"]
+  },
+  {
+    "title": "test: example-build.test runs full build per run — slow if invoked frequently",
+    "body": "Move to a separate `test:e2e` script.",
+    "labels": ["testing", "P3"]
+  },
+  {
+    "title": "dx: TypeScript path alias `~/*` works in tsc but not always at runtime in Bun without explicit config",
+    "body": "Bun honours `tsconfig.compilerOptions.paths` natively. Verify by running on a clean machine and add to CI.",
+    "labels": ["dx", "infra", "P2"]
+  },
+  {
+    "title": "ghost-compat: `{{> partial}}` paths use POSIX separators internally; Windows users on raw paths fail",
+    "body": "We normalise to `/` already, but spot-check tests on Windows.",
+    "labels": ["ghost-compat", "infra", "P2"]
+  }
+]

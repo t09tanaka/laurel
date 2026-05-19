@@ -1,0 +1,2207 @@
+[
+  {
+    "title": "test: asset: resolves fingerprinted path for known asset key",
+    "body": "Input: `{{asset \"css/screen.css\"}}` where the theme registers `assets/css/screen.css` with fingerprintedPath `assets/css/screen.abc123.css`.\nExpected: `assets/css/screen.abc123.css` (prefixed with build.base_path).\nWhy this matters: Ghost docs state `asset` is the canonical way to produce cache-busted URLs for theme assets; if the fingerprinted variant is not picked up, cache busting silently regresses to the source path.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: asset: falls back to `assets/<path>` when only logical key is registered",
+    "body": "Input: `{{asset \"built/source.js\"}}` where theme only registered the key `assets/built/source.js`.\nExpected: helper still resolves via the second candidate (`assets/built/source.js`) and emits its fingerprinted URL.\nWhy: themes commonly reference assets without the `assets/` prefix; both candidate keys must be tried.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: asset: leading slash in input is stripped before lookup",
+    "body": "Input: `{{asset \"/built/app.js\"}}` should look up `built/app.js` and `assets/built/app.js`, not `/built/app.js`.\nExpected: same fingerprinted output as the unslashed variant.\nWhy: many Ghost themes write `/assets/...` paths; the helper must not double-prefix or miss the registry.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: asset: returns base_path-joined raw `assets/<path>` for unknown asset",
+    "body": "Input: `{{asset \"missing.png\"}}` with empty asset registry and `base_path = \"/blog\"`.\nExpected: `/blog/assets/missing.png`.\nWhy: covers the unresolved fallthrough branch; ensures missing files do not throw and that base_path is prepended.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: asset: returned URL is a SafeString with HTML-escaped output",
+    "body": "Input: a registered asset whose fingerprinted path contains `&`, `<`, `>`, `\"`, `'`.\nExpected: SafeString instance with those characters escaped to `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`.\nWhy: prevents accidental XSS when asset names contain special characters; SafeString avoids double-escaping by Handlebars.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: img_url: returns absolute URL when `absolute=true`",
+    "body": "Input: `{{img_url \"/content/images/foo.jpg\" absolute=true}}` with site.url `https://example.com/`.\nExpected: `https://example.com/content/images/foo.jpg`.\nWhy: Ghost docs explicitly require `absolute=true` to produce a fully-qualified URL for OG/feed contexts.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: img_url: returns the path unchanged when no hash given",
+    "body": "Input: `{{img_url \"/content/images/foo.jpg\"}}`.\nExpected: `/content/images/foo.jpg` (string, not SafeString).\nWhy: relative path is the default output per Ghost docs.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: img_url: extracts `feature_image` from object argument",
+    "body": "Input: `{{img_url this}}` where `this = { feature_image: '/content/images/hero.jpg' }`.\nExpected: `/content/images/hero.jpg`.\nWhy: Ghost's `img_url` accepts both a string path and a content object; covers the `extractImage` branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: img_url: extracts `profile_image` from author object",
+    "body": "Input: `{{img_url author}}` where `author = { profile_image: '/content/images/me.jpg' }`.\nExpected: `/content/images/me.jpg`.\nWhy: ensures author resources resolve correctly through the same helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: img_url: extracts `url` from a generic media object",
+    "body": "Input: `{{img_url obj}}` where `obj = { url: 'https://cdn.example.com/x.png' }`.\nExpected: `https://cdn.example.com/x.png`.\nWhy: fallback for objects with no feature/profile image; matches helper's third extractor branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: img_url: returns empty string for non-extractable object",
+    "body": "Input: `{{img_url obj}}` where `obj = { id: 1 }` (no image keys).\nExpected: empty string.\nWhy: documented behaviour; avoids emitting `[object Object]` into output.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: img_url: does not transform absolute http(s) candidate when size requested",
+    "body": "Input: `{{img_url \"https://cdn.example.com/x.jpg\" size=\"l\"}}`.\nExpected: `https://cdn.example.com/x.jpg` (no resizing because the URL is external).\nWhy: matches Ghost behaviour where size hints are only applied to local content URLs.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: img_url: ignores unknown size key",
+    "body": "Input: `{{img_url \"/content/images/x.jpg\" size=\"xxl\"}}` where theme `image_sizes` does not declare `xxl`.\nExpected: `/content/images/x.jpg` unchanged.\nWhy: protects against typos in size names without throwing.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: iterates array and renders block for each item",
+    "body": "Input: `{{#foreach items}}{{this}}{{/foreach}}` where `items = ['a','b','c']`.\nExpected: `abc`.\nWhy: baseline iteration; everything else depends on this.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: exposes @first on first iteration only",
+    "body": "Input: `{{#foreach items}}{{#if @first}}*{{/if}}{{this}}{{/foreach}}` over `['a','b']`.\nExpected: `*ab`.\nWhy: documented data variable; themes use it to inject separators or first-item markup.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: exposes @last on final iteration only",
+    "body": "Input: `{{#foreach items}}{{this}}{{#if @last}}!{{/if}}{{/foreach}}` over `['a','b']`.\nExpected: `ab!`.\nWhy: themes rely on @last to suppress trailing separators.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: @index is zero-based",
+    "body": "Input: `{{#foreach items}}{{@index}}{{/foreach}}` over `['a','b','c']`.\nExpected: `012`.\nWhy: Ghost docs explicitly state index starts at 0.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: @number is one-based",
+    "body": "Input: `{{#foreach items}}{{@number}}{{/foreach}}` over `['a','b','c']`.\nExpected: `123`.\nWhy: documented one-based counterpart to @index; commonly used in numbered lists.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: @key is exposed for object iteration",
+    "body": "Input: `{{#foreach obj}}{{@key}}:{{this}};{{/foreach}}` where `obj = { a:1, b:2 }`.\nExpected: contains both `a:1;` and `b:2;`.\nWhy: Ghost docs require @key when iterating maps/objects. Current implementation iterates via Object.values losing keys — this test pins the gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: @rowStart is true at index 0",
+    "body": "Input: `{{#foreach items columns=3}}{{#if @rowStart}}[{{/if}}{{this}}{{#if @rowEnd}}]{{/if}}{{/foreach}}`.\nExpected: rows wrapped in `[...]` every 3 items.\nWhy: Ghost ships @rowStart/@rowEnd for CSS grid markup; current impl hard-codes them to false — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: @rowEnd is true at last index of each row",
+    "body": "Input: same as previous, asserting `@rowEnd` on positions 2, 5, ...\nExpected: matches Ghost docs.\nWhy: companion to @rowStart.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: visibility=\"public\" excludes members-only items",
+    "body": "Input: `{{#foreach posts visibility=\"public\"}}{{slug}};{{/foreach}}` where posts include a `visibility: 'members'` item.\nExpected: members-only item is filtered out.\nWhy: documented filter; required for correct list rendering on public listings.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: visibility=\"members\" includes only members items",
+    "body": "Input: `{{#foreach posts visibility=\"members\"}}{{slug}}{{/foreach}}`.\nExpected: only items with `visibility === 'members'`.\nWhy: covers the non-default branch of visibility filter.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: visibility=\"all\" returns every item",
+    "body": "Input: `{{#foreach posts visibility=\"all\"}}{{slug}}{{/foreach}}`.\nExpected: nothing filtered.\nWhy: explicit `all` is documented; covers the early-return branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: foreach: limit truncates the visible list",
+    "body": "Input: `{{#foreach items limit=2}}` over `[a,b,c,d]`.\nExpected: `ab`.\nWhy: documented hash for slicing lists.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: from skips initial items (1-indexed)",
+    "body": "Input: `{{#foreach items from=2}}` over `[a,b,c,d]`.\nExpected: `bcd` (Ghost from is 1-based).\nWhy: pinned to catch off-by-one regressions.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: to limits the end index inclusively",
+    "body": "Input: `{{#foreach items to=2}}` over `[a,b,c,d]`.\nExpected: `ab`.\nWhy: documented hash; pairs with from.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: from + to + limit interact correctly",
+    "body": "Input: `{{#foreach items from=2 to=4 limit=2}}` over `[a,b,c,d,e]`.\nExpected: result respects all three (Ghost slices then limits — `bc`).\nWhy: complex interaction with edge cases; needs explicit pinned behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: order=\"published_at desc\" reverses items",
+    "body": "Input: posts `[{published_at:'2024-01-01'},{published_at:'2024-03-01'}]` with `order=\"published_at desc\"`.\nExpected: most-recent first.\nWhy: Ghost supports order hash on foreach; currently not implemented — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: inverse block runs when iterable is empty",
+    "body": "Input: `{{#foreach items}}x{{else}}none{{/foreach}}` with `items = []`.\nExpected: `none`.\nWhy: Handlebars-style inverse documented for foreach.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: foreach: iterates plain object as values when array missing",
+    "body": "Input: `{{#foreach obj}}{{this}}{{/foreach}}` where `obj = { x:'a', y:'b' }`.\nExpected: `ab`.\nWhy: covers toArray fallback.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: is: matches `post` when route kind is post",
+    "body": "Input: `{{#is \"post\"}}yes{{else}}no{{/is}}` with `route.kind = 'post'`.\nExpected: `yes`.\nWhy: baseline route detection used by every theme.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: matches `page` when route kind is page",
+    "body": "Input: `{{#is \"page\"}}yes{{/is}}` with `route.kind = 'page'`.\nExpected: `yes`.\nWhy: cover the page kind branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: `home` is true when kind is home",
+    "body": "Input: `{{#is \"home\"}}yes{{/is}}` with `route.kind='home'`.\nExpected: `yes`.\nWhy: home is the alias bundle covering home+index.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: `home` is true when kind is index",
+    "body": "Input: `{{#is \"home\"}}yes{{/is}}` with `route.kind='index'`.\nExpected: `yes`.\nWhy: alias mapping documented by Ghost.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: is: `index` matches both home and index kinds",
+    "body": "Input: `{{#is \"index\"}}yes{{/is}}` with `route.kind='home'` and again with `route.kind='index'`.\nExpected: both `yes`.\nWhy: symmetric alias.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: is: `tag` matches tag route",
+    "body": "Input: `{{#is \"tag\"}}yes{{/is}}` with `route.kind='tag'`.\nExpected: `yes`.\nWhy: covers tag context branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: `author` matches author route",
+    "body": "Input: `{{#is \"author\"}}yes{{/is}}` with `route.kind='author'`.\nExpected: `yes`.\nWhy: covers author context branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: `paged` true when pagination.page > 1",
+    "body": "Input: `{{#is \"paged\"}}yes{{else}}no{{/is}}` with `route.data.pagination.page = 2`.\nExpected: `yes`.\nWhy: themes hide hero blocks on paged URLs via this.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: `paged` false on page 1 (default)",
+    "body": "Input: same as above with `pagination.page = 1` or missing.\nExpected: `no`.\nWhy: pin off-by-one safeguard.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: comma-separated targets OR together",
+    "body": "Input: `{{#is \"home, tag\"}}yes{{/is}}` with `route.kind = 'tag'`.\nExpected: `yes` (any target matches).\nWhy: Ghost docs explicitly allow `\"home, tag\"` for OR semantics.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: multiple positional targets OR together",
+    "body": "Input: `{{#is \"home\" \"tag\"}}yes{{/is}}` with `kind='tag'`.\nExpected: `yes`.\nWhy: multi-arg variant also supported.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: is: no match fires inverse block",
+    "body": "Input: `{{#is \"author\"}}yes{{else}}no{{/is}}` with `kind='post'`.\nExpected: `no`.\nWhy: covers inverse path.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: is: unknown target string does not throw",
+    "body": "Input: `{{#is \"banana\"}}yes{{else}}no{{/is}}`.\nExpected: `no`.\nWhy: defensive coverage so a typo never crashes the page render.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: match: 1-arg truthy renders fn block",
+    "body": "Input: `{{#match foo}}yes{{else}}no{{/match}}` with `foo = 'bar'`.\nExpected: `yes`.\nWhy: documented one-arg signature checks truthiness.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: match: 1-arg falsy renders inverse",
+    "body": "Input: `{{#match foo}}yes{{else}}no{{/match}}` with `foo = ''`.\nExpected: `no`.\nWhy: pin falsiness semantics.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: match: 2-arg equality compares with ===",
+    "body": "Input: `{{#match a b}}yes{{/match}}` where `a==='x'`, `b==='x'`.\nExpected: `yes`.\nWhy: documented two-arg variant equates with strict equality.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: match: 2-arg equality returns false for type mismatch",
+    "body": "Input: `{{#match a b}}yes{{else}}no{{/match}}` where `a=1`, `b='1'`.\nExpected: `no`.\nWhy: ensures strict equality (not coercion).",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `=` operator",
+    "body": "Input: `{{#match a \"=\" b}}yes{{/match}}` with both `'foo'`.\nExpected: `yes`.\nWhy: documented operator string.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `!=` operator",
+    "body": "Input: `{{#match a \"!=\" b}}yes{{else}}no{{/match}}` with same values.\nExpected: `no`.\nWhy: covers negation operator.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `>` numeric operator",
+    "body": "Input: `{{#match 5 \">\" 3}}yes{{/match}}`.\nExpected: `yes`.\nWhy: ordering operators are documented.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `<`, `>=`, `<=` operators",
+    "body": "Input: each of `<`, `>=`, `<=` against numeric inputs.\nExpected: matches Ghost docs (true/false table).\nWhy: completes the numeric op coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `~` substring operator",
+    "body": "Input: `{{#match \"foobar\" \"~\" \"oob\"}}yes{{/match}}`.\nExpected: `yes`.\nWhy: documented substring containment.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `~^` startsWith operator",
+    "body": "Input: `{{#match \"foobar\" \"~^\" \"foo\"}}yes{{/match}}`.\nExpected: `yes`.\nWhy: prefix match operator.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: match: 3-arg `~$` endsWith operator",
+    "body": "Input: `{{#match \"foobar\" \"~$\" \"bar\"}}yes{{/match}}`.\nExpected: `yes`.\nWhy: suffix match operator.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: match: inline (no block) returns boolean",
+    "body": "Input: `{{match a \"=\" b}}` used as a sub-expression.\nExpected: returns truthy/falsy value usable in `{{#if}}`.\nWhy: documented inline usage.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: match: `else match` chaining",
+    "body": "Input: `{{#match a \"=\" 1}}A{{else match a \"=\" 2}}B{{else}}C{{/match}}` with `a=2`.\nExpected: `B`.\nWhy: Ghost supports chained `else match`; current impl may not — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: tag=\"<slug>\" matches by slug",
+    "body": "Input: `{{#has tag=\"news\"}}yes{{/has}}` with `tags=[{slug:'news',name:'News'}]`.\nExpected: `yes`.\nWhy: documented tag slug match.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: has: tag=\"<name>\" matches by display name",
+    "body": "Input: `{{#has tag=\"News\"}}yes{{/has}}` with the same tags.\nExpected: `yes`.\nWhy: documented behaviour; pin name fallthrough.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: tag list (`a, b`) matches if any present",
+    "body": "Input: `{{#has tag=\"news, sport\"}}yes{{/has}}` with only `sport` tag present.\nExpected: `yes`.\nWhy: documented comma-list OR semantics.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: has: tag mismatch fires inverse",
+    "body": "Input: `{{#has tag=\"news\"}}yes{{else}}no{{/has}}` with empty tags array.\nExpected: `no`.\nWhy: covers inverse path.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: has: author=\"<slug>\" matches",
+    "body": "Input: `{{#has author=\"jane\"}}yes{{/has}}` with `authors=[{slug:'jane'}]`.\nExpected: `yes`.\nWhy: documented author check.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: has: author=\"<name>\" matches by display name",
+    "body": "Input: `{{#has author=\"Jane Doe\"}}yes{{/has}}` with `authors=[{name:'Jane Doe'}]`.\nExpected: `yes`.\nWhy: documented name fallthrough.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: slug=\"<slug>\" matches current resource",
+    "body": "Input: `{{#has slug=\"welcome\"}}yes{{/has}}` with `this.slug = 'welcome'`.\nExpected: `yes`.\nWhy: Ghost supports slug check on the active resource.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: visibility=\"members\" matches",
+    "body": "Input: `{{#has visibility=\"members\"}}gated{{/has}}` with `this.visibility='members'`.\nExpected: `gated`.\nWhy: gating logic depends on this.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: has: number=\"<n>\" matches current pagination page",
+    "body": "Input: `{{#has number=\"2\"}}yes{{/has}}` with pagination.page=2.\nExpected: `yes`.\nWhy: documented helper to detect specific pages.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: count:>N comparator on collection",
+    "body": "Input: `{{#has count:>3 ...}}yes{{/has}}` (Ghost syntax for counting collection length).\nExpected: yes when count>3, inverse otherwise.\nWhy: currently unimplemented in Nectar — pin gap so we can add support.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: `any:` prefix evaluates OR across keys",
+    "body": "Input: `{{#has any=\"tag,author\"}}yes{{/has}}` per Ghost docs.\nExpected: matches if resource has any of the listed properties populated.\nWhy: documented prefix not yet supported — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: `all:` prefix evaluates AND across keys",
+    "body": "Input: `{{#has all=\"tag,author\"}}yes{{/has}}`.\nExpected: matches only if every listed key is populated.\nWhy: prefix variant; pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: has: arbitrary key falls through to context property comparison",
+    "body": "Input: `{{#has featured=\"true\"}}yes{{/has}}` with `this.featured = true`.\nExpected: `yes` (current impl does String comparison).\nWhy: covers default branch in switch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: has: no key matches → inverse runs",
+    "body": "Input: `{{#has tag=\"x\"}}A{{else}}B{{/has}}` with mismatched data.\nExpected: `B`.\nWhy: inverse semantics documented.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: resource=\"posts\" returns engine.content.posts",
+    "body": "Input: `{{#get \"posts\"}}{{#foreach this}}{{slug}};{{/foreach}}{{/get}}`.\nExpected: every post slug joined by `;`.\nWhy: baseline coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: resource=\"tags\" returns tags collection",
+    "body": "Input: `{{#get \"tags\"}}{{#foreach this}}{{slug}};{{/foreach}}{{/get}}`.\nExpected: every tag slug.\nWhy: covers tags resource branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: resource=\"authors\" returns authors",
+    "body": "Input: `{{#get \"authors\"}}...{{/get}}`.\nExpected: authors collection.\nWhy: covers authors branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: resource=\"pages\" returns pages",
+    "body": "Input: `{{#get \"pages\"}}...{{/get}}`.\nExpected: pages collection.\nWhy: covers pages branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: limit truncates result",
+    "body": "Input: `{{#get \"posts\" limit=2}}...{{/get}}` with 5 posts.\nExpected: only the first two (after default ordering).\nWhy: documented limit hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: order=\"published_at asc\" sorts ascending",
+    "body": "Input: `{{#get \"posts\" order=\"published_at asc\"}}...{{/get}}`.\nExpected: oldest first.\nWhy: order direction documented.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: order=\"published_at desc\" sorts descending",
+    "body": "Input: `{{#get \"posts\" order=\"published_at desc\"}}...{{/get}}`.\nExpected: newest first.\nWhy: default direction; pin behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: filter=\"tag:foo\" returns matching posts",
+    "body": "Input: `{{#get \"posts\" filter=\"tag:foo\"}}...{{/get}}`.\nExpected: only posts whose tags include `foo`.\nWhy: documented NQL filter.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: filter=\"tag:[a,b]\" matches any of list",
+    "body": "Input: `{{#get \"posts\" filter=\"tag:[a,b]\"}}...{{/get}}`.\nExpected: posts tagged a OR b.\nWhy: documented NQL list syntax.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: filter=\"tag:-foo\" negates",
+    "body": "Input: `{{#get \"posts\" filter=\"tag:-foo\"}}...{{/get}}`.\nExpected: posts NOT tagged `foo`.\nWhy: documented `-` negation.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: filter=\"tag:foo+featured:true\" combines clauses",
+    "body": "Input: filter with `+` AND operator.\nExpected: both clauses must match.\nWhy: documented Ghost NQL conjunction.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: filter interpolates `{{post.id}}` against current context",
+    "body": "Input: `{{#get \"posts\" filter=\"id:-{{post.id}}\"}}...{{/get}}` (used for 'related posts' patterns).\nExpected: current post excluded.\nWhy: documented pattern; pin interpolation contract.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: blockParams `as |posts pagination|` exposes results",
+    "body": "Input: `{{#get \"posts\" as |posts pagination|}}{{posts.length}}{{/get}}`.\nExpected: count rendered.\nWhy: documented blockParams API.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: empty result triggers inverse block",
+    "body": "Input: `{{#get \"posts\" filter=\"slug:does-not-exist\"}}A{{else}}B{{/get}}`.\nExpected: `B`.\nWhy: documented empty handling.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: include hash is accepted (no error)",
+    "body": "Input: `{{#get \"posts\" include=\"tags,authors\"}}...{{/get}}`.\nExpected: helper does not throw; data still flows.\nWhy: Ghost API attribute; ensure parser does not reject the hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: get: unknown resource returns empty (inverse fires)",
+    "body": "Input: `{{#get \"unknowns\"}}A{{else}}B{{/get}}`.\nExpected: `B`.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: order with secondary clause",
+    "body": "Input: `order=\"featured desc, published_at desc\"` over mixed posts.\nExpected: featured-first then date-desc.\nWhy: multi-clause ordering documented.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: post block: exposes post from route data",
+    "body": "Input: `{{#post}}{{slug}}{{/post}}` when route.data.post = { slug: 'hello' }.\nExpected: `hello`.\nWhy: context block helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: post block: inverse runs when no post in scope",
+    "body": "Input: `{{#post}}A{{else}}B{{/post}}` on home route.\nExpected: `B`.\nWhy: documented inverse semantics.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: page block: exposes page from route data",
+    "body": "Input: `{{#page}}{{slug}}{{/page}}` when route.data.page set.\nExpected: page slug.\nWhy: parity with post block.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tag block: exposes tag from route data",
+    "body": "Input: `{{#tag}}{{name}}{{/tag}}` on tag route.\nExpected: tag name rendered.\nWhy: documented context.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: author block: exposes author from route data",
+    "body": "Input: `{{#author}}{{name}}{{/author}}` on author route.\nExpected: author name rendered.\nWhy: documented context.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: author block: falls back to `this.author` when not in route data",
+    "body": "Input: `{{#author}}{{name}}{{/author}}` inside foreach over posts; uses post.author.\nExpected: post's author name.\nWhy: covers the `(this as Record).author` fallback branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: date: formats published_at with default DD MMM YYYY",
+    "body": "Input: `{{date}}` with `this.published_at='2024-03-15T00:00:00Z'`.\nExpected: `15 Mar 2024`.\nWhy: documented default format.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: date: respects custom format hash",
+    "body": "Input: `{{date format=\"YYYY-MM-DD\"}}` with same date.\nExpected: `2024-03-15`.\nWhy: documented format option.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: date: timeago=true returns human-friendly relative string",
+    "body": "Input: `{{date timeago=true}}` with date 2 hours in the past (fake-timed).\nExpected: `2 hours ago`.\nWhy: documented relative formatter.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: date: timeago returns future phrasing for future dates",
+    "body": "Input: timeago over a future date.\nExpected: dayjs phrasing like `in 2 hours`.\nWhy: pin documented dayjs behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: date: timezone setting shifts output",
+    "body": "Input: same UTC timestamp rendered under `site.timezone='Asia/Tokyo'`.\nExpected: time shifted by +9.\nWhy: ensures tz plugin wired correctly.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: date: locale='ja' affects month names",
+    "body": "Input: `{{date format=\"MMM\"}}` under locale `ja`.\nExpected: localized month.\nWhy: docs say `date` should be locale-aware; pin gap if not wired.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: date: explicit string positional argument overrides ctx",
+    "body": "Input: `{{date \"2020-01-01\" format=\"YYYY\"}}` inside a post.\nExpected: `2020`.\nWhy: documented positional arg usage.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: date: accepts Date object positional argument",
+    "body": "Input: `{{date dateObj format=\"YYYY\"}}` where dateObj is a JS Date.\nExpected: year value.\nWhy: pin object-instance support.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: date: empty ctx falls back to `new Date()`",
+    "body": "Input: `{{date}}` with no published_at/updated_at/created_at.\nExpected: today's formatted date (within tolerance).\nWhy: covers default-now branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: date: invalid date string yields `Invalid Date` (or empty)",
+    "body": "Input: `{{date \"not-a-date\"}}`.\nExpected: dayjs invalid output; helper must not throw.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: t: returns the translation for active locale",
+    "body": "Input: `{{t \"hello\"}}` with locale ja mapping `hello → こんにちは`.\nExpected: `こんにちは`.\nWhy: baseline translation.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: t: falls back to en when active locale missing key",
+    "body": "Input: `{{t \"goodbye\"}}` with `ja` missing key, `en.goodbye='Bye'`.\nExpected: `Bye`.\nWhy: documented fallback chain.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: t: returns key when no locale defines it",
+    "body": "Input: `{{t \"missing.key\"}}` with neither locale providing it.\nExpected: `missing.key`.\nWhy: documented identity fallback.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: t: named `{key}` placeholder substitutes hash arg",
+    "body": "Input: `{{t \"hi.user\" name=\"Jane\"}}` with template `Hi {name}`.\nExpected: `Hi Jane`.\nWhy: documented placeholder syntax.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: t: `%` placeholder substitutes first hash value",
+    "body": "Input: `{{t \"x\" foo=\"42\"}}` where template = `count: %`.\nExpected: `count: 42`.\nWhy: documented Ghost `%` positional.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: t: missing locale entirely → uses fallback table",
+    "body": "Input: theme has only en locale, site.locale='zz'.\nExpected: lookups resolve from en.\nWhy: covers active-locale-missing branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: lang: returns active site locale code",
+    "body": "Input: `{{lang}}` with `site.locale='ja'`.\nExpected: `ja`.\nWhy: documented identity helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: url: returns ctx.url when not absolute",
+    "body": "Input: `{{url}}` with `this.url='/welcome/'`.\nExpected: `/welcome/`.\nWhy: documented default mode.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: url: absolute=true resolves against site.url",
+    "body": "Input: `{{url absolute=true}}` with site `https://example.com/blog/` and ctx.url `/welcome/`.\nExpected: `https://example.com/welcome/` (or `/blog/welcome/` depending on resolution semantics).\nWhy: pin documented absolute behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: url: absolute accepts string 'true'",
+    "body": "Input: `{{url absolute=\"true\"}}`.\nExpected: same as boolean true.\nWhy: Ghost themes sometimes pass string literals.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: url: empty ctx.url returns empty string",
+    "body": "Input: `{{url}}` with no `this.url`.\nExpected: `''`.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: url: secure flag forces https (gap pin)",
+    "body": "Input: `{{url secure=true}}` per Ghost docs.\nExpected: https-prefixed canonical URL.\nWhy: Ghost documents `secure`; current impl ignores it — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: concat: joins multiple positional args without separator",
+    "body": "Input: `{{concat \"a\" \"b\" \"c\"}}`.\nExpected: `abc`.\nWhy: documented default.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: concat: respects separator hash",
+    "body": "Input: `{{concat \"a\" \"b\" \"c\" separator=\"-\"}}`.\nExpected: `a-b-c`.\nWhy: documented separator option.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: concat: handles non-string args by coercion",
+    "body": "Input: `{{concat 1 2 3 separator=\",\"}}`.\nExpected: `1,2,3`.\nWhy: documented behaviour with numbers.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: concat: output should be a SafeString (gap)",
+    "body": "Input: `{{concat \"<b>\" \"hi\" \"</b>\"}}` used inside `triple-stash` contexts.\nExpected: per Ghost docs the result should be inert HTML or wrapped in SafeString.\nWhy: pin escaping contract; current impl returns plain string.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: encode: URL-encodes input",
+    "body": "Input: `{{encode \"hello world & friends\"}}`.\nExpected: `hello%20world%20%26%20friends`.\nWhy: documented URL encoder.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: link: renders anchor with href",
+    "body": "Input: `{{#link href=\"/about/\"}}About{{/link}}`.\nExpected: `<a href=\"/about/\">About</a>`.\nWhy: documented link helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: link: adds class attribute when class hash supplied",
+    "body": "Input: `{{#link href=\"/x\" class=\"btn\"}}Go{{/link}}`.\nExpected: `<a href=\"/x\" class=\"btn\">Go</a>`.\nWhy: documented class hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: link: adds target attribute when target hash supplied",
+    "body": "Input: `{{#link href=\"/x\" target=\"_blank\"}}Go{{/link}}`.\nExpected: contains ` target=\"_blank\"`.\nWhy: documented target option.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: link: escapes href and class to prevent injection",
+    "body": "Input: `{{#link href='\"><script>' class='\"x'}}A{{/link}}`.\nExpected: attributes safely escaped.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: link_class: returns activeClass when route.url matches `for`",
+    "body": "Input: `{{link_class for=\"/about/\"}}` with route.url `/about/`.\nExpected: `nav-current`.\nWhy: documented active link detection.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: link_class: trailing-slash differences normalise to a match",
+    "body": "Input: route.url `/about` vs `for=\"/about/\"`.\nExpected: still `nav-current` after normalisation.\nWhy: pin documented loose match.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: link_class: returns empty when paths differ",
+    "body": "Input: route.url `/blog/` vs `for=\"/about/\"`.\nExpected: `''`.\nWhy: covers no-match branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: link_class: paged path treated as matching base",
+    "body": "Input: route.url `/about/page/2/` vs `for=\"/about/\"`.\nExpected: per Ghost docs, still considered current.\nWhy: pin paged-aware match; current impl may miss it — gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: link_class: respects custom activeClass hash",
+    "body": "Input: `{{link_class for=\"/x/\" activeClass=\"is-active\"}}`.\nExpected: `is-active` when matching.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: navigation: renders primary navigation list",
+    "body": "Input: `{{navigation}}` with two primary items.\nExpected: `<ul class=\"nav\"><li class=\"nav-home\"><a href=\"/\">Home</a></li>...</ul>`.\nWhy: baseline navigation.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: navigation: type=\"secondary\" uses secondary_navigation array",
+    "body": "Input: `{{navigation type=\"secondary\"}}`.\nExpected: only secondary items rendered.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: navigation: slugifies label into li class",
+    "body": "Input: navigation item `{label:'Recent Posts', url:'/recent/'}`.\nExpected: `<li class=\"nav-recent-posts\">...</li>`.\nWhy: pin slugify branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: navigation: escapes label and url",
+    "body": "Input: item `{label:'<b>x</b>', url:'javascript:alert(1)'}`.\nExpected: escaped output, no raw HTML/JS injected.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: pagination: returns empty string when pages <= 1",
+    "body": "Input: `{{pagination}}` with `pagination.pages=1`.\nExpected: `''`.\nWhy: documented no-op behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: pagination: renders newer/older anchors when URLs present",
+    "body": "Input: pagination `{page:2, pages:5, prev_url:'/page/1/', next_url:'/page/3/'}`.\nExpected: contains both `class=\"newer-posts\"` and `class=\"older-posts\"` anchors.\nWhy: baseline pagination markup.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: pagination: omits prev anchor on first page",
+    "body": "Input: pagination on page 1 of N.\nExpected: no `.newer-posts` link.\nWhy: prevents broken/cycle nav.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: pagination: omits next anchor on last page",
+    "body": "Input: pagination with `page===pages`.\nExpected: no `.older-posts` link.\nWhy: same as above.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: pagination: shows correct `Page X of Y` text",
+    "body": "Input: pagination 3 of 5.\nExpected: `Page 3 of 5`.\nWhy: documented label.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: pagination: escapes prev/next URLs",
+    "body": "Input: prev_url containing quotes.\nExpected: properly escaped in href.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: reading_time: 1-minute case uses singular template",
+    "body": "Input: `{{reading_time}}` with `this.reading_time = 1`.\nExpected: `1 min read`.\nWhy: documented singular branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: reading_time: n-minute case uses plural template",
+    "body": "Input: `{{reading_time}}` with `this.reading_time = 7`.\nExpected: `7 min read`.\nWhy: documented plural branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: reading_time: custom minute hash",
+    "body": "Input: `{{reading_time minute=\"under 1 min\"}}` with 0.4.\nExpected: `under 1 min`.\nWhy: documented hash overrides default.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: reading_time: custom minutes template with %",
+    "body": "Input: `{{reading_time minutes=\"% mins\"}}` with reading_time=4.\nExpected: `4 mins`.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: excerpt: returns custom_excerpt when set",
+    "body": "Input: `{{excerpt}}` with `this.custom_excerpt='hand-written'`.\nExpected: `hand-written`.\nWhy: documented precedence.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: excerpt: falls back to ctx.excerpt then plaintext",
+    "body": "Input: ctx with no custom_excerpt but `excerpt='auto'`.\nExpected: `auto`.\nWhy: documented fallback chain.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: excerpt: words=10 truncates to 10 words",
+    "body": "Input: `{{excerpt words=10}}` with 30-word body.\nExpected: exactly 10 whitespace-separated words.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: excerpt: characters=50 truncates by characters",
+    "body": "Input: `{{excerpt characters=50}}`.\nExpected: 50-character slice.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: content: returns html as SafeString",
+    "body": "Input: `{{content}}` with html containing `<p>hi</p>`.\nExpected: SafeString of the html unchanged.\nWhy: documented baseline.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: content: words=N strips HTML and truncates",
+    "body": "Input: `{{content words=3}}` with html `<p>one two three four</p>`.\nExpected: `one two three`.\nWhy: documented truncation strips tags.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: content: empty html returns empty SafeString",
+    "body": "Input: ctx without html.\nExpected: empty output without throwing.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: authors: inline returns comma-separated names",
+    "body": "Input: `{{authors}}` with two authors.\nExpected: `Jane, John`.\nWhy: documented inline form.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: authors: block iterates each author",
+    "body": "Input: `{{#authors}}{{name}};{{/authors}}`.\nExpected: `Jane;John;`.\nWhy: documented block form.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: authors: separator hash overrides default",
+    "body": "Input: `{{authors separator=\" | \"}}`.\nExpected: ` | ` separator.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: authors: prefix/suffix wrap output",
+    "body": "Input: `{{authors prefix=\"by \" suffix=\".\"}}`.\nExpected: `by Jane, John.`.\nWhy: documented hash; currently unsupported — gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: authors: autolink=true links each name",
+    "body": "Input: `{{authors autolink=true}}` with author.url set.\nExpected: anchors per author.\nWhy: documented hash; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: authors: limit/from/to slicing",
+    "body": "Input: `{{authors limit=1}}` with 3 authors.\nExpected: only the first.\nWhy: documented hash; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: tags: inline returns comma-separated names",
+    "body": "Input: `{{tags}}` with tags.\nExpected: tag names joined by `, `.\nWhy: baseline.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: tags: autolink=true renders anchors",
+    "body": "Input: `{{tags}}` (default autolink).\nExpected: each tag wrapped in `<a href=\"/tag/...\">name</a>`.\nWhy: documented default.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: tags: autolink=false renders names only",
+    "body": "Input: `{{tags autolink=false}}`.\nExpected: plain comma-joined names, no anchors.\nWhy: documented opt-out.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: tags: custom separator hash",
+    "body": "Input: `{{tags separator=\" / \"}}`.\nExpected: ` / ` between tags.\nWhy: documented hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: prefix/suffix hashes",
+    "body": "Input: `{{tags prefix=\"in: \" suffix=\".\"}}`.\nExpected: wrapped output.\nWhy: documented hash; current impl missing — gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: limit truncates collection",
+    "body": "Input: `{{tags limit=1}}` with 3 tags.\nExpected: only the first.\nWhy: documented hash; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: includeHidden=true exposes hashtag-prefixed tags",
+    "body": "Input: tags include `#internal` and `news`. `{{tags includeHidden=true}}`.\nExpected: both rendered.\nWhy: documented hash; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: hides internal tags by default",
+    "body": "Input: same as above without includeHidden.\nExpected: only `news`.\nWhy: documented default; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: block iterates each tag",
+    "body": "Input: `{{#tags}}{{slug}};{{/tags}}`.\nExpected: `news;sport;`.\nWhy: documented block form.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: escapes tag name and url in anchors",
+    "body": "Input: tag `{name:'<x>', url:'\"bad'}`.\nExpected: attributes/text escaped.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_title: post route uses post.title",
+    "body": "Input: route.kind='post', this.title='Hello'.\nExpected: `Hello`.\nWhy: documented chain on post.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_title: page route uses page.title",
+    "body": "Input: route.kind='page', this.title='About'.\nExpected: `About`.\nWhy: documented chain on page.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: meta_title: tag route includes tag.name (gap)",
+    "body": "Input: route.kind='tag', ctx tag with name='News'.\nExpected: per docs uses tag.meta_title || tag.name (and may include site title suffix).\nWhy: current impl returns `explicit ?? site.title` — pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: meta_title: author route uses author.name (gap)",
+    "body": "Input: route.kind='author'.\nExpected: per docs uses author.meta_title || author.name.\nWhy: pin gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: meta_title: home route uses site.title",
+    "body": "Input: route.kind='home', no explicit title.\nExpected: site.title.\nWhy: documented home behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_title: page suffix added on paginated routes",
+    "body": "Input: `{{meta_title page=\" (page %)\"}}` on pagination.page=3.\nExpected: site.title with ` (page 3)` suffix.\nWhy: documented `page` hash.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: meta_title: explicit meta_title overrides ctx.title",
+    "body": "Input: ctx has both `meta_title` and `title`.\nExpected: meta_title wins.\nWhy: documented precedence.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_description: ctx.meta_description wins",
+    "body": "Input: ctx with `meta_description`, `excerpt`, and site.description.\nExpected: ctx.meta_description.\nWhy: documented chain top.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_description: falls back to excerpt",
+    "body": "Input: no meta_description, but excerpt set.\nExpected: excerpt.\nWhy: documented chain step.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: meta_description: falls back to site.description",
+    "body": "Input: neither meta_description nor excerpt; site.description='X'.\nExpected: `X`.\nWhy: documented terminal fallback.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits canonical link",
+    "body": "Input: `{{ghost_head}}` on home route with site.url `https://x.com/`.\nExpected: contains `<link rel=\"canonical\" href=\"https://x.com/\">`.\nWhy: SEO essential.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits OG title/description/site_name",
+    "body": "Input: `{{ghost_head}}` on a post.\nExpected: og:title, og:description, og:site_name meta tags.\nWhy: documented OG suite.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: og:type='article' on post route",
+    "body": "Input: route.kind='post' with route.data.post set.\nExpected: `<meta property=\"og:type\" content=\"article\">`.\nWhy: documented branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: og:type='website' on non-post",
+    "body": "Input: home route.\nExpected: og:type=website.\nWhy: covers default branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits twitter:card summary_large_image",
+    "body": "Input: any route.\nExpected: tag present.\nWhy: documented Twitter card.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits twitter:title and twitter:description",
+    "body": "Input: post with description.\nExpected: both meta tags present.\nWhy: documented Twitter coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits og:image and twitter:image when feature_image present",
+    "body": "Input: post.feature_image set.\nExpected: both meta image tags emitted.\nWhy: documented image fields.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: JSON-LD Article on post",
+    "body": "Input: post with id, title, publish/update dates.\nExpected: `<script type=\"application/ld+json\">` includes @type Article with headline, dates, author array.\nWhy: documented JSON-LD support.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: JSON-LD WebSite on home",
+    "body": "Input: home route.\nExpected: JSON-LD with @type=WebSite.\nWhy: documented schema.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits prev/next link tags on paginated routes (gap)",
+    "body": "Input: paginated list with pagination.prev_url/next_url.\nExpected: `<link rel=\"prev\" href=...>` and `rel=\"next\"`.\nWhy: documented; current impl missing — gap.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: emits RSS link tag (gap)",
+    "body": "Input: any route.\nExpected: `<link rel=\"alternate\" type=\"application/rss+xml\" ...>`.\nWhy: documented baseline; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: appends codeinjection_head when present",
+    "body": "Input: ctx.codeinjection_head = `<script>x()</script>`.\nExpected: snippet appended verbatim.\nWhy: documented passthrough.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_head: omits og:image when no image candidate",
+    "body": "Input: post with no images.\nExpected: og:image absent.\nWhy: avoid empty content attribute.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: escapes attribute values",
+    "body": "Input: ctx.title containing quotes/angle brackets.\nExpected: properly escaped in og:title and twitter:title.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: ghost_foot: appends codeinjection_foot when present",
+    "body": "Input: ctx.codeinjection_foot=`<script>boot()</script>`.\nExpected: snippet emitted as SafeString.\nWhy: documented passthrough.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: body_class: emits route kind token",
+    "body": "Input: `{{body_class}}` on tag route.\nExpected: contains `nectar-route-tag` (or Ghost-style `tag-template`).\nWhy: pin route token convention.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: body_class: includes paged token on pagination > 1 (gap)",
+    "body": "Input: pagination.page=2.\nExpected: contains `paged`.\nWhy: documented token in Ghost docs; current impl missing — gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: body_class: includes tag-<slug> on tag template (gap)",
+    "body": "Input: route.kind=tag, ctx tag.slug='news'.\nExpected: contains `tag-news`.\nWhy: documented; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: body_class: includes author-<slug> on author template (gap)",
+    "body": "Input: route.kind=author with slug='jane'.\nExpected: contains `author-jane`.\nWhy: documented; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: body_class: post template adds post tag tokens (gap)",
+    "body": "Input: on a post with tags news+sport.\nExpected: includes `tag-news` and `tag-sport` (per Ghost docs Casper).\nWhy: gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: body_class: ctx.body_class overrides defaults",
+    "body": "Input: ctx.body_class='custom'.\nExpected: literal `custom` returned.\nWhy: explicit override path.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: post_class: emits 'post' baseline token",
+    "body": "Input: `{{post_class}}` on a post.\nExpected: contains `post`.\nWhy: documented baseline.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: post_class: includes tag-<slug> per tag",
+    "body": "Input: post.tags=[{slug:'news'},{slug:'sport'}].\nExpected: contains `tag-news tag-sport`.\nWhy: documented per-tag tokens.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: post_class: featured token when post.featured",
+    "body": "Input: post.featured=true.\nExpected: contains `featured`.\nWhy: documented token.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: post_class: 'image' token when feature_image present (gap)",
+    "body": "Input: post with feature_image.\nExpected: contains `image`.\nWhy: documented in Casper; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: post_class: 'no-image' token when feature_image missing (gap)",
+    "body": "Input: post without feature_image.\nExpected: contains `no-image`.\nWhy: documented; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: post_class: 'page' token when ctx is a page (gap)",
+    "body": "Input: ctx representing a Ghost page.\nExpected: contains `page` token.\nWhy: documented; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: input_email: default placeholder",
+    "body": "Input: `{{input_email}}`.\nExpected: `<input data-members-email type=\"email\" required placeholder=\"Your email address\">`.\nWhy: documented default placeholder.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: input_email: escapes placeholder",
+    "body": "Input: placeholder containing quotes/angles.\nExpected: safely escaped attribute.\nWhy: XSS hardening.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: twitter handle (with and without @)",
+    "body": "Input: `{{social_url type=\"twitter\"}}` with `this.twitter='@jane'`.\nExpected: `https://twitter.com/jane`. Repeat without `@`.\nWhy: documented stripAt behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: social_url: facebook handle",
+    "body": "Input: `this.facebook='jane'`, `{{social_url type=\"facebook\"}}`.\nExpected: `https://facebook.com/jane`.\nWhy: documented mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: linkedin handle uses /in/ path",
+    "body": "Input: `this.linkedin='jane'`.\nExpected: `https://www.linkedin.com/in/jane`.\nWhy: documented mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: bluesky handle",
+    "body": "Input: `this.bluesky='jane.bsky.social'`.\nExpected: `https://bsky.app/profile/jane.bsky.social`.\nWhy: new platform mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: mastodon `@user@host` produces full URL",
+    "body": "Input: `this.mastodon='@jane@mastodon.social'`.\nExpected: `https://mastodon.social/@jane`.\nWhy: handle-with-host parsing.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: social_url: mastodon username only uses mastodon.social",
+    "body": "Input: `this.mastodon='jane'`.\nExpected: `https://mastodon.social/@jane`.\nWhy: default host fallback.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: threads handle",
+    "body": "Input: `this.threads='@jane'`.\nExpected: `https://www.threads.net/@jane`.\nWhy: documented mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: tiktok handle",
+    "body": "Input: `this.tiktok='jane'`.\nExpected: `https://www.tiktok.com/@jane`.\nWhy: documented mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: youtube handle",
+    "body": "Input: `this.youtube='@jane'`.\nExpected: `https://www.youtube.com/jane` (per current strip-at behaviour) or `/@jane` if Ghost docs require it.\nWhy: pin documented mapping; gap candidate.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: instagram handle",
+    "body": "Input: `this.instagram='@jane'`.\nExpected: `https://www.instagram.com/jane`.\nWhy: documented mapping.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: social_url: unknown type returns empty",
+    "body": "Input: `{{social_url type=\"myspace\"}}`.\nExpected: `''`.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: social_url: missing handle returns empty",
+    "body": "Input: type=twitter but ctx.twitter undefined.\nExpected: `''`.\nWhy: defensive coverage.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: plural: empty case uses `empty` hash",
+    "body": "Input: `{{plural 0 empty=\"none\" singular=\"% item\" plural=\"% items\"}}`.\nExpected: `none`.\nWhy: documented empty branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: plural: singular case (n=1)",
+    "body": "Input: same hash with count=1.\nExpected: `1 item`.\nWhy: documented singular.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: plural: plural case (n>1) substitutes % with n",
+    "body": "Input: same hash with count=5.\nExpected: `5 items`.\nWhy: documented plural with %.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: plural: empty hash missing → falls back to plural template",
+    "body": "Input: no empty hash; count=0.\nExpected: `0 items`.\nWhy: covers fallback.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: upper: uppercases value",
+    "body": "Input: `{{upper \"hello\"}}`.\nExpected: `HELLO`.\nWhy: documented helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: lower: lowercases value",
+    "body": "Input: `{{lower \"HELLO\"}}`.\nExpected: `hello`.\nWhy: documented helper.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: is: data.route absent does not throw",
+    "body": "Input: `{{#is \"post\"}}A{{else}}B{{/is}}` with no route data.\nExpected: `B` (no exception).\nWhy: defensive — prevents 500-equivalent during partial render.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: filter with `visibility:public` clause",
+    "body": "Input: `{{#get \"posts\" filter=\"visibility:public\"}}...{{/get}}`.\nExpected: members-only items excluded.\nWhy: documented NQL.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: filter with `author:<slug>` matches posts by author",
+    "body": "Input: `{{#get \"posts\" filter=\"author:jane\"}}...{{/get}}`.\nExpected: only Jane's posts.\nWhy: documented filter.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: default order is `published_at desc`",
+    "body": "Input: `{{#get \"posts\"}}...{{/get}}` with no order hash.\nExpected: descending by published_at.\nWhy: pin default.",
+    "labels": [
+      "testing",
+      "render",
+      "P1"
+    ]
+  },
+  {
+    "title": "test: get: limit=\"all\" returns full list (gap)",
+    "body": "Input: `limit=\"all\"`.\nExpected: per Ghost docs returns every result.\nWhy: documented sentinel; current impl coerces NaN — gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: navigation: current item gets active class via link_class integration",
+    "body": "Input: navigation rendered inside a page where one item matches route.url.\nExpected: that item carries the active marker (depends on theme markup).\nWhy: integration check between navigation+link_class.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: ghost_head: canonical uses canonical_url when set on post (gap)",
+    "body": "Input: post.canonical_url set.\nExpected: canonical link reflects override.\nWhy: documented field; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: foreach: nested foreach preserves outer @index via ../",
+    "body": "Input: `{{#foreach outer}}{{@index}}|{{#foreach inner}}{{../@index}}-{{@index}};{{/foreach}}{{/foreach}}`.\nExpected: outer index accessible via path lookup.\nWhy: documented Handlebars data path; pin behaviour with createFrame.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: t: HTML in translation is escaped by Handlebars (not SafeString)",
+    "body": "Input: translation containing `<b>hi</b>`.\nExpected: rendered as plain text in double-stash context (`&lt;b&gt;`).\nWhy: pin escaping contract; XSS via locale files.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: concat: works inside other helpers as subexpression",
+    "body": "Input: `{{asset (concat \"img/\" name)}}` where `name='logo.svg'`.\nExpected: resolves like `{{asset \"img/logo.svg\"}}`.\nWhy: documented subexpression usage; common pattern.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: encode: used to safely build mailto/twitter share URLs",
+    "body": "Input: `mailto:?subject={{encode title}}` with `title='Hi & welcome'`.\nExpected: `Hi%20%26%20welcome`.\nWhy: documented usage pattern.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: get: ordering by string field uses localeCompare",
+    "body": "Input: posts with mixed-case titles ordered `title asc`.\nExpected: case-insensitive locale ordering.\nWhy: pin localeCompare branch.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: has: empty hash → matched stays false → inverse runs",
+    "body": "Input: `{{#has}}A{{else}}B{{/has}}` (no attrs).\nExpected: `B`.\nWhy: defensive coverage of no-op invocation.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: foreach: when raw is null/undefined → inverse runs",
+    "body": "Input: `{{#foreach missing}}A{{else}}B{{/foreach}}` where `missing` undefined.\nExpected: `B`.\nWhy: pin behaviour from toArray returning [].",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: asset: base_path with trailing slash does not double up",
+    "body": "Input: base_path `/blog/`, asset `app.js`.\nExpected: `/blog/assets/app.js` (single slash).\nWhy: pin joinPath behaviour.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: img_url: works inside foreach (this points to post)",
+    "body": "Input: `{{#foreach posts}}{{img_url this size=\"l\"}}{{/foreach}}`.\nExpected: each iteration renders that post's feature_image.\nWhy: documented common pattern.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: tags: hides tags whose visibility='internal' by default",
+    "body": "Input: tags include one with visibility='internal'.\nExpected: excluded unless includeHidden=true.\nWhy: documented; gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: authors: separator passed but no fn → inline joined output",
+    "body": "Input: `{{authors separator=\" & \"}}`.\nExpected: names joined by ` & `.\nWhy: documented hash; current impl ignores separator — gap pin.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: get: blockParams second name is pagination meta",
+    "body": "Input: `{{#get \"posts\" as |posts pagination|}}{{pagination.resource}}{{/get}}`.\nExpected: per Ghost docs pagination object includes page/limit/pages.\nWhy: pin gap; current impl exposes `{resource}` placeholder only.",
+    "labels": [
+      "testing",
+      "render",
+      "P3"
+    ]
+  },
+  {
+    "title": "test: meta_description: works for tag/author routes via tag.meta_description (gap)",
+    "body": "Input: tag route, `ctx.meta_description='Tag desc'`.\nExpected: returned.\nWhy: documented chain; gap pin if missing.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  },
+  {
+    "title": "test: t: passing multiple hash keys with both {name} and % uses first hash value for %",
+    "body": "Input: template `Hi {name}, % new`. Hash `{name:'Jane', count:3}`.\nExpected: `Hi Jane, Jane new` (per current impl).\nWhy: pin ambiguous mixed placeholder behaviour; potential gap to fix.",
+    "labels": [
+      "testing",
+      "render",
+      "P2"
+    ]
+  }
+]

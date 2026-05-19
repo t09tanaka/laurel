@@ -1,0 +1,687 @@
+[
+  {
+    "title": "theme/casper: {{comment_count}} helper not implemented",
+    "body": "partials/post-card.hbs lines 71-73 and post.hbs use {{comment_count}} with hash params (class=, autowrap=, empty=, singular=, plural=). Nectar src/render/helpers/content.ts does not register comment_count; the helper resolves to '' so the count badge in the post feed is missing. Implement a no-op or static stub that outputs the wrapper span/div Casper's CSS targets (`.post-card-meta-length`) plus accept hash params, even if the count itself is always 0 for static builds.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: @site.comments_enabled / members_enabled / members_invite_only flags missing",
+    "body": "default.hbs:44,52,60 and post.hbs:102 read `@site.comments_enabled`, `@site.members_enabled`, `@site.members_invite_only`. Our SiteData (src/content/model.ts) lacks these booleans, so the head/foot subscribe UI and CTA logic short-circuits to default branches. Add booleans to SiteData populated from config (e.g. config.members.enabled, comments.enabled).",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: @member / @member.paid context unavailable",
+    "body": "default.hbs:59-68, post.hbs:103-118 use `{{#unless @member}}` / `{{else}}` and access gating. buildRootData() in src/render/engine.ts currently hardcodes `member: undefined`, which is correct for unauthenticated SSG but Casper expects the conditional branches to render the signed-out marketing UI; verify the `{{else}}` branch (subscribe CTA) actually renders by adding tests for unauth path, and document a way to inject `member` for preview.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: {{access}} block / property unimplemented",
+    "body": "post.hbs:105 and partials/post-card.hbs:4,22,51 read `{{#unless access}}` and `{{#if access}}` to gate paid content. Nectar does not provide an `access` boolean per post (true when the visitor can read it). Without it, Casper always renders the access-overlay (`.post-access-...`, padlock icon) and never the post body. Implement a default `access=true` on the post context when no auth, and `false` for posts whose visibility=members/paid.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: `{{has visibility=\"public\"}}` negated form `{{^has visibility=\"public\"}}` works only by accident",
+    "body": "partials/post-card.hbs:23,52 use `{{^has visibility=\"public\"}}` followed by `{{#has visibility=\"members\"}}`. Our `has` helper (src/render/helpers/blocks.ts) accepts visibility, but it breaks on `{{else}}{{#has visibility=\"members\"}}` chains when ctx.visibility is missing. Verify ctx.visibility is always non-empty on post objects (default 'public') and add tests for the inverted form.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: custom config `image` type values would need URL resolution (it has none, but Headline/Dawn/Alto/Liebling do)",
+    "body": "Casper itself only uses select/boolean/text in package.json custom. However the broader fleet (Headline, Dawn, Alto, Liebling) declares `type: image` settings (white_publication_logo_for_transparent_header, white_logo_for_dark_mode, dark_mode_logo). buildCustom() in src/render/engine.ts just merges plain values; ensure `@custom.<name>` for image fields returns a proper resolvable URL string. Add doc + test that image-type customs work with img_url and a direct {{@custom.x}}.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: error.hbs (404) template not wired up",
+    "body": "Casper ships error.hbs and error-404.hbs (visible in repo tree). Nectar's build/routes.ts does not appear to emit /404.html using error.hbs. Add a synthetic 404 route that compiles error.hbs/error-404.hbs into out/404.html. Verify build pipeline emits this file when present in the theme.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/casper: {{t}} hash-key interpolation expects `{key}` braces (already supported), but t key registry lookup not validated against Casper's locales",
+    "body": "Casper's locales/*.json keys are full English sentences with `{varname}` placeholders. Our t helper in src/render/helpers/i18n.ts substitutes `{key}` and falls back to the literal key when missing — good. However Casper's locales/de.json etc. have not been smoke-tested with Nectar's loader (src/theme/loader.ts). Add a test that runs Casper with a non-en locale and asserts placeholders render correctly.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: {{contentFor}} / {{block}} content-blocks system unsupported",
+    "body": "Although Headline itself does not use contentFor, sibling themes (Edition index.hbs:23, Wave default.hbs:11/138, Liebling default/post) rely on `{{#contentFor 'X'}} ... {{/contentFor}}` + `{{{block 'X'}}}`. Nectar's engine has no Ghost-compatible block/contentFor helpers, so the output of the child template's contentFor block is silently lost. Implement these as a pair (collect in pre-pass, expose via {{{block 'name'}}} in default.hbs). Required for Edition/Wave/Liebling and any future Casper variants.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: {{#get \"tags\" include=\"count.posts\" order=\"count.posts desc\"}} not supported",
+    "body": "home.hbs:34-40 and index.hbs:13 use `{{#get \"tags\" include=\"count.posts\" order=\"count.posts desc\" limit=\"3\"}}`. Our get helper in src/render/helpers/blocks.ts ignores the `include` hash, and `applyOrder` calls .localeCompare on nested keys like 'count.posts' (returns 0). Implement include='count.posts' to project the existing tag.count.posts onto sortable top-level, or teach applyOrder to follow dotted paths.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: partial-include hash params (`{{> \"loop-grid\" has_large_post=false}}`) leak into wrong scope",
+    "body": "index.hbs:20 and partials/related-posts.hbs:12 pass hash params to `{{>}}` partials. Vanilla Handlebars merges them into the *context*, but our engine.ts hands the partial a forEach'd post object that is not a plain object. Verify that hash-params on partial-include are reachable as `has_large_post` inside loop-grid.hbs and don't shadow `post.has_large_post`. Add regression test.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: {{#match pagination.pages \">\" 1}} numeric comparison",
+    "body": "home.hbs:7 uses `{{#match pagination.pages \">\" 1}}`. Our match helper (src/render/helpers/blocks.ts:152) coerces via Number() — works — but pagination.pages may be undefined on routes where pagination isn't built (e.g. home with single page). Ensure that pagination is always populated (at least `{page:1, pages:1, total:N}`) so the comparison evaluates false instead of NaN > 1.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: @config.posts_per_page context missing",
+    "body": "index.hbs:13 reads `limit=@config.posts_per_page`. buildRootData() exposes `config: engine.config` but Ghost themes expect `@config.posts_per_page` derived from theme package.json `config.posts_per_page`, not Nectar's own config schema. Wire `@config` to the parsed theme pkg.config (or merge it) so this expression returns 7 (Headline's default).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: {{#get \"posts\" filter=\"tag:{{slug}}\" limit=\"7\"}} interpolation inside filter strings",
+    "body": "partials/topic-grid.hbs:7 uses `filter=\"tag:{{slug}}\"` — interpolation inside a filter value. Our get helper does run a regex replacement (`{{post.id}}` style), but only for `{{path.like.this}}`. With a bare `{{slug}}` (no dot path) ensure ctx.slug from the foreach'd tag substitutes correctly. Add a test using Headline's topic grid loop.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: custom field `type: image` requires URL output, not raw value",
+    "body": "package.json declares `white_publication_logo_for_transparent_header` as type=image. Templates expect `{{@custom.white_publication_logo_for_transparent_header}}` to yield a usable image URL. Nectar passes whatever string is configured. Document and validate that image-type customs are stored as resolvable URLs and that {{img_url @custom.x}} produces correct output (currently img_url just returns the path).",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: tags.[3] array-index syntax in {{#if tags.[3]}}",
+    "body": "home.hbs:56 uses `{{#if tags.[3]}}` (Handlebars array indexing). This is a Handlebars built-in; verify it works in Nectar's environment without registering any extra helper, and add a smoke test (Headline's secondary sections would crash otherwise).",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/headline: custom-full-feature-image.hbs / custom-wide-feature-image.hbs alternate templates",
+    "body": "Headline ships empty custom-*.hbs files used by Ghost's admin template picker. Nectar must treat any file starting with `custom-` as a selectable template variant and surface it in post/page schema so that show_title_and_feature_image / template selection works. Add discovery + per-post `custom_template` field.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: visibility=\"filter\" branch in {{#has}} unhandled",
+    "body": "partials/content-cta.hbs:10 uses `{{#has visibility=\"filter\"}}` for tier-gated posts. Our has helper (src/render/helpers/blocks.ts:67) only checks `ctx.visibility === 'filter'`. Ghost's actual semantics: visibility is one of 'public','members','paid','tiers','filter'. Verify Nectar's Post.visibility union accepts these values (currently restricted to 'public'|'members'|'paid' in src/content/model.ts:74).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: {{tiers}} variable for tier-gated posts not provided",
+    "body": "partials/content-cta.hbs:11 reads `tiers=tiers`. Ghost binds a `tiers` array on the post context with the tiers gating the visibility. Nectar's Post model has no `tiers` field. Add tiers: Tier[] to Post and a Tier type ({name, slug, monthly_price, yearly_price}). Without it, the CTA falls back to empty string.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: {{#contentFor \"body_class\"}} from index.hbs lost",
+    "body": "index.hbs:23 emits `{{#contentFor 'body_class'}}...{{/contentFor}}` to inject `with-full-cover is-head-transparent` into the body class. default.hbs:14 reads `{{{block 'body_class'}}}`. Without contentFor/block support, the homepage cover styling never activates. Implement Ghost-compatible block/contentFor (see headline P0 issue).",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: prev_post / next_post block helpers not registered",
+    "body": "partials/content.hbs:59,90 use `{{#prev_post}}...{{/prev_post}}` and `{{#next_post}}`. Nectar does not register prev_post/next_post as block helpers; Post model has prev/next fields (src/content/model.ts:93-94) but no helper exposes them on the inline-block syntax Ghost uses. Implement prev_post/next_post block helpers that delegate to ctx.prev/next.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: @page.show_title_and_feature_image / @page context missing",
+    "body": "partials/content.hbs:3 and page.hbs uses `{{#match @page.show_title_and_feature_image}}`. buildRootData() in src/render/engine.ts sets @page only when route.kind === 'page', but `show_title_and_feature_image` is a Page field. Page model has this boolean but @page only references the current page object; for post routes @page is undefined. Match-helper on undefined returns false → header collapses on posts. Expose @page.show_title_and_feature_image=true as a default for posts.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: {{> \"content\" width=\"wide\"}} hash params not propagated to partial",
+    "body": "post.hbs:6 passes `width=\"wide\"`. content.hbs:39 reads `{{kg-width-{{width}}}}`. Verify hash-params from {{> partial}} reach the partial body. In Nectar's registerPartials() (engine.ts:60-72) partials are raw strings compiled by Handlebars; the param should arrive but a unit test should confirm.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: {{#get ... include=\"authors\"}} include hash unused",
+    "body": "partials/related-posts.hbs uses `include=\"authors\"`. Our get helper ignores `include`; results already carry tags/authors because they're embedded in Post. Verify and add an assertion: the include hash is a no-op for Nectar (since relations are eagerly loaded) but should not crash.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: comments helper hash params (title=\"\" count=false) ignored",
+    "body": "partials/comments.hbs:7 invokes `{{comments title=\"\" count=false}}`. Our comments helper (src/render/helpers/content.ts:112) emits a static div regardless of hash. Accept and forward hash params (title, count) as data attributes for the comments client to consume.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/edition: custom 'Minimal' / 'Right thumbnail' feed_layout select values are case-sensitive in match",
+    "body": "default.hbs/index.hbs use `{{#match @custom.feed_layout \"Right thumbnail\"}}`. Our match uses strict === comparison. Ensure that select-value strings preserve case from package.json (already do) and that no normalisation strips spaces or lowercases values during config load (src/config/loader.ts).",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: {{block}} / {{contentFor}} for title/scripts/body_class/description",
+    "body": "default.hbs:9-12,18,138 uses `{{block \"title\"}}`, `{{{block \"description\"}}}`, `{{{block \"body_class\"}}}`, `{{{block \"scripts\"}}}`. Nothing in our engine supports these. Until implemented, Wave's `<title>` and dynamic body classes resolve to empty strings on the `blog` route. Critical P0.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: `blog.hbs` empty template + custom routing required",
+    "body": "Wave ships an empty `blog.hbs` (0 bytes) and an `rss.hbs`. These rely on Ghost's routes.yaml/channel routing where `/blog/` is a custom channel. Nectar has no channel/routes.yaml support; the page is never emitted. Decide on routes.yaml support and/or fallback to index.hbs.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: `is_popup` context variable for subscribe form unsupported",
+    "body": "default.hbs:92 reads `{{#if is_popup}}`. This is set by Ghost when rendering the subscribe iframe popup. Nectar should always treat is_popup=false, but make sure the variable is *defined* (not undefined → no crash) and document. Effect on Wave: extra `.popup` class never added — safe to ignore.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: og_description used as audio podcast src URL",
+    "body": "partials/player.hbs:3 uses `<audio src=\"{{og_description}}\">`. Wave abuses og_description as a podcast audio URL. Nectar exposes og_description (model.ts:85) — verify it round-trips raw (not HTML-escaped or replaced with meta_description). Ensure {{og_description}} preserves the original URL and tests cover this.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: {{#unless @site.secondary_navigation}} requires navigation array",
+    "body": "default.hbs:78,83 uses `{{#unless @site.secondary_navigation}}`. Our SiteData has secondary_navigation (model.ts:14) as NavigationItem[]. Empty array is *truthy* in Handlebars unless the registerHelper override returns falsy for empty arrays. Verify unless behaves correctly with empty arrays — likely need to coerce empty arrays to falsy somewhere or update Wave-style usage. Document edge case.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: comment_count helper invocations like `{{comment_count class=\"gh-comments-count\"}}`",
+    "body": "post.hbs:43 and others. comment_count not implemented (see casper P1). Wave displays the count next to share-button. Implement comment_count to emit a `<span class=\"...\" data-ghost-comment-count></span>`.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: jQuery 3.3.1 CDN dependency baked into default.hbs",
+    "body": "default.hbs:131 hard-codes a jQuery CDN URL. This is theme-side, not Nectar's problem, but if Nectar's CSP/SRI features ever bundle external scripts, ensure no rewriting of integrity hash. Document as 'theme limitation, leave untouched'.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/wave: {{#foreach authors}}{{> author-box}}{{/foreach}} expects author context with social fields",
+    "body": "post.hbs:35-37 + partials/author-box.hbs reads twitter/facebook/linkedin/bluesky/mastodon/threads/tiktok/youtube/instagram. Our Author model (src/content/model.ts:20-41) covers all of these. Good. But `{{social_url type=\"twitter\"}}` requires the context to be a single Author, not the post — verify foreach changes `this` correctly. Add test.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/dawn: {{#match pagination.page 2}} when pagination object absent on home with single page",
+    "body": "default.hbs (and `partials/content.hbs` in Dawn family) uses `{{#match pagination.page 2}}` to preload page 2. If `pagination` is undefined on the first home render, comparing `undefined === 2` is false — fine. But ensure pagination object is always provided with default {page:1,pages:1} (see Headline note).",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/dawn: {{> \"srcset\"}} partial includes need access to outer ctx.feature_image",
+    "body": "partials/srcset.hbs references `feature_image` directly, expecting the parent scope to have it. Our registerPartials registers partials as raw strings; Handlebars defaults to passing the current `this` into the partial, so this should work, but add a test asserting partials/srcset.hbs resolves feature_image when invoked from inside a foreach.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/dawn: custom-narrow-feature-image.hbs / custom-no-feature-image.hbs alternate post layouts",
+    "body": "Dawn ships three custom-*.hbs alternate post layouts. Nectar must select the right template based on the post's `custom_template` field. See Headline issue. Without selector, all posts use default post.hbs.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/dawn: feed-calendar uses `{{date published_at format=\"DD\"}}` (positional date argument)",
+    "body": "partials/loop.hbs:6 passes `published_at` as positional arg to date helper, separate from format=. Our date helper (src/render/helpers/date.ts:19) accepts a positional arg first — verify and add test specifically for `{{date published_at format=\"MMM\"}}`.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/dawn: cover.hbs subscribe form `data-members-form` HTML structure expected",
+    "body": "partials/cover.hbs:24-31 hand-rolls a subscribe form using `data-members-form` and `data-members-email`. Nectar's subscribe_form helper emits a different shape. Decide if Nectar should attempt to substitute or just leave the form (no JS to bind). Document that data-members-form-style forms are inert in static build.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: package.json custom field `type: color` for background_color",
+    "body": "Solo is the only theme using `type: color`. Templates expect `{{@custom.background_color}}` to be a CSS-valid color (`#xxxxxx`). Nectar's buildCustom() returns whatever was set — make sure config schema validates color format and doesn't strip the leading #. Add explicit color-type handling and a unit test.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: primary_tag.accent_color not on Tag model",
+    "body": "post.hbs:47 uses `style=\"--tag-color: {{primary_tag.accent_color}}\"`. Tag in src/content/model.ts:43-54 has no accent_color field. Add accent_color: string|undefined to Tag and ensure import from Ghost preserves it. Without it, the CSS variable is set to empty string and the styled tag chip loses its color.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: comment_count helper with empty=/singular=/plural= hash params",
+    "body": "post.hbs:55 calls `{{comment_count empty=\"\" singular=(t \"comment\") plural=(t \"comments\")}}`. Nectar must implement comment_count to accept these formatting hash params even when always rendering 0 (e.g. emit `<span data-comment-count>0 comments</span>` using the plural form).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: {{#prev_post}} / {{#next_post}} block helpers",
+    "body": "post.hbs:63-66 and 73-76. Same as Edition/Bulletin/Journal: implement prev_post/next_post block helpers backed by post.prev/post.next.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: post `{{#unless feature_image}}` fall-through layout — verify post_class CSS",
+    "body": "Solo's post.hbs has a no-image fallback that re-uses gh-content. This depends on Casper-derived CSS classes (`.gh-canvas`, `.gh-content`). Nectar's source theme uses similar classes; ensure no Nectar-side CSS rewriting drops `.gh-` prefix.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/solo: header_section_layout values like 'Typographic profile' need to round-trip through config",
+    "body": "package.json custom.header_section_layout has 3 options including 'Typographic profile' (with space). config/loader.ts should preserve string verbatim for match comparisons in default.hbs.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/alto: {{#get \"posts\" filter=\"featured:true\" limit=\"10\" include=\"tags\" as |featured|}} block-param syntax",
+    "body": "partials/featured.hbs:1 uses `as |featured|` block params. Our get helper supports block params (src/render/helpers/blocks.ts:124) but the test coverage is thin; add a regression test for Alto's featured carousel including the inverse branch ({{#if featured}}).",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/alto: @site.secondary_navigation truthiness for non-empty array",
+    "body": "default.hbs:78,83 uses `{{#unless @site.secondary_navigation}} no-menu{{/unless}}`. SiteData.secondary_navigation is an array; an empty array is truthy in Handlebars, so {{#unless}} renders unexpectedly. Document the gotcha or override unless/if to treat empty arrays as falsy (Ghost's behavior). Affects Wave/Dawn/Alto/London identically.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/alto: comment_count class hash-param + reading_time hash params already use t-helper subexpression",
+    "body": "partials/loop.hbs:34 calls `{{reading_time minute=(t \"1 min read\") minutes=(t \"% min read\")}}` mixing helper-subexpression with hash params. Nectar's reading_time helper (content.ts:34) accepts `minute=` and `minutes=` — confirm subexpression args resolve before being passed. Add test.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/alto: white_logo_for_dark_mode image custom + img_url chain",
+    "body": "default.hbs:24 uses `{{img_url @custom.white_logo_for_dark_mode}}`. img_url helper (src/render/helpers/assets.ts) expects a string or object — passing a custom-config value works only if buildCustom stores the URL string. Verify image-type customs hit the img_url string branch correctly with absolute=true also.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/alto: pswp lightbox partial inclusion in `{{#is \"post, page\"}}`",
+    "body": "default.hbs:96 wraps pswp lightbox in `{{#is \"post, page\"}}`. Our is helper splits on comma — already supported. Add Alto-specific snapshot test that pswp appears only on post/page routes.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/ease: load-more button (`<button class=\"gh-loadmore\">`) requires infinite-scroll JS",
+    "body": "ease/index.hbs:52 and ease/tag.hbs:30 emit a `gh-loadmore` button. The shared-theme-assets script handles this on real Ghost. Nectar should document that load-more requires the shared-theme-assets JS to be vendored, or the button just sits inert.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/ease: {{#match @page.show_title_and_feature_image}} on page route",
+    "body": "ease/page.hbs:8 uses `{{#match @page.show_title_and_feature_image}}`. Same fix as edition P0 — @page must always expose show_title_and_feature_image (default true).",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/ease: very small theme — verify default.hbs members nav UI degrades when @member/@site.members_enabled flags missing",
+    "body": "ease/default.hbs:34-57 mirrors Casper's members UI but with the same dependency on @site.members_enabled etc. Confirm the falsy-fallback branch produces a usable layout.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: @labs.subscribers legacy flag",
+    "body": "editorial/post.hbs:31 uses `{{#if @labs.subscribers}}`. buildRootData() sets `labs: {}` (engine.ts:136). Subscribers section never renders. Either expose labs.subscribers=true by default (Editorial is legacy) or document that @labs.* is always empty so old themes silently lose features.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: {{twitter_url @site.twitter}} / {{facebook_url @site.facebook}} helpers unimplemented",
+    "body": "editorial/default.hbs:36,39 uses positional helpers `{{twitter_url X}}` and `{{facebook_url X}}`. These are Ghost-standard helpers Nectar does not register (only `social_url type=` is registered). Implement twitter_url and facebook_url that take a positional handle/URL argument.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: subscribe_form helper expects placeholder hash param",
+    "body": "editorial/post.hbs:35 calls `{{subscribe_form placeholder=\"youremail@example.com\"}}`. Our subscribe_form helper (content.ts:116) emits a static form ignoring the hash. Accept `placeholder` and inject into the input element.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: {{#get \"posts\" slug=\"contact\" as |contact|}} get-by-slug",
+    "body": "editorial/partials/sidebar.hbs:30 calls `{{#get \"posts\" slug=\"contact\"}}`. Our get helper does not parse `slug=` hash as a filter; it only accepts `filter=` and `order=`/`limit=`. Either translate `slug=` into a `filter='slug:X'` or add explicit hash handling.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: {{#foreach navigation}} expects `current` field on items",
+    "body": "editorial/partials/navigation.hbs:7 uses `{{#if current}}active{{/if}}`. NavigationItem in src/config/schema.ts does not include a `current` boolean. The navigation helper in src/render/helpers/navigation.ts also doesn't compute current state per item. Add current=true on the matching item based on route.url.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: {{#foreach navigation}}{{slug}}{{/foreach}} needs `slug` field on nav items",
+    "body": "Same partial line 7 uses `nav-{{slug}}` class. NavigationItem in schema (label + url) lacks slug. Either derive slug from label (slugify) or expose explicit slug field.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/editorial: legacy theme contains inline gallery <script> inside post.hbs body",
+    "body": "editorial/post.hbs:71-80 embeds a runtime `<script>` that walks `.kg-gallery-image`. This is rendered raw and depends on Koenig gallery card markup. Nectar should ensure gallery card HTML (from markdown content) matches `.kg-gallery-image > img[width][height]` shape; otherwise the inline script no-ops silently. Document Koenig card markup requirements.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: {{#get \"posts\" fields=\"id\" limit=\"10\" page=\"2\"}} fields + page hash params",
+    "body": "partials/article.hbs:49 uses `fields=\"id\"` (column projection) and `page=\"2\"` (pagination). Our get helper ignores both. Add hash-param parsing for `page=` (offset = (page-1)*limit) and `fields=` (project subset of fields, even if just to honor docs).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: t-helper interpolation with HTML inside concat subexpr",
+    "body": "partials/article.hbs:8 uses `{{{t \"in {primaryTag}\" primaryTag=(concat \"<a class=...>\" primary_tag.name \"</a>\")}}}`. Verify our t helper preserves HTML content from named arguments (does not double-escape). Our interpolate() function does `replaceAll(`{${key}}`, String(value))` — should be safe with triple-stash, but add test.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: home.hbs branching on @member vs @site.members_enabled with three-state fallback",
+    "body": "bulletin/home.hbs has nested {{#if @site.members_enabled}}{{#unless @member}}...else...{{/unless}}{{else}}...{{/if}}. Make sure both flags are reliably present in @site/@member context (see casper P0). Without them, all three branches collapse to the bottom 'foreach posts limit=\"1\"' branch, which is actually a safe degradation but visually wrong.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: `pagination.total` and `pagination.page` numeric fields used",
+    "body": "index.hbs:14 reads `pagination.total`. Our PaginationLike type (src/render/helpers/navigation.ts:64) exposes page/pages/prev_url/next_url but not `total`. Add `total: number` to pagination output.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: feature_image_width custom select for post header layout",
+    "body": "partials/article.hbs:2 toggles classes off `@custom.feature_image_width`. Default value 'Wide'. Confirm config-loader hands the string through unmodified and {{#match ... \"Wide\"}} fires.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/bulletin: @site.icon for site icon meta",
+    "body": "home.hbs:38 reads `{{@site.icon}}`. Our SiteData has icon (model.ts:11) but config/loader.ts should populate it from config.theme.icon (or similar). Verify a default site icon round-trips.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/digest: {{#get \"posts\" fields=\"id\" page=\"2\"}} archive detection idiom",
+    "body": "digest/partials/content.hbs:46 uses the same fields/page idiom as Bulletin. Same fix required: support `page=` hash param in get helper to enable second-page existence check.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/digest: {{#unless access}} on article-footer class for paid-only borderless layout",
+    "body": "digest/partials/content.hbs:31 reads `{{#unless access}} no-border{{/unless}}`. Same `access` context requirement as Casper P0. Without it the class is always applied, leading to visible no-border state on non-paid posts.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/digest: @site.recommendations_enabled flag",
+    "body": "digest/index.hbs probably (and journal/index.hbs:128) read `{{#if @site.recommendations_enabled}}`. Not in SiteData. Add the boolean (default false) and document that Nectar does not implement recommendations server-side.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/digest: {{recommendations}} helper unimplemented",
+    "body": "digest/home.hbs and journal/index.hbs:133 use `{{recommendations}}`. This is a Ghost 5.x helper that emits cross-site recommendation cards from `/recommendations.json`. Nectar should at minimum register a no-op helper that emits an empty `<div data-ghost-recommendations></div>` to avoid SafeString-undefined errors.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/digest: home.hbs as separate template (no {{!< default}} header)",
+    "body": "digest/home.hbs is just `{{!< default}}` — uses Ghost's convention where 'home.hbs' overrides 'index.hbs' on the home route specifically. Nectar's routes/template-resolution (src/build/routes.ts) must prefer home.hbs over index.hbs when route.kind === 'home'. Verify and add test using Digest.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/journal: {{#if @setting.paid_members_enabled}} uses @setting (not @site)",
+    "body": "journal/index.hbs:87 uses `{{@setting.paid_members_enabled}}`. Ghost exposes @setting as a parallel context to @site. Nectar provides only @site/@blog/@config. Add @setting as an alias for @site (or with explicit settings subset) so legacy themes work.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/journal: {{^if @member.paid}} negated if on member.paid",
+    "body": "journal/index.hbs:74 uses `{{^if @member.paid}}` (negated if). Handlebars resolves @member→undefined, accessing .paid still undefined → ^if renders the block. Verify that {{^if X}} on undefined nested path correctly renders the inverse branch.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/journal: pagination.total used to gate 'A collection of N issues' string",
+    "body": "Similar to Bulletin: requires pagination.total numeric field. Add `total` to pagination payload (src/build/pipeline.ts or wherever pagination is computed).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/journal: ^is \"paged\" inverse-route check",
+    "body": "journal/index.hbs:5,37 use `{{^is \"paged\"}}` to render the 'latest issue' card only on page 1. Our `is` helper supports `paged` (returns true if pagination.page > 1) — confirm the inverse also works correctly via the helper's `inverse` branch.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/journal: {{#foreach posts from=\"2\"}} skip-first-post idiom",
+    "body": "journal/index.hbs:38 uses `{{#foreach posts from=\"2\"}}`. Our foreach (blocks.ts:13) supports `from=` and `to=` — confirm that from=2 + no limit yields posts[1..end]. The implementation slices `from - 1` to `to` where to defaults to `from + limit - 1`. Bug: when limit is omitted, limit = items.length, so to = 2 + items.length - 1 — OK. Add explicit test for journal's idiom.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/ruby: primary_tag.accent_color in CSS variables",
+    "body": "ruby/post.hbs:10 uses `style=\"--tag-color: {{primary_tag.accent_color}};\"`. Same Tag model fix as Solo. Add accent_color to Tag.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/ruby: t-helper with sub-expression `(authors)` inline",
+    "body": "ruby/post.hbs:11 uses `{{{t \"By {authors}\" authors=(authors) }}}`. The subexpression `(authors)` calls our authors helper with no fn → returns names joined ', '. Verify the helper returns a plain string (currently it does when options.fn is absent — content.ts:54).",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/ruby: legacy post-navigation partial uses {{#prev_post}}/{{#next_post}} (see Edition P0)",
+    "body": "ruby/partials/post-navigation.hbs requires prev_post / next_post block helpers. Same global fix as Edition/Bulletin/Solo/Digest.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/ruby: related-posts.hbs likely uses {{#get \"posts\" filter=\"tags:[{{post.tags}}]+id:-{{post.id}}\"}}",
+    "body": "Verify Ruby's related-posts.hbs filter syntax with array interpolation. Our get helper's filter handles `+` AND-joins and `[a,b]` lists; verify interpolation `{{post.tags}}` in a filter value produces a comma-joined slug list. blocks.ts:262 does `{{path.like.this}}` interpolation. `post.tags` is an array of Tag objects, not a comma-string — output would be `[object Object],[object Object]`. Need special-case to map tags→slugs joined by commas.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/london: {{#has number=\"nth:3\"}} nth-index predicate",
+    "body": "london/partials/post-card.hbs:8 uses `{{#has number=\"nth:3\"}}post-card-large{{/has}}`. Our has helper (blocks.ts:98) only supports exact number matches against pagination.page — not the `nth:N` modulo predicate used here on @number from foreach. Implement `nth:N` to test (index+1) % N === 0.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/london: legacy theme, missing partials/icons referenced (avatar/ghost-logo/infinity etc.)",
+    "body": "London's partials include icons like infinity.hbs and ghost-logo.hbs which Casper-derived themes never use, but they ship in the bundle. Verify Nectar's theme loader (src/theme/loader.ts) traverses all hbs files under partials/ regardless of whether referenced. No bug per se, but a confirmation test.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/london: dark-mode and infinite-scroll CSS depends on `.gh-card-image` Koenig markup",
+    "body": "London's screen.css (not inspected) relies on Koenig card HTML emitted from markdown. Verify Nectar's markdown→HTML pipeline (src/content/markdown.ts) emits `kg-image-card`, `kg-gallery-card`, `kg-bookmark-card`, `kg-callout-card`, `kg-toggle-card`, `kg-button-card`, `kg-product-card` classes so that any Casper-family theme's CSS keys correctly. Cross-cutting across all themes.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/london: meta_title with page= positional hash (`page=(t \" (Page %)\")`)",
+    "body": "london/default.hbs:10 uses `{{meta_title page=(t \" (Page %)\")}}` — t-subexpression returns a string with `%`. Our meta_title (content.ts:79) accepts page=, replaces % with pagination.page. Verify the chain t→meta_title preserves the `%` placeholder.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: {{#contentFor \"preload\"}} / `styles` / `scripts` / `herobackground` block system",
+    "body": "Liebling's post.hbs, page-newsletter.hbs, etc. heavily use contentFor/block. Without Nectar's block helper (see Headline P0), all asset preloads, page-specific stylesheets, and per-page scripts are dropped. P0 for Liebling support.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: {{> header background=feature_image}} hash-param passed to partial as scope variable",
+    "body": "post.hbs:22 calls `{{> header background=feature_image}}`. Inside header.hbs, `{{#if background}}` must resolve. Handlebars partial-include with hash creates a new context layer — verify this works in Nectar (no custom partial resolver).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: {{#has author=\"count:>1\"}} count-comparison predicate",
+    "body": "post.hbs:127 uses `{{#has author=\"count:>1\"}}`. Our has helper (blocks.ts:67) only matches exact slug/name, not the `count:>1` modifier. Implement `count:OPN`  where OP is >, <, =, >=, <= and N is integer; evaluates against ctx.authors.length (or tags.length for tag key).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: {{authors separator=\", \" prefix=(t \"Among with...\") from=\"2\"}} extra authors helper hash params",
+    "body": "post.hbs:129 uses `prefix=` and `from=` on the authors helper. Our authors helper (content.ts:46) only joins by ', '. Add `separator`, `prefix`, `suffix`, `from`, `limit` hash params (Ghost's signature).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: page-authors.hbs and page-newsletter.hbs custom routing",
+    "body": "Liebling ships page-authors.hbs and page-newsletter.hbs — these are routed via routes.yaml on Ghost. Nectar needs either routes.yaml support or filename-based convention (`page-{slug}.hbs` for matching page slug). Same shape as Casper's custom-{name}.hbs. Confirm template resolution order: custom-template → page-{slug}.hbs → page.hbs.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: enable_native_search custom + ghostSearchApiKey JS injection",
+    "body": "default.hbs:99-109 conditionally injects `<script>const nativeSearchEnabled = true; const ghostSearchApiKey = '...'</script>`. The `@custom.search_api_key` is an API key (sensitive). Make sure Nectar's config layer doesn't accidentally leak secret keys in committed configs; document expected handling.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: `data-members-form=\"subscribe\"` newsletter form requires Ghost Members JS",
+    "body": "partials/newsletter-form.hbs uses `data-members-form=\"subscribe\"` — Ghost Members' Portal script wires this up. Static Nectar builds don't include Portal. Either ship a minimal subscribe form handler in assets or document that subscribe forms are inert without Portal JS.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/liebling: `{{{block \"herobackground\"}}}` head-style injection from partials/hero.hbs",
+    "body": "default.hbs:80 emits `{{{block 'herobackground'}}}` — this is Liebling's pattern of contentFor-ing a `<style>` block from the hero partial into <head>. Without contentFor, the responsive hero CSS doesn't load. Track as a sub-issue of block/contentFor implementation.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: legacy {{action}}/{{hidden}}/{{script}} helpers in subscribe_form",
+    "body": "biron/partials/subscribe_form.hbs (and Krabi members templates) use `<form action=\"{{action}}\">{{hidden}}{{script}}</form>`. These are Ghost 1.x-2.x helpers that the subscribe_form helper auto-populated as form action+csrf+JS. Nectar should either register no-op `action`/`hidden`/`script` helpers that emit safe defaults (action='/members/api/send-magic-link', hidden=hidden inputs, script='') or refuse to compile and document legacy unsupported.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: {{cancel_link class=\"...\" errorClass=\"...\"}} helper",
+    "body": "krabi/members/account.hbs:58-66 uses `{{cancel_link}}` — Ghost helper that outputs an HTML anchor that calls /members/api/cancel-subscription. Nectar does not register it. Emit a placeholder `<a data-cancel-subscription class=\"{{class}}\">Cancel subscription</a>` even if non-functional in static builds.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: {{price plan.amount}} positional price helper",
+    "body": "krabi/members/account.hbs:27 uses `{{ price plan.amount }}`. Ghost's price helper formats an amount divided by 100 with the currency. Nectar has no price helper. Register a price helper that formats Number(amount)/100 with currency from sibling plan.currency.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: @member.subscriptions / plan / default_payment_card_last4 context",
+    "body": "krabi/members/account.hbs heavily reads `@member.subscriptions[].cancel_at_period_end`, `.current_period_end`, `plan.currency_symbol`, `plan.interval`, `default_payment_card_last4`. Nectar exposes member: undefined statically. Provide TS interfaces for Member/Subscription/Plan so themes don't crash on undefined; or build a stub that resolves all subscription paths to empty values.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: members/signin.hbs members/signup.hbs members/subscribe.hbs members/account.hbs as templates",
+    "body": "Krabi ships members/{signin,signup,subscribe,account}.hbs. These are routed via Ghost's hidden /members/* routes. Nectar should either emit static copies at /members/account/index.html etc. or document that members/* templates are not routed in static builds.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: @labs.members flag (deprecated)",
+    "body": "krabi/post.hbs:28 uses `{{#if @labs.members}}`. labs.members was a Ghost 2.x flag. buildRootData() returns `labs: {}`. Set labs.members=true when @site.members_enabled is true so old themes degrade gracefully.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/krabi: default-wide.hbs alternative layout via `{{!< ../default-wide}}`",
+    "body": "krabi/members/account.hbs:1 uses `{{!< ../default-wide}}`. Nectar's layout splitter (src/render/layouts.ts splitLayout) must resolve `../default-wide` (relative path navigating up out of members/ subdir). Add resolver for relative `..` paths in `{{!<}}` directive.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "theme/biron: {{action}} / {{hidden}} / {{script}} / {{input_email autofocus=...}} helpers",
+    "body": "biron/partials/subscribe_form.hbs uses old form helpers and additional hash params like `class=` `placeholder=` `value=` `autofocus=` on input_email. Our input_email (content.ts:122) only honors `placeholder`. Add full hash-param support: class, value, autofocus, id.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/biron: {{{error.message}}} runtime error display",
+    "body": "biron/partials/subscribe_form.hbs:14 reads `{{{error.message}}}`. Ghost set `error` in the rendering context when /subscribe POST failed. Nectar never sets `error`. The conditional `{{#if error}}` will be false → no rendering. Safe. Document.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "theme/biron: {{#foreach navigation}} expects `slug` field (slugified label)",
+    "body": "biron uses similar nav pattern to Editorial. Same need for `slug` on NavigationItem.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/biron: t-helper with positional+hash combo `{{t \"Page {page} of {pages}\" page=page pages=pages}}`",
+    "body": "biron/partials/pagination.hbs:7. Our t helper interpolates `{page}` / `{pages}` placeholders. Verify two named placeholders both substitute correctly (not just first).",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "theme/biron: icon-sprite.hbs partial loaded once globally, expected `<symbol>` reuse",
+    "body": "biron/default.hbs:25 invokes `{{> icon-sprite}}` once with all `<symbol>` definitions; biron/partials/icon.hbs then `<use xlink:href=\"#icon-name\">`. Confirm Nectar's HTML emit step does not strip `<symbol>` / `<use>` elements or rewrite their hrefs.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: routes.yaml support absent",
+    "body": "Wave (`blog.hbs`), Liebling (`page-newsletter`), Krabi (`members/*`), and many real-world themes rely on Ghost's routes.yaml for channel routing and custom slug→template mapping. Nectar currently has no routes.yaml parser (no references in src/build/routes.ts). Implement a parser that maps `routes:`, `collections:`, `taxonomies:` from routes.yaml into Nectar's route list. P1 for broad theme compat.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: card_assets package.json config option",
+    "body": "Most modern themes declare `\"card_assets\": true` or `{exclude:[...]}` in package.json config. This tells Ghost to inject `koenig-lexical` card CSS/JS into the page automatically. Nectar's pkg.ts likely reads this but doesn't emit anything. Implement: when card_assets=true, include `cards.min.css/js` from @tryghost/shared-theme-assets (or vendor equivalent).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: Koenig card HTML classes (kg-bookmark-card, kg-gallery-card, kg-callout-card, kg-button-card, kg-product-card, kg-toggle-card, kg-file-card, kg-audio-card, kg-video-card, kg-header-card, kg-nft-card, kg-signup-card)",
+    "body": "Every Casper-family theme's CSS hooks into Koenig card classes for layout. src/content/markdown.ts converts markdown to HTML but probably emits plain <blockquote>, <ul>, <img>, etc. instead of Koenig's `.kg-card .kg-image-card` wrappers. Implement card serialization in the markdown pipeline OR document Nectar's expected card shape and provide a remark plugin to wrap content in kg-* classes.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `data-ghost-search` button → search modal JS",
+    "body": "Casper/Headline/Edition/etc. all sprinkle `<button data-ghost-search>` for the search modal. Ghost auto-loads sodo-search.min.js (from shared-theme-assets) and wires this. Nectar doesn't ship sodo-search. Document and consider vendoring a static search index (Lunr/MiniSearch) wired to `data-ghost-search`.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `data-portal` / `#/portal/*` Members Portal links",
+    "body": "Every Casper-family theme links to `#/portal/signin`, `#/portal/signup`, `#/portal/account`, `#/portal/account/plans` with `data-portal=\"signin\"` etc. Ghost loads portal.min.js. Static Nectar has no portal. Document that these links go nowhere (or rewrite to /signin /signup paths and provide stubs).",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: comment_count helper across Casper/Headline/Edition/Bulletin/Wave/Solo/Alto/Edition/Dawn/Digest/Journal",
+    "body": "13+ themes invoke `{{comment_count ... }}` with various hash params (class, autowrap, empty, singular, plural). Single global fix: register comment_count helper that emits `<span data-ghost-comment-count class=\"{{class}}\">{{plural}}</span>` with placeholders, accepts all hash params.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `kg-width-wide` / `kg-width-full` `kg-canvas` `gh-canvas` `gh-content` layout classes",
+    "body": "Every modern theme expects post HTML to include `<figure class=\"kg-card kg-image-card kg-width-wide\">` etc. on full-width images. Without these, theme CSS for wide/full images is dead. Nectar's markdown pipeline must emit kg-width-* on figure elements (likely via image-card detection or explicit `{:.kg-width-wide}` attributes).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: @site.accent_color CSS variable `--ghost-accent-color`",
+    "body": "Liebling default.hbs:88 reads `--primary-subtle-color: var(--ghost-accent-color)` — Ghost auto-injects `--ghost-accent-color` into ghost_head. Nectar's ghost_head helper (src/render/helpers/ghost-head.ts) does not emit a `<style>:root{--ghost-accent-color:#xxx;}</style>` block. Add it using site.accent_color (already in SiteData).",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: navigation helper expects `nav-{slug}` and `nav-current` classes",
+    "body": "Our navigation helper (src/render/helpers/navigation.ts:5) emits `<li class=\"nav-{slugify(label)}\">` only. Themes (Casper, Edition) inspect generated HTML expecting also `nav-current` on the current item. Add active-item detection by comparing item.url to route.url.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: pagination helper emits HTML but themes mostly hand-roll their own",
+    "body": "Alto, Edition, Wave have `partials/pagination.hbs`; some themes invoke `{{pagination}}`. The helper emits hard-coded English copy (`Newer Posts`, `Older Posts`). Switch to using {{t}} or accept hash params (newer=, older=) for i18n.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: pagination.next_url / prev_url present, but pagination.next / prev block helpers also expected",
+    "body": "Some themes (Dawn old) use `{{#prev}}...{{/prev}}` and `{{#next}}...{{/next}}` block helpers from Ghost's pagination context. Verify Nectar exposes the relevant fields.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: empty pagination object when only one page should still expose .page=1 .pages=1 .total=N",
+    "body": "Many themes do `{{#match pagination.pages \">\" 1}}`. If pagination is undefined the comparison short-circuits but accessing `.page` later may NaN. Always emit pagination = {page:1, pages:1, total:posts.length, prev_url:undefined, next_url:undefined}. Affects Headline, Wave, Bulletin, Journal etc.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: @setting context alias",
+    "body": "Journal (and older themes) read `{{@setting.paid_members_enabled}}`. Add @setting as an alias of @site that surfaces site-wide config. Cheap fix: data.setting = data.site in buildRootData.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `feature_image_caption` is raw HTML, not plain text",
+    "body": "Every theme renders `{{feature_image_caption}}` (typically `<figcaption>{{feature_image_caption}}</figcaption>`). Ghost stores HTML here (e.g. inline links). Nectar's Post.feature_image_caption is `string|undefined` — verify markdown-loader preserves HTML and that {{feature_image_caption}} is *not* escaped. May require `{{{feature_image_caption}}}` triple-stash; survey themes to confirm.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `feature_image_alt` falls back to title across many themes (`{{#if feature_image_alt}}{{feature_image_alt}}{{else}}{{title}}{{/if}}`)",
+    "body": "Just a usage pattern audit: verify ctx.feature_image_alt is string|undefined (model.ts:65 ✓) and that empty string is treated as falsy in {{#if}} (Handlebars default).",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `{{date format=\"YYYY\"}}` with no positional arg uses current date inside footers",
+    "body": "Most default.hbs use `&copy; {{date format=\"YYYY\"}}` in footer. Our date helper (date.ts:30) falls back to new Date().toISOString() — works. Add explicit test that the no-positional form returns the current year.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: meta_title `page=(t \" (Page %)\")` hash param + locale",
+    "body": "London/Alto/Wave use `{{meta_title page=(t \" (Page %)\")}}`. The locale-resolved string becomes the `page` hash; Nectar replaces `%` with pagination.page in content.ts:94. Verify this works end-to-end with non-English locales.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: ghost_head should emit JSON-LD with publisher.logo URL absolute, including 'sameAs' for social",
+    "body": "Our ghost_head (ghost-head.ts:99) emits basic Article/WebSite JSON-LD but omits Ghost's standard fields: mainEntityOfPage, sameAs (social links from site/author), wordCount, articleBody snippet, publisher.logo width/height. Themes don't read this directly but SEO tooling does. Align JSON-LD shape with Ghost's reference output.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: ghost_head should emit `<meta name=\"twitter:site\" content=\"@handle\">` when @site.twitter set",
+    "body": "Our ghost_head misses twitter:site / twitter:creator meta tags. Ghost emits these from site.twitter and post.primary_author.twitter respectively. Add.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: ghost_head should emit Open Graph article:published_time / article:modified_time / article:tag for post routes",
+    "body": "Casper-family themes don't render OG meta themselves — they rely entirely on ghost_head. Our ghost-head.ts JSON-LD has datePublished but no <meta property=\"article:published_time\"> tag. Add for posts.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: post.html should preserve embedded `<style>` and `<script>` from Ghost cards (HTML card, code injection)",
+    "body": "Themes assume {{content}} can include arbitrary cards including `<script>` (HTML card embeds). Nectar's content helper (content.ts:5) wraps html in SafeString — good. But markdown.ts may sanitize and strip <script>. Verify HTML card content survives the markdown pipeline.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: visibility=\"tiers\" Post.visibility union",
+    "body": "Modern Ghost posts can have visibility='tiers' (gated by specific tier IDs). Our Post.visibility (model.ts:74) only accepts 'public'|'members'|'paid'. Casper post-card.hbs treats anything non-public as members/paid lock. Widen the union to include 'tiers' and 'filter'.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: Tag.accent_color, Tag.og_image, Tag.twitter_image, Tag.og_title, Tag.twitter_title, Tag.codeinjection_head, Tag.codeinjection_foot fields",
+    "body": "Modern themes (Solo/Ruby/Headline) read primary_tag.accent_color. Ghost also supports tag-level og_*/twitter_*/codeinjection_*. Add these to Tag in src/content/model.ts:43-54 so themes have full parity.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `{{#is \"home\"}}` vs `{{#is \"index\"}}` semantic difference",
+    "body": "Some themes use `{{#is \"home\"}}` (Casper, Edition) while others use `{{#is \"index\"}}`. Our is helper (blocks.ts:50) aliases home↔index — good. But verify the `home` alias is set on the first page of index pagination (route.kind=='home') and NOT on /page/2 (which should be 'index'/'paged' but not 'home'). Test.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `body_class` per-route includes `home-template`, `paged`, `tag-template`, `author-template`, `archive-template`, `post-template`, `page-template`",
+    "body": "Our computeBodyClass (engine.ts:148) emits these — but Casper CSS expects also `tag-<slug>` and `author-<slug>` on tag/author archives (we set them ✓) AND `error-template` on 404, `private-template` on password page, `home-template` only on /, not /page/2. Verify all variants.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: post_class needs `featured`, `no-image`, `tag-<slug>`, `image-cover`, `feature-image`",
+    "body": "Our computePostClass (engine.ts:165) emits post + tag-<slug> + featured. Themes also check `no-image` (Casper/Solo). Add `no-image` when feature_image is falsy.",
+    "labels": ["ghost-compat", "P2", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `img_url` size hash should resize, not just prefix",
+    "body": "Our img_url (assets.ts:24) takes `size=\"xl\"` but currently *doesn't* generate a resized URL — it returns the original. Implement: lookup theme.pkg.image_sizes[size] and emit `/content/images/size/w{width}/<path>` (Ghost's convention) or generate resized images at build time.",
+    "labels": ["ghost-compat", "P0", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `img_url` with `format=` hash for webp/avif unsupported",
+    "body": "Some themes pass `format=\"webp\"`. Document or implement format negotiation. Currently the hash is silently ignored.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `{{asset}}` with `hasMinFile=\"true\"` selects .min variant",
+    "body": "Our asset helper (assets.ts:8) accepts `hasMinFile` but discards it. Ghost's behavior: in production prefer `<name>.min.<ext>` if present. Implement: if hasMinFile && theme.assets has `<base>.min.<ext>`, use it.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `lang` helper should respect post-level locale override",
+    "body": "Our lang helper (i18n.ts:16) always returns the site locale. Ghost allows posts to override (locale on post). Check and add post.locale support if used.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: secondary_navigation absent when not configured → @site.secondary_navigation should be undefined, not []",
+    "body": "Wave/Alto/London use `{{#unless @site.secondary_navigation}}` and `{{#if @site.secondary_navigation}}`. An empty array is truthy in Handlebars, breaking both conditionals. Either coerce empty arrays to undefined in SiteData or document the gotcha for theme authors.",
+    "labels": ["ghost-compat", "P1", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `{{has tag=\"...\"}}` inside non-post context returns nothing",
+    "body": "Some themes use {{has tag=...}} in get-helper foreach context. Our has helper (blocks.ts:67) reads this.tags. Verify within foreach the iterated post's tags are accessible.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  },
+  {
+    "title": "cross-theme: `published_at` filter operator like `published_at:<'2024-01-01'`",
+    "body": "Themes sometimes use date filters in {{#get filter=\"published_at:<'2024-01-01'\"}}. Our filter parser (blocks.ts:255) doesn't recognize date comparisons or quotes. Add operators >, <, >=, <= on date strings.",
+    "labels": ["ghost-compat", "P3", "theme-dev"]
+  }
+]

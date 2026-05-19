@@ -1,0 +1,327 @@
+[
+  {
+    "title": "members: portal: no `[components.portal]` provider abstraction in nectar.toml",
+    "body": "Ghost's Portal (`portal.min.js`) is loaded automatically by themes via `data-portal=\"signup|signin|account|upgrade|recommendations\"` triggers. Nectar has no server and no built-in portal. Themes that ship the example/Source theme reference `data-portal` 6× in `navigation.hbs` and `post-list.hbs` — those buttons are dead in a Nectar build.\n\n**What Ghost provides**: a single JS bundle that injects an iframe modal handling signup, signin (magic link), account page, paid upgrades, and recommendations.\n\n**What themes expect**: clicking `<button data-portal=\"signup\">` opens a signup modal; the form posts to `/members/api/...` Ghost endpoints.\n\n**What Nectar should provide**: a config-driven adapter so themes keep working unchanged.\n```toml\n[components.portal]\nprovider = \"buttondown\" # or beehiiv | substack | convertkit | bentonow | mailerlite | custom\npublication = \"my-newsletter\"\nsignin_url = \"https://buttondown.email/login\"\naccount_url = \"https://buttondown.email/account\"\n```\nImpl plan: register a build-time post-render transform that scans for `data-portal=\"…\"` and rewrites `href`/`onclick` to the provider's URLs. Provide a tiny `nectar-portal.js` shim that intercepts clicks and opens the provider in a popup. Document the gap (no `@member`, no per-user state) — the shim is one-way (signup only).",
+    "labels": ["members", "api", "ghost-compat", "P0"]
+  },
+  {
+    "title": "members: portal: `<button data-portal=\"signup\">` renders but does nothing without runtime",
+    "body": "Source theme's `navigation.hbs:38-46` and `post-list.hbs:101-115` emit `data-portal` buttons unconditionally when `@site.members_enabled` is truthy. With no Portal JS shipped, the buttons are silent no-ops — terrible first-run UX.\n\nFix: ship `dist/assets/nectar-portal.js` automatically (only when `@site.members_enabled = true` is configured) that:\n  1. Locates every `[data-portal]` element\n  2. For `signup` / `subscribe` opens the configured provider (Buttondown/Beehiiv embed or popup window)\n  3. For `signin` / `account` either redirects to provider URL or no-ops with a console.warn\n  4. For `upgrade` and `recommendations` shows a documented stub\n\nLoad via `{{ghost_foot}}` injection (analogous to how Ghost injects portal.min.js) so users don't have to touch the theme.",
+    "labels": ["members", "render", "ghost-compat", "P0"]
+  },
+  {
+    "title": "members: portal: no Buttondown adapter",
+    "body": "Buttondown is the most common Ghost alternative for indie newsletters. Document and implement a first-class adapter:\n- `<form action=\"https://buttondown.email/api/emails/embed-subscribe/<user>\">` for the inline form (`email-subscription.hbs` shape)\n- Replace `data-members-form` with the Buttondown form action; convert `data-members-email` input name to `email`\n- Optional: add hidden `tag` field from `@site.title` or post frontmatter\n\nKeep the visual markup of `partials/email-subscription.hbs` intact — only the form's `action` and field names change at build time.",
+    "labels": ["members", "api", "P1"]
+  },
+  {
+    "title": "members: portal: no Beehiiv adapter",
+    "body": "Beehiiv exposes `https://embeds.beehiiv.com/<pub-id>?slim=true` as an iframe and `https://api.beehiiv.com/v2/publications/<pub-id>/subscriptions` as POST endpoint. Add adapter that:\n- Rewrites `data-members-form` to POST to a Beehiiv-compatible form-handler URL (CORS-safe via Beehiiv's hosted endpoint)\n- Replaces `data-portal=\"signup\"` button clicks with opening the Beehiiv embed in a modal (or new window)\n- Documents that paid tiers, account management, and member-only content gating are unsupported on the static side",
+    "labels": ["members", "api", "P1"]
+  },
+  {
+    "title": "members: portal: no Substack adapter",
+    "body": "Substack publications expose `https://<pub>.substack.com/subscribe?just_signed_up=true` as a public signup form. Add adapter that rewrites `data-portal=\"signup\"` to open this URL in a popup, and rewrites the embedded `<form data-members-form>` to POST to Substack's `https://substack.com/api/v1/free?nojs=true` (or use the official `subscribe-widget` iframe). Document the lack of per-domain branding control.",
+    "labels": ["members", "api", "P2"]
+  },
+  {
+    "title": "members: portal: no ConvertKit / Kit.com adapter",
+    "body": "ConvertKit (now Kit.com) exposes `https://api.convertkit.com/v3/forms/<form-id>/subscribe` and a hosted form URL `https://<user>.ck.page/<form-id>`. Adapter rewrites `data-members-form` action and adds the `api_key` hidden field (or uses the hosted endpoint to avoid leaking the key). Document that magic-link signin is not supported.",
+    "labels": ["members", "api", "P2"]
+  },
+  {
+    "title": "members: portal: no Bento (bentonow) adapter",
+    "body": "Bento is a popular Ghost-adjacent ESP. Their embed form posts to `https://app.bentonow.com/<site-uuid>/subscribe`. Add adapter parallel to Buttondown/Beehiiv.",
+    "labels": ["members", "api", "P3"]
+  },
+  {
+    "title": "members: portal: no MailerLite / Mailchimp / EmailOctopus adapters",
+    "body": "Many migrators come from these providers. Provide a shared `[components.portal] provider = \"mailerlite|mailchimp|emailoctopus\"` with the relevant form action and field name remapping. Keep adapters in `src/components/portal/<provider>.ts` to make adding more straightforward.",
+    "labels": ["members", "api", "P2"]
+  },
+  {
+    "title": "members: portal: no `provider = \"custom\"` escape hatch with raw form action / field map",
+    "body": "Power users will want full control:\n```toml\n[components.portal]\nprovider = \"custom\"\nform_action = \"https://example.com/subscribe\"\nemail_field_name = \"EMAIL\"\nhidden_fields = { source = \"nectar\", list_id = \"abc123\" }\nsuccess_text = \"Check your inbox to confirm\"\n```\nImpl: the build-time transform reads these and rewrites `<form data-members-form>` with `method=\"POST\"` and the relevant fields. Output success_text near `data-members-error`.",
+    "labels": ["members", "api", "P1"]
+  },
+  {
+    "title": "members: portal: no SSR-time removal mode (`provider = \"none\"`)",
+    "body": "When a user has no newsletter, they should be able to strip all signup UI from the build instead of leaving dead buttons. Add `[components.portal] provider = \"none\"` (or omit the section entirely) that strips elements matching `[data-portal]`, `[data-members-form]`, `[data-members-email]`, plus their wrapping `gh-footer-signup` / `gh-cta` ancestor sections.\n\nGate by a CSS-selector list configurable in `nectar.toml`.",
+    "labels": ["members", "render", "P1"]
+  },
+  {
+    "title": "members: context: `@member` undefined is correct but inconsistent — should be a proxy that swallows any property access",
+    "body": "engine.ts:138 sets `member: undefined`. That's fine for `{{#if @member}}` (falsy → ok). But `{{@member.email}}` or `{{#each @member.subscriptions}}` in some themes crashes Handlebars with `Cannot read properties of undefined`.\n\nFix: set `@member` to a frozen sentinel object whose getter returns `undefined` for any property and an empty array for known collections. Example:\n```ts\nconst memberStub = new Proxy({}, {\n  get: (_, key) => {\n    if (key === 'subscriptions' || key === 'tiers') return [];\n    if (key === 'paid' || key === 'comped') return false;\n    return undefined;\n  },\n});\n```\nDocument: `@member` is *always* truthy-stub-aware; templates that branch on `{{#if @member}}` still see `false` because Proxy with no values is truthy. So leave the sentinel undefined for `#if` and add a separate `@_member` for nested access — or, simpler, recommend themes use `{{#if @member}}` only, and stub nested access via a guarded helper.",
+    "labels": ["members", "ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "members: context: `@member.paid` / `@member.comped` / `@member.tier` need typed stubs",
+    "body": "Several Ghost themes (including Source's `post-list.hbs:104`) do `{{#unless @member.paid}}`. With `@member = undefined`, that resolves truthy (since `undefined.paid` → undefined → falsy in `unless`) — accidentally correct. But `{{@member.subscriptions.length}}` returns NaN strings in some themes.\n\nFix: document explicitly in `docs/GHOST_COMPATIBILITY.md` that:\n- `@member` is always undefined in static builds\n- Nested access returns undefined (Handlebars-safe)\n- `subscriptions`, `tiers`, `email`, `name`, `uuid`, `firstname`, `paid`, `comped`, `status` are all undefined\n\nAdd a render-time warning when a template reads `@member.*` so authors know they're hitting dead context.",
+    "labels": ["members", "docs", "ghost-compat", "P1"]
+  },
+  {
+    "title": "members: context: `@site.members_enabled` should be derivable from `[components.portal].provider != \"none\"`",
+    "body": "Currently `@site.members_enabled` is not even set on SiteData (`src/content/model.ts:3-18`). Source theme branches on it 5× in `header.hbs`, `footer.hbs`, `cta.hbs`, `navigation.hbs`, `post-list.hbs`. Default is `undefined` → falsy → no signup UI ever renders.\n\nFix: derive from config: when `[components.portal]` is present with `provider != \"none\"`, set `site.members_enabled = true`. Add `members_enabled`, `paid_members_enabled`, `recommendations_enabled`, `members_invite_only` to SiteData with explicit defaults.",
+    "labels": ["members", "ghost-compat", "config", "P0"]
+  },
+  {
+    "title": "members: context: `@site.paid_members_enabled` and Stripe-keyed defaults",
+    "body": "Ghost themes branch on `@site.paid_members_enabled` (Source: `post-list.hbs:103`) to decide whether to show 'Upgrade' button. In Nectar this should default `false` unless the user opts into a paid-tier-capable provider (Buttondown paid, Beehiiv premium, Substack paid). Add to SiteData + derive from provider config.",
+    "labels": ["members", "ghost-compat", "config", "P1"]
+  },
+  {
+    "title": "members: context: `@site.recommendations_enabled` flag and recommendations source",
+    "body": "Source theme's `post-list.hbs:111` gates the sidebar recommendations block on `@site.recommendations_enabled`. Without it set, no recommendations appear (this happens to be the safe default — but the corresponding `{{recommendations}}` helper is unimplemented and would crash if reached). Add `site.recommendations_enabled` flag + a `[[recommendations]]` array in `nectar.toml` (see separate recommendations issues below).",
+    "labels": ["members", "ghost-compat", "config", "P1"]
+  },
+  {
+    "title": "members: context: `@site.members_invite_only` for invite-only publications",
+    "body": "Source theme's `navigation.hbs:37` branches on `@site.members_invite_only` to hide the Subscribe button (only show Sign In). For Nectar, expose as `[components.portal] invite_only = true`. When set, the build-time DOM transform removes Subscribe buttons but keeps Sign In links.",
+    "labels": ["members", "ghost-compat", "config", "P2"]
+  },
+  {
+    "title": "members: tiers: no `{{#get \"tiers\"}}` data store",
+    "body": "Ghost exposes free / paid / comp tiers via `{{#get \"tiers\"}}` and `{{tiers}}`. Themes use them to render pricing tables. Nectar has zero tier concept. Decide policy:\n- Option A: out of scope; document and make the helper return `[]` so iteration is no-op.\n- Option B: declarative tiers in `nectar.toml`:\n  ```toml\n  [[tiers]]\n  name = \"Free\"\n  monthly_price = 0\n  description = \"Weekly newsletter\"\n  \n  [[tiers]]\n  name = \"Premium\"\n  monthly_price = 9\n  yearly_price = 90\n  description = \"Plus archives + Discord\"\n  signup_url = \"https://buttondown.email/pay/premium\"\n  ```\n  Then `{{#get \"tiers\"}}` resolves from this static list, `{{price}}` formats it, and Subscribe buttons route to per-tier signup URLs.\n\nRecommendation: B, ranked P0 because tier-driven pricing pages are a top-3 reason migrators stay with Ghost.",
+    "labels": ["members", "tiers", "ghost-compat", "P0"]
+  },
+  {
+    "title": "members: tiers: no `{{price}}` helper",
+    "body": "Ghost's `{{price tier currencyCode=\"USD\"}}` outputs `$9` / `$90` formatted with locale-aware currency. Themes use it heavily on pricing pages. Implement as:\n```ts\nhb.registerHelper('price', (tier, opts) => {\n  const cents = tier?.monthly_price ?? 0;\n  return new Intl.NumberFormat(opts.hash.locale ?? siteLocale, {\n    style: 'currency',\n    currency: opts.hash.currencyCode ?? 'USD',\n  }).format(cents / 100);\n});\n```\nNote: Ghost stores prices in cents. Be explicit in docs about the unit.",
+    "labels": ["members", "tiers", "render", "ghost-compat", "P1"]
+  },
+  {
+    "title": "members: tiers: no `tier` context on member-visibility-keyed posts",
+    "body": "Ghost posts can have `visibility = \"tiers\"` plus a `tiers: [premium]` list. Our Post type only knows `'public' | 'members' | 'paid'`. Extend to `visibility: 'public' | 'members' | 'paid' | 'tiers'` and add `tiers: string[]`. Visibility filter in `blocks.ts` already mostly handles 'paid'; extend.",
+    "labels": ["members", "tiers", "content", "ghost-compat", "P2"]
+  },
+  {
+    "title": "members: tiers: no helper to render a pricing-table partial",
+    "body": "Most Ghost themes ship a hand-written pricing-table that calls `{{#get \"tiers\" filter=\"type:paid\"}}…`. We could ship a built-in partial `nectar/tiers-table.hbs` (registered automatically) so users can drop `{{> nectar/tiers-table}}` into a page. Make styling theme-scoped via classes (`gh-tiers`, `gh-tier-card`).",
+    "labels": ["members", "tiers", "theme-dev", "P3"]
+  },
+  {
+    "title": "members: tiers: free-tier welcome page parity (`/welcome/free`)",
+    "body": "Ghost auto-generates `/welcome/free/` and `/welcome/paid/` from the tier's `welcome_page_url`. Themes link to these from post-signup flows. For Nectar, accept `welcome_page_url` per `[[tiers]]` and emit those as actual content routes if the slug starts with `/welcome/`.",
+    "labels": ["members", "tiers", "routes", "P3"]
+  },
+  {
+    "title": "newsletter: no concept of email-only post vs publish+email post",
+    "body": "Ghost posts have an `email_only` flag and an `email` object (subject, segment, replyTo). When `email_only=true` the post does not appear on the web — only goes out via email. We have no flag. Add `email_only: boolean` to Post frontmatter; when true, *do not* emit a public route. Emit instead a stub `/email-only/<slug>` only when `[build].emit_email_only_stub = true`.",
+    "labels": ["newsletter", "ghost-compat", "content", "P1"]
+  },
+  {
+    "title": "newsletter: no separate email template (`email.hbs` / `email-template.hbs`)",
+    "body": "Ghost themes ship a parallel `email.hbs` for rendering newsletters (inlined CSS, table-based layout). Source theme doesn't have one but many do. Nectar should:\n1. Detect `email.hbs` in the theme dir and skip rendering it as a web route\n2. Optionally expose `nectar build:email --post=<slug>` that renders just the email template against a post and outputs MJML/inlined HTML to `dist/email/<slug>.html`\n3. Document the workflow: pipe to Postmark/Resend/SES.",
+    "labels": ["newsletter", "ghost-compat", "P2"]
+  },
+  {
+    "title": "newsletter: email-only card markup (signup, email-cta, paywall) not handled in content pipeline",
+    "body": "Ghost's editor outputs `<div class=\"kg-card kg-signup-card\">`, `<div class=\"kg-card kg-email-cta-card\">`, `<div class=\"kg-card kg-paywall-card\">` cards in post HTML. On the web, Ghost renders these as interactive components (signup card opens portal; paywall hides content below). For Nectar:\n- `kg-signup-card`: replace with `partials/email-subscription.hbs` (or strip if portal disabled)\n- `kg-email-cta-card`: strip entirely (it's email-only)\n- `kg-paywall-card`: strip content below this card when visibility != public; keep when public\n- `kg-button-card`: keep as-is (already plain link)\n\nImplement as HTML post-processor in the content pipeline (`src/content/markdown.ts` adjacent).",
+    "labels": ["newsletter", "content", "ghost-compat", "P0"]
+  },
+  {
+    "title": "newsletter: no Postmark/Resend/SES emit-on-publish hook",
+    "body": "Real workflow for Ghost-leavers: write Markdown, build site, also email subscribers. Add `[components.newsletter]` provider with API key + list ID, plus `nectar publish:email --post=<slug>` command that posts the rendered HTML to the provider. Out of scope for first cut — issue is to track demand.",
+    "labels": ["newsletter", "api", "P3"]
+  },
+  {
+    "title": "newsletter: `feature_image_caption` HTML stripped in email but kept on web — no policy doc",
+    "body": "Per Ghost's docs, captions are HTML on web and plaintext-with-stripped-tags in email. Our render pipeline doesn't differentiate. Document the policy.",
+    "labels": ["newsletter", "docs", "P3"]
+  },
+  {
+    "title": "newsletter: post `excerpt` for email-list teaser truncation defaults differ between web and email",
+    "body": "Ghost uses different excerpt lengths in newsletter (~140 chars) vs web (~250). Currently we use `custom_excerpt || excerpt || plaintext.slice(0, 250)` everywhere. Document; add `[build].email_excerpt_length` (default 140) if/when email emit is added.",
+    "labels": ["newsletter", "content", "P3"]
+  },
+  {
+    "title": "recommendations: `{{recommendations}}` helper not implemented",
+    "body": "Source theme's `post-list.hbs:114` calls `{{recommendations}}`. We register no such helper — Handlebars throws `Missing helper: recommendations`. Already filed as P0 in self-audit but no concrete shape:\n\n**Impl plan**:\n1. Register `recommendations` helper that reads from `engine.content.recommendations`.\n2. Add `[[recommendations]]` array to nectar.toml: `{ title, url, description, favicon, reason }` each.\n3. Render via a built-in partial `nectar/recommendation-card.hbs` (or pass to theme via inverse block).\n4. Honour `limit=` hash option (default 5).\n\nExample:\n```toml\n[[recommendations]]\ntitle = \"Stratechery\"\nurl = \"https://stratechery.com\"\ndescription = \"Ben Thompson on tech and strategy\"\nfavicon = \"/images/stratechery.png\"\n```",
+    "labels": ["members", "recommendations", "render", "ghost-compat", "P0"]
+  },
+  {
+    "title": "recommendations: no `data-portal=\"recommendations\"` modal stub",
+    "body": "Source's `post-list.hbs:115` has a 'See all' button with `data-portal=\"recommendations\"`. Ghost opens a full-list modal with all recommendations. Nectar's portal shim should bind clicks on this selector to scroll to a `<section id=\"all-recommendations\">` block that we auto-emit on a `/recommendations/` route when `[[recommendations]]` is configured.",
+    "labels": ["members", "recommendations", "routes", "P2"]
+  },
+  {
+    "title": "recommendations: no incoming-recommendations directory listing",
+    "body": "Ghost has a global recommendations directory at ghost.org/explore — sites can opt in. Not feasible for SSG (it's a network). Document as out-of-scope; suggest users link to https://ghost.org/explore/ if they want directory presence.",
+    "labels": ["members", "recommendations", "docs", "P3"]
+  },
+  {
+    "title": "recommendations: favicon fetching at build time",
+    "body": "If a `[[recommendations]]` entry has no `favicon`, the helper currently emits nothing. Add a build step that fetches `<recommendation.url>/favicon.ico` (or HEAD-resolves it from `<link rel=icon>`) once at build time, caches to `.nectar/favicons/`, and emits a hashed asset URL. Gate behind `[components.recommendations] fetch_favicons = true` (default false because it's network I/O).",
+    "labels": ["members", "recommendations", "build", "P3"]
+  },
+  {
+    "title": "access: `{{#unless access}}` evaluates to falsy in source theme's lock-icon path",
+    "body": "post-card.hbs:33 reads `{{#unless access}}{{^has visibility=\"public\"}}{{> \"icons/lock\"}}{{/has}}{{/unless}}`. `access` is undefined → `unless access` is truthy → we enter the block → `{{^has visibility=\"public\"}}` (i.e. `unless visibility==='public'`) → if the post is non-public, render lock icon.\n\nProblem: every post for non-logged-in users *should* be locked (because access is always denied in static-build land). Today our example renders lock icons on member/paid posts (good). But there's no helper named `access` registered, so Handlebars actually silently treats it as `undefined` (no helper warning because it could be a context property). Cleaner: register an `access` helper that returns false in builds, and document that themes can rely on this contract.",
+    "labels": ["members", "access", "render", "ghost-compat", "P0"]
+  },
+  {
+    "title": "access: no policy for member/paid posts at build time",
+    "body": "Posts with `visibility: members | paid` currently render their full HTML to the public route (we have no auth). For Ghost parity:\n- Default: render the first N words (configurable, default ~300) and append `<div class=\"gh-paywall-stub\">` with a 'Subscribe to read more' CTA wired to portal\n- Optional `[content].visibility_policy = \"render-full\" | \"truncate\" | \"skip\"` controlling whether we leak the full content, truncate, or skip the route entirely\n- For `truncate`, use the same truncation as Ghost's paywall (`<!-- members -->` HTML comment marker; otherwise word count)",
+    "labels": ["members", "access", "content", "ghost-compat", "P0"]
+  },
+  {
+    "title": "access: `<!-- members-only -->` marker in Markdown for paywall point",
+    "body": "Ghost editor inserts a paywall card that splits the post HTML. For Markdown-authored content, support a magic line `<!-- members-only -->` that becomes the paywall split point. Above the line → public preview; below → gated. Render an interpolated CTA in place.",
+    "labels": ["members", "access", "content", "P1"]
+  },
+  {
+    "title": "access: post.access boolean not exposed in post context",
+    "body": "Add `access: false` to Post object exposed via context (always false in builds; corresponds to logged-out viewer). Themes' `{{#if access}}` would evaluate falsy; `{{#unless access}}` truthy. Matches Ghost's behavior for anonymous viewers.",
+    "labels": ["members", "access", "render", "ghost-compat", "P1"]
+  },
+  {
+    "title": "access: paywall CTA partial not provided",
+    "body": "When we truncate a members-only post, we need to insert SOMETHING in place of the cut content. Provide a built-in partial `nectar/paywall.hbs` themes can override:\n```hbs\n<aside class=\"gh-paywall\">\n  <h3>{{t \"This post is for members only\"}}</h3>\n  <button data-portal=\"signup\">{{t \"Subscribe\"}}</button>\n</aside>\n```\nAllow override by placing `partials/paywall.hbs` in theme.",
+    "labels": ["members", "access", "render", "P1"]
+  },
+  {
+    "title": "subscribe-forms: `<form data-members-form>` posts to nonexistent `/members/api/send-magic-link`",
+    "body": "Source's `email-subscription.hbs` is `<form class=\"gh-form\" data-members-form>` with no `action` attribute. Ghost's runtime JS binds to the `data-members-form` selector and POSTs to `/members/api/send-magic-link`. In Nectar build with no portal provider, this form will submit to the current URL — bad UX.\n\nFix (paired with the portal adapter): the build-time DOM transform sets `<form>.action` to the provider's endpoint and adjusts the input `name` if needed (e.g. Buttondown uses `email`; Mailchimp uses `EMAIL`).",
+    "labels": ["members", "render", "ghost-compat", "P0"]
+  },
+  {
+    "title": "subscribe-forms: `<input data-members-email>` field name not provider-aware",
+    "body": "Same issue: the input is `<input … data-members-email>` without `name=\"email\"`. Buttondown/Beehiiv expect `name=\"email\"`; Mailchimp expects `name=\"EMAIL\"`. Build-time transform must add the correct name attribute.",
+    "labels": ["members", "render", "P0"]
+  },
+  {
+    "title": "subscribe-forms: no honeypot / spam protection in default form rewrite",
+    "body": "When we rewrite `data-members-form` to a provider URL, also inject a hidden honeypot field (`<input name=\"website\" tabindex=\"-1\" autocomplete=\"off\" style=\"display:none\">`). Buttondown / Beehiiv ignore it; bots fill it; we can reject server-side. Document for `provider = \"custom\"` users.",
+    "labels": ["members", "security", "P2"]
+  },
+  {
+    "title": "subscribe-forms: no client-side success/error UX without provider JS",
+    "body": "Source's form has `<p data-members-error></p>` and a `<span>Email sent</span>` for success. Ghost's portal JS toggles these. With our shim, after the form POSTs to provider, the user is taken to the provider's success page — `data-members-error` and the success span are dead.\n\nFix: include a tiny ~1KB inline JS that does fetch(form.action, …) and toggles success/error classes locally. Optional; off by default; opt-in via `[components.portal] inline_submit = true`.",
+    "labels": ["members", "ux", "P2"]
+  },
+  {
+    "title": "subscribe-forms: `{{subscribe_form}}` helper renders a useless placeholder",
+    "body": "content.ts:116 renders `<form data-nectar-subscribe action=\"#\" method=\"post\"><input type=\"email\" name=\"email\" /></form>`. Action is `#`. Real themes use this helper from custom layouts. Wire it to the same provider-rewrite pipeline as `data-members-form`.",
+    "labels": ["members", "render", "P1"]
+  },
+  {
+    "title": "subscribe-forms: `{{input_email}}` helper emits `data-members-email` but no `name=`",
+    "body": "content.ts:122 outputs `<input data-members-email type=\"email\" required placeholder=\"…\">`. Missing `name=\"email\"`. Without it, a fallback browser submit posts no payload. Add `name=\"email\"` by default; let the provider adapter override.",
+    "labels": ["members", "render", "bug", "P1"]
+  },
+  {
+    "title": "search: `data-ghost-search` button has no runtime",
+    "body": "Source theme's `search-toggle.hbs` and `header-content.hbs:75` use `data-ghost-search`. Ghost ships sodo-search (Ember-based modal). Nectar has no search runtime — clicks do nothing. Already filed as `search: no Pagefind integration` (P1) but doesn't address the `data-ghost-search` selector specifically.\n\nFix: when `[components.search]` is configured, automatically inject a tiny JS shim that:\n1. Locates `[data-ghost-search]` triggers\n2. Opens a modal with Pagefind/Algolia/Meilisearch UI\n3. Wires keyboard shortcut (cmd+K / ctrl+K)",
+    "labels": ["search", "members", "render", "P1"]
+  },
+  {
+    "title": "search: no Algolia / Meilisearch adapter scaffolds",
+    "body": "Beyond Pagefind, document two more common providers:\n- Algolia: emit a `dist/.nectar/algolia-records.json` that users push via `algoliasearch` CLI; provide DocSearch-compatible CSS classes.\n- Meilisearch: emit the same JSON shape; provide a `nectar push:meilisearch` thin wrapper around `meilisearch-js`.\nKeep emit-only logic in nectar; pushing is user's responsibility.",
+    "labels": ["search", "api", "P2"]
+  },
+  {
+    "title": "search: index excludes `visibility != public` posts by default",
+    "body": "Member/paid posts should not leak into client-side search indexes (Pagefind indexes everything in dist/). Add `<meta name=\"pagefind-skip\">` automatically on routes whose source post has non-public visibility; document Algolia/Meili equivalents.",
+    "labels": ["search", "members", "security", "P1"]
+  },
+  {
+    "title": "search: `gh-search` partial in Source theme leaks CSS classes that suggest portal-bound UI",
+    "body": "Document that the Source theme's `.gh-search` button is a *trigger* — Nectar's responsibility is to bind it. Otherwise theme authors blame the theme for a non-functional button.",
+    "labels": ["search", "docs", "P3"]
+  },
+  {
+    "title": "comments: `{{comments}}` helper renders an empty `<div data-nectar-comments>` with no provider wiring",
+    "body": "content.ts:112 emits `<div data-nectar-comments></div>`. Themes call `{{#if comments}}{{comments}}{{/if}}` (Source: post.hbs:60). Without a provider, the div is invisible.\n\nFix: add `[components.comments] provider = \"giscus|disqus|utterances|cusdis|hyvor|isso\"` and have the helper emit the right script tag inline. Already partially filed (`comments: no Giscus / Disqus / Utterances wiring` P1) but specifically mention `data-nectar-comments` selector contract so users have a single place to override.",
+    "labels": ["comments", "members", "api", "P1"]
+  },
+  {
+    "title": "comments: post.comments boolean wired from frontmatter but never read by `{{comments}}` helper",
+    "body": "loader.ts:349 sets `comments: true` unconditionally. Post type has the field. But the `comments` helper ignores it; it always emits the div. Honour the per-post flag: when `false`, render nothing.",
+    "labels": ["comments", "bug", "P1"]
+  },
+  {
+    "title": "webhooks: no concept of build-completion or content-change webhook",
+    "body": "Ghost admin sends webhooks on post.published etc. Nectar is a build tool — analogue is a post-build hook. Add `[hooks] post_build = \"./scripts/notify-discord.sh\"` (already covered partly by `cli: no build hooks` in self-audit?). Specifically for member-facing flow, recommend invoking the newsletter-send command from this hook.",
+    "labels": ["members", "api", "P3"]
+  },
+  {
+    "title": "webhooks: integration directory not modelled",
+    "body": "Ghost has a `/ghost/api/integrations` admin concept (Zapier, Slack, etc.). Out of scope; document.",
+    "labels": ["members", "docs", "P3"]
+  },
+  {
+    "title": "activitypub: experimental Ghost Fediverse plugin not modelled",
+    "body": "Ghost 5.x added experimental ActivityPub support (one-account-per-publication). For Nectar, recommend external tools (Bridgy Fed, fed.brid.gy) since static sites can't actually respond to AP signed requests. Document as out-of-scope with link to user guidance.",
+    "labels": ["members", "docs", "P3"]
+  },
+  {
+    "title": "activitypub: WebFinger / .well-known endpoints from Ghost not emitted",
+    "body": "Ghost emits `/.well-known/webfinger` for ActivityPub. We don't. Add optional emit of static WebFinger response from `[components.activitypub] handle = \"@me@example.com\"` config — purely static (no incoming request handling). Lets users get found by their fediverse handle.",
+    "labels": ["members", "infra", "P3"]
+  },
+  {
+    "title": "analytics: no built-in member analytics dashboard",
+    "body": "Ghost ships a `/ghost/#/dashboard` with member growth, MRR, open rates. Static sites can't surface live data. Document that users should rely on their ESP's own analytics (Buttondown / Beehiiv / Substack dashboards) — link from `docs/GHOST_COMPATIBILITY.md`.",
+    "labels": ["analytics", "docs", "P2"]
+  },
+  {
+    "title": "analytics: no privacy-friendly view tracking out of the box",
+    "body": "Many Ghost users use Plausible/Umami/Fathom alongside. Add `[components.analytics] provider = \"plausible|umami|fathom|simpleanalytics|googleanalytics\" site = \"…\"` that injects the right snippet into `{{ghost_head}}` automatically. Honour DNT and respect IP-anonymisation flags.",
+    "labels": ["analytics", "api", "P1"]
+  },
+  {
+    "title": "analytics: no membership-tier-level segmentation source",
+    "body": "Member-segmented analytics (free vs paid open rates) live in Ghost's email send logs. Document gap: refer users to their ESP's analytics; in Nectar, no per-tier data crosses the static boundary.",
+    "labels": ["analytics", "docs", "members", "P3"]
+  },
+  {
+    "title": "members: end-to-end docs page — `docs/MEMBERS.md` does not exist",
+    "body": "Create a dedicated guide (linked from README and GHOST_COMPATIBILITY.md) walking through:\n1. The migration path from Ghost members → Buttondown / Beehiiv / Substack\n2. What `@member`, `@site.members_enabled`, `{{#unless access}}` mean in Nectar\n3. How the portal adapter rewrites buttons and forms\n4. Examples for each supported provider\n5. Known parity gaps (no per-user state, no tier checks, no signin / account / upgrade in the static page itself)\n\nP0 because new users have no orientation without it.",
+    "labels": ["members", "docs", "P0"]
+  },
+  {
+    "title": "members: example theme should keep portal markup working in default `nectar build`",
+    "body": "Right now `example/themes/source` is shipped with portal markup but no portal provider config in `example/nectar.toml`. Running `nectar build` produces a site with dead `data-portal` buttons — a bad showcase. Add a sensible `[components.portal] provider = \"none\"` (so subscribe UI is stripped) OR `provider = \"buttondown\"` with a placeholder publication for the example.",
+    "labels": ["members", "docs", "P1"]
+  },
+  {
+    "title": "members: i18n: portal strings (\"Subscribe\", \"Sign in\", \"Account\", \"Email sent\") all hard-coded in theme",
+    "body": "Source theme wraps every portal-related string in `{{t \"Subscribe\"}}` etc. Verify our `t` helper resolves them from theme `locales/<lang>.json`. Add to the locale test fixture: ensure `\"Subscribe\"`, `\"Sign in\"`, `\"Account\"`, `\"Email sent\"`, `\"jamie@example.com\"`, `\"Recommendations\"`, `\"See all\"`, `\"Upgrade\"`, `\"Search this site\"`, `\"Search posts, tags and authors\"`, `\"This post is for members only\"` all translate.",
+    "labels": ["members", "i18n", "P2"]
+  },
+  {
+    "title": "members: error reporting — silent no-op when portal config is malformed",
+    "body": "If `[components.portal] provider = \"buttondown\"` is set but `publication` is missing, the build currently passes (because we don't validate). Make portal config a zod sub-schema with `superRefine` requiring provider-specific fields. Fail the build with a precise message.",
+    "labels": ["members", "config", "dx", "P1"]
+  },
+  {
+    "title": "members: build artefact — emit `dist/.nectar/portal-manifest.json` listing every rewritten selector",
+    "body": "For debugging: when the portal adapter rewrites `[data-portal]` / `[data-members-form]` / `[data-ghost-search]` elements, record per-file counts in `dist/.nectar/portal-manifest.json`. Surface a summary in build output (`portal: rewrote 18 elements across 12 routes`).",
+    "labels": ["members", "dx", "observability", "P3"]
+  },
+  {
+    "title": "members: theme-package.json contract — themes may declare `members: required` in their package.json",
+    "body": "Ghost themes' `package.json` has `\"config\": { \"members\": \"required\" }` (some themes refuse to install if members feature is disabled). Decide policy: warn at theme-load time if a theme declares `members: required` but no portal provider is configured.",
+    "labels": ["members", "theme-dev", "ghost-compat", "P2"]
+  },
+  {
+    "title": "members: `{{#contentFor}}` block helper missing — used by many member-facing themes to swap default partials",
+    "body": "Ghost themes can declare `{{#contentFor \"some-block\"}}…{{/contentFor}}` in a child template and have it injected into a `{{{block \"some-block\"}}}` slot in the layout. Not used by Source but common in member-portal themes. Implement to unblock more migrations.",
+    "labels": ["members", "render", "ghost-compat", "P2"]
+  },
+  {
+    "title": "members: `cancel_link` / `signup_url` helpers missing",
+    "body": "Some Ghost themes use `{{cancel_link}}` (for paid members) and `{{signup_url}}`. Already partly noted in self-audit's missing-helpers issue but worth its own stub: `cancel_link` → undefined / empty, `signup_url` → portal provider's signup URL when configured.",
+    "labels": ["members", "render", "ghost-compat", "P2"]
+  },
+  {
+    "title": "members: `member_count` / `comment_count` helpers absent",
+    "body": "`{{member_count}}` is used in social-proof phrasing (\"Join 1,234 readers\"). Static builds can't know live counts. Stub returns empty string; allow override via `[components.portal] member_count = 1234` (manual). Document.",
+    "labels": ["members", "render", "P2"]
+  },
+  {
+    "title": "members: gscan-compatible lint output for member-related theme fields",
+    "body": "Ghost's `gscan` validator flags missing portal markup. If we add a `nectar theme lint` command (separate issue), include rules for: themes that read `@member.*` should warn that this is a static build; themes that include `data-portal` triggers without portal config should warn; themes that reference `{{recommendations}}` without `[[recommendations]]` should warn.",
+    "labels": ["members", "dx", "theme-dev", "P3"]
+  }
+]

@@ -1,0 +1,672 @@
+[
+  {
+    "title": "ghost-card: bookmark: migration drops all metadata, link becomes plain anchor",
+    "body": "Ghost's bookmark card serialises in HTML as `<figure class=\"kg-card kg-bookmark-card\"><a class=\"kg-bookmark-container\" href=\"…\"><div class=\"kg-bookmark-content\"><div class=\"kg-bookmark-title\">…</div><div class=\"kg-bookmark-description\">…</div><div class=\"kg-bookmark-metadata\"><img class=\"kg-bookmark-icon\" …><span class=\"kg-bookmark-author\">…</span><span class=\"kg-bookmark-publisher\">…</span></div></div><div class=\"kg-bookmark-thumbnail\"><img …></div></a></figure>`.\n\nIn `src/ghost/import.ts:renderPostBody` we run `turndown` over the post HTML with no custom rules. Turndown's default `<figure>` and `<div>` handling collapses the whole bookmark into either a single inline link (best case) or a paragraph of three lines of text followed by an anchor — title/description/author/publisher/icon/thumbnail metadata is **completely lost**.\n\n**Fix**: register a Turndown rule that matches `figure.kg-bookmark-card` and emits a shortcode like `{% bookmark url=\"…\" title=\"…\" description=\"…\" thumbnail=\"…\" icon=\"…\" author=\"…\" publisher=\"…\" %}`, then teach `src/content/markdown.ts` to expand the shortcode back into `kg-bookmark-card` HTML the theme expects.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: bookmark: rendering — no markdown syntax to author bookmarks natively",
+    "body": "Even if the migrator preserved metadata, there's no way to author a bookmark card in pure Markdown today. `src/content/markdown.ts` uses `marked` with GFM only — no directive/shortcode plugin. Authors who didn't come from Ghost have no path to a `kg-bookmark-card`.\n\n**Fix**: add a `bookmark` shortcode handler (or markdown-it style directive) that takes a URL and either (a) calls the URL at build-time to fetch oEmbed/Open Graph metadata and caches it under `cache/bookmarks/<sha>.json`, or (b) requires the author to provide metadata inline. Emit the exact `kg-bookmark-card` markup the Source theme expects (see `example/themes/source/assets/css/screen.css:2381`).",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: bookmark: theme-dev — Source theme CSS targets `kg-bookmark-*` but no JS for tracking link clicks",
+    "body": "`example/themes/source/assets/css/screen.css` lines 2381-2417 style `.kg-bookmark-card`, `.kg-bookmark-container`, `.kg-bookmark-content`, `.kg-bookmark-title`, `.kg-bookmark-description`, `.kg-bookmark-metadata`, `.kg-bookmark-thumbnail`. Casper has identical structure. We must emit this exact DOM tree, with the outer element a `<figure>` and the link a `<a class=\"kg-bookmark-container\">` (not a `div`) — the CSS uses `a.kg-bookmark-container` selectors at line 2389.\n\n**Fix**: pin the exact HTML contract in `docs/GHOST_COMPATIBILITY.md` and add a snapshot test under `tests/render` rendering a fixture with a bookmark card and asserting the emitted DOM matches Ghost's contract byte-for-byte (modulo whitespace).",
+    "labels": ["ghost-compat", "theme-dev", "P1"]
+  },
+  {
+    "title": "ghost-card: bookmark: image-pipeline — thumbnail and favicon are remote URLs, no caching or responsive variants",
+    "body": "Bookmark cards reference a publisher favicon (16-32px) and an article thumbnail (often 600-1200px). Today we'd emit whatever URL Ghost stored, which usually points at `__GHOST_URL__/content/images/…` (a placeholder Ghost inserts and resolves at render time — see TryGhost/Ghost ImageHandler). Without a URL rewriter the placeholder leaks into the static output and the image 404s.\n\n**Fix**: add a `__GHOST_URL__` rewriting pass in `import.ts` (replace with `''` or the configured `site.url`), and let the image pipeline (when implemented) optionally fetch + relocate remote thumbnails into `content/images/bookmarks/` to avoid hot-linking and to enable `srcset`.",
+    "labels": ["ghost-compat", "image-pipeline", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: gallery: migration — Turndown explodes 3×3 grid into 9 stacked images",
+    "body": "Ghost galleries render as `<figure class=\"kg-card kg-gallery-card kg-width-wide\"><div class=\"kg-gallery-container\"><div class=\"kg-gallery-row\"><div class=\"kg-gallery-image\"><img …/></div>×N</div>×M</div><figcaption>…</figcaption></figure>` — typically up to 9 images grouped into rows of 3 with computed aspect ratios driving CSS grid columns.\n\nTurndown reduces this to 9 standalone `![alt](src)` lines. The masonry/grid layout, the per-row grouping (which encodes aspect-ratio-aware widths), and the figcaption are all lost. There is no Markdown construct that round-trips back into the gallery card.\n\n**Fix**: add a Turndown rule for `figure.kg-gallery-card` that emits a gallery shortcode listing images with their original `width`/`height` attributes (used by Ghost to compute flex-grow per row). Persist the figcaption.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: gallery: rendering — no gallery shortcode/extension in markdown pipeline",
+    "body": "`src/content/markdown.ts` has no extension point for galleries. Even if migration preserved a `{% gallery images=[…] %}` shortcode, nothing expands it. We need either a remark/marked extension or a pre-processing pass that takes the shortcode and emits the exact Ghost gallery DOM (rows of `kg-gallery-image` with `flex: <ratio>`).\n\n**Fix**: implement a gallery shortcode handler that:\n1. Groups images into rows of max 3 (Ghost's rule).\n2. Computes `flex: <width>/<height>` per image so rows balance.\n3. Emits `<figure class=\"kg-card kg-gallery-card kg-width-wide\">` … matching the Source theme.\n4. Supports an optional caption.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: gallery: theme-dev — Source CSS styles `.kg-gallery-image` only, not container/row",
+    "body": "`screen.css:2308` only styles `.kg-gallery-image` (for hover) — the heavy lifting (`.kg-gallery-container { display: flex; flex-direction: column; gap: … }` and `.kg-gallery-row { display: flex; flex-direction: row; gap: … }`) is **expected to come from a Koenig-injected stylesheet** that Ghost serves separately. Our Source theme does not include this CSS, so even a perfectly migrated gallery renders as a vertical stack of full-width images.\n\n**Fix**: vendor the Koenig gallery CSS into the Source theme, or document that themes must include it. Add a smoke test `tests/render/gallery.test.ts` asserting computed layout (or at least DOM structure).",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: gallery: image-pipeline — no srcset/sizes for in-gallery images",
+    "body": "Ghost generates 600w/1000w/1600w/2400w responsive variants for gallery images and emits `srcset` + `sizes` matching the grid breakpoint. Our import strips all of this (`turndown` produces a bare `![alt](src)`), and the markdown pipeline never re-adds it.\n\n**Fix**: when image pipeline lands, the gallery shortcode must request multi-resolution variants from the asset pipeline and emit srcset matching Ghost's contract: `sizes=\"(min-width: 720px) 720px, 100vw\"`.",
+    "labels": ["ghost-compat", "image-pipeline", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: callout: migration — Turndown drops emoji icon and background-color variant",
+    "body": "Ghost callout HTML: `<div class=\"kg-card kg-callout-card kg-callout-card-grey\"><div class=\"kg-callout-emoji\">💡</div><div class=\"kg-callout-text\">Body text</div></div>`. The `kg-callout-card-<color>` suffix encodes one of `grey|white|blue|green|yellow|red|pink|purple|accent`.\n\nTurndown sees two divs and produces something like:\n```\n💡\n\nBody text\n```\n— two paragraphs. The color and the semantic callout marker are lost.\n\n**Fix**: Turndown rule matching `div.kg-callout-card` → emits `> [!CALLOUT color=\"blue\" emoji=\"💡\"]\\n> Body text` (GFM-alert-ish) or `:::callout{color=\"blue\" emoji=\"💡\"}\\nBody\\n:::` (markdown-it container).",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: callout: rendering — Source CSS exists for callout but no markdown syntax authors it",
+    "body": "`screen.css:2334` styles `.kg-callout-card.kg-card` and `.kg-callout-card-accent a`. The CSS expects an outer `.kg-callout-card` element with optional color modifier and a `.kg-callout-emoji` + `.kg-callout-text` pair inside.\n\nNo markdown extension produces this. Pick either GFM alerts (`> [!NOTE]`) and remap to callout-card, or implement directive containers (`:::callout`).\n\n**Fix**: add a marked extension/handler that maps a chosen syntax to the exact `kg-callout-card` DOM and exposes a `color` and `emoji` parameter. Document in `docs/GHOST_COMPATIBILITY.md`.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: callout: theme-dev — `kg-callout-card-<color>` modifier classes have no per-color CSS in Source",
+    "body": "The Source theme CSS only references `.kg-callout-card.kg-card` and `.kg-callout-card-accent a` — there is no per-color rule for `kg-callout-card-blue/green/yellow/red/pink/purple`. Ghost ships these in Koenig's stylesheet shipped with the editor; they don't reach static-site themes by default.\n\n**Fix**: vendor the Koenig callout color palette CSS into `assets/css/screen.css` (or a dedicated `koenig.css`), or document that themes must include it. Without this, every callout looks identical regardless of color.",
+    "labels": ["ghost-compat", "theme-dev", "P1"]
+  },
+  {
+    "title": "ghost-card: file: migration — Turndown produces a bare anchor with no filesize, no description",
+    "body": "Ghost file card: `<div class=\"kg-card kg-file-card\"><a class=\"kg-file-card-container\" href=\"/content/files/2024/x.pdf\" download><div class=\"kg-file-card-contents\"><div class=\"kg-file-card-title\">Title</div><div class=\"kg-file-card-caption\">Description</div><div class=\"kg-file-card-metadata\"><div class=\"kg-file-card-filename\">x.pdf</div><div class=\"kg-file-card-filesize\">1.2 MB</div></div></div><div class=\"kg-file-card-icon\">…svg…</div></a></div>`.\n\nTurndown emits `[Title\\n\\nDescription\\n\\nx.pdf\\n\\n1.2 MB](url)` — a single weird anchor. The `download` attribute, the filesize (which is computed by Ghost from the actual file), and the icon are all lost.\n\n**Fix**: Turndown rule matching `.kg-file-card` → emits `{% file href=\"…\" title=\"…\" description=\"…\" name=\"…\" size=\"…\" %}` shortcode. Filesize: if the file is bundled with the Ghost export (Ghost includes files in the zip), recompute from disk; otherwise carry forward the human-readable string.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: file: rendering — Source CSS targets kg-file-card-* but no shortcode emits the markup",
+    "body": "`screen.css:2442-2454` styles `.kg-file-card-container`, `.kg-file-card-contents`, `.kg-file-card-metadata`, `.kg-file-card-filesize::before`. The `::before` injects a separator dot between filename and filesize — so the markup MUST keep both in the same `.kg-file-card-metadata` parent in order, or the dot ends up in the wrong place.\n\n**Fix**: shortcode handler must emit DOM in this exact order: `<a class=\"kg-file-card-container\" download> <div class=\"kg-file-card-contents\"><div class=\"kg-file-card-title\"></div><div class=\"kg-file-card-caption\"></div><div class=\"kg-file-card-metadata\"><div class=\"kg-file-card-filename\"></div><div class=\"kg-file-card-filesize\"></div></div></div> <icon> </a>`. Add a snapshot test.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: file: asset-pipeline — file references are bare URLs, no relocation/copy step on import",
+    "body": "Ghost stores files under `/content/files/YYYY/MM/<name>` (or via `__GHOST_URL__/content/files/…`). The Ghost export zip includes a `files/` directory, but `src/ghost/import.ts` only reads `db[0].data` and ignores the files folder. Result: imported file cards link to URLs that 404 in the static output.\n\n**Fix**: when given a zip (or extracted folder) path, copy `files/**` to `static/content/files/` (or `content/files/`) and rewrite `__GHOST_URL__` prefixes. Mirror the same treatment for `/content/images/` and `/content/media/`.",
+    "labels": ["ghost-compat", "migration", "image-pipeline", "P0"]
+  },
+  {
+    "title": "ghost-card: audio: migration — Turndown drops `<audio>` tag, drops cover art, drops duration",
+    "body": "Ghost audio card: `<div class=\"kg-card kg-audio-card\"><img class=\"kg-audio-thumbnail\" src=\"…\"/><div class=\"kg-audio-thumbnail kg-audio-hide\">…svg…</div><div class=\"kg-audio-player-container\"><audio src=\"…\" preload=\"metadata\"></audio><div class=\"kg-audio-title\">Episode 5</div><div class=\"kg-audio-player\"><button class=\"kg-audio-play-icon\"></button>…<input type=\"range\" class=\"kg-audio-seek-slider\"/>…<span class=\"kg-audio-current-time\">0:00</span><span class=\"kg-audio-time-divider\">/</span><span class=\"kg-audio-duration\">12:34</span>…</div></div></div>` plus a sibling `<script>` for play/pause/seek wiring.\n\nTurndown drops `<audio>` entirely (no default handler) and produces just the cover image `![](src)` + title text. Player controls, duration, the actual audio URL — all lost.\n\n**Fix**: Turndown rule matching `.kg-audio-card` → emits `{% audio src=\"…\" thumbnail=\"…\" title=\"…\" duration=\"12:34\" %}`. Player wiring is a runtime concern; preserve at least the data.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: audio: rendering — Source theme has NO CSS for kg-audio-card",
+    "body": "`grep -oE 'kg-[a-z-]+' example/themes/source/assets/css/screen.css | sort -u` returns no `kg-audio-*` selectors at all. Ghost's audio card depends entirely on Koenig-injected CSS + a sibling JS that hydrates the player. A statically rendered audio card on Source would be an unstyled `<audio>` plus orphan divs.\n\n**Fix**: vendor Ghost's audio player CSS + JS (`@tryghost/kg-default-cards` ships these as `kg-audio.js` / `kg-audio.css`) into the Source theme, or document a hard requirement. Without this, audio cards are broken even if migration succeeded.",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: audio: image-pipeline — cover art uses `__GHOST_URL__` placeholder that we don't resolve",
+    "body": "Audio thumbnails (cover art) in Ghost exports use `__GHOST_URL__/content/images/…`. Our `src/ghost/import.ts` does not run a placeholder-replacement pass before Turndown, so the placeholder leaks into the markdown body and breaks at render time.\n\n**Fix**: pre-process `post.html` in `renderPostBody` to swap `__GHOST_URL__` → empty string (or configured site URL) for `src=`, `srcset=`, `href=`, and inline-style URL values. Cover the same fix for video poster, file href, and feature_image.",
+    "labels": ["ghost-compat", "image-pipeline", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: video: migration — transcript, poster, captions track, and aspect ratio all lost",
+    "body": "Ghost video card: `<figure class=\"kg-card kg-video-card kg-width-regular\"><div class=\"kg-video-container\" style=\"--aspect-ratio: 1.777\"><video src=\"…mp4\" poster=\"…poster.jpg\" preload=\"metadata\" loop=\"…\" playsinline=\"\"></video><div class=\"kg-video-overlay\">…</div><div class=\"kg-video-player-container\">…controls…</div></div><figcaption>Caption</figcaption></figure>` plus optional `<track kind=\"captions\">` and a transcript stored separately.\n\nTurndown produces nothing useful — `<video>` and `<figcaption>` get dropped or flattened. `--aspect-ratio` CSS custom prop encodes the original w/h ratio for layout — that's gone too.\n\n**Fix**: Turndown rule → `{% video src=\"…\" poster=\"…\" aspect=\"1.777\" loop=\"true\" caption=\"…\" %}`. Captions (`.vtt` files) ship in the Ghost export `media/` folder — copy them and reference them.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: video: rendering — no `kg-video-*` selectors in Source theme",
+    "body": "Like audio, the Source theme has zero `kg-video-*` CSS. The video card is unstyled and the play overlay never appears without Koenig's JS. The `--aspect-ratio` custom property pattern requires `.kg-video-container { aspect-ratio: var(--aspect-ratio); }` which is missing.\n\n**Fix**: vendor `kg-video.css` + `kg-video.js` from `@tryghost/kg-default-cards` (or document hard dependency), and add the `--aspect-ratio` rule.",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: video: image-pipeline — poster image, video file, and captions are all unrelocated",
+    "body": "Posters go to `/content/images/`, videos to `/content/media/`, captions to `/content/files/`. Our importer touches none of these directories on disk. Even with a perfect Turndown rule the resulting page references files that don't exist in the static output.\n\n**Fix**: in `importGhostExport`, when the input path is a directory or zip (not just a JSON file), walk `images/`, `media/`, `files/` and copy them into `content/` (or `static/`) preserving the date-based layout.",
+    "labels": ["ghost-compat", "image-pipeline", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: signup: migration — newsletter form HTML stripped to a heading and a button",
+    "body": "Ghost signup card: `<div class=\"kg-card kg-signup-card kg-width-full kg-signup-card-image-bottom\" data-lexical-signup-form=\"1\" style=\"background-image: url(...)\"><div class=\"kg-signup-card-text\"><h2 class=\"kg-signup-card-heading\">Subscribe</h2><p class=\"kg-signup-card-subheading\">…</p><form class=\"kg-signup-card-form\" data-members-form=\"signup\"><div class=\"kg-signup-card-fields\"><input data-members-name placeholder=\"Your name\"><input data-members-email type=\"email\" required><button class=\"kg-signup-card-button\" data-members-submit><span>Subscribe</span></button></div><p class=\"kg-signup-card-disclaimer\">…</p></form></div></div>`.\n\nTurndown produces `## Subscribe`, a paragraph, and possibly a bare \"Subscribe\" word — the `<form>` and its `data-members-*` attributes are gone, breaking newsletter signup entirely.\n\n**Fix**: Turndown rule → `{% signup heading=\"…\" subheading=\"…\" button=\"Subscribe\" disclaimer=\"…\" background=\"…\" labels=\"…\" %}`. Preserve the `data-members-*` contract.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: signup: rendering — Ghost themes rely on `data-members-*` JS contract we don't bundle",
+    "body": "Ghost's portal.js (member system) attaches behaviour to `data-members-form`, `data-members-email`, `data-members-submit`, `data-members-name`. Static sites have no member backend, so the form must be **either** wired to a third-party (Buttondown/ConvertKit/Mailchimp/Listmonk) **or** removed gracefully.\n\nToday `src/render/helpers/content.ts:subscribe_form` emits `<form data-nectar-subscribe action=\"#\" method=\"post\">` — incompatible with Ghost's contract and with no real backend.\n\n**Fix**: make the signup shortcode pluggable: `nectar.config.ts → members.provider = 'buttondown'|'convertkit'|'mailchimp'|'none'` with each provider emitting its own form action/method. Render `kg-signup-card` markup but with the configured form target.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: signup: theme-dev — no Source CSS for kg-signup-card",
+    "body": "Source theme has no `kg-signup-*` rules. The card's `kg-signup-card-image-bottom` / `-left` / `-top` layout variants, the disclaimer styling, and the input/button skin all depend on Koenig-injected styles.\n\n**Fix**: vendor signup-card CSS or build a minimal stand-in that respects the layout variants Ghost authors use. Document the contract in `docs/GHOST_COMPATIBILITY.md`.",
+    "labels": ["ghost-compat", "theme-dev", "P2"]
+  },
+  {
+    "title": "ghost-card: button: migration — Turndown emits plain link, loses alignment and color variant",
+    "body": "Ghost button card: `<div class=\"kg-card kg-button-card kg-align-center\"><a href=\"…\" class=\"kg-btn kg-btn-accent\">Get Started</a></div>` (alignment: `kg-align-left|center`, style: `kg-btn-accent` only currently).\n\nTurndown produces `[Get Started](url)` — alignment + button-ness lost. Author can no longer tell it apart from an inline link.\n\n**Fix**: Turndown rule matching `div.kg-button-card` → emit `{% button href=\"…\" text=\"…\" align=\"center\" style=\"accent\" %}`. Map to `kg-button-card` markup in render.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: button: rendering — Source CSS styles `.kg-card.kg-button-card .kg-btn` but no alignment fallback",
+    "body": "`screen.css:2357` styles `.kg-card.kg-button-card .kg-btn`. The button card requires the parent `.kg-card.kg-button-card` to be `display: flex; justify-content: <left|center>`. That rule is missing from Source — buttons will collapse to baseline left regardless of `kg-align-center`.\n\n**Fix**: add `.kg-button-card { display: flex; } .kg-button-card.kg-align-left { justify-content: flex-start; } .kg-button-card.kg-align-center { justify-content: center; }` to Source CSS, or vendor Koenig's button CSS.",
+    "labels": ["ghost-compat", "theme-dev", "P2"]
+  },
+  {
+    "title": "ghost-card: button: rendering — no markdown shortcut to author a button",
+    "body": "There is no syntax in our marked pipeline to write a button. Authors stuck with `[text](url)` inline links cannot promote to a CTA.\n\n**Fix**: introduce a `{% button %}` shortcode or directive (`:::button`). Document in markdown reference.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: product: migration — Turndown flattens product card into prose paragraphs",
+    "body": "Ghost product card: `<div class=\"kg-card kg-product-card\"><div class=\"kg-product-card-container\"><img class=\"kg-product-card-image\" …/><h4 class=\"kg-product-card-title\">Title</h4><div class=\"kg-product-card-rating\"><span class=\"kg-product-card-rating-active\"></span>×N</div><div class=\"kg-product-card-description\"><p>…</p></div><a href=\"…\" class=\"kg-product-card-button kg-product-card-btn-accent\">Buy</a></div></div>`.\n\nTurndown produces: an `<img>` link, then `#### Title`, then star glyphs (or nothing — empty spans), then description prose, then `[Buy](url)`. Star rating is lost (encoded as span count), button-ness is lost.\n\n**Fix**: Turndown rule → `{% product image=\"…\" title=\"…\" rating=\"4\" description=\"…\" button=\"Buy\" href=\"…\" %}`.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: product: rendering — Source CSS expects exact image+title+button structure",
+    "body": "`screen.css:2419` styles `.kg-product-card.kg-card .kg-product-card-image`, `:2423` styles `a.kg-product-card-button`, `:2428` styles `.kg-product-card-title`, `:2436` styles `.kg-product-card-description :is(p, ul, ol)`. The DOM tree must be exactly: image → title → rating → description → button (or `:is(p, ul, ol)` selector for description breaks).\n\n**Fix**: when shortcode handler is implemented, lock DOM order and add a snapshot test.",
+    "labels": ["ghost-compat", "theme-dev", "P2"]
+  },
+  {
+    "title": "ghost-card: product: image-pipeline — product image has no srcset, hot-links to Ghost source",
+    "body": "Product card images use the same `__GHOST_URL__/content/images/…` placeholder, with no responsive variants. The card is typically 720px wide on desktop but the source image is often 2000px+ — wasted bandwidth.\n\n**Fix**: route product images through the (future) asset pipeline with `sizes=\"(min-width: 720px) 720px, 100vw\"`.",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: header-v1: migration — Turndown drops all of header (background, title, subtitle, CTA)",
+    "body": "Ghost header v1 (legacy): `<div class=\"kg-card kg-header-card kg-style-dark\" data-kg-background-image=\"…\" style=\"background-image: url(…)\"><h2 class=\"kg-header-card-header\">Title</h2><h3 class=\"kg-header-card-subheader\">Subtitle</h3><a href=\"…\" class=\"kg-header-card-button\">Get Started</a></div>`.\n\nTurndown converts `<h2>`/`<h3>`/`<a>` to bare `##`/`###`/`[link](url)` but **loses the background image, the style variant (`kg-style-dark|light|accent`) and the card-ness**. Renders as a normal heading sequence.\n\n**Fix**: Turndown rule for `div.kg-header-card` (no `-v2` suffix) → `{% header style=\"dark\" background=\"…\" title=\"…\" subtitle=\"…\" cta_text=\"…\" cta_href=\"…\" %}`.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: header-v2: migration — alignment, button color, accent text not preserved",
+    "body": "Ghost header v2 (current) adds more knobs: `kg-align-center|left`, `kg-content-wide`, optional background image with `--bg-image-position` / `--bg-image-color` overlay, button style `kg-header-card-button-accent`, accent color via inline style. Markup root is `<div class=\"kg-card kg-header-card kg-v2 kg-width-full kg-align-center kg-style-image …\">`.\n\nNone of v2's variants survive Turndown. Authors migrating from a v2 header end up with a flat heading block on the static site.\n\n**Fix**: extend the header shortcode to accept `version=\"v2\"`, `align`, `width`, `text_color`, `button_color`, `accent`. When emitting, branch on version.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: header: rendering — Source styles only h2/h3 inside header card, missing background-image + button",
+    "body": "`screen.css:2367-2380` only addresses `.kg-card.kg-header-card h2.kg-header-card-header` and `.kg-header-card h3.kg-header-card-subheader` font choice. There's no rule for the card's full-bleed background image, no rule for `kg-header-card-button`, no rule for `kg-style-dark/light/accent` text inversion. Result: even a perfect import looks like floating text on white.\n\n**Fix**: vendor Koenig's header-card CSS or build minimal styles for `.kg-header-card { background-size: cover; …}`, `.kg-style-dark { color: #fff; }`, `.kg-header-card-button { display: inline-block; …}`.",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: header: image-pipeline — background image not relocated, lacks responsive srcset",
+    "body": "Headers carry a full-bleed background — often 2400px+. Today the `__GHOST_URL__/content/images/…` placeholder leaks into the `style=\"background-image: url(…)\"` attribute (importer never touches it) and image is never copied to `content/images/`.\n\n**Fix**: same placeholder-rewrite + asset-relocation pass as bookmark/file. For `background-image:` URLs, also emit a `<picture>` with `image-set()` srcset if asset pipeline supports it.",
+    "labels": ["ghost-compat", "image-pipeline", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: toggle: migration — Turndown loses `<details>` semantics",
+    "body": "Ghost toggle card: `<div class=\"kg-card kg-toggle-card\" data-kg-toggle-state=\"close\"><div class=\"kg-toggle-heading\"><h4 class=\"kg-toggle-heading-text\">Heading</h4><button class=\"kg-toggle-card-icon\" aria-label=\"Expand toggle\">…</button></div><div class=\"kg-toggle-content\"><p>Body</p></div></div>`.\n\nTurndown emits `#### Heading` plus a paragraph — no `<details>`/`<summary>`, no toggle behaviour. Authors lose the collapse UI entirely.\n\n**Fix**: Turndown rule → either `<details><summary>Heading</summary>\\n\\nBody\\n\\n</details>` (HTML in markdown) or a `{% toggle heading=\"…\" %}…{% /toggle %}` shortcode. Map both to `kg-toggle-card` DOM at render.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: toggle: rendering — Source CSS exists but no toggle JS bundled",
+    "body": "`screen.css:2170, 2181-2182, 2319-2333` styles `.kg-toggle-card .kg-toggle-content` and `.kg-toggle-heading-text`. The card needs JS to flip `data-kg-toggle-state=\"close\"` ↔ `\"open\"` on click — Koenig ships this as `kg-toggle.js`. We don't bundle it, so toggles default to whatever the open/close CSS shows (typically: heading visible, body hidden, no way to expand).\n\n**Fix**: vendor `kg-toggle.js` into Source theme `assets/built/`, OR rewrite as `<details>` (native, no JS) and translate CSS. Recommend `<details>` route — simpler.",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: toggle: rendering — no markdown directive for toggles",
+    "body": "Even if `<details>` is the chosen output, marked's default HTML pass-through accepts `<details>` only when the author hand-writes it. We need a directive (`:::toggle` or `> [!TOGGLE]`) so authors don't have to write HTML.\n\n**Fix**: add a marked extension mapping a directive to `<details class=\"kg-toggle-card\"><summary class=\"kg-toggle-heading\"><h4 class=\"kg-toggle-heading-text\">…</h4></summary><div class=\"kg-toggle-content\">…</div></details>`.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: paywall: migration — `<!--members-only-->` comment is dropped by Turndown",
+    "body": "Ghost paywall card serialises as an HTML comment: `<!--members-only-->`. Everything after this comment in the HTML is paid content. Turndown by default discards HTML comments — the divider vanishes and the post becomes wholly public on import.\n\n**Fix**: pre-process `post.html` before Turndown: replace `<!--members-only-->` with a unique sentinel (e.g. `\\n\\n<!--nectar-paywall-->\\n\\n`), then have Turndown emit it as a special line in the markdown (or write a custom rule that recognises the comment node). On render, split body at that marker.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: paywall: rendering — no member gating runtime, but the divider needs to be honored",
+    "body": "Static sites cannot enforce member gates server-side — they'd need a real auth backend. But we can still:\n1. Truncate paid content from the static HTML (treat the paywall as `<!--more-->`-style cut) and surface it only on the excerpt/list.\n2. Or render the cut content but hide it behind a `members-only` CSS class for a JS-based gate (e.g. Outpost, Magic Pages member-bridge).\n\nToday neither is implemented — the paywall is invisible on import.\n\n**Fix**: add `nectar.config.ts → members.paywall = 'strip'|'gate-js'|'show'` and render accordingly. Document the security implication: `'gate-js'` is client-side and bypassable.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: paywall: theme-dev — Ghost themes expect `{{#has visibility=\"public\"}}` to gate snippets",
+    "body": "Ghost themes such as Casper render different UI when a post is `visibility:\"members\"|\"paid\"`. Source has scattered `{{#has visibility=…}}` checks. We expose `post.visibility` in frontmatter, but the `{{#has}}` helper may not branch on visibility correctly today.\n\n**Fix**: audit `src/render/helpers/flow.ts` for the `has` helper's `visibility=` predicate, ensure parity with Ghost's contract (https://ghost.org/docs/themes/helpers/has/). Add tests for `{{#has visibility=\"public,members,paid\"}}` matching.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: email: migration — email-only content silently shipped to web",
+    "body": "Ghost has two card types that are **email-only** — they should NOT appear in the web version of a post: `email` (raw HTML/text injected only into the newsletter) and `email-cta` (a CTA visible only to email subscribers). Ghost wraps them in `<!--kg-card-begin: email--> … <!--kg-card-end: email-->` comment fences.\n\nTurndown drops the fence comments and keeps the inner content. Result: subscriber-only material leaks onto the public site.\n\n**Fix**: in the import preprocessor, strip everything between `<!--kg-card-begin: email-->` and `<!--kg-card-end: email-->` (and same for `email-cta`). Add a regression test with a fixture post containing both.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: email: rendering — no concept of \"email-only content\" in Nectar",
+    "body": "Nectar generates static HTML only. There is no newsletter rendering path. So `email` and `email-cta` cards have no positive render target — they should always be stripped from the body.\n\nHowever, the **plaintext/excerpt** generators (`src/content/markdown.ts:htmlToPlaintext`) may still see content if migration leaked it through. Audit excerpt/feed generation to confirm.\n\n**Fix**: confirm the migration strip is the single source of truth; add doc note in `docs/GHOST_COMPATIBILITY.md` that email-only cards are dropped on import. If users want newsletter generation, file a separate epic.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: email-cta: migration — segment targeting (`free`/`paid`) is lost",
+    "body": "`email-cta` carries a `segment` attribute (`status:free`, `status:-free`, `status:paid`) controlling who sees it in the email. Ghost serialises this in the HTML comment fence as `<!--kg-card-begin: email-cta-->`. Inner HTML has no marker.\n\nOn web we should strip these unconditionally; on a hypothetical newsletter exporter we'd need the segment. Today both data points (the card body AND the segment) are lost.\n\n**Fix**: same strip-on-import as `email`. If/when newsletter export is built, preserve segment metadata via a frontmatter array `email_ctas: [{ segment, html }, …]` rather than inline body content.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: html: migration — raw HTML preserved by Turndown but may include unsafe `<script>`",
+    "body": "Ghost HTML card stores arbitrary author-written HTML inside `<!--kg-card-begin: html--> … <!--kg-card-end: html-->`. Turndown's default behavior with `<script>`, `<iframe>`, `<style>` is to drop them; for other tags it tries to convert. Result is unpredictable — sometimes the HTML survives, sometimes it's mangled to markdown.\n\nAlso: any `<script>` an author included for trusted embedded widgets vanishes silently, with no warning.\n\n**Fix**: Turndown rule that matches the fence-comment region and converts to a fenced ` ```html` code block OR a `{% raw %}` shortcode that's passed through marked verbatim. Decide on a sanitisation policy in `docs/GHOST_COMPATIBILITY.md` (allow `<iframe>` and trusted-host `<script>`? strip all `<script>`?).",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: html: rendering — marked allows raw HTML but no sanitisation in pipeline",
+    "body": "`src/content/markdown.ts` uses `marked` with defaults — raw HTML in the markdown source is passed through to the rendered HTML untouched. This is the right behaviour for trusted authors, but there is no `sanitize-html` / DOMPurify step and no `script-src` CSP guidance. A malicious export or a compromised author can inject XSS.\n\n**Fix**: add an opt-in `markdown.sanitize: 'strict'|'permissive'|'none'` setting. Default to `'permissive'` (strips `<script>` and `on*` handlers, keeps `<iframe>` for embeds with sandbox). Document the trust model.",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "ghost-card: html: theme-dev — no `.kg-card.kg-html-card` selector means custom HTML doesn't inherit card width modifiers",
+    "body": "Ghost wraps html cards as `<div class=\"kg-card kg-html-card kg-width-wide\">…</div>`. The Source CSS for `kg-width-wide`/`kg-width-full` (`screen.css:411,416`) keys off `.kg-width-*` directly, so widths work. But there's no `.kg-html-card` rule for spacing; the card-spacing rules at lines 2273-2289 (`:not(.kg-card) + .kg-card`) match it correctly only if the outer element has `kg-card` class.\n\n**Fix**: ensure Turndown converter keeps the `<div class=\"kg-card kg-html-card kg-width-*\">` wrapper when emitting back. If converting to a `{% raw %}` shortcode, the renderer must re-wrap with the same classes.",
+    "labels": ["ghost-compat", "theme-dev", "P2"]
+  },
+  {
+    "title": "ghost-card: embed: migration — oEmbed metadata (provider, html, url) collapsed to bare iframe or link",
+    "body": "Ghost embed card stores oEmbed-resolved data: `{ url, html, type: 'video'|'rich'|'photo'|'link', metadata: { author, title, … } }`. On render it emits `<figure class=\"kg-card kg-embed-card\"><iframe src=\"…\" …></iframe></figure>` for YouTube/Vimeo/Spotify, `<blockquote class=\"twitter-tweet\">…</blockquote>` for Twitter (with required external `widgets.js`), `<blockquote class=\"instagram-media\">…</blockquote>` for Instagram, etc.\n\nTurndown's default behaviour:\n- `<iframe>`: dropped.\n- Twitter/Instagram `<blockquote>`: kept as a quoted line, but the accompanying `<script>` that hydrates the embed is dropped.\n\nResult: video embeds vanish; social embeds appear as plain quoted text.\n\n**Fix**: Turndown rule matching `figure.kg-embed-card` → emits `{% embed url=\"…\" provider=\"youtube\" %}` shortcode. Preserve the source URL — the renderer can re-resolve oEmbed at build time using a cache.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: embed: rendering — `.kg-embed-card` is the only embed selector in Source CSS",
+    "body": "`screen.css:2298` styles `.kg-embed-card` (top-level layout). Nothing inside it. Twitter/Instagram embeds depend on their **own** external `widgets.js`/`embed.js` to hydrate the blockquote into a styled card. If we don't include those scripts (per provider), social embeds render as ugly raw blockquotes.\n\n**Fix**: a per-provider embed renderer in `src/render/helpers/`:\n- youtube → `<iframe loading=\"lazy\" allowfullscreen src=\"https://www.youtube.com/embed/…\">` with privacy-mode option.\n- vimeo → similar iframe.\n- spotify → iframe.\n- twitter → blockquote + lazy-loaded `widgets.js` (add `loading=\"lazy\"` script tag once per page).\n- instagram → blockquote + `embed.js`.\n- tiktok → blockquote + `embed.js`.\n- codepen → iframe with `data-` attrs + `ei.js`.\n\nDocument the privacy/GDPR implications.",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "ghost-card: embed: rendering — youtube/vimeo aspect ratio depends on `.kg-embed-card iframe` rule that doesn't exist",
+    "body": "Ghost's Koenig CSS sets `.kg-embed-card iframe { aspect-ratio: 16/9; width: 100%; }`. Source has no such rule. Result: YouTube iframes render at the default 300x150 unless the iframe itself has `width`/`height` attrs (which the embed sometimes does, sometimes doesn't, depending on provider).\n\n**Fix**: add `.kg-embed-card iframe { width: 100%; aspect-ratio: 16/9; border: 0; }` to Source CSS or vendor Koenig's embed CSS.",
+    "labels": ["ghost-compat", "theme-dev", "P1"]
+  },
+  {
+    "title": "ghost-card: embed: lazy-load — embeds never lazy-load by default",
+    "body": "Heavy embeds (YouTube ~1MB, Twitter widgets ~250KB) load eagerly today. Browsers support `<iframe loading=\"lazy\">` natively; we should always emit it. For Twitter/Instagram scripts, only inject the script tag when at least one card of that provider exists on the page.\n\n**Fix**:\n1. Embed renderer always emits `loading=\"lazy\"` on iframes.\n2. Per-page collect a set of embed providers used; inject provider scripts conditionally in `{{ghost_foot}}`.\n3. Optionally support `<lite-youtube>` / `lite-vimeo-embed` for click-to-play.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: embed: codepen/gist/figma/spotify/soundcloud — provider-specific data lost",
+    "body": "Ghost supports a long tail of oEmbed providers: CodePen, GitHub Gist, Figma, Spotify, SoundCloud, Loom, Bandcamp, Apple Music, Pinterest, Reddit, Slideshare, etc. Each has its own embed HTML shape — iframe, blockquote+script, or pure script.\n\nOur Turndown pass treats them all uniformly (badly). The migrator must keep the source URL at minimum so the renderer can pick the right provider strategy.\n\n**Fix**: list supported providers in `docs/GHOST_COMPATIBILITY.md` with their migration target shape. For unsupported providers, fall back to a bookmark-style link with the URL.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: image: migration — caption (figcaption) and alt are preserved but alignment and link wrap are not",
+    "body": "Ghost image card: `<figure class=\"kg-card kg-image-card kg-width-wide kg-card-hascaption\"><a href=\"https://target/\"><img src=\"…\" class=\"kg-image\" alt=\"…\" loading=\"lazy\" width=\"…\" height=\"…\" srcset=\"…\" sizes=\"…\"/></a><figcaption><span>Markdown-formatted caption with <a>links</a></span></figcaption></figure>`.\n\nTurndown default produces `[![alt](src)](href)` for linked images plus the caption as a stray paragraph — the figure/figcaption pairing is lost, the `kg-width-wide` alignment is lost, the srcset/sizes is lost, the `width`/`height` (which let browsers reserve space) is lost.\n\n**Fix**: Turndown rule for `figure.kg-image-card` → emit a shortcode `{% image src=\"…\" alt=\"…\" caption=\"…\" width=\"…\" height=\"…\" align=\"wide|full|regular\" href=\"…\" %}`. Preserve raw `srcset` if present (or re-compute via asset pipeline).",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: image: rendering — `.kg-image` selector exists but no figcaption pipeline",
+    "body": "`screen.css:2291` styles `.kg-image` and `:2307` `.kg-image[width][height]` (uses `width`/`height` to compute aspect-ratio). `:2312` styles `.kg-image-card a:hover` (linked-image hover). `:2467` styles `.kg-card.kg-width-full figcaption`.\n\nBare markdown `![alt](src)` produces `<img>` (no `kg-image` class), inside a `<p>` (no `kg-image-card` wrapper), with no `figcaption`. None of the theme styling applies. Image-heavy posts look unstyled.\n\n**Fix**: a remark/marked pass that promotes top-level `<p><img></p>` (single-child paragraphs) to `<figure class=\"kg-card kg-image-card kg-width-regular\"><img class=\"kg-image\" …></figure>`. If the markdown caption is the next blockquote or italic line, attach as `<figcaption>`. (See Hugo/Eleventy figure-injection patterns.)",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "ghost-card: image: rendering — caption Markdown not parsed (Ghost renders inline Markdown in figcaption)",
+    "body": "Ghost allows `**bold**` and `[links](url)` inside figcaptions. They're stored as HTML in the lexical document, rendered as HTML by Ghost. Our migration drops the figcaption to bare text and our renderer (no figcaption pipeline) wouldn't re-parse markdown in it either.\n\n**Fix**: when caption arrives at the image shortcode, run it through a *small* inline-only marked pass (no block-level, no nested figures).",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: image: image-pipeline — width/height + srcset must be emitted to avoid CLS",
+    "body": "Lighthouse penalises images without `width`/`height` attrs (causes layout shift). Ghost always emits both. Our markdown `![alt](src)` doesn't. Even with a figure-promotion pass, we need to **read image dimensions** at build time (via `sharp`/`probe-image-size`/`image-size`) and inject them.\n\n**Fix**: add an asset-pipeline step `src/build/images.ts` that, on first encounter, probes each in-body image, caches `(src → {w, h})`, and injects attrs. For images bundled in the export, this works on disk; for remote images we'd need a fetch-and-cache (off by default).",
+    "labels": ["ghost-compat", "image-pipeline", "P0"]
+  },
+  {
+    "title": "ghost-card: image: lightbox — Ghost provides no built-in lightbox; many themes attach one",
+    "body": "Casper's `assets/js/casper.js` includes a lightbox that attaches to `.kg-image` on click (PhotoSwipe-based in newer versions). Source CSS does not include lightbox styles either. If we want feature parity, we need a small lightbox JS that hydrates `.kg-image` and `.kg-gallery-image`.\n\n**Fix**: optional `nectar.config.ts → images.lightbox = 'casper'|'photoswipe'|'none'`. Document the bundle-size cost.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: image: image-pipeline — `loading=\"lazy\"` not emitted on bare markdown images",
+    "body": "Browsers support `<img loading=\"lazy\">` natively. Ghost always sets it. Our marked output does not. Above-the-fold images are a minor exception (you usually want `loading=\"eager\"` and `fetchpriority=\"high\"` for the first image / feature image), but everything else should lazy-load.\n\n**Fix**: in the figure-promotion pass, default to `loading=\"lazy\"` for all in-body images; allow per-image override `{lazy=false}`.",
+    "labels": ["ghost-compat", "image-pipeline", "P1"]
+  },
+  {
+    "title": "ghost-card: gif: migration — Giphy `<picture>` source set collapses to first `<img>` only",
+    "body": "Ghost GIF card (from `/giphy` slash command or Tenor) renders as: `<figure class=\"kg-card kg-image-card kg-width-regular\"><img src=\"https://media…giphy.com/…/giphy.gif\" class=\"kg-image\" alt=\"…\" loading=\"lazy\" width=\"…\" height=\"…\"/></figure>`. Some exports use `<picture>` with multiple `<source>` (MP4 vs GIF for bandwidth) — Turndown drops `<picture>` and `<source>`, keeping only the inner `<img>`.\n\nResult: animated MP4 fallback (which is ~10× smaller) is lost; users always download the full GIF.\n\n**Fix**: Turndown rule for `picture` (or for image cards whose `src` contains `giphy.com`/`tenor.com`) → emit a shortcode with both MP4 and GIF sources. Same rendering target as image but `<picture>`-wrapped.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: gif: rendering — no special GIF handling, no autoplay-on-scroll",
+    "body": "Performance-minded sites convert GIFs to `<video autoplay muted loop playsinline>` MP4s on render. Ghost does this when the export retains the Giphy `mp4_url`. We have no path to do the same — we'd render the GIF directly.\n\n**Fix**: add an `images.gif_strategy = 'gif'|'mp4'|'auto'` config. `'mp4'` requires the asset pipeline to convert at build time (ffmpeg or pre-converted by Giphy).",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: gif: theme-dev — gif cards inherit `.kg-image-card` styling which is acceptable as fallback",
+    "body": "Since Ghost emits GIFs as image cards, the `.kg-image-card`/`.kg-image` CSS in Source applies. No additional CSS needed unless we promote to `<video>`.\n\n**Fix**: if we add MP4-conversion, ensure the rendered `<video>` element is sized identically (`.kg-image` class on the video element, or sibling rule).",
+    "labels": ["ghost-compat", "theme-dev", "P3"]
+  },
+  {
+    "title": "ghost-card: markdown: migration — markdown card content is double-converted (markdown → html → markdown)",
+    "body": "Ghost markdown card stores raw Markdown inside `<!--kg-card-begin: markdown--> …rendered html… <!--kg-card-end: markdown-->`. The source-of-truth markdown is **only in mobiledoc/lexical**, not in HTML. The HTML export contains the *rendered* result.\n\nWhen our importer Turndowns the rendered HTML, we get markdown back — but possibly different from the author's original (e.g. `\\\\` line breaks lost, footnote anchors flattened, GFM table alignment lost).\n\n**Fix**: when both `lexical` and `html` are present and the lexical document contains a `markdown` card, extract that card's `.markdown` field directly into the body and skip Turndown for that region. Mark the region with `<!--kg-card-begin: markdown-->` sentinels on import to make the source visible.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: markdown: rendering — markdown cards are just markdown so no special handling needed",
+    "body": "On the render side, a markdown card's content **is** markdown. No special selector exists. The Ghost wrapper `<!--kg-card-begin: markdown-->` is informational only.\n\nNo fix needed beyond confirming `src/content/markdown.ts` ignores `<!--kg-card-* -->` comments (it does: marked passes them through as HTML comments which browsers ignore).",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: hr / divider: migration — Turndown emits `* * *` which marked converts back to `<hr>` fine",
+    "body": "Ghost divider card: `<hr class=\"kg-divider-card\"/>` (or just `<hr>`). Turndown's default rule emits `* * *` which marked renders as `<hr>`. **The `kg-divider-card` class is lost** but nothing in the Source theme styles it specifically — only generic `hr` rules apply.\n\n**Fix**: low priority. If we ever want to style dividers specially, add a Turndown rule preserving `kg-divider-card` via a comment or HTML passthrough.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: hr: rendering — no `.kg-divider-card` styling; default `hr` is fine",
+    "body": "Source CSS has no `kg-divider` selector. Default `<hr>` styling applies. The `kg-card.kg-width-*` spacing rules at `screen.css:2273-2289` don't match a bare `<hr>` (no `.kg-card` class) so the spacing-around-card rules miss it.\n\n**Fix**: optionally emit `<hr class=\"kg-card kg-divider-card\">` to inherit card spacing. Trivial.",
+    "labels": ["ghost-compat", "theme-dev", "P3"]
+  },
+  {
+    "title": "ghost-card: code: migration — language, caption, and line numbers are all lost",
+    "body": "Ghost code card: `<figure class=\"kg-card kg-code-card\"><pre><code class=\"language-typescript\">…code…</code></pre><figcaption>Optional caption</figcaption></figure>`. Some posts use `kg-code-card-with-line-numbers` or store `linenums` in the lexical metadata.\n\nTurndown's `codeBlockStyle: 'fenced'` produces a fenced block — but **only when the `<code>` element has a `class=\"language-X\"`**. Some Ghost exports have the language on the `<pre>` instead, or use `data-language`. The figcaption is dropped, breaking caption-aware themes.\n\n**Fix**: pre-process to lift `data-language` / `language-*` onto the `<code>` element if it's only on `<pre>`. Turndown rule for `figure.kg-code-card` that emits a fenced block followed by `> Caption` (blockquote convention) or a real markdown directive.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: code: rendering — marked emits `<pre><code class=\"language-X\">` but no syntax highlighter is wired",
+    "body": "`src/content/markdown.ts` uses bare marked. The output for ```\\`\\`\\`ts``` is `<pre><code class=\"language-ts\">…</code></pre>` with no highlighter applied — code blocks render as plain monospace.\n\nGhost themes typically ship Prism.js or highlight.js, hydrating client-side. Casper does this. Source… does not appear to. Verify.\n\n**Fix**: either:\n1. Build-time highlighting via `marked-highlight` + Shiki (or `marked-shiki`) — emits styled spans, no runtime JS needed.\n2. Vendor Prism + a theme stylesheet and hydrate client-side.\n\nPrefer Shiki at build time for performance.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: code: theme-dev — no `.kg-code-card` selectors in Source CSS",
+    "body": "Source theme has no `kg-code-card` rules; code blocks render in whatever generic `pre, code` styling exists. No figcaption, no line numbers, no copy-button.\n\n**Fix**: add `.kg-code-card { … } .kg-code-card pre { … } .kg-code-card figcaption { … }` to Source CSS, or vendor Koenig's code-card CSS. Document line-number contract (`.kg-code-card-with-line-numbers pre` adds counters via CSS).",
+    "labels": ["ghost-compat", "theme-dev", "P2"]
+  },
+  {
+    "title": "ghost-card: code: rendering — no copy-to-clipboard button (Casper has it)",
+    "body": "Modern Ghost themes (Casper) attach a copy button to every code block via JS at hydration. Source does not. Authors used to Ghost will notice it's missing.\n\n**Fix**: small JS in Source's `assets/js/` that finds `pre code` and prepends a `<button class=\"kg-code-copy\">`. ~20 lines. Optional.",
+    "labels": ["ghost-compat", "theme-dev", "P3"]
+  },
+  {
+    "title": "ghost-card: code: migration — inline `<code>` with backticks: Turndown handles correctly, no action needed",
+    "body": "Inline code (`<code>foo</code>` outside a `<pre>`) is handled by Turndown's default rule → backtick-wrapped. No card type involved. Confirm no regression with code containing backticks (escape with double-backticks). Add a fixture.\n\n**Fix**: add a smoke test for `code with \\`backticks\\` inside`.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: blockquote-alt: migration — `<blockquote class=\"kg-blockquote-alt\">` flattened to `>` blockquote",
+    "body": "Ghost has two blockquote types: default and `kg-blockquote-alt` (a larger pull-quote variant). Turndown emits both as `> Quote text` — the alt variant is indistinguishable on round-trip.\n\n**Fix**: Turndown rule for `blockquote.kg-blockquote-alt` → emit `> [!ALT]\\n> Quote text` (GFM-alert style) or a custom directive. On render, restore the `kg-blockquote-alt` class.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: blockquote-alt: rendering — Source CSS styles `.kg-blockquote-alt` but nothing emits it",
+    "body": "`screen.css:2349` styles `blockquote.kg-blockquote-alt`. Without a directive in markdown there's no way to produce the class.\n\n**Fix**: pair with the migration directive above. Update markdown docs.",
+    "labels": ["ghost-compat", "theme-dev", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — Lexical/Mobiledoc bodies are silently skipped",
+    "body": "`src/ghost/import.ts:renderPostBody` logs a warning and **returns an empty string** if `post.html` is empty but `lexical`/`mobiledoc` is present. The user message says \"Use 'Export with HTML' from Ghost\" — but the Ghost admin UI's default export *does not* include rendered HTML for all card types. Many exports have lexical-only.\n\nMore critically, even when `html` IS present, the lexical document contains card-level fidelity that the HTML throws away (e.g. markdown card source, embed metadata, alignment classes Ghost computed but didn't always serialise back into HTML).\n\n**Fix**: implement a lexical/mobiledoc walker (port `@tryghost/kg-default-cards` server-side renderer or use it as a dep). For each card node, emit the matching shortcode directly from lexical instead of round-tripping through HTML+Turndown. This is the only path to lossless migration.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — Turndown has zero custom rules, default behaviour is lossy for figures",
+    "body": "`src/ghost/import.ts:8` constructs `new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })`. No `addRule`, no `keep`, no `remove`. Turndown's defaults treat unknown elements (figure, picture, iframe, audio, video, details, summary, mark, sub, sup) as transparent — children are walked, parent classes/attrs are dropped.\n\nThis means ~80% of Ghost card metadata is destroyed on import even when the source HTML carries it.\n\n**Fix**: add a `src/ghost/turndown-rules.ts` registering one rule per card type. Use `turndown.addRule('kg-bookmark', { filter: node => …, replacement: … })`. Each rule produces the corresponding shortcode.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: rendering — no shortcode/directive pipeline in markdown renderer",
+    "body": "`src/content/markdown.ts` uses bare `marked` with GFM only. There's no mechanism to register shortcodes (`{% card %}…{% /card %}`), directives (`:::card{…}\\n…\\n:::`), or custom block extensions. Without one, every card-aware migration rule produces output that's just literal text in the final HTML.\n\n**Fix**: pick one of:\n1. `marked` extensions API — register a `name: 'shortcode'` extension matching `{% … %}`. Lightweight, no new dep.\n2. Switch to `remark` + `remark-directive` + `remark-rehype` — heavier but more expressive (the `:::container` syntax is standardised).\n\nDocument the chosen pipeline in `docs/DESIGN.md`.",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: rendering — no width modifier helper (`kg-width-regular|wide|full`)",
+    "body": "Every Ghost card supports three widths. The CSS at `screen.css:411,416` keys off `.kg-width-wide` and `.kg-width-full` directly. Authors need a way to set width per card.\n\n**Fix**: every shortcode that wraps a `kg-card-*` element should accept a `width=\"regular|wide|full\"` param and emit the matching class. Default `regular`. Document in docs.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: rendering — card spacing rules depend on `:not(.kg-card)` / `.kg-card` sibling selectors",
+    "body": "`screen.css:2273-2289`:\n```\n.gh-content :not(.kg-card):not(table):not([id]) + :is(.kg-card, table) { margin-top: …}\n.gh-content :is(.kg-card, table) + :not(.kg-card):not(table):not([id]) { margin-top: …}\n.gh-content :not(.kg-card):not([id]) + .kg-card.kg-width-full { margin-top: …}\n.gh-content .kg-card.kg-width-full + :not(.kg-card):not([id]) { margin-top: …}\n```\nIf our renderer emits a card NOT directly under `.gh-content` (e.g. wraps it in a `<div class=\"nectar-card\">`), every spacing rule fails. If the card has a `[id]` (e.g. from `marked-gfm-heading-id` accidentally tagging it), spacing rules also miss.\n\n**Fix**: post-process pass enforces `.kg-card` elements as direct children of `.gh-content` and never carry an `[id]` attribute the heading-id plugin would assign. Add a snapshot test.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: theme-dev — no smoke test fixture exercising every card type",
+    "body": "There is no `tests/fixtures/cards/` corpus with one post per card type. Adding any card-aware code without such a corpus risks silent regressions. The existing tests (`tests/render/`) cover layout-level concerns, not card markup.\n\n**Fix**: create `tests/fixtures/ghost-cards-corpus.md` with every card type (one section per card), a paired `.expected.html` snapshot, and a `tests/render/cards.snapshot.test.ts` that diffs the rendered output. Update snapshots intentionally as cards land.",
+    "labels": ["ghost-compat", "theme-dev", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: image-pipeline — `__GHOST_URL__` placeholder leaks into final output",
+    "body": "Ghost exports replace site URLs with the literal string `__GHOST_URL__` in the HTML body of posts, feature_image, social images, og_image, codeinjection. Our importer (`src/ghost/import.ts`) writes these to disk unchanged in frontmatter (`feature_image: \"__GHOST_URL__/content/images/…\"`) and in body (after Turndown converts the HTML). At render time, the placeholder is **never resolved** — it ends up in `<img src=\"__GHOST_URL__/…\">` on the live site.\n\n**Fix**: in `importGhostExport`, after parsing JSON and before Turndown, walk all string fields and replace `__GHOST_URL__` with `''` (relative root). Document the contract.",
+    "labels": ["ghost-compat", "migration", "image-pipeline", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: image-pipeline — feature_image / og_image / twitter_image not relocated on import",
+    "body": "Even with `__GHOST_URL__` resolved, the relative paths still reference `/content/images/…` which only exists if we copy the asset folder from the Ghost export. `import.ts` does not. Result: feature images, meta-images, profile pics, tag images — all broken links.\n\n**Fix**: accept either a JSON file or a Ghost export ZIP/folder. When folder, copy `content/images/`, `content/files/`, `content/media/` to the site's static asset root. Plumb a `--assets <dir>` CLI flag too.",
+    "labels": ["ghost-compat", "migration", "image-pipeline", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: image-pipeline — no responsive variant generation (sharp/squoosh)",
+    "body": "Ghost generates `600w`, `1000w`, `1600w`, `2400w` variants for every uploaded image and threads them into `srcset` on the rendered HTML. Migration drops this (Turndown discards `srcset`). Without an asset pipeline, even if we kept the source, all in-body images are full-size.\n\n**Fix**: add `src/build/images.ts` using `sharp` to generate variants at build time for any image under `content/images/`. Make the figure-promotion pass emit srcset/sizes matching Ghost's contract.",
+    "labels": ["ghost-compat", "image-pipeline", "P0"]
+  },
+  {
+    "title": "ghost-card: ALL: theme-dev — `kg-card-hascaption` modifier class missing from Source CSS",
+    "body": "Ghost adds `kg-card-hascaption` to any card that has a figcaption (rule at `screen.css:2109` references it for the width-full + width-full sibling exception). Without this class, posts with mixed captioned/uncaptioned media end up with inconsistent spacing.\n\n**Fix**: every figure-emitting shortcode must conditionally add `kg-card-hascaption` when a caption is present.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: theme-dev — Source has both `.kg-content-wide` and `.kg-width-wide` rules; clarify which wins",
+    "body": "`screen.css:411-412` ties `.kg-width-wide` and `.kg-content-wide > div` together. `:393` has `.kg-width-full.kg-content-wide`. The two classes serve different scopes (`kg-width-*` on the card, `kg-content-wide` on the post wrapper). Migration shortcodes need to set only `kg-width-*` and rely on the theme to declare `.gh-content` (or `.kg-content-wide`).\n\n**Fix**: document the contract in `docs/GHOST_COMPATIBILITY.md` so theme authors and shortcode authors don't collide.",
+    "labels": ["ghost-compat", "theme-dev", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: rendering — `gh_head` / `gh_foot` don't inject Koenig runtime scripts",
+    "body": "Ghost cards that need JS (audio, video, toggle, signup, twitter/instagram embeds) rely on Koenig's runtime scripts being injected via `{{ghost_head}}`/`{{ghost_foot}}`. Our `src/render/helpers/ghost-head.ts` likely emits only SEO+OG tags. Without the runtimes, half the cards are broken even with perfect markup.\n\n**Fix**: extend `ghost-foot` helper to inject conditional script tags based on which card types appeared in the rendered body (collect a set in render context, emit only what's needed).",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — `<!--kg-card-begin: X --> … <!--kg-card-end: X -->` fence comments dropped by Turndown",
+    "body": "Ghost wraps several card types in HTML comment fences (`markdown`, `html`, `email`, `email-cta`). Turndown drops comments by default. We lose the ability to detect which region of HTML came from which card type, which is fatal for `email`/`email-cta` (must strip) and useful for `markdown`/`html` (preserve raw).\n\n**Fix**: preprocess `post.html` to convert `<!--kg-card-begin: X -->` into a unique inline marker that Turndown will preserve (e.g. wrap target region in `<div data-kg-card=\"X\">…</div>`). Then add Turndown rules keyed on the `data-kg-card` attribute.",
+    "labels": ["ghost-compat", "migration", "P0"]
+  },
+  {
+    "title": "ghost-card: image: alignment — `align-left|center|right` modifiers used by older posts dropped",
+    "body": "Older Ghost mobiledoc posts used `kg-align-left|center|right` on image cards (now superseded by `kg-width-*`). Turndown drops the class. Posts that depend on right-aligned floating images render as full-width images.\n\n**Fix**: Turndown rule for `kg-align-*` preserves alignment in shortcode `align` param. Renderer maps to `kg-align-*` modifier classes. Add minimal CSS to Source for left/right float.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: image: anchor wrap — `<a>` around image lost or kept randomly",
+    "body": "Linked images (`<figure><a href=…><img …></a></figure>`) are common. Turndown's default produces `[![alt](src)](href)`. Marked converts this back to a paragraph with an anchor wrapping the img — usually correctly. But the surrounding `figure` wrapper is gone, so theme styling and figcaption don't apply.\n\n**Fix**: the figure-promotion pass must detect `<a><img></a>` and emit `<figure class=\"kg-card kg-image-card\"><a href=…><img …></a></figure>`.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: gallery: caption — gallery figcaption lost on migration",
+    "body": "Galleries can have a figcaption attached to the outer figure. Turndown drops it (figure → transparent, figcaption → likely emitted as a stray italic line). Authors lose gallery captions on import.\n\n**Fix**: gallery shortcode accepts `caption=\"…\"`. Turndown rule preserves it.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: code: caption — figcaption on `kg-code-card` lost",
+    "body": "Ghost code cards can have a figcaption that themes render as a caption below the code. Turndown drops it.\n\n**Fix**: when emitting a fenced block from a `kg-code-card`, append the caption as a special trailing line (e.g. `\\n^ Caption text` parsed by a marked extension) or use a shortcode `{% code lang=… caption=\"…\" %}…{% /code %}`.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: header: button color — `--kg-header-button-color` CSS var lost",
+    "body": "Header v2 supports a per-card accent color stored as an inline `--kg-header-button-color: #abc;` custom property on the root element. Turndown drops inline styles. The header button defaults to the theme's accent on render.\n\n**Fix**: shortcode accepts `button_color=\"#abc\"`. Renderer emits `style=\"--kg-header-button-color: #abc\"` on the wrapper.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: signup: provider integration — Buttondown/ConvertKit/Mailchimp adaptors not implemented",
+    "body": "A static site needs a third-party newsletter backend. Each provider has a different form action URL and required hidden inputs. No adaptors exist today.\n\n**Fix**: implement `src/render/helpers/members/*.ts` with one file per provider (buttondown, convertkit, mailchimp, listmonk, customformaction). Provider selection via `nectar.config.ts`. Document required env vars / API keys.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: paywall: feed/excerpt leak — paid content reaches RSS unless stripped",
+    "body": "RSS feeds / Atom feeds typically inline the full post body. If the paywall marker is stripped to nothing, paid content goes out over the wire to every RSS subscriber. We need to apply the paywall cut to the RSS/feed renderer too.\n\n**Fix**: when building feeds, respect the paywall marker. Truncate the body at the marker and append a \"Subscribe to read more\" stub.",
+    "labels": ["ghost-compat", "render", "P0"]
+  },
+  {
+    "title": "ghost-card: paywall: excerpt — `custom_excerpt` is the only public-safe text",
+    "body": "If a post has `visibility:\"members\"` and a paywall, the only text we can safely use for SEO meta_description and OG description is `custom_excerpt` (author-provided). Falling back to `plaintext.slice(0, n)` could leak paid content.\n\n**Fix**: in `src/render/helpers/content.ts:excerpt`, when `visibility !== 'public'`, ignore `plaintext` and use only `custom_excerpt`. Test with a fixture.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: embed: twitter — Twitter blockquote needs `?dnt=1` for privacy",
+    "body": "Ghost emits `<blockquote class=\"twitter-tweet\" data-dnt=\"true\">…</blockquote>` for privacy. Turndown converts the blockquote to `> Tweet text`, losing the `twitter-tweet` class and `data-dnt`. The embed hydration script never fires.\n\n**Fix**: Turndown rule for `blockquote.twitter-tweet` preserves it as raw HTML (via `keep`) or converts to a `{% twitter url=\"…\" %}` shortcode.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: embed: youtube privacy — `youtube-nocookie.com` domain not used",
+    "body": "Privacy-focused themes use `youtube-nocookie.com` instead of `youtube.com` (no cookies set until play). Ghost lets authors opt in. We should expose this as a config flag.\n\n**Fix**: `nectar.config.ts → embeds.youtube_privacy = true` swaps domain at render. Document.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: vimeo — `<iframe>` with `dnt=1` lost on import",
+    "body": "Vimeo embeds with privacy flag (`dnt=1` in src) become plain iframe URLs after Turndown drops the iframe.\n\n**Fix**: embed shortcode preserves the full source URL including query params.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: spotify — height/width preservation",
+    "body": "Spotify embeds vary in height (152px for track, 232px for playlist, 380px for full). Turndown drops both. A fixed height in the embed renderer would render wrongly for some types.\n\n**Fix**: embed shortcode preserves `height` param; default per provider+type when missing.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: instagram — `<script async src=\"//www.instagram.com/embed.js\">` only loaded once per page",
+    "body": "If a post has 3 Instagram embeds, we want to inject the embed.js once, not three times. Same for Twitter and TikTok.\n\n**Fix**: in `ghost-foot` helper, collect a `Set<EmbedProvider>` during render and emit each provider's script tag at most once at the end of body.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: embed: tiktok — `<blockquote class=\"tiktok-embed\" cite=\"https://…\">` cite attr lost",
+    "body": "TikTok embeds carry the canonical URL in a `cite` attr on the blockquote. Turndown's default blockquote rule drops attrs.\n\n**Fix**: embed shortcode preserves canonical URL; renderer emits the full blockquote contract.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: reddit — `<blockquote class=\"reddit-card\">` and oEmbed handling",
+    "body": "Reddit embeds use a blockquote+script pattern similar to Twitter. Lost on Turndown. Lower priority since fewer authors use them.\n\n**Fix**: provider-specific rule for Reddit blockquotes.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: github gist — `<script src=\"https://gist.github.com/USER/HASH.js\">` dropped",
+    "body": "Gist embeds are pure `<script>` tags. Turndown drops `<script>`. Gist embeds vanish entirely.\n\n**Fix**: preprocess HTML to detect Gist scripts and convert to `{% gist url=\"…\" %}`. Renderer re-emits the script tag (or uses Gist's noscript HTML fallback).",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: embed: codepen — `data-prefill` and theme attrs lost",
+    "body": "CodePen embeds carry `data-default-tab`, `data-theme-id`, `data-pen-title`, `data-user`, `data-slug-hash` on a `<p class=\"codepen\">`. Turndown reduces to a `[link](url)`. Embed dies.\n\n**Fix**: provider rule for `.codepen` paragraphs; preserve all data attrs in shortcode.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: callout: emoji-icon — emoji vs SVG icon distinction lost",
+    "body": "Callouts can have either an emoji (`<div class=\"kg-callout-emoji\">💡</div>`) or no icon (`kg-callout-card-without-emoji` modifier). Turndown loses both. A callout without an emoji ends up with the emoji slot empty in our rendered output, breaking layout.\n\n**Fix**: shortcode handles three cases: emoji, custom emoji, no-icon. Renderer applies the `kg-callout-card-without-emoji` class when no icon.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: callout: nested formatting — bold/links inside callout-text lost",
+    "body": "Callout body supports inline markdown (bold, italic, links). Turndown handles inline OK, but the wrapping `kg-callout-text` div is lost — so the inline content lands directly in our shortcode body. If our shortcode is `:::callout\\n**bold** text\\n:::` it parses fine; if it's `{% callout body=\"…\" %}` the body would need HTML-escaping.\n\n**Fix**: choose directive syntax (`:::callout`) over inline-arg shortcode for cards with rich body content.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: toggle: nested formatting — toggle content can have lists/code/images",
+    "body": "Toggle bodies can contain any block-level content (lists, code, images, even nested cards). An inline-arg shortcode like `{% toggle title=\"…\" body=\"…\" %}` can't carry nested blocks. Need a paired-block shortcode `{% toggle title=\"…\" %}…body markdown…{% /toggle %}` or directive `:::toggle{title=\"…\"} … :::`.\n\n**Fix**: align on directive syntax. Confirm marked extension supports nested block parsing inside the directive body.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: callout: nesting — callouts inside toggles inside callouts",
+    "body": "Ghost permits arbitrary card nesting. If our directive parser is line-based and doesn't handle balanced fences (`:::callout` inside `:::toggle`), nested cards break.\n\n**Fix**: use a parser that tracks fence depth (`remark-directive` does this; ad-hoc regex usually doesn't). Add a torture-test fixture.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: render — `.gh-content` wrapper assumed by spacing rules but emitted by post.hbs",
+    "body": "Source theme expects post body inside `<div class=\"gh-content gh-canvas\">…body…</div>` (Casper convention). The card spacing rules (`screen.css:2273-2289`) all start with `.gh-content`. If a theme partial wraps the body differently (e.g. `<article>` directly), every card spacing rule misses.\n\n**Fix**: document the `.gh-content` wrapper as a hard requirement in `docs/GHOST_COMPATIBILITY.md`. Add a smoke test for partial templates that renders a card and asserts `.gh-content > .kg-card` exists.",
+    "labels": ["ghost-compat", "theme-dev", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: render — `marked-gfm-heading-id` adds `[id]` to headings, breaks card-spacing :not([id]) selector",
+    "body": "Source CSS uses `:not([id])` in `.gh-content :not(.kg-card):not(table):not([id]) + :is(.kg-card, table)` to avoid the spacing rule when an anchor heading is followed by a card. Our `marked-gfm-heading-id` plugin auto-adds an `id` to every heading — which is correct behavior for permalinks, but a `<h2 id=\"foo\">` followed by a `<figure class=\"kg-card\">` no longer matches the rule (`[id]` excluded).\n\nResult: spacing between a heading and a card is wrong by ~1.5rem.\n\n**Fix**: confirm the Source CSS actually wants `[id]` excluded (Ghost's intent: keep spacing tight when an inline anchor sits between content). Either remove the `:not([id])` from Source CSS, or restrict heading-id assignment to skip headings followed by cards.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — duplicate `<h1>` injection (post.title + first content h1)",
+    "body": "Ghost stores the post title separately from the body; the body should never start with `<h1>`. But some imports (especially from RSS or Substack mirrors) embed an h1 in the body too. After Turndown, we end up with two h1s on the page (template-emitted + body-leading). Bad for SEO and a11y.\n\n**Fix**: in `renderPostBody`, detect a leading `<h1>` whose text matches `post.title` and strip it.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: ALL: render — `loading=\"lazy\"` on first feature_image hurts LCP",
+    "body": "Browsers prioritise images marked `loading=\"eager\"` (default) for LCP. If every image is forced to `loading=\"lazy\"` for size savings, the feature image / first hero image becomes slower. Tradeoff: above-the-fold images should be eager, below should be lazy.\n\n**Fix**: figure-promotion pass marks only the first in-body image (when no `feature_image`) or the `feature_image` itself as `loading=\"eager\" fetchpriority=\"high\"`. All others lazy.",
+    "labels": ["ghost-compat", "image-pipeline", "P2"]
+  },
+  {
+    "title": "ghost-card: html: codeinjection_head/foot — preserved in frontmatter but never rendered",
+    "body": "`src/ghost/import.ts:152-153` carries `codeinjection_head` and `codeinjection_foot` into frontmatter. But the render side (`src/render/helpers/ghost-head.ts`) likely doesn't inject post-level code injection into the `<head>`/`</body>` — confirm. If not, Ghost-imported posts lose per-post analytics snippets, custom CSS, etc.\n\n**Fix**: extend `ghost_head` / `ghost_foot` helpers to concatenate site-level + post-level codeinjection.",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: code: lexical preservation — language stored on lexical card not always reflected in `<code class>`",
+    "body": "When Ghost renders to HTML, the lexical code card writes `<pre><code class=\"language-X\">`. But some old posts have `language` on the `<pre>` instead. Some have it nowhere (the editor stored it in the lexical node but the HTML renderer dropped it). Going through Turndown without language inference yields fenced code blocks with no language.\n\n**Fix**: when parsing lexical (the proper migration), read `node.language` directly from the lexical JSON. When falling back to Turndown HTML, look for `data-language` / `class=\"language-*\"` on both `<pre>` and `<code>`.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: audio: cover-art generation — Ghost generates default waveform thumbnail",
+    "body": "When an audio file has no cover art, Ghost generates a waveform SVG and uses it as the thumbnail. This SVG is in the HTML export as a base64 data URI or inline `<svg>`. Turndown drops SVG. We lose the visual placeholder.\n\n**Fix**: detect the inline SVG and preserve it inside the audio shortcode as base64, or generate a fresh waveform at build (requires audio file on disk + a waveform lib).",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: video: `kg-video-thumbnail-image-card` poster — multiple sizes lost",
+    "body": "Ghost stores video posters at multiple resolutions (matching image card srcset). Lost on Turndown.\n\n**Fix**: when migrating, preserve poster URL; rely on image pipeline to generate variants. Add to video shortcode contract.",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: render — `srcset` rebuilding doesn't account for `__GHOST_URL__` prefix",
+    "body": "Even Turndown-survived `srcset` strings (e.g. on plain `<img>` tags) contain `__GHOST_URL__/content/images/size/w600/…`. Without rewriting, every responsive variant 404s.\n\n**Fix**: pre-process `srcset` in HTML before Turndown OR build a markdown-to-html pass that rewrites image src/srcset/sizes against the site URL.",
+    "labels": ["ghost-compat", "image-pipeline", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — multi-image responsive (`<picture><source>…</picture>`) flattened",
+    "body": "Ghost rarely uses `<picture>` but some plugins emit it for AVIF/WebP serving. Turndown only keeps the inner `<img>`. AVIF/WebP variants are lost.\n\n**Fix**: Turndown rule for `<picture>` that preserves all `<source>` variants in a shortcode. Renderer emits the full picture element.",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: migration — emoji shortcodes (`:smile:`) and Unicode emoji handling",
+    "body": "Ghost stores emoji as Unicode characters directly (UTF-8). Turndown and marked both pass them through. No issue here — but worth confirming with a CJK/emoji-heavy fixture so we don't silently lose them due to file-encoding glitches.\n\n**Fix**: add a fixture with mixed Japanese + emoji + RTL Arabic in callout/toggle bodies and ensure round-trip preserves them.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: signup: form-action — no built-in plumbing to a backend, default `action=\"#\"` is silent failure",
+    "body": "Today `src/render/helpers/content.ts:subscribe_form` emits `<form action=\"#\" method=\"post\">`. Clicking submit reloads the page with no submission. There's no warning, no validation, nothing logged.\n\n**Fix**: when `members.provider = 'none'`, log a build warning that signup forms are no-ops; emit a clear `data-nectar-noop` attribute and a console.warn at runtime.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: bookmark: oEmbed fetch — no cache, no rate-limit, no offline mode",
+    "body": "If we add build-time oEmbed resolution for bookmark/embed cards, we need a persistent cache (`cache/embeds/<sha>.json`), TTL, and a `--offline` mode that uses cached data only (CI runs, dev rebuilds).\n\n**Fix**: design a cache layer in `src/build/cache.ts` shared between bookmark, embed, and (future) image probing.",
+    "labels": ["ghost-compat", "migration", "image-pipeline", "P2"]
+  },
+  {
+    "title": "ghost-card: ALL: feed/rss — card HTML must be inlined or stripped for feeds",
+    "body": "RSS feeds typically use the post HTML inline. Card markup with custom CSS classes doesn't carry inline styles, so RSS readers see unstyled blobs. Worse, `<iframe>`/`<script>` in embeds are stripped by most readers — leaving empty space.\n\n**Fix**: feed renderer should strip cards down to feed-safe equivalents (bookmark → `<p><a href>title</a><br><em>description</em></p>`, embed → `<p><a href>video link</a></p>`, gallery → `<p>` list of images, audio/video → `<a href>download</a>`).",
+    "labels": ["ghost-compat", "render", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: AMP — none of the card markup is AMP-compatible",
+    "body": "Ghost optionally renders an AMP version (`amp.hbs`). AMP forbids `<iframe>` (use `<amp-iframe>`), `<video>` (use `<amp-video>`), arbitrary CSS, inline scripts. Our card markup is broadly AMP-hostile.\n\n**Fix**: if AMP is in-scope (it may not be — Ghost is deprecating AMP), build an AMP-specific render path with `<amp-*>` substitutes. Otherwise document that AMP is unsupported.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: a11y — alt text required for image/gallery/product/header background",
+    "body": "Ghost permits empty alt; many imported posts have it. Static-site generators should warn at build time on missing alts.\n\n**Fix**: build-time linter pass that walks rendered HTML, flags `<img>` without alt (or alt=\"\" on non-decorative images). Fail build with `--strict` or just warn.",
+    "labels": ["ghost-compat", "image-pipeline", "P2"]
+  },
+  {
+    "title": "ghost-card: ALL: a11y — `<figure>` should have role + figcaption association",
+    "body": "Figures with captions should associate `<figcaption>` with `<figure>` via implicit ARIA. Our shortcode-emitted figures should respect this, including `aria-labelledby` on the figure pointing to the figcaption when used as a card title.\n\n**Fix**: render-pass adds `aria-labelledby` where appropriate; lint pass verifies.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: doc — `docs/GHOST_COMPATIBILITY.md` doesn't list any card support status",
+    "body": "The compat doc currently mentions only that mobiledoc/lexical cards aren't handled. There's no per-card status matrix. A user evaluating Nectar can't tell which cards survive migration.\n\n**Fix**: add a card matrix to `docs/GHOST_COMPATIBILITY.md`:\n| Card | Migrates | Renders | Notes |\n| bookmark | ❌ | ❌ | – |\n| gallery | ❌ | ❌ | – |\n| ... | | | |\nKeep it updated as cards land.",
+    "labels": ["ghost-compat", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: tests — add per-card fixtures from a Ghost demo export",
+    "body": "There's no Ghost demo content checked into `tests/fixtures/`. Spinning up a real Ghost instance, creating one post per card type, and exporting JSON gives a canonical test corpus. Without this, every card-aware change is regression-prone.\n\n**Fix**: add `tests/fixtures/ghost-export.json` with every card type present once. Add `tests/ghost/import.cards.test.ts` that imports the fixture and asserts the resulting markdown matches snapshots.",
+    "labels": ["ghost-compat", "migration", "P1"]
+  },
+  {
+    "title": "ghost-card: ALL: contributor docs — no guide for adding a new card",
+    "body": "Adding a new card today requires touching: `import.ts` (Turndown rule), `markdown.ts` (shortcode/directive), shortcode handler, theme CSS, fixture, snapshot test. There's no documented checklist.\n\n**Fix**: add `docs/contrib/ADDING_A_CARD.md` with the 6-step checklist. Reference an exemplar (the first card we fully implement).",
+    "labels": ["ghost-compat", "P2"]
+  },
+  {
+    "title": "ghost-card: code: prismjs language map — Ghost stores language names that don't always match Prism",
+    "body": "Ghost lets users type anything in the language field (`Typescript`, `ts`, `tsx`, `TS`). Prism (and Shiki) expects canonical names (`typescript`). Migration should normalise via a small map.\n\n**Fix**: in the code Turndown rule, normalise language strings: `ts → typescript`, `js → javascript`, `sh|bash → bash`, `yml → yaml`. Reject unknown languages (or pass through as the fence info string).",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: image: animated PNG/WebP — `loading=\"lazy\"` interaction",
+    "body": "Animated WebPs and APNGs behave like GIFs but ride through Ghost as image cards. They auto-play on scroll into view. `loading=\"lazy\"` is fine; no special handling beyond size-budgeting.\n\n**Fix**: add a fixture with an animated WebP to confirm round-trip preserves the format and dimensions.",
+    "labels": ["ghost-compat", "image-pipeline", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: round-trip — exported markdown should re-export to identical Ghost HTML",
+    "body": "A useful invariant for migration confidence: take Ghost HTML → Turndown to markdown → marked back to HTML → diff against original (modulo whitespace and irrelevant attrs). If the diff is nonempty we've lost something. This is the property test for migration fidelity.\n\n**Fix**: add `tests/ghost/round-trip.test.ts` that iterates the card-corpus fixture and computes a normalised diff per card. Acceptance: zero diff for currently-supported cards; documented expected-loss for currently-unsupported.",
+    "labels": ["ghost-compat", "migration", "P2"]
+  },
+  {
+    "title": "ghost-card: header: subscribe form variant — `kg-header-card-button-subscribe` opens portal modal",
+    "body": "When a header CTA is set to \"subscribe\" mode (member-only sites), Ghost emits a button with `data-portal=\"signup\"` that opens the portal modal. We don't have portal. The button does nothing.\n\n**Fix**: when migrating, detect `data-portal=\"signup\"` and either (a) convert to a link to a `/subscribe` page, or (b) wire to the configured `members.provider`. Document.",
+    "labels": ["ghost-compat", "render", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: validation — no schema validation of shortcodes / directives at build time",
+    "body": "Once we add shortcodes, authors will make typos (`{% bookark %}`, missing required params). With no validator, the build silently emits literal `{% bookark %}` text in HTML.\n\n**Fix**: every shortcode handler validates required params; unknown shortcode names fail the build with a file:line:col pointer.",
+    "labels": ["ghost-compat", "render", "P2"]
+  },
+  {
+    "title": "ghost-card: ALL: i18n — card-emitted strings (\"Subscribe\", \"Loading…\", \"Play\") not translated",
+    "body": "Audio/video/signup/button cards include user-facing English strings. Themes need to translate them via `t` helper.\n\n**Fix**: every card-emitting helper that includes a string passes it through the `t` helper (Source has `src/render/helpers/i18n.ts`). Default English; allow theme overrides.",
+    "labels": ["ghost-compat", "render", "i18n", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: error recovery — malformed shortcode shouldn't crash the build",
+    "body": "If a shortcode is malformed (unclosed `{% toggle %}` without `{% /toggle %}`), the build should report a clear error and continue (or skip the post), not crash with a marked stack trace.\n\n**Fix**: wrap shortcode parsing in try/catch; emit a structured build error with post path + line number; continue building other posts.",
+    "labels": ["ghost-compat", "render", "dx", "P2"]
+  },
+  {
+    "title": "ghost-card: bookmark: caption — bookmarks can have figcaptions, currently lost",
+    "body": "Ghost bookmark cards accept an optional figcaption (`<figure class=\"kg-card kg-bookmark-card kg-card-hascaption\"><a …>…</a><figcaption>Caption</figcaption></figure>`). Turndown drops the figcaption.\n\n**Fix**: bookmark shortcode accepts `caption=\"…\"`. Renderer applies `kg-card-hascaption` when present.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: callout: backwards compat — pre-v5 callouts used different class names",
+    "body": "Older Ghost (v4) callouts may have used `kg-card-callout` instead of `kg-callout-card`, or different color class names. Imports from very old Ghost installs may not match newer Turndown rules.\n\n**Fix**: a fixture of Ghost v4 HTML; Turndown rules must match both old and new selectors.",
+    "labels": ["ghost-compat", "migration", "P3"]
+  },
+  {
+    "title": "ghost-card: ALL: source theme partial — `loop.hbs` strips card markup when used in lists",
+    "body": "Post list partials (`loop.hbs`, `post-card.hbs`) render an excerpt that often comes from `{{excerpt}}` (plaintext) — fine. But some themes call `{{content words=20}}` (HTML truncation), which would leave open `<figure class=\"kg-card …\">` tags with no children. Our `truncateWords` in `src/render/helpers/content.ts:147` strips tags entirely — safe but loses any leading inline formatting.\n\n**Fix**: `truncateWords` should sanitise to plain text (it already does), so cards in list previews aren't an issue. Confirm with a fixture where post body starts with a card.",
+    "labels": ["ghost-compat", "render", "P3"]
+  }
+]

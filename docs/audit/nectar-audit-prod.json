@@ -1,0 +1,697 @@
+[
+  {
+    "title": "packaging: package.json is private and unpublishable to npm",
+    "body": "`package.json` has `\"private\": true` and `\"version\": \"0.0.1\"`, so `npm publish` is blocked. A Ghost migrator who reads our README cannot `npm i -g nectar` or `bunx nectar`. Required for shipping: flip `private` off, add `repository`, `homepage`, `bugs`, `keywords`, `author`, `files` whitelist, and a non-0 published version (e.g. 0.1.0 for first public). Decide on a npm org/scope (`@nectar/cli` vs root `nectar`).",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: bin entry points at .ts source, breaks any non-Bun install",
+    "body": "`\"bin\": { \"nectar\": \"src/cli/index.ts\" }` works under Bun's runtime but breaks for users without Bun installed globally, and for sandboxed CI installs. Either compile to a JS shim (`dist/cli/index.js` with shebang) on prepublish, or emit a single-file binary (see other issue). Without this, `bunx nectar` only works if user already has bun.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no single-file binary build (Bun supports `bun build --compile`)",
+    "body": "Bun can emit a fully self-contained executable so users do not need Bun on their machine. For a migrator coming from Ghost, downloading `nectar-darwin-arm64` is a much friendlier first taste than `curl bun.sh | bash; bun i -g nectar`. Add a release job that runs `bun build --compile --target=bun-{darwin,linux,windows}-{x64,arm64} src/cli/index.ts --outfile nectar-<triple>` for each triple and uploads to the GitHub Release.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no `files` field — publish will ship src, tests, example, dist by accident",
+    "body": "Without an explicit `files` whitelist in package.json, npm publishes everything not in `.npmignore`. Add `\"files\": [\"dist\", \"bin\", \"README.md\", \"LICENSE\", \"CHANGELOG.md\"]` (after introducing a compiled `dist/`). Otherwise our published tarball will balloon with `example/`, `tests/`, and `.claude/`.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no prepublish build step / no compiled output",
+    "body": "We ship .ts and rely on Bun runtime resolving `.ts` extensions and `~/...` path aliases. Both are non-portable. Add a `prepublishOnly` script that runs `bun build` to ESM JS + types declarations, and update `bin` and `exports` to point at the compiled output.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no `exports` field — programmatic API unreachable",
+    "body": "We have a `build()` function in `src/build/pipeline.ts` but no `exports` map, so downstream code that wants to embed Nectar (e.g. a Cloudflare Pages plugin, a Vite integration) cannot import `nectar/build` cleanly. Define `exports` for the CLI entry, the programmatic build entry, and `nectar/types` so plugin authors can type their hooks.",
+    "labels": ["infra", "api", "P1"]
+  },
+  {
+    "title": "packaging: no Homebrew tap",
+    "body": "Ghost users on macOS expect `brew install nectar`. Create a `homebrew-tap` repo with a formula that downloads the signed darwin binary from each GitHub Release. Automate via the `Homebrew/actions/setup-homebrew` workflow plus a tap-bump step in release.yml. Document the tap in the README install section.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "packaging: no Scoop bucket for Windows",
+    "body": "For Windows-first writers we need `scoop install nectar`. Create `scoop-nectar` repo with a manifest pointing at the windows-x64 binary, and bump on release. Without this, our Windows story is `bun install -g` plus PATH munging.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "packaging: no AUR package for Arch users",
+    "body": "Ghost has a non-trivial Arch following. Provide a `nectar-bin` AUR PKGBUILD that pulls the linux-x64/arm64 release binary. CI can push to AUR via aurpublish on tagged releases.",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "packaging: no Nix flake / package",
+    "body": "Add `flake.nix` exposing `packages.<system>.nectar` so `nix run github:owner/nectar -- build` just works for power users. This also gives us a reproducible dev shell.",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "packaging: no published Docker image",
+    "body": "A Ghost user who currently runs `ghost/ghost:latest` will look for `nectar/nectar:latest`. Ship a multi-arch Dockerfile (alpine + oven/bun base) that exposes `nectar build` as ENTRYPOINT and add a release job that pushes to ghcr.io and Docker Hub on tag.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "packaging: no SemVer policy documented",
+    "body": "We are at 0.0.1 with breaking changes likely. Publish a `VERSIONING.md` clarifying what counts as breaking (CLI flags, config keys, helper output, plugin API), and pin theme-compatibility guarantees to a major. Migrators need to know whether to pin `nectar@0` vs `nectar@^1`.",
+    "labels": ["infra", "docs", "P1"]
+  },
+  {
+    "title": "packaging: no CHANGELOG.md and no release-notes pipeline",
+    "body": "No `CHANGELOG.md`, no Conventional-Commit enforcement, no release-please/changeset config. Pick one: (a) `release-please` workflow keyed off `conventional-commits`, or (b) `changesets` with PR-attached notes. Without either, users have no upgrade signal beyond git log.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no automated GitHub Release on tag",
+    "body": "Tagging today does nothing. Add `.github/workflows/release.yml` that on `v*` tag: runs full test+typecheck+lint, builds binaries per triple, generates checksums, creates a GitHub Release with notes from CHANGELOG, attaches binaries+SHASUMS, then publishes to npm with provenance.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "packaging: no npm provenance / SLSA attestation",
+    "body": "Add `npm publish --provenance` from a GitHub Actions OIDC token to give downstream supply-chain consumers cryptographic proof of the build. Pair with `actions/attest-build-provenance` for the binary artifacts. This is now the default expectation for new packages.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "packaging: binaries not code-signed (macOS gatekeeper, Windows SmartScreen)",
+    "body": "An unsigned `nectar` binary on macOS Sonoma will be quarantined and Windows will throw SmartScreen warnings. Add Apple Developer ID + notarytool steps for darwin builds and an Authenticode signing step for windows builds. Without this, the first-run UX is broken for the exact demographic (non-developer bloggers) we are trying to win from Ghost.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "packaging: no checksum/sigsum file alongside binary releases",
+    "body": "Release binaries need a `SHASUMS256.txt` (and ideally `.minisig` or cosign signature) so package managers (brew, scoop, nix) can verify what they downloaded. Add to release.yml.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "ci: no .github/workflows/*.yml exists at all",
+    "body": "The repo has zero CI. Add a `ci.yml` workflow on push/PR that runs `bun install`, `bun run check`, `bun run typecheck`, `bun test`, and `bun run build:example`. Block merges on red. Right now any PR could land typecheck errors.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "ci: no matrix testing across OS + Bun versions",
+    "body": "Bun behaves differently on Windows (path separators, Bun.Glob behaviour). Run the CI matrix across `{ubuntu-latest, macos-latest, windows-latest}` × `{bun-latest, bun-1.3.x}` so we know our path normalisation (e.g. `theme/loader.ts` uses `\\\\` replacement) actually works on Windows.",
+    "labels": ["infra", "testing", "P1"]
+  },
+  {
+    "title": "ci: no Bun caching in CI",
+    "body": "First-time CI runs will re-download all deps every time. Use `oven-sh/setup-bun@v2` with the built-in lockfile-keyed cache, plus a separate cache for `node_modules` and `bun.lock`. Saves about 30s per job at our current size.",
+    "labels": ["infra", "P2"]
+  },
+  {
+    "title": "ci: no PR preview deploys",
+    "body": "Migrators evaluating Nectar will want to see what an example build looks like. Add a Cloudflare Pages / Netlify preview job: on PR build the `example/`, upload `example/dist`, post a sticky comment with the preview URL. Massive DX win for any PR that touches rendering.",
+    "labels": ["infra", "dx", "P2"]
+  },
+  {
+    "title": "ci: no Renovate / Dependabot config",
+    "body": "Add `.github/renovate.json` (preferred — supports Bun) or `.github/dependabot.yml`. Group bun.lock minor updates, separate handlebars/marked majors, schedule weekly. Without this, security updates pile up silently.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "ci: no auto-merge workflow for trusted PRs",
+    "body": "After Renovate is wired, configure auto-merge for green minor/patch dep PRs via `peter-evans/enable-pull-request-automerge` + branch protection. Keeps the dep maintenance load near zero.",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "ci: no coverage reporting",
+    "body": "`bun test --coverage` is available but never run. Add a coverage job that uploads lcov to Codecov (or coveralls), and gate the README with a coverage badge. Helps gate PRs that drop helper coverage below threshold.",
+    "labels": ["infra", "testing", "P2"]
+  },
+  {
+    "title": "ci: no dedicated lint workflow / no Biome check in CI",
+    "body": "`bun run check` exists but isn't enforced. Add a `lint.yml` that runs `bun run check`, fails on style violations, and posts annotations via reviewdog or Biome's GH formatter.",
+    "labels": ["infra", "P0"]
+  },
+  {
+    "title": "ci: no spell-check workflow",
+    "body": "Add `cspell` (or `typos`) over `docs/`, `README.md`, `src/**/*.ts` strings. Ghost's docs are infamously well-edited; sloppy spelling in our docs will undercut perceived quality.",
+    "labels": ["infra", "docs", "P3"]
+  },
+  {
+    "title": "ci: no markdown link checker",
+    "body": "`docs/DESIGN.md` already references files and external links (e.g. bun.sh). Add `lychee` or `markdown-link-check` on PRs that touch *.md to catch broken anchors and 404s.",
+    "labels": ["infra", "docs", "P3"]
+  },
+  {
+    "title": "ci: no security scanning (gitleaks, osv-scanner, codeql)",
+    "body": "Add `gitleaks` (pre-commit + CI), `osv-scanner` for the lockfile, and CodeQL JS scanning. Particularly important because we will accept `codeinjection_head`/`codeinjection_foot` raw HTML from user content.",
+    "labels": ["infra", "P1"]
+  },
+  {
+    "title": "ci: no theme-fixture smoke matrix",
+    "body": "Today we only build `example/` against the vendored `Source` theme. Add a matrix that downloads Casper, Headline, Edition, Wave, Liebling from TryGhost org and builds them against a fixed content fixture, asserting the build doesn't crash. This is the only way to keep \"Ghost theme compatible\" honest.",
+    "labels": ["testing", "P0"]
+  },
+  {
+    "title": "cli: no `nectar dev` watch/serve command",
+    "body": "`nectar serve` only serves an already-built `dist/` (and errors if `dist/` doesn't exist) — there is no watch, no rebuild, no LiveReload. For anyone migrating from Ghost (which gives them an admin UI with live preview), this is the #1 blocker. Implement `nectar dev` = watch content+theme+config, rebuild incrementally, serve, push a SSE/WebSocket reload signal.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: `nectar serve` errors out instead of building on demand",
+    "body": "`src/cli/commands/serve.ts` does `if (!existsSync(distDir)) { logger.error(...); return 1; }`. For first-time users this is hostile. Either auto-run `build` before serving, or add `--build` flag (default on for dev).",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no `nectar build --watch`",
+    "body": "Standalone `--watch` flag on `build` is useful for power users who run their own preview server (e.g. caddy, nginx). Wire up Bun's `fs.watch` over `content/`, `themes/`, `nectar.toml` and re-run `build()` on change with debouncing.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: `nectar new` has no `--draft`, no `--open`, no `--date`",
+    "body": "Current `runNew` always sets `date = now` and writes a minimal file. Add `--draft` (sets `status: draft`), `--date <iso>` (override pubdate), `--open` (open in `$EDITOR`), `--tags a,b`, `--author slug`. Also support `nectar new tag <slug>` and `nectar new author <slug>`. This is table-stakes vs Jekyll/Hugo's `new` command.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: ad-hoc arg parsing, no `--help` per subcommand",
+    "body": "We hand-parse `args.indexOf('--config')` everywhere. No subcommand-level `--help`, no usage hints, no auto-suggestions on typo (`nectar buld`). Adopt Bun's `parseArgs` or `commander`/`citty` for structured arg parsing, subcommand-level help, and typo suggestions.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: no `--quiet` / `--verbose` flags",
+    "body": "Logger reads `NECTAR_LOG_LEVEL` env var but there's no CLI flag pair. Add `--quiet` (errors only), `--verbose` (debug), `--log-format=json|pretty`. Composable with CI pipelines.",
+    "labels": ["cli", "observability", "P2"]
+  },
+  {
+    "title": "cli: no progress bar / spinner during build",
+    "body": "On a large blog (Ghost users routinely have 500+ posts) the current `build()` is a black box that prints one summary line at the end. Add a spinner showing current phase (\"loading content\", \"planning routes\", \"rendering post 23/200\") via `@clack/prompts` or a tiny in-house renderer that respects `--quiet` and TTY detection.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: `--config` accepts only a single path; no merge layering",
+    "body": "Users who want `nectar.toml` + `nectar.local.toml` (env-specific overrides) can't. Allow `--config` to be repeatable or accept comma-separated paths and deep-merge in order. Also support env-var driven config selection (`NECTAR_ENV=production`).",
+    "labels": ["cli", "P2"]
+  },
+  {
+    "title": "cli: no env-var overrides for config keys",
+    "body": "12-factor deploys (Vercel, Netlify, Cloudflare) want `NECTAR_SITE_URL=https://prod.example.com` to override `[site].url` without committing changes. Implement an env-overlay layer in `src/config/loader.ts` that maps `NECTAR_<KEY_PATH>` to the schema.",
+    "labels": ["cli", "infra", "P1"]
+  },
+  {
+    "title": "cli: no shell completion (zsh / fish / bash)",
+    "body": "Add `nectar completion zsh|bash|fish` that prints a completion script. Subcommand and flag names are stable enough to autogen. Major polish item that Ghost CLI doesn't even have.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: no opt-in usage telemetry",
+    "body": "To prioritise feature work we need to know which helpers are exercised, which themes are used, build time distribution. Add an opt-in `nectar telemetry on|off|status` that POSTs anonymised events to a Plausible/Umami endpoint. First run must prompt with clear privacy copy and default to off. See Next.js / Astro for reference.",
+    "labels": ["cli", "observability", "P3"]
+  },
+  {
+    "title": "cli: no `nectar upgrade` / version check on run",
+    "body": "Add a once-per-day stale-version check (network-skipped under CI/`NECTAR_NO_UPDATE_CHECK`) that prints \"A new version of Nectar is available: 0.4.0 → 0.5.0 (run `nectar upgrade`)\". For a CLI users may install once and forget for months, this matters.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: no `nectar init` for first-time project bootstrap",
+    "body": "Migrators landing without `nectar.toml`, without a theme, without a `content/` skeleton get unhelpful errors. Add `nectar init [--theme=source]` that scaffolds `nectar.toml`, `content/{posts,pages,authors,tags,images}/`, fetches the default theme, writes a sample post, and prints a next-steps tip. This is the natural pair of `import-ghost`.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: `nectar check` doesn't actually lint theme/content",
+    "body": "Today `check` just calls `loadConfig`/`loadContent`/`loadTheme` and reports OK. It doesn't surface: missing required fields, dead asset references, unknown frontmatter keys, malformed dates, image files referenced but missing on disk, duplicate slugs, navigation pointing at non-existent pages. Make `check` a real linter that returns nonzero for warnings (with `--strict`).",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no graceful error messages with file:line context",
+    "body": "When `loadContent` fails on bad frontmatter, the user gets a raw exception. Wrap loaders so errors carry `{ file, line, col, hint }` and the CLI prints a Cargo-style pointer (`---- content/posts/foo.md:3:5 - unknown field 'visibilty', did you mean 'visibility'?`). The current `pipeline.ts` already does `throw err` after logging `Failed to render ${route.url}` — extend that pattern everywhere.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: no `--no-clean` flag and no clean-room mode",
+    "body": "`build()` unconditionally `rm -rf`s the output dir. For deploy targets that hash filenames (e.g. fingerprinted assets shared with a prior build) we want `--no-clean`. Also add `nectar clean` as an explicit op.",
+    "labels": ["cli", "P2"]
+  },
+  {
+    "title": "observability: logs aren't structured / no JSON mode",
+    "body": "`src/util/logger.ts` writes plain text only. CI pipelines and self-hosted log aggregators want JSON. Add `NECTAR_LOG_FORMAT=json` that switches `emit()` to emit `{ ts, level, msg, ...fields }`. Also let helpers attach trace context (route URL, file).",
+    "labels": ["observability", "P2"]
+  },
+  {
+    "title": "observability: no per-route build-time reporting",
+    "body": "`build()` returns `{ outputDir, routeCount, assetCount }` — no timing info. Track wall-clock per phase (load, plan, render, asset copy, feed emit) and per-route render time. Surface a `--profile` flag that writes `dist/.nectar-build-stats.json`. Indispensable when troubleshooting why a 1000-post blog takes 90s.",
+    "labels": ["observability", "performance", "P1"]
+  },
+  {
+    "title": "observability: no memory profiling hooks",
+    "body": "Large Ghost exports (image-heavy, lots of posts) will balloon memory because we hold all rendered HTML in memory pre-emit. Add `--inspect` to surface peak RSS, and document `BUN_INSPECT=1` for V8 heap snapshots. Pair with the streaming-emit fix.",
+    "labels": ["observability", "performance", "P2"]
+  },
+  {
+    "title": "observability: no source-map handling for stack traces",
+    "body": "Once we ship compiled JS, errors will point at minified line numbers. Bundle with `--sourcemap=external` and resolve via `Error.prepareStackTrace` so `nectar build` errors still point at original .ts lines.",
+    "labels": ["observability", "P2"]
+  },
+  {
+    "title": "observability: no Sentry / error-reporter hook",
+    "body": "Expose an opt-in `[telemetry.errors]` section that POSTs unhandled exceptions and `logger.error` calls to a user-provided DSN (Sentry, GlitchTip, custom). Lets agency users monitor their fleet of Nectar sites without us hosting anything.",
+    "labels": ["observability", "P3"]
+  },
+  {
+    "title": "observability: no trace/build IDs",
+    "body": "Every `build()` invocation should mint a UUID and prepend it to every log line. Lets you correlate output when running `nectar dev` (which spins many builds).",
+    "labels": ["observability", "P3"]
+  },
+  {
+    "title": "observability: build output is not deterministic / reproducible",
+    "body": "`loadMarkdownDir` uses `Bun.Glob.scan` whose order is filesystem-dependent. `theme.assets` is a Map keyed by insertion order. This makes the byte-identical reproducible-build claim impossible. Sort all glob results and Map iterations explicitly. Verify by running `bun run build` twice and `diff -r` the output.",
+    "labels": ["observability", "performance", "P1"]
+  },
+  {
+    "title": "theme-dev: no `nectar theme:new` scaffolder",
+    "body": "A theme author who wants to start fresh has to copy Source manually. Add `nectar theme:new <name>` that scaffolds `themes/<name>/{default.hbs,index.hbs,post.hbs,page.hbs,partials/,assets/{css,js}/,package.json,locales/en.json}` matching Ghost's expected layout.",
+    "labels": ["theme-dev", "cli", "P1"]
+  },
+  {
+    "title": "theme-dev: no `nectar theme:lint` (gscan equivalent)",
+    "body": "Ghost has `gscan`, a theme validator that catches deprecated helpers, missing required files, broken partial refs, missing `{{ghost_head}}`/`{{ghost_foot}}`. We need our own `nectar theme:lint <path>` that returns the same class of errors, otherwise themes drift and we get bug reports we can't reproduce. Wrap or vendor `@tryghost/gscan` if its rules map cleanly.",
+    "labels": ["theme-dev", "cli", "P0"]
+  },
+  {
+    "title": "theme-dev: no `nectar theme:zip` distribution helper",
+    "body": "Ghost themes are uploaded as `.zip`. Add `nectar theme:zip <path>` that produces a tidy archive (excluding `node_modules`, `*.map`, `.DS_Store`) ready to share or upload back to a Ghost instance. Also useful for our future theme marketplace.",
+    "labels": ["theme-dev", "cli", "P2"]
+  },
+  {
+    "title": "theme-dev: no watch mode for theme files",
+    "body": "Even when we add `nectar dev`, we need theme `.hbs`/`.css`/`.js` to invalidate the partial registry and re-render only affected routes. Plan: hash each `.hbs`, on change rebuild the engine and re-render only routes whose template depends on that file (track partial dependencies during compile).",
+    "labels": ["theme-dev", "performance", "P1"]
+  },
+  {
+    "title": "theme-dev: no HMR / live-reload in the browser",
+    "body": "Inject a tiny `/__nectar/livereload.js` snippet (only in dev) that opens a WebSocket and reloads on rebuild. For CSS-only changes, hot-swap stylesheets without full reload. Without this, theme iteration is back to Ctrl-R hell.",
+    "labels": ["theme-dev", "dx", "P1"]
+  },
+  {
+    "title": "theme-dev: no source-map for Handlebars stack traces",
+    "body": "Handlebars throws raw \"Parse error on line 23\" with no file context. Wrap `hb.compile` to remember `{ file, source }` and rethrow with `'theme/partials/post-card.hbs':23:4 — Expected closing tag '{{/foreach}}'`.",
+    "labels": ["theme-dev", "observability", "P1"]
+  },
+  {
+    "title": "theme-dev: no documentation of available helpers / context",
+    "body": "Theme authors guess from reading Ghost's docs. Generate `docs/theme-reference.md` automatically from helper registrations (`registerXyzHelpers`) and the Post/Page/Tag/Author TypeScript types in `src/content/model.ts`. Add JSDoc to each helper, then a tiny `bun run docs:gen` script.",
+    "labels": ["theme-dev", "docs", "P1"]
+  },
+  {
+    "title": "theme-dev: no custom-settings UI / form generation",
+    "body": "`@custom` exists in DESIGN.md but theme authors who declare `package.json` `config.custom.*` get no UI for end users to flip those switches. Either: (a) emit a `nectar.toml` snippet showing defaults, or (b) ship a tiny `nectar admin` web UI (out of scope?) that writes the toml. (a) is the minimum.",
+    "labels": ["theme-dev", "dx", "P2"]
+  },
+  {
+    "title": "theme-dev: no theme dev guide / cookbook",
+    "body": "Write `docs/theme-dev.md` covering layout inheritance (`{{!< default}}`), partial conventions, locale files, asset fingerprinting, helper authoring, package.json `config` block, and how to test against Nectar's golden HTML. Without this, third-party themes will not appear.",
+    "labels": ["theme-dev", "docs", "P0"]
+  },
+  {
+    "title": "api: no public plugin / hook API",
+    "body": "DESIGN.md mentions \"optional components\" but `src/build/pipeline.ts` is hard-wired (sitemap/RSS coded inline). Define a `Plugin = { name, beforeBuild?, afterContentLoad?, beforeRender?, afterRender?, afterEmit? }` interface and have `build()` collect plugins from `nectar.toml` + node_modules `nectar-plugin-*`. Document the API in `nectar/plugin` types.",
+    "labels": ["api", "P0"]
+  },
+  {
+    "title": "api: no custom helper registration mechanism",
+    "body": "Theme authors and plugin authors need to inject Handlebars helpers (e.g. a `{{stripe_button}}` helper) without forking Nectar. Expose `engine.registerHelper(name, fn)` and a `[components.helpers]` config entry that imports a JS file from `node_modules`.",
+    "labels": ["api", "theme-dev", "P1"]
+  },
+  {
+    "title": "api: no content transformer / shortcode pipeline",
+    "body": "Hugo's shortcodes are why a lot of bloggers love it. Add a transformer hook (`beforeMarkdown`, `afterMarkdown`) so plugins can rewrite `:::callout` or `{{< youtube id >}}` blocks. Without this, every embed (Twitter, YouTube, gist) requires raw HTML in posts.",
+    "labels": ["api", "P1"]
+  },
+  {
+    "title": "api: no custom-route plugin point",
+    "body": "Plugins should be able to add routes (e.g. an `archive.html`, a `/feed/json/` JSON feed, a `/_redirects` Netlify file). Extend the route planner to accept `extraRoutes` from plugins. Sitemap/RSS should be re-implemented as built-in plugins so the API stays load-bearing.",
+    "labels": ["api", "P1"]
+  },
+  {
+    "title": "api: no convention for npm plugin discovery",
+    "body": "Document `nectar-plugin-<name>` as the npm-search prefix (mirroring `eslint-plugin-*`). Auto-load any installed package matching that prefix unless explicitly disabled in config. Publish a tiny scaffold (`nectar plugin:new`) too.",
+    "labels": ["api", "P2"]
+  },
+  {
+    "title": "api: no public TypeScript types exported",
+    "body": "Plugin authors writing TypeScript need `NectarPlugin`, `BuildContext`, `RouteContext`, `Post`, `Page`, `Tag`, `Author`, `SiteData`, helper types. Re-export from a `nectar/types` entry in `exports` and dual-export `.d.ts` from `tsc --emitDeclarationOnly`. Without this, plugin DX is `any`-soup.",
+    "labels": ["api", "P0"]
+  },
+  {
+    "title": "api: no semver-stable contract on Post/Page shape",
+    "body": "`src/content/model.ts` currently lives privately. Once plugins consume it, every field add/rename becomes breaking. Mark certain fields `@experimental` and document the stable subset in VERSIONING.md.",
+    "labels": ["api", "P2"]
+  },
+  {
+    "title": "image-pipeline: `img_url size=` is a no-op",
+    "body": "`src/render/helpers/assets.ts` `imgUrlHelper` accepts `size=` and looks up `theme.pkg.image_sizes[size]`, but never actually rewrites the URL or generates a resized image — it just returns the original path. Themes (Source, Casper) rely on `size=` for responsive `srcset` and will load full-resolution images everywhere. Wire up Sharp/Squoosh-WASM to materialise sized variants under `dist/_images/<hash>/<size>.<ext>`.",
+    "labels": ["image-pipeline", "P0"]
+  },
+  {
+    "title": "image-pipeline: no WebP / AVIF transcoding",
+    "body": "Ghost themes emit `<picture>` elements expecting WebP+JPEG/AVIF+JPEG fallback. We pass through whatever was uploaded, so a JPEG-heavy blog stays JPEG-heavy. Add per-format variants behind `[components.images]` config, keyed by mtime+hash for caching.",
+    "labels": ["image-pipeline", "P1"]
+  },
+  {
+    "title": "image-pipeline: no LQIP / blur-up support",
+    "body": "Modern Ghost themes use a tiny base64 placeholder for above-the-fold images. Generate a 16px-wide JPEG and inline as `data:` on the `<img>` `style=\"background:url(...)\"`. Without it, our LCP scores will look worse than the same blog on Ghost.",
+    "labels": ["image-pipeline", "P2"]
+  },
+  {
+    "title": "image-pipeline: no SVG sanitisation",
+    "body": "User-supplied SVG (avatars, cover images) can carry inline `<script>` or `<foreignObject>` with JavaScript. Run all SVG content assets through DOMPurify (or `svgo --pretty --multipass` + a script stripper) on copy. Same for any SVG referenced from frontmatter.",
+    "labels": ["image-pipeline", "P1"]
+  },
+  {
+    "title": "image-pipeline: no EXIF strip",
+    "body": "Migrators uploading photos via Ghost had EXIF preserved (camera, GPS coords on iPhone shots). Add EXIF stripping (configurable; default-on for privacy) when we touch images. Same component that does resizing.",
+    "labels": ["image-pipeline", "P2"]
+  },
+  {
+    "title": "image-pipeline: no content-addressed image storage",
+    "body": "Today `copyContentAssets` mirrors `content/images/` to `dist/content/images/`. Two posts referencing the same image cost double bandwidth on CDN-without-dedup. Move to `dist/_images/<sha256-prefix>/<filename>` and rewrite URLs in HTML + frontmatter. Makes incremental builds + CDN caching far cheaper.",
+    "labels": ["image-pipeline", "performance", "P2"]
+  },
+  {
+    "title": "image-pipeline: feature_image not validated to exist",
+    "body": "If a post's `feature_image: /content/images/missing.jpg` references a missing file, the build still succeeds and the user gets a broken `<img>` on production. `nectar check` should flag these; build should warn.",
+    "labels": ["image-pipeline", "cli", "P1"]
+  },
+  {
+    "title": "image-pipeline: asset hashing reads whole file into memory",
+    "body": "`loadThemeAssets` does `await readFile(file)` then hashes the whole buffer. For themes with bundled fonts or background videos this blows up. Stream-hash via `Bun.CryptoHasher` reading chunks.",
+    "labels": ["image-pipeline", "performance", "P2"]
+  },
+  {
+    "title": "search: Pagefind integration not wired",
+    "body": "DESIGN.md lists `[components.search] type = \"pagefind\"` but there is no implementation. Add a post-build step that shells out to `npx pagefind --source dist` and copies the resulting `pagefind/` bundle. Provide a `{{> search}}` partial.",
+    "labels": ["search", "P1"]
+  },
+  {
+    "title": "search: Lunr integration not wired",
+    "body": "Lunr is the lightweight client-only alternative for sites under a few hundred posts. Implement a build step that emits `dist/search-index.json` and ships a tiny vanilla-JS search widget. Useful where Pagefind's WASM overhead is too much.",
+    "labels": ["search", "P2"]
+  },
+  {
+    "title": "search: no search UI partial provided",
+    "body": "Even if Pagefind is wired, themes need an HTML widget. Ship a default `partials/search.hbs` and a small CSS module that themes can opt into via `{{> search}}`. Allow theme override.",
+    "labels": ["search", "theme-dev", "P2"]
+  },
+  {
+    "title": "comments: {{comments}} renders empty `<div>` — no provider wiring",
+    "body": "Per DESIGN.md the helper is a stub. Add concrete providers behind `[components.comments] provider = \"giscus\"|\"disqus\"|\"utterances\"|\"webmention.io\"|\"off\"` and have the helper emit each provider's snippet using `repo`, `category`, `shortname` etc. configured at the toml. Comments are a hard requirement for any Ghost migrator with an existing comment section.",
+    "labels": ["comments", "P0"]
+  },
+  {
+    "title": "comments: no webmention/IndieWeb provider",
+    "body": "Some Ghost users on the indieweb stack pipe through webmention.io. Add it as an option alongside giscus/disqus/utterances.",
+    "labels": ["comments", "P3"]
+  },
+  {
+    "title": "migration: import-ghost cannot read multi-DB Ghost exports",
+    "body": "`src/ghost/import.ts` reads `db[0].data` only. Newer Ghost admin exports (with split tables for posts_meta, members, snippets) span multiple `db[i]` blocks. Merge across all DB entries before processing. Without this, a real Ghost export silently drops content.",
+    "labels": ["migration", "P0"]
+  },
+  {
+    "title": "migration: no Lexical/Mobiledoc body conversion",
+    "body": "Posts in current Ghost installs are stored as Lexical or Mobiledoc. Our importer logs a warning and writes an empty body for those — that's all of Ghost ≥ 5.x. Vendor or wrap `@tryghost/kg-default-cards` + `@tryghost/kg-lexical-html-renderer` to materialise HTML, then turndown to Markdown. This is *the* migration blocker.",
+    "labels": ["migration", "P0"]
+  },
+  {
+    "title": "migration: no image download from Ghost CDN",
+    "body": "Ghost exports reference `https://images.unsplash.com/...` and `https://my-ghost-site.com/content/images/2024/01/foo.jpg`. Today we write the URL verbatim into frontmatter and the user's static site keeps hotlinking the original Ghost CDN. Implement an `--download-images` flag that walks every image URL, fetches to `content/images/`, and rewrites references.",
+    "labels": ["migration", "P0"]
+  },
+  {
+    "title": "migration: no URL rewriting from Ghost paths",
+    "body": "After downloading images, internal links inside post HTML (e.g. `<a href=\"/my-ghost-site.com/old-slug\">`) still point at the original domain. Add a rewrite pass keyed off the importer's `--source-url=https://oldblog.com` flag.",
+    "labels": ["migration", "P1"]
+  },
+  {
+    "title": "migration: no redirect map output",
+    "body": "Even with same slug structure, Ghost users have redirect chains (custom redirects from the admin UI). Read `/content/data/redirects.json` if present in the export bundle and emit `_redirects` (Netlify), `vercel.json`, and `nginx.conf` snippets. Also map any post-slug changes.",
+    "labels": ["migration", "P1"]
+  },
+  {
+    "title": "migration: no preview/dry-run for importer",
+    "body": "Add `nectar import-ghost --dry-run` that prints a summary table (posts found, drafts skipped, lexical bodies skipped) without writing files. Critical for users with thousand-post exports — they want to know what will land before it does.",
+    "labels": ["migration", "cli", "P1"]
+  },
+  {
+    "title": "migration: no WordPress importer",
+    "body": "Beyond Ghost, the second-largest migration source is WordPress (WXR XML export). A `nectar import-wordpress export.xml` would 10x our addressable user base. Vendor `xml2js` + a converter that produces the same content layout.",
+    "labels": ["migration", "P1"]
+  },
+  {
+    "title": "migration: no Hugo / Jekyll importer",
+    "body": "Many small blogs are Hugo or Jekyll today. Their content is already Markdown — main work is re-mapping frontmatter (e.g. `categories` → `tags`, `aliases` → `redirects`). Add `nectar import-hugo` / `nectar import-jekyll`.",
+    "labels": ["migration", "P2"]
+  },
+  {
+    "title": "migration: no reverse export (Nectar → Ghost JSON)",
+    "body": "For Ghost-as-headless-CMS workflows, users want to push Nectar markdown back into a Ghost instance. Add `nectar export-ghost` that produces a valid `ghost-export.json` (db[0].data shape). Niche but unlocks evaluation pilots (\"can I keep both running for a month?\").",
+    "labels": ["migration", "P3"]
+  },
+  {
+    "title": "migration: importer doesn't preserve internal IDs/UUIDs",
+    "body": "`importGhostExport` synthesises `id: 'post-' + slug` and drops `post.uuid`. If a user later re-imports an updated export, we can't reconcile because we lost the original keys. Preserve `id`, `uuid`, `created_at` in frontmatter so re-imports are idempotent.",
+    "labels": ["migration", "P2"]
+  },
+  {
+    "title": "migration: no tests against realistic Ghost export fixtures",
+    "body": "There are no fixtures for `import.ts` (e.g. a captured anonymised export from a real 100-post blog). Add `tests/fixtures/ghost-exports/{small,medium,large}.json` + a golden snapshot of the produced markdown tree.",
+    "labels": ["migration", "testing", "P1"]
+  },
+  {
+    "title": "docs: no docs site, only DESIGN.md + GHOST_COMPATIBILITY.md + README",
+    "body": "To convert evaluators we need a real docs site (docs.nectar.dev or similar) hosting: install guides, config reference, theme dev guide, helper matrix, plugin API, migration playbook, FAQ. Bootstrap with Nectar itself (dogfood) or Starlight/VitePress under `docs-site/`.",
+    "labels": ["docs", "P0"]
+  },
+  {
+    "title": "docs: no auto-generated CLI reference",
+    "body": "After we structure the CLI (separate issue), generate `docs/cli.md` from the command definitions so every flag is documented. Hugo and Astro both do this; users dramatically expect it.",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "docs: no auto-generated config reference from Zod schema",
+    "body": "The Zod schema in `src/config/schema.ts` is the source of truth — emit `docs/config.md` from it with field names, types, defaults, and zod descriptions. Add `.describe()` chains to every field so docs are not empty.",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "docs: no tutorials or quickstart beyond a 4-line README block",
+    "body": "Need step-by-step pieces: (1) Start a blog from scratch, (2) Migrate from Ghost in 10 minutes, (3) Customise the Source theme, (4) Deploy to Cloudflare Pages / Vercel / Netlify / GitHub Pages, (5) Write your first plugin. Each should be an evaluable thing a junior dev can copy/paste.",
+    "labels": ["docs", "P0"]
+  },
+  {
+    "title": "docs: no `examples/` directory beyond `example/`",
+    "body": "We have one `example/` for tests. Real users want: minimal-blog, photo-blog, multi-author, multi-language, members-style-with-stripe-redirect, newsletter+rss-only. Each as a runnable folder. Forms the basis of deploy templates (e.g. `cloudflare-pages-template`).",
+    "labels": ["docs", "P2"]
+  },
+  {
+    "title": "docs: no migration playbook (specific to Ghost users)",
+    "body": "A single dense page: `docs/migration/ghost.md`. Steps, gotchas, before/after screenshots, redirect strategy, members-paywall caveat. The first hit on Google for \"migrate Ghost to static\" should be this page.",
+    "labels": ["docs", "migration", "P0"]
+  },
+  {
+    "title": "community: no CODE_OF_CONDUCT.md",
+    "body": "Required to be taken seriously as an OSS project. Adopt Contributor Covenant 2.1. GitHub even has a one-click 'add COC' button.",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "community: no CONTRIBUTING.md",
+    "body": "Add `CONTRIBUTING.md` covering: how to clone, install Bun, run tests, file an issue, sign-off requirements (DCO?), Conventional Commits expectation, what \"theme-compat regression\" means. Without it, even motivated first-time contributors bounce.",
+    "labels": ["docs", "P0"]
+  },
+  {
+    "title": "community: no SECURITY.md / responsible disclosure policy",
+    "body": "We touch user-provided HTML (`codeinjection_*`, raw markdown HTML), and the SVG/HTML output is user-published. We need a `SECURITY.md` with a private reporting channel (security@... or GitHub Security Advisories). Without it, well-intentioned researchers will file public issues with PoCs.",
+    "labels": ["docs", "P0"]
+  },
+  {
+    "title": "community: no GitHub issue templates",
+    "body": "Add `.github/ISSUE_TEMPLATE/bug.yml`, `feature.yml`, `theme-compat.yml` (with a fields capture for theme name, Nectar version, Bun version, repro). Especially `theme-compat.yml` is critical because that's our differentiator.",
+    "labels": ["docs", "P1"]
+  },
+  {
+    "title": "community: no PR template",
+    "body": "Add `.github/PULL_REQUEST_TEMPLATE.md` with sections: summary, linked issue, theme regression check, test plan, screenshots if visual.",
+    "labels": ["docs", "P2"]
+  },
+  {
+    "title": "community: no GitHub Discussions / forum",
+    "body": "Enable Discussions and seed a few categories: Q&A, Show & Tell (themes), Ideas, Announcements. Cheap to set up, raises perceived activity, deflects support load from issues.",
+    "labels": ["docs", "P2"]
+  },
+  {
+    "title": "community: no funding info (.github/FUNDING.yml)",
+    "body": "Add GitHub Sponsors / Open Collective / Polar / Ko-fi link. Even if we don't expect revenue early, signalling sustainability matters to evaluators who burned out on Ghost's pricing.",
+    "labels": ["docs", "P3"]
+  },
+  {
+    "title": "community: no bug-bounty / responsible-disclosure incentive",
+    "body": "Once funded, even a $100 bounty per critical vuln (huntr.dev or directly) puts us on the radar of supply-chain researchers. Document criteria in SECURITY.md.",
+    "labels": ["docs", "P3"]
+  },
+  {
+    "title": "community: no release-notes template",
+    "body": "Define `.github/release-notes-template.md` or a release-please section ordering: breaking, features, perf, bugfixes, deps, internal. So every release reads the same.",
+    "labels": ["docs", "P2"]
+  },
+  {
+    "title": "i18n: only one locale per build — no multi-locale routing",
+    "body": "`[site].locale` is a single string; helpers `{{t}}` and `{{lang}}` resolve it once. Multilingual blogs need per-post locale tags and `/en/`, `/ja/` URL prefixes with hreflang. Spec: frontmatter `locale: ja`, content tree under `content/<locale>/posts/...`, build emits per-locale route tree with `<link rel=\"alternate\" hreflang=\"ja\" href=...>`.",
+    "labels": ["i18n", "P1"]
+  },
+  {
+    "title": "i18n: date formatting ignores locale",
+    "body": "`src/render/helpers/date.ts` always uses default English month names (`'DD MMM YYYY'`). dayjs needs `dayjs/locale/<code>` imported and `.locale()` set per request. Currently a Japanese blog gets \"05 May 2026\" instead of \"2026年5月5日\".",
+    "labels": ["i18n", "P1"]
+  },
+  {
+    "title": "i18n: no number / currency formatting",
+    "body": "No helper for `{{number value}}` or `{{currency value cur=\"USD\"}}` driven by `[site].locale` via `Intl.NumberFormat`. Themes that show price/stat blocks fall back to raw numbers.",
+    "labels": ["i18n", "P2"]
+  },
+  {
+    "title": "i18n: word_count and excerpt break on CJK text",
+    "body": "`src/content/markdown.ts` does `text.split(/\\s+/).filter(Boolean)` for word counts and the excerpt is `plaintext.slice(0, 200)` characters. Japanese / Chinese / Korean text doesn't use spaces between words, so word_count is wildly off (often 1 for an entire essay) and reading_time follows. Use `Intl.Segmenter` with `granularity: 'word'` keyed off site locale.",
+    "labels": ["i18n", "P1"]
+  },
+  {
+    "title": "i18n: timezone treated as one global value",
+    "body": "`[site].timezone` is one TZ, but multi-author/multi-locale blogs may want author-local published_at display. At minimum allow `{{date timezone=\"Asia/Tokyo\"}}` override (per-call) — the dayjs helper currently ignores the hash.",
+    "labels": ["i18n", "P3"]
+  },
+  {
+    "title": "i18n: no RTL handling",
+    "body": "When `locale` is `ar`/`he`, themes need `<html dir=\"rtl\">`. Expose `{{dir}}` helper or auto-set `dir` attribute in default layouts. Document RTL-safe CSS patterns in the theme dev guide.",
+    "labels": ["i18n", "P3"]
+  },
+  {
+    "title": "testing: helper unit tests missing for most helpers",
+    "body": "We have 6 test files total and none target the helpers in `src/render/helpers/*.ts`. Each helper (`date`, `t`, `url`, `social_url`, `foreach`, `is`, `match`, `has`, `get`, `excerpt`, `reading_time`, `pagination`, `navigation`, `ghost_head`, `ghost_foot`, `asset`, `img_url`, `body_class`, `post_class`) needs at least one positive and one negative test. Without this, every refactor risks silent theme regressions.",
+    "labels": ["testing", "P0"]
+  },
+  {
+    "title": "testing: no golden HTML snapshot tests",
+    "body": "DESIGN.md §6 promises `tests/golden/`, but the directory doesn't exist. Add tiny theme + fixture + frozen `expected.html` snapshots and assert byte-identical output. The first regression we should catch is \"helper output changed by mistake\".",
+    "labels": ["testing", "P0"]
+  },
+  {
+    "title": "testing: no fuzz / property tests",
+    "body": "`marked` + `gray-matter` + user content is a rich attack surface. Add property tests around frontmatter parsing (random YAML), markdown rendering (random unicode), slug derivation (random titles). `fast-check` works under Bun.",
+    "labels": ["testing", "P2"]
+  },
+  {
+    "title": "testing: no tests against real Ghost themes (Casper / Headline / Edition / Wave / Solo)",
+    "body": "We claim Source theme compatibility but only run against the vendored copy. Add a `test-themes/` workspace that pulls Casper/Headline/Edition/Wave/Solo on CI (git-subtree or release tarball pin), runs `nectar build` against a canned content fixture, and asserts every page emitted has no `{{` leakage and parses as HTML. This is the contract test that defines our market.",
+    "labels": ["testing", "theme-dev", "P0"]
+  },
+  {
+    "title": "testing: no CLI integration tests",
+    "body": "There are no tests that spawn the CLI and assert stdout/stderr/exit-code. Add `tests/cli/{build,new,check,serve,import-ghost}.test.ts` using `Bun.spawn`. Catches arg-parsing regressions that unit tests miss.",
+    "labels": ["testing", "P1"]
+  },
+  {
+    "title": "testing: no coverage threshold gates",
+    "body": "Once Codecov is wired (separate issue), set a floor (e.g. 70% lines, 80% on `src/render/helpers/*`) and block PRs that drop below. Without a gate, coverage trends down.",
+    "labels": ["testing", "P2"]
+  },
+  {
+    "title": "testing: no perf benchmark suite",
+    "body": "Add `tests/bench/` using `mitata` or Bun's built-in bench: render-1000-posts, paginate-tags-with-100-tags, import-ghost-5000-posts. Track regressions over time (publish JSON to a gh-pages branch).",
+    "labels": ["testing", "performance", "P2"]
+  },
+  {
+    "title": "testing: no XSS / sanitisation tests",
+    "body": "Frontmatter and `codeinjection_*` accept raw strings that get emitted into HTML attributes (`<meta content=\"...\">`). Add tests for: `<script>` in title, double-quote in description, NUL bytes in slug. Today some paths use a custom `escapeAttr`/`escapeHtml` per file (duplicated, drift risk) — consolidate and test.",
+    "labels": ["testing", "P1"]
+  },
+  {
+    "title": "testing: no large-content soak test",
+    "body": "Add a generated fixture of 5000 posts + 100 tags + 10 authors and assert build completes under N seconds and under M MB peak RSS. Pins us to a published perf SLA.",
+    "labels": ["testing", "performance", "P2"]
+  },
+  {
+    "title": "performance: rendering is sequential, not parallel",
+    "body": "`build()` loops `for (const route of routes) engine.render(route)` synchronously. Each render is CPU-bound (Handlebars). For a 1000-post blog this is the wall-clock bottleneck. Either run a Bun worker pool (one per CPU) sharing the compiled templates, or batch routes with `Promise.all` (helpers are pure once content is loaded).",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "performance: no incremental builds",
+    "body": "`build()` deletes `dist/` and rewrites everything every time. For a 500-post blog this is 5-10 seconds even on M2. Track per-post mtime + theme-fingerprint and only re-render affected routes. Pre-condition for a usable `nectar dev`.",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "performance: no content cache between builds",
+    "body": "Markdown rendering is re-done each build even when the .md file hasn't changed. Cache parsed `{ html, plaintext, word_count, reading_time }` keyed by file mtime + content sha. Storage: `.nectar/cache/<hash>.json` (add to `.gitignore`).",
+    "labels": ["performance", "P1"]
+  },
+  {
+    "title": "performance: theme assets duplicated on disk (fingerprinted + logical copy)",
+    "body": "`copyAssets` writes both `dist/assets/built/screen.css` and `dist/assets/built/screen.<hash>.css`. Double the disk + double the upload. Either emit only the fingerprinted copy (and update helpers to reference it) or symlink. Themes with megabytes of fonts pay 2x.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "performance: no build-profile output (--profile)",
+    "body": "Pair with the observability issues. `nectar build --profile` should write `dist/.nectar/profile.json` with `{ phase, duration_ms, route, bytes_emitted }` so users can diagnose their own slowness without filing an issue.",
+    "labels": ["performance", "observability", "P2"]
+  },
+  {
+    "title": "performance: emit phase blocks on per-file fs writes",
+    "body": "`writeHtml` does `await ensureDir; await writeFile` per route, serially in the render loop. Decouple: collect `{ outputPath, html }` in memory, then concurrently write with bounded concurrency (e.g. `pLimit(32)`). Same for `copyAssets` and `copyContentAssets`.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "performance: route planner walks posts repeatedly (O(N*M) tag/author filters)",
+    "body": "`routes.ts` does `content.posts.filter(...)` inside the tag and author loops — O(tags × posts) and O(authors × posts). On a blog with 100 tags × 1000 posts that's 100k pass-through. Build inverse maps `Map<tagSlug, Post[]>` and `Map<authorSlug, Post[]>` during content load.",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "performance: pipeline.ts deletes dist with `recursive: true, force: true` — race-prone under watch",
+    "body": "When `nectar dev` lands, multiple parallel saves could trigger overlapping `rm` + `writeFile`s. Plan: write to a temp directory, swap atomically. Today this only bites under load but it bites hard (\"why is dist/index.html missing for 200ms\").",
+    "labels": ["performance", "P2"]
+  },
+  {
+    "title": "infra: no GitHub repo settings as code (no `.github/settings.yml`)",
+    "body": "Manage branch protection rules, required checks, default labels via `probot/settings`. Without it, when a maintainer joins, we'll have inconsistent enforcement (and `bun run check` will be bypassed on some PRs).",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "infra: no CODEOWNERS",
+    "body": "Add `.github/CODEOWNERS` so PRs touching `src/render/helpers/*` auto-request review from the theme-compat maintainer, PRs touching `src/ghost/import.ts` go to the migration maintainer, etc. Even a one-person project benefits from auto-assignment for future contributors.",
+    "labels": ["infra", "P3"]
+  },
+  {
+    "title": "infra: no editor config / .editorconfig",
+    "body": "Add `.editorconfig` (`indent_style = space`, `indent_size = 2`, `end_of_line = lf`, `insert_final_newline = true`, `charset = utf-8`) so Windows contributors don't accidentally land CRLF in `.hbs` test fixtures.",
+    "labels": ["infra", "dx", "P3"]
+  },
+  {
+    "title": "infra: no pre-commit hook (lint-staged / lefthook / husky)",
+    "body": "Catch Biome and typecheck regressions before push so CI isn't the first signal. Use `lefthook` (Go, fast, language-agnostic) configured to run `bun run check` on staged files. Optional opt-out via env.",
+    "labels": ["infra", "dx", "P2"]
+  },
+  {
+    "title": "infra: no devcontainer / Gitpod / Codespaces config",
+    "body": "Add `.devcontainer/devcontainer.json` so a first-time contributor can open the repo in Codespaces and have `bun install` already done. Lowers the contribution bar significantly.",
+    "labels": ["infra", "dx", "P3"]
+  },
+  {
+    "title": "infra: tsconfig has no `~/` path alias declaration",
+    "body": "Source code uses `~/config/schema.ts` etc. but `tsconfig.json` may rely on bun-only path resolution. Verify `paths` is declared so `tsc --noEmit` works and IDE tooling resolves correctly. If not, add `paths: { \"~/*\": [\"./src/*\"] }`. This also matters for downstream consumers of types.",
+    "labels": ["infra", "dx", "P1"]
+  },
+  {
+    "title": "dx: no `nectar doctor` self-diagnostic",
+    "body": "Like `brew doctor` / `flutter doctor`. Print Bun version, Nectar version, detected `nectar.toml`, detected theme, content counts, missing required directories, environment variables, suspicious config (e.g. relative `site.url`). First thing maintainers ask in issues anyway.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "dx: build summary doesn't show output size",
+    "body": "Final log line says `Built X routes (Y assets)` but no total bytes, largest pages, largest assets. Add a per-build summary that lists top-5 largest outputs and total size. Helps users notice when a stray 50MB GIF made it into `dist/`.",
+    "labels": ["cli", "observability", "P3"]
+  },
+  {
+    "title": "dx: no `nectar deploy` quickstart",
+    "body": "Add thin wrappers: `nectar deploy cloudflare`, `nectar deploy netlify`, `nectar deploy vercel`, `nectar deploy gh-pages`. Each one prints/applies the canonical config snippet. The aim isn't to replace those tools, it's to drop the \"how do I deploy this\" friction to one command on day one.",
+    "labels": ["cli", "dx", "P2"]
+  }
+]

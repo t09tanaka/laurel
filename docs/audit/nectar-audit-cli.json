@@ -1,0 +1,762 @@
+[
+  {
+    "title": "cli: adopt node:util parseArgs for robust flag parsing",
+    "body": "src/cli/commands/*.ts currently use ad-hoc args.indexOf('--config'), args[idx+1]. This breaks for `--config=path`, short flags, repeated flags, and `--` end-of-options. Replace with `import { parseArgs } from 'node:util'` (Bun supports it). Define a typed schema per subcommand: { config: { type: 'string', short: 'c' }, port: { type: 'string', short: 'p' }, ... }. Handle unknown flags by failing with exit code 2 and a 'did you mean' suggestion. Reference: build.ts:5-6, serve.ts:7-8, check.ts:7-8.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: support --key=value syntax across all subcommands",
+    "body": "Current parser only handles `--key value`. `--config=./nectar.config.ts` is broken because `args.indexOf('--config=./nectar.config.ts')` returns -1. After switching to parseArgs this will be free; until then it is a silent bug. Add a regression test exercising both shapes.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: support short flag aliases (-c, -p, -o, -v, -h)",
+    "body": "Only `-h` and `-v` are partially handled at the top level. Subcommands take no shorts. Define a stable short-flag map: -c=--config, -p=--port, -o=--output, -w=--watch, -q=--quiet, -V=--verbose, -j=--json. Document in --help output.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: support --no-foo negation for booleans",
+    "body": "There is no way to disable a default-true boolean (e.g. `--no-color`, `--no-copy-content-assets`). parseArgs negation prefix `--no-` should be plumbed through. Provide a documented set: --no-color, --no-progress, --no-cache, --no-copy-content-assets, --no-watch.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: support `--` end-of-options separator",
+    "body": "Currently no way to pass a literal `--config` to a downstream consumer or a filename starting with `--`. Adopt parseArgs which exposes `positionals` after `--` automatically. Document in help.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: per-subcommand --help with examples",
+    "body": "`nectar build --help` currently re-prints the top-level usage. Each subcommand should print: synopsis, description, flags (with defaults), examples, exit codes, environment variables, related commands. Build a help renderer that takes a structured CommandSpec. Reference: index.ts:5-19 only has global help.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: `nectar help <subcommand>` form",
+    "body": "Support both `nectar build --help` and `nectar help build` (git/cargo style). Also support `nectar <sub> -h`. Currently only top-level `nectar help` works (index.ts:25-28).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: unknown subcommand should suggest closest match",
+    "body": "index.ts:55-58 prints `Unknown command: X` with full usage. Use Levenshtein distance against the known command list and print `did you mean 'build'?`. Cargo, npm, and gh all do this. Exit code 2 is correct.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: discoverability — `nectar` with no args should not exit 0 silently",
+    "body": "Currently `nectar` (no args) prints usage and exits 0 (index.ts:24-29). That conflates 'help requested' with 'no command'. POSIX convention is exit 1 (or 2) when invoked without a command; exit 0 only when user explicitly asks for help. Differentiate.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing --version --json for machine-readable version output",
+    "body": "`nectar version` only prints a string. Expose `--json` form: `{ \"name\": \"nectar\", \"version\": \"0.0.1\", \"bun\": \"...\", \"node\": \"...\", \"commit\": \"...\" }`. Useful for CI matrix workflows.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: version constant duplicated and drifts from package.json",
+    "body": "src/cli/index.ts:3 hardcodes `const VERSION = '0.0.1'`. package.json also has `\"version\": \"0.0.1\"`. They will drift. Read version from package.json at build time (import attribute or build-time replace), or via `Bun.file('package.json')`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: `version --check` for upstream release check",
+    "body": "Add `nectar version --check` that fetches the latest release from npm or GitHub (with 1d cache in ~/.cache/nectar/release.json) and prints whether an upgrade is available. Respect NECTAR_NO_UPDATE_CHECK=1. Reference: npm, deno, bun all do this.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing global --quiet / --verbose",
+    "body": "Today logging level is via env var NECTAR_LOG_LEVEL only (src/util/logger.ts). Add `--quiet` (suppress info/debug, keep warn/error), `--verbose` (-V) bumps to debug. Allow stacking: `-VV` for trace. Wire into the logger module.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing --json (machine-readable) output mode",
+    "body": "No subcommand emits JSON. Add `--json` that switches the logger to NDJSON on stdout: `{ \"level\":\"info\", \"ts\":..., \"event\":\"build.done\", \"summary\":{ ... } }`. Critical for editor integrations, CI, and the future `nectar doctor`.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing --no-color / NO_COLOR / FORCE_COLOR detection",
+    "body": "src/util/logger.ts has no color support and no TTY detection. When adding color (chalk/picocolors), the standard contract is: respect NO_COLOR (https://no-color.org/), FORCE_COLOR=1|2|3, and `--no-color`. Auto-disable when `!process.stdout.isTTY`. Centralise in src/util/color.ts.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no TTY detection for progress vs. plain logs",
+    "body": "Logger always writes plain lines. In CI (non-TTY) we want unbuffered line-oriented output; in interactive shells we want spinners + redraws. Detect via `process.stdout.isTTY` and gate the spinner/progress UI accordingly.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no progress reporting during build",
+    "body": "src/build/pipeline.ts iterates routes silently and prints one summary line. For sites with >100 routes the user has no feedback. Add a progress bar (e.g. `[ 42/120 ] posts/foo`), spinner during asset copy, and ETA. Use a tiny utility — avoid heavy deps. Disable when not TTY or --json.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no spinner during expensive theme load",
+    "body": "loadTheme + loadContent in pipeline.ts run in parallel but can take seconds. Show a spinner with status: 'Loading theme…', 'Compiling templates…', 'Indexing content…'. Important first-impression UX.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: no SIGINT/SIGTERM handler — Ctrl-C leaves dist/ in half-state",
+    "body": "src/build/pipeline.ts:26 calls `rm(outputDir, { recursive: true, force: true })` then writes files. If the user hits Ctrl-C between the rm and full write, dist/ is empty or partial. Install a SIGINT handler that aborts the active write loop with a CancellationToken and either restores from a temp dir or warns about partial state. Use AbortSignal in writeHtml/copyAssets.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: build should write to dist.tmp then rename atomically",
+    "body": "Current emit writes directly into the final output_dir (pipeline.ts:26). Any failure mid-build leaves a broken site. Build into `<output>.tmp-<pid>` and rename on success. Add a `--no-atomic` escape hatch. Mention in --help.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: no --dry-run flag",
+    "body": "There is no way to preview what would be built without writing files. Add `nectar build --dry-run` that plans routes, loads templates, runs renders into memory, but never touches the filesystem. Print the same summary plus a per-route table when --verbose.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: no --output / -o override",
+    "body": "Currently `build.output_dir` is read from nectar.config and there is no way to override on the CLI. Add `--output <dir>` (-o). Useful for CI matrix builds (preview, production, multi-locale).",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: build: no --base-path override",
+    "body": "`build.base_path` is config-only. PR previews / GitHub Pages / multi-tenant deploys need to override per build. Add `--base-path <path>`; normalise to leading/trailing slash; warn if not starting with `/`.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: build: no --concurrency / --jobs",
+    "body": "Routes render serially (pipeline.ts:36-44 for-of). For large sites a parallel renderer with bounded concurrency (e.g. p-map with limit=os.cpus().length) is a big win. Add `--concurrency N` (default cpus). Test correctness — Handlebars helpers must be reentrant.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: no --watch flag",
+    "body": "There is no built-in watch mode. The intended `nectar dev` would cover that, but a simple `nectar build --watch` (no server, just rebuild on change) is a common subset for SSG + external static host. Use fs.watch + debounce 100ms.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: no --include-drafts / --drafts",
+    "body": "Content with `draft: true` is silently included or excluded depending on loader behaviour. Make policy explicit: by default drafts are excluded; `--include-drafts` includes them and warns 'Building with drafts'. Add `NECTAR_DRAFTS=1` env equivalent.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: no --strict (warnings become errors)",
+    "body": "Many things currently warn (missing image, invalid frontmatter date, unknown helper) and continue. CI deployments want `--strict` to fail the build on any warning. Wire through the logger so `warn()` increments a counter; strict mode causes a non-zero exit at end.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: build: exit code 1 for every failure is too coarse",
+    "body": "build.ts:18 returns 1 for any thrown error. Reserve codes: 0 ok, 1 generic, 2 usage/CLI error, 3 config error, 4 content error, 5 theme error, 6 render error, 7 emit/IO error, 130 SIGINT. Tag thrown errors with a `code` property and map at the boundary.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: stderr vs stdout semantics undocumented",
+    "body": "logger.info → stdout, warn/error → stderr (util/logger.ts:9-10). Document this contract in --help so users can `nectar build > build.log` and still see errors. Add a test asserting where each level lands.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: build: emit a build-manifest.json",
+    "body": "On success, write `<output>/.nectar/build-manifest.json` containing routeCount, assetCount, generated_at, nectar version, config hash, theme name+version, list of output files with sizes/hashes. Useful for incremental deploys (rsync, S3 sync) and for `nectar deploy`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: build: support multiple --config files for layering",
+    "body": "Allow `--config base.config.ts --config prod.overrides.ts` and deep-merge in order. Lets users keep a base config + environment overlays without bash gymnastics.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: build: no --base-url for absolute canonical/OG URLs",
+    "body": "Distinct from --base-path. site.url today is config-only; preview deploys (Netlify/Vercel/Cloudflare PR URL) need `--base-url https://pr-42.example.com` so canonical, OG, RSS use the right host.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: new: rejects only kinds 'post' and 'page' — no extensibility",
+    "body": "src/cli/commands/new.ts:11 hardcodes 'post' | 'page'. Themes may want to scaffold 'author', 'tag', custom collections. Drive the list from the loaded config + theme manifest. Allow `nectar new <kind> <title>` for any known kind.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: new: empty title from quoted empty string crashes with bad UX",
+    "body": "`nectar new post \"\"` prints 'A title is required' and exits 2 (new.ts:15-18). Good. But `nectar new post '   '` (only whitespace) also needs the same treatment — verify .trim() handles it (it does). Add a positive test and a friendly message: 'Title cannot be empty. Example: nectar new post \"My First Post\"'.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: new: slug collision overwrites existing file silently",
+    "body": "new.ts:33 writes unconditionally. If `content/posts/foo.md` exists, it is overwritten. Detect existence, fail with exit 1 and message 'Refusing to overwrite <path>. Pass --force to overwrite or --slug <other>.' Provide `--force` and `--slug` flags.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: new: no --slug override",
+    "body": "slug is always derived from title via slugify (new.ts:20). Add `--slug <value>` for cases where title has unicode or custom canonical slug is needed. Validate slug matches /^[a-z0-9][a-z0-9-]*$/.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: new: no --tags / --authors / --draft / --date",
+    "body": "Frontmatter is fixed. Add `--tags news,foo`, `--authors alice`, `--draft`, `--date 2025-01-01`, `--template <name>`. They populate the YAML frontmatter on creation.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: new: no --open to launch $EDITOR after scaffold",
+    "body": "After scaffolding, users almost always want to edit. Add `--open` to spawn $EDITOR (or $VISUAL) on the created file. Respect EDITOR env var. Fall back to logging the path.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: new: usage line is wrong for missing kind",
+    "body": "When kind is omitted, new.ts:11-14 prints the message but technically the user might run `nectar new`. The error 'Usage: nectar new <post|page> \"Title\"' is helpful, but should distinguish 'missing kind' from 'invalid kind' and include exit codes & link to docs. Also: log to stderr (currently logger.error already does).",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: new: no --content-dir override",
+    "body": "Posts always go to `content/posts`, pages to `content/pages` (new.ts:21). Should honour `config.content.posts_dir` / `pages_dir` instead of hardcoded paths. Currently `nectar new` and the build pipeline disagree if the user customised these dirs.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: new: should print next steps after success",
+    "body": "After 'Created path', show 'Next: nectar build && nectar serve' or 'nectar dev'. Keep it short; suppress with --quiet.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: new: date defaults to UTC ISO but timezone-aware blogs want local",
+    "body": "new.ts:27 uses `new Date().toISOString()` (always Z). Per global rule 'UTC統一' this is fine, but document it and allow `--date` override. Also include the site timezone in the frontmatter `published_at` if config.site.timezone is set, to make Ghost-compat seamless.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: serve: no --host flag",
+    "body": "serve.ts:7-8 binds whatever Bun.serve defaults to (typically 0.0.0.0 or localhost). Add `--host` (default 'localhost'), with `--host 0.0.0.0` for LAN testing on mobile devices. Print the actual bound URL.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve: port collision crashes Bun.serve",
+    "body": "serve.ts:19 calls Bun.serve without try/catch. If the port is in use, an unhandled Error throws. Catch EADDRINUSE, increment port up to N, or fail with a friendly 'Port 4321 is in use; try --port 4322'. Exit code 2.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: serve: invalid --port (NaN/negative) silently coerces",
+    "body": "`Number(args[portFlag + 1])` (serve.ts:8) gives NaN for `--port abc`, which Bun.serve will then reject opaquely. Validate: must be integer 1..65535. Otherwise exit 2 with 'Invalid --port value: <given>'.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve: does not auto-build before serving",
+    "body": "serve.ts:13-15 checks for dist and exits 1 if missing. Better: offer `--build` (-b) to run a build first, and document it in the error message ('Run `nectar build` first, or pass --build').",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve: no live reload / no watch",
+    "body": "Serve is a static file server only. The user has to re-run build manually. This is what a `nectar dev` should do — see separate issue. As a stopgap, add `nectar serve --watch` that also rebuilds and ws-pushes a reload signal.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: serve: no graceful shutdown",
+    "body": "serve.ts:18-38 calls Bun.serve and returns 0 immediately; the process stays alive because of the listener. There is no SIGINT handler that calls `server.stop()`. On Ctrl-C the connection is dropped abruptly. Capture `process.on('SIGINT', () => { server.stop(); process.exit(130); })`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve: MIME type detection is implicit",
+    "body": "`new Response(Bun.file(filePath))` relies on Bun's MIME guess. For .webmanifest, .xml, .rss, this is usually fine but unverified. Add a test for the common types and an explicit Content-Type override for known SSG outputs (sitemap.xml application/xml, rss.xml application/rss+xml).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: serve: no caching headers in dev",
+    "body": "Static server sets no Cache-Control. For local dev, set `Cache-Control: no-store` so refreshes don't show stale assets. For prod static hosts this isn't your problem, but a dev-mode default helps.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: serve: directory traversal guard works but undocumented",
+    "body": "serve.ts:25-27 checks `filePath.startsWith(distDir)`. Good. Add a test that `/..%2f..%2fetc%2fpasswd` is rejected and document this guarantee. Use `path.relative` and check it doesn't start with '..' for additional defence.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: serve: no --open flag to launch browser",
+    "body": "All modern SSGs (vite, astro, eleventy --serve) open the browser to the bound URL on first start. Add `--open` flag. Use `Bun.spawn(['open', url])` on macOS, `xdg-open` on linux, `start` on win.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: serve: does not honour site.url for printed link",
+    "body": "Always prints `http://localhost:<port>` (serve.ts:40). When using a base_path != '/', the link should include it: `http://localhost:4321/blog/`. Otherwise the first click 404s.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve: support HTTPS via --tls-cert/--tls-key",
+    "body": "Some browser features (service worker, secure cookies) require HTTPS. Bun.serve supports `tls: { cert, key }`. Add `--tls-cert <pem>` and `--tls-key <pem>` flags. Bonus: `--tls` with mkcert auto-generated certs in ~/.cache/nectar/certs.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: check: no --strict flag — warnings vs errors collapsed",
+    "body": "check.ts:6-30 only catches throws; everything else is logger.info. Add `--strict` so any warning (e.g. missing theme partial, deprecated frontmatter key) flips the exit code to 1. Required for CI gates.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: check: no JSON output",
+    "body": "Editor integrations need a parseable result. Add `--json` so check emits `{ config: { ok: true }, content: { posts: 5, warnings: [...] }, theme: { ok: true, missing_partials: [] } }`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: check: doesn't validate links / external refs",
+    "body": "A 'check' that doesn't verify cross-links and asset references is half a check. Add: (1) all internal `[text](./foo.md)` resolve to known content, (2) image refs in frontmatter (cover_image, logo) point to existing files in assets_dir, (3) navigation URLs resolve. Make slow checks opt-in via `--check-links` / `--check-external`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: check: doesn't validate theme template existence vs route plan",
+    "body": "check.ts only loads the theme. It does not run planRoutes and verify that every required template (index.hbs, post.hbs, page.hbs, tag.hbs, author.hbs) exists for the configured content. Add a 'theme-coverage' pass.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: check: no per-file file:line error context",
+    "body": "When zod validation fails on nectar.config.ts the message will be a zod issue tree, not 'nectar.config.ts:42 site.url must be a string'. Wrap zod errors to attach the source file path and (best-effort) line via the TOML/YAML parser's position info. Massive DX win.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: import-ghost: no --output / --dry-run",
+    "body": "src/cli/commands/import-ghost.ts:11-15 always writes into the configured content dirs. Add `--output <dir>` to write somewhere else (review-first workflow), and `--dry-run` to print what would be created without writing.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: import-ghost: no overwrite policy",
+    "body": "If a Ghost slug clashes with an existing file in content/posts, current behaviour is implicit (assume overwrite or skip — verify in src/ghost/import.ts). Add `--on-conflict skip|overwrite|rename` (default skip) and report each conflict on stderr.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: import-ghost: no streaming / progress for large exports",
+    "body": "Ghost JSON exports can be 10MB+. Print a progress line per N=50 posts processed. Currently the user sees nothing until the final summary (import-ghost.ts:13-15).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: import-ghost: file argument not validated for existence/JSON",
+    "body": "import-ghost.ts:5-9 only checks `if (!file)`. If the path doesn't exist, importGhostExport will throw deep inside. Pre-flight: existsSync, file size > 0, JSON.parse on first 4KB. Print 'File not found: <path>' with exit 2.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: import-ghost: no --include / --exclude filters",
+    "body": "Add `--include-drafts`, `--include-pages`, `--only-tags news,blog`, `--since 2024-01-01`. Lets users do partial migrations safely.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: import-ghost: --keep-html option to preserve original mobiledoc/lexical-rendered HTML",
+    "body": "Conversion to Markdown via turndown loses fidelity for complex Ghost cards (galleries, embeds). Provide `--keep-html` to write the rendered HTML alongside (e.g. `foo.md.html`) or to embed as a raw HTML block in the Markdown.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar dev` (watch + serve + reload)",
+    "body": "The single highest-impact missing command. `nectar dev` should: (1) watch content/, theme/, config; (2) incremental rebuild on change; (3) serve dist on a port; (4) inject a tiny WebSocket script that triggers full reload; (5) pretty-print errors with file:line; (6) auto-rebuild config if it changes. Today users must run build manually after every edit.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar theme new <name>`",
+    "body": "Scaffold a theme directory under themes/<name>/ with package.json, default.hbs, index.hbs, post.hbs, page.hbs, partials/, assets/built-in/. Optionally `--from <existing-theme>` to copy from a starter (Casper, Source). Print next steps.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar theme lint` (gscan-compatible)",
+    "body": "Ghost ships gscan to check theme compliance. Reimplement the rule set against Nectar's theme model (src/theme/loader.ts). Categories: errors (missing required templates), warnings (missing recommended partials), recommendations (accessibility, OG, semantic). Output table by default, `--json` for CI. Exit 1 on errors.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar theme zip`",
+    "body": "Package the current theme into `<name>-<version>.zip` for upload to Ghost or distribution. Exclude node_modules, .git, source maps, *.test.*. Verify gscan-compatible structure before zipping (theme lint). Print resulting path.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar theme serve`",
+    "body": "Like `nectar dev` but focused on theme dev: re-renders only when theme files change, uses a small fixture set so it's fast (skip loading 1000 posts). Helpful for theme authors not building a real site.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar theme list`",
+    "body": "Discover available themes by scanning config.theme.dir. Print: name, version (from theme package.json), path, default? (matches config.theme.name). Useful when site has multiple themes for A/B.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar deploy <target>`",
+    "body": "Implement deployers for known targets: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, `rsync`. Read credentials from env (NETLIFY_AUTH_TOKEN, ...). Pre-flight: ensure `nectar build` was run, manifest exists. Add `--build` to chain. Diff via the build-manifest for incremental.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar doctor`",
+    "body": "Health check: bun version meets engines.bun, $EDITOR set, config schema valid, theme present, content dirs exist, no orphaned drafts, RSS/sitemap config sane, network reachable for `version --check`. Output table with PASS/WARN/FAIL plus 'how to fix'. `--json` for CI.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar migrate <source>`",
+    "body": "Subsume import-ghost into a more general `nectar migrate ghost <file>` and add `nectar migrate wordpress <wxr.xml>`, `migrate hugo <dir>`, `migrate jekyll <dir>`, `migrate eleventy <dir>`. Shared options: --output, --dry-run, --on-conflict, --include-drafts. Deprecate `import-ghost` with an alias.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar export <format>`",
+    "body": "Inverse of import. `nectar export json` dumps all content as a single JSON file; `nectar export ghost-json` produces an importable Ghost backup; `nectar export rss` regenerates only the feed. Useful for backups and platform migrations.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar content list`",
+    "body": "`nectar content list [--kind posts|pages] [--draft] [--tag foo] [--author bar] [--json]`. Tabular listing with slug, title, date, status. Foundation for everything else (touch, rename, delete).",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar content show <slug>`",
+    "body": "Print frontmatter + first N lines of body for a piece of content. `--frontmatter` shows only YAML. Useful for scripting and debugging.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar content touch <slug>`",
+    "body": "Update the `updated_at` field (and optionally `published_at`) to now. Equivalent of `touch` for content, but frontmatter-aware. Common operation when re-publishing.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar content delete <slug>`",
+    "body": "Move (don't rm) to `.nectar/trash/<timestamp>/<slug>.md`. Always reversible. `--purge` to permanently delete after 30d.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar content rename <old-slug> <new-slug>`",
+    "body": "Move the file, update slug in frontmatter, optionally add a redirect entry (e.g. write to config.build.redirects[]). Avoid breaking inbound links.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar config get <key>`",
+    "body": "Read a single key from the resolved config. Dotted paths: `nectar config get build.output_dir`. Useful for shell scripts: `OUT=$(nectar config get build.output_dir)`. Pair with --json.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar config set <key> <value>`",
+    "body": "Write a value back to nectar.config.{ts,js,toml,json}. Detect file format and preserve comments where possible (use @iarna/toml writer for TOML, AST edits for TS). For TS configs, prefer writing a sibling .nectar.local.toml override.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar config path`",
+    "body": "Print the absolute path of the config that would be loaded (with --config override applied). Useful for editor integrations, CI debugging, and `code $(nectar config path)`.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar config validate`",
+    "body": "Like `nectar check` but config-only. Faster. Returns 0/1 with zod error pretty-printed. Replace check's config phase with a call into this.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar tags list`",
+    "body": "List all known tags (from frontmatter + content/tags/*.md), with post count. `--orphaned` shows tags referenced by no post; `--unused` shows tag pages with no posts. JSON output.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar tags rename <old> <new>`",
+    "body": "Rewrite the tag across all post frontmatter and rename content/tags/<old>.md. Atomic. Print files modified count.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar tags merge <from> [from...] <into>`",
+    "body": "Merge multiple tags into a single canonical tag. Idempotent. Common after a content audit.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar authors list`",
+    "body": "List all authors with post counts. `--orphaned` to surface authors referenced by no post.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar authors rename <old> <new>`",
+    "body": "Rewrite author slug across content. Mirror of tags rename. Critical when an author changes their handle.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar clean`",
+    "body": "Remove dist/ and .nectar/cache safely. Prompt for confirmation unless `--yes`. Refuse if the target is outside cwd. `--keep dist/.well-known` lets users preserve special files. Useful before fresh builds in CI.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar init` (interactive scaffold)",
+    "body": "Interactive prompt-driven project init: site title, URL, theme (pick from list), starter content yes/no, RSS yes/no, deployment target. Writes nectar.config.toml, .gitignore, README, sample content. `--yes` for defaults (non-interactive CI).",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar completions <shell>`",
+    "body": "Emit shell completion scripts for bash, zsh, fish, powershell. Cargo/rg style: `nectar completions zsh > ~/.zsh/_nectar`. Generate from the same CommandSpec used by --help.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar upgrade`",
+    "body": "Self-update the binary/script. Detect install method (bun install -g, npm install -g, bunx, brew) and run the right upgrade. Or print the right command if non-self-updatable. Respect NECTAR_NO_UPDATE_CHECK=1.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar info` / `nectar env`",
+    "body": "Print: nectar version, bun version, node version (if any), OS, arch, $EDITOR, $NECTAR_LOG_LEVEL, config path, theme name, route count estimate. Always include this in bug reports. Pair with --json.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar cache`",
+    "body": "`nectar cache path|clear|stats`. Once render caches and image transforms exist, users need to manage them. Defer until caching is implemented but reserve the name.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar lint` (content lint, not theme lint)",
+    "body": "Lint content: titles too long, missing alt text on images, broken local links, future-dated drafts, duplicate slugs, malformed frontmatter. Rule set is opt-in. Output table, `--json` for CI.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar serve --proxy <api-base>`",
+    "body": "Many sites need to call an external API during dev. Add proxy support: requests to /api/* are forwarded to the configured base URL. Bun.serve fetch can do this trivially.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing subcommand — `nectar redirects`",
+    "body": "List/add/check redirects. Needed when renaming slugs (see content rename issue). Pair with config.build.redirects[] schema extension.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: i18n of CLI messages — single source, en only today",
+    "body": "All strings are hard-coded English (logger calls in build/new/serve/check/import-ghost). Externalise into src/cli/i18n/<locale>.json keyed by message id, with a tiny `t('build.done', { count })` helper. Detect locale via $LANG / $LC_MESSAGES. Required before community localisation PRs are even feasible.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: error messages lack 'what to do next' guidance",
+    "body": "Examples: build.ts:16 prints raw stack; new.ts:13 prints minimal usage; serve.ts:14 says 'Run nectar build first' (good, more like this everywhere). Standardise: every fatal error includes (1) what went wrong, (2) where (file:line), (3) what to do next, (4) a docs link. Reference: rust compiler diagnostic style.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: error messages should include docs links",
+    "body": "Add `nectar.dev/errors/E0042` style stable error codes referenced from each diagnostic. Errors are objects with { code, message, hint, docsUrl }. Implementation: src/util/errors.ts.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: logger does not include timestamps in non-TTY mode",
+    "body": "util/logger.ts:7-12 emits raw lines. CI logs benefit from leading ISO timestamps. Add when !isTTY or when NECTAR_LOG_TIMESTAMPS=1. Format: `[2025-05-19T10:00:00.000Z] info build.done`.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: logger has no structured fields (only string parts)",
+    "body": "logger.info(`Built ${n} routes`) loses structure. Refactor to `logger.info('build.done', { routeCount: n, assetCount: m })`. Pretty-printed in TTY, JSON in --json mode. Foundation for NDJSON event log.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: no stdin handling for piped input",
+    "body": "Several commands could accept stdin: `cat post.md | nectar new post --stdin`, `nectar import-ghost - < export.json`. Today no command reads stdin. Audit each subcommand and document.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: stdout pollution by logger.info breaks pipelines",
+    "body": "logger.info writes to stdout (util/logger.ts:9-10). When the user runs `nectar config get build.output_dir` the only stdout should be the value. Move all 'progress' style logs to stderr; reserve stdout for the command's actual data output. Apply once we add data-emitting commands (config get, content show).",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: no exit-on-warn / warnings-as-errors flag",
+    "body": "Closely related to --strict. Add a global `--warnings-as-errors` that flips logger.warn to logger.error + tracks an exit-1 condition. Useful when strict has subcommand-specific meaning.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: telemetry — opt-in anonymous usage stats",
+    "body": "Add an opt-in telemetry pipeline (à la Next.js / Astro): subcommand invoked, duration, success/failure, nectar+bun versions, OS, anon machine id. Off by default; `nectar telemetry enable|disable|status`. Send to a configurable endpoint. Document the exact payload in TELEMETRY.md.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: telemetry — opt-in crash reports",
+    "body": "On uncaught exception, prompt 'Send anonymous crash report? (y/N/never)'. Include: error class+message+sanitised stack, command line (with arg values redacted), versions. Stash never-answer in ~/.config/nectar/telemetry.json. Disabled in non-TTY by default.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: editor integration — VSCode extension",
+    "body": "Ship `vscode-nectar`: syntax highlighting for nectar.config.toml, schema-aware autocompletion (JSON schema published from zod), task definitions (`nectar build`, `dev`, `check`), problem matcher for build errors, snippets for new post frontmatter. Repo: `nectar/editors/vscode`.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: editor integration — Obsidian publish plugin",
+    "body": "Obsidian users are a huge cohort for SSGs. Plugin that publishes selected vault notes into a Nectar project's content/posts dir, mapping frontmatter (tags, aliases, cssclass→none, date), copying linked images into assets_dir, and writing wikilinks as markdown links. Calls `nectar new` underneath.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: editor integration — Helix/Neovim LSP for frontmatter",
+    "body": "Provide a tiny LSP (or contribute to existing markdown-oxide / harper) for nectar frontmatter: validate against the content schema, autocomplete tag/author slugs from existing content. Could be a JSON Schema + standard YAML LSP for low effort.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: schema-export — `nectar schema config|frontmatter|theme`",
+    "body": "Emit JSON Schema (from zod via zod-to-json-schema) so editors and external tools can validate without depending on the binary. Pipe to file: `nectar schema config > nectar.config.schema.json`. Publish at nectar.dev/schemas/ for `$schema` URLs.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: shell completion files install location",
+    "body": "Provide a `nectar completions install [--shell auto]` helper that writes to the right location: bash → /usr/local/etc/bash_completion.d, zsh → $fpath, fish → ~/.config/fish/completions, pwsh → $PROFILE. Don't require sudo by default; prefer user paths.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: argument parsing — typed CommandSpec registry",
+    "body": "Define `interface CommandSpec { name; description; positionals; flags; examples; exitCodes }` and a `defineCommand()` helper. Build src/cli/index.ts dispatcher, --help renderer, completions, and JSON schema export from this single source. Eliminates the current N-way drift between index.ts usage text and individual commands' parsing.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: argument parsing — disallow positional after flags policy",
+    "body": "Currently `nectar new --slug foo post \"Hello\"` would not parse correctly with indexOf. After moving to parseArgs, decide: do we allow `--flag` interleaved with positionals? Recommended yes (parseArgs default) with `allowPositionals: true, strict: true`. Document.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: argument parsing — env var fallback for every flag",
+    "body": "Every flag should have an env var equivalent (NECTAR_<COMMAND>_<FLAG>). Example: --port falls back to NECTAR_SERVE_PORT. Useful in docker-compose. Document the mapping. Order: CLI flag > env var > config file > default.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: argument parsing — repeated flag policy",
+    "body": "Decide whether `--tag a --tag b` accumulates (preferred for list-ish flags) or last-wins. parseArgs `multiple: true` supports this. Apply consistently and call it out in --help.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: argument parsing — boolean default-true flags need --no-* siblings auto",
+    "body": "Schema-driven: any boolean flag with default true automatically gets a `--no-<name>` parser entry. Avoid manual duplication.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: do not bind to 0.0.0.0 by default on serve",
+    "body": "Confirm Bun.serve's default — if it binds 0.0.0.0 we leak local dev to the LAN. Default should be 'localhost' (127.0.0.1) and opt-in to 0.0.0.0 via --host.",
+    "labels": ["cli", "dx", "P0", "security"]
+  },
+  {
+    "title": "cli: ensure-exit-on-unhandled-rejection",
+    "body": "src/cli/index.ts:62-63 has `const code = await main(...); process.exit(code);` — fine for the happy path, but any unhandled rejection inside an awaited dynamic import will exit non-zero with no diagnostic. Add `process.on('unhandledRejection', ...)` and `process.on('uncaughtException', ...)` early in index.ts.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: signal-safe cleanup registry",
+    "body": "Build `src/util/cleanup.ts`: an ordered list of cleanup callbacks (unlink temp dir, stop server, persist cache). Wired on SIGINT/SIGTERM/SIGHUP/exit. Each subcommand registers its own. Avoid ad-hoc try/finally scattered everywhere.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: dynamic import path uses .ts extension — verify cross-runtime",
+    "body": "src/cli/index.ts:36-53 uses `import('./commands/build.ts')`. Bun resolves .ts but Node + ts-node would not. If the bin is ever shipped via `npm install`, this breaks. Strip .ts at build time or bundle the CLI into dist/cli.js.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: package.json bin points at src/cli/index.ts — not portable",
+    "body": "package.json:8-10 binds `nectar` to the .ts source. Works under Bun only. For npm install -g via Node, need a built JS entry with a normal shebang. Add a build step that bundles to `dist/cli.mjs` and update `bin`.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing `nectar --json` global to flip output mode",
+    "body": "Companion to --quiet/--verbose. When set at any position, all subcommands switch to NDJSON. Centralise the detection in src/cli/index.ts before dispatch.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: support multiple invocation styles for help inside subcommand",
+    "body": "`nectar build help`, `nectar build --help`, `nectar build -h`. Currently only the parent `help` is honoured. Drop the subcommand-`help` form, but `--help` and `-h` should be intercepted in each runX function — or, better, before dispatch by the CommandSpec layer.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: config discovery — document precedence and --config behaviour",
+    "body": "loadConfig honours `configPath` if given (build.ts:5-6) but discovery order otherwise is opaque to users. Document: --config flag > NECTAR_CONFIG env > cwd/nectar.config.{ts,js,toml,json} in that order. Print resolved path with --verbose.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing `nectar --print-config` to dump the resolved config",
+    "body": "After loading + merging defaults, dump the final config to stdout. Use cases: debugging schema defaults, generating fixtures, pipelining to other tools. Implement as `nectar config print` (TOML/JSON via --format).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: build summary line is hard to grep / parse",
+    "body": "build.ts:11-13 emits `Built 42 routes (10 assets) → dist`. Add stable, parseable variants: in --json mode emit `{ event: 'build.done', ... }`; in default mode keep human text but also write the manifest. Avoid encouraging users to grep this line.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: import-ghost should auto-detect file format",
+    "body": "Ghost has changed export schemas over the years (v2, v3, v4, v5, lexical vs mobiledoc). The CLI should detect and dispatch, or refuse with 'Unsupported Ghost export version <x>. Try --legacy.' Pre-flight inspect the `db[0].meta.version` field.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: serve does not gzip / br responses",
+    "body": "Bun.serve does not automatically compress. For local dev it doesn't matter, but if anyone uses `nectar serve` as a minimal prod fallback they'll be sad. Add `--compression auto|gzip|br|none` (default none in dev).",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: serve does not emit access logs",
+    "body": "No request logging. Add a single-line access log at `--verbose` (method, path, status, ms) to stderr.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: standardise help width / wrap",
+    "body": "Wrap at min(process.stdout.columns, 100). Currently the usage block is a fixed array of strings (index.ts:6-18). Inconsistent wrapping on narrow terminals (<80 cols) is annoying — make help renderer width-aware.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: tab characters in help text break alignment",
+    "body": "Cosmetic but worth fixing once the help renderer exists. Render flag tables with padStart/padEnd, not literal spaces. Add a snapshot test against `nectar build --help`.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing 'nectar plugins list' as future extension surface",
+    "body": "Reserve the namespace. If/when plugins ship (e.g. remark/rehype plugins, image transforms), users will need `nectar plugins list|add|remove|update`. Stub it now to return 'no plugins installed' and keep the name.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: do not error on missing content dirs — auto-create with warning",
+    "body": "First-run UX: a fresh `nectar init` may not have content/pages yet. loadContent should treat missing dirs as empty and warn, not throw. Test that `nectar build` succeeds on a brand-new project with only one post.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: import-ghost name is inconsistent — should be `migrate ghost`",
+    "body": "Discoverability suffers from a kebab-case top-level command unique to one source. Move under `nectar migrate ghost <file>` and keep `nectar import-ghost` as a deprecated alias for one major version, printing a warning.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: check doesn't print a final 'All checks passed' line",
+    "body": "check.ts:13-23 prints per-phase 'OK' lines but no terminal summary. Add a final `All checks passed` (green when colours land). When `--strict`/errors, end with `1 error, 2 warnings`.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: no support for project-local .nectarrc",
+    "body": "Many CLIs honour a dotfile (.nectarrc.json) for per-project flag defaults. Add discovery; flags from .nectarrc are overridden by env vars and CLI flags. Mention in `nectar config path` output.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: no support for ~/.config/nectar/config.json user-global flags",
+    "body": "Companion to per-project .nectarrc. User-global defaults for things like NO_COLOR, telemetry preferences, default deploy target. Standard XDG path.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing `nectar test` placeholder",
+    "body": "Themes/plugins eventually want a unit test runner. Reserve the name; for now `nectar test` could forward to `bun test` and warn it's a passthrough.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing `nectar fmt` for content frontmatter normalization",
+    "body": "Normalize frontmatter: sort keys, lowercase tags, ISO dates with Z, ensure trailing newline. Reuse gray-matter. Idempotent. `nectar fmt --check` for CI (exit 1 if anything would change).",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: serve should print a copy-pasteable curl example for tricky URLs",
+    "body": "When `--base-path /blog` is set, the printed URL must include it. Beyond that, on --verbose dump a couple of representative URLs (homepage, latest post, sitemap, rss) so the user can verify quickly.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: build does not surface deprecation warnings from dependencies",
+    "body": "marked, handlebars and turndown can emit deprecation messages. Capture and forward through logger.warn with `[deps]` tag so we can act on them.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: error path leaks stack trace in default mode (build.ts)",
+    "body": "build.ts:16 prints `err.stack ?? err.message`. Stack is noisy by default. Print message + hint by default, full stack only with --verbose. Crash reports (when consented) still capture full stack.",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: missing automated tests for the CLI surface",
+    "body": "tests/ likely has unit tests but no end-to-end coverage that runs `bun src/cli/index.ts build` against the example/ fixture and asserts on exit code, stdout, stderr. Add a tests/cli/*.test.ts suite using Bun's spawn API to cover the public contract.",
+    "labels": ["cli", "dx", "P0"]
+  },
+  {
+    "title": "cli: missing snapshot tests for --help output",
+    "body": "Once we add per-subcommand help, snapshot it. Catches accidental --help drift (e.g. flag added without help text).",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: print Bun engine mismatch warning",
+    "body": "package.json:38-40 declares `engines.bun >= 1.3.0`. If a user runs under bun 1.2, no warning. At CLI startup compare `Bun.version` against engines.bun and warn (or fail-fast with --strict).",
+    "labels": ["cli", "dx", "P1"]
+  },
+  {
+    "title": "cli: ensure consistent line endings on Windows",
+    "body": "new.ts:33 writes `frontmatter.join('\\n')`. On Windows users may end up with mixed CRLF/LF in the same repo. Decide policy (LF everywhere, matching git's autocrlf=input) and document. Add a test using a temp dir on win32 CI.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: missing `--locale` global for date / number formatting in output",
+    "body": "When humans read build summaries with `Intl.NumberFormat`, locale matters. Default to system, but allow `--locale en-US` override for CI consistency.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing diagnostics report bundling",
+    "body": "Add `nectar diagnostics bundle` that produces a tarball of: resolved config, list of content files (no bodies), theme manifest, last build manifest, last N log lines, env (redacted). For users to attach to bug reports.",
+    "labels": ["cli", "dx", "P2"]
+  },
+  {
+    "title": "cli: command alias map (cargo-style)",
+    "body": "Allow short aliases: `b` for build, `s` for serve, `n` for new, `c` for check. Plus user-defined aliases in ~/.config/nectar/aliases.json. Cargo's `[alias]` is the gold standard.",
+    "labels": ["cli", "dx", "P3"]
+  },
+  {
+    "title": "cli: missing `nectar open <slug>` to open content in editor",
+    "body": "`nectar open my-first-post` resolves the slug to the file and spawns $EDITOR on it. Tiny helper that meaningfully smooths the loop of edit-build-preview.",
+    "labels": ["cli", "dx", "P2"]
+  }
+]

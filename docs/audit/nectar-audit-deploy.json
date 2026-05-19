@@ -1,0 +1,1014 @@
+[
+  {
+    "title": "deploy: cross-cutting: no `redirects.yaml` source-of-truth schema",
+    "body": "Nectar has no input file or config section for redirects. Ghost sites import a redirects YAML/JSON; we need an equivalent (e.g. `redirects.yaml` at project root or `redirects:` block in `nectar.toml`) with `from`, `to`, `status` (301/302/308), and optional `force`. This is the prerequisite for every target-specific emitter (Netlify `_redirects`, Cloudflare `_redirects`, Vercel `vercel.json`, Apache `.htaccess`, nginx `try_files`, S3 routing rules).\n\n**Fix**: define schema in `src/config/schema.ts` (or new `src/build/redirects.ts`), parse `redirects.yaml`, and pass into `pipeline.ts` for downstream emitters.",
+    "labels": [
+      "infra",
+      "P0",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `headers.yaml` / security-headers config",
+    "body": "There is no way to declare per-route HTTP headers (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy, X-Content-Type-Options, COOP/COEP) or cache-control rules (long max-age + immutable for fingerprinted assets, short/no-cache for HTML). Without this, every platform-specific emitter has nothing to translate.\n\n**Fix**: introduce a config block (`security_headers`, `cache_rules`) with sane defaults, including `Cache-Control: public, max-age=31536000, immutable` for `/assets/*.[hash].*` and `Cache-Control: public, max-age=0, must-revalidate` for HTML.",
+    "labels": [
+      "infra",
+      "P0",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `nectar deploy` subcommand",
+    "body": "`src/cli/index.ts` has no `deploy` verb. Users have to manually push `dist/` to each provider. A `nectar deploy <target>` (or `nectar emit <target>`) command that runs build + writes target-specific config (`_headers`, `_redirects`, `vercel.json`, `netlify.toml`, `.htaccess`, etc.) is needed.\n\n**Fix**: add `src/cli/commands/deploy.ts` with a `--target` flag; emitters per target live under `src/build/emitters/<target>.ts`.",
+    "labels": [
+      "infra",
+      "P1",
+      "cli",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: 404.html is never written from `error-404` template",
+    "body": "`src/theme/loader.ts` registers `error-404` as a known template name, but `src/build/routes.ts` never plans a route for it. `dist/404.html` is therefore missing, which breaks GitHub Pages, Netlify, Cloudflare Pages, Surge and S3 routing-rule-based 404 fallbacks. Only `serve.ts` references `404.html`.\n\n**Fix**: in `planRoutes`, if `theme.templates['error-404']` exists, push a synthetic route with `outputPath: '404.html'`.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: trailing slash policy is hardcoded to dir/index.html only",
+    "body": "`src/build/routes.ts` emits `<slug>/index.html` for posts/pages/tags/authors. Some targets (S3 without CloudFront, GitHub Pages with custom domain edge cases) prefer `<slug>.html`. There is no `trailing_slash: 'always' | 'never' | 'preserve'` switch.\n\n**Fix**: add `build.trailing_slash` to schema; have `routes.ts` produce either `<slug>/index.html` (always) or `<slug>.html` (never) and emit canonical/redirect rules in both directions.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: feeds/sitemap urls assume trailing slash; no fallback when site.url has trailing slash",
+    "body": "`src/build/feeds.ts:emitSitemap/emitRss` strips trailing slash with `replace(/\\/$/, '')` but never re-validates `route.url` shape. If a user opts into `trailing_slash: 'never'`, generated sitemap entries will 301 on every crawl, killing SEO budget on cheap edge providers.\n\n**Fix**: derive URLs from the same canonical helper used by route emitter.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no asset cache-busting manifest for downstream CDN purging",
+    "body": "Theme assets are fingerprinted (see `emit.ts:emitAsset`) but no `manifest.json` mapping logical->fingerprinted paths is written. Cloudflare cache purge, CloudFront invalidation, and Fastly soft-purge all need a list of changed URLs. Without a manifest, full-site invalidations are required, blowing past free tiers.\n\n**Fix**: emit `dist/.nectar/asset-manifest.json` keyed by logical path; expose `nectar manifest` command.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no BUILD_ID / COMMIT_SHA injection into templates or build metadata",
+    "body": "Every modern target (Vercel, Netlify, Cloudflare Pages, Render, Fly) exposes commit metadata via env vars. Nectar doesn't read or expose them, so themes can't render a build badge, and feeds can't include a `lastBuildDate` from CI metadata.\n\n**Fix**: read `NECTAR_BUILD_ID`, `NECTAR_COMMIT_SHA`, `VERCEL_GIT_COMMIT_SHA`, `CF_PAGES_COMMIT_SHA`, `COMMIT_REF` (Netlify) etc.; expose under `{{@site.build}}` in render context.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no preview/branch-deploy base URL injection",
+    "body": "Branch deploys on Netlify/Cloudflare/Vercel produce URLs like `https://deploy-preview-42--site.netlify.app`. Nectar's `site.url` is fixed in config, so canonical tags, sitemap, RSS feed and absolute links all point to the production domain even on previews, creating SEO conflict and broken OG previews.\n\n**Fix**: respect `NECTAR_SITE_URL`, `URL` (Netlify), `CF_PAGES_URL`, `VERCEL_URL` to override `config.site.url` at build time.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no built-in image CDN integration (Cloudflare/Netlify/Vercel/Cloudinary/imgproxy)",
+    "body": "Images are emitted as raw files from `content/images/`. There's no rewriter to push `<img src>` through Cloudflare Image Resizing (`/cdn-cgi/image/...`), Netlify Image CDN (`/.netlify/images?url=`), Vercel Image (`/_next/image`-style), Cloudinary fetch, or imgproxy.\n\n**Fix**: introduce `image_cdn:` config with adapters per target; rewrite during HTML emission (post-process step in `pipeline.ts`).",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `.well-known/` passthrough for ACME / mta-sts / security.txt",
+    "body": "There's no convention to copy a user-supplied `static/.well-known/` directory into `dist/`. Custom-domain users (GitHub Pages, Cloudflare Pages w/ external CA, Caddy with non-default storage) routinely need this.\n\n**Fix**: support a top-level `static/` (or `public/`) directory copied verbatim, same as content assets.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `humans.txt` / `robots.txt` emitter",
+    "body": "Nectar emits `sitemap.xml` and `rss.xml` but no `robots.txt`. Every target needs one referencing the sitemap. Currently themes have to ship one as a static asset, which most don't.\n\n**Fix**: add `components.robots.enabled` with a default `User-agent: *` block plus `Sitemap: <site.url>/sitemap.xml`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `.github/workflows/` directory or sample CI",
+    "body": "Repo has no GitHub Actions config. Every deploy target needs a sample workflow (build Nectar on push to main, upload artifact, deploy to provider). Without scaffolds, adoption friction is high.\n\n**Fix**: add `examples/ci/` with `github-pages.yml`, `cloudflare-pages.yml`, `netlify.yml`, `vercel.yml`, `s3-cloudfront.yml`, `fly.yml`, `render.yml`.",
+    "labels": [
+      "infra",
+      "P0",
+      "docs",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: docs/ has no `deployment/` directory",
+    "body": "`docs/` contains only DESIGN and GHOST_COMPATIBILITY. There is no `docs/deployment/<target>.md`. Ghost migrators routinely want one-page recipes per host.\n\n**Fix**: scaffold `docs/deployment/index.md` plus one file per target (see per-target quickstart issues).",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: no CNAME emitter for custom domains",
+    "body": "GitHub Pages requires a `CNAME` file at the publishing-source root to bind a custom domain. Nectar has no config field for `site.custom_domain` and no `CNAME` writer.\n\n**Fix**: when `deploy.github_pages.custom_domain` is set, write `dist/CNAME` with the host (no trailing newline issues).",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: missing `.nojekyll` for files starting with underscore",
+    "body": "GitHub Pages runs Jekyll by default and ignores `_assets/`, `_next/`-style directories. Theme fingerprinted assets under `assets/built/` are fine, but the moment a user uses a partial-named directory or vendored CSS like `_normalize.css`, files vanish from the deploy.\n\n**Fix**: always emit `dist/.nojekyll` (zero-byte file) during build.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: 404.html path doesn't match Pages convention for project sites",
+    "body": "For user/org sites `404.html` at root is honored; for project sites under `https://user.github.io/repo/`, `404.html` must also be at the publishing-source root *plus* `build.base_path` needs to be `/repo/`. We don't validate `base_path` against the target.\n\n**Fix**: in `nectar deploy --target=github-pages`, warn if `build.base_path === '/'` while a `CNAME` is absent.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: redirects.yaml has no GitHub Pages backend",
+    "body": "GitHub Pages does not support server-side redirects. The only option is HTML `<meta http-equiv=\"refresh\">` pages. Nectar must emit one `<slug>/index.html` redirect stub per `redirects.yaml` entry on this target.\n\n**Fix**: in github-pages emitter, materialize redirects as meta-refresh stubs with `<link rel=\"canonical\">` to destination.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: no headers emission (impossible on GH Pages, must document)",
+    "body": "GitHub Pages does not allow setting arbitrary response headers. CSP/HSTS must be set as `<meta http-equiv>` in HTML, with the limitations that implies (no HSTS preload, no frame-ancestors). Nectar should document this hard limitation and offer meta-tag fallback.\n\n**Fix**: docs note; meta-tag CSP emitter activated when target=github-pages.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: no GitHub Actions workflow sample",
+    "body": "There's no `.github/workflows/github-pages.yml` for Nectar. Migrants from Jekyll/Hugo expect a copy-paste action that runs `bun install && bun run build` and uploads `dist/` via `actions/upload-pages-artifact` + `actions/deploy-pages`.\n\n**Fix**: ship under `examples/ci/github-pages.yml` and reference from docs.",
+    "labels": [
+      "infra",
+      "P0",
+      "docs",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: deploy quickstart docs",
+    "body": "Write `docs/deployment/github-pages.md` covering: enabling Pages (Settings > Pages > GitHub Actions), `base_path` for project sites, `CNAME`, `.nojekyll`, meta-refresh redirect limitation, Enforce HTTPS toggle, env vars (`GITHUB_SHA` -> `NECTAR_COMMIT_SHA`).",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no `_headers` emitter",
+    "body": "Cloudflare Pages reads `_headers` at the build-output root with a globbing DSL (`/*`, `/assets/*`). Nectar emits nothing. Without it, fingerprinted assets get default short cache, and security headers are missing.\n\n**Fix**: add `src/build/emitters/cloudflare-pages.ts` writing `_headers` derived from `headers.yaml` config. Include `Cache-Control: public, max-age=31536000, immutable` for hashed asset paths and `Cache-Control: public, max-age=0, must-revalidate` for HTML.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no `_redirects` emitter",
+    "body": "Cloudflare Pages honors a `_redirects` file (same syntax as Netlify, minus some flags). Nectar's pipeline never writes it.\n\n**Fix**: emit `_redirects` from the shared `redirects.yaml`; collapse rules sharing prefixes; respect status codes (301/302/307/308).",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no `_routes.json` for Functions exclusion",
+    "body": "If a user adds Cloudflare Pages Functions (e.g. `/api/*`) later, they need `_routes.json` to opt out of static asset interception. Nectar's build offers no scaffold even when Functions are absent (recommended to include `{\"version\":1,\"include\":[\"/*\"],\"exclude\":[]}` for clarity).\n\n**Fix**: emit a minimal `_routes.json` and document customization.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: 404.html convention",
+    "body": "Cloudflare Pages serves `dist/404.html` automatically. Blocked by the missing-404 root issue. Once that's fixed, document the auto-serve behavior.\n\n**Fix**: ensure 404.html emitter (cross-cutting) runs for this target; add note to docs.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no R2-as-image-origin recipe",
+    "body": "Cloudflare Image Resizing can pull from an R2 bucket. Nectar's `copy_content_assets: true` copies images into dist, but for large media archives, users want R2 origin + URL rewrite to `/cdn-cgi/image/<opts>/https://<bucket>.r2.dev/<key>`.\n\n**Fix**: add `image_cdn.provider: cloudflare` adapter (see cross-cutting issue); document R2 origin path.",
+    "labels": [
+      "infra",
+      "P2",
+      "docs"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no `CF_PAGES_COMMIT_SHA` / `CF_PAGES_BRANCH` ingestion",
+    "body": "Cloudflare Pages exposes `CF_PAGES`, `CF_PAGES_COMMIT_SHA`, `CF_PAGES_BRANCH`, `CF_PAGES_URL`. We ignore them. Branch previews need `CF_PAGES_URL` injected as `site.url`.\n\n**Fix**: read these in `loadConfig` and override `site.url` / expose under `@site.build`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: no Wrangler config sample",
+    "body": "While Pages can build via Git directly, advanced users use `wrangler pages deploy dist --project-name=...`. There's no sample.\n\n**Fix**: ship `examples/ci/cloudflare-pages.yml` (GitHub Actions w/ `cloudflare/wrangler-action`) and a `wrangler.toml` snippet.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: deploy quickstart docs",
+    "body": "Write `docs/deployment/cloudflare-pages.md` covering: connecting Git, build command (`bun run build`), output directory (`dist`), env vars, custom domain DNS, `_headers`/`_redirects`/`_routes.json`, Image Resizing.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-workers: no `wrangler.toml` sample for Static Assets binding",
+    "body": "Cloudflare Workers Static Assets (the new model) requires `wrangler.toml` with `[assets] directory = \"dist\"` and optional `binding = \"ASSETS\"`. Nectar has no sample.\n\n**Fix**: ship `examples/cloudflare-workers/wrangler.toml` and a no-op `index.ts` worker that defers to `ASSETS.fetch(request)`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-workers: `_headers`/`_redirects` not honored same as Pages",
+    "body": "Static Assets in Workers do not parse `_headers`/`_redirects` the way Pages does; instead, the user's Worker code must apply them. Nectar needs to either emit a Worker that does this, or a JSON manifest the Worker reads.\n\n**Fix**: emit `dist/_routes-manifest.json` with redirects/headers; ship a reference Worker that consumes it.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-workers: no `not_found_handling` config note",
+    "body": "Static Assets supports `not_found_handling = \"single-page-application\" | \"404-page\"`. For Nectar (multi-page), we want `404-page` which serves `dist/404.html`. Without docs, users default to single-page-application and break direct nav.\n\n**Fix**: docs + sample `wrangler.toml` snippet.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: netlify: no `_headers` emitter",
+    "body": "Netlify reads `_headers` from publish dir. Without it, fingerprinted assets get cache-misses and security headers are absent.\n\n**Fix**: same emitter as Cloudflare Pages (`src/build/emitters/netlify.ts`), share a `_headers` writer between targets.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: netlify: no `_redirects` emitter",
+    "body": "Netlify `_redirects` syntax supports status codes, splats, country/role conditions. Nectar emits none. Without it, slug changes break links permanently.\n\n**Fix**: emit `_redirects` from redirects.yaml; map `force: true` to `!` suffix in status (e.g. `301!`).",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: netlify: no `netlify.toml` sample with build/publish/plugins",
+    "body": "`netlify.toml` is the source-of-truth for build config (build command, publish dir, redirect rules, edge functions, env). Nectar has none.\n\n**Fix**: ship `examples/netlify/netlify.toml` with `command = \"bun run build\"`, `publish = \"dist\"`, optional `[[plugins]]`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: netlify: no Image CDN URL rewriter",
+    "body": "Netlify Image CDN serves `/.netlify/images?url=<src>&w=<w>&q=<q>`. Nectar doesn't rewrite `<img>` tags. Migrators with thousands of Ghost-uploaded images suffer slow LCP.\n\n**Fix**: see cross-cutting image CDN issue; ship Netlify adapter that rewrites local `/content/images/...` URLs.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: netlify: branch deploy URL not injected (DEPLOY_PRIME_URL)",
+    "body": "Netlify exposes `URL`, `DEPLOY_URL`, `DEPLOY_PRIME_URL`. Branch previews need `DEPLOY_PRIME_URL` as `site.url`. We use the static value, so canonical tags and OG images point to production.\n\n**Fix**: same as cross-cutting branch URL issue.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: netlify: 404.html conventions",
+    "body": "Netlify auto-serves `404.html` at publish-dir root. Blocked by missing 404 emitter; document once fixed.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: netlify: no GitHub Actions sample (for non-Git deploy)",
+    "body": "Some teams run Netlify via `netlify deploy --prod --dir=dist` from GitHub Actions instead of Git integration. No sample exists.\n\n**Fix**: `examples/ci/netlify.yml` using `netlify/actions/cli@master`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: netlify: deploy quickstart docs",
+    "body": "Write `docs/deployment/netlify.md` with: drag-and-drop UI deploy, `netlify.toml`, `_headers`/`_redirects`, env vars, branch deploys, Image CDN, deploy contexts (production/branch-deploy/deploy-preview).",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: vercel: no `vercel.json` emitter for routes/headers/redirects",
+    "body": "Vercel's static-site config lives in `vercel.json` (`headers`, `redirects`, `rewrites`, `cleanUrls`, `trailingSlash`). Nectar emits nothing.\n\n**Fix**: `src/build/emitters/vercel.ts` emits a single `vercel.json` derived from redirects.yaml + headers.yaml + `build.trailing_slash`.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: vercel: `cleanUrls` vs `trailingSlash` conflict not validated",
+    "body": "Vercel's `cleanUrls: true` strips `.html` and `index.html`; `trailingSlash: true` enforces trailing slash. These interact (and can produce redirect loops). Nectar must pick a coherent default based on config.\n\n**Fix**: when emitting `vercel.json`, set `trailingSlash: true` + `cleanUrls: true` only when `build.trailing_slash === 'always'`; otherwise pick the safe combo and document.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: vercel: `VERCEL_URL` / `VERCEL_GIT_COMMIT_SHA` not consumed",
+    "body": "Branch previews on Vercel set `VERCEL_URL` (the auto-generated deploy URL). Nectar's build doesn't pick it up, so previews emit production canonicals.\n\n**Fix**: same as cross-cutting branch URL issue.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: vercel: Vercel Image not integrated",
+    "body": "Vercel Image (`/_vercel/image?url=&w=&q=`) is automatically available for static deploys. No rewriter exists in Nectar.\n\n**Fix**: see cross-cutting image CDN; add `image_cdn.provider: vercel` adapter.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: vercel: 404.html behavior",
+    "body": "Vercel routes 404s through `pages/404.tsx` typically; for static, it serves `404.html` if present. Blocked by missing-404 emitter; document.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: vercel: no GitHub Actions / CLI sample",
+    "body": "Users wanting non-Git deploys via `vercel --prod` lack a sample workflow.\n\n**Fix**: `examples/ci/vercel.yml` using `amondnet/vercel-action`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: vercel: deploy quickstart docs",
+    "body": "Write `docs/deployment/vercel.md`: Git import, `vercel.json`, env vars, preview deploys, Image, custom domains, redirects.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no index document rewrite for sub-paths",
+    "body": "S3 static hosting maps bucket root `/` to `index.html` but `<slug>/` does NOT auto-resolve to `<slug>/index.html` unless either (a) website hosting mode is enabled (insecure direct origin) or (b) CloudFront has a Function/Lambda@Edge that appends `index.html`. Nectar has no recipe.\n\n**Fix**: ship a CloudFront Function (`viewer-request`) sample under `examples/s3-cloudfront/append-index.js`.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no OAC (Origin Access Control) Terraform/CloudFormation sample",
+    "body": "Current best practice is OAC over OAI for S3 origins. Nectar has no IaC sample. Migrators end up with public buckets or stale OAI configs.\n\n**Fix**: ship `examples/s3-cloudfront/terraform/` (or CDK) creating bucket + OAC + distribution; document.",
+    "labels": [
+      "infra",
+      "P1",
+      "docs"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no invalidation list output from build",
+    "body": "After upload, users must `aws cloudfront create-invalidation --paths /* ...` or, smarter, just the changed paths. Nectar's pipeline doesn't emit a changed-files list.\n\n**Fix**: emit `dist/.nectar/changed-paths.txt` by diffing against a previous `asset-manifest.json` (see cross-cutting manifest issue).",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no lifecycle rule guidance for log buckets / old fingerprinted assets",
+    "body": "Old hashed assets accumulate forever; access logs accumulate forever. Users blow past free tier without lifecycle rules.\n\n**Fix**: docs in `docs/deployment/s3-cloudfront.md` covering lifecycle: expire `assets/built/` non-current versions after 30 days; transition access logs to Glacier.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no ACL / public-access-block validation",
+    "body": "Modern S3 enforces Block Public Access by default; misconfigurations either expose the bucket directly or block CloudFront. Nectar has no `nectar deploy --target=s3 --preflight` check.\n\n**Fix**: deploy command should `aws s3api get-bucket-policy-status` and warn if public.",
+    "labels": [
+      "infra",
+      "P2",
+      "cli"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no headers emission via CloudFront response-headers-policy",
+    "body": "S3 itself can't set CSP/HSTS; CloudFront's response-headers-policy is the right place. Nectar has nothing.\n\n**Fix**: emit a `cloudfront-response-headers-policy.json` from `headers.yaml`; document `aws cloudfront create-response-headers-policy` invocation.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no redirects backend (CloudFront Functions or bucket routing rules)",
+    "body": "S3 redirects via routing rules (XML in bucket properties) or per-object `x-amz-website-redirect-location`. Modern setup uses a CloudFront Function. Nectar emits neither.\n\n**Fix**: ship CloudFront Function sample that consumes a built-in redirects map (inlined at deploy time from redirects.yaml).",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no GitHub Actions workflow sample",
+    "body": "Users want a workflow that runs `bun run build`, `aws s3 sync dist/ s3://...`, then invalidates CloudFront. None ship.\n\n**Fix**: `examples/ci/s3-cloudfront.yml` with OIDC role assumption (no static IAM keys).",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: 404.html mapping via CloudFront custom error response",
+    "body": "S3 returns 403 for missing keys (with default bucket policy), which CloudFront must remap to 404 via `custom_error_response`. Without it, `<slug>` typos return 403.\n\n**Fix**: docs + sample `custom_error_responses` entry mapping 403/404 to `/404.html` with `200` cache override left as-is.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: deploy quickstart docs",
+    "body": "Write `docs/deployment/s3-cloudfront.md`: bucket creation, OAC, distribution config, custom domain via ACM, append-index function, headers policy, invalidation, cost watch.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: r2: no index.html append handling (same as S3 root cause)",
+    "body": "Same `<slug>/` -> `<slug>/index.html` issue as S3; when fronted by a Worker, the Worker must append.\n\n**Fix**: ship Worker sample that does append-index AND security-headers in one (`examples/r2/worker.ts`).",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: r2: no headers/redirects emitter (Worker-bound)",
+    "body": "If fronted by a Worker, headers/redirects come from Worker code reading a manifest. Reuses cross-cutting manifest issue.\n\n**Fix**: emit `dist/_routes-manifest.json`; sample Worker consumes it.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: r2: deploy quickstart docs",
+    "body": "Write `docs/deployment/cloudflare-r2.md`: bucket creation, S3 endpoint, public access tradeoffs, Worker frontend, custom domain via CF.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: fly: no `fly.toml` sample for static-only nginx machine",
+    "body": "Fly.io can host static sites via a small `nginx:alpine` Machine. Nectar has no `fly.toml` sample.\n\n**Fix**: ship `examples/fly/fly.toml` + `Dockerfile` that copies `dist/` into nginx, plus a `nginx.conf` that does `try_files`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: fly: no healthcheck endpoint config",
+    "body": "Fly Machines need `[[services.http_checks]]` or `[[checks]]`. Nectar's emitted nginx must serve `/healthz`. No sample.\n\n**Fix**: nginx.conf snippet exposing `/healthz` returning `200 ok`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: fly: no headers/redirects in shared format",
+    "body": "Translating shared redirects.yaml + headers.yaml into nginx is a separate emitter; reuse the self-hosted-nginx emitter (see those issues) but applied at Docker-build time.\n\n**Fix**: ensure nginx emitter outputs to a path the Dockerfile copies.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: fly: deploy quickstart docs",
+    "body": "Write `docs/deployment/fly.md`: `flyctl launch`, region selection, Dockerfile, scaling, custom domain, certs.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: render: no `render.yaml` sample for static site",
+    "body": "Render's Blueprint format (`render.yaml`) provisions a static-site service. Nectar has no sample.\n\n**Fix**: ship `examples/render/render.yaml` with `type: static`, `buildCommand: bun install && bun run build`, `publishPath: ./dist`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: render: no `_redirects`/`_headers` format support docs",
+    "body": "Render supports Netlify-style `_redirects`/`_headers` files in the publish dir. Document that the Netlify emitter is reused.\n\n**Fix**: docs note in `docs/deployment/render.md`.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: render: deploy quickstart docs",
+    "body": "Write `docs/deployment/render.md`: Blueprint, custom domain, pull-request previews, redirects/headers reuse.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: nginx: no `nginx.conf` emitter from shared redirects/headers",
+    "body": "Self-hosted nginx is the most common destination after migrating from Ghost (which itself runs on Ghost-CLI nginx). Nectar has no `nginx.conf` generator covering: `try_files $uri $uri/index.html =404;`, `gzip_static on;`, `brotli_static on;`, `add_header` blocks, redirect map.\n\n**Fix**: `src/build/emitters/nginx.ts` outputs `dist/.nectar/nginx.conf` (server block) from `redirects.yaml` + `headers.yaml`.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: nginx: no precompressed asset emitter (gzip/brotli)",
+    "body": "`gzip_static` and `brotli_static` directives need `.gz` and `.br` siblings next to assets. Nectar's `copyAssets` writes raw files only.\n\n**Fix**: post-process step that gzip- and brotli-compresses HTML, CSS, JS, SVG, JSON, XML > 1KB into `<file>.gz` and `<file>.br`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: nginx: no ETag / Cache-Control directive sample",
+    "body": "nginx defaults: ETag enabled, no Cache-Control. For Nectar's fingerprinted assets we want `expires 1y; add_header Cache-Control \"public, immutable\";` for `/assets/built/*` and `expires 0; add_header Cache-Control \"public, max-age=0, must-revalidate\";` for HTML.\n\n**Fix**: include these blocks in the emitted nginx.conf.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: nginx: no try_files fallback for trailing-slash variant",
+    "body": "Without `try_files $uri $uri/ $uri/index.html =404;` requests like `/about` will 404 even though `/about/index.html` exists. Default nginx configs frequently miss this.\n\n**Fix**: include in emitted conf and document.",
+    "labels": [
+      "infra",
+      "P0"
+    ]
+  },
+  {
+    "title": "deploy: nginx: no 404 fallback `error_page 404 /404.html;` sample",
+    "body": "Need `error_page 404 /404.html;` plus `location = /404.html { internal; }`.\n\n**Fix**: include in emitter.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: nginx: deploy quickstart docs",
+    "body": "Write `docs/deployment/nginx.md`: server block, compression, HTTP/2, HTTP/3, TLS via certbot, log format, security headers, redirect map include.",
+    "labels": [
+      "docs",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: caddy: no `Caddyfile` emitter",
+    "body": "Caddy is a popular alternative with auto-HTTPS. Nectar has no Caddyfile generator covering `file_server`, `try_files`, `header`, `redir`.\n\n**Fix**: `src/build/emitters/caddy.ts` outputs `dist/.nectar/Caddyfile` from shared config.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: caddy: no `try_files` example for clean URLs",
+    "body": "Caddy's `try_files {path} {path}/index.html` is needed; without docs users hand-roll regex.\n\n**Fix**: include in emitted Caddyfile.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: caddy: no header/redirect translation from shared YAML",
+    "body": "Caddy's `header` directive supports glob matchers; `redir` supports regex and status codes. Reuse shared schema.\n\n**Fix**: caddy emitter writes `header /assets/built/* Cache-Control \"public, max-age=31536000, immutable\"` etc.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: caddy: deploy quickstart docs",
+    "body": "Write `docs/deployment/caddy.md`: Caddyfile, automatic HTTPS, storage volume, reverse-proxy upgrade path.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: apache: no `.htaccess` emitter",
+    "body": "Many shared-hosting Ghost migrators end up on Apache (cPanel hosts). Nectar emits no `.htaccess` for mod_rewrite redirects, mod_headers cache rules, AddType, ErrorDocument.\n\n**Fix**: `src/build/emitters/apache.ts` writes `dist/.htaccess`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: apache: no `ErrorDocument 404 /404.html` line",
+    "body": "Without it, Apache returns its default 404 page.\n\n**Fix**: include in emitted `.htaccess`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: apache: no mod_rewrite trailing-slash rule",
+    "body": "Need `RewriteEngine On` plus `RewriteCond %{REQUEST_FILENAME} -d` and `RewriteRule ^([^/]+)/?$ $1/index.html [L]` (or a clean-URLs variant).\n\n**Fix**: include block in emitter.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: apache: no Cache-Control / ETag directives",
+    "body": "Need `<FilesMatch \"\\.[0-9a-f]{8}\\.(css|js|woff2)$\">Header set Cache-Control \"public, max-age=31536000, immutable\"</FilesMatch>` and HTML overrides.\n\n**Fix**: include in emitter, derived from shared cache rules.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: apache: deploy quickstart docs",
+    "body": "Write `docs/deployment/apache.md`: `.htaccess` placement, AllowOverride, enabling mod_rewrite/mod_headers/mod_deflate, common shared-hosting gotchas.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: docker: no `Dockerfile` for slim nginx-alpine image",
+    "body": "Repo has no `Dockerfile`. Migrants want `docker build -t mysite . && docker run -p 80:80 mysite`.\n\n**Fix**: ship `examples/docker/Dockerfile` based on `nginx:1.27-alpine`, copy `dist/` and `nginx.conf`, expose 80.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: docker: no multi-stage build (Bun build + nginx serve)",
+    "body": "Single-stage requires host build; multi-stage `FROM oven/bun AS build` then `FROM nginx:alpine` is cleaner.\n\n**Fix**: ship multi-stage Dockerfile in `examples/docker/`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: docker: no HEALTHCHECK directive",
+    "body": "Container orchestrators rely on `HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz`. Nectar's nginx conf has no `/healthz` location.\n\n**Fix**: include in emitted conf + Dockerfile sample.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: docker: no docker-compose.yml sample",
+    "body": "Self-hosters with reverse proxies (Traefik, Caddy) want a compose snippet.\n\n**Fix**: ship `examples/docker/docker-compose.yml`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: docker: no `.dockerignore`",
+    "body": "Without `.dockerignore`, `node_modules/`, `.git/`, `dist/` (when using multi-stage) bloat the build context.\n\n**Fix**: ship `examples/docker/.dockerignore`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: docker: deploy quickstart docs",
+    "body": "Write `docs/deployment/docker.md`: image structure, env vars (RUNTIME_SITE_URL?), reverse-proxy patterns, healthcheck, compose.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: surge: deploy quickstart docs",
+    "body": "Write `docs/deployment/surge.md`: `surge dist/ my-site.surge.sh`, custom domain, CNAME.",
+    "labels": [
+      "docs",
+      "P3"
+    ]
+  },
+  {
+    "title": "deploy: bunny: no Bunny CDN pull-zone / storage-zone docs",
+    "body": "Bunny CDN can either pull from origin or serve a Storage Zone uploaded via S3-compatible API or `bunnycdn-storage-cli`. No docs in Nectar.\n\n**Fix**: docs in `docs/deployment/bunny.md`.",
+    "labels": [
+      "docs",
+      "P3"
+    ]
+  },
+  {
+    "title": "deploy: bunny: deploy quickstart docs",
+    "body": "Write `docs/deployment/bunny.md`: Storage Zone, Pull Zone, custom domain, Edge Rules.",
+    "labels": [
+      "docs",
+      "P3"
+    ]
+  },
+  {
+    "title": "deploy: fastly: deploy quickstart docs",
+    "body": "Write `docs/deployment/fastly.md`: service setup, origin (S3/R2/GCS), VCL/Compute@Edge, purging.",
+    "labels": [
+      "docs",
+      "P3"
+    ]
+  },
+  {
+    "title": "deploy: azure-static-web-apps: no `staticwebapp.config.json` emitter",
+    "body": "Azure Static Web Apps uses `staticwebapp.config.json` for routes, response headers, navigationFallback (=404). Nectar emits nothing.\n\n**Fix**: `src/build/emitters/azure-swa.ts` emits `staticwebapp.config.json` with `routes`, `responseOverrides`, `globalHeaders`, `navigationFallback: { rewrite: \"/404.html\" }`.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: azure-static-web-apps: no GitHub Actions workflow sample",
+    "body": "Azure SWA is typically deployed via `Azure/static-web-apps-deploy@v1`. No sample.\n\n**Fix**: `examples/ci/azure-swa.yml`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: azure-static-web-apps: deploy quickstart docs",
+    "body": "Write `docs/deployment/azure-swa.md`: SKU choice (Free/Standard), config schema, custom domain, auth providers.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: firebase-hosting: no `firebase.json` emitter",
+    "body": "Firebase Hosting reads `firebase.json` with `hosting.headers`, `hosting.redirects`, `hosting.rewrites`, `hosting.cleanUrls`, `hosting.trailingSlash`. Nectar emits nothing.\n\n**Fix**: `src/build/emitters/firebase.ts` writes `firebase.json` from shared config.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: firebase-hosting: cleanUrls / trailingSlash conflict",
+    "body": "Same combinatorial issue as Vercel; Firebase has both flags too.\n\n**Fix**: same validation as Vercel emitter.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: firebase-hosting: no `firebase deploy --only hosting` workflow sample",
+    "body": "Users want a GitHub Actions workflow using `FirebaseExtended/action-hosting-deploy`. No sample.\n\n**Fix**: `examples/ci/firebase.yml`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: firebase-hosting: deploy quickstart docs",
+    "body": "Write `docs/deployment/firebase.md`: project creation, `firebase init hosting`, custom domain, preview channels.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: digitalocean-app-platform: no `app.yaml` (App Spec) sample",
+    "body": "DO App Platform uses App Spec (YAML) for static-site components. No sample.\n\n**Fix**: ship `examples/do-app-platform/app.yaml` with `type: static`, `build_command`, `output_dir`, `routes`.",
+    "labels": [
+      "infra",
+      "P3",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: digitalocean-app-platform: deploy quickstart docs",
+    "body": "Write `docs/deployment/digitalocean-app-platform.md`: App Spec, custom domain, deploy-on-push, env vars.",
+    "labels": [
+      "docs",
+      "P3"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: emitters should share a `DeploymentArtifacts` interface",
+    "body": "Without an interface, each emitter will reimplement file writing, glob expansion, and conflict resolution.\n\n**Fix**: define `interface DeployTarget { name: string; emit(ctx: { outputDir; redirects; headers; routes; }): Promise<void>; }` and a registry under `src/build/emitters/registry.ts`.",
+    "labels": [
+      "infra",
+      "P1",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no integration tests for emitter outputs",
+    "body": "No tests cover `_headers`/`_redirects`/`vercel.json`/`.htaccess` shape. Regressions will ship silently.\n\n**Fix**: add `tests/build/emitters/<target>.test.ts` per emitter using fixture configs.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: `serve.ts` doesn't simulate target redirect/header behavior",
+    "body": "`src/cli/commands/serve.ts` is a vanilla static server; it doesn't read `_headers`/`_redirects` so previewing 'what production will do' is impossible.\n\n**Fix**: add `--simulate=<target>` flag that loads the emitted artifact and applies redirect/header rules.",
+    "labels": [
+      "infra",
+      "P2",
+      "cli",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: redirects.yaml has no validation against existing routes",
+    "body": "If a user adds `from: /foo, to: /bar` but `/foo/index.html` also exists in `dist/`, the file wins on most providers; user is confused. Need a `nectar check` warning.\n\n**Fix**: extend `src/cli/commands/check.ts` to flag redirect-shadows-route conflicts.",
+    "labels": [
+      "infra",
+      "P2",
+      "cli"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: per-target dry-run / diff command missing",
+    "body": "`nectar deploy --target=<x> --dry-run` should print the files that would be emitted (and a diff against last build). Nothing exists.\n\n**Fix**: implement as part of the new deploy command.",
+    "labels": [
+      "infra",
+      "P2",
+      "cli",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no compression-level / minification toggle for HTML output",
+    "body": "All targets benefit from minified HTML (whitespace removal, optional attribute quote stripping). `writeHtml` writes raw rendered output.\n\n**Fix**: optional post-process minifier (configurable on/off) in `pipeline.ts` before writing.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no Cache-Control varies between Workers/Pages/CDN edge — needs target-aware emitter",
+    "body": "Cloudflare Workers Static Assets honors `Cache-Control` from the file metadata only via specific opt-in; Pages applies `_headers`. The emitter must know the target to choose the right delivery channel.\n\n**Fix**: emitter registry supplies `applyHeaders(file, headers)` per target.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: feeds (RSS/sitemap) absolute URLs not validated for branch previews",
+    "body": "`feeds.ts` uses `config.site.url` even when the build is a branch preview. RSS readers cache absolute URLs and now point to production from a preview build.\n\n**Fix**: when preview env detected (NETLIFY/VERCEL/CF_PAGES env), inject `noindex` headers AND skip RSS/sitemap emission OR rewrite with `DEPLOY_PRIME_URL`.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `noindex` / `X-Robots-Tag` for preview deploys",
+    "body": "Branch/preview deploys should not be indexed. Nectar doesn't inject `<meta name=\"robots\" content=\"noindex\">` or emit `X-Robots-Tag: noindex` for non-prod environments.\n\n**Fix**: when env signals preview (per cross-cutting branch URL detection), force `meta robots=noindex` and add `X-Robots-Tag` to headers emitter.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no documentation of per-target redirect-syntax matrix",
+    "body": "`_redirects` vs `vercel.json.redirects` vs `firebase.json.redirects` vs `.htaccess` vs nginx `return 301`. Migrators need a matrix.\n\n**Fix**: add `docs/deployment/redirect-syntax-matrix.md`.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: build output path not relativized — breaks subpath-hosted deploys (e.g. `/blog/`)",
+    "body": "Themes assume root-hosted URLs. When `build.base_path = '/blog/'` (e.g. GH Pages project site, or nginx subpath), `<a href=\"/foo/\">` is wrong; needs to be `<a href=\"/blog/foo/\">`.\n\n**Fix**: verify all internal URLs are prefixed with `base_path` in `engine.ts` helpers; emit canonical with the same.",
+    "labels": [
+      "infra",
+      "P1"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no `sri:` / `csp:` interaction documentation for inline scripts",
+    "body": "Themes that inline scripts (`<script>...</script>`) need `script-src 'unsafe-inline'` OR a per-script nonce/hash. Without docs and a CSP emitter that computes hashes, every theme will need 'unsafe-inline'.\n\n**Fix**: post-process step to extract inline script bodies, compute `sha256-<b64>`, emit them in CSP.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: `nectar deploy` should detect target from env vars",
+    "body": "When invoked inside Netlify/CF Pages/Vercel/Render, `nectar deploy` should infer `--target` automatically from env (`NETLIFY=true`, `CF_PAGES=1`, `VERCEL=1`, `RENDER=true`).\n\n**Fix**: implement detection in `deploy` command.",
+    "labels": [
+      "infra",
+      "P2",
+      "cli"
+    ]
+  },
+  {
+    "title": "deploy: github-pages: project-site `base_path` not auto-derived from repo name",
+    "body": "For `https://user.github.io/repo/` the build needs `base_path = '/repo/'`. CI runs blind unless user manually sets it. The repo name is available via `GITHUB_REPOSITORY`.\n\n**Fix**: in `loadConfig`, if `GITHUB_PAGES=true` and no custom domain configured, derive `base_path` from `${GITHUB_REPOSITORY##*/}`.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cloudflare-pages: build output exceeds 25k-file limit not surfaced",
+    "body": "Cloudflare Pages caps free plans at 20k files (Pro at 25k). Large content-asset directories silently fail.\n\n**Fix**: emit file-count warning in `build` summary; hard-error when target=cloudflare-pages and count > limit.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: vercel: `output: 'export'`-style guidance not present (Vercel adapter limitations)",
+    "body": "Vercel auto-detects static output but unique to Nectar's CLI, the detection may fail without `vercel.json`'s `outputDirectory: 'dist'`. Document explicitly.\n\n**Fix**: docs + sample `vercel.json` minimal config.",
+    "labels": [
+      "docs",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: s3-cloudfront: no Brotli encoding for upload (S3-side)",
+    "body": "S3 doesn't transparently brotli; CloudFront's automatic compression only applies to gzip for some content types and not all (no brotli without origin pre-compression). Pre-compress and upload `.br` siblings, set `Content-Encoding: br` on those keys.\n\n**Fix**: precompress pipeline emits `.br`/`.gz`; deploy command sets per-object content-encoding.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: HSTS preload-list eligibility not validated",
+    "body": "Sites wanting `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` need apex + every subdomain to be HTTPS. Nectar's headers emitter could include the directive blindly, locking users out.\n\n**Fix**: gate `preload` flag behind explicit `security_headers.hsts.preload: true` + warning.",
+    "labels": [
+      "infra",
+      "P2"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: emitters need conflict-detection for files Nectar would overwrite",
+    "body": "If user keeps a hand-written `_headers` in `static/`, our emitter overwrites it. Need merge or conflict-detection.\n\n**Fix**: when target emitter writes `_headers`/`_redirects`/`vercel.json`, fail if hand-written exists unless `--force` or `merge: true`.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  },
+  {
+    "title": "deploy: cross-cutting: no internal helper to canonicalize 'public URL' across emitters",
+    "body": "Many emitters need the absolute URL of a route. Today, `feeds.ts` recomputes it. Lifting a shared helper keeps emitters consistent.\n\n**Fix**: add `src/build/url.ts` with `absoluteUrl(route, config)` used by sitemap, RSS, redirects, headers emitters.",
+    "labels": [
+      "infra",
+      "P2",
+      "dx"
+    ]
+  }
+]
