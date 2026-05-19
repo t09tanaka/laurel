@@ -5,6 +5,7 @@ import { loadContent } from '~/content/loader.ts';
 import { createEngine } from '~/render/engine.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
+import { injectSkipLink } from './a11y.ts';
 import { emitContentApiShadows } from './api.ts';
 import { copyAssets, copyContentAssets, writeHtml } from './emit.ts';
 import { emitRss, emitSitemap } from './feeds.ts';
@@ -38,7 +39,7 @@ export async function build({ cwd, configPath }: BuildOptions): Promise<BuildSum
 
   for (const route of routes) {
     try {
-      const html = engine.render(route);
+      const html = injectSkipLink(engine.render(route));
       await writeHtml(outputDir, route.outputPath, html);
     } catch (err) {
       logger.error(`Failed to render ${route.url} (${route.template}):`);

@@ -47,6 +47,24 @@ describe('example build', () => {
       expect(html, `${label} page burger button must have non-empty aria-label`).not.toMatch(
         /<button[^>]*\bgh-burger\b[^>]*\baria-label=""/,
       );
+      expect(html, `${label} page must emit a skip-to-content link targeting #main`).toMatch(
+        /<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#main"[^>]*>\s*Skip to content\s*<\/a>/,
+      );
+      const bodyOpenMatch = html.match(/<body\b[^>]*>/i);
+      expect(bodyOpenMatch, `${label} page must have a <body> tag`).not.toBeNull();
+      const bodyOpenEnd = (bodyOpenMatch?.index ?? 0) + (bodyOpenMatch?.[0]?.length ?? 0);
+      const skipAnchorPos = html.indexOf('<a class="nectar-skip-link');
+      expect(
+        skipAnchorPos,
+        `${label} page skip link must appear inside <body>`,
+      ).toBeGreaterThanOrEqual(bodyOpenEnd);
+      const firstFocusableOffset = html
+        .slice(bodyOpenEnd)
+        .search(/<(?:a|button|input|select|textarea)\b/i);
+      expect(
+        bodyOpenEnd + firstFocusableOffset,
+        `${label} page first focusable element must be the skip link`,
+      ).toBe(skipAnchorPos);
     }
 
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
