@@ -29,6 +29,10 @@ function printTopUsage(stream: NodeJS.WriteStream = process.stdout): void {
 
 async function dispatch(command: string, rest: string[]): Promise<number> {
   switch (command) {
+    case 'init': {
+      const { runInit } = await import('./commands/init.ts');
+      return runInit(rest);
+    }
     case 'build': {
       const { runBuild } = await import('./commands/build.ts');
       return runBuild(rest);
