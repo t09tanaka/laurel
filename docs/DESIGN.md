@@ -26,6 +26,30 @@ published from Ghost — without running Ghost.
 
 ## 2. High-level pipeline
 
+```mermaid
+flowchart TD
+    Config["nectar.toml"]
+    Markdown["content/**/*.md"]
+    Themes["themes/&lt;name&gt;/<br/>(*.hbs, locales, assets, package.json)"]
+
+    Config --> ConfigLoader["Config loader"]
+    ConfigLoader --> ContentLoader["Content loader<br/>(frontmatter + markdown → HTML)"]
+    Markdown --> ContentLoader
+    ContentLoader --> ContentGraph["Content graph<br/>(posts, pages, tags, authors, navigation)"]
+    ContentGraph --> RoutePlanner["Route planner"]
+    RoutePlanner --> Routes["Routes<br/>/, /:slug/, /tag/:slug/,<br/>/author/:slug/, /page/:n/"]
+    ConfigLoader --> ThemeLoader["Theme loader<br/>(.hbs, locales, assets, config)"]
+    Themes --> ThemeLoader
+    ThemeLoader --> Renderer["Renderer<br/>(Handlebars + Ghost helpers + context build)"]
+    ContentGraph --> Renderer
+    RoutePlanner --> Renderer
+    Renderer --> Emitter["Emitter<br/>(HTML + assets + sitemap/rss)"]
+    Emitter --> Dist["dist/"]
+```
+
+<details>
+<summary>ASCII fallback (for terminals or markdown viewers without Mermaid)</summary>
+
 ```
 nectar.toml ──┐
               ▼
@@ -78,6 +102,8 @@ nectar.toml ──┐
   │   + sitemap/rss) │
   └──────────────────┘
 ```
+
+</details>
 
 ## 3. Modules
 
