@@ -51,8 +51,19 @@ and bundler for this repo.
 ```bash
 git clone https://github.com/t09tanaka/nectar.git
 cd nectar
-bun install
+bun install --frozen-lockfile
 ```
+
+Pass `--frozen-lockfile` on every install (CI does). It refuses to mutate
+`bun.lock`, fails fast if `package.json` and the lockfile have drifted, and
+verifies each downloaded tarball's hash against the lockfile — so a tampered
+or hijacked registry response is rejected before it ever reaches your
+`node_modules/`. Drop the flag only when you are intentionally adding or
+upgrading a dependency, and commit the lockfile change in the same PR.
+
+If `bun install --frozen-lockfile` errors with "lockfile had changes", run
+`bun install` to regenerate the lockfile, review the diff, and commit it
+alongside the `package.json` change.
 
 ### Build the example site
 

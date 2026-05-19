@@ -132,14 +132,16 @@ landing silently:
   bumps are split into their own PRs because they have historically broken
   Ghost theme compatibility or Markdown sanitization. Renovate is preferred
   over Dependabot here because it understands `bun.lock` natively.
-- Maintainers run `bun pm audit` (or an equivalent scanner) against the
+- Maintainers run `bun audit` (or an equivalent scanner) against the
   lockfile when triaging dependency PRs and before tagging a release.
-- CI runs three automated scans on every push and PR to `main`, plus a
+- CI runs four automated scans on every push and PR to `main`, plus a
   weekly schedule, via [`.github/workflows/security.yml`](.github/workflows/security.yml):
   [gitleaks](https://github.com/gitleaks/gitleaks) for secrets in commit
   history, [osv-scanner](https://github.com/google/osv-scanner) against
-  `bun.lock`, and [CodeQL](https://codeql.github.com/) for the
-  JavaScript/TypeScript source. Contributors can opt in to a local
+  `bun.lock`, `bun audit` for bun-native advisories paired with a
+  `bun install --frozen-lockfile` step that re-verifies tarball hashes
+  against the committed lockfile, and [CodeQL](https://codeql.github.com/)
+  for the JavaScript/TypeScript source. Contributors can opt in to a local
   gitleaks pre-commit hook — see
   [`CONTRIBUTING.md` § Secrets scanning](CONTRIBUTING.md#secrets-scanning).
 

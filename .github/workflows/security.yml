@@ -57,6 +57,33 @@ jobs:
             --skip-git
             ./
 
+  bun-audit:
+    name: bun audit (lockfile integrity + advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      # --frozen-lockfile fails the build if bun.lock and package.json drift,
+      # which also forces Bun to verify each tarball hash against the lockfile.
+      # This catches a tampered registry response or a stale, hand-edited lock
+      # before the rest of the pipeline runs against poisoned dependencies.
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      # bun-native advisory check, layered on top of osv-scanner so a CVE that
+      # only one feed knows about still surfaces. high/critical fail the job;
+      # lower severities print but do not block, matching how renovate PRs are
+      # triaged.
+      - name: bun audit (high+ severities fail the job)
+        run: bun audit --audit-level=high
+
   codeql:
     name: CodeQL (javascript-typescript)
     runs-on: ubuntu-latest
