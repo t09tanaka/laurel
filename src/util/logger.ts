@@ -17,6 +17,8 @@ const envLevel = parseLevel(process.env.NECTAR_LOG_LEVEL);
 let threshold = envLevel ? order[envLevel] : order.info;
 
 let warningCount = 0;
+let warningsAsErrors = false;
+let warningsAsErrorsFailure = false;
 
 // Output mode controls how `logger.<level>(...)` is serialised. `text` (the
 // default) keeps human-readable info/debug/trace output on stdout and
@@ -150,21 +152,23 @@ function splitFields(parts: unknown[]): { fields?: LogFields; rest: unknown[] } 
 
 function emit(level: Level, parts: unknown[]): void {
   if (level === 'warn') warningCount += 1;
-  if (order[level] < threshold) return;
+  const effectiveLevel: Level = level === 'warn' && warningsAsErrors ? 'error' : level;
+  if (level === 'warn' && warningsAsErrors) warningsAsErrorsFailure = true;
+  if (order[effectiveLevel] < threshold) return;
   const { fields, rest } = splitFields(parts);
   const message = rest.map(formatPart).join(' ');
   if (outputMode === 'json') {
     const record: Record<string, unknown> = {
       ts: new Date().toISOString(),
-      level,
+      level: effectiveLevel,
       msg: message,
     };
     if (fields) record.fields = sanitizeFields(fields);
-    writeToLevelStream(level, `${safeJsonStringify(record)}\n`);
+    writeToLevelStream(effectiveLevel, `${safeJsonStringify(record)}\n`);
     return;
   }
   const trailing = fields ? ` ${formatFieldsForText(fields)}` : '';
-  writeToLevelStream(level, formatTextLine(level, message, trailing));
+  writeToLevelStream(effectiveLevel, formatTextLine(effectiveLevel, message, trailing));
 }
 
 function writeToLevelStream(level: Level, chunk: string): void {
@@ -284,4 +288,20 @@ export function getWarningCount(): number {
 
 export function resetWarningCount(): void {
   warningCount = 0;
+}
+
+export function setWarningsAsErrors(enabled: boolean): void {
+  warningsAsErrors = enabled;
+}
+
+export function getWarningsAsErrors(): boolean {
+  return warningsAsErrors;
+}
+
+export function hasWarningsAsErrorsFailure(): boolean {
+  return warningsAsErrorsFailure;
+}
+
+export function resetWarningsAsErrorsFailure(): void {
+  warningsAsErrorsFailure = false;
 }

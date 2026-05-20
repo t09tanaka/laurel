@@ -130,6 +130,28 @@ describe('cli check', () => {
     );
   });
 
+  test('global --warnings-as-errors exits 1 on check warnings without --strict', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'content/posts/missing-image.md'),
+      [
+        '---',
+        'title: Missing Image',
+        'date: 2026-01-01',
+        'feature_image: /content/images/missing.jpg',
+        '---',
+        '',
+        'body',
+      ].join('\n'),
+    );
+
+    const { stderr, exitCode } = await runCli(['--warnings-as-errors', 'check'], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('error');
+    expect(stderr).toContain('missing.jpg');
+  });
+
   test('exits non-zero on an unparseable post date even without --strict', async () => {
     dir = await makeFixture();
     await Bun.write(

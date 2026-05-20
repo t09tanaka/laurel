@@ -296,6 +296,7 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('--log-format');
     expect(stdout).toContain('--no-color');
     expect(stdout).toContain('--debug');
+    expect(stdout).toContain('--warnings-as-errors');
   });
 
   test('per-command --help renders an Examples: block', async () => {

@@ -11,6 +11,7 @@ describe('extractGlobalFlags', () => {
       logFormat: undefined,
       noColor: false,
       debug: false,
+      warningsAsErrors: false,
     });
     expect(rest).toEqual(['build', '--strict']);
   });
@@ -128,6 +129,7 @@ describe('extractGlobalFlags env var fallbacks', () => {
       logFormat: undefined,
       noColor: false,
       debug: false,
+      warningsAsErrors: false,
     });
   });
 
@@ -184,6 +186,12 @@ describe('extractGlobalFlags env var fallbacks', () => {
     expect(rest).toEqual(['build']);
   });
 
+  test('--warnings-as-errors sets flag and is stripped from argv', () => {
+    const { flags, rest } = extractGlobalFlags(['build', '--warnings-as-errors']);
+    expect(flags.warningsAsErrors).toBe(true);
+    expect(rest).toEqual(['build']);
+  });
+
   test('NO_COLOR env (any non-empty value) disables color', () => {
     const { flags } = extractGlobalFlags(['build'], { NO_COLOR: '1' });
     expect(flags.noColor).toBe(true);
@@ -226,5 +234,10 @@ describe('extractGlobalFlags env var fallbacks', () => {
   test('NECTAR_DEBUG=true sets debug mode', () => {
     const { flags } = extractGlobalFlags(['build'], { NECTAR_DEBUG: 'true' });
     expect(flags.debug).toBe(true);
+  });
+
+  test('NECTAR_WARNINGS_AS_ERRORS=true enables warnings-as-errors mode', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_WARNINGS_AS_ERRORS: 'true' });
+    expect(flags.warningsAsErrors).toBe(true);
   });
 });

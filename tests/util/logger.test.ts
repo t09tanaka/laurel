@@ -4,12 +4,16 @@ import {
   getLogLevel,
   getOutputMode,
   getWarningCount,
+  getWarningsAsErrors,
+  hasWarningsAsErrorsFailure,
   logger,
   refreshColorFromEnv,
   resetWarningCount,
+  resetWarningsAsErrorsFailure,
   setColorEnabled,
   setLogLevel,
   setOutputMode,
+  setWarningsAsErrors,
 } from '~/util/logger.ts';
 
 function captureStreams(fn: () => void): { stdout: string; stderr: string } {
@@ -72,6 +76,13 @@ function withEnv<T>(key: string, value: string | undefined, fn: () => T): T {
 const isoTimestampPrefix = /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] /;
 
 describe('logger warning counter', () => {
+  afterEach(() => {
+    setWarningsAsErrors(false);
+    resetWarningsAsErrorsFailure();
+    setOutputMode('text');
+    setLogLevel('info');
+  });
+
   test('warn() increments the counter; resetWarningCount() clears it', () => {
     resetWarningCount();
     expect(getWarningCount()).toBe(0);
@@ -90,6 +101,51 @@ describe('logger warning counter', () => {
     logger.info('i');
     logger.error('e');
     expect(getWarningCount()).toBe(0);
+  });
+
+  test('warnings-as-errors emits warn() as error while preserving the warning counter', () => {
+    resetWarningCount();
+    setWarningsAsErrors(true);
+    expect(getWarningsAsErrors()).toBe(true);
+
+    const { stderr } = withStreamTty(process.stderr, true, () =>
+      captureStreams(() => {
+        logger.warn('promoted warning');
+      }),
+    );
+
+    expect(getWarningCount()).toBe(1);
+    expect(hasWarningsAsErrorsFailure()).toBe(true);
+    expect(stderr).toBe('[error] promoted warning\n');
+  });
+
+  test('warnings-as-errors changes JSON warn records to error level', () => {
+    resetWarningCount();
+    setWarningsAsErrors(true);
+    setOutputMode('json');
+
+    const { stderr } = captureStreams(() => {
+      logger.warn('json warning');
+    });
+
+    const obj = JSON.parse(stderr.trim()) as { level: string; msg: string };
+    expect(obj.level).toBe('error');
+    expect(obj.msg).toBe('json warning');
+    expect(getWarningCount()).toBe(1);
+  });
+
+  test('resetWarningCount does not clear the warnings-as-errors failure state', () => {
+    resetWarningCount();
+    resetWarningsAsErrorsFailure();
+    setWarningsAsErrors(true);
+
+    captureStreams(() => {
+      logger.warn('still fatal');
+    });
+    resetWarningCount();
+
+    expect(getWarningCount()).toBe(0);
+    expect(hasWarningsAsErrorsFailure()).toBe(true);
   });
 });
 

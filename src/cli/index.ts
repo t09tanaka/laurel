@@ -1,7 +1,14 @@
 #!/usr/bin/env bun
 
 import { EXIT_CODES } from '~/util/errors.ts';
-import { logger, setColorEnabled, setLogLevel, setOutputMode } from '~/util/logger.ts';
+import {
+  hasWarningsAsErrorsFailure,
+  logger,
+  setColorEnabled,
+  setLogLevel,
+  setOutputMode,
+  setWarningsAsErrors,
+} from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts';
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
@@ -52,7 +59,8 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
   lines.push('');
   lines.push('Global options:');
-  const globalOptionWidth = '--log-format <json|pretty>'.length + 2;
+  const globalOptionWidth =
+    Math.max('--log-format <json|pretty>'.length, '--warnings-as-errors'.length) + 2;
   lines.push(`  ${'-q, --quiet'.padEnd(globalOptionWidth)}Suppress non-error log output`);
   lines.push(
     `  ${'-V, --verbose'.padEnd(globalOptionWidth)}Increase verbosity to debug (stack -VV for trace)`,
@@ -68,6 +76,9 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   );
   lines.push(
     `  ${'--debug'.padEnd(globalOptionWidth)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
+  );
+  lines.push(
+    `  ${'--warnings-as-errors'.padEnd(globalOptionWidth)}Treat logger warnings as errors and exit 1 if any warning is emitted`,
   );
   lines.push('');
   lines.push('Run `nectar help <command>` or `nectar <command> --help` for more details.');
@@ -273,6 +284,9 @@ function applyGlobalFlags(flags: GlobalFlags): void {
       setLogLevel('debug');
     }
   }
+  if (flags.warningsAsErrors) {
+    setWarningsAsErrors(true);
+  }
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -281,12 +295,14 @@ async function main(argv: string[]): Promise<number> {
 
   let filtered: string[];
   let globalJson = false;
+  let warningsAsErrors = false;
   try {
     const result = extractGlobalFlags(raw, process.env);
     applyGlobalFlags(result.flags);
     warnIfBunEngineMismatch(logger.warn);
     filtered = result.rest;
     globalJson = result.flags.json;
+    warningsAsErrors = result.flags.warningsAsErrors;
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n\n`);
     printTopUsage(version, process.stderr);
@@ -298,16 +314,19 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === undefined) {
     printTopUsage(version, process.stderr);
-    return EXIT_CODES.usage;
+    return finishWithWarningPolicy(EXIT_CODES.usage, warningsAsErrors);
   }
 
   if (command === '--help' || command === '-h') {
     printTopUsage(version);
-    return EXIT_CODES.ok;
+    return finishWithWarningPolicy(EXIT_CODES.ok, warningsAsErrors);
   }
 
   if (command === 'help') {
-    return printCommandHelp(rest.shift(), rest, version);
+    return finishWithWarningPolicy(
+      await printCommandHelp(rest.shift(), rest, version),
+      warningsAsErrors,
+    );
   }
 
   if (command === 'version' || command === '--version' || command === '-v') {
@@ -317,20 +336,20 @@ async function main(argv: string[]): Promise<number> {
       } else {
         process.stdout.write(`${version}\n`);
       }
-      return 0;
+      return finishWithWarningPolicy(0, warningsAsErrors);
     }
     if (command === 'version' && rest.length === 1 && (rest[0] === '--help' || rest[0] === '-h')) {
       printVersionUsage();
-      return 0;
+      return finishWithWarningPolicy(0, warningsAsErrors);
     }
     if (command === 'version' && rest.length === 1 && rest[0] === '--check') {
       const result = await checkLatestRelease({ currentVersion: version, env: process.env });
       process.stdout.write(formatReleaseCheck(result));
-      return 0;
+      return finishWithWarningPolicy(0, warningsAsErrors);
     }
     process.stderr.write(`Unknown option for version: ${rest.join(' ')}\n\n`);
     printVersionUsage(process.stderr);
-    return 2;
+    return finishWithWarningPolicy(2, warningsAsErrors);
   }
 
   // `env` is an alias for `info` so the second-nature `nectar env` lands on
@@ -344,7 +363,7 @@ async function main(argv: string[]): Promise<number> {
 
   if (!(canonical in COMMAND_SPECS)) {
     printUnknownCommand(command, version);
-    return 2;
+    return finishWithWarningPolicy(2, warningsAsErrors);
   }
 
   // Forward the global `--json` flag back into the subcommand argv so
@@ -356,7 +375,15 @@ async function main(argv: string[]): Promise<number> {
   const argsForDispatch =
     globalJson && !resolvedRest.includes('--json') ? ['--json', ...resolvedRest] : resolvedRest;
 
-  return dispatch(canonical, argsForDispatch);
+  const code = await dispatch(canonical, argsForDispatch);
+  return finishWithWarningPolicy(code, warningsAsErrors);
+}
+
+function finishWithWarningPolicy(code: number, warningsAsErrors: boolean): number {
+  if (warningsAsErrors && code === EXIT_CODES.ok && hasWarningsAsErrorsFailure()) {
+    return EXIT_CODES.generic;
+  }
+  return code;
 }
 
 const code = await main(process.argv);

@@ -7,6 +7,7 @@ export interface GlobalFlags {
   logFormat: 'json' | 'pretty' | undefined;
   noColor: boolean;
   debug: boolean;
+  warningsAsErrors: boolean;
 }
 
 export interface ExtractResult {
@@ -20,13 +21,14 @@ const JSON_ENV = globalEnvVarName('json');
 const LOG_FORMAT_ENV = globalEnvVarName('log-format');
 const NO_COLOR_ENV_NECTAR = globalEnvVarName('no-color');
 const DEBUG_ENV = globalEnvVarName('debug');
+const WARNINGS_AS_ERRORS_ENV = globalEnvVarName('warnings-as-errors');
 
 // Strips top-level verbosity / output-mode flags from argv so subcommand
 // parsers (which run node:util `parseArgs` in strict mode) don't choke on
 // them. Flags may appear anywhere before `--`; after `--`, tokens are passed
 // through untouched. CLI flags take priority over env-var fallbacks
 // (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_LOG_FORMAT / NECTAR_JSON /
-// NECTAR_NO_COLOR / NECTAR_DEBUG).
+// NECTAR_NO_COLOR / NECTAR_DEBUG / NECTAR_WARNINGS_AS_ERRORS).
 // We also recognise the conventional `NO_COLOR` (any non-empty value disables
 // color) so nectar matches the rest of the CLI ecosystem out of the box.
 export function extractGlobalFlags(
@@ -45,6 +47,8 @@ export function extractGlobalFlags(
   let noColorFromCli = false;
   let debug = false;
   let debugFromCli = false;
+  let warningsAsErrors = false;
+  let warningsAsErrorsFromCli = false;
   let passthrough = false;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -105,6 +109,11 @@ export function extractGlobalFlags(
       debugFromCli = true;
       continue;
     }
+    if (arg === '--warnings-as-errors') {
+      warningsAsErrors = true;
+      warningsAsErrorsFromCli = true;
+      continue;
+    }
     if (/^-V+$/.test(arg)) {
       verboseCount += arg.length - 1;
       continue;
@@ -152,8 +161,15 @@ export function extractGlobalFlags(
   if (!debugFromCli && debugRaw !== undefined) {
     debug = parseBooleanEnv(debugRaw, DEBUG_ENV);
   }
+  const warningsAsErrorsRaw = env[WARNINGS_AS_ERRORS_ENV];
+  if (!warningsAsErrorsFromCli && warningsAsErrorsRaw !== undefined) {
+    warningsAsErrors = parseBooleanEnv(warningsAsErrorsRaw, WARNINGS_AS_ERRORS_ENV);
+  }
 
-  return { flags: { quiet, verboseCount, json, logFormat, noColor, debug }, rest };
+  return {
+    flags: { quiet, verboseCount, json, logFormat, noColor, debug, warningsAsErrors },
+    rest,
+  };
 }
 
 function parseLogFormat(raw: string, source: string): NonNullable<GlobalFlags['logFormat']> {
