@@ -145,7 +145,42 @@ export interface BuildOptions {
   // false is exposed through `--no-copy-content-assets` for CI jobs that only
   // need rendered HTML and theme assets.
   copyContentAssets?: boolean | undefined;
+  // Optional CLI-facing progress callback. The build pipeline treats this as
+  // best-effort telemetry: progress UI must never be able to fail a build.
+  progress?: BuildProgressReporter | undefined;
 }
+
+export type BuildProgressPhase =
+  | 'config'
+  | 'output'
+  | 'content'
+  | 'routes'
+  | 'render'
+  | 'html'
+  | 'assets'
+  | 'metadata'
+  | 'finalize';
+
+export type BuildProgressEvent =
+  | {
+      type: 'phase-start' | 'phase-end';
+      phase: BuildProgressPhase;
+      label: string;
+      totalRoutes?: number | undefined;
+    }
+  | {
+      type: 'routes-planned';
+      totalRoutes: number;
+    }
+  | {
+      type: 'route-rendered';
+      completedRoutes: number;
+      totalRoutes: number;
+      route: string;
+      reused: boolean;
+    };
+
+export type BuildProgressReporter = (event: BuildProgressEvent) => void;
 
 export interface DryRunRouteSummary {
   url: string;
@@ -181,6 +216,34 @@ async function timed<T>(
   const bytes = getBytes?.(result);
   stop(bytes !== undefined ? { bytes_emitted: bytes } : undefined);
   return result;
+}
+
+function notifyProgress(
+  progress: BuildProgressReporter | undefined,
+  event: BuildProgressEvent,
+): void {
+  if (!progress) return;
+  try {
+    progress(event);
+  } catch {
+    // Progress rendering is auxiliary. A broken terminal or test stub should
+    // not change build success.
+  }
+}
+
+async function withProgressPhase<T>(
+  progress: BuildProgressReporter | undefined,
+  phase: BuildProgressPhase,
+  label: string,
+  fn: () => Promise<T> | T,
+  opts: { totalRoutes?: number | undefined } = {},
+): Promise<T> {
+  notifyProgress(progress, { type: 'phase-start', phase, label, totalRoutes: opts.totalRoutes });
+  try {
+    return await fn();
+  } finally {
+    notifyProgress(progress, { type: 'phase-end', phase, label, totalRoutes: opts.totalRoutes });
+  }
 }
 
 // Maps the internal RouteKind taxonomy onto Ghost's four sitemap sections.
@@ -220,6 +283,7 @@ export async function build({
   force,
   emitContentApi,
   copyContentAssets,
+  progress,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -230,7 +294,9 @@ export async function build({
   if (includeDrafts === true) {
     logger.warn('Building with drafts');
   }
-  const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
+  const config = await withProgressPhase(progress, 'config', 'Loading config', () =>
+    timed(profiler, 'config', () => loadConfig({ cwd, configPath })),
+  );
   if (copyContentAssets !== undefined) {
     config.build.copy_content_assets = copyContentAssets;
   }
@@ -246,8 +312,15 @@ export async function build({
   // `--force` skips this lookup so every route re-renders even when its hash
   // would otherwise have matched; useful as an escape hatch if the cache or
   // on-disk HTML appears stale.
-  const previousManifest = force === true ? undefined : await loadManifest(finalOutputDir);
-  const previousBuildManifest = await loadBuildManifest(finalOutputDir);
+  const { previousManifest, previousBuildManifest } = await withProgressPhase(
+    progress,
+    'output',
+    'Preparing output',
+    async () => ({
+      previousManifest: force === true ? undefined : await loadManifest(finalOutputDir),
+      previousBuildManifest: await loadBuildManifest(finalOutputDir),
+    }),
+  );
 
   const isDryRun = dryRun === true;
 
@@ -292,6 +365,7 @@ export async function build({
       dryRun: isDryRun,
       includeDrafts: includeDrafts === true,
       emitContentApi,
+      progress,
     });
   } catch (err) {
     if (!isDryRun && !noAtomic) {
@@ -314,6 +388,7 @@ async function runBuild({
   dryRun,
   includeDrafts,
   emitContentApi,
+  progress,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -327,6 +402,7 @@ async function runBuild({
   dryRun: boolean;
   includeDrafts: boolean;
   emitContentApi: boolean | undefined;
+  progress: BuildProgressReporter | undefined;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
@@ -334,64 +410,70 @@ async function runBuild({
   const nectarVersion = await getNectarVersion();
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
-  const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
-  warnUnappliedSections(routesYaml);
+  const { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants } =
+    await withProgressPhase(progress, 'content', 'Loading content and theme', async () => {
+      const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
+      warnUnappliedSections(routesYaml);
 
-  // Resolve plugin specs before the content loader runs so any
-  // `transformMarkdown` declarations are visible to the loader's markdown
-  // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
-  // `afterContentLoad`, …) are fired later — after `createEngine` returns —
-  // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
-  // load surface a warning via `loadPlugins` and are skipped, never an abort.
-  const pluginSet = await timed(profiler, 'plugins_load', () =>
-    loadPlugins({
-      cwd,
-      specs: config.plugins,
-      autoDetect: config.plugin_auto_detect,
-    }),
-  );
-  const markdownTransforms: MarkdownTransformHook[] = [];
-  for (const p of pluginSet.plugins) {
-    if (typeof p.transformMarkdown === 'function') {
-      const fn = p.transformMarkdown.bind(p);
-      markdownTransforms.push((input, ctx) => fn(input, ctx));
-    }
-  }
+      // Resolve plugin specs before the content loader runs so any
+      // `transformMarkdown` declarations are visible to the loader's markdown
+      // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
+      // `afterContentLoad`, …) are fired later — after `createEngine` returns —
+      // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
+      // load surface a warning via `loadPlugins` and are skipped, never an abort.
+      const pluginSet = await timed(profiler, 'plugins_load', () =>
+        loadPlugins({
+          cwd,
+          specs: config.plugins,
+          autoDetect: config.plugin_auto_detect,
+        }),
+      );
+      const markdownTransforms: MarkdownTransformHook[] = [];
+      for (const p of pluginSet.plugins) {
+        if (typeof p.transformMarkdown === 'function') {
+          const fn = p.transformMarkdown.bind(p);
+          markdownTransforms.push((input, ctx) => fn(input, ctx));
+        }
+      }
 
-  const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
-    Promise.all([
-      loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
-      loadTheme({ cwd, config }),
-    ]),
-  );
+      const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
+        Promise.all([
+          loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
+          loadTheme({ cwd, config }),
+        ]),
+      );
 
-  validateThemeCustom({ config, pkg: theme.pkg });
+      validateThemeCustom({ config, pkg: theme.pkg });
 
-  injectImageDimensionsIntoContent({ content, cwd, config });
+      injectImageDimensionsIntoContent({ content, cwd, config });
 
-  const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
-    planImageVariants({ cwd, config }),
-  );
-  injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
-  // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
-  // injected entry resolves to the same URL). The rendered-HTML post-process
-  // below catches the same pattern in theme HBS output. Issue #534.
-  collapseDegenerateSrcsetIntoContent({ content });
-  const imagesCfg = config.components.images;
-  // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
-  // referenced variants — otherwise modern browsers would pick the WebP/AVIF
-  // <source> and 404 instead of falling back to the original <img>.
-  const formatVariants: readonly ImageFormat[] =
-    imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
-      ? imagesCfg.formats
-      : [];
-  if (formatVariants.length > 0) {
-    injectImagePictureSourcesIntoContent({
-      content,
-      plan: imageVariantPlan,
-      formats: formatVariants,
+      const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
+        planImageVariants({ cwd, config }),
+      );
+      injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+      // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
+      // injected entry resolves to the same URL). The rendered-HTML post-process
+      // below catches the same pattern in theme HBS output. Issue #534.
+      collapseDegenerateSrcsetIntoContent({ content });
+      const imagesCfg = config.components.images;
+      // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
+      // referenced variants — otherwise modern browsers would pick the WebP/AVIF
+      // <source> and 404 instead of falling back to the original <img>.
+      const formatVariants: readonly ImageFormat[] =
+        imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
+          ? imagesCfg.formats
+          : [];
+      if (formatVariants.length > 0) {
+        injectImagePictureSourcesIntoContent({
+          content,
+          plan: imageVariantPlan,
+          formats: formatVariants,
+        });
+      }
+      return { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants };
     });
-  }
+
+  const imagesCfg = config.components.images;
 
   // OG image generation writes PNG/SVG files into outputDir, so dry-run skips
   // it. Themes consume `meta.image` set during route construction (above), not
@@ -442,34 +524,38 @@ async function runBuild({
     if (plugin.afterContentLoad) await plugin.afterContentLoad(pluginCtx, content);
   });
 
-  const baseRoutes = planRoutes({ config, content, theme, routesYaml });
-  // Collect plugin-supplied extra routes and merge them after the built-in
-  // planner so generators don't accidentally shadow native routes. Plugin
-  // routes are appended in registration order; conflicts on the same
-  // outputPath surface as a warning and the built-in wins.
-  const extraRoutes: RouteContext[] = [];
-  for (const plugin of pluginSet.plugins) {
-    if (!plugin.routes) continue;
-    try {
-      const routes = await plugin.routes(pluginCtx);
-      for (const r of routes) extraRoutes.push(r);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`plugin '${plugin.name}' routes() failed: ${msg}`);
+  const routes = await withProgressPhase(progress, 'routes', 'Planning routes', async () => {
+    const baseRoutes = planRoutes({ config, content, theme, routesYaml });
+    // Collect plugin-supplied extra routes and merge them after the built-in
+    // planner so generators don't accidentally shadow native routes. Plugin
+    // routes are appended in registration order; conflicts on the same
+    // outputPath surface as a warning and the built-in wins.
+    const extraRoutes: RouteContext[] = [];
+    for (const plugin of pluginSet.plugins) {
+      if (!plugin.routes) continue;
+      try {
+        const routes = await plugin.routes(pluginCtx);
+        for (const r of routes) extraRoutes.push(r);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(`plugin '${plugin.name}' routes() failed: ${msg}`);
+      }
     }
-  }
-  const seenOutputPaths = new Set(baseRoutes.map((r) => r.outputPath));
-  const routes: RouteContext[] = [...baseRoutes];
-  for (const r of extraRoutes) {
-    if (seenOutputPaths.has(r.outputPath)) {
-      logger.warn(
-        `plugin route '${r.url}' collides with existing outputPath '${r.outputPath}'; skipping`,
-      );
-      continue;
+    const seenOutputPaths = new Set(baseRoutes.map((r) => r.outputPath));
+    const routes: RouteContext[] = [...baseRoutes];
+    for (const r of extraRoutes) {
+      if (seenOutputPaths.has(r.outputPath)) {
+        logger.warn(
+          `plugin route '${r.url}' collides with existing outputPath '${r.outputPath}'; skipping`,
+        );
+        continue;
+      }
+      seenOutputPaths.add(r.outputPath);
+      routes.push(r);
     }
-    seenOutputPaths.add(r.outputPath);
-    routes.push(r);
-  }
+    notifyProgress(progress, { type: 'routes-planned', totalRoutes: routes.length });
+    return routes;
+  });
 
   const subscribeConfig = config.components.subscribe;
   const recommendationsEnabled = config.recommendations.length > 0;
@@ -508,111 +594,139 @@ async function runBuild({
     bytes: number;
     reused: boolean;
   };
-  const renderResults = await Promise.all(
-    routes.map((route) =>
-      renderLimit(async (): Promise<RenderResult> => {
-        const routeHash = computeRouteHash({ globalHash, route, theme });
-        const previous = previousRoutes[route.url];
-        const reusableEntry =
-          previous && previous.hash === routeHash && previous.outputPath === route.outputPath
-            ? previous
-            : undefined;
+  let completedRoutes = 0;
+  const renderResults = await withProgressPhase(
+    progress,
+    'render',
+    'Rendering routes',
+    () =>
+      Promise.all(
+        routes.map((route) =>
+          renderLimit(async (): Promise<RenderResult> => {
+            const routeHash = computeRouteHash({ globalHash, route, theme });
+            const previous = previousRoutes[route.url];
+            const reusableEntry =
+              previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+                ? previous
+                : undefined;
 
-        if (reusableEntry) {
-          const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
-          if (await previousFile.exists()) {
-            const stop = profiler?.start('render', route.url);
-            const html = await previousFile.text();
-            const bytes = Buffer.byteLength(html, 'utf8');
-            stop?.({ bytes_emitted: bytes });
-            return {
-              htmlOutput: { outputPath: route.outputPath, html, reused: true },
-              routeHash,
-              outputPath: route.outputPath,
-              url: route.url,
-              bytes,
-              reused: true,
-            };
-          }
-        }
-
-        const stop = profiler?.start('render', route.url);
-        try {
-          // Per-route plugin hook. Sequential per route; routes still render
-          // in parallel because each route's hook chain awaits independently.
-          for (const plugin of pluginSet.plugins) {
-            if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
-          }
-          let html = collapseDegenerateSrcset(
-            rewritePortalLinks({
-              html: rewriteRecommendationsButton({
-                html: stripUnusedLightbox(
-                  transformSubscribeForms(
-                    injectSkipLink(engine.render(route), config.build.csp_nonce),
-                    subscribeConfig,
-                  ),
-                ),
-                basePath: config.build.base_path,
-                enabled: recommendationsEnabled,
-              }),
-              urls: portalUrls,
-            }),
-          );
-          // Pagefind integration: inject the runtime shim script on any page
-          // that has a `[data-ghost-search]` trigger, and tag non-public
-          // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
-          // those pages from the public index. Both are no-ops unless the
-          // search component is enabled with a pagefind-emitting engine.
-          if (
-            config.components.search.enabled &&
-            (config.components.search.engine === 'pagefind' ||
-              config.components.search.engine === 'json+pagefind')
-          ) {
-            html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
-            const post = route.kind === 'post' ? route.data.post : undefined;
-            if (post && post.visibility !== 'public') {
-              html = injectPagefindSkipMeta(html);
+            if (reusableEntry) {
+              const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
+              if (await previousFile.exists()) {
+                const stop = profiler?.start('render', route.url);
+                const html = await previousFile.text();
+                const bytes = Buffer.byteLength(html, 'utf8');
+                stop?.({ bytes_emitted: bytes });
+                completedRoutes += 1;
+                notifyProgress(progress, {
+                  type: 'route-rendered',
+                  completedRoutes,
+                  totalRoutes: routes.length,
+                  route: route.url,
+                  reused: true,
+                });
+                return {
+                  htmlOutput: { outputPath: route.outputPath, html, reused: true },
+                  routeHash,
+                  outputPath: route.outputPath,
+                  url: route.url,
+                  bytes,
+                  reused: true,
+                };
+              }
             }
-          }
-          // Resource-hint post-processing. Runs after every theme-side or
-          // injected script/link has landed so we see the final document
-          // shape, but before plugin afterRender so plugins can still react
-          // to the rewritten head. dedupe_script_preload deletes the
-          // `<link rel="preload" as="script">` that the Source theme ships
-          // alongside its `<script>` (#528); preload_stylesheet adds a sibling
-          // preload to bare `<link rel="stylesheet">` (#527, opt-in).
-          if (config.performance.dedupe_script_preload) {
-            html = removeRedundantScriptPreload(html);
-          }
-          if (config.performance.preload_stylesheet) {
-            html = injectStylesheetPreload(html);
-          }
-          html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
-          // afterRender chain: each plugin sees the previous transform's
-          // output (including the Pagefind shim above when enabled). Returning
-          // anything other than a string is treated as a pass-through so a
-          // plugin that just wants to observe the HTML can omit the return.
-          for (const plugin of pluginSet.plugins) {
-            if (!plugin.afterRender) continue;
-            const next = await plugin.afterRender(pluginCtx, route, html);
-            if (typeof next === 'string') html = next;
-          }
-          const bytes = Buffer.byteLength(html, 'utf8');
-          stop?.({ bytes_emitted: bytes });
-          return {
-            htmlOutput: { outputPath: route.outputPath, html },
-            routeHash,
-            outputPath: route.outputPath,
-            url: route.url,
-            bytes,
-            reused: false,
-          };
-        } catch (err) {
-          stop?.();
-          throw wrapRenderError(err, route.url, route.template);
-        }
-      }),
-    ),
+
+            const stop = profiler?.start('render', route.url);
+            try {
+              // Per-route plugin hook. Sequential per route; routes still render
+              // in parallel because each route's hook chain awaits independently.
+              for (const plugin of pluginSet.plugins) {
+                if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
+              }
+              let html = collapseDegenerateSrcset(
+                rewritePortalLinks({
+                  html: rewriteRecommendationsButton({
+                    html: stripUnusedLightbox(
+                      transformSubscribeForms(
+                        injectSkipLink(engine.render(route), config.build.csp_nonce),
+                        subscribeConfig,
+                      ),
+                    ),
+                    basePath: config.build.base_path,
+                    enabled: recommendationsEnabled,
+                  }),
+                  urls: portalUrls,
+                }),
+              );
+              // Pagefind integration: inject the runtime shim script on any page
+              // that has a `[data-ghost-search]` trigger, and tag non-public
+              // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
+              // those pages from the public index. Both are no-ops unless the
+              // search component is enabled with a pagefind-emitting engine.
+              if (
+                config.components.search.enabled &&
+                (config.components.search.engine === 'pagefind' ||
+                  config.components.search.engine === 'json+pagefind')
+              ) {
+                html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
+                const post = route.kind === 'post' ? route.data.post : undefined;
+                if (post && post.visibility !== 'public') {
+                  html = injectPagefindSkipMeta(html);
+                }
+              }
+              // Resource-hint post-processing. Runs after every theme-side or
+              // injected script/link has landed so we see the final document
+              // shape, but before plugin afterRender so plugins can still react
+              // to the rewritten head. dedupe_script_preload deletes the
+              // `<link rel="preload" as="script">` that the Source theme ships
+              // alongside its `<script>` (#528); preload_stylesheet adds a sibling
+              // preload to bare `<link rel="stylesheet">` (#527, opt-in).
+              if (config.performance.dedupe_script_preload) {
+                html = removeRedundantScriptPreload(html);
+              }
+              if (config.performance.preload_stylesheet) {
+                html = injectStylesheetPreload(html);
+              }
+              html = injectSubresourceIntegrity(
+                html,
+                theme.assets.values(),
+                config.build.base_path,
+              );
+              // afterRender chain: each plugin sees the previous transform's
+              // output (including the Pagefind shim above when enabled). Returning
+              // anything other than a string is treated as a pass-through so a
+              // plugin that just wants to observe the HTML can omit the return.
+              for (const plugin of pluginSet.plugins) {
+                if (!plugin.afterRender) continue;
+                const next = await plugin.afterRender(pluginCtx, route, html);
+                if (typeof next === 'string') html = next;
+              }
+              const bytes = Buffer.byteLength(html, 'utf8');
+              stop?.({ bytes_emitted: bytes });
+              completedRoutes += 1;
+              notifyProgress(progress, {
+                type: 'route-rendered',
+                completedRoutes,
+                totalRoutes: routes.length,
+                route: route.url,
+                reused: false,
+              });
+              return {
+                htmlOutput: { outputPath: route.outputPath, html },
+                routeHash,
+                outputPath: route.outputPath,
+                url: route.url,
+                bytes,
+                reused: false,
+              };
+            } catch (err) {
+              stop?.();
+              throw wrapRenderError(err, route.url, route.template);
+            }
+          }),
+        ),
+      ),
+    { totalRoutes: routes.length },
   );
 
   // Aggregate in route order so htmlOutputs (consumed by minify_html and
@@ -678,11 +792,13 @@ async function runBuild({
     }
   }
 
-  await timed(
-    profiler,
-    'write_html',
-    () => writeHtmlBatch(outputDir, htmlOutputs),
-    () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
+  await withProgressPhase(progress, 'html', 'Writing HTML', () =>
+    timed(
+      profiler,
+      'write_html',
+      () => writeHtmlBatch(outputDir, htmlOutputs),
+      () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
+    ),
   );
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
@@ -697,52 +813,55 @@ async function runBuild({
     );
   }
 
-  const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
-  await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
-  await timed(profiler, 'portal_runtime', () =>
-    emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
-  );
-  if (config.build.copy_content_assets) {
-    await timed(profiler, 'copy_content_assets', () =>
-      copyContentAssets(cwd, config.content.assets_dir, outputDir, {
-        maxImageBytes: config.build.max_image_bytes,
-      }),
+  const assetCount = await withProgressPhase(progress, 'assets', 'Copying assets', async () => {
+    const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+    await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
+    await timed(profiler, 'portal_runtime', () =>
+      emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
     );
-    // `[components.images].resize` (default true) is the kill-switch for the
-    // sharp-backed resize pipeline. When false we still emit srcset URLs
-    // pointing at `/content/images/size/wXXX/...`, but no actual variants
-    // land on disk — the browser falls back to the original `src`. This is
-    // the right choice when the project does not want a sharp dependency or
-    // when image variants are produced by another step in the toolchain.
-    if (imagesCfg.resize) {
-      await timed(profiler, 'image_variants', () =>
-        generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-      );
-      if (formatVariants.length > 0) {
-        await timed(profiler, 'image_format_variants', () =>
-          generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-        );
-      }
-      // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
-      // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
-      // post-card srcsets for `feature_image`). Runs after the responsive-width
-      // pass so an `m: { width: 600 }` and the default 600w variant share one
-      // file. Cache is keyed by source content hash; format variants are emitted
-      // only when sharp is available and at least one format is configured.
-      await timed(profiler, 'theme_image_size_variants', () =>
-        generateThemeImageSizeVariants({
-          cwd,
-          config,
-          outputDir,
-          themeImageSizes: theme.pkg.image_sizes,
-          cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
-          formats: formatVariants,
-          webpQuality: imagesCfg.webp_quality,
-          avifQuality: imagesCfg.avif_quality,
+    if (config.build.copy_content_assets) {
+      await timed(profiler, 'copy_content_assets', () =>
+        copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+          maxImageBytes: config.build.max_image_bytes,
         }),
       );
+      // `[components.images].resize` (default true) is the kill-switch for the
+      // sharp-backed resize pipeline. When false we still emit srcset URLs
+      // pointing at `/content/images/size/wXXX/...`, but no actual variants
+      // land on disk — the browser falls back to the original `src`. This is
+      // the right choice when the project does not want a sharp dependency or
+      // when image variants are produced by another step in the toolchain.
+      if (imagesCfg.resize) {
+        await timed(profiler, 'image_variants', () =>
+          generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+        );
+        if (formatVariants.length > 0) {
+          await timed(profiler, 'image_format_variants', () =>
+            generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+          );
+        }
+        // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
+        // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
+        // post-card srcsets for `feature_image`). Runs after the responsive-width
+        // pass so an `m: { width: 600 }` and the default 600w variant share one
+        // file. Cache is keyed by source content hash; format variants are emitted
+        // only when sharp is available and at least one format is configured.
+        await timed(profiler, 'theme_image_size_variants', () =>
+          generateThemeImageSizeVariants({
+            cwd,
+            config,
+            outputDir,
+            themeImageSizes: theme.pkg.image_sizes,
+            cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
+            formats: formatVariants,
+            webpQuality: imagesCfg.webp_quality,
+            avifQuality: imagesCfg.avif_quality,
+          }),
+        );
+      }
     }
-  }
+    return assetCount;
+  });
 
   if (config.components.sitemap.enabled) {
     await timed(profiler, 'sitemap', () =>

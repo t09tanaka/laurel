@@ -14,6 +14,7 @@ import {
   parseBooleanEnv,
   parseCommand,
 } from '../parse.ts';
+import { createBuildProgressDisplay } from '../progress.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
 
@@ -119,6 +120,21 @@ export async function runBuild(args: string[]): Promise<number> {
     emitContentApi,
     copyContentAssets,
   } as const;
+  const createProgressDisplay = (): ReturnType<typeof createBuildProgressDisplay> =>
+    createBuildProgressDisplay({
+      enabled: progress && !asJson && canEmitInfoProgress(),
+    });
+  const runBuildOnce = async (): Promise<BuildSummary> => {
+    const progressDisplay = createProgressDisplay();
+    try {
+      return await build({
+        ...buildArgs,
+        progress: progressDisplay?.onProgress,
+      });
+    } finally {
+      progressDisplay?.finish();
+    }
+  };
 
   const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
     if (asJson) {
@@ -160,7 +176,7 @@ export async function runBuild(args: string[]): Promise<number> {
 
   let initialSummary: BuildSummary;
   try {
-    initialSummary = await build(buildArgs);
+    initialSummary = await runBuildOnce();
     reportSummary(initialSummary);
     if (!watch && strict && initialSummary.warningCount > 0) {
       logger.error(
@@ -182,7 +198,7 @@ export async function runBuild(args: string[]): Promise<number> {
     cwd,
     configPath,
     onRebuild: async () => {
-      const summary = await build(buildArgs);
+      const summary = await runBuildOnce();
       reportSummary(summary, { prefix: 'Rebuilt' });
       if (strict && summary.warningCount > 0) {
         logger.warn(
@@ -336,6 +352,11 @@ function parseConcurrency(raw: string): number | CliUsageError {
 function isVerbose(): boolean {
   const level = getLogLevel();
   return level === 'debug' || level === 'trace';
+}
+
+function canEmitInfoProgress(): boolean {
+  const level = getLogLevel();
+  return level === 'trace' || level === 'debug' || level === 'info';
 }
 
 // Renders a fixed-width per-route table for `--dry-run --verbose`. Columns

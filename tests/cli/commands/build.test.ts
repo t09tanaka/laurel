@@ -171,6 +171,49 @@ describe('nectar build --dry-run (#252)', () => {
     expect(result.stderr).toContain('URL');
     expect(result.stderr).toContain('/hello/');
   });
+
+  test('prints plain build phase and route progress when stderr is piped', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--dry-run'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain('Build: Loading config...');
+    expect(result.stderr).toContain('Build: Loading content and theme...');
+    expect(result.stderr).toContain('Build: planned ');
+    expect(result.stderr).toContain('Build: rendered 1/');
+    expect(result.stderr).toContain('Build: finished rendering ');
+    expect(result.stderr).toContain('Dry run: would build');
+  });
+
+  test('--no-progress suppresses build progress and summary lines', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--dry-run', '--no-progress'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain('Build:');
+    expect(result.stderr).not.toContain('Dry run: would build');
+  });
+
+  test('--json suppresses human progress while keeping JSON summary on stdout', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build', '--dry-run', '--json'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain('Build:');
+    expect(result.stderr).not.toContain('Dry run: would build');
+    const payload = JSON.parse(result.stdout) as { ok: boolean; dryRun: boolean };
+    expect(payload.ok).toBe(true);
+    expect(payload.dryRun).toBe(true);
+  });
+
+  test('--quiet suppresses build progress output', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['--quiet', 'build', '--dry-run'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain('Build:');
+    expect(result.stderr).not.toContain('Dry run: would build');
+  });
 });
 
 describe('nectar build base URL precedence', () => {

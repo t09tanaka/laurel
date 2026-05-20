@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { canUseInteractiveProgress, detectCliProgressMode } from '~/cli/progress.ts';
+import {
+  canUseInteractiveProgress,
+  createBuildProgressDisplay,
+  detectCliProgressMode,
+} from '~/cli/progress.ts';
 
 describe('detectCliProgressMode', () => {
   const ttyStreams = {
@@ -94,5 +98,58 @@ describe('detectCliProgressMode', () => {
         ...ttyStreams,
       }),
     ).toBe(false);
+  });
+});
+
+describe('createBuildProgressDisplay', () => {
+  test('returns undefined when disabled', () => {
+    expect(createBuildProgressDisplay({ enabled: false })).toBeUndefined();
+  });
+
+  test('renders interactive phase and route progress in-place', () => {
+    const chunks: string[] = [];
+    const display = createBuildProgressDisplay({
+      mode: 'interactive',
+      stream: {
+        write(chunk: string) {
+          chunks.push(chunk);
+        },
+      },
+    });
+
+    expect(display).toBeDefined();
+    display?.onProgress({
+      type: 'phase-start',
+      phase: 'render',
+      label: 'Rendering routes',
+      totalRoutes: 2,
+    });
+    display?.onProgress({
+      type: 'route-rendered',
+      completedRoutes: 1,
+      totalRoutes: 2,
+      route: '/hello/',
+      reused: false,
+    });
+    display?.onProgress({
+      type: 'route-rendered',
+      completedRoutes: 2,
+      totalRoutes: 2,
+      route: '/',
+      reused: true,
+    });
+    display?.onProgress({
+      type: 'phase-end',
+      phase: 'render',
+      label: 'Rendering routes',
+      totalRoutes: 2,
+    });
+    display?.finish();
+
+    const output = chunks.join('');
+    expect(output).toContain('\r\x1b[2K');
+    expect(output).toContain('Rendering routes 1/2 /hello/');
+    expect(output).toContain('Rendering routes 2/2 /');
+    expect(output).toContain('done Rendering routes 2/2\n');
   });
 });
