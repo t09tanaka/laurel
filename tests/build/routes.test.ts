@@ -812,6 +812,74 @@ describe('planRoutes — post custom_template alternate layouts (issue #704)', (
   });
 });
 
+describe('planRoutes — resource-specific templates (issue #1014)', () => {
+  test('uses post-{slug}.hbs over post.hbs when no explicit post template is set', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('welcome')] });
+    const theme = makeTheme();
+    theme.templates['post-welcome'] = '{{!welcome post}}';
+
+    const routes = planRoutes({ config, content, theme });
+
+    expect(routes.find((r) => r.kind === 'post')?.template).toBe('post-welcome');
+  });
+
+  test('keeps explicit post custom_template ahead of post-{slug}.hbs', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('welcome', { custom_template: 'custom-feature' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-feature'] = '{{!custom feature}}';
+    theme.templates['post-welcome'] = '{{!welcome post}}';
+
+    const routes = planRoutes({ config, content, theme });
+
+    expect(routes.find((r) => r.kind === 'post')?.template).toBe('custom-feature');
+  });
+
+  test('keeps collection post templates ahead of post-{slug}.hbs', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('welcome')] });
+    const theme = makeTheme();
+    theme.templates['blog-post'] = '{{!collection post}}';
+    theme.templates['post-welcome'] = '{{!welcome post}}';
+
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/': { permalink: '/{slug}/', template: 'blog-post' } },
+      },
+    });
+
+    expect(routes.find((r) => r.kind === 'post')?.template).toBe('blog-post');
+  });
+
+  test('uses tag-{slug}.hbs and author-{slug}.hbs over generic archive templates', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const author = makeAuthor('alice');
+    const post = makePost('hello', {
+      tags: [tag],
+      primary_tag: tag,
+      authors: [author],
+      primary_author: author,
+    });
+    const content = makeGraph({ posts: [post], tags: [tag], authors: [author] });
+    const theme = makeTheme();
+    theme.templates['tag-news'] = '{{!news tag}}';
+    theme.templates['author-alice'] = '{{!alice author}}';
+
+    const routes = planRoutes({ config, content, theme });
+
+    expect(routes.find((r) => r.kind === 'tag')?.template).toBe('tag-news');
+    expect(routes.find((r) => r.kind === 'author')?.template).toBe('author-alice');
+  });
+});
+
 describe('planRoutes — posts_per_page precedence', () => {
   test('user config posts_per_page overrides theme pkg.json posts_per_page', () => {
     const config = makeConfig('https://example.com');

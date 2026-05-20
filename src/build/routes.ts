@@ -174,6 +174,7 @@ export function planRoutes(opts: {
         localeRouting ? tag.locale : undefined,
         applyTaxonomyTemplate(tagTemplate, tag.slug),
       );
+      const template = resolveResourceTemplate(theme, 'tag', tag.slug, 'tag');
       pages.forEach((slice, idx) => {
         const url = canonicalRouteUrl(
           idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
@@ -184,7 +185,7 @@ export function planRoutes(opts: {
           kind: 'tag',
           url,
           outputPath,
-          template: 'tag',
+          template,
           locale: localeRouting ? tag.locale : undefined,
           lastmod: latestPostTimestamp(slice),
           // Tag archive pagination tails (`/tag/<slug>/<prefix>/N/`) are
@@ -345,6 +346,7 @@ export function planRoutes(opts: {
         localeRouting ? author.locale : undefined,
         applyTaxonomyTemplate(authorTemplate, author.slug),
       );
+      const template = resolveResourceTemplate(theme, 'author', author.slug, 'author');
       pages.forEach((slice, idx) => {
         const url = canonicalRouteUrl(
           idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
@@ -355,7 +357,7 @@ export function planRoutes(opts: {
           kind: 'author',
           url,
           outputPath,
-          template: 'author',
+          template,
           locale: localeRouting ? author.locale : undefined,
           lastmod: latestPostTimestamp(slice),
           // Author archive pagination tails (`/author/<slug>/<prefix>/N/`) are
@@ -456,6 +458,16 @@ function resolveIndexTemplate(theme: ThemeBundle): string | undefined {
 
 function hasTemplate(theme: ThemeBundle, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(theme.templates, name);
+}
+
+function resolveResourceTemplate(
+  theme: ThemeBundle,
+  kind: 'post' | 'page' | 'tag' | 'author',
+  slug: string,
+  fallback: string,
+): string {
+  const slugTemplate = `${kind}-${slug}`;
+  return hasTemplate(theme, slugTemplate) ? slugTemplate : fallback;
 }
 
 function resolveCustomRouteTemplate(
@@ -706,16 +718,27 @@ function makePostTemplatePicker(
 ): (post: Post, collection: ResolvedCollection | undefined) => string {
   const warned = new Set<string>();
   return (post, collection) => {
-    const collectionTemplate = resolveCollectionPostTemplate(collection);
     const customTemplate = post.custom_template;
     if (customTemplate) {
       if (hasTemplate(theme, customTemplate)) return customTemplate;
+      const fallbackTemplate = resolvePostFallbackTemplate(post, collection);
       logger.warn(
-        `Post "${post.slug}" requested template "${customTemplate}" but theme has no matching .hbs; falling back to ${collectionTemplate}.hbs.`,
+        `Post "${post.slug}" requested template "${customTemplate}" but theme has no matching .hbs; falling back to ${fallbackTemplate}.hbs.`,
       );
+      return fallbackTemplate;
     }
-    return collectionTemplate;
+    return resolvePostFallbackTemplate(post, collection);
   };
+
+  function resolvePostFallbackTemplate(
+    post: Post,
+    collection: ResolvedCollection | undefined,
+  ): string {
+    const collectionTemplate = resolveCollectionPostTemplate(collection);
+    if (collection?.template && collectionTemplate !== 'post') return collectionTemplate;
+    if (collection?.template === 'post') return collectionTemplate;
+    return resolveResourceTemplate(theme, 'post', post.slug, collectionTemplate);
+  }
 
   function resolveCollectionPostTemplate(collection: ResolvedCollection | undefined): string {
     if (!collection?.template) return 'post';
@@ -743,9 +766,7 @@ function resolvePageTemplate(page: Page, theme: ThemeBundle): string {
       `Page "${page.slug}" requested template "${requested}" but theme has no matching .hbs; falling back through page-{slug}.hbs/page.hbs.`,
     );
   }
-  const slugTemplate = `page-${page.slug}`;
-  if (hasTemplate(theme, slugTemplate)) return slugTemplate;
-  return 'page';
+  return resolveResourceTemplate(theme, 'page', page.slug, 'page');
 }
 
 function latestPostTimestamp(posts: Post[]): string | undefined {
