@@ -213,3 +213,40 @@ describe('social_url helper', () => {
     expect(tpl({ mastodon: 'al ice' })).toBe('');
   });
 });
+
+describe('twitter_url / facebook_url helpers', () => {
+  test('builds a Twitter URL from a positional handle', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{twitter_url @site.twitter}}');
+    expect(tpl({}, { data: { site: { twitter: '@nectar' } } })).toBe('https://twitter.com/nectar');
+  });
+
+  test('builds a Facebook URL from a positional handle', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{facebook_url @site.facebook}}');
+    expect(tpl({}, { data: { site: { facebook: 'nectar.blog' } } })).toBe(
+      'https://facebook.com/nectar.blog',
+    );
+  });
+
+  test('passes full social URLs through unchanged', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{twitter_url twitter}} {{facebook_url facebook}}');
+    expect(
+      tpl({
+        twitter: 'https://twitter.com/nectar',
+        facebook: 'https://facebook.com/nectar.blog',
+      }),
+    ).toBe('https://twitter.com/nectar https://facebook.com/nectar.blog');
+  });
+
+  test('returns an empty string when the positional value is missing or not a string', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{twitter_url missing}}|{{facebook_url facebook}}');
+    expect(tpl({ facebook: 42 })).toBe('|');
+  });
+});

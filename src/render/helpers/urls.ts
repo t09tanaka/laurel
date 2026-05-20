@@ -44,12 +44,17 @@ export function registerUrlHelpers(engine: NectarEngine): void {
       if (!type) return '';
       const handle = ctx[type];
       if (typeof handle !== 'string' || !handle) return '';
-      if (isAbsoluteHttpUrl(handle)) return handle;
-      const builder = SOCIAL_PATTERNS[type];
-      if (!builder) return '';
-      return builder(handle);
+      return buildSocialUrl(type, handle);
     },
   );
+
+  engine.hb.registerHelper('twitter_url', function twitterUrlHelper(handle: unknown) {
+    return typeof handle === 'string' && handle ? buildSocialUrl('twitter', handle) : '';
+  });
+
+  engine.hb.registerHelper('facebook_url', function facebookUrlHelper(handle: unknown) {
+    return typeof handle === 'string' && handle ? buildSocialUrl('facebook', handle) : '';
+  });
 }
 
 function stripAt(handle: string): string {
@@ -58,6 +63,13 @@ function stripAt(handle: string): string {
 
 function isAbsoluteHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
+}
+
+function buildSocialUrl(type: string, handle: string): string {
+  if (isAbsoluteHttpUrl(handle)) return handle;
+  const builder = SOCIAL_PATTERNS[type];
+  if (!builder) return '';
+  return builder(handle);
 }
 
 function normaliseMastodon(handle: string): string {

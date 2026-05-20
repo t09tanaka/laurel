@@ -105,6 +105,8 @@ the rest return plain strings and Handlebars escapes them.
 
 - `{{url [absolute=true]}}` — Current route URL.
 - `{{social_url type="twitter|facebook|linkedin|bluesky|mastodon|threads|tiktok|youtube|instagram"}}` — Social profile URL on the current author/site.
+- `{{twitter_url handleOrUrl}}` — Twitter/X profile URL for a positional handle or full URL.
+- `{{facebook_url handleOrUrl}}` — Facebook profile URL for a positional handle or full URL.
 
 ## Built-in context shapes
 
