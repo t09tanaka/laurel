@@ -96,6 +96,7 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
     word_count: 0,
     visibility: 'public',
     status: 'published',
+    email_only: false,
     tags: [],
     primary_tag: undefined,
     authors: [],
@@ -118,7 +119,7 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...overrides,
-  };
+  } as Post;
 }
 
 function makePage(slug: string, overrides: Partial<Page> = {}): Page {
@@ -243,6 +244,7 @@ function makeGraph(opts: {
     },
     postsByTag,
     postsByAuthor,
+    emailOnlyPosts: [],
     site: makeSite(),
   };
 }
@@ -1280,5 +1282,79 @@ describe('planRoutes — postsByTag / postsByAuthor index parity (#151)', () => 
     for (const [slug, slugs] of indexed) {
       expect(slugs.sort()).toEqual((naive.get(slug) ?? []).sort());
     }
+  });
+});
+
+describe('planRoutes — email_only posts (#505)', () => {
+  // Posts with `email_only: true` ship via newsletter only. The loader
+  // partitions them into `content.emailOnlyPosts`, so `content.posts` already
+  // excludes them by the time `planRoutes` runs. These tests exercise the
+  // route-planner contract directly by populating `emailOnlyPosts` on the
+  // graph and asserting that no public route is emitted unless the operator
+  // opts in via `[build].emit_email_only_stub`.
+
+  function graphWithEmailOnly(emailOnly: Post[], visible: Post[] = []): ContentGraph {
+    const graph = makeGraph({ posts: visible });
+    graph.emailOnlyPosts = emailOnly;
+    return graph;
+  }
+
+  test('email_only posts do not produce a /<slug>/ route by default', () => {
+    const config = makeConfig('https://example.com');
+    const post = makePost('newsletter-only', { email_only: true });
+    const content = graphWithEmailOnly([post]);
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    expect(routes.find((r) => r.url === '/newsletter-only/')).toBeUndefined();
+    expect(routes.find((r) => r.url === '/email-only/newsletter-only/')).toBeUndefined();
+  });
+
+  test('with emit_email_only_stub: true, an /email-only/<slug>/ route is emitted', () => {
+    const config = makeConfig('https://example.com');
+    config.build = {
+      ...config.build,
+      emit_email_only_stub: true,
+    } as NectarConfig['build'];
+    const post = makePost('weekly-digest', { email_only: true });
+    const content = graphWithEmailOnly([post]);
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const stub = routes.find((r) => r.url === '/email-only/weekly-digest/');
+    expect(stub).toBeDefined();
+    expect(stub?.kind).toBe('post');
+    expect(stub?.indexable).toBe(false);
+    expect(stub?.outputPath).toBe('email-only/weekly-digest/index.html');
+    expect((stub?.data as { post: Post }).post.slug).toBe('weekly-digest');
+  });
+
+  test('emit_email_only_stub stub uses the post template when available', () => {
+    const config = makeConfig('https://example.com');
+    config.build = {
+      ...config.build,
+      emit_email_only_stub: true,
+    } as NectarConfig['build'];
+    const post = makePost('issue-7', { email_only: true });
+    const content = graphWithEmailOnly([post]);
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const stub = routes.find((r) => r.url === '/email-only/issue-7/');
+    expect(stub?.template).toBe('post');
+  });
+
+  test('email_only stub is excluded from the home page even with stub emission on', () => {
+    const config = makeConfig('https://example.com');
+    config.build = {
+      ...config.build,
+      emit_email_only_stub: true,
+    } as NectarConfig['build'];
+    const emailPost = makePost('newsletter-1', { email_only: true });
+    const visible = makePost('public-1');
+    const content = graphWithEmailOnly([emailPost], [visible]);
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    const homePosts = (home?.data?.posts as Post[]) ?? [];
+    expect(homePosts.map((p) => p.slug)).toEqual(['public-1']);
+    expect(homePosts.some((p) => p.email_only)).toBe(false);
   });
 });

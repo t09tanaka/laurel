@@ -111,6 +111,12 @@ export interface Post {
   // exact upstream value instead of a coerced one. See #325.
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   status: 'published' | 'draft' | 'scheduled';
+  // Ghost's `email_only` flag — posts authored to ship via newsletter only
+  // and not appear on the web. Default `false`. Routes are skipped by the
+  // route planner unless `[build].emit_email_only_stub = true`, which opts
+  // into a placeholder `/email-only/<slug>/` page so subscribers receiving
+  // the email can still link back to a canonical archive entry.
+  email_only: boolean;
   tags: Tag[];
   primary_tag: Tag | undefined;
   authors: Author[];
@@ -226,6 +232,13 @@ export interface ContentGraph {
   // `posts` for every tag/author (O(tags x posts), O(authors x posts)).
   postsByTag: Map<string, Post[]>;
   postsByAuthor: Map<string, Post[]>;
+  // Posts whose frontmatter sets `email_only: true`. Excluded from every other
+  // collection on the graph (`posts`, `bySlug.posts`, `postsByTag`,
+  // `postsByAuthor`) so feeds, search, OG generation, and the public route
+  // plan never see them. The route planner reads this list directly when
+  // `[build].emit_email_only_stub = true` to emit `/email-only/<slug>/`
+  // placeholder URLs that a delivered newsletter can link to.
+  emailOnlyPosts: Post[];
   site: SiteData;
 }
 

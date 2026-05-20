@@ -1485,3 +1485,93 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     );
   });
 });
+
+describe('loadContent email_only frontmatter (#505)', () => {
+  // Posts authored with `email_only: true` ship via newsletter delivery only.
+  // The loader partitions them out of `posts` / `bySlug.posts` /
+  // `postsByTag` / `postsByAuthor` so RSS, sitemap, OG generation, the
+  // search index, and the public route plan never see them, and surfaces
+  // them via `emailOnlyPosts` for opt-in stub emission downstream.
+
+  test('email_only post is excluded from posts and indices, present in emailOnlyPosts', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/visible.md'),
+      `---
+title: Visible
+date: 2026-01-02T00:00:00Z
+tags: [news]
+---
+
+Public body.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/newsletter.md'),
+      `---
+title: Newsletter Only
+date: 2026-01-01T00:00:00Z
+email_only: true
+tags: [news]
+---
+
+Subscribers-only body.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.posts.map((p) => p.slug)).toEqual(['visible']);
+    expect(graph.bySlug.posts.has('newsletter')).toBe(false);
+    expect(graph.bySlug.posts.has('visible')).toBe(true);
+    expect(graph.emailOnlyPosts.map((p) => p.slug)).toEqual(['newsletter']);
+    expect(graph.emailOnlyPosts[0]?.email_only).toBe(true);
+    // Tag index reflects only the visible post — the email-only post must
+    // not contribute to the public tag archive size or order.
+    const newsTag = graph.postsByTag.get('news') ?? [];
+    expect(newsTag.map((p) => p.slug)).toEqual(['visible']);
+  });
+
+  test('email_only post url is rewritten to /email-only/<slug>/', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-url-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/issue-1.md'),
+      `---
+title: Issue 1
+date: 2026-01-01T00:00:00Z
+email_only: true
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.emailOnlyPosts[0]?.url).toBe('https://x.test/email-only/issue-1/');
+  });
+
+  test('missing email_only defaults to false (regular post, present in posts)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-default-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/plain.md'),
+      `---
+title: Plain
+date: 2026-01-01T00:00:00Z
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts[0]?.email_only).toBe(false);
+    expect(graph.emailOnlyPosts).toHaveLength(0);
+  });
+});

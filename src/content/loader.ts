@@ -188,6 +188,7 @@ async function loadContentWithPool({
   // within a build.
   const nowMs = Date.now();
   const resolvedPosts: Post[] = [];
+  const emailOnlyPosts: Post[] = [];
   for (const raw of posts) {
     if (raw.status === 'draft' && !includeDrafts) continue;
     if (!includeFuturePosts) {
@@ -195,9 +196,26 @@ async function loadContentWithPool({
       if (new Date(raw.published_at).getTime() > nowMs) continue;
     }
     const resolved = resolvePostRelations(raw, authorMap, tagMap, site, basePath, taxonomies);
-    resolvedPosts.push(resolved);
+    // Posts with `email_only: true` ship via newsletter only and must not
+    // appear in any public aggregate (home, archives, RSS, sitemap, search
+    // index, OG generation). Partition them into a separate list here so
+    // every downstream consumer of `content.posts` automatically skips them,
+    // and the route planner can opt them into `/email-only/<slug>/` stubs
+    // via `[build].emit_email_only_stub`. Their permalink is rewritten to
+    // the stub URL so theme `<a href="...">` references work whether or not
+    // stub emission is on (a missing href would lead to a 404; an
+    // `/email-only/<slug>/` href just 404s when stubs are off, matching).
+    if (resolved.email_only) {
+      resolved.url = joinUrl(site.url, basePath, `/email-only/${resolved.slug}/`);
+      emailOnlyPosts.push(resolved);
+    } else {
+      resolvedPosts.push(resolved);
+    }
   }
   resolvedPosts.sort(
+    (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+  );
+  emailOnlyPosts.sort(
     (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
   );
   for (let i = 0; i < resolvedPosts.length; i += 1) {
@@ -279,6 +297,7 @@ async function loadContentWithPool({
     },
     postsByTag,
     postsByAuthor,
+    emailOnlyPosts,
     site,
   };
 }
@@ -432,9 +451,10 @@ interface RawPost {
   twitter_image: string | undefined;
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
+  email_only: boolean;
 }
 
-interface RawPage extends Omit<RawPost, 'featured' | 'visibility'> {
+interface RawPage extends Omit<RawPost, 'featured' | 'visibility' | 'email_only'> {
   show_title_and_feature_image: boolean;
   status: 'published' | 'draft';
   custom_template: string | undefined;
@@ -785,6 +805,7 @@ async function normalizePost(
     twitter_title: asString(data.twitter_title),
     twitter_description: asString(data.twitter_description),
     twitter_image: asString(data.twitter_image),
+    email_only: asBool(data.email_only, false),
     ...resolveCodeInjection(data, filePath, config),
   };
 }
@@ -1015,6 +1036,7 @@ function resolvePostRelations(
     word_count: raw.word_count,
     visibility: raw.visibility,
     status: raw.status,
+    email_only: raw.email_only,
     tags: tagList,
     primary_tag,
     authors: authorList,

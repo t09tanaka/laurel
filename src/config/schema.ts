@@ -368,6 +368,12 @@ export const configSchema = z
           .describe(
             "Include posts whose `published_at` is in the future, and posts with `status: scheduled` regardless of date. Default is to exclude them so embargoed announcements scheduled for a future date cannot leak via the next build before their wall-clock release time. Set to `true` for preview deploys where the operator explicitly wants scheduled / future-dated content visible. Ghost's own behavior is to gate on `published_at` until the timestamp has passed, so leaving this off matches Ghost.",
           ),
+        emit_email_only_stub: z
+          .boolean()
+          .default(false)
+          .describe(
+            "Emit a placeholder `/email-only/<slug>/` route for posts with `email_only: true` in frontmatter. Default is `false` so email-only posts produce no web artifact at all, matching Ghost's web-side behavior where the same flag suppresses the post from every public surface. Set to `true` to render a minimal canonical stub so newsletter recipients clicking through from a delivered email land on something rather than a 404. The stub is intentionally excluded from index pages, tag/author archives, RSS, and sitemap regardless of this flag; only the direct `/email-only/<slug>/` URL is emitted.",
+          ),
         minify_html: z
           .boolean()
           .default(false)

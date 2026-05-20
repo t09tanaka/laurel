@@ -27,6 +27,11 @@ export function planRoutes(opts: {
   const routesYaml = opts.routesYaml ?? emptyRoutesYaml();
   const taxonomies = resolveTaxonomies(routesYaml);
   const collections = resolveCollections(routesYaml);
+  // `content.posts` already excludes `email_only: true` entries (the loader
+  // partitions them into `content.emailOnlyPosts`), so every loop below
+  // sees the visible-only subset without explicit filtering. The
+  // `[build].emit_email_only_stub` flag opts those posts back in as
+  // standalone `/email-only/<slug>/` routes at the end of this function.
   const postAssignments = assignPostUrls(content.posts, collections);
   const pickPostTemplate = makePostTemplatePicker(theme);
   const routes: RouteContext[] = [];
@@ -281,6 +286,43 @@ export function planRoutes(opts: {
           ),
         });
       });
+    }
+  }
+
+  // Opt-in stubs for `email_only: true` posts. The route lives at
+  // `/email-only/<slug>/` rather than the post's regular permalink so the
+  // canonical web archive (sitemap, RSS, `/<slug>/`, tag/author pages)
+  // remains free of newsletter-only material. The stub uses the regular
+  // `post` template — same body, just under a different URL — so existing
+  // theme styling continues to apply. Marked `indexable: false` so search
+  // engines don't promote the stub above whatever the operator considers the
+  // canonical landing target (the email itself, or a Portal-hosted archive).
+  if (config.build.emit_email_only_stub === true && content.emailOnlyPosts.length > 0) {
+    const stubTemplate = theme.templates.post ? 'post' : indexTemplate ? 'index' : undefined;
+    if (stubTemplate !== undefined) {
+      for (const post of content.emailOnlyPosts) {
+        const url = `/email-only/${post.slug}/`;
+        routes.push({
+          kind: 'post',
+          url,
+          outputPath: routeUrlToOutputPath(url),
+          template: stubTemplate,
+          lastmod: post.updated_at ?? post.published_at,
+          indexable: false,
+          data: { post },
+          meta: defaultMeta(
+            config,
+            url,
+            post.meta_title ?? post.title,
+            post.meta_description ?? post.excerpt,
+            post.feature_image,
+          ),
+        });
+      }
+    } else {
+      logger.warn(
+        'build.emit_email_only_stub is true but the active theme has no `post.hbs` or `index.hbs` to render the stub through; skipping email-only stub emission.',
+      );
     }
   }
 

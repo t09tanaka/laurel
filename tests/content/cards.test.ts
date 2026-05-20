@@ -212,4 +212,72 @@ describe('card fixture corpus', () => {
     expect(html).toContain('<div class="kg-nft-title">Sample NFT</div>');
     expect(html).toContain('<div class="kg-nft-creator">by example</div>');
   });
+
+  // Newsletter card pipeline (#129):
+  //   - `kg-email-cta-card`: stripped at render time (web build), never reaches readers.
+  //   - `kg-signup-card`: passes through to the theme/portal adapter (covered above).
+  //   - `kg-paywall-card`: not stripped; the loader's marker pass
+  //     (`src/content/paywall.ts`) handles the cut and the div is left in
+  //     place for any theme that styles it.
+
+  test('email-cta-card is stripped from rendered HTML so web readers never see it', async () => {
+    const md = [
+      '<div class="kg-card kg-email-cta-card kg-style-segment">',
+      '<p>Get this in your inbox every week.</p>',
+      '<a href="#/portal/signup">Subscribe</a>',
+      '</div>',
+      '',
+      'Regular paragraph after the CTA.',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-email-cta-card');
+    expect(html).not.toContain('Get this in your inbox');
+    expect(html).not.toContain('href="#/portal/signup"');
+    expect(html).toContain('Regular paragraph after the CTA.');
+  });
+
+  test('email-cta-card stripping survives nested <div> inside the card body', async () => {
+    const md = [
+      '<div class="kg-card kg-email-cta-card">',
+      '<div class="kg-email-cta-content">',
+      '<p>Inner copy with a <strong>nested</strong> emphasis.</p>',
+      '</div>',
+      '</div>',
+      '',
+      'Surviving body content.',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-email-cta-card');
+    expect(html).not.toContain('kg-email-cta-content');
+    expect(html).not.toContain('Inner copy');
+    expect(html).toContain('Surviving body content.');
+  });
+
+  test('paywall-card markup is preserved (loader handles the cut via the marker comment)', async () => {
+    const md = [
+      '<div class="kg-card kg-paywall-card">',
+      '<p>This is a Koenig paywall placeholder rendered by Ghost.</p>',
+      '</div>',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('kg-paywall-card');
+  });
+
+  test('multiple email-cta-cards in the same document are all stripped', async () => {
+    const md = [
+      '<div class="kg-card kg-email-cta-card">A</div>',
+      '',
+      'Middle paragraph.',
+      '',
+      '<div class="kg-card kg-email-cta-card kg-style-light">B</div>',
+      '',
+      'Closing paragraph.',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-email-cta-card');
+    expect(html).not.toContain('>A<');
+    expect(html).not.toContain('>B<');
+    expect(html).toContain('Middle paragraph.');
+    expect(html).toContain('Closing paragraph.');
+  });
 });

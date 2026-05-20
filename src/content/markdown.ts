@@ -96,11 +96,72 @@ export async function renderMarkdown(
   const expanded = expandKoenigShortcodes(body);
   const raw = await marked.parse(expanded);
   const promoted = promoteImagesToFigures(raw);
-  const html = options.unsafe ? promoted : sanitizeRenderedHtml(promoted);
+  const newsletterStripped = stripEmailCtaCards(promoted);
+  const html = options.unsafe ? newsletterStripped : sanitizeRenderedHtml(newsletterStripped);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
   const reading_time = computeReadingTime(plaintext, options.locale, word_count);
   return { html, plaintext, word_count, reading_time };
+}
+
+// Ghost's editor emits three newsletter-related card wrappers that need
+// different web-build treatment:
+//   - `kg-email-cta-card`: email-only CTA. The same content is rendered into
+//     the newsletter email but should never reach the web (Ghost hides it
+//     server-side; in a static build we strip at render time so anonymous web
+//     readers never see "Get this in your inbox" duplicated below every post).
+//   - `kg-signup-card`: portal signup widget. Already passes through sanitize-
+//     html (see tests/content/cards.test.ts); the theme (or an optional portal
+//     adapter) hydrates the form scaffold. No post-process needed here.
+//   - `kg-paywall-card`: Koenig's drag-in paywall marker. The loader's paywall
+//     pass (`src/content/paywall.ts`) already cuts on the `<!--kg-card-begin:
+//     paywall-->` comment Ghost emits alongside this div, so we leave the div
+//     alone here and let sanitize-html preserve the class hook for themes that
+//     want to style the boundary.
+// Strip is implemented via a balanced `<div>` walker rather than a regex so a
+// nested `<div>` inside the CTA card (e.g. a `<div class="kg-button-card">`)
+// doesn't terminate the match prematurely.
+const EMAIL_CTA_OPEN_RE = /<div\b[^>]*\bclass\s*=\s*"([^"]*\bkg-email-cta-card\b[^"]*)"[^>]*>/gi;
+
+export function stripEmailCtaCards(html: string): string {
+  if (!html.includes('kg-email-cta-card')) return html;
+  let out = '';
+  let cursor = 0;
+  EMAIL_CTA_OPEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null = EMAIL_CTA_OPEN_RE.exec(html);
+  while (match !== null) {
+    out += html.slice(cursor, match.index);
+    const close = findMatchingDivClose(html, match.index + match[0].length);
+    if (close < 0) {
+      // Unbalanced markup — bail out and leave the rest verbatim rather than
+      // truncate the body. sanitize-html will close the div safely.
+      out += html.slice(match.index);
+      return out;
+    }
+    cursor = close;
+    EMAIL_CTA_OPEN_RE.lastIndex = close;
+    match = EMAIL_CTA_OPEN_RE.exec(html);
+  }
+  out += html.slice(cursor);
+  return out;
+}
+
+const DIV_TAG_RE = /<\/?div\b[^>]*>/gi;
+
+function findMatchingDivClose(html: string, from: number): number {
+  DIV_TAG_RE.lastIndex = from;
+  let depth = 1;
+  let m: RegExpExecArray | null = DIV_TAG_RE.exec(html);
+  while (m !== null) {
+    if (m[0].startsWith('</')) {
+      depth -= 1;
+      if (depth === 0) return m.index + m[0].length;
+    } else {
+      depth += 1;
+    }
+    m = DIV_TAG_RE.exec(html);
+  }
+  return -1;
 }
 
 // `nectar import-ghost` round-trips Ghost's Koenig cards through Turndown by
