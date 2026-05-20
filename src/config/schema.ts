@@ -526,6 +526,12 @@ export const configSchema = z
       .object({
         github_pages: z
           .object({
+            redirects: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit GitHub Pages-compatible static HTML redirect stubs from `redirects.yaml` and Ghost-style `content/data/redirects.*`. GitHub Pages has no server-side redirects backend, so each supported source path is materialized as `<from>/index.html` (or the exact file path for file-like sources such as `/old.html`) with a meta refresh and canonical link to the destination. Root and `404.html` sources are skipped so Pages home and not-found behavior stay intact. Leave disabled when another host will consume `_redirects`, `vercel.json`, or server config instead.',
+              ),
             custom_domain: z
               .string()
               .optional()
@@ -1293,7 +1299,7 @@ export const configSchema = z
               .boolean()
               .default(false)
               .describe(
-                'In addition to `_redirects`, write a static HTML `meta http-equiv="refresh"` page at `<from>/index.html` for every rule. Use this when deploying to a host that does NOT honor `_redirects` (GitHub Pages, S3 static-website without routing rules, plain Apache without mod_rewrite). HTTP status codes are NOT preserved by HTML refresh — every redirect becomes a 200 + client-side jump — so prefer the `_redirects` file whenever the host supports it.',
+                'In addition to `_redirects`, write a static HTML `meta http-equiv="refresh"` page at `<from>/index.html` for every rule. Use this when deploying to a host that does NOT honor `_redirects` (S3 static-website without routing rules, plain Apache without mod_rewrite). For GitHub Pages, prefer `[deploy.github_pages].redirects` because it preserves Pages base-path, root, and 404 conventions. HTTP status codes are NOT preserved by HTML refresh — every redirect becomes a 200 + client-side jump — so prefer the `_redirects` file whenever the host supports it.',
               ),
           })
           .strict()

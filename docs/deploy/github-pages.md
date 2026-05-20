@@ -80,6 +80,34 @@ custom_domain = "blog.example.com"
 Use only the hostname, without `https://` or a path. Leave it unset for
 `*.github.io` deployments.
 
+## Redirects
+
+GitHub Pages does not read `_redirects`, `vercel.json`, `.htaccess`, or any
+other server-side redirect config. To keep redirects from `redirects.yaml` or
+Ghost-style `content/data/redirects.*` on Pages, opt in to static HTML redirect
+stubs:
+
+```toml
+[deploy.github_pages]
+redirects = true
+```
+
+Nectar writes one meta-refresh page for each supported `from` path. Clean URLs
+such as `/old-post/` become `dist/old-post/index.html`; file-like paths such as
+`/old.html` become `dist/old.html`. Each stub points both
+`<meta http-equiv="refresh">` and `<link rel="canonical">` at the redirect
+destination.
+
+For project Pages with `[build].base_path = "/repo/"`, the file layout remains
+rooted at `dist/`, but root-relative destinations are prefixed with the base
+path in the generated HTML. For example, `from: /old` and `to: /new` writes
+`dist/old/index.html` with a browser redirect to `/repo/new`.
+
+Nectar skips redirects whose source is `/` or `/404.html` so the home page and
+GitHub Pages not-found fallback keep working. Pattern redirects such as
+`/old/*` cannot be represented as static files on Pages; use a host with native
+redirect rules for those.
+
 ## Custom domains
 
 For `https://blog.example.com/`, use the root path:

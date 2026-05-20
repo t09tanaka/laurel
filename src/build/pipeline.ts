@@ -35,6 +35,7 @@ import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
 import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
+import { emitGithubPagesRedirects } from './github-pages.ts';
 import {
   type ImageFormat,
   collapseDegenerateSrcset,
@@ -838,6 +839,12 @@ async function runBuild({
     rules: redirects,
     enabled: config.components.redirects.enabled,
     emitHtml: config.components.redirects.emit_html,
+  });
+  await emitGithubPagesRedirects({
+    outputDir,
+    rules: redirects,
+    enabled: config.deploy.github_pages.redirects,
+    basePath: config.build.base_path,
   });
   await emitCustomRedirects({
     outputDir,
