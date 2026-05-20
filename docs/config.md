@@ -180,6 +180,8 @@ GitHub Pages-specific deploy hints.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.github_pages.custom_domain` | `string` | no | — | Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments. |
+| `deploy.github_pages.branch` | `string` | no | `"gh-pages"` | Branch `nectar deploy github-pages` pushes the built site to. Defaults to `gh-pages` (the historical convention). Override when the repo serves Pages from a different branch. |
+| `deploy.github_pages.remote` | `string` | no | `"origin"` | Git remote name `nectar deploy github-pages` pushes to. Defaults to `origin`. Override for forks or mirrored workflows that publish from a non-default remote. |
 
 ## `deploy.cloudflare_pages`
 
@@ -196,6 +198,8 @@ Netlify-specific deploy hints.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.netlify.enabled` | `boolean` | no | `false` | Emit Netlify `_headers` and (when a `redirects.yaml` exists at the project root) `_redirects` at the output root. `_headers` defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). The `_redirects` emitter loads rules from `redirects.yaml` (`[{from, to, status, force}]` with status one of 301/302/307/308, default 301), maps `force: true` to a Netlify `!` suffix on the status (e.g. `301!`) so the rule fires even when a static file exists at `from`, drops later rules whose `from` repeats an earlier one (Netlify uses first-match), and prepends them before any existing `_redirects` entries. Leave disabled when deploying somewhere other than Netlify. |
+| `deploy.netlify.site_id` | `string` | no | — | Optional Netlify site id forwarded to `netlify deploy --site=<id>` when `nectar deploy netlify` runs. When unset, the Netlify CLI uses the linked site in the local `.netlify/state.json`. |
+| `deploy.netlify.prod` | `boolean` | no | `true` | Pass `--prod` to `netlify deploy` when running `nectar deploy netlify`. Default `true` so the command publishes to production; set `false` for draft preview URLs. |
 
 ## `deploy.vercel`
 
@@ -204,6 +208,8 @@ Vercel-specific deploy hints.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.vercel.enabled` | `boolean` | no | `false` | Emit a single `vercel.json` at the output root folding both `deploy.headers` and `redirects.yaml` into Vercel's native config shape. `headers` mirrors the cross-cutting cache + security rules (with glob `*` translated to path-to-regexp `(.*)` so the same patterns match the same paths on every deploy target). `redirects` mirrors `redirects.yaml` ([{from, to, status, force}] with status one of 301/302/307/308) using `statusCode` for the HTTP status. Vercel always honors redirects regardless of static-file collisions (the same semantics as Cloudflare Pages), so the `force` flag is informational on this target. Leave disabled when deploying somewhere other than Vercel. |
+| `deploy.vercel.project` | `string` | no | — | Optional Vercel project slug forwarded as `--scope=<project>` when running `nectar deploy vercel`. Leave unset to let the Vercel CLI infer the project from the linked `.vercel/project.json`. |
+| `deploy.vercel.prod` | `boolean` | no | `true` | Pass `--prod` to `vercel deploy` when running `nectar deploy vercel`. Default `true` so the command ships to the production alias; set `false` for preview-only deploys. |
 
 ## `deploy.nginx`
 
@@ -214,6 +220,44 @@ Self-hosted nginx-specific deploy hints.
 | `deploy.nginx.enabled` | `boolean` | no | `false` | Emit a self-hosted nginx server block at `<output>/.nectar/nginx.conf` folding both `deploy.headers` and `redirects.yaml` into a single config snippet. The block sets `gzip_static on; brotli_static on;` for pre-compressed assets, emits one `location` per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches every configured security header to each `location` (nginx `add_header` does not merge with parent blocks, so they are repeated rather than inherited), serves SPA-style routes with `try_files $uri $uri/ $uri/index.html =404;` (the `$uri/` middle term is the trailing-slash variant so a request to `/about` falls through `/about/` — which triggers the `index` directive's canonical-slug redirect — before resolving `/about/index.html`), and translates each `redirects.yaml` entry into a `location { return <status> <to>; }` rule. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted nginx. |
 | `deploy.nginx.root` | `string` | no | `"/var/www/nectar"` | Filesystem path nginx should serve from, emitted as the `root` directive in the generated server block. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host. |
 | `deploy.nginx.server_name` | `string` | no | `"_"` | Value of the `server_name` directive in the generated server block. Defaults to `_` (nginx's catch-all hostname) so the snippet drops onto a fresh VPS without editing. Override with the actual hostname when serving multiple sites from one nginx instance. |
+
+## `deploy.cloudflare`
+
+Cloudflare Pages deploy target consumed by `nectar deploy cloudflare`. Wraps `wrangler pages deploy dist`.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.cloudflare.project_name` | `string` | no | — | Cloudflare Pages project name used by `nectar deploy cloudflare`. Forwarded to `wrangler pages deploy --project-name=<name>`. Required when targeting cloudflare; can also be supplied via `--project-name` on the CLI. |
+| `deploy.cloudflare.branch` | `string` | no | — | Optional branch name forwarded to `wrangler pages deploy --branch=<name>`. Use to distinguish preview vs production environments in the Cloudflare dashboard. |
+
+## `deploy.s3`
+
+AWS S3 deploy target consumed by `nectar deploy s3`. Wraps `aws s3 sync dist s3://<bucket>`.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.s3.bucket` | `string` | no | — | S3 bucket name for `nectar deploy s3`. Forwarded to `aws s3 sync dist s3://<bucket>`. |
+| `deploy.s3.region` | `string` | no | — | Optional AWS region forwarded as `--region <region>` to `aws s3 sync`. |
+| `deploy.s3.delete` | `boolean` | no | `false` | Pass `--delete` to `aws s3 sync` so the remote bucket mirrors the local `dist/` exactly, removing stale objects. Default `false` to avoid surprise deletions; opt in when stale files at the bucket root are a problem. |
+
+## `deploy.r2`
+
+Cloudflare R2 deploy target consumed by `nectar deploy r2`. Wraps `aws s3 sync` with the R2 endpoint.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.r2.bucket` | `string` | no | — | Cloudflare R2 bucket name for `nectar deploy r2`. Forwarded to `aws s3 sync dist s3://<bucket>` with the R2 S3-compatible endpoint. |
+| `deploy.r2.endpoint` | `string` | no | — | R2 S3-compatible endpoint URL (e.g. `https://<account>.r2.cloudflarestorage.com`). Forwarded as `--endpoint-url <url>` to `aws s3 sync`. Required so the AWS CLI targets R2 instead of S3. |
+| `deploy.r2.delete` | `boolean` | no | `false` | Pass `--delete` to `aws s3 sync` so the R2 bucket mirrors `dist/` exactly. Default `false`; opt in when stale files at the bucket root are a problem. |
+
+## `deploy.rsync`
+
+rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist/ <destination>`.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.rsync.destination` | `string` | no | — | rsync destination string for `nectar deploy rsync`, e.g. `user@host:/var/www/site/`. Forwarded verbatim as the last argument of `rsync -avz dist/ <destination>`. |
+| `deploy.rsync.flags` | `array<string>` | no | `["-avz","--delete"]` | Flags passed to `rsync` before the source and destination. Defaults to `-avz --delete` to mirror the local `dist/` over SSH. Override to drop `--delete`, add `--exclude=…` rules, or pin a specific SSH command via `-e`. |
 
 ## `deploy.headers`
 

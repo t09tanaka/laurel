@@ -63,6 +63,8 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
+| [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
+| [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
@@ -445,6 +447,64 @@ Options:
 | `--source-url <url>` | string | `NECTAR_MIGRATE_SOURCE_URL` | ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths |
 | `--max-size <size>` | string | `NECTAR_MIGRATE_MAX_SIZE` | ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables) |
 | `--keep-code-injection` | boolean | `NECTAR_MIGRATE_KEEP_CODE_INJECTION` | ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source. |
+
+### `nectar deploy`
+
+Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
+
+Usage:
+
+```
+nectar deploy [--config <path>] [--build] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] <target>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<target>` | required | Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync` |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_DEPLOY_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `-b, --build` | boolean | `NECTAR_DEPLOY_BUILD` | Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step |
+| `--dry-run` | boolean | `NECTAR_DEPLOY_DRY_RUN` | Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed |
+| `--project-name <name>` | string | `NECTAR_DEPLOY_PROJECT_NAME` | cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config |
+| `--branch <name>` | string | `NECTAR_DEPLOY_BRANCH` | cloudflare: branch label forwarded to `wrangler pages deploy --branch=<name>`. github-pages: branch to push the site to (defaults to `[deploy.github_pages].branch` or `gh-pages`) |
+| `--site-id <id>` | string | `NECTAR_DEPLOY_SITE_ID` | netlify only: Netlify site id forwarded to `netlify deploy --site=<id>`. Overrides `[deploy.netlify].site_id` |
+| `--prod` | boolean | `NECTAR_DEPLOY_PROD` | netlify, vercel: explicitly pass `--prod`. Default `true` for both via config (`[deploy.<target>].prod`); pair with `--prod=false`-equivalent NECTAR_DEPLOY_PROD=0 env var when the CLI flag is unsuitable |
+| `--bucket <name>` | string | `NECTAR_DEPLOY_BUCKET` | s3 / r2: target bucket name. Forwarded to `aws s3 sync dist s3://<bucket>`. Overrides the matching `[deploy.s3].bucket` or `[deploy.r2].bucket` config entry |
+| `--region <region>` | string | `NECTAR_DEPLOY_REGION` | s3 only: AWS region forwarded as `--region <region>` to `aws s3 sync`. Overrides `[deploy.s3].region` |
+| `--endpoint <url>` | string | `NECTAR_DEPLOY_ENDPOINT` | r2 only: R2 S3-compatible endpoint URL forwarded as `--endpoint-url <url>` to `aws s3 sync`. Overrides `[deploy.r2].endpoint` |
+| `--destination <user@host:path>` | string | `NECTAR_DEPLOY_DESTINATION` | rsync only: destination string (e.g. `user@host:/var/www/site/`). Overrides `[deploy.rsync].destination` |
+| `--remote <name>` | string | `NECTAR_DEPLOY_REMOTE` | github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`) |
+
+### `nectar export`
+
+Dump the loaded content as JSON or regenerate the RSS feed without running a full build
+
+Usage:
+
+```
+nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] <format>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_EXPORT_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten |
+| `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
+| `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
 
 ### `nectar import-ghost`
 

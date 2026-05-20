@@ -110,6 +110,14 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runTheme } = await import('./commands/theme.ts');
       return runTheme(rest);
     }
+    case 'deploy': {
+      const { runDeploy } = await import('./commands/deploy.ts');
+      return runDeploy(rest);
+    }
+    case 'export': {
+      const { runExport } = await import('./commands/export.ts');
+      return runExport(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }

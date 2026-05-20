@@ -676,6 +676,129 @@ export const OPEN_SPEC: CommandSpec = {
   ],
 };
 
+export const DEPLOY_SPEC: CommandSpec = {
+  name: 'deploy',
+  summary:
+    'Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    build: {
+      type: 'boolean',
+      short: 'b',
+      description:
+        'Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed',
+    },
+    'project-name': {
+      type: 'string',
+      description:
+        'cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config',
+      placeholder: '<name>',
+    },
+    branch: {
+      type: 'string',
+      description:
+        'cloudflare: branch label forwarded to `wrangler pages deploy --branch=<name>`. github-pages: branch to push the site to (defaults to `[deploy.github_pages].branch` or `gh-pages`)',
+      placeholder: '<name>',
+    },
+    'site-id': {
+      type: 'string',
+      description:
+        'netlify only: Netlify site id forwarded to `netlify deploy --site=<id>`. Overrides `[deploy.netlify].site_id`',
+      placeholder: '<id>',
+    },
+    prod: {
+      type: 'boolean',
+      description:
+        'netlify, vercel: explicitly pass `--prod`. Default `true` for both via config (`[deploy.<target>].prod`); pair with `--prod=false`-equivalent NECTAR_DEPLOY_PROD=0 env var when the CLI flag is unsuitable',
+    },
+    bucket: {
+      type: 'string',
+      description:
+        's3 / r2: target bucket name. Forwarded to `aws s3 sync dist s3://<bucket>`. Overrides the matching `[deploy.s3].bucket` or `[deploy.r2].bucket` config entry',
+      placeholder: '<name>',
+    },
+    region: {
+      type: 'string',
+      description:
+        's3 only: AWS region forwarded as `--region <region>` to `aws s3 sync`. Overrides `[deploy.s3].region`',
+      placeholder: '<region>',
+    },
+    endpoint: {
+      type: 'string',
+      description:
+        'r2 only: R2 S3-compatible endpoint URL forwarded as `--endpoint-url <url>` to `aws s3 sync`. Overrides `[deploy.r2].endpoint`',
+      placeholder: '<url>',
+    },
+    destination: {
+      type: 'string',
+      description:
+        'rsync only: destination string (e.g. `user@host:/var/www/site/`). Overrides `[deploy.rsync].destination`',
+      placeholder: '<user@host:path>',
+    },
+    remote: {
+      type: 'string',
+      description:
+        'github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`)',
+      placeholder: '<name>',
+    },
+  },
+  positionals: [
+    {
+      name: 'target',
+      description:
+        'Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`',
+      required: true,
+    },
+  ],
+};
+
+export const EXPORT_SPEC: CommandSpec = {
+  name: 'export',
+  summary:
+    'Dump the loaded content as JSON or regenerate the RSS feed without running a full build',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    output: {
+      type: 'string',
+      short: 'o',
+      description:
+        'Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten',
+      placeholder: '<path>',
+    },
+    pretty: {
+      type: 'boolean',
+      description:
+        'Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON',
+    },
+    'include-drafts': {
+      type: 'boolean',
+      description:
+        'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
+    },
+  },
+  positionals: [
+    {
+      name: 'format',
+      description:
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML)',
+      required: true,
+    },
+  ],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
@@ -694,6 +817,8 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   tags: TAGS_SPEC,
   theme: THEME_SPEC,
   migrate: MIGRATE_SPEC,
+  deploy: DEPLOY_SPEC,
+  export: EXPORT_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };

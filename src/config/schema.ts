@@ -478,6 +478,18 @@ export const configSchema = z
               .describe(
                 'Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments.',
               ),
+            branch: z
+              .string()
+              .default('gh-pages')
+              .describe(
+                'Branch `nectar deploy github-pages` pushes the built site to. Defaults to `gh-pages` (the historical convention). Override when the repo serves Pages from a different branch.',
+              ),
+            remote: z
+              .string()
+              .default('origin')
+              .describe(
+                'Git remote name `nectar deploy github-pages` pushes to. Defaults to `origin`. Override for forks or mirrored workflows that publish from a non-default remote.',
+              ),
           })
           .strict()
           .default({})
@@ -502,6 +514,18 @@ export const configSchema = z
               .describe(
                 'Emit Netlify `_headers` and (when a `redirects.yaml` exists at the project root) `_redirects` at the output root. `_headers` defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). The `_redirects` emitter loads rules from `redirects.yaml` (`[{from, to, status, force}]` with status one of 301/302/307/308, default 301), maps `force: true` to a Netlify `!` suffix on the status (e.g. `301!`) so the rule fires even when a static file exists at `from`, drops later rules whose `from` repeats an earlier one (Netlify uses first-match), and prepends them before any existing `_redirects` entries. Leave disabled when deploying somewhere other than Netlify.',
               ),
+            site_id: z
+              .string()
+              .optional()
+              .describe(
+                'Optional Netlify site id forwarded to `netlify deploy --site=<id>` when `nectar deploy netlify` runs. When unset, the Netlify CLI uses the linked site in the local `.netlify/state.json`.',
+              ),
+            prod: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Pass `--prod` to `netlify deploy` when running `nectar deploy netlify`. Default `true` so the command publishes to production; set `false` for draft preview URLs.',
+              ),
           })
           .strict()
           .default({})
@@ -513,6 +537,18 @@ export const configSchema = z
               .default(false)
               .describe(
                 "Emit a single `vercel.json` at the output root folding both `deploy.headers` and `redirects.yaml` into Vercel's native config shape. `headers` mirrors the cross-cutting cache + security rules (with glob `*` translated to path-to-regexp `(.*)` so the same patterns match the same paths on every deploy target). `redirects` mirrors `redirects.yaml` ([{from, to, status, force}] with status one of 301/302/307/308) using `statusCode` for the HTTP status. Vercel always honors redirects regardless of static-file collisions (the same semantics as Cloudflare Pages), so the `force` flag is informational on this target. Leave disabled when deploying somewhere other than Vercel.",
+              ),
+            project: z
+              .string()
+              .optional()
+              .describe(
+                'Optional Vercel project slug forwarded as `--scope=<project>` when running `nectar deploy vercel`. Leave unset to let the Vercel CLI infer the project from the linked `.vercel/project.json`.',
+              ),
+            prod: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Pass `--prod` to `vercel deploy` when running `nectar deploy vercel`. Default `true` so the command ships to the production alias; set `false` for preview-only deploys.',
               ),
           })
           .strict()
@@ -542,6 +578,96 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Self-hosted nginx-specific deploy hints.'),
+        cloudflare: z
+          .object({
+            project_name: z
+              .string()
+              .optional()
+              .describe(
+                'Cloudflare Pages project name used by `nectar deploy cloudflare`. Forwarded to `wrangler pages deploy --project-name=<name>`. Required when targeting cloudflare; can also be supplied via `--project-name` on the CLI.',
+              ),
+            branch: z
+              .string()
+              .optional()
+              .describe(
+                'Optional branch name forwarded to `wrangler pages deploy --branch=<name>`. Use to distinguish preview vs production environments in the Cloudflare dashboard.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Cloudflare Pages deploy target consumed by `nectar deploy cloudflare`. Wraps `wrangler pages deploy dist`.',
+          ),
+        s3: z
+          .object({
+            bucket: z
+              .string()
+              .optional()
+              .describe(
+                'S3 bucket name for `nectar deploy s3`. Forwarded to `aws s3 sync dist s3://<bucket>`.',
+              ),
+            region: z
+              .string()
+              .optional()
+              .describe('Optional AWS region forwarded as `--region <region>` to `aws s3 sync`.'),
+            delete: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Pass `--delete` to `aws s3 sync` so the remote bucket mirrors the local `dist/` exactly, removing stale objects. Default `false` to avoid surprise deletions; opt in when stale files at the bucket root are a problem.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'AWS S3 deploy target consumed by `nectar deploy s3`. Wraps `aws s3 sync dist s3://<bucket>`.',
+          ),
+        r2: z
+          .object({
+            bucket: z
+              .string()
+              .optional()
+              .describe(
+                'Cloudflare R2 bucket name for `nectar deploy r2`. Forwarded to `aws s3 sync dist s3://<bucket>` with the R2 S3-compatible endpoint.',
+              ),
+            endpoint: z
+              .string()
+              .optional()
+              .describe(
+                'R2 S3-compatible endpoint URL (e.g. `https://<account>.r2.cloudflarestorage.com`). Forwarded as `--endpoint-url <url>` to `aws s3 sync`. Required so the AWS CLI targets R2 instead of S3.',
+              ),
+            delete: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Pass `--delete` to `aws s3 sync` so the R2 bucket mirrors `dist/` exactly. Default `false`; opt in when stale files at the bucket root are a problem.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Cloudflare R2 deploy target consumed by `nectar deploy r2`. Wraps `aws s3 sync` with the R2 endpoint.',
+          ),
+        rsync: z
+          .object({
+            destination: z
+              .string()
+              .optional()
+              .describe(
+                'rsync destination string for `nectar deploy rsync`, e.g. `user@host:/var/www/site/`. Forwarded verbatim as the last argument of `rsync -avz dist/ <destination>`.',
+              ),
+            flags: z
+              .array(z.string())
+              .default(['-avz', '--delete'])
+              .describe(
+                'Flags passed to `rsync` before the source and destination. Defaults to `-avz --delete` to mirror the local `dist/` over SSH. Override to drop `--delete`, add `--exclude=…` rules, or pin a specific SSH command via `-e`.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist/ <destination>`.',
+          ),
         headers: z
           .object({
             security: z
