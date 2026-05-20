@@ -6,6 +6,7 @@ import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
 import type { ContentGraph } from '~/content/model.ts';
+import { SUBSCRIBE_NOOP_BUILD_WARNING } from '~/members/noop.ts';
 import { validatePortalConfig } from '~/members/portal-validation.ts';
 import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
@@ -120,7 +121,7 @@ import {
   searchEngineUsesNectarGhostSearchShim,
 } from './search.ts';
 import { copyStaticDir, resolveStaticPassthroughDirs } from './static-passthrough.ts';
-import { transformSubscribeForms } from './subscribe-forms.ts';
+import { containsSubscribeFormMarkup, transformSubscribeForms } from './subscribe-forms.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -639,6 +640,17 @@ async function runBuild({
   );
 
   const subscribeConfig = config.components.subscribe;
+  let warnedSubscribeNoop = false;
+  const warnSubscribeNoopIfNeeded = (html: string): void => {
+    if (
+      !warnedSubscribeNoop &&
+      subscribeConfig.provider === 'none' &&
+      containsSubscribeFormMarkup(html)
+    ) {
+      warnedSubscribeNoop = true;
+      logger.warn(SUBSCRIBE_NOOP_BUILD_WARNING);
+    }
+  };
   const recommendationsEnabled = config.recommendations.length > 0;
   // Diagnose malformed portal configs (e.g. `provider = "custom"` with no
   // `*_url` overrides) before the build silently emits dead Ghost-default
@@ -712,6 +724,7 @@ async function runBuild({
             kind: route.kind,
           });
           const html = await previousFile.text();
+          warnSubscribeNoopIfNeeded(html);
           const bytes = Buffer.byteLength(html, 'utf8');
           stop?.({ bytes, reused: true });
           completedRoutes += 1;
@@ -746,15 +759,12 @@ async function runBuild({
         for (const plugin of pluginSet.plugins) {
           if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
         }
+        const renderedHtml = injectSkipLink(engine.render(route), config.build.csp_nonce);
+        warnSubscribeNoopIfNeeded(renderedHtml);
         let html = collapseDegenerateSrcset(
           rewritePortalLinks({
             html: rewriteRecommendationsButton({
-              html: stripUnusedLightbox(
-                transformSubscribeForms(
-                  injectSkipLink(engine.render(route), config.build.csp_nonce),
-                  subscribeConfig,
-                ),
-              ),
+              html: stripUnusedLightbox(transformSubscribeForms(renderedHtml, subscribeConfig)),
               basePath: config.build.base_path,
               enabled: recommendationsEnabled,
             }),

@@ -7,6 +7,11 @@ import { BUILD_MANIFEST_VERSION } from '~/build/build-manifest.ts';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
 import { type BuildProgressEvent, ROUTE_RENDER_BATCH_SIZE } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
+import {
+  SUBSCRIBE_NOOP_BUILD_WARNING,
+  SUBSCRIBE_NOOP_REASON,
+  SUBSCRIBE_NOOP_RUNTIME_WARNING,
+} from '~/members/noop.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-'));
@@ -141,6 +146,41 @@ date: 2026-01-01T00:00:00Z
 
     expect(summary.routeCount).toBeGreaterThan(0);
     expect(summary.warningCount).toBe(1);
+  });
+
+  test('warns and marks signup forms as no-ops when subscribe provider is none', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+<div class="kg-card kg-signup-card">
+  <form class="kg-signup-card-form" data-members-form="signup">
+    <input class="kg-signup-card-input" type="email" placeholder="you@example.com" required>
+    <button class="kg-signup-card-button" type="submit">Subscribe</button>
+  </form>
+</div>
+`,
+      'utf8',
+    );
+
+    const stderr = captureStderr();
+    let summary!: Awaited<ReturnType<typeof build>>;
+    try {
+      summary = await build({ cwd });
+    } finally {
+      stderr.restore();
+    }
+
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(summary.warningCount).toBe(1);
+    expect(stderr.output).toContain(SUBSCRIBE_NOOP_BUILD_WARNING);
+    expect(postHtml).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(postHtml).toContain('window.console.warn');
+    expect(postHtml).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
   });
 
   test('warns and skips a post with malformed Koenig shortcode while continuing the build', async () => {

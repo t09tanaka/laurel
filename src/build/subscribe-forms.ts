@@ -6,6 +6,7 @@ import {
   resolveSubscribeAdapter,
   runAdapterTransform,
 } from '~/members/index.ts';
+import { SUBSCRIBE_NOOP_REASON, subscribeNoopSubmitHandler } from '~/members/noop.ts';
 
 // Public config shape consumed by the build pipeline. Stays a plain object
 // rather than re-exporting the adapter type so a downstream embedder cannot
@@ -32,6 +33,10 @@ const FORM_OPEN_RE = /^<form\b[^>]*>/i;
 const INPUT_RE = /<input\b[^>]*>/gi;
 const BUTTON_RE = /<button\b[^>]*>/gi;
 
+export function containsSubscribeFormMarkup(html: string): boolean {
+  return html.includes('data-members-form');
+}
+
 export function transformSubscribeForms(html: string, cfg: SubscribeFormConfig): string {
   // Adapter-specific whole-document rewrites run first so e.g. `none`'s
   // wrapper-strip happens before we try to patch attributes on forms that
@@ -54,9 +59,12 @@ function rewriteMembersFormBlock(block: string, resolved: ResolvedSubscribeForm)
   const body = block.slice(open.length);
   let form = setAttribute(open, 'action', resolved.action);
   form = setAttribute(form, 'method', resolved.method);
-  form = resolved.disabled
-    ? setAttribute(form, 'onsubmit', 'event.preventDefault();return false;')
-    : removeAttribute(form, 'onsubmit');
+  if (resolved.disabled) {
+    form = setAttribute(form, 'data-nectar-noop', SUBSCRIBE_NOOP_REASON);
+    form = setAttribute(form, 'onsubmit', subscribeNoopSubmitHandler());
+  } else {
+    form = removeAttribute(removeAttribute(form, 'data-nectar-noop'), 'onsubmit');
+  }
 
   const rewrittenBody = body
     .replace(INPUT_RE, (tag) => rewriteMembersInput(tag, resolved))

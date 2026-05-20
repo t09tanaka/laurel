@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
+import { SUBSCRIBE_NOOP_REASON, SUBSCRIBE_NOOP_RUNTIME_WARNING } from '~/members/noop.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerHelpers } from '~/render/helpers/index.ts';
 import { registerMemberHelpers } from '~/render/helpers/members.ts';
@@ -118,9 +119,12 @@ describe('member helpers', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{signup name=true}}')({});
-    expect(html).toBe(
-      '<form class="gh-signup-form" data-members-form="signup" action="#" method="post" onsubmit="event.preventDefault();return false;"><input class="gh-signup-input" type="text" name="name" autocomplete="name" data-members-name><input class="gh-signup-input" type="email" name="email" placeholder="Email address" autocomplete="email" required data-members-email><button class="gh-signup-button" type="submit" data-members-submit>Subscribe</button></form>',
-    );
+    expect(html).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(html).toContain('window.console.warn');
+    expect(html).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
+    expect(html).toContain('onsubmit=');
+    expect(html).toContain('<input class="gh-signup-input" type="text" name="name"');
+    expect(html).toContain('data-members-email');
   });
 
   test('tiers formats context tiers with escaped names and separators', () => {

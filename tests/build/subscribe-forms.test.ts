@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveSubscribeForm, transformSubscribeForms } from '~/build/subscribe-forms.ts';
+import {
+  containsSubscribeFormMarkup,
+  resolveSubscribeForm,
+  transformSubscribeForms,
+} from '~/build/subscribe-forms.ts';
+import { SUBSCRIBE_NOOP_REASON, SUBSCRIBE_NOOP_RUNTIME_WARNING } from '~/members/noop.ts';
 
 const SAMPLE_FORM = [
   '<form class="gh-form" data-members-form>',
@@ -107,13 +112,17 @@ describe('resolveSubscribeForm', () => {
 describe('transformSubscribeForms', () => {
   test('leaves HTML untouched when no members-form markers are present', () => {
     const html = '<p>no forms here</p>';
+    expect(containsSubscribeFormMarkup(html)).toBe(false);
     expect(transformSubscribeForms(html, { provider: 'none' })).toBe(html);
   });
 
-  test('with provider=none, neutralises form submission and keeps default field name', () => {
+  test('with provider=none, marks no-op forms and warns at runtime', () => {
     const out = transformSubscribeForms(SAMPLE_FORM, { provider: 'none' });
+    expect(containsSubscribeFormMarkup(SAMPLE_FORM)).toBe(true);
     expect(out).toMatch(/<form[^>]*\baction="#"/);
-    expect(out).toMatch(/<form[^>]*\bonsubmit="event\.preventDefault\(\);return false;"/);
+    expect(out).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(out).toContain('window.console.warn');
+    expect(out).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
     expect(out).toMatch(/<input[^>]*\bname="email"/);
   });
 
@@ -133,7 +142,8 @@ describe('transformSubscribeForms', () => {
     expect(out).toContain('data-members-success');
     expect(out).toContain('data-members-error');
     expect(out).toMatch(/<form[^>]*\baction="#"/);
-    expect(out).toMatch(/<form[^>]*\bonsubmit="event\.preventDefault\(\);return false;"/);
+    expect(out).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(out).toContain('window.console.warn');
     expect(out).toMatch(/<input[^>]*\bname="email"/);
   });
 

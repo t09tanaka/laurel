@@ -1,6 +1,7 @@
 import type Handlebars from 'handlebars';
 import type { Tier } from '~/content/model.ts';
 import { type SubscribeAdapterConfig, resolveSubscribeAdapter } from '~/members/index.ts';
+import { SUBSCRIBE_NOOP_REASON, subscribeNoopSubmitHandler } from '~/members/noop.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerMemberHelpers(engine: NectarEngine): void {
@@ -45,7 +46,9 @@ export function registerMemberHelpers(engine: NectarEngine): void {
       const buttonText = pickString(hash.buttonText ?? hash.label, 'Subscribe');
       const includeName = toBoolean(hash.name);
       const disabledAttr = resolved.disabled
-        ? ' onsubmit="event.preventDefault();return false;"'
+        ? ` data-nectar-noop="${SUBSCRIBE_NOOP_REASON}" onsubmit="${escapeAttr(
+            subscribeNoopSubmitHandler(),
+          )}"`
         : '';
       const nameInput = includeName
         ? `<input class="${escapeAttr(inputClass)}" type="text" name="${escapeAttr(
