@@ -164,9 +164,10 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const target = targetVal ? ` target="${escapeAttr(targetVal)}"` : '';
       const relVal = buildLinkRel(targetVal, options.hash.rel);
       const rel = relVal ? ` rel="${escapeAttr(relVal)}"` : '';
+      const dataAttrs = linkDataAttributes(options.hash);
       const inner = options.fn ? options.fn(this) : escapeHtml(href);
       return new engine.hb.SafeString(
-        `<a href="${escapeAttr(href)}"${cls ? ` class="${escapeAttr(cls)}"` : ''}${target}${rel}>${inner}</a>`,
+        `<a href="${escapeAttr(href)}"${cls ? ` class="${escapeAttr(cls)}"` : ''}${target}${rel}${dataAttrs}>${inner}</a>`,
       );
     },
   );
@@ -249,6 +250,15 @@ function escapeHtml(value: string): string {
 
 function escapeAttr(value: string): string {
   return escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+const SAFE_DATA_ATTR_RE = /^data-[A-Za-z0-9_.:-]+$/;
+
+function linkDataAttributes(hash: Record<string, unknown>): string {
+  return Object.entries(hash)
+    .filter(([name]) => SAFE_DATA_ATTR_RE.test(name))
+    .map(([name, value]) => ` ${name}="${escapeAttr(String(value ?? ''))}"`)
+    .join('');
 }
 
 function normaliseUrl(url: string): string {

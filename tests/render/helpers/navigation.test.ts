@@ -469,6 +469,29 @@ describe('link helper target/rel handling', () => {
   });
 });
 
+describe('link helper data attributes', () => {
+  test('passes through arbitrary data-* hash attributes', () => {
+    const html = renderLink('href="/signin/" data-portal="signin" data-track-id="hero-cta"');
+
+    expect(html).toContain('href="/signin/"');
+    expect(html).toContain('data-portal="signin"');
+    expect(html).toContain('data-track-id="hero-cta"');
+    expect(html).toEndWith('>Click</a>');
+  });
+
+  test('escapes data-* attribute values without changing href/class/target handling', () => {
+    const html = renderLink(
+      'href="/signup/" class="cta \\"primary\\"" target="_blank" data-label="Join \\"now\\" & <go>"',
+    );
+
+    expect(html).toContain('href="/signup/"');
+    expect(html).toContain('class="cta &quot;primary&quot;"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('data-label="Join &quot;now&quot; &amp; &lt;go&gt;"');
+  });
+});
+
 function renderLinkClass(routeUrl: string | undefined, hash: string): string {
   const engine = makeEngine();
   registerNavigationHelpers(engine);
