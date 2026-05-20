@@ -63,6 +63,31 @@ describe('minifyHtmlOutputs', () => {
     expect(outputs[0]?.html).not.toContain('href="/#icon-search"');
   });
 
+  test('preserves theme-authored external script src and integrity metadata (#1722)', async () => {
+    const src = 'https://code.jquery.com/jquery-3.3.1.min.js';
+    const integrity = 'sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=';
+    const outputs = [
+      {
+        outputPath: 'index.html',
+        html: [
+          '<!doctype html>',
+          '<html>',
+          '<body>',
+          `<script src="${src}" integrity="${integrity}" crossorigin="anonymous"></script>`,
+          '</body>',
+          '</html>',
+        ].join('\n'),
+      },
+    ];
+
+    await minifyHtmlOutputs(outputs);
+
+    expect(outputs[0]?.html).toContain(`src="${src}"`);
+    expect(outputs[0]?.html).toContain(`integrity="${integrity}"`);
+    expect(outputs[0]?.html).toContain('crossorigin="anonymous"');
+    expect(outputs[0]?.html).not.toContain('jquery-3.7');
+  });
+
   test('handles many outputs concurrently without dropping any (#1109)', async () => {
     const n = 50;
     const outputs = Array.from({ length: n }, (_, i) => ({

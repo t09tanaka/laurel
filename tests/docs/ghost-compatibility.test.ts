@@ -23,4 +23,14 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('.kg-gallery-image > img[width][height]');
     expect(doc).toContain('width="1200" height="800"');
   });
+
+  test('documents Wave jquery CDN as a theme limitation', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain("Wave's `default.hbs`");
+    expect(doc).toContain('jQuery');
+    expect(doc).toContain('3.3.1 CDN dependency');
+    expect(doc).toMatch(/theme limitation,\s+leave untouched/);
+    expect(doc).toMatch(/must preserve explicit `src` and\s+`integrity` attributes/);
+  });
 });

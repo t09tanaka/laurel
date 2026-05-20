@@ -158,6 +158,19 @@ Ghost-admin or shared-theme-assets code. Either vendor the required script as a
 theme asset, replace the hook with a Nectar-managed optional component, or
 remove the control from the template.
 
+### External script URLs in theme layouts
+
+Nectar leaves theme-authored external `<script>` URLs and integrity metadata
+untouched. This includes Wave's `default.hbs`, which hard-codes the jQuery
+3.3.1 CDN dependency in its layout. That dependency is a theme limitation,
+leave untouched: Nectar should not rewrite the CDN URL, substitute a newer
+jQuery version, or regenerate an `integrity` hash on the theme's behalf.
+
+Projects that need different supply-chain policy should fork or patch the
+theme so the script is vendored locally or updated deliberately. Nectar's build
+pipeline may minify surrounding HTML, but it must preserve explicit `src` and
+`integrity` attributes emitted by the theme.
+
 ## Things Ghost themes do that we explicitly do *not* handle
 
 - Members context (`@member.*`) — undefined; templates that read it get
