@@ -109,7 +109,11 @@ describe('schema command', () => {
       posts_per_page: { type: 'number' },
       image_sizes: { type: 'object' },
       card_assets: {
-        anyOf: [{ type: 'boolean' }, { type: 'array', items: { type: 'string' } }],
+        anyOf: [
+          { type: 'boolean' },
+          { type: 'array', items: { type: 'string' } },
+          { type: 'object' },
+        ],
       },
       custom: { type: 'object' },
     });

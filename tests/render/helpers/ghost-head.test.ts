@@ -198,6 +198,42 @@ describe('ghost_head color-scheme meta', () => {
   });
 });
 
+describe('ghost_head shared card assets', () => {
+  test('omits card assets when theme package disables them', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      theme: { pkg: { card_assets: false } },
+    });
+
+    expect(html).not.toContain('ghost-card-assets.css');
+    expect(html).not.toContain('ghost-card-assets.js');
+  });
+
+  test('emits local shared card CSS and JS when theme package opts in', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      theme: { pkg: { card_assets: true } },
+    });
+
+    expect(html).toContain(
+      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=1">',
+    );
+    expect(html).toContain('<script defer src="/assets/ghost-card-assets.js?v=1"></script>');
+  });
+
+  test('honours base_path, CSP nonce, and exclude-specific cache key', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as Partial<
+        NectarEngine['config']
+      >,
+      theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
+    });
+
+    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=1-[a-z0-9]+"/);
+    expect(html).toMatch(
+      /<script defer src="\/blog\/assets\/ghost-card-assets\.js\?v=1-[a-z0-9]+" nonce="abc123"><\/script>/,
+    );
+  });
+});
+
 describe('ghost_head referrer policy meta', () => {
   test('emits strict-origin-when-cross-origin by default', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');

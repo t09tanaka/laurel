@@ -21,12 +21,18 @@ export interface ThemeImageSize {
   height?: number;
 }
 
+export interface ThemeCardAssetsConfig {
+  exclude: string[];
+}
+
+export type ThemeCardAssets = boolean | ThemeCardAssetsConfig;
+
 export interface ThemePackage {
   name: string;
   version: string;
   posts_per_page: number;
   image_sizes: Record<string, ThemeImageSize>;
-  card_assets: boolean;
+  card_assets: ThemeCardAssets;
   custom: Record<string, ThemeCustomSettingDefinition>;
   customDefaults: Record<string, unknown>;
 }

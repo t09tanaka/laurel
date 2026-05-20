@@ -1,4 +1,10 @@
 import type Handlebars from 'handlebars';
+import {
+  CARD_ASSETS_CSS_PATH,
+  CARD_ASSETS_JS_PATH,
+  cardAssetsVersion,
+  isCardAssetsEnabled,
+} from '~/build/card-assets.ts';
 import type { FaviconLink } from '~/build/favicons.ts';
 import {
   PORTAL_RUNTIME_PATH,
@@ -74,6 +80,8 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (accentColor) {
         parts.push(`<style>:root{--ghost-accent-color:${accentColor}}</style>`);
       }
+      const cardAssetsSnippet = renderCardAssetsSnippet(engine, basePath);
+      if (cardAssetsSnippet) parts.push(cardAssetsSnippet);
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
@@ -902,6 +910,19 @@ function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
   return [
     `<script${nonce}>window.NectarPortal=${escapeJsonForScript(configJson)};</script>`,
     `<script src="${escapeAttr(src)}" defer${nonce}></script>`,
+  ].join('\n');
+}
+
+function renderCardAssetsSnippet(engine: NectarEngine, basePath: string): string | undefined {
+  const cardAssets = engine.theme.pkg.card_assets;
+  if (!isCardAssetsEnabled(cardAssets)) return undefined;
+  const version = cardAssetsVersion(cardAssets);
+  const cssHref = joinPath(basePath, `${CARD_ASSETS_CSS_PATH}?v=${version}`);
+  const jsSrc = joinPath(basePath, `${CARD_ASSETS_JS_PATH}?v=${version}`);
+  const nonce = nonceAttr(engine.config?.build?.csp_nonce);
+  return [
+    `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}">`,
+    `<script defer src="${escapeAttr(jsSrc)}"${nonce}></script>`,
   ].join('\n');
 }
 

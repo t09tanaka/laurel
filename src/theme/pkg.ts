@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
-import type { ThemeCustomSettingDefinition, ThemeImageSize, ThemePackage } from './types.ts';
+import type {
+  ThemeCardAssets,
+  ThemeCustomSettingDefinition,
+  ThemeImageSize,
+  ThemePackage,
+} from './types.ts';
 
 const CUSTOM_TYPES = ['text', 'select', 'boolean', 'color', 'image'] as const;
 type CustomType = (typeof CUSTOM_TYPES)[number];
@@ -15,6 +20,19 @@ const imageSizeSchema: z.ZodType<ThemeImageSize> = z
     height: z.number().optional(),
   })
   .passthrough();
+
+const cardAssetsSchema = z.union([
+  z.boolean(),
+  // Legacy Nectar accepted an array before matching Ghost's documented
+  // `{ exclude: [...] }` shape. Treat it as an exclude list so existing themes
+  // do not flip from "partially excluded" to "fully enabled".
+  z.array(z.string()),
+  z
+    .object({
+      exclude: z.array(z.string()).optional(),
+    })
+    .passthrough(),
+]);
 
 // Anything we cannot positively identify as a known custom type is dropped.
 // `unknown()` keeps the per-key entry around long enough for us to inspect
@@ -31,7 +49,7 @@ export const themePackageJsonSchema = z
       .object({
         posts_per_page: z.number().optional(),
         image_sizes: z.record(imageSizeSchema).optional(),
-        card_assets: z.union([z.boolean(), z.array(z.string())]).optional(),
+        card_assets: cardAssetsSchema.optional(),
         custom: z.record(customDefSchema).optional(),
       })
       .passthrough()
@@ -71,10 +89,28 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
     version: parsed.version ?? '0.0.0',
     posts_per_page: cfg.posts_per_page ?? 5,
     image_sizes: cfg.image_sizes ?? {},
-    card_assets: Boolean(cfg.card_assets),
+    card_assets: normalizeCardAssets(cfg.card_assets),
     custom,
     customDefaults,
   };
+}
+
+function normalizeCardAssets(raw: z.infer<typeof cardAssetsSchema> | undefined): ThemeCardAssets {
+  if (raw === true || raw === false || raw === undefined) return raw ?? false;
+  const exclude = Array.isArray(raw) ? raw : (raw.exclude ?? []);
+  return { exclude: uniqueStrings(exclude) };
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
 }
 
 // Trust nothing from package.json: an attacker (or careless theme author) can

@@ -26,6 +26,7 @@ import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest, loadBuildManifest } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
+import { emitCardAssets } from './card-assets.ts';
 import { emitCloudflareWorkersManifest } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
@@ -815,6 +816,9 @@ async function runBuild({
 
   const assetCount = await withProgressPhase(progress, 'assets', 'Copying assets', async () => {
     const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+    await timed(profiler, 'card_assets', () =>
+      emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
+    );
     await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
     await timed(profiler, 'portal_runtime', () =>
       emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),

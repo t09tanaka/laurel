@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, mkdtemp, readdir, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
 import { build } from '~/build/pipeline.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
@@ -184,6 +185,18 @@ describe('build pipeline strict mode wiring', () => {
       existsSync(join(summary.outputDir, manifest['assets/built/screen.css']?.path ?? '')),
     ).toBe(true);
     expect(manifest['built/screen.css']).toBeUndefined();
+  });
+
+  test('emits Ghost-compatible card assets when the theme package opts in', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+
+    expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(true);
+    expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(true);
+    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=1');
+    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.js?v=1');
   });
 
   test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {

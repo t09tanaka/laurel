@@ -67,6 +67,28 @@ describe('loadThemePackage schema validation', () => {
     expect((pkg.custom.heading as { default?: unknown }).default).toBe('');
   });
 
+  test('normalizes Ghost card_assets exclude object', async () => {
+    const dir = await makeThemeDir({
+      config: {
+        card_assets: { exclude: ['Bookmark', 'gallery', 'bookmark', '  '] },
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.card_assets).toEqual({ exclude: ['bookmark', 'gallery'] });
+  });
+
+  test('treats legacy card_assets arrays as exclude lists', async () => {
+    const dir = await makeThemeDir({
+      config: {
+        card_assets: ['toggle', 'video'],
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.card_assets).toEqual({ exclude: ['toggle', 'video'] });
+  });
+
   test('keeps a string default on a text setting verbatim (HTML-escape is the next layer of defense)', async () => {
     const dir = await makeThemeDir({
       config: {

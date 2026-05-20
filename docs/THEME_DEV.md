@@ -705,8 +705,13 @@ undeclared key currently warns rather than hard-fails.
 - **`posts_per_page`** — default pagination size. Overridden by
   `[build] posts_per_page` in `nectar.toml`.
 - **`image_sizes`** — drives `{{img_url size="key"}}`. Width / height in pixels.
-- **`card_assets`** — accepted for upstream compatibility; Nectar always copies
-  the theme's `assets/` directory wholesale.
+- **`card_assets`** — when `true`, Nectar emits local shared Ghost card assets
+  at `/assets/ghost-card-assets.css` and `/assets/ghost-card-assets.js`, then
+  injects them through `{{ghost_head}}`. Use `{ "exclude": ["bookmark",
+  "gallery"] }` to omit per-card CSS/runtime sections that your theme owns.
+  `false` disables the shared assets. Nectar does not fetch Ghost's upstream
+  vendor bundle or a CDN at build time; the bundled files are a static
+  compatibility layer for common Koenig card class names.
 - **`custom`** — settings exposed on `@custom`. Supported `type` values mirror
   Ghost: `text`, `boolean`, `select` (with `options`), `color`, `image`. Types
   beyond `select` and `boolean` currently round-trip as strings — the user is
