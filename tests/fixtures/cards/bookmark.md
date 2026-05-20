@@ -1,0 +1,1 @@
+{{< bookmark url="https://example.com/post" title="Bookmark Title" description="A short summary of the linked article." author="Jane Doe" publisher="Example" icon="https://example.com/icon.png" thumbnail="https://example.com/thumb.jpg" />}}
