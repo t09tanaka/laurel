@@ -8,6 +8,10 @@
 #
 # Push to main and Wrangler uploads dist/ as a new Pages deployment. Production
 # vs. preview is selected by the branch name automatically.
+#
+# Optional advanced setup: copy examples/deploy/cloudflare-pages/wrangler.toml
+# to your repo root when you want Wrangler to be the source of truth for Pages
+# configuration such as Functions compatibility dates or bindings.
 
 name: Deploy to Cloudflare Pages
 

@@ -144,6 +144,43 @@ back to interactive login. You can override config from the CLI:
 bunx nectar deploy cloudflare --project-name my-blog --branch preview --build
 ```
 
+## Advanced: GitHub Actions with direct Wrangler deploys
+
+If you prefer CI to call Wrangler directly instead of using Cloudflare's
+Git-connected build or Nectar's deploy wrapper, copy the starter workflow:
+
+```sh
+cp examples/ci/cloudflare-pages.yml .github/workflows/cloudflare-pages.yml
+```
+
+The workflow builds with Bun, then runs
+`wrangler pages deploy dist --project-name=...` through
+`cloudflare/wrangler-action`. Set these repository secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Then edit `CLOUDFLARE_PROJECT_NAME` in the workflow. For projects that use
+Pages Functions, bindings, or other Wrangler-managed Pages settings, also copy
+the Wrangler config sample to the repository root:
+
+```sh
+cp examples/deploy/cloudflare-pages/wrangler.toml wrangler.toml
+```
+
+Minimal Wrangler Pages config:
+
+```toml
+name = "my-nectar-site"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-05-20"
+```
+
+Keep `name` and the workflow's `CLOUDFLARE_PROJECT_NAME` aligned. Once
+`pages_build_output_dir` is present, Wrangler treats the config file as the
+Pages project configuration source, so review runtime compatibility settings
+and bindings before deploying to production.
+
 ## Large image-heavy sites
 
 Cloudflare Pages rejects deployments above 25,000 files. If responsive image

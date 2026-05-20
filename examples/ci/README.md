@@ -31,7 +31,7 @@ line in the workflow you copy.
 | File                  | Target host         | Auth knobs you must provide                                                                                          |
 |-----------------------|---------------------|----------------------------------------------------------------------------------------------------------------------|
 | `github-pages.yml`    | GitHub Pages        | None — uses the built-in `GITHUB_TOKEN` and the `actions/deploy-pages` flow. Enable Pages -> Source = GitHub Actions. |
-| `cloudflare-pages.yml`| Cloudflare Pages    | Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Edit `CLOUDFLARE_PROJECT_NAME` in the workflow env block.    |
+| `cloudflare-pages.yml`| Cloudflare Pages    | Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Edit `CLOUDFLARE_PROJECT_NAME` in the workflow env block. Optional root `wrangler.toml` sample: `examples/deploy/cloudflare-pages/wrangler.toml`. |
 | `netlify.yml`         | Netlify             | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Also deploys PR previews.                                            |
 | `netlify-cli.yml`     | Netlify CLI upload  | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Use when Netlify is not connected to Git and Actions uploads `dist/`. |
 | `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses Vercel CLI prebuilt deploys (`pull`, `build`, `deploy --prebuilt`). |

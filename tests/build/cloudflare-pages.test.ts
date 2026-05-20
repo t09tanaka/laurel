@@ -143,3 +143,42 @@ describe('Cloudflare deployment docs', () => {
     expect(tutorial).toContain('intended 404 behavior');
   });
 });
+
+describe('Cloudflare Pages deploy samples', () => {
+  test('documents the direct Wrangler deploy workflow', async () => {
+    const workflowPath = join(
+      import.meta.dir,
+      '..',
+      '..',
+      'examples',
+      'ci',
+      'cloudflare-pages.yml',
+    );
+    const body = await readFile(workflowPath, 'utf8');
+
+    expect(body).toContain('cloudflare/wrangler-action@v3');
+    expect(body).toContain('CLOUDFLARE_API_TOKEN');
+    expect(body).toContain('CLOUDFLARE_ACCOUNT_ID');
+    expect(body).toContain('CLOUDFLARE_PROJECT_NAME');
+    expect(body).toContain('pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }}');
+    expect(body).toContain('examples/deploy/cloudflare-pages/wrangler.toml');
+  });
+
+  test('includes a Wrangler Pages config sample for dist deploys', async () => {
+    const samplePath = join(
+      import.meta.dir,
+      '..',
+      '..',
+      'examples',
+      'deploy',
+      'cloudflare-pages',
+      'wrangler.toml',
+    );
+    const body = await readFile(samplePath, 'utf8');
+
+    expect(existsSync(samplePath)).toBe(true);
+    expect(body).toContain('name = "my-nectar-site"');
+    expect(body).toContain('pages_build_output_dir = "./dist"');
+    expect(body).toContain('compatibility_date = "2026-05-20"');
+  });
+});

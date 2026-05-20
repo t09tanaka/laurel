@@ -198,6 +198,16 @@ project_name = "my-blog"
 bunx nectar deploy cloudflare --build
 ```
 
+Advanced users who want GitHub Actions to call Wrangler directly can copy
+[`examples/ci/cloudflare-pages.yml`](../../examples/ci/cloudflare-pages.yml)
+to `.github/workflows/cloudflare-pages.yml`. It builds `dist/`, then runs
+`wrangler pages deploy dist --project-name=...` through
+`cloudflare/wrangler-action`. If Wrangler should also manage Pages Functions,
+bindings, or compatibility settings, copy
+[`examples/deploy/cloudflare-pages/wrangler.toml`](../../examples/deploy/cloudflare-pages/wrangler.toml)
+to the project root and keep its `name` aligned with the workflow's
+`CLOUDFLARE_PROJECT_NAME`.
+
 ### Cloudflare Pages + R2 for large image libraries
 
 Cloudflare Pages accepts at most 25,000 files per deploy. If
