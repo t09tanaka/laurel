@@ -1353,14 +1353,36 @@ export default {
         __nectar_chunked_route_test_state: typeof state;
       }
     ).__nectar_chunked_route_test_state = state;
+    const events: BuildProgressEvent[] = [];
 
-    const summary = await build({ cwd, profile: true, concurrency: 4 });
+    const summary = await build({
+      cwd,
+      profile: true,
+      concurrency: 4,
+      progress: (event) => {
+        events.push(event);
+      },
+    });
 
     expect(summary.routeCount).toBeGreaterThan(1000);
     expect(state.observedSecondBatch).toBe(true);
     expect(state.firstBatchFileAlreadyWritten).toBe(true);
     expect(existsSync(join(summary.outputDir, 'stale.html'))).toBe(false);
     expect(existsSync(join(summary.outputDir, `bulk-${routeCount - 1}/index.html`))).toBe(true);
+    expect(
+      events.filter((event) => event.type === 'phase-start' && event.phase === 'render').length,
+    ).toBe(1);
+    expect(
+      events.filter((event) => event.type === 'phase-end' && event.phase === 'render').length,
+    ).toBe(1);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'route-rendered' &&
+          event.completedRoutes === summary.routeCount &&
+          event.totalRoutes === summary.routeCount,
+      ),
+    ).toBe(true);
 
     const parsed = JSON.parse(
       readFileSync(join(summary.outputDir, '.nectar-build-stats.json'), 'utf8'),

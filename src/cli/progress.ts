@@ -133,9 +133,7 @@ function createInteractiveBuildProgressDisplay(
     if (event.type === 'route-rendered') {
       renderDone = event.completedRoutes;
       renderTotal = event.totalRoutes;
-      writeLine(
-        `${spinner()} Rendering routes ${formatRouteProgress(event, renderStartedAt, now)}`,
-      );
+      writeLine(`${spinner()} Rendering ${formatRouteProgress(event, renderStartedAt, now)}`);
       return;
     }
     if (event.type === 'asset-step') {
@@ -179,7 +177,7 @@ function createPlainBuildProgressDisplay(now: () => number = Date.now): BuildPro
     if (event.type === 'route-rendered') {
       if (shouldLogPlainRouteProgress(event, lastPlainRoute)) {
         lastPlainRoute = event.completedRoutes;
-        logger.info(`Build: rendered ${formatRouteProgress(event, renderStartedAt, now)}`);
+        logger.info(`Build: Rendering ${formatRouteProgress(event, renderStartedAt, now)}`);
       }
       return;
     }
@@ -229,7 +227,7 @@ function formatRouteProgress(
   const route = formatRouteLabel(event.route);
   const cacheLabel = event.reused ? ' cached' : '';
   const eta = formatEta(event.completedRoutes, event.totalRoutes, startedAt, now);
-  return `[${event.completedRoutes}/${event.totalRoutes}] ${route}${cacheLabel}${eta}`;
+  return `${event.completedRoutes}/${event.totalRoutes}... ${route}${cacheLabel}${eta}`;
 }
 
 function formatRouteLabel(route: string): string {

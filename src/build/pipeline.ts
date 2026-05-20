@@ -783,81 +783,92 @@ async function runBuild({
   let minifyOutputBytes = 0;
   let minifiedAnyBatch = false;
   const buildManifestRoutes: BuildManifestRoute[] = [];
-  for (let start = 0; start < routes.length; start += ROUTE_RENDER_BATCH_SIZE) {
-    const batchRoutes = routes.slice(start, start + ROUTE_RENDER_BATCH_SIZE);
-    const renderResults = await withProgressPhase(
-      progress,
-      'render',
-      'Rendering routes',
-      () => timed(profiler, 'render', () => Promise.all(batchRoutes.map(renderOneRoute))),
-      { totalRoutes: routes.length },
-    );
+  notifyProgress(progress, {
+    type: 'phase-start',
+    phase: 'render',
+    label: 'Rendering routes',
+    totalRoutes: routes.length,
+  });
+  try {
+    for (let start = 0; start < routes.length; start += ROUTE_RENDER_BATCH_SIZE) {
+      const batchRoutes = routes.slice(start, start + ROUTE_RENDER_BATCH_SIZE);
+      const renderResults = await timed(profiler, 'render', () =>
+        Promise.all(batchRoutes.map(renderOneRoute)),
+      );
 
-    const htmlOutputs: HtmlOutput[] = [];
-    for (let i = 0; i < renderResults.length; i++) {
-      const result = renderResults[i];
-      const route = batchRoutes[i];
-      if (result === undefined || route === undefined) {
-        throw new Error('render batch entry missing');
-      }
-      const contentInputs = collectRouteContentInputs(route, content);
-      nextRoutes[result.url] = {
-        hash: result.routeHash,
-        outputPath: result.outputPath,
-        contentFingerprint: result.contentFingerprint,
-        themeFingerprint,
-      };
-      buildManifestRoutes.push({
-        url: result.url,
-        output_path: result.outputPath,
-        route_fingerprint: result.routeHash,
-        content_fingerprint: result.contentFingerprint,
-        theme_fingerprint: themeFingerprint,
-        content_inputs: contentInputs,
-        reused: result.reused,
-      });
-      htmlOutputs.push(result.htmlOutput);
-      keepOutput(result.outputPath);
-      if (result.reused) skippedCount += 1;
-      else renderedCount += 1;
-      if (dryRun) {
-        dryRunRoutes.push({
-          url: route.url,
-          outputPath: route.outputPath,
-          template: route.template,
-          kind: route.kind,
-          bytes: result.bytes,
+      const htmlOutputs: HtmlOutput[] = [];
+      for (let i = 0; i < renderResults.length; i++) {
+        const result = renderResults[i];
+        const route = batchRoutes[i];
+        if (result === undefined || route === undefined) {
+          throw new Error('render batch entry missing');
+        }
+        const contentInputs = collectRouteContentInputs(route, content);
+        nextRoutes[result.url] = {
+          hash: result.routeHash,
+          outputPath: result.outputPath,
+          contentFingerprint: result.contentFingerprint,
+          themeFingerprint,
+        };
+        buildManifestRoutes.push({
+          url: result.url,
+          output_path: result.outputPath,
+          route_fingerprint: result.routeHash,
+          content_fingerprint: result.contentFingerprint,
+          theme_fingerprint: themeFingerprint,
+          content_inputs: contentInputs,
           reused: result.reused,
         });
+        htmlOutputs.push(result.htmlOutput);
+        keepOutput(result.outputPath);
+        if (result.reused) skippedCount += 1;
+        else renderedCount += 1;
+        if (dryRun) {
+          dryRunRoutes.push({
+            url: route.url,
+            outputPath: route.outputPath,
+            template: route.template,
+            kind: route.kind,
+            bytes: result.bytes,
+            reused: result.reused,
+          });
+        }
       }
-    }
 
-    if (dryRun) continue;
+      if (dryRun) continue;
 
-    if (config.build.minify_html) {
-      // Reused outputs already went through minification on the build that
-      // emitted them; re-minifying would just pay the cost again and risk
-      // skewing the stats line below.
-      const toMinify = htmlOutputs.filter((o) => !o.reused);
-      const stats = await timed(
-        profiler,
-        'minify_html',
-        () => minifyHtmlOutputs(toMinify),
-        (r) => r.outputBytes,
+      if (config.build.minify_html) {
+        // Reused outputs already went through minification on the build that
+        // emitted them; re-minifying would just pay the cost again and risk
+        // skewing the stats line below.
+        const toMinify = htmlOutputs.filter((o) => !o.reused);
+        const stats = await timed(
+          profiler,
+          'minify_html',
+          () => minifyHtmlOutputs(toMinify),
+          (r) => r.outputBytes,
+        );
+        minifyInputBytes += stats.inputBytes;
+        minifyOutputBytes += stats.outputBytes;
+        minifiedAnyBatch ||= stats.minified;
+      }
+
+      await withProgressPhase(progress, 'html', 'Writing HTML', () =>
+        timed(
+          profiler,
+          'write_html',
+          () => writeHtmlBatch(outputDir, htmlOutputs),
+          () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
+        ),
       );
-      minifyInputBytes += stats.inputBytes;
-      minifyOutputBytes += stats.outputBytes;
-      minifiedAnyBatch ||= stats.minified;
     }
-
-    await withProgressPhase(progress, 'html', 'Writing HTML', () =>
-      timed(
-        profiler,
-        'write_html',
-        () => writeHtmlBatch(outputDir, htmlOutputs),
-        () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
-      ),
-    );
+  } finally {
+    notifyProgress(progress, {
+      type: 'phase-end',
+      phase: 'render',
+      label: 'Rendering routes',
+      totalRoutes: routes.length,
+    });
   }
 
   if (dryRun) {

@@ -85,7 +85,7 @@ export const BUILD_SPEC: CommandSpec = {
       type: 'boolean',
       default: true,
       description:
-        'Print human-readable build progress and summary lines to stdout. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`',
+        'Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`',
       negatedDescription:
         'Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr',
     },

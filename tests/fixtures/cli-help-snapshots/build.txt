@@ -20,7 +20,7 @@ Options:
   --no-clean          Skip stale-file cleanup in build.output_dir, preserving files that were not emitted by the current build
   --cache             Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache
   --no-cache          Force every route to render without consulting the incremental cache
-  --progress          Print human-readable build progress and summary lines to stdout. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`
+  --progress          Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`
   --no-progress       Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr
   --copy-content-assets  Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build
   --no-copy-content-assets  Skip copying files from content.assets_dir into the output

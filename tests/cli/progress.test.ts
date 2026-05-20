@@ -157,9 +157,9 @@ describe('createBuildProgressDisplay', () => {
 
     const output = chunks.join('');
     expect(output).toContain('\r\x1b[2K');
-    expect(output).toContain('Rendering routes [1/2] posts/hello (ETA 30s)');
+    expect(output).toContain('Rendering 1/2... posts/hello (ETA 30s)');
     expect(output).toContain('Copying assets [2/5] Content assets');
-    expect(output).toContain('Rendering routes [2/2] / cached');
+    expect(output).toContain('Rendering 2/2... / cached');
     expect(output).toContain('done Rendering routes 2/2\n');
   });
 });

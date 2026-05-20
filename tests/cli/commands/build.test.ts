@@ -185,7 +185,7 @@ describe('nectar build --dry-run (#252)', () => {
     expect(result.stdout).toContain('Build: Loading config...');
     expect(result.stdout).toContain('Build: Loading content and theme...');
     expect(result.stdout).toContain('Build: planned ');
-    expect(result.stdout).toContain('Build: rendered [1/');
+    expect(result.stdout).toContain('Build: Rendering 1/');
     expect(result.stdout).toContain('Build: finished rendering ');
     expect(result.stdout).toContain('Dry run: would build');
     expect(result.stderr).not.toContain('Build:');
