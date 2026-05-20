@@ -47,6 +47,14 @@ GitHub Pages runs Jekyll by default, and Jekyll ignores files or directories
 that start with `_`; `.nojekyll` disables that behavior so Nectar's generated
 assets are served verbatim.
 
+Nectar writes the not-found page as `dist/404.html`, even when
+`[build].base_path` is set for a project site. This matches GitHub Pages'
+publishing convention: the `404.html` file belongs at the root of the uploaded
+artifact / publishing source. For a project site, Pages exposes that file at
+`https://<user>.github.io/<repo>/404.html`; do not move or copy it to
+`dist/<repo>/404.html`. `base_path` only changes generated URLs and links, not
+the physical `dist/` layout.
+
 GitHub Pages does **not** support arbitrary response headers. Nectar therefore
 does not emit a Pages-specific `_headers`, `vercel.json`, or equivalent header
 configuration for this target: Pages ignores those files and serves a
@@ -120,6 +128,9 @@ artifact workflow.
 
 - **CSS or assets 404 on project Pages:** set `[build].base_path` to the repo
   path, including leading and trailing slashes, for example `"/my-blog/"`.
+- **Project Pages 404 page is not being used:** confirm the built artifact
+  contains `dist/404.html`, not `dist/<repo>/404.html`. `base_path` should stay
+  `"/<repo>/"`, but the file layout remains rooted at `dist/`.
 - **The deployed site shows old content:** confirm **Source = GitHub Actions**
   and inspect the latest `Deploy to GitHub Pages` workflow run.
 - **Files or directories beginning with `_` are missing:** rebuild and confirm

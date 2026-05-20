@@ -427,6 +427,19 @@ describe('build pipeline 404 emission', () => {
     expect(html).toContain('href="/"');
     expect(html).toContain('content="noindex"');
   });
+
+  test('keeps Pages project-site 404.html at the artifact root', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/my-blog/' });
+    const file = join(summary.outputDir, '404.html');
+
+    expect(existsSync(file)).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'my-blog/404.html'))).toBe(false);
+
+    const html = readFileSync(file, 'utf8');
+    expect(html).toContain('href="/my-blog/"');
+    expect(html).toContain('content="noindex"');
+  });
 });
 
 describe('build pipeline --profile', () => {

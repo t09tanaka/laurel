@@ -535,6 +535,12 @@ serves underscore-prefixed assets and directories instead of running them
 through Jekyll. If `[deploy.github_pages].custom_domain` is set, the build
 writes `dist/CNAME` with that hostname for Pages custom-domain binding.
 
+The generated not-found page stays at `dist/404.html` for both user /
+organization sites and project sites. For a project site,
+`base_path = "/<repo>/"` changes URLs in the HTML, but it does not nest the
+artifact under `dist/<repo>/`; GitHub Pages serves the root `404.html` at
+`https://<user>.github.io/<repo>/404.html`.
+
 ---
 
 ## S3 + CloudFront
@@ -694,6 +700,9 @@ turns redirect rules into nginx `return` directives.
 - **Assets 404 with `/<repo>/...` prefix on GitHub Pages.** You missed
   `[build] base_path`. Set it to your subdirectory path with leading and
   trailing slash, e.g. `"/my-blog/"`, and rebuild.
+- **GitHub Pages ignores your project-site 404 page.** Keep the generated file
+  at `dist/404.html`. Do not move it to `dist/<repo>/404.html`; the repo name
+  belongs in `[build].base_path`, not in the artifact layout.
 - **S3 + CloudFront returns 403 or 404 for nested pages.** CloudFront's
   default root object only covers `/`. Attach the CloudFront Function from
   `examples/s3-cloudfront/append-index.js` so directory-style URLs request
