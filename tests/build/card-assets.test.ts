@@ -65,9 +65,17 @@ describe('emitCardAssets', () => {
     expect(renderCardAssetsJs(cardAssets)).toContain('.kg-audio-card audio');
   });
 
+  test('includes Koenig callout color modifier CSS', () => {
+    const css = renderCardAssetsCss(true);
+
+    for (const color of ['blue', 'green', 'yellow', 'red', 'pink', 'purple']) {
+      expect(css).toContain(`.kg-callout-card-${color}`);
+    }
+  });
+
   test('uses a stable exclude-specific cache key', () => {
-    expect(cardAssetsVersion(true)).toBe('1');
-    expect(cardAssetsVersion({ exclude: [] })).toBe('1');
+    expect(cardAssetsVersion(true)).toBe('2');
+    expect(cardAssetsVersion({ exclude: [] })).toBe('2');
     expect(cardAssetsVersion({ exclude: ['gallery', 'bookmark'] })).toBe(
       cardAssetsVersion({ exclude: ['bookmark', 'gallery'] }),
     );

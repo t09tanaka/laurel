@@ -229,8 +229,8 @@ describe('build pipeline strict mode wiring', () => {
 
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(true);
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(true);
-    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=1');
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=1');
+    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=2');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=2');
   });
 
   test('injects the shared card runtime only on pages with runtime cards', async () => {
@@ -253,8 +253,8 @@ Hidden detail.
     const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=1');
-    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=1');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=2');
+    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=2');
     expect(postHtml).toContain('data-nectar-koenig-runtime="toggle"');
   });
 
