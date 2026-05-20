@@ -2455,6 +2455,18 @@ blockquote.kg-blockquote-alt {
 
 /* Button */
 
+.kg-button-card {
+    display: flex;
+}
+
+.kg-button-card.kg-align-left {
+    justify-content: flex-start;
+}
+
+.kg-button-card.kg-align-center {
+    justify-content: center;
+}
+
 .kg-card.kg-button-card .kg-btn {
     height: unset;
     padding: .6em 1.2em;

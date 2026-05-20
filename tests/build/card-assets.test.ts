@@ -73,6 +73,14 @@ describe('emitCardAssets', () => {
     }
   });
 
+  test('button card CSS honors alignment modifiers', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toMatch(/\.kg-button-card\{[^}]*display:flex/);
+    expect(css).toMatch(/\.kg-button-card\.kg-align-left\{[^}]*justify-content:flex-start/);
+    expect(css).toMatch(/\.kg-button-card\.kg-align-center\{[^}]*justify-content:center/);
+  });
+
   test('uses a stable exclude-specific cache key', () => {
     expect(cardAssetsVersion(true)).toBe('2');
     expect(cardAssetsVersion({ exclude: [] })).toBe('2');

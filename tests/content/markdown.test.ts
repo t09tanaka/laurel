@@ -432,6 +432,14 @@ describe('renderMarkdown — button shortcode expansion', () => {
     expect(html).not.toContain('{% button');
   });
 
+  test('preserves left alignment for theme CSS fallbacks', async () => {
+    const md = '{% button href="https://example.com/buy" text="Buy now" align="left" %}';
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain('class="kg-card kg-button-card kg-width-regular kg-align-left"');
+    expect(html).toContain('class="kg-btn kg-btn-accent"');
+  });
+
   test('drops the shortcode silently when href is missing', async () => {
     const md = 'before\n\n{{< button >}}label{{< /button >}}\n\nafter';
     const { html } = await renderMarkdown(md);
