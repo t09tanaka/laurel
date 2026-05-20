@@ -1,4 +1,5 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
@@ -19,6 +20,25 @@ import { SERVE_SPEC } from '../specs.ts';
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 120;
+
+export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
+
+export interface ServeHeaderRule {
+  pattern: string;
+  headers: Array<{ key: string; value: string }>;
+}
+
+export interface ServeRedirectRule {
+  source: string;
+  destination: string;
+  status: number;
+}
+
+export interface ServeSimulation {
+  target: ServeSimulationTarget;
+  headers: ServeHeaderRule[];
+  redirects: ServeRedirectRule[];
+}
 
 export async function runServe(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -69,6 +89,17 @@ export async function runServe(args: string[]): Promise<number> {
     hostname = trimmed;
   }
 
+  let simulateTarget: ServeSimulationTarget | undefined;
+  if (typeof parsed.values.simulate === 'string') {
+    simulateTarget = parseServeSimulationTarget(parsed.values.simulate);
+    if (simulateTarget === undefined) {
+      process.stderr.write(
+        `Invalid --simulate value: ${parsed.values.simulate} (expected netlify, cloudflare-pages, or vercel)\n`,
+      );
+      return 2;
+    }
+  }
+
   const watchMode = parsed.values['no-watch'] !== true;
   const forceBuild = parsed.values.build === true;
   const cwd = process.cwd();
@@ -97,6 +128,14 @@ export async function runServe(args: string[]): Promise<number> {
       reportError(err, cwd);
       return 1;
     }
+  }
+
+  const simulation =
+    simulateTarget !== undefined ? await loadServeSimulation(distDir, simulateTarget) : null;
+  if (simulation !== null) {
+    logger.info(
+      `Simulating ${simulation.target} deploy artifacts: ${simulation.headers.length} header rule(s), ${simulation.redirects.length} redirect rule(s)`,
+    );
   }
 
   const clients = new Set<ServerWebSocket<unknown>>();
@@ -132,8 +171,22 @@ export async function runServe(args: string[]): Promise<number> {
             },
           });
         }
-        const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-        const target = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
+        const simulatedRedirect = findServeSimulationRedirect(simulation, url.pathname);
+        if (simulatedRedirect !== undefined && simulatedRedirect.status >= 300) {
+          return new Response(null, {
+            status: simulatedRedirect.status,
+            headers: { Location: simulatedRedirect.destination },
+          });
+        }
+        const servedPath =
+          simulatedRedirect !== undefined && simulatedRedirect.status === 200
+            ? simulatedRedirect.destination
+            : url.pathname;
+        const simulatedHeaders = collectServeSimulationHeaders(simulation, url.pathname);
+        const effectivePathname = servedPath === '/' ? '/index.html' : servedPath;
+        const target = effectivePathname.endsWith('/')
+          ? `${effectivePathname}index.html`
+          : effectivePathname;
         const filePath = normalize(join(distDir, target));
         if (!filePath.startsWith(distDir)) {
           return new Response('Forbidden', { status: 403 });
@@ -143,10 +196,12 @@ export async function runServe(args: string[]): Promise<number> {
           if (watchMode && filePath.endsWith('.html')) {
             const html = await file.text();
             return new Response(injectLiveReloadScript(html), {
-              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              headers: mergeServeHeaders(simulatedHeaders, {
+                'Content-Type': 'text/html; charset=utf-8',
+              }),
             });
           }
-          return new Response(file);
+          return new Response(file, { headers: simulatedHeaders });
         }
         const fallback = Bun.file(join(distDir, '404.html'));
         if (await fallback.exists()) {
@@ -154,12 +209,14 @@ export async function runServe(args: string[]): Promise<number> {
             const html = await fallback.text();
             return new Response(injectLiveReloadScript(html), {
               status: 404,
-              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              headers: mergeServeHeaders(simulatedHeaders, {
+                'Content-Type': 'text/html; charset=utf-8',
+              }),
             });
           }
-          return new Response(fallback, { status: 404 });
+          return new Response(fallback, { status: 404, headers: simulatedHeaders });
         }
-        return new Response('Not Found', { status: 404 });
+        return new Response('Not Found', { status: 404, headers: simulatedHeaders });
       },
     });
   } catch (err) {
@@ -292,6 +349,129 @@ export function isIgnoredChange(filename: string): boolean {
   if (norm.includes('node_modules/')) return true;
   if (norm.includes('/.') || norm.startsWith('.')) return true;
   if (norm.endsWith('~') || norm.endsWith('.swp') || norm.endsWith('.tmp')) return true;
+  return false;
+}
+
+export function parseServeSimulationTarget(value: string): ServeSimulationTarget | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'cloudflare' || normalized === 'cloudflare-pages') return 'cloudflare-pages';
+  if (normalized === 'netlify' || normalized === 'vercel') return normalized;
+  return undefined;
+}
+
+export function parseServeHeadersArtifact(body: string): ServeHeaderRule[] {
+  const rules: ServeHeaderRule[] = [];
+  let current: ServeHeaderRule | undefined;
+  for (const rawLine of body.split(/\r?\n/)) {
+    if (rawLine.trim() === '' || rawLine.trimStart().startsWith('#')) continue;
+    if (/^\s/.test(rawLine)) {
+      if (current === undefined) continue;
+      const idx = rawLine.indexOf(':');
+      if (idx < 0) continue;
+      const key = rawLine.slice(0, idx).trim();
+      const value = rawLine.slice(idx + 1).trim();
+      if (key.length > 0 && value.length > 0) current.headers.push({ key, value });
+      continue;
+    }
+    current = { pattern: rawLine.trim(), headers: [] };
+    rules.push(current);
+  }
+  return rules.filter((rule) => rule.headers.length > 0);
+}
+
+export function parseServeRedirectsArtifact(body: string): ServeRedirectRule[] {
+  const rules: ServeRedirectRule[] = [];
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const [source, destination, rawStatus = '301'] = line.split(/\s+/);
+    if (source === undefined || destination === undefined) continue;
+    const status = Number.parseInt(rawStatus.replace(/!$/, ''), 10);
+    if (!Number.isInteger(status)) continue;
+    rules.push({ source, destination, status });
+  }
+  return rules;
+}
+
+export function collectServeSimulationHeaders(
+  simulation: ServeSimulation | null,
+  pathname: string,
+): Headers {
+  const headers = new Headers();
+  if (simulation === null) return headers;
+  for (const rule of simulation.headers) {
+    if (!servePatternMatches(rule.pattern, pathname)) continue;
+    for (const entry of rule.headers) {
+      if (!headers.has(entry.key)) headers.set(entry.key, entry.value);
+    }
+  }
+  return headers;
+}
+
+export function findServeSimulationRedirect(
+  simulation: ServeSimulation | null,
+  pathname: string,
+): ServeRedirectRule | undefined {
+  if (simulation === null) return undefined;
+  return simulation.redirects.find((rule) => servePatternMatches(rule.source, pathname));
+}
+
+async function loadServeSimulation(
+  distDir: string,
+  target: ServeSimulationTarget,
+): Promise<ServeSimulation> {
+  if (target === 'vercel') {
+    const path = join(distDir, 'vercel.json');
+    if (!existsSync(path)) return { target, headers: [], redirects: [] };
+    const body = JSON.parse(await readFile(path, 'utf8')) as {
+      headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+      redirects?: Array<{ source: string; destination: string; statusCode: number }>;
+    };
+    return {
+      target,
+      headers: (body.headers ?? []).map((rule) => ({
+        pattern: rule.source,
+        headers: rule.headers,
+      })),
+      redirects: (body.redirects ?? []).map((rule) => ({
+        source: rule.source,
+        destination: rule.destination,
+        status: rule.statusCode,
+      })),
+    };
+  }
+
+  const headersPath = join(distDir, '_headers');
+  const redirectsPath = join(distDir, '_redirects');
+  const headers = existsSync(headersPath)
+    ? parseServeHeadersArtifact(await readFile(headersPath, 'utf8'))
+    : [];
+  const redirects = existsSync(redirectsPath)
+    ? parseServeRedirectsArtifact(await readFile(redirectsPath, 'utf8'))
+    : [];
+  return { target, headers, redirects };
+}
+
+function mergeServeHeaders(base: Headers, extra: Record<string, string>): Headers {
+  const headers = new Headers(base);
+  for (const [key, value] of Object.entries(extra)) {
+    headers.set(key, value);
+  }
+  return headers;
+}
+
+function servePatternMatches(pattern: string, pathname: string): boolean {
+  if (pattern === pathname) return true;
+  if (pattern === '/*' || pattern === '/(.*)') return true;
+  if (pattern.includes('(.*)')) {
+    const prefix = pattern.slice(0, pattern.indexOf('(.*)'));
+    return pathname.startsWith(prefix);
+  }
+  const starIndex = pattern.indexOf('*');
+  if (starIndex >= 0) {
+    const prefix = pattern.slice(0, starIndex);
+    return pathname.startsWith(prefix);
+  }
   return false;
 }
 

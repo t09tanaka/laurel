@@ -3,7 +3,16 @@ import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { injectLiveReloadScript, isIgnoredChange } from '~/cli/commands/serve.ts';
+import {
+  type ServeSimulation,
+  collectServeSimulationHeaders,
+  findServeSimulationRedirect,
+  injectLiveReloadScript,
+  isIgnoredChange,
+  parseServeHeadersArtifact,
+  parseServeRedirectsArtifact,
+  parseServeSimulationTarget,
+} from '~/cli/commands/serve.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -133,6 +142,81 @@ describe('cli serve — watch mode', () => {
     const { stderr, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
     expect(exitCode).toBe(0);
     expect(stderr).not.toContain('Watch mode enabled');
+  });
+});
+
+describe('cli serve — deploy artifact simulation', () => {
+  test('serve --help advertises the deploy simulation target flag', async () => {
+    const { stdout, exitCode } = await runCli(['serve', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--simulate <target>');
+    expect(stdout).toContain('netlify');
+    expect(stdout).toContain('cloudflare-pages');
+    expect(stdout).toContain('vercel');
+  });
+
+  test('rejects unknown --simulate targets with exit code 2', async () => {
+    const dir = await makeServeFixture();
+    try {
+      const { stderr, exitCode } = await runCli(
+        ['serve', '--port', '52012', '--no-watch', '--simulate', 's3'],
+        dir,
+      );
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('Invalid --simulate value');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('parses Netlify and Cloudflare _headers / _redirects artifacts', () => {
+    const headers = parseServeHeadersArtifact(
+      [
+        '# Generated',
+        '/assets/*',
+        '  Cache-Control: public, max-age=31536000, immutable',
+        '',
+        '/*',
+        '  X-Robots-Tag: noindex',
+        '',
+      ].join('\n'),
+    );
+    expect(headers).toEqual([
+      {
+        pattern: '/assets/*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        pattern: '/*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex' }],
+      },
+    ]);
+
+    const redirects = parseServeRedirectsArtifact('/old  /new  308\n/preview  /index.html  200\n');
+    expect(redirects).toEqual([
+      { source: '/old', destination: '/new', status: 308 },
+      { source: '/preview', destination: '/index.html', status: 200 },
+    ]);
+  });
+
+  test('matches simulated redirects and headers using deploy-style patterns', () => {
+    const simulation: ServeSimulation = {
+      target: 'netlify',
+      redirects: [{ source: '/old/*', destination: '/new', status: 308 }],
+      headers: [
+        {
+          pattern: '/assets/*',
+          headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+        },
+        { pattern: '/*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] },
+      ],
+    };
+
+    expect(findServeSimulationRedirect(simulation, '/old/page')?.status).toBe(308);
+    const assetHeaders = collectServeSimulationHeaders(simulation, '/assets/screen.css');
+    expect(assetHeaders.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    expect(assetHeaders.get('X-Robots-Tag')).toBe('noindex');
+    expect(parseServeSimulationTarget('cloudflare')).toBe('cloudflare-pages');
   });
 });
 

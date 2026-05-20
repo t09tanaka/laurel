@@ -220,6 +220,12 @@ export const SERVE_SPEC: CommandSpec = {
       description:
         'Run a full build before starting the server, regardless of whether dist/ already exists',
     },
+    simulate: {
+      type: 'string',
+      description:
+        'Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel',
+      placeholder: '<target>',
+    },
     json: {
       type: 'boolean',
       description:
@@ -230,6 +236,7 @@ export const SERVE_SPEC: CommandSpec = {
   examples: [
     'nectar serve                                 # serve dist/ + rebuild on change',
     'nectar serve --no-watch                      # serve dist/ as a static snapshot',
+    'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
     'nectar serve --build                         # build first, then serve',
     'nectar serve --port 8080 --host 0.0.0.0',
   ],
