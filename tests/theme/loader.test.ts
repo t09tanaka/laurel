@@ -35,6 +35,43 @@ describe('loadTheme', () => {
     expect(Object.keys(theme.locales).length).toBeGreaterThan(0);
   });
 
+  test('loads every partial under partials even when templates do not reference them', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'london');
+      await mkdir(join(themeRoot, 'partials', 'icons'), { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(join(themeRoot, 'index.hbs'), '<main>London</main>', 'utf8');
+      await writeFile(
+        join(themeRoot, 'partials', 'icons', 'avatar.hbs'),
+        '<svg>avatar</svg>',
+        'utf8',
+      );
+      await writeFile(
+        join(themeRoot, 'partials', 'icons', 'ghost-logo.hbs'),
+        '<svg>ghost</svg>',
+        'utf8',
+      );
+      await writeFile(
+        join(themeRoot, 'partials', 'icons', 'infinity.hbs'),
+        '<svg>infinity</svg>',
+        'utf8',
+      );
+
+      const config = configSchema.parse({
+        theme: { name: 'london', dir: 'themes' },
+        site: { title: 'London', url: 'https://london.example.com' },
+      });
+
+      const theme = await loadTheme({ cwd, config });
+
+      expect(theme.templates.default).toBe('{{{body}}}');
+      expect(theme.templates.index).toBe('<main>London</main>');
+      expect(theme.partials['icons/avatar']).toBe('<svg>avatar</svg>');
+      expect(theme.partials['icons/ghost-logo']).toBe('<svg>ghost</svg>');
+      expect(theme.partials['icons/infinity']).toBe('<svg>infinity</svg>');
+    });
+  });
+
   // #855: themes shipped as npm packages live under node_modules/<spec>/
   // rather than `<cwd>/themes/<name>/`. The loader falls back to
   // `node_modules/<theme.dir>` when nothing exists at the local-directory
