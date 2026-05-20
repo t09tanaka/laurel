@@ -141,6 +141,7 @@ interface SharpInstance {
   toFile(path: string): Promise<{ width: number; height: number }>;
   toBuffer(): Promise<Buffer>;
   jpeg(opts: { quality: number; mozjpeg?: boolean }): SharpInstance;
+  withMetadata?(): SharpInstance;
   webp(opts: { quality: number }): SharpInstance;
   avif(opts: { quality: number }): SharpInstance;
 }
@@ -228,6 +229,7 @@ export interface GenerateImageVariantsOptions {
   config: NectarConfig;
   outputDir: string;
   plan: ImageVariantPlan;
+  stripMetadata?: boolean;
 }
 
 // Materialise the planned variants under `<outputDir>/content/images/size/wXXX/`.
@@ -251,7 +253,10 @@ export async function generateImageVariants(opts: GenerateImageVariantsOptions):
       const outPath = join(outRoot, 'size', `w${w}`, rel);
       mkdirSync(dirname(outPath), { recursive: true });
       try {
-        await sharpFn(sourcePath).resize(w).toFile(outPath);
+        await applyImageMetadataPolicy(
+          sharpFn(sourcePath).resize(w),
+          opts.stripMetadata !== false,
+        ).toFile(outPath);
         count += 1;
       } catch (err) {
         logger.warn(
@@ -626,7 +631,9 @@ export async function generateImageFormatVariants(
               format === 'webp'
                 ? resized.webp({ quality: imagesCfg.webp_quality })
                 : resized.avif({ quality: imagesCfg.avif_quality });
-            await withFormat.toFile(cacheFile);
+            await applyImageMetadataPolicy(withFormat, imagesCfg.strip_metadata !== false).toFile(
+              cacheFile,
+            );
           } catch (err) {
             logger.warn(
               `Failed to encode ${format} variant w${w} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
@@ -777,6 +784,7 @@ export interface GenerateThemeImageSizeVariantsOptions {
   formats?: readonly ImageFormat[];
   webpQuality?: number;
   avifQuality?: number;
+  stripMetadata?: boolean;
 }
 
 // Theme `image_sizes` (e.g. Source's xs/s/m/l/xl/xxl) are referenced via
@@ -937,6 +945,7 @@ async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions)
     });
     if (format === 'webp') pipeline = pipeline.webp({ quality: opts.webpQuality });
     else if (format === 'avif') pipeline = pipeline.avif({ quality: opts.avifQuality });
+    pipeline = applyImageMetadataPolicy(pipeline, opts.stripMetadata !== false);
 
     if (cacheFile) {
       mkdirSync(dirname(cacheFile), { recursive: true });
@@ -952,6 +961,11 @@ async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions)
     );
     return false;
   }
+}
+
+function applyImageMetadataPolicy(pipeline: SharpInstance, stripMetadata: boolean): SharpInstance {
+  if (stripMetadata) return pipeline;
+  return pipeline.withMetadata?.() ?? pipeline;
 }
 
 function sizeShrinksSource(size: ThemeImageSize, dims: ImageDimensions): boolean {

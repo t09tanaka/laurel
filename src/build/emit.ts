@@ -157,6 +157,9 @@ export interface CopyContentAssetsOptions {
   // Skip raster image files (under contentImagesDir) larger than this many
   // bytes, logging a warning per skip. 0 (or undefined) disables the check.
   maxImageBytes?: number;
+  // Strip privacy-sensitive image metadata while copying publishable content
+  // assets. Defaults on; SVG sanitization remains enabled even when false.
+  stripMetadata?: boolean;
   onOutputPath?: ((path: string) => void) | undefined;
 }
 
@@ -167,6 +170,7 @@ export async function copyContentAssets(
   options?: CopyContentAssetsOptions,
 ): Promise<number> {
   const maxImageBytes = options?.maxImageBytes ?? 0;
+  const stripMetadata = options?.stripMetadata !== false;
   let total = 0;
   total += await copyTree(
     resolve(cwd, contentImagesDir),
@@ -174,6 +178,7 @@ export async function copyContentAssets(
     'content/images',
     {
       maxImageBytes,
+      stripMetadata,
       onOutputPath: options?.onOutputPath,
     },
   );
@@ -189,6 +194,7 @@ export async function copyContentAssets(
     'content/files',
     {
       maxImageBytes: 0,
+      stripMetadata,
       onOutputPath: options?.onOutputPath,
     },
   );
@@ -198,6 +204,7 @@ export async function copyContentAssets(
     'content/media',
     {
       maxImageBytes: 0,
+      stripMetadata,
       onOutputPath: options?.onOutputPath,
     },
   );
@@ -206,6 +213,7 @@ export async function copyContentAssets(
 
 interface CopyTreeOptions {
   maxImageBytes: number;
+  stripMetadata: boolean;
   onOutputPath?: ((path: string) => void) | undefined;
 }
 
@@ -297,7 +305,12 @@ async function copyTree(
           }
         }
         const bytes = await readFile(t.src);
-        await writeFile(t.dst, sanitizeImageAssetBytes(bytes, t.src));
+        await writeFile(
+          t.dst,
+          sanitizeImageAssetBytes(bytes, t.src, '', {
+            stripMetadata: opts.stripMetadata,
+          }),
+        );
         // Sanitized writes do not preserve mtime, so stamp the destination with
         // the source's mtime. Without this the skip-unchanged check on the
         // next build would always miss (dst mtime is the copy time).

@@ -89,14 +89,21 @@ const SVG_SANITIZE_OPTIONS: IOptions = {
   parseStyleAttributes: false,
 };
 
+export interface ImageAssetSanitizationOptions {
+  stripMetadata?: boolean;
+}
+
 export function sanitizeImageAssetBytes(
   bytes: Uint8Array,
   label: string,
   contentType = '',
+  options: ImageAssetSanitizationOptions = {},
 ): Buffer {
   const input = Buffer.from(bytes);
   if (isSvg(label, contentType, input)) return sanitizeSvg(input);
-  if (isJpeg(label, contentType, input)) return stripJpegExif(input);
+  if (options.stripMetadata !== false && isJpeg(label, contentType, input)) {
+    return stripJpegExif(input);
+  }
   return input;
 }
 

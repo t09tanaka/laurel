@@ -11,6 +11,7 @@ import {
   buildThemeImageSizeSegment,
   collapseDegenerateSrcset,
   collapseDegenerateSrcsetIntoContent,
+  generateImageVariants,
   generateThemeImageSizeVariants,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
@@ -713,6 +714,71 @@ async function writeRealPng(file: string, width: number, height: number): Promis
     .png()
     .toFile(file);
 }
+
+async function writeRealJpegWithExif(file: string, width: number, height: number): Promise<void> {
+  const sharp = (await import('sharp')).default;
+  mkdirSync(join(file, '..'), { recursive: true });
+  await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 80, g: 120, b: 160 },
+    },
+  })
+    .jpeg()
+    .withExif({ IFD0: { Copyright: 'SECRET_GPS' } })
+    .toFile(file);
+}
+
+async function hasExifMetadata(file: string): Promise<boolean> {
+  const sharp = (await import('sharp')).default;
+  const metadata = await sharp(file).metadata();
+  return metadata.exif !== undefined;
+}
+
+describe('generateImageVariants metadata policy', () => {
+  test('strips EXIF metadata from resized variants by default', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-exif-'));
+    const assetsDir = 'content/images';
+    await writeRealJpegWithExif(join(cwd, assetsDir, 'photo.jpg'), 80, 60);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateImageVariants({
+      cwd,
+      config,
+      outputDir,
+      plan: new Map([['photo.jpg', [40]]]),
+    });
+
+    expect(count).toBe(1);
+    const out = join(outputDir, 'content/images/size/w40/photo.jpg');
+    expect(existsSync(out)).toBe(true);
+    expect(await hasExifMetadata(out)).toBe(false);
+  });
+
+  test('can preserve EXIF metadata when stripMetadata is disabled', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-exif-'));
+    const assetsDir = 'content/images';
+    await writeRealJpegWithExif(join(cwd, assetsDir, 'photo.jpg'), 80, 60);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+
+    const count = await generateImageVariants({
+      cwd,
+      config,
+      outputDir,
+      plan: new Map([['photo.jpg', [40]]]),
+      stripMetadata: false,
+    });
+
+    expect(count).toBe(1);
+    const out = join(outputDir, 'content/images/size/w40/photo.jpg');
+    expect(existsSync(out)).toBe(true);
+    expect(await hasExifMetadata(out)).toBe(true);
+  });
+});
 
 describe('generateThemeImageSizeVariants', () => {
   test('materialises one file per (source, size) into <outputDir>/content/images/size/<segment>/', async () => {

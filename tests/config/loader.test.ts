@@ -33,6 +33,20 @@ describe('loadConfig', () => {
       expect(config.components.images.lqip).toBe(true);
       expect(config.components.images.lqip_width).toBe(16);
       expect(config.components.images.lqip_quality).toBe(40);
+      expect(config.components.images.strip_metadata).toBe(true);
+    });
+  });
+
+  test('allows opting out of image metadata stripping', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        ['[components.images]', 'strip_metadata = false', ''].join('\n'),
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.components.images.strip_metadata).toBe(false);
     });
   });
 

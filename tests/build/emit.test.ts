@@ -332,6 +332,31 @@ describe('copyContentAssets', () => {
     expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
   });
 
+  test('can preserve JPEG EXIF metadata while still sanitizing SVGs', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-sanitize-optout-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-sanitize-optout-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/unsafe.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script></svg>',
+    );
+    await writeFile(join(cwd, 'content/images/photo.jpg'), jpegWithExif());
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      stripMetadata: false,
+    });
+
+    expect(count).toBe(2);
+    const svg = await readFile(join(outputDir, 'content/images/unsafe.svg'), 'utf8');
+    expect(svg).toContain('<svg');
+    expect(svg).not.toContain('<script');
+    expect(svg).not.toContain('onload=');
+
+    const jpg = await readFile(join(outputDir, 'content/images/photo.jpg'));
+    expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(true);
+    expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(true);
+  });
+
   test('content/files and content/media are optional', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-opt-'));
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-opt-'));

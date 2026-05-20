@@ -1508,6 +1508,12 @@ export const configSchema = z
               .max(100)
               .default(40)
               .describe('JPEG quality used for generated LQIP placeholder data URIs.'),
+            strip_metadata: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Strip EXIF and other embedded image metadata from copied content images and generated resize/transcode variants. Enabled by default to avoid publishing private camera/GPS metadata; set false only when preserving metadata is intentional.',
+              ),
             cache_dir: z
               .string()
               .default('.nectar-cache/images')

@@ -1061,6 +1061,7 @@ async function runBuild({
             await timed(profiler, 'copy_content_assets', () =>
               copyContentAssets(cwd, config.content.assets_dir, outputDir, {
                 maxImageBytes: config.build.max_image_bytes,
+                stripMetadata: imagesCfg.strip_metadata,
                 onOutputPath: keepOutput,
               }),
             );
@@ -1077,7 +1078,13 @@ async function runBuild({
             label: 'Responsive image variants',
             run: async () => {
               await timed(profiler, 'image_variants', () =>
-                generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+                generateImageVariants({
+                  cwd,
+                  config,
+                  outputDir,
+                  plan: imageVariantPlan,
+                  stripMetadata: imagesCfg.strip_metadata,
+                }),
               );
             },
           });
@@ -1110,6 +1117,7 @@ async function runBuild({
                   formats: formatVariants,
                   webpQuality: imagesCfg.webp_quality,
                   avifQuality: imagesCfg.avif_quality,
+                  stripMetadata: imagesCfg.strip_metadata,
                 }),
               );
             },
