@@ -1,62 +1,122 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ensureDir } from '~/util/fs.ts';
 
-// `nectar build --profile` writes per-phase timing + bytes_emitted to
-// dist/.nectar/profile.json so users can attribute their own build slowness
-// to a phase (render, copy_assets, …) before reaching for an issue tracker.
-//
-// Shape is intentionally flat and append-only: one record per phase, plus one
-// record per route inside the `render` phase. `route` and `bytes_emitted`
-// are optional so phases that have no natural byte counter (e.g. config load)
-// can omit them rather than reporting zero and lying.
-export interface ProfileEntry {
-  phase: string;
-  duration_ms: number;
-  route?: string;
-  bytes_emitted?: number;
+export const BUILD_STATS_FILENAME = '.nectar-build-stats.json';
+
+export interface BuildStatsPhase {
+  name: string;
+  durationMs: number;
 }
 
-export type StopFn = (extra?: { bytes_emitted?: number }) => void;
+export interface BuildStatsRoute {
+  url: string;
+  outputPath: string;
+  template: string;
+  kind: string;
+  durationMs: number;
+  bytes: number;
+  reused: boolean;
+}
+
+export interface BuildStats {
+  schemaVersion: 1;
+  generatedAt: string;
+  outputDir: string;
+  routeCount: number;
+  assetCount: number;
+  totalDurationMs: number;
+  phases: BuildStatsPhase[];
+  routes: BuildStatsRoute[];
+}
+
+export type StopFn = (extra?: { bytes?: number; reused?: boolean }) => void;
+
+export interface RouteTimerInput {
+  url: string;
+  outputPath: string;
+  template: string;
+  kind: string;
+}
 
 export interface Profiler {
-  start(phase: string, route?: string): StopFn;
-  record(entry: ProfileEntry): void;
-  readonly entries: readonly ProfileEntry[];
+  startPhase(name: string): StopFn;
+  startRoute(route: RouteTimerInput): StopFn;
+  readonly phases: readonly BuildStatsPhase[];
+  readonly routes: readonly BuildStatsRoute[];
+  toJSON(summary: { outputDir: string; routeCount: number; assetCount: number }): BuildStats;
+}
+
+export function buildStatsPath(outputDir: string): string {
+  return join(outputDir, BUILD_STATS_FILENAME);
 }
 
 export function createProfiler(): Profiler {
-  const entries: ProfileEntry[] = [];
+  const startedAt = performance.now();
+  const phases: BuildStatsPhase[] = [];
+  const routes: BuildStatsRoute[] = [];
+
   return {
-    start(phase, route) {
+    startPhase(name) {
       const t0 = performance.now();
-      return (extra) => {
-        const entry: ProfileEntry = {
-          phase,
-          duration_ms: roundMs(performance.now() - t0),
-        };
-        if (route !== undefined) entry.route = route;
-        if (extra?.bytes_emitted !== undefined) entry.bytes_emitted = extra.bytes_emitted;
-        entries.push(entry);
+      return () => {
+        phases.push({ name, durationMs: roundMs(performance.now() - t0) });
       };
     },
-    record(entry) {
-      entries.push({ ...entry, duration_ms: roundMs(entry.duration_ms) });
+    startRoute(route) {
+      const t0 = performance.now();
+      return (extra) => {
+        routes.push({
+          ...route,
+          durationMs: roundMs(performance.now() - t0),
+          bytes: extra?.bytes ?? 0,
+          reused: extra?.reused ?? false,
+        });
+      };
     },
-    get entries() {
-      return entries;
+    get phases() {
+      return phases;
+    },
+    get routes() {
+      return routes;
+    },
+    toJSON(summary) {
+      return {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        outputDir: summary.outputDir,
+        routeCount: summary.routeCount,
+        assetCount: summary.assetCount,
+        totalDurationMs: roundMs(performance.now() - startedAt),
+        phases: aggregatePhases(phases),
+        routes: [...routes],
+      };
     },
   };
 }
 
-export async function writeProfile(outputDir: string, profiler: Profiler): Promise<void> {
-  const dir = join(outputDir, '.nectar');
-  await ensureDir(dir);
-  await writeFile(
-    join(dir, 'profile.json'),
-    `${JSON.stringify(profiler.entries, null, 2)}\n`,
-    'utf8',
-  );
+export async function writeProfile(
+  outputDir: string,
+  profiler: Profiler,
+  summary: { outputDir?: string; routeCount: number; assetCount: number },
+): Promise<string> {
+  const statsPath = buildStatsPath(outputDir);
+  const body = profiler.toJSON({
+    outputDir: summary.outputDir ?? outputDir,
+    routeCount: summary.routeCount,
+    assetCount: summary.assetCount,
+  });
+  await writeFile(statsPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+  return statsPath;
+}
+
+function aggregatePhases(phases: readonly BuildStatsPhase[]): BuildStatsPhase[] {
+  const order: string[] = [];
+  const totals = new Map<string, number>();
+  for (const phase of phases) {
+    if (!totals.has(phase.name)) order.push(phase.name);
+    totals.set(phase.name, (totals.get(phase.name) ?? 0) + phase.durationMs);
+  }
+  return order.map((name) => ({ name, durationMs: roundMs(totals.get(name) ?? 0) }));
 }
 
 function roundMs(ms: number): number {

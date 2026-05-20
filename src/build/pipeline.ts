@@ -91,7 +91,7 @@ import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
 import { preserveUserFiles } from './preserve.ts';
-import { type Profiler, createProfiler, writeProfile } from './profile.ts';
+import { type Profiler, buildStatsPath, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
@@ -203,6 +203,7 @@ export interface BuildSummary {
   outputDir: string;
   routeCount: number;
   assetCount: number;
+  profilePath?: string;
   warningCount: number;
   renderedCount: number;
   skippedCount: number;
@@ -219,10 +220,10 @@ async function timed<T>(
   getBytes?: (result: T) => number | undefined,
 ): Promise<T> {
   if (!profiler) return await fn();
-  const stop = profiler.start(phase);
+  const stop = profiler.startPhase(phase);
   const result = await fn();
   const bytes = getBytes?.(result);
-  stop(bytes !== undefined ? { bytes_emitted: bytes } : undefined);
+  stop(bytes !== undefined ? { bytes } : undefined);
   return result;
 }
 
@@ -303,7 +304,7 @@ export async function build({
     logger.warn('Building with drafts');
   }
   const config = await withProgressPhase(progress, 'config', 'Loading config', () =>
-    timed(profiler, 'config', () => loadConfig({ cwd, configPath })),
+    timed(profiler, 'load', () => timed(profiler, 'config', () => loadConfig({ cwd, configPath }))),
   );
   if (copyContentAssets !== undefined) {
     config.build.copy_content_assets = copyContentAssets;
@@ -418,68 +419,72 @@ async function runBuild({
   const nectarVersion = await getNectarVersion();
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
-  const { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants } =
-    await withProgressPhase(progress, 'content', 'Loading content and theme', async () => {
-      const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
-      warnUnappliedSections(routesYaml);
+  const { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants } = await timed(
+    profiler,
+    'load',
+    () =>
+      withProgressPhase(progress, 'content', 'Loading content and theme', async () => {
+        const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
+        warnUnappliedSections(routesYaml);
 
-      // Resolve plugin specs before the content loader runs so any
-      // `transformMarkdown` declarations are visible to the loader's markdown
-      // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
-      // `afterContentLoad`, …) are fired later — after `createEngine` returns —
-      // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
-      // load surface a warning via `loadPlugins` and are skipped, never an abort.
-      const pluginSet = await timed(profiler, 'plugins_load', () =>
-        loadPlugins({
-          cwd,
-          specs: config.plugins,
-          autoDetect: config.plugin_auto_detect,
-        }),
-      );
-      const markdownTransforms: MarkdownTransformHook[] = [];
-      for (const p of pluginSet.plugins) {
-        if (typeof p.transformMarkdown === 'function') {
-          const fn = p.transformMarkdown.bind(p);
-          markdownTransforms.push((input, ctx) => fn(input, ctx));
+        // Resolve plugin specs before the content loader runs so any
+        // `transformMarkdown` declarations are visible to the loader's markdown
+        // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
+        // `afterContentLoad`, …) are fired later — after `createEngine` returns —
+        // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
+        // load surface a warning via `loadPlugins` and are skipped, never an abort.
+        const pluginSet = await timed(profiler, 'plugins_load', () =>
+          loadPlugins({
+            cwd,
+            specs: config.plugins,
+            autoDetect: config.plugin_auto_detect,
+          }),
+        );
+        const markdownTransforms: MarkdownTransformHook[] = [];
+        for (const p of pluginSet.plugins) {
+          if (typeof p.transformMarkdown === 'function') {
+            const fn = p.transformMarkdown.bind(p);
+            markdownTransforms.push((input, ctx) => fn(input, ctx));
+          }
         }
-      }
 
-      const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
-        Promise.all([
-          loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
-          loadTheme({ cwd, config }),
-        ]),
-      );
+        const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
+          Promise.all([
+            loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
+            loadTheme({ cwd, config }),
+          ]),
+        );
 
-      validateThemeCustom({ config, pkg: theme.pkg });
+        validateThemeCustom({ config, pkg: theme.pkg });
 
-      injectImageDimensionsIntoContent({ content, cwd, config });
+        injectImageDimensionsIntoContent({ content, cwd, config });
 
-      const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
-        planImageVariants({ cwd, config }),
-      );
-      injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
-      // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
-      // injected entry resolves to the same URL). The rendered-HTML post-process
-      // below catches the same pattern in theme HBS output. Issue #534.
-      collapseDegenerateSrcsetIntoContent({ content });
-      const imagesCfg = config.components.images;
-      // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
-      // referenced variants — otherwise modern browsers would pick the WebP/AVIF
-      // <source> and 404 instead of falling back to the original <img>.
-      const formatVariants: readonly ImageFormat[] =
-        imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
-          ? imagesCfg.formats
-          : [];
-      if (formatVariants.length > 0) {
-        injectImagePictureSourcesIntoContent({
-          content,
-          plan: imageVariantPlan,
-          formats: formatVariants,
-        });
-      }
-      return { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants };
-    });
+        const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
+          planImageVariants({ cwd, config }),
+        );
+        injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+        // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
+        // injected entry resolves to the same URL). The rendered-HTML post-process
+        // below catches the same pattern in theme HBS output. Issue #534.
+        collapseDegenerateSrcsetIntoContent({ content });
+        const imagesCfg = config.components.images;
+        // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
+        // referenced variants — otherwise modern browsers would pick the WebP/AVIF
+        // <source> and 404 instead of falling back to the original <img>.
+        const formatVariants: readonly ImageFormat[] =
+          imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
+            ? imagesCfg.formats
+            : [];
+        if (formatVariants.length > 0) {
+          injectImagePictureSourcesIntoContent({
+            content,
+            plan: imageVariantPlan,
+            formats: formatVariants,
+          });
+        }
+        return { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants };
+      }),
+  );
 
   const imagesCfg = config.components.images;
 
@@ -536,38 +541,40 @@ async function runBuild({
     logger.warn(formatMissingAssetReference(ref));
   }
 
-  const routes = await withProgressPhase(progress, 'routes', 'Planning routes', async () => {
-    const baseRoutes = planRoutes({ config, content, theme, routesYaml });
-    // Collect plugin-supplied extra routes and merge them after the built-in
-    // planner so generators don't accidentally shadow native routes. Plugin
-    // routes are appended in registration order; conflicts on the same
-    // outputPath surface as a warning and the built-in wins.
-    const extraRoutes: RouteContext[] = [];
-    for (const plugin of pluginSet.plugins) {
-      if (!plugin.routes) continue;
-      try {
-        const routes = await plugin.routes(pluginCtx);
-        for (const r of routes) extraRoutes.push(r);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.warn(`plugin '${plugin.name}' routes() failed: ${msg}`);
+  const routes = await timed(profiler, 'plan', () =>
+    withProgressPhase(progress, 'routes', 'Planning routes', async () => {
+      const baseRoutes = planRoutes({ config, content, theme, routesYaml });
+      // Collect plugin-supplied extra routes and merge them after the built-in
+      // planner so generators don't accidentally shadow native routes. Plugin
+      // routes are appended in registration order; conflicts on the same
+      // outputPath surface as a warning and the built-in wins.
+      const extraRoutes: RouteContext[] = [];
+      for (const plugin of pluginSet.plugins) {
+        if (!plugin.routes) continue;
+        try {
+          const routes = await plugin.routes(pluginCtx);
+          for (const r of routes) extraRoutes.push(r);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.warn(`plugin '${plugin.name}' routes() failed: ${msg}`);
+        }
       }
-    }
-    const seenOutputPaths = new Set(baseRoutes.map((r) => r.outputPath));
-    const routes: RouteContext[] = [...baseRoutes];
-    for (const r of extraRoutes) {
-      if (seenOutputPaths.has(r.outputPath)) {
-        logger.warn(
-          `plugin route '${r.url}' collides with existing outputPath '${r.outputPath}'; skipping`,
-        );
-        continue;
+      const seenOutputPaths = new Set(baseRoutes.map((r) => r.outputPath));
+      const routes: RouteContext[] = [...baseRoutes];
+      for (const r of extraRoutes) {
+        if (seenOutputPaths.has(r.outputPath)) {
+          logger.warn(
+            `plugin route '${r.url}' collides with existing outputPath '${r.outputPath}'; skipping`,
+          );
+          continue;
+        }
+        seenOutputPaths.add(r.outputPath);
+        routes.push(r);
       }
-      seenOutputPaths.add(r.outputPath);
-      routes.push(r);
-    }
-    notifyProgress(progress, { type: 'routes-planned', totalRoutes: routes.length });
-    return routes;
-  });
+      notifyProgress(progress, { type: 'routes-planned', totalRoutes: routes.length });
+      return routes;
+    }),
+  );
 
   const subscribeConfig = config.components.subscribe;
   const recommendationsEnabled = config.recommendations.length > 0;
@@ -607,138 +614,154 @@ async function runBuild({
     reused: boolean;
   };
   let completedRoutes = 0;
-  const renderResults = await withProgressPhase(
-    progress,
-    'render',
-    'Rendering routes',
-    () =>
-      Promise.all(
-        routes.map((route) =>
-          renderLimit(async (): Promise<RenderResult> => {
-            const routeHash = computeRouteHash({ globalHash, route, theme });
-            const previous = previousRoutes[route.url];
-            const reusableEntry =
-              previous && previous.hash === routeHash && previous.outputPath === route.outputPath
-                ? previous
-                : undefined;
+  const renderResults = await timed(profiler, 'render', () =>
+    withProgressPhase(
+      progress,
+      'render',
+      'Rendering routes',
+      () =>
+        Promise.all(
+          routes.map((route) =>
+            renderLimit(async (): Promise<RenderResult> => {
+              const routeHash = computeRouteHash({ globalHash, route, theme });
+              const previous = previousRoutes[route.url];
+              const reusableEntry =
+                previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+                  ? previous
+                  : undefined;
 
-            if (reusableEntry) {
-              const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
-              if (await previousFile.exists()) {
-                const stop = profiler?.start('render', route.url);
-                const html = await previousFile.text();
+              if (reusableEntry) {
+                const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
+                if (await previousFile.exists()) {
+                  const stop = profiler?.startRoute({
+                    url: route.url,
+                    outputPath: route.outputPath,
+                    template: route.template,
+                    kind: route.kind,
+                  });
+                  const html = await previousFile.text();
+                  const bytes = Buffer.byteLength(html, 'utf8');
+                  stop?.({ bytes, reused: true });
+                  completedRoutes += 1;
+                  notifyProgress(progress, {
+                    type: 'route-rendered',
+                    completedRoutes,
+                    totalRoutes: routes.length,
+                    route: route.url,
+                    reused: true,
+                  });
+                  return {
+                    htmlOutput: { outputPath: route.outputPath, html, reused: true },
+                    routeHash,
+                    outputPath: route.outputPath,
+                    url: route.url,
+                    bytes,
+                    reused: true,
+                  };
+                }
+              }
+
+              const stop = profiler?.startRoute({
+                url: route.url,
+                outputPath: route.outputPath,
+                template: route.template,
+                kind: route.kind,
+              });
+              try {
+                // Per-route plugin hook. Sequential per route; routes still render
+                // in parallel because each route's hook chain awaits independently.
+                for (const plugin of pluginSet.plugins) {
+                  if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
+                }
+                let html = collapseDegenerateSrcset(
+                  rewritePortalLinks({
+                    html: rewriteRecommendationsButton({
+                      html: stripUnusedLightbox(
+                        transformSubscribeForms(
+                          injectSkipLink(engine.render(route), config.build.csp_nonce),
+                          subscribeConfig,
+                        ),
+                      ),
+                      basePath: config.build.base_path,
+                      enabled: recommendationsEnabled,
+                    }),
+                    urls: portalUrls,
+                  }),
+                );
+                // Pagefind integration: inject the runtime shim script on any page
+                // that has a `[data-ghost-search]` trigger, and tag non-public
+                // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
+                // those pages from the public index. Both are no-ops unless the
+                // search component is enabled with a pagefind-emitting engine.
+                if (
+                  config.components.search.enabled &&
+                  (config.components.search.engine === 'pagefind' ||
+                    config.components.search.engine === 'json+pagefind')
+                ) {
+                  html = injectSearchShimScript(
+                    html,
+                    config.build.base_path,
+                    config.build.csp_nonce,
+                  );
+                  const post = route.kind === 'post' ? route.data.post : undefined;
+                  if (post && post.visibility !== 'public') {
+                    html = injectPagefindSkipMeta(html);
+                  }
+                }
+                // Resource-hint post-processing. Runs after every theme-side or
+                // injected script/link has landed so we see the final document
+                // shape, but before plugin afterRender so plugins can still react
+                // to the rewritten head. dedupe_script_preload deletes the
+                // `<link rel="preload" as="script">` that the Source theme ships
+                // alongside its `<script>` (#528); preload_stylesheet adds a sibling
+                // preload to bare `<link rel="stylesheet">` (#527, opt-in).
+                if (config.performance.dedupe_script_preload) {
+                  html = removeRedundantScriptPreload(html);
+                }
+                if (config.performance.preload_stylesheet) {
+                  html = injectStylesheetPreload(html);
+                }
+                html = injectSubresourceIntegrity(
+                  html,
+                  theme.assets.values(),
+                  config.build.base_path,
+                );
+                // afterRender chain: each plugin sees the previous transform's
+                // output (including the Pagefind shim above when enabled). Returning
+                // anything other than a string is treated as a pass-through so a
+                // plugin that just wants to observe the HTML can omit the return.
+                for (const plugin of pluginSet.plugins) {
+                  if (!plugin.afterRender) continue;
+                  const next = await plugin.afterRender(pluginCtx, route, html);
+                  if (typeof next === 'string') html = next;
+                }
                 const bytes = Buffer.byteLength(html, 'utf8');
-                stop?.({ bytes_emitted: bytes });
+                stop?.({ bytes, reused: false });
                 completedRoutes += 1;
                 notifyProgress(progress, {
                   type: 'route-rendered',
                   completedRoutes,
                   totalRoutes: routes.length,
                   route: route.url,
-                  reused: true,
+                  reused: false,
                 });
                 return {
-                  htmlOutput: { outputPath: route.outputPath, html, reused: true },
+                  htmlOutput: { outputPath: route.outputPath, html },
                   routeHash,
                   outputPath: route.outputPath,
                   url: route.url,
                   bytes,
-                  reused: true,
+                  reused: false,
                 };
+              } catch (err) {
+                stop?.();
+                throw wrapRenderError(err, route.url, route.template);
               }
-            }
-
-            const stop = profiler?.start('render', route.url);
-            try {
-              // Per-route plugin hook. Sequential per route; routes still render
-              // in parallel because each route's hook chain awaits independently.
-              for (const plugin of pluginSet.plugins) {
-                if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
-              }
-              let html = collapseDegenerateSrcset(
-                rewritePortalLinks({
-                  html: rewriteRecommendationsButton({
-                    html: stripUnusedLightbox(
-                      transformSubscribeForms(
-                        injectSkipLink(engine.render(route), config.build.csp_nonce),
-                        subscribeConfig,
-                      ),
-                    ),
-                    basePath: config.build.base_path,
-                    enabled: recommendationsEnabled,
-                  }),
-                  urls: portalUrls,
-                }),
-              );
-              // Pagefind integration: inject the runtime shim script on any page
-              // that has a `[data-ghost-search]` trigger, and tag non-public
-              // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
-              // those pages from the public index. Both are no-ops unless the
-              // search component is enabled with a pagefind-emitting engine.
-              if (
-                config.components.search.enabled &&
-                (config.components.search.engine === 'pagefind' ||
-                  config.components.search.engine === 'json+pagefind')
-              ) {
-                html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
-                const post = route.kind === 'post' ? route.data.post : undefined;
-                if (post && post.visibility !== 'public') {
-                  html = injectPagefindSkipMeta(html);
-                }
-              }
-              // Resource-hint post-processing. Runs after every theme-side or
-              // injected script/link has landed so we see the final document
-              // shape, but before plugin afterRender so plugins can still react
-              // to the rewritten head. dedupe_script_preload deletes the
-              // `<link rel="preload" as="script">` that the Source theme ships
-              // alongside its `<script>` (#528); preload_stylesheet adds a sibling
-              // preload to bare `<link rel="stylesheet">` (#527, opt-in).
-              if (config.performance.dedupe_script_preload) {
-                html = removeRedundantScriptPreload(html);
-              }
-              if (config.performance.preload_stylesheet) {
-                html = injectStylesheetPreload(html);
-              }
-              html = injectSubresourceIntegrity(
-                html,
-                theme.assets.values(),
-                config.build.base_path,
-              );
-              // afterRender chain: each plugin sees the previous transform's
-              // output (including the Pagefind shim above when enabled). Returning
-              // anything other than a string is treated as a pass-through so a
-              // plugin that just wants to observe the HTML can omit the return.
-              for (const plugin of pluginSet.plugins) {
-                if (!plugin.afterRender) continue;
-                const next = await plugin.afterRender(pluginCtx, route, html);
-                if (typeof next === 'string') html = next;
-              }
-              const bytes = Buffer.byteLength(html, 'utf8');
-              stop?.({ bytes_emitted: bytes });
-              completedRoutes += 1;
-              notifyProgress(progress, {
-                type: 'route-rendered',
-                completedRoutes,
-                totalRoutes: routes.length,
-                route: route.url,
-                reused: false,
-              });
-              return {
-                htmlOutput: { outputPath: route.outputPath, html },
-                routeHash,
-                outputPath: route.outputPath,
-                url: route.url,
-                bytes,
-                reused: false,
-              };
-            } catch (err) {
-              stop?.();
-              throw wrapRenderError(err, route.url, route.template);
-            }
-          }),
+            }),
+          ),
         ),
-      ),
-    { totalRoutes: routes.length },
+      { totalRoutes: routes.length },
+    ),
   );
 
   // Aggregate in route order so htmlOutputs (consumed by minify_html and
@@ -825,141 +848,149 @@ async function runBuild({
     );
   }
 
-  const assetCount = await withProgressPhase(progress, 'assets', 'Copying assets', async () => {
-    let assetCount = 0;
-    const assetSteps: Array<{ label: string; run: () => Promise<void> }> = [
-      {
-        label: 'Theme assets',
-        run: async () => {
-          assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
-        },
-      },
-      {
-        label: 'Ghost card assets',
-        run: async () => {
-          await timed(profiler, 'card_assets', () =>
-            emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
-          );
-        },
-      },
-      {
-        label: 'Favicons',
-        run: async () => {
-          await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
-        },
-      },
-      {
-        label: 'Portal runtime',
-        run: async () => {
-          await timed(profiler, 'portal_runtime', () =>
-            emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
-          );
-        },
-      },
-    ];
-
-    if (config.build.copy_content_assets) {
-      assetSteps.push({
-        label: 'Content assets',
-        run: async () => {
-          await timed(profiler, 'copy_content_assets', () =>
-            copyContentAssets(cwd, config.content.assets_dir, outputDir, {
-              maxImageBytes: config.build.max_image_bytes,
-            }),
-          );
-        },
-      });
-      // `[components.images].resize` (default true) is the kill-switch for the
-      // sharp-backed resize pipeline. When false we still emit srcset URLs
-      // pointing at `/content/images/size/wXXX/...`, but no actual variants
-      // land on disk — the browser falls back to the original `src`. This is
-      // the right choice when the project does not want a sharp dependency or
-      // when image variants are produced by another step in the toolchain.
-      if (imagesCfg.resize) {
-        assetSteps.push({
-          label: 'Responsive image variants',
+  const assetCount = await timed(profiler, 'assetCopy', () =>
+    withProgressPhase(progress, 'assets', 'Copying assets', async () => {
+      let assetCount = 0;
+      const assetSteps: Array<{ label: string; run: () => Promise<void> }> = [
+        {
+          label: 'Theme assets',
           run: async () => {
-            await timed(profiler, 'image_variants', () =>
-              generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+            assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+          },
+        },
+        {
+          label: 'Ghost card assets',
+          run: async () => {
+            await timed(profiler, 'card_assets', () =>
+              emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
             );
           },
-        });
-        if (formatVariants.length > 0) {
-          assetSteps.push({
-            label: 'Image format variants',
-            run: async () => {
-              await timed(profiler, 'image_format_variants', () =>
-                generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-              );
-            },
-          });
-        }
-        // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
-        // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
-        // post-card srcsets for `feature_image`). Runs after the responsive-width
-        // pass so an `m: { width: 600 }` and the default 600w variant share one
-        // file. Cache is keyed by source content hash; format variants are emitted
-        // only when sharp is available and at least one format is configured.
-        assetSteps.push({
-          label: 'Theme image size variants',
+        },
+        {
+          label: 'Favicons',
           run: async () => {
-            await timed(profiler, 'theme_image_size_variants', () =>
-              generateThemeImageSizeVariants({
-                cwd,
-                config,
-                outputDir,
-                themeImageSizes: theme.pkg.image_sizes,
-                cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
-                formats: formatVariants,
-                webpQuality: imagesCfg.webp_quality,
-                avifQuality: imagesCfg.avif_quality,
+            await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
+          },
+        },
+        {
+          label: 'Portal runtime',
+          run: async () => {
+            await timed(profiler, 'portal_runtime', () =>
+              emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
+            );
+          },
+        },
+      ];
+
+      if (config.build.copy_content_assets) {
+        assetSteps.push({
+          label: 'Content assets',
+          run: async () => {
+            await timed(profiler, 'copy_content_assets', () =>
+              copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+                maxImageBytes: config.build.max_image_bytes,
               }),
             );
           },
         });
+        // `[components.images].resize` (default true) is the kill-switch for the
+        // sharp-backed resize pipeline. When false we still emit srcset URLs
+        // pointing at `/content/images/size/wXXX/...`, but no actual variants
+        // land on disk — the browser falls back to the original `src`. This is
+        // the right choice when the project does not want a sharp dependency or
+        // when image variants are produced by another step in the toolchain.
+        if (imagesCfg.resize) {
+          assetSteps.push({
+            label: 'Responsive image variants',
+            run: async () => {
+              await timed(profiler, 'image_variants', () =>
+                generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+              );
+            },
+          });
+          if (formatVariants.length > 0) {
+            assetSteps.push({
+              label: 'Image format variants',
+              run: async () => {
+                await timed(profiler, 'image_format_variants', () =>
+                  generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+                );
+              },
+            });
+          }
+          // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
+          // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
+          // post-card srcsets for `feature_image`). Runs after the responsive-width
+          // pass so an `m: { width: 600 }` and the default 600w variant share one
+          // file. Cache is keyed by source content hash; format variants are emitted
+          // only when sharp is available and at least one format is configured.
+          assetSteps.push({
+            label: 'Theme image size variants',
+            run: async () => {
+              await timed(profiler, 'theme_image_size_variants', () =>
+                generateThemeImageSizeVariants({
+                  cwd,
+                  config,
+                  outputDir,
+                  themeImageSizes: theme.pkg.image_sizes,
+                  cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
+                  formats: formatVariants,
+                  webpQuality: imagesCfg.webp_quality,
+                  avifQuality: imagesCfg.avif_quality,
+                }),
+              );
+            },
+          });
+        }
       }
-    }
 
-    for (let i = 0; i < assetSteps.length; i++) {
-      const step = assetSteps[i];
-      if (step === undefined) throw new Error('asset step missing');
-      notifyProgress(progress, {
-        type: 'asset-step',
-        step: i + 1,
-        totalSteps: assetSteps.length,
-        label: step.label,
-      });
-      await step.run();
+      for (let i = 0; i < assetSteps.length; i++) {
+        const step = assetSteps[i];
+        if (step === undefined) throw new Error('asset step missing');
+        notifyProgress(progress, {
+          type: 'asset-step',
+          step: i + 1,
+          totalSteps: assetSteps.length,
+          label: step.label,
+        });
+        await step.run();
+      }
+      return assetCount;
+    }),
+  );
+
+  await timed(profiler, 'feedEmit', async () => {
+    if (config.components.sitemap.enabled) {
+      await timed(profiler, 'sitemap', () =>
+        emitSitemap({
+          config,
+          content,
+          outputDir,
+          // `indexable: false` excludes pagination tails (`/page/N/`,
+          // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
+          // sitemap discovery surfaces; routes without the flag default to
+          // indexable. See #781.
+          urls: routes
+            .filter((r) => r.indexable !== false)
+            .map((r) => ({
+              url: r.url,
+              lastmod: r.lastmod,
+              kind: routeKindToSitemapKind(r.kind),
+            })),
+        }),
+      );
     }
-    return assetCount;
+    if (config.components.rss.enabled) {
+      await timed(profiler, 'rss', () =>
+        emitRss({
+          config,
+          content,
+          outputDir,
+          limit: config.components.rss.items,
+        }),
+      );
+    }
   });
-
-  if (config.components.sitemap.enabled) {
-    await timed(profiler, 'sitemap', () =>
-      emitSitemap({
-        config,
-        content,
-        outputDir,
-        // `indexable: false` excludes pagination tails (`/page/N/`,
-        // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
-        // sitemap discovery surfaces; routes without the flag default to
-        // indexable. See #781.
-        urls: routes
-          .filter((r) => r.indexable !== false)
-          .map((r) => ({ url: r.url, lastmod: r.lastmod, kind: routeKindToSitemapKind(r.kind) })),
-      }),
-    );
-  }
-  if (config.components.rss.enabled) {
-    await timed(profiler, 'rss', () =>
-      emitRss({
-        config,
-        content,
-        outputDir,
-        limit: config.components.rss.items,
-      }),
-    );
-  }
   // `--emit-content-api` (BuildOptions.emitContentApi) overrides the config
   // gate per-build without forcing the operator to edit `nectar.toml`. The
   // override applies symmetrically to the SDK shadow tree (`emitContentApiShadows`)
@@ -1127,8 +1158,13 @@ async function runBuild({
     await timed(profiler, 'precompress', () => precompressOutput({ outputDir, enabled: true }));
   }
 
+  const profilePath = profiler ? buildStatsPath(finalOutputDir) : undefined;
   if (profiler) {
-    await writeProfile(outputDir, profiler);
+    await writeProfile(outputDir, profiler, {
+      outputDir: finalOutputDir,
+      routeCount: routes.length,
+      assetCount,
+    });
   }
 
   const nextManifest: BuildManifest = {
@@ -1191,6 +1227,7 @@ async function runBuild({
     outputDir: finalOutputDir,
     routeCount: routes.length,
     assetCount,
+    ...(profilePath ? { profilePath } : {}),
     warningCount: getWarningCount(),
     renderedCount,
     skippedCount,

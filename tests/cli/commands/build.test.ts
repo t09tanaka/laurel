@@ -216,6 +216,53 @@ describe('nectar build --dry-run (#252)', () => {
   });
 });
 
+describe('nectar build --profile', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('writes build stats and reports the path', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build', '--profile'], dir);
+
+    expect(result.exitCode).toBe(0);
+    const statsPath = join(dir, 'dist/.nectar-build-stats.json');
+    expect(result.stderr).toContain(`Build stats: ${statsPath}`);
+    expect(existsSync(statsPath)).toBe(true);
+    const stats = JSON.parse(readFileSync(statsPath, 'utf8')) as {
+      phases: Array<{ name: string }>;
+      routes: Array<{ url: string; outputPath: string; template: string; durationMs: number }>;
+    };
+    expect(stats.phases.map((phase) => phase.name)).toEqual(
+      expect.arrayContaining(['load', 'plan', 'render', 'assetCopy', 'feedEmit']),
+    );
+    expect(stats.routes.length).toBeGreaterThan(0);
+    expect(stats.routes[0]).toMatchObject({
+      url: expect.any(String),
+      outputPath: expect.any(String),
+      template: expect.any(String),
+      durationMs: expect.any(Number),
+    });
+  });
+
+  test('--json includes profilePath when profiling is enabled', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build', '--profile', '--json'], dir);
+
+    expect(result.exitCode).toBe(0);
+    const payload = JSON.parse(result.stdout) as { profilePath?: string };
+    expect(payload.profilePath).toBe(join(dir, 'dist/.nectar-build-stats.json'));
+  });
+});
+
 describe('nectar build base URL precedence', () => {
   const cleanups: string[] = [];
   afterEach(async () => {

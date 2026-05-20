@@ -147,6 +147,7 @@ export async function runBuild(args: string[]): Promise<number> {
         routeCount: summary.routeCount,
         assetCount: summary.assetCount,
         outputDir: summary.outputDir,
+        profilePath: summary.profilePath,
         warningCount: summary.warningCount,
         dryRun: summary.dryRun === true,
       };
@@ -158,6 +159,9 @@ export async function runBuild(args: string[]): Promise<number> {
     logger.info(
       `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );
+    if (summary.profilePath) {
+      logger.info(`Build stats: ${summary.profilePath}`);
+    }
     if (summary.dryRun && summary.routes && isVerbose()) {
       logger.info(formatDryRunRouteTable(summary.routes));
     }

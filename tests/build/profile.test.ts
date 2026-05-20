@@ -3,60 +3,83 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createProfiler, writeProfile } from '~/build/profile.ts';
+import {
+  BUILD_STATS_FILENAME,
+  buildStatsPath,
+  createProfiler,
+  writeProfile,
+} from '~/build/profile.ts';
 
 describe('createProfiler', () => {
-  test('records a phase entry when stop() is called', () => {
+  test('records phase timings', () => {
     const p = createProfiler();
-    const stop = p.start('config');
+    const stop = p.startPhase('load');
     stop();
-    expect(p.entries.length).toBe(1);
-    const entry = p.entries[0];
-    expect(entry?.phase).toBe('config');
-    expect(typeof entry?.duration_ms).toBe('number');
-    expect(entry?.route).toBeUndefined();
-    expect(entry?.bytes_emitted).toBeUndefined();
+    expect(p.phases.length).toBe(1);
+    const phase = p.phases[0];
+    expect(phase?.name).toBe('load');
+    expect(typeof phase?.durationMs).toBe('number');
+    expect(phase?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
-  test('records route + bytes_emitted when provided', () => {
+  test('records route render timings with output metadata', () => {
     const p = createProfiler();
-    const stop = p.start('render', '/hello/');
-    stop({ bytes_emitted: 1234 });
-    expect(p.entries[0]).toMatchObject({
-      phase: 'render',
-      route: '/hello/',
-      bytes_emitted: 1234,
+    const stop = p.startRoute({
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post.hbs',
+      kind: 'post',
     });
+    stop({ bytes: 1234, reused: true });
+    expect(p.routes[0]).toMatchObject({
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post.hbs',
+      kind: 'post',
+      bytes: 1234,
+      reused: true,
+    });
+    expect(p.routes[0]?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
-  test('preserves insertion order across multiple phases', () => {
+  test('aggregates repeated phase names in the JSON shape', () => {
     const p = createProfiler();
-    p.start('a')();
-    p.start('b')();
-    p.start('c')();
-    expect(p.entries.map((e) => e.phase)).toEqual(['a', 'b', 'c']);
-  });
-
-  test('rounds duration_ms to three decimal places via record()', () => {
-    const p = createProfiler();
-    p.record({ phase: 'manual', duration_ms: 12.3456789 });
-    expect(p.entries[0]?.duration_ms).toBe(12.346);
+    p.startPhase('load')();
+    p.startPhase('plan')();
+    p.startPhase('load')();
+    const stats = p.toJSON({ outputDir: '/tmp/dist', routeCount: 0, assetCount: 0 });
+    expect(stats.phases.map((phase) => phase.name)).toEqual(['load', 'plan']);
+    expect(stats.phases[0]?.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
 
 describe('writeProfile', () => {
-  test('writes profile.json under <outputDir>/.nectar', async () => {
+  test(`writes ${BUILD_STATS_FILENAME} under <outputDir>`, async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nectar-profile-'));
     const p = createProfiler();
-    p.record({ phase: 'config', duration_ms: 1.5 });
-    p.record({ phase: 'render', duration_ms: 4.2, route: '/', bytes_emitted: 1024 });
-    await writeProfile(dir, p);
-    const file = join(dir, '.nectar/profile.json');
+    p.startPhase('load')();
+    p.startRoute({
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home.hbs',
+      kind: 'home',
+    })({ bytes: 1024, reused: false });
+
+    await writeProfile(dir, p, { routeCount: 1, assetCount: 2 });
+
+    const file = buildStatsPath(dir);
+    expect(file).toBe(join(dir, BUILD_STATS_FILENAME));
     expect(existsSync(file)).toBe(true);
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<Record<string, unknown>>;
-    expect(parsed).toEqual([
-      { phase: 'config', duration_ms: 1.5 },
-      { phase: 'render', duration_ms: 4.2, route: '/', bytes_emitted: 1024 },
-    ]);
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      outputDir: dir,
+      routeCount: 1,
+      assetCount: 2,
+    });
+    expect(parsed).toHaveProperty('generatedAt');
+    expect(parsed).toHaveProperty('totalDurationMs');
+    expect(parsed).toHaveProperty('phases');
+    expect(parsed).toHaveProperty('routes');
   });
 });
