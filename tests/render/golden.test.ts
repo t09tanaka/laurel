@@ -45,6 +45,8 @@ const GOLDEN_FILES = [
   // robots.txt locks down the sitemap URL + crawl policy emitted by the
   // build pipeline so config drift surfaces in diff review.
   'robots.txt',
+  // humans.txt captures the default site metadata disclosure.
+  'humans.txt',
 ] as const;
 
 // Strip moving parts so unrelated edits don't churn the snapshot:

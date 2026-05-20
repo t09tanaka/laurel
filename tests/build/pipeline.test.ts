@@ -92,6 +92,16 @@ describe('build pipeline strict mode wiring', () => {
     expect(body).toContain('Sitemap: https://strict.test/sitemap.xml');
   });
 
+  test('emits dist/humans.txt with site metadata by default', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const body = readFileSync(join(summary.outputDir, 'humans.txt'), 'utf8');
+    expect(body).toContain('/* SITE */');
+    expect(body).toContain('Title: Strict Test');
+    expect(body).toContain('URL: https://strict.test');
+    expect(body).toContain('Generator: Nectar');
+  });
+
   test('emits zero-byte dist/.nojekyll for GitHub Pages compatibility', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
@@ -1023,7 +1033,7 @@ describe('build pipeline --dry-run (#252)', () => {
     expect(readFileSync(sentinel, 'utf8')).toBe('untouched');
   });
 
-  test('skipping site emitters: no sitemap/rss/robots/manifest written under dry-run', async () => {
+  test('skipping site emitters: no sitemap/rss/robots/humans/manifest written under dry-run', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const distDir = resolve(cwd, 'dist');
 
@@ -1031,6 +1041,7 @@ describe('build pipeline --dry-run (#252)', () => {
 
     expect(existsSync(join(distDir, 'sitemap.xml'))).toBe(false);
     expect(existsSync(join(distDir, 'robots.txt'))).toBe(false);
+    expect(existsSync(join(distDir, 'humans.txt'))).toBe(false);
     expect(existsSync(join(distDir, '.nojekyll'))).toBe(false);
     expect(existsSync(join(distDir, '.nectar', 'build-manifest.json'))).toBe(false);
   });

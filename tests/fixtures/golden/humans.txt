@@ -1,0 +1,5 @@
+/* SITE */
+Title: Nectar Example
+Description: A demo blog built with Nectar against the Ghost Source theme
+URL: https://nectar.example.com
+Generator: Nectar

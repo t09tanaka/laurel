@@ -461,6 +461,14 @@ robots.txt component.
 | `components.robots.enabled` | `boolean` | no | `true` | Emit a `robots.txt` file. |
 | `components.robots.disallow` | `boolean` | no | `false` | When true, emit a `Disallow: /` robots.txt to block all crawling. Useful for staging. |
 
+## `components.humans`
+
+humans.txt component.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.humans.enabled` | `boolean` | no | `true` | Emit a `humans.txt` file with site metadata. Drop `static/humans.txt` into the project to override the generated body. |
+
 ## `components.subscribe`
 
 Newsletter subscribe form component.

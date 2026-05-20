@@ -39,6 +39,7 @@ import { computeFavicons, copyFavicons } from './favicons.ts';
 import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects } from './github-pages.ts';
+import { emitHumans } from './humans.ts';
 import {
   type ImageFormat,
   collapseDegenerateSrcset,
@@ -762,6 +763,9 @@ async function runBuild({
   }
   if (config.components.robots.enabled) {
     await timed(profiler, 'robots', () => emitRobots({ cwd, config, outputDir }));
+  }
+  if (config.components.humans.enabled) {
+    await timed(profiler, 'humans', () => emitHumans({ cwd, config, outputDir }));
   }
   if (config.components.search.enabled) {
     await timed(profiler, 'search_json', () => emitSearchJson({ config, content, outputDir }));

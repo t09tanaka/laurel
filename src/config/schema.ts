@@ -1125,6 +1125,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('robots.txt component.'),
+        humans: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Emit a `humans.txt` file with site metadata. Drop `static/humans.txt` into the project to override the generated body.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('humans.txt component.'),
         subscribe: z
           .object({
             provider: z
