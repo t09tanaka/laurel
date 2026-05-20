@@ -377,6 +377,36 @@ describe('loadContent', () => {
     expect(graph.tiers[1]?.type).toBe('paid');
   });
 
+  test('post.url honours routes.yaml `collections:` permalink and filter', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({
+      cwd,
+      config,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        // The /blog/ collection only accepts posts tagged 'news'. The
+        // hello post carries that tag; second.md does not, so it falls
+        // through to the catch-all root collection.
+        collections: {
+          '/': { permalink: '/{slug}/' },
+          '/blog/': { permalink: '/blog/{slug}/', filter: 'tag:news' },
+        },
+      },
+    });
+    const hello = graph.posts.find((p) => p.slug === 'hello');
+    const second = graph.posts.find((p) => p.slug === 'second');
+    expect(hello?.url).toBe('https://x.test/blog/hello/');
+    expect(second?.url).toBe('https://x.test/second/');
+  });
+
+  test('omitting collections leaves post.url at the legacy slug-based path', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.find((p) => p.slug === 'hello')?.url).toBe('https://x.test/hello/');
+  });
+
   test('tag.url is blank when the tag taxonomy is disabled via routes.yaml', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

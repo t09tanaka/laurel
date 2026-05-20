@@ -6,6 +6,7 @@ import {
   applyTaxonomyTemplate,
   emptyRoutesYaml,
   loadRoutesYaml,
+  resolveCollections,
   resolveRouteEntries,
   resolveTaxonomies,
   routeUrlToOutputPath,
@@ -224,5 +225,47 @@ describe('routeUrlToOutputPath', () => {
 
   test('throws when the URL does not start with /', () => {
     expect(() => routeUrlToOutputPath('featured/')).toThrow();
+  });
+});
+
+describe('resolveCollections', () => {
+  test('returns an empty list when no collections are configured', () => {
+    expect(resolveCollections(emptyRoutesYaml())).toEqual([]);
+  });
+
+  test('passes permalink + optional fields through and defaults the rest to undefined', () => {
+    const yaml = emptyRoutesYaml();
+    yaml.collections['/'] = { permalink: '/{slug}/' };
+    yaml.collections['/blog/'] = {
+      permalink: '/blog/{slug}/',
+      filter: 'tag:blog',
+      template: 'blog-post',
+      order: 'published_at desc',
+      rss: false,
+      data: 'tag.blog',
+      limit: 10,
+    };
+    const resolved = resolveCollections(yaml);
+    const byUrl = Object.fromEntries(resolved.map((c) => [c.url, c]));
+    expect(byUrl['/']).toEqual({ url: '/', permalink: '/{slug}/' });
+    expect(byUrl['/blog/']).toEqual({
+      url: '/blog/',
+      permalink: '/blog/{slug}/',
+      filter: 'tag:blog',
+      template: 'blog-post',
+      order: 'published_at desc',
+      rss: false,
+      data: 'tag.blog',
+      limit: 10,
+    });
+  });
+
+  test('sorts by descending URL length so longer prefixes win the first-match lookup', () => {
+    const yaml = emptyRoutesYaml();
+    yaml.collections['/'] = { permalink: '/{slug}/' };
+    yaml.collections['/a/b/'] = { permalink: '/{slug}/' };
+    yaml.collections['/a/'] = { permalink: '/{slug}/' };
+    const resolved = resolveCollections(yaml);
+    expect(resolved.map((c) => c.url)).toEqual(['/a/b/', '/a/', '/']);
   });
 });

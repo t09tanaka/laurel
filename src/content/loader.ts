@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, relative } from 'node:path';
 import slugify from 'slugify';
+import { assignPostUrls } from '~/build/permalinks.ts';
 import {
   type ResolvedTaxonomies,
   type RoutesYaml,
   applyTaxonomyTemplate,
   emptyRoutesYaml,
+  resolveCollections,
   resolveTaxonomies,
 } from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
@@ -121,6 +123,7 @@ export async function loadContent({
       site,
       pool,
       taxonomies,
+      routesYaml: routesYaml ?? emptyRoutesYaml(),
       includeDrafts: includeDrafts === true,
       includeFuturePosts: includeFuture,
       markdownTransforms: markdownTransforms ?? [],
@@ -136,6 +139,7 @@ async function loadContentWithPool({
   site,
   pool,
   taxonomies,
+  routesYaml,
   includeDrafts,
   includeFuturePosts,
   markdownTransforms,
@@ -143,6 +147,7 @@ async function loadContentWithPool({
   site: SiteData;
   pool: MarkdownPool;
   taxonomies: ResolvedTaxonomies;
+  routesYaml: RoutesYaml;
   includeDrafts: boolean;
   includeFuturePosts: boolean;
   markdownTransforms: readonly MarkdownTransformHook[];
@@ -191,6 +196,20 @@ async function loadContentWithPool({
     if (!current) continue;
     current.next = resolvedPosts[i - 1];
     current.prev = resolvedPosts[i + 1];
+  }
+
+  // Rewrite `post.url` to honour any `collections:` permalinks declared in
+  // routes.yaml. Posts that match no collection keep their slug-based URL,
+  // so omitting the section is back-compat. The matching strategy lives in
+  // `assignPostUrls` (filter parsing + first-match-wins by descending URL).
+  const collections = resolveCollections(routesYaml);
+  if (collections.length > 0) {
+    const assignments = assignPostUrls(resolvedPosts, collections);
+    for (const post of resolvedPosts) {
+      const a = assignments.get(post.id);
+      if (!a) continue;
+      post.url = joinUrl(site.url, a.urlPath);
+    }
   }
 
   const resolvedPages: Page[] = [];

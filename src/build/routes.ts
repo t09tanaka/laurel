@@ -5,10 +5,13 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrl } from '~/util/url.ts';
+import { assignPostUrls } from './permalinks.ts';
 import {
+  type ResolvedCollection,
   type RoutesYaml,
   applyTaxonomyTemplate,
   emptyRoutesYaml,
+  resolveCollections,
   resolveRouteEntries,
   resolveTaxonomies,
   routeUrlToOutputPath,
@@ -23,6 +26,9 @@ export function planRoutes(opts: {
   const { config, content, theme } = opts;
   const routesYaml = opts.routesYaml ?? emptyRoutesYaml();
   const taxonomies = resolveTaxonomies(routesYaml);
+  const collections = resolveCollections(routesYaml);
+  const postAssignments = assignPostUrls(content.posts, collections);
+  const pickPostTemplate = makePostTemplatePicker(theme);
   const routes: RouteContext[] = [];
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
 
@@ -53,12 +59,18 @@ export function planRoutes(opts: {
   }
 
   for (const post of content.posts) {
-    const url = `/${post.slug}/`;
+    const assignment = postAssignments.get(post.id);
+    const url = assignment?.urlPath ?? `/${post.slug}/`;
+    // Per-collection `template:` field opts a bucket of posts into a custom
+    // theme template (`{template}.hbs`). Fall back to the warned template if
+    // the theme doesn't ship the requested file — same UX as `routes:`
+    // entries with a missing template, but applied to the entire bucket.
+    const template = pickPostTemplate(assignment?.collection);
     routes.push({
       kind: 'post',
       url,
-      outputPath: `${post.slug}/index.html`,
-      template: 'post',
+      outputPath: routeUrlToOutputPath(url),
+      template,
       lastmod: post.updated_at ?? post.published_at,
       data: { post },
       meta: defaultMeta(
@@ -249,6 +261,30 @@ function assertNoRouteCollisions(routes: readonly RouteContext[]): void {
     hint: 'Each route must emit a unique output path. Rename the conflicting post/page slug or routes.yaml entry.',
     code: 'content',
   });
+}
+
+// Per-collection template override from `routes.yaml`: when a `collections:`
+// entry sets `template: foo`, render every post in that bucket through
+// `foo.hbs` if the active theme ships one; otherwise fall back to `post.hbs`
+// and warn once so the misconfiguration is visible at build time. The
+// dedupe Set is captured per-build via a closure (see `planRoutes`) so warn
+// noise doesn't leak across invocations or tests.
+function makePostTemplatePicker(
+  theme: ThemeBundle,
+): (collection: ResolvedCollection | undefined) => string {
+  const warned = new Set<string>();
+  return (collection) => {
+    if (!collection?.template) return 'post';
+    const requested = collection.template;
+    if (theme.templates[requested]) return requested;
+    if (!warned.has(requested)) {
+      warned.add(requested);
+      logger.warn(
+        `routes.yaml: collections '${collection.url}' requests template '${requested}' but the active theme has no '${requested}.hbs'; falling back to post.hbs.`,
+      );
+    }
+    return 'post';
+  };
 }
 
 // Mirrors Ghost's per-page template override: when a page's frontmatter declares

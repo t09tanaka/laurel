@@ -14,12 +14,14 @@ import { logger } from '~/util/logger.ts';
 //   * `taxonomies:`   — override the URL pattern used for tag and
 //                       author archives (e.g. `/categories/{slug}/`).
 //
-// This module is a parser-and-validator only for the *whole* file plus a
-// surface for the build pipeline to consume the `routes:` section. The
-// `collections:` and `taxonomies:` sections are recognized and validated so
-// authors get a real error instead of silence, but their effects on the
-// route plan are not yet implemented — when either is present we emit a
-// warning that names the missing feature so it is visible at build time.
+// This module is the parser-and-validator for the *whole* file plus a
+// surface the build pipeline consumes:
+//   * `resolveRouteEntries` — `routes:` section, normalized to a list
+//   * `resolveCollections`  — `collections:` section, sorted so longer
+//                              prefixes win when the post router picks the
+//                              most specific match first
+//   * `resolveTaxonomies`   — `taxonomies:` section, returning permalink
+//                              templates or `undefined` for disabled kinds
 
 const routeContentTypeSchema = z.enum(['html', 'rss', 'atom', 'plain', 'json']);
 
@@ -191,15 +193,57 @@ export function routeUrlToOutputPath(url: string): string {
   return lastSegment.includes('.') ? trimmed : `${trimmed}/index.html`;
 }
 
-// Surface a one-time warning per section we recognize but do not yet apply
-// during the build. Keeps the parser useful as a validation step while the
-// downstream wiring is implemented in follow-up tasks.
-export function warnUnappliedSections(yaml: RoutesYaml): void {
-  if (Object.keys(yaml.collections).length > 0) {
-    logger.warn(
-      'routes.yaml: `collections:` is parsed but not yet applied to the build; post URLs and per-collection templates are unchanged.',
-    );
+// Reserved for sections we recognize but do not yet apply during the build.
+// All currently parsed sections (`routes:`, `collections:`, `taxonomies:`)
+// now have a downstream implementation, so this is a no-op kept for the
+// pipeline call site — adding a new partially-implemented section later
+// stays cheap.
+export function warnUnappliedSections(_yaml: RoutesYaml): void {
+  // intentionally empty
+}
+
+// Normalize the `collections:` section into a list sorted by descending URL
+// length. The post router walks this list in order and assigns each post to
+// the first collection whose `filter:` matches, so longer (more specific)
+// prefixes need to win over the default `/` bucket. Collections without a
+// filter act as catch-alls — typical for the default `/` collection.
+export interface ResolvedCollection {
+  url: string;
+  permalink: string;
+  template?: string;
+  filter?: string;
+  order?: string;
+  rss?: boolean;
+  data?: string;
+  limit?: number | 'all';
+}
+
+export function resolveCollections(yaml: RoutesYaml): ResolvedCollection[] {
+  const out: ResolvedCollection[] = [];
+  for (const [url, collection] of Object.entries(yaml.collections)) {
+    if (!url.startsWith('/')) {
+      logger.warn(
+        `routes.yaml: collections key '${url}' must start with '/'; ignoring this collection.`,
+      );
+      continue;
+    }
+    const resolved: ResolvedCollection = {
+      url,
+      permalink: collection.permalink,
+    };
+    if (collection.template !== undefined) resolved.template = collection.template;
+    if (collection.filter !== undefined) resolved.filter = collection.filter;
+    if (collection.order !== undefined) resolved.order = collection.order;
+    if (collection.rss !== undefined) resolved.rss = collection.rss;
+    if (collection.data !== undefined) resolved.data = collection.data;
+    if (collection.limit !== undefined) resolved.limit = collection.limit;
+    out.push(resolved);
   }
+  // Sort by descending URL length so `/blog/` wins over `/`. Stable sort
+  // preserves authoring order among equal-length collections, which keeps
+  // routes.yaml read top-to-bottom for ties.
+  out.sort((a, b) => b.url.length - a.url.length);
+  return out;
 }
 
 // Resolve which tag/author archives are active and their URL templates.

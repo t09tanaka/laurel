@@ -766,3 +766,172 @@ describe('planRoutes — routes.yaml routes section', () => {
     expect(routes.some((r) => r.kind === 'custom')).toBe(false);
   });
 });
+
+describe('planRoutes — routes.yaml collections', () => {
+  test('post URL uses the matched collection permalink and outputPath mirrors it', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('hello-world')] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/blog/': { permalink: '/blog/{slug}/' } },
+      },
+    });
+    const post = routes.find((r) => r.kind === 'post');
+    expect(post?.url).toBe('/blog/hello-world/');
+    expect(post?.outputPath).toBe('blog/hello-world/index.html');
+    expect(post?.meta.canonical).toBe('https://example.com/blog/hello-world/');
+  });
+
+  test('multiple collections: the longer URL prefix wins regardless of declaration order', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('blog');
+    const tagged = makePost('a', { tags: [tag], primary_tag: tag });
+    const untagged = makePost('b');
+    const content = makeGraph({ posts: [tagged, untagged], tags: [tag] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        // Authored with the catch-all first to confirm sorting kicks in.
+        collections: {
+          '/': { permalink: '/{slug}/' },
+          '/blog/': { permalink: '/blog/{slug}/', filter: 'tag:blog' },
+        },
+      },
+    });
+    const taggedRoute = routes.find((r) => r.kind === 'post' && r.url === '/blog/a/');
+    const untaggedRoute = routes.find((r) => r.kind === 'post' && r.url === '/b/');
+    expect(taggedRoute).toBeDefined();
+    expect(untaggedRoute).toBeDefined();
+    expect(taggedRoute?.outputPath).toBe('blog/a/index.html');
+    expect(untaggedRoute?.outputPath).toBe('b/index.html');
+  });
+
+  test('filter:tag:blog restricts a collection to posts carrying that tag', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('blog');
+    const tagged = makePost('a', { tags: [tag], primary_tag: tag });
+    const untagged = makePost('b');
+    const content = makeGraph({ posts: [tagged, untagged], tags: [tag] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: {
+          '/blog/': { permalink: '/blog/{slug}/', filter: 'tag:blog' },
+        },
+      },
+    });
+    // The tagged post lands at /blog/a/. The untagged post matches no
+    // collection, so it keeps the legacy /b/ slug-based URL.
+    expect(routes.find((r) => r.kind === 'post' && r.url === '/blog/a/')).toBeDefined();
+    expect(routes.find((r) => r.kind === 'post' && r.url === '/b/')).toBeDefined();
+  });
+
+  test('permalink with {primary_tag} substitutes the post primary tag slug', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('news');
+    const post = makePost('hello', { tags: [tag], primary_tag: tag });
+    const content = makeGraph({ posts: [post], tags: [tag] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/': { permalink: '/{primary_tag}/{slug}/' } },
+      },
+    });
+    const route = routes.find((r) => r.kind === 'post');
+    expect(route?.url).toBe('/news/hello/');
+    expect(route?.outputPath).toBe('news/hello/index.html');
+  });
+
+  test('per-collection template: overrides post.hbs for matched posts when the theme has one', () => {
+    const config = makeConfig('https://example.com');
+    const tag = makeTag('blog');
+    const tagged = makePost('a', { tags: [tag], primary_tag: tag });
+    const content = makeGraph({ posts: [tagged], tags: [tag] });
+    const theme = makeTheme();
+    theme.templates['blog-post'] = '{{!blog-post}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: {
+          '/blog/': {
+            permalink: '/blog/{slug}/',
+            filter: 'tag:blog',
+            template: 'blog-post',
+          },
+        },
+      },
+    });
+    const route = routes.find((r) => r.kind === 'post');
+    expect(route?.template).toBe('blog-post');
+  });
+
+  test('missing per-collection template falls back to post.hbs and does not throw', () => {
+    const config = makeConfig('https://example.com');
+    const post = makePost('a');
+    const content = makeGraph({ posts: [post] });
+    const theme = makeTheme();
+    // theme.templates['blog-post'] is intentionally absent
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/': { permalink: '/{slug}/', template: 'blog-post' } },
+      },
+    });
+    const route = routes.find((r) => r.kind === 'post');
+    expect(route?.template).toBe('post');
+  });
+
+  test('unknown permalink token falls back to the slug-based URL (skip + try next collection)', () => {
+    const config = makeConfig('https://example.com');
+    const post = makePost('a');
+    const content = makeGraph({ posts: [post] });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        // The first collection references an unknown token, so it is skipped.
+        // No other collection matches, so the post keeps `/a/`.
+        collections: { '/a/': { permalink: '/{whatever}/{slug}/' } },
+      },
+    });
+    const route = routes.find((r) => r.kind === 'post');
+    expect(route?.url).toBe('/a/');
+  });
+
+  test('emits no collection effects when routes.yaml is omitted (back-compat)', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('hello')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const route = routes.find((r) => r.kind === 'post');
+    expect(route?.url).toBe('/hello/');
+    expect(route?.outputPath).toBe('hello/index.html');
+    expect(route?.template).toBe('post');
+  });
+});
