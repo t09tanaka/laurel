@@ -253,22 +253,45 @@ describe('content helper', () => {
     expect(out).toBe('<p>hello <strong>world</strong></p>');
   });
 
-  test('truncating excerpt via words still strips tags and skips heading shift', () => {
+  test('words=N preserves heading markup and skips heading shift', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{{content words=2}}}')({
       html: '<h1>one two three four</h1>',
     });
-    expect(out).toBe('one two');
+    expect(out).toBe('<h1>one two</h1>');
   });
 
-  test('words=N strips paragraph markup before truncating', () => {
+  test('words=N preserves paragraph markup before truncating', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{{content words=3}}}')({
       html: '<p>one two three four</p>',
     });
-    expect(out).toBe('one two three');
+    expect(out).toBe('<p>one two three</p>');
+  });
+
+  test('words=N preserves semantic markup and closes open tags', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{{content words=4}}}')({
+      html: '<p>one <strong>two <em>three four five</em></strong></p><p>six</p>',
+    });
+    expect(out).toBe('<p>one <strong>two <em>three four</em></strong></p>');
+  });
+
+  test('words=N returns a SafeString so preserved markup is not escaped', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const helper = engine.hb.helpers.content as HelperDelegate;
+
+    const direct = helper.call({ html: '<p>one <strong>two three</strong></p>' }, {
+      hash: { words: 2 },
+      data: {},
+    } as HelperOptions);
+
+    expect(direct).toBeInstanceOf(engine.hb.SafeString);
+    expect(direct.toString()).toBe('<p>one <strong>two</strong></p>');
   });
 
   // #436 — access gating for members/paid posts.

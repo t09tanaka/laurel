@@ -1,4 +1,7 @@
+import renderHtml from 'dom-serializer';
+import type { ChildNode, Element } from 'domhandler';
 import type Handlebars from 'handlebars';
+import { parseDocument } from 'htmlparser2';
 import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
@@ -348,11 +351,81 @@ export function registerContentHelpers(engine: NectarEngine): void {
 }
 
 function truncateWords(html: string, words: number, locale: string | undefined): string {
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return truncateByWords(text, words, locale);
+  if (!html || words <= 0) return '';
+  const doc = parseDocument(html, {
+    decodeEntities: false,
+    lowerCaseAttributeNames: false,
+  });
+  const state = { remaining: words, locale, done: false };
+  truncateWordNodes(doc.children, state);
+  return state.done ? renderHtml(doc.children, { decodeEntities: false }) : html;
+}
+
+type HtmlWordTruncateState = {
+  remaining: number;
+  locale: string | undefined;
+  done: boolean;
+};
+
+function truncateWordNodes(nodes: ChildNode[], state: HtmlWordTruncateState): void {
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (!node) continue;
+    if (state.done) {
+      nodes.splice(i);
+      relinkSiblings(nodes);
+      return;
+    }
+    if (isElement(node)) {
+      truncateWordNodes(node.children, state);
+      if (state.done) {
+        nodes.splice(i + 1);
+        relinkSiblings(node.children);
+        relinkSiblings(nodes);
+        return;
+      }
+      continue;
+    }
+    if (node.type !== 'text') continue;
+
+    const truncated = truncateTextNodeByWords(node.data, state.remaining, state.locale);
+    node.data = truncated.text;
+    state.remaining -= truncated.words;
+    state.done = truncated.limitReached;
+  }
+}
+
+function truncateTextNodeByWords(
+  text: string,
+  words: number,
+  locale: string | undefined,
+): { text: string; words: number; limitReached: boolean } {
+  if (!text || words <= 0) return { text: '', words: 0, limitReached: true };
+  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  let count = 0;
+  let end = 0;
+  for (const seg of segmenter.segment(text)) {
+    if (!seg.isWordLike) continue;
+    count += 1;
+    end = seg.index + seg.segment.length;
+    if (count >= words) {
+      return { text: text.slice(0, end), words: count, limitReached: true };
+    }
+  }
+  return { text, words: count, limitReached: false };
+}
+
+function isElement(node: ChildNode): node is Element {
+  return 'attribs' in node && 'children' in node;
+}
+
+function relinkSiblings(nodes: ChildNode[]): void {
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (!node) continue;
+    node.prev = nodes[i - 1] ?? null;
+    node.next = nodes[i + 1] ?? null;
+  }
 }
 
 function siteLocale(options: Handlebars.HelperOptions): string | undefined {
