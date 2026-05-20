@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
+import type { HelperDelegate, HelperOptions } from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerContentHelpers } from '~/render/helpers/content.ts';
 
@@ -210,6 +211,19 @@ describe('input_email helper', () => {
 });
 
 describe('content helper', () => {
+  test('returns an empty SafeString without throwing when html is missing', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const helper = engine.hb.helpers.content as HelperDelegate;
+
+    const direct = helper.call({}, { hash: {}, data: {} } as HelperOptions);
+    expect(direct).toBeInstanceOf(engine.hb.SafeString);
+    expect(direct.toString()).toBe('');
+
+    const out = engine.hb.compile('{{{content}}}')({});
+    expect(out).toBe('');
+  });
+
   test('downshifts body h1 to h2 so it does not collide with the layout title h1', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
