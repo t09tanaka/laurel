@@ -158,6 +158,14 @@ describe('get helper pagination metadata', () => {
     expect(tpl({})).toBe('page=2 count=4 next=3');
   });
 
+  test('exposes pagination fields directly on the second block param', () => {
+    const engine = buildEngine({ posts: buildPosts(10) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=4 page=2 as |items pagination|}}resource={{pagination.resource}} page={{pagination.page}} limit={{pagination.limit}} pages={{pagination.pages}} total={{pagination.total}} prev={{pagination.prev}} next={{pagination.next}} count={{items.length}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('resource=posts page=2 limit=4 pages=3 total=10 prev=1 next=3 count=4');
+  });
+
   test('honours the page hash by offsetting the slice', () => {
     const engine = buildEngine({ posts: buildPosts(10) });
     const tpl = engine.hb.compile(

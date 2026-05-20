@@ -184,9 +184,10 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     data.resource = resource;
     data.pagination = pagination;
     if (blockParams) {
+      const paginationBlockParam = { resource, ...pagination, pagination };
       return options.fn(this, {
         data,
-        blockParams: [results, { resource, pagination }],
+        blockParams: [results, paginationBlockParam],
       });
     }
     return options.fn(results, { data });
