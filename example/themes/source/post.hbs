@@ -23,11 +23,11 @@
                         <div class="gh-article-author-image instapaper_ignore">
                             {{#foreach authors}}
                                 {{#if profile_image}}
-                                    <a href="{{url}}">
+                                    <a href="{{url}}" aria-label="{{name}}">
                                         <img class="author-profile-image" src="{{img_url profile_image size="xs"}}" alt="{{name}}">
                                     </a>
                                 {{else}}
-                                    <a href="{{url}}">{{> "icons/avatar"}}</a>
+                                    <a href="{{url}}" aria-label="{{name}}">{{> "icons/avatar"}}</a>
                                 {{/if}}
                             {{/foreach}}
                         </div>

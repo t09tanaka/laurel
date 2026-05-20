@@ -4,7 +4,7 @@ description = "A demo blog built with Nectar against the Ghost Source theme"
 url = "https://nectar.example.com"
 locale = "en"
 timezone = "UTC"
-accent_color = "#FF5722"
+accent_color = "#D63F00"
 logo = "/content/images/logo.svg"
 icon = "/content/images/logo.svg"
 

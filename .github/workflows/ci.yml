@@ -60,3 +60,6 @@ jobs:
 
       - name: html-validate (example/dist)
         run: bun run lint:html
+
+      - name: axe a11y gate (example/dist)
+        run: bun run lint:a11y

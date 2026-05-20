@@ -83,7 +83,8 @@
     "check": "biome check src tests",
     "format": "biome format --write src tests",
     "lint": "biome lint src tests",
-    "lint:html": "html-validate \"example/dist/**/*.html\""
+    "lint:html": "html-validate \"example/dist/**/*.html\"",
+    "lint:a11y": "bun run scripts/a11y-gate.ts"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
@@ -111,6 +112,7 @@
     "sharp": "^0.33.5"
   },
   "devDependencies": {
+    "@axe-core/cli": "^4.11.3",
     "@biomejs/biome": "^1.9.4",
     "@tryghost/content-api": "^1.12.8",
     "@types/bun": "latest",
