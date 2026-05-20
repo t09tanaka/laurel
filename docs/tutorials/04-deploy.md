@@ -7,9 +7,9 @@ them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
 Firebase Hosting, AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and
 self-hosted nginx quickstarts. Docker is covered as a runtime wrapper around a
-pre-built `dist/` directory; Nectar does not currently ship a Dockerfile,
-compose file, `fly.toml`, or Docker-specific package script. Fly.io is
-covered as a container runtime around that pre-built output.
+pre-built `dist/` directory. Fly.io is covered as a container runtime around
+that pre-built output, with static-only nginx sample files under
+[`examples/fly/`](../../examples/fly/).
 
 **Universal pre-flight:**
 
@@ -74,16 +74,20 @@ default-config command above as the portable smoke test.
 **Recommended for:** teams that want Fly's container rollout model, regions,
 and TLS while serving a static Nectar build.
 
-For the focused Fly guide, including minimal `Dockerfile` and `fly.toml`
-examples, see [`docs/deploy/fly.md`](../deploy/fly.md).
+For the focused Fly guide, including the static-only nginx sample, see
+[`docs/deploy/fly.md`](../deploy/fly.md).
 
-Nectar does not include a Fly runtime config. Add a project-local Dockerfile
-that serves the already-built `dist/` directory:
+Copy the sample runtime files to the project root:
 
-```Dockerfile
-FROM nginx:alpine
-COPY dist /usr/share/nginx/html
+```bash
+cp examples/fly/fly.toml fly.toml
+cp examples/fly/Dockerfile Dockerfile
+cp examples/fly/nginx.conf nginx.conf
 ```
+
+The sample `Dockerfile` serves the already-built `dist/` directory with nginx,
+and the sample `nginx.conf` keeps Nectar's pretty URLs and generated
+`404.html` fallback working.
 
 Create the Fly app once:
 
@@ -91,8 +95,8 @@ Create the Fly app once:
 flyctl launch --no-deploy
 ```
 
-Then keep a minimal `fly.toml` that points Fly's HTTP service at nginx port
-80:
+Then edit `app` and `primary_region` in `fly.toml`. The sample points Fly's
+HTTP service at nginx port 80:
 
 ```toml
 app = "my-nectar-site"
@@ -114,10 +118,9 @@ Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
 to `main`. The workflow builds `dist/` with Bun, then runs
 `flyctl deploy --remote-only`.
 
-This minimal Fly path has the same nginx caveats as the Docker quickstart:
-stock `nginx:alpine` does not apply Nectar-generated redirects, custom
-headers, or the generated pretty-URL fallback unless you provide a compatible
-nginx config.
+This minimal Fly path is static-only. The sample nginx config covers
+directory-style Nectar pages and `404.html`; adapt it if you also need
+generated redirects or custom header rules.
 
 ---
 

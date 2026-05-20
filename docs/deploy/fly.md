@@ -1,9 +1,8 @@
 # Deploying Nectar to Fly.io
 
 Fly.io runs applications from container images. Nectar emits static files to
-`dist/`, and this repository does not ship a Dockerfile, compose file, or
-Fly-specific runtime config. Treat Fly as a small nginx container that serves a
-pre-built `dist/` directory.
+`dist/`, and the sample under [`examples/fly/`](../../examples/fly/) treats Fly
+as a small nginx container that serves that pre-built directory.
 
 Use this guide when you want Fly's app platform, regions, TLS, and rollout
 model for a static Nectar site. If you only need to smoke-test the container
@@ -30,32 +29,37 @@ locally, start with [`docs/deploy/docker.md`](./docker.md).
   flyctl launch --no-deploy
   ```
 
-  Keep the generated `fly.toml` in the repo, then review it against the minimal
-  static-site example below.
+  Keep the generated `fly.toml` in the repo, then review it against
+  [`examples/fly/fly.toml`](../../examples/fly/fly.toml).
 
-## Minimal Dockerfile
+## Static nginx sample
 
-Add this `Dockerfile` at the project root:
+Copy the Fly sample files to the project root:
 
-```Dockerfile
-FROM nginx:alpine
-COPY dist /usr/share/nginx/html
+```sh
+cp examples/fly/fly.toml fly.toml
+cp examples/fly/Dockerfile Dockerfile
+cp examples/fly/nginx.conf nginx.conf
 ```
 
-This image assumes `bunx nectar build` already ran before `flyctl deploy`.
-The matching GitHub Actions template at
-[`examples/ci/fly.yml`](../../examples/ci/fly.yml) builds `dist/` first, then
-lets Fly build and release this small nginx image.
+The sample [`Dockerfile`](../../examples/fly/Dockerfile) assumes
+`bunx nectar build` already ran before `flyctl deploy`. The matching GitHub
+Actions template at [`examples/ci/fly.yml`](../../examples/ci/fly.yml) builds
+`dist/` first, then lets Fly build and release this small nginx image.
 
-The stock nginx config serves files but does not read Nectar's generated
-redirects, security headers, cache headers, pretty-URL fallback, or compression
-sidecars. For those production concerns, either copy in a reviewed nginx config
-compatible with your image, or use the generated nginx config flow described in
+The sample [`nginx.conf`](../../examples/fly/nginx.conf) is intentionally
+static-only: it serves Nectar's `slug/index.html` output with
+`try_files $uri $uri/ $uri/index.html =404;`, falls back to the generated
+`404.html` page, and pins the default long-lived asset paths. It does not
+translate `redirects.yaml` or every custom `[deploy.headers]` override. For
+those production concerns, either adapt the sample config or use the generated
+nginx config flow described in
 [`docs/deploy/docker.md`](./docker.md#optional-generate-a-nectar-nginx-config).
 
 ## Minimal fly.toml
 
-The smallest static-site Fly app listens on port 80 inside the container:
+The sample [`fly.toml`](../../examples/fly/fly.toml) listens on port 80 inside
+the container:
 
 ```toml
 app = "my-nectar-site"
@@ -90,7 +94,10 @@ example:
 
 1. Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
    `.github/workflows/fly.yml`.
-2. Add `Dockerfile` and `fly.toml` at the project root.
+2. Copy [`examples/fly/fly.toml`](../../examples/fly/fly.toml),
+   [`examples/fly/Dockerfile`](../../examples/fly/Dockerfile), and
+   [`examples/fly/nginx.conf`](../../examples/fly/nginx.conf) to the project
+   root.
 3. Create a Fly API token:
 
    ```sh
@@ -129,9 +136,8 @@ the production hostname.
 - **`COPY dist` fails during deploy:** run `bunx nectar build` before
   `flyctl deploy`, or use the GitHub Actions workflow so the build step always
   precedes deployment.
-- **Deep pages 404:** the minimal nginx image lacks Nectar's generated
-  `try_files $uri $uri/ $uri/index.html =404;` fallback. Use a custom nginx
-  config if you need that behavior.
+- **Deep pages 404:** confirm the deployed image includes the sample
+  `nginx.conf` and that `dist/<slug>/index.html` exists before deploy.
 - **Redirects or headers are missing:** `_redirects`, `_headers`, and generated
   nginx config files are host-specific artifacts. Stock nginx ignores them
   unless you translate or mount a compatible config.
