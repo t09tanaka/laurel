@@ -205,6 +205,7 @@ function makeAuthor(slug: string): Author {
     meta_title: undefined,
     meta_description: undefined,
     url: `/author/${slug}/`,
+    count: { posts: 0 },
   };
 }
 

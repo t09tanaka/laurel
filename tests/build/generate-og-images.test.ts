@@ -71,6 +71,7 @@ function makeAuthor(overrides: Partial<Author> = {}): Author {
     meta_title: undefined,
     meta_description: undefined,
     url: 'https://example.com/author/alice/',
+    count: { posts: 1 },
     ...overrides,
   };
 }

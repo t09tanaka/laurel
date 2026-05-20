@@ -325,8 +325,8 @@ async function loadContentWithPool({
 
   const allTags = Array.from(tagMap.values());
   const allAuthors = Array.from(authorMap.values());
-  // Single pass: iterate posts once and (a) bump per-tag counters via the
-  // shared Tag references stored on each post, (b) populate the inverse
+  // Single pass: iterate posts once and (a) bump per-tag/per-author counters
+  // via the shared references stored on each post, (b) populate the inverse
   // slug -> Post[] indices used by the route planner. The previous O(T·P)
   // filter blew up on sites with many tags (100k tags x 10k posts ~= 10^9
   // ops just to count). Dedupe slugs per post so duplicate frontmatter
@@ -334,6 +334,9 @@ async function loadContentWithPool({
   // bucket, matching the original `some(...)` boolean semantics.
   for (const tag of allTags) {
     tag.count.posts = 0;
+  }
+  for (const author of allAuthors) {
+    author.count.posts = 0;
   }
   const postsByTag = new Map<string, Post[]>();
   const postsByAuthor = new Map<string, Post[]>();
@@ -361,6 +364,7 @@ async function loadContentWithPool({
       const key = localizedKey(localeInfo.routing ? a.locale : undefined, a.slug);
       if (seenAuthors.has(key)) continue;
       seenAuthors.add(key);
+      a.count.posts += 1;
       const bucket = postsByAuthor.get(key);
       if (bucket) bucket.push(post);
     }
@@ -1375,6 +1379,7 @@ function normalizeAuthor(
       config.build.trailing_slash,
       routePrefix,
     ),
+    count: { posts: 0 },
   };
 }
 
@@ -1748,6 +1753,7 @@ function resolveAuthorSlugs(
       meta_title: undefined,
       meta_description: undefined,
       url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, trailingSlash, routePrefix),
+      count: { posts: 0 },
     };
     authors.set(key, created);
     return created;

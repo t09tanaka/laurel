@@ -95,6 +95,7 @@ export interface Author {
   meta_title: string | undefined;
   meta_description: string | undefined;
   url: string;
+  count: { posts: number };
 }
 
 export interface Tag {

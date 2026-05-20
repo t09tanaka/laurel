@@ -106,8 +106,62 @@ describe('loadContent', () => {
     expect(graph.pages).toHaveLength(1);
     expect(graph.pages[0]?.slug).toBe('about');
     expect(graph.authors[0]?.name).toBe('Casper');
+    expect(graph.authors.find((a) => a.slug === 'casper')?.count.posts).toBe(1);
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
+  });
+
+  test('counts primary and secondary author posts from the public post graph', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-author-count-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await writeFile(join(cwd, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    await writeFile(join(cwd, 'content/authors/pat.md'), '---\nname: Pat\n---\n', 'utf8');
+    await writeFile(
+      join(cwd, 'content/posts/co-authored.md'),
+      `---
+title: Co-authored
+date: 2026-01-01T00:00:00Z
+authors: [casper, pat]
+---
+
+Body.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/pat-only.md'),
+      `---
+title: Pat only
+date: 2026-01-02T00:00:00Z
+authors: [pat]
+---
+
+Body.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/newsletter.md'),
+      `---
+title: Newsletter
+date: 2026-01-03T00:00:00Z
+authors: [pat]
+email_only: true
+---
+
+Body.
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.authors.find((a) => a.slug === 'casper')?.count.posts).toBe(1);
+    expect(graph.authors.find((a) => a.slug === 'pat')?.count.posts).toBe(2);
+    expect(graph.postsByAuthor.get('pat')?.map((p) => p.slug)).toEqual(['pat-only', 'co-authored']);
   });
 
   test('loads tag accent_color and exposes it on primary_tag', async () => {

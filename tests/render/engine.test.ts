@@ -521,6 +521,7 @@ describe('buildContext', () => {
           meta_title: undefined,
           meta_description: undefined,
           url: '/author/jane/',
+          count: { posts: 0 },
         },
       },
       meta: baseMeta,
@@ -1597,6 +1598,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       meta_title: undefined,
       meta_description: undefined,
       url: '/author/wave-author/',
+      count: { posts: 1 },
     };
     const post = {
       ...makePost({

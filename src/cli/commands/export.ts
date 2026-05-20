@@ -330,6 +330,7 @@ function serializeAuthor(author: Author): Record<string, unknown> {
     twitter: author.twitter ?? null,
     facebook: author.facebook ?? null,
     url: author.url,
+    count: author.count,
   };
 }
 

@@ -29,9 +29,7 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
   const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
   const serializedTags = content.tags.map(serializeTag);
-  const serializedAuthors = content.authors.map((a) =>
-    serializeAuthor(a, countAuthorPosts(a, content.posts)),
-  );
+  const serializedAuthors = content.authors.map(serializeAuthor);
 
   await Promise.all([
     writeResourceWith(outputDir, 'posts', serializedPosts),
@@ -65,7 +63,7 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
     }),
     ...content.authors.map((author) =>
       writeBySlug(outputDir, 'authors', author.slug, {
-        authors: [serializeAuthor(author, countAuthorPosts(author, content.posts))],
+        authors: [serializeAuthor(author)],
       }),
     ),
     ...content.tags.map((tag) =>
@@ -346,10 +344,10 @@ function serializeTag(tag: Tag): Record<string, unknown> {
   };
 }
 
-function serializeAuthor(author: Author, postCount: number): Record<string, unknown> {
+function serializeAuthor(author: Author): Record<string, unknown> {
   return {
     ...serializeAuthorBare(author),
-    count: { posts: postCount },
+    count: author.count,
   };
 }
 
@@ -369,13 +367,4 @@ function serializeAuthorBare(author: Author): Record<string, unknown> {
     meta_description: author.meta_description ?? null,
     url: author.url,
   };
-}
-
-function countAuthorPosts(author: Author, posts: Post[]): number {
-  let n = 0;
-  for (const post of posts) {
-    if (post.status !== 'published') continue;
-    if (post.authors.some((a) => a.id === author.id)) n++;
-  }
-  return n;
 }

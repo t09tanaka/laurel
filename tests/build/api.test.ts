@@ -46,6 +46,7 @@ function makeAuthor(over: Partial<Author> = {}): Author {
     meta_title: undefined,
     meta_description: undefined,
     url: 'https://example.com/author/casper/',
+    count: { posts: 1 },
     ...over,
   };
 }
