@@ -1,4 +1,4 @@
-# Serving images from R2 on a Cloudflare Pages site
+# Deploying a Cloudflare Pages site with images on R2
 
 Cloudflare Pages caps deployments at **25,000 files** per upload. A
 content-heavy Nectar build can blow past that limit once `[components.images]`
@@ -7,11 +7,19 @@ post image — a 200-post site with three widths and three formats per image
 ships 1800+ image files alone.
 
 The fix is to keep HTML, CSS, JS, and JSON on Pages, and move the image
-output tree (`/content/images/`) to **Cloudflare R2** behind a public bucket.
+output tree (`/content/images/`) to **Cloudflare R2** behind a Worker or a
+Cloudflare-managed public/custom domain.
 The browser sees a single origin (your Pages domain) thanks to a Cloudflare
 Worker that rewrites `/content/images/*` requests to R2.
 
-This recipe walks through the full setup.
+This recipe is intentionally explicit about which command syncs what:
+
+- `nectar deploy cloudflare` deploys the static Pages bundle with Wrangler.
+- `nectar deploy r2` wraps `aws s3 sync dist s3://<bucket> --endpoint-url
+  <endpoint>` and is useful when an R2 bucket is the deploy target for the
+  whole `dist/` tree.
+- For the split Pages + R2 image-origin pattern below, sync
+  `dist/content/images/` with the AWS CLI so only image objects land in R2.
 
 ## When to use this recipe
 
@@ -42,32 +50,40 @@ cue.
 +---------------------+
 ```
 
-The Pages deployment carries everything *except* `/content/images/`. A
-Worker mounted at the Pages site rewrites `/content/images/*` to the R2
-bucket so the browser never learns the bucket exists. Caching, security
-headers, and the rest of the Pages config still apply.
+The Pages deployment carries everything *except* `/content/images/`. A Worker
+mounted on the Pages hostname rewrites `/content/images/*` to the R2 bucket so
+the browser keeps requesting the normal Nectar image URLs. Caching, security
+headers, and the rest of the Pages config still apply to the Pages-rendered
+HTML.
 
 ## Setup
 
-### 1. Create an R2 bucket
+### 1. Create an R2 bucket and credentials
 
 In the Cloudflare dashboard, **R2 -> Create bucket**. Name it after your
-site (e.g. `yoursite-images`). Leave it private — the Worker fronts it.
+site (e.g. `yoursite-images`). For the Worker pattern, leave public access off;
+the Worker reads the private bucket through an R2 binding.
+
+Then create an R2 API token from **R2 -> Manage R2 API tokens** with object
+read/write access to that bucket. The AWS CLI uses the generated access key id
+and secret access key:
+
+```sh
+export AWS_ACCESS_KEY_ID=<r2-access-key-id>
+export AWS_SECRET_ACCESS_KEY=<r2-secret-access-key>
+export AWS_DEFAULT_REGION=auto
+```
+
+The R2 S3-compatible endpoint is:
+
+```text
+https://<account-id>.r2.cloudflarestorage.com
+```
 
 ### 2. Sync nectar's image output to R2
 
-After every build, push `dist/content/images/` to the bucket. Nectar's
-`[deploy.r2]` target does this with one command:
-
-```toml
-# nectar.toml
-[deploy.r2]
-bucket = "yoursite-images"
-endpoint = "https://<account-id>.r2.cloudflarestorage.com"
-delete = true  # mirror exactly so stale variants are cleaned up
-```
-
-Run it scoped to the images subtree:
+After every build, push `dist/content/images/` to the bucket under the same
+key prefix. That keeps the generated Nectar URLs stable:
 
 ```sh
 aws s3 sync dist/content/images/ s3://yoursite-images/content/images/ \
@@ -75,8 +91,28 @@ aws s3 sync dist/content/images/ s3://yoursite-images/content/images/ \
   --delete
 ```
 
-(`nectar deploy r2` wraps this; pass `--bucket` and `--endpoint` overrides if
-you don't want to commit them to `nectar.toml`.)
+Use `--delete` only when this bucket/prefix is dedicated to generated Nectar
+images; it removes stale responsive variants that no longer exist locally.
+
+If you want R2 to host the entire `dist/` output instead of only images,
+configure Nectar's R2 deploy target and use `nectar deploy r2`:
+
+```toml
+# nectar.toml
+[deploy.r2]
+bucket = "yoursite-static"
+endpoint = "https://<account-id>.r2.cloudflarestorage.com"
+delete = true
+```
+
+```sh
+bunx nectar deploy r2 --build --dry-run
+bunx nectar deploy r2 --build
+```
+
+That command syncs the configured build output directory, normally `dist/`, to
+the bucket root. It does not currently have a flag for syncing only
+`dist/content/images/`.
 
 ### 3. Strip images from the Pages upload
 
@@ -100,6 +136,14 @@ before the upload step and back afterwards.
     aws s3 sync dist/content/images/ s3://yoursite-images/content/images/ \
       --endpoint-url https://${{ secrets.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com \
       --delete
+```
+
+If the images directory may be absent on small sites, guard the move:
+
+```sh
+if [ -d dist/content/images ]; then
+  mv dist/content/images /tmp/nectar-images
+fi
 ```
 
 ### 4. Add the rewrite Worker
@@ -130,6 +174,9 @@ export interface Env {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    if (!url.pathname.startsWith('/content/images/')) {
+      return new Response('Not found', { status: 404 });
+    }
     // Strip the leading slash; R2 keys don't have one.
     const key = url.pathname.slice(1);
     const obj = await env.IMAGES.get(key);
@@ -149,12 +196,41 @@ Deploy:
 npx wrangler deploy
 ```
 
-### 5. Verify
+### 5. Alternative: R2 public or custom domain
+
+R2 can also serve a bucket through a Cloudflare-managed `r2.dev` URL or a
+custom domain attached to your zone. That removes the Worker code, but the
+tradeoff is origin shape:
+
+- A custom domain such as `images.example.com` is simple and cacheable, but
+  Nectar image URLs are still emitted as `/content/images/...`; you need a
+  redirect/rewrite layer on Pages or theme/config changes that point images at
+  the image domain.
+- A public `r2.dev` URL is useful for smoke tests, but Cloudflare recommends a
+  custom domain for production control over cache, TLS, and hostname policy.
+- A Worker binding keeps the bucket private and preserves same-origin
+  `/content/images/...` URLs, which is why it is the default recipe here.
+
+### 6. Verify
 
 Open the site and inspect an image element in DevTools. The request to
 `/content/images/<hash>/foo.webp` should return 200 from your Pages origin,
 served by the Worker out of R2. The CDN edge caches the response per the
 Worker's `Cache-Control`, so repeated requests skip the R2 round trip.
+
+Before running a real Pages upload in CI, dry-run the Pages deploy command.
+You can also dry-run the whole-bucket R2 target if you use R2 as the complete
+static host:
+
+```sh
+bunx nectar deploy cloudflare --build --dry-run --project-name yoursite
+bunx nectar deploy r2 --dry-run --bucket yoursite-static \
+  --endpoint https://<account-id>.r2.cloudflarestorage.com
+```
+
+The second command is a whole-`dist/` plan check. For the split image-origin
+setup, keep using the scoped `aws s3 sync dist/content/images/ ...` command
+shown above.
 
 ## Cost notes
 
@@ -180,5 +256,7 @@ work item, tracked separately.
 - **Mixed-origin warnings:** the Worker should set a `Cache-Control` header.
   The image origin is otherwise indistinguishable from any other Pages
   asset.
-- **Stale variants:** the `nectar deploy r2 --delete` flag mirrors the
-  bucket; without it old variants linger forever and rack up storage cost.
+- **Stale variants:** keep `--delete` on the scoped
+  `aws s3 sync dist/content/images/ s3://.../content/images/` command when
+  that bucket/prefix is dedicated to generated Nectar images. Without it old
+  variants linger forever and rack up storage cost.

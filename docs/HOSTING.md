@@ -18,7 +18,8 @@ collects the operator-facing pieces of that contract in one place:
   `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
 - [`docs/deploy/cloudflare-pages-r2-images.md`](./deploy/cloudflare-pages-r2-images.md)
   — move image variants to R2 when a Pages deploy approaches the 25,000-file
-  limit.
+  limit, including the private-bucket Worker pattern, R2 endpoint/credential
+  setup, and the difference between scoped image sync and `nectar deploy r2`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages),
   without security headers wired in. Pair with `security/hosting.md` for the
@@ -54,7 +55,18 @@ If you just want a defensible default stack on a new deploy:
 
 For Cloudflare Pages specifically, start with
 [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) before adding
-the stricter security header baseline.
+the stricter security header baseline. If the build is image-heavy, check the
+file count before wiring the final deploy:
+
+```sh
+bunx nectar build
+find dist -type f | wc -l
+```
+
+Cloudflare Pages rejects uploads above 25,000 files. Around 20,000 files, plan
+the R2 image-origin split in
+[`docs/deploy/cloudflare-pages-r2-images.md`](./deploy/cloudflare-pages-r2-images.md)
+instead of waiting for a failed Pages upload.
 
 ## Code injection
 

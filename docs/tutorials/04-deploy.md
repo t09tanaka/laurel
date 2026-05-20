@@ -79,6 +79,56 @@ project_name = "my-blog"
 bunx nectar deploy cloudflare --build
 ```
 
+### Cloudflare Pages + R2 for large image libraries
+
+Cloudflare Pages accepts at most 25,000 files per deploy. If
+`dist/content/images/` contains thousands of responsive image variants, keep
+the static site on Pages and sync only the image subtree to Cloudflare R2.
+
+First check the build size:
+
+```bash
+bunx nectar build
+find dist -type f | wc -l
+```
+
+Then create an R2 bucket, generate an R2 API token, and sync images with the
+R2 S3-compatible endpoint:
+
+```bash
+export AWS_ACCESS_KEY_ID=<r2-access-key-id>
+export AWS_SECRET_ACCESS_KEY=<r2-secret-access-key>
+export AWS_DEFAULT_REGION=auto
+
+aws s3 sync dist/content/images/ s3://my-blog-images/content/images/ \
+  --endpoint-url https://<account-id>.r2.cloudflarestorage.com \
+  --delete
+```
+
+Move `dist/content/images/` out of the Pages upload before `wrangler pages
+deploy`, then restore it for the R2 sync step. A Worker mounted on
+`/content/images/*` can read the private R2 bucket and keep image URLs
+same-origin.
+
+Nectar also has an R2 deploy target:
+
+```toml
+[deploy.r2]
+bucket = "my-blog-static"
+endpoint = "https://<account-id>.r2.cloudflarestorage.com"
+delete = true
+```
+
+```bash
+bunx nectar deploy r2 --build --dry-run
+```
+
+That command syncs the whole build output directory (`dist/` by default) to
+the bucket root. For the Pages + R2 split, use the scoped `aws s3 sync
+dist/content/images/ ...` command above. See
+[`docs/deploy/cloudflare-pages-r2-images.md`](../deploy/cloudflare-pages-r2-images.md)
+for the full Worker, custom-domain, and CI workflow.
+
 ---
 
 ## Vercel
