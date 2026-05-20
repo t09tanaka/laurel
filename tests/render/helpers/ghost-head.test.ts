@@ -9,8 +9,26 @@ function makeEngine(
   site: Partial<SiteData> = {},
   config?: Partial<NectarEngine['config']>,
   favicons?: FaviconSet,
+  theme?: Partial<NectarEngine['theme']>,
 ): NectarEngine {
   const hb = Handlebars.create();
+  const baseTheme: NectarEngine['theme'] = {
+    name: 'test-theme',
+    rootDir: '',
+    templates: {},
+    partials: {},
+    locales: {},
+    assets: new Map(),
+    pkg: {
+      name: 'test-theme',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    },
+  };
   const fullSite: SiteData = {
     title: 'Nectar Test',
     description: 'desc',
@@ -50,7 +68,11 @@ function makeEngine(
     hb,
     config: (config ?? {}) as NectarEngine['config'],
     content: { site: fullSite } as unknown as ContentGraph,
-    theme: {} as NectarEngine['theme'],
+    theme: {
+      ...baseTheme,
+      ...theme,
+      pkg: { ...baseTheme.pkg, ...theme?.pkg },
+    } as NectarEngine['theme'],
     favicons,
     templates: {},
     layouts: {},
@@ -69,9 +91,10 @@ function renderGhostHead(
     routeData?: Record<string, unknown>;
     routeKind?: string;
     favicons?: FaviconSet;
+    theme?: Partial<NectarEngine['theme']>;
   } = {},
 ): string {
-  const engine = makeEngine(opts.site, opts.config, opts.favicons);
+  const engine = makeEngine(opts.site, opts.config, opts.favicons, opts.theme);
   registerGhostHeadFootHelpers(engine);
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
@@ -119,6 +142,48 @@ function findBreadcrumb(html: string): BreadcrumbList | undefined {
   }
   return undefined;
 }
+
+describe('ghost_head color-scheme meta', () => {
+  test('emits a conservative light dark hint by default', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
+    expect(html).toContain('<meta name="color-scheme" content="light dark">');
+  });
+
+  test('prefers dark first when the effective theme background is dark', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      theme: {
+        pkg: { customDefaults: { site_background_color: '#111111' } },
+      } as Partial<NectarEngine['theme']>,
+    });
+    expect(html).toContain('<meta name="color-scheme" content="dark light">');
+  });
+
+  test('lets configured custom background override theme defaults', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      theme: {
+        pkg: { customDefaults: { site_background_color: '#111111' } },
+      } as Partial<NectarEngine['theme']>,
+      config: { theme: { custom: { site_background_color: '#ffffff' } } } as Partial<
+        NectarEngine['config']
+      >,
+    });
+    expect(html).toContain('<meta name="color-scheme" content="light dark">');
+  });
+
+  test('honours explicit theme custom color_scheme values before background inference', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        theme: {
+          custom: {
+            color_scheme: 'Light',
+            site_background_color: '#111111',
+          },
+        },
+      } as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain('<meta name="color-scheme" content="light dark">');
+  });
+});
 
 describe('ghost_head JSON-LD escaping', () => {
   test('emits twitter:card summary_large_image for routes', () => {

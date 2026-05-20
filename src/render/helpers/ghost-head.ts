@@ -2,6 +2,7 @@ import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { joinPath } from '~/theme/assets.ts';
+import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
@@ -26,6 +27,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
+      parts.push(`<meta name="color-scheme" content="${resolveColorSchemeMeta(engine)}">`);
       if (isNonProductionBuild(engine.config)) {
         parts.push(`<meta name="robots" content="noindex">`);
       }
@@ -335,6 +337,44 @@ function computeMeta(
     imageAlt,
     ogType,
   };
+}
+
+function resolveColorSchemeMeta(engine: NectarEngine): 'light dark' | 'dark light' {
+  const custom = {
+    ...(engine.theme?.pkg?.customDefaults ?? {}),
+    ...(engine.config?.theme?.custom ?? {}),
+  };
+  const explicit = resolveExplicitColorScheme(custom);
+  if (explicit) return explicit;
+  const background =
+    typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
+  if (isDarkBackground(background)) return 'dark light';
+  return 'light dark';
+}
+
+function resolveExplicitColorScheme(
+  custom: Record<string, unknown>,
+): 'light dark' | 'dark light' | undefined {
+  for (const [key, raw] of Object.entries(custom)) {
+    if (!isColorSchemeKey(key) || typeof raw !== 'string') continue;
+    const value = raw.toLowerCase();
+    const hasLight = /\blight\b/.test(value);
+    const hasDark = /\bdark\b/.test(value);
+    if (hasDark && hasLight) {
+      return value.indexOf('dark') < value.indexOf('light') ? 'dark light' : 'light dark';
+    }
+    if (hasDark) return 'dark light';
+    if (hasLight) return 'light dark';
+  }
+  return undefined;
+}
+
+function isColorSchemeKey(key: string): boolean {
+  return key.toLowerCase().replace(/[-\s]+/g, '_') === 'color_scheme';
+}
+
+function isDarkBackground(color: string | undefined): boolean {
+  return textColorClassFor(color) === 'has-light-text';
 }
 
 // Open Graph recommends emitting og:image:type so consumers can decide how to
