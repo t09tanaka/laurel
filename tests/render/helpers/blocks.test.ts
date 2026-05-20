@@ -265,6 +265,22 @@ describe('is helper', () => {
     const tpl = engine.hb.compile('{{#is "index"}}HIT{{else}}MISS{{/is}}');
     expect(tpl({}, { data: { route: { kind: 'home' } } })).toBe('HIT');
   });
+
+  test('space-separated targets match (Ghost accepts both "a b" and "a, b")', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "post page"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'page' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('MISS');
+  });
+
+  test('mixed comma + whitespace separators all split into targets', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "post,  page tag"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('HIT');
+  });
 });
 
 describe('has helper', () => {
@@ -456,6 +472,21 @@ describe('has helper', () => {
     );
     expect(tpl({ items: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] })).toBe('-a--b-[c]');
   });
+
+  // Ghost's `{{#has}}` treats multiple hash keys as OR: the block enters when
+  // any one of the keys matches. Two-key form is the common case (`tag=` plus
+  // `slug=`), so verify the OR semantics explicitly.
+  test('multiple hash keys OR together: matches when any key matches', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has slug="alpha" tag="news"}}HIT{{else}}MISS{{/has}}');
+    // slug matches, tag does not
+    expect(tpl({ slug: 'alpha', tags: [{ slug: 'foo' }] })).toBe('HIT');
+    // tag matches, slug does not
+    expect(tpl({ slug: 'beta', tags: [{ slug: 'news' }] })).toBe('HIT');
+    // neither matches
+    expect(tpl({ slug: 'beta', tags: [{ slug: 'foo' }] })).toBe('MISS');
+  });
 });
 
 describe('match helper', () => {
@@ -511,6 +542,33 @@ describe('match helper', () => {
     const gt = engine.hb.compile('{{match a ">" b}}');
     expect(gt({ a: 10, b: '9' })).toBe('true');
     expect(gt({ a: '10', b: 9 })).toBe('true');
+  });
+
+  test('"=" coerces between boolean and the string literals "true"/"false"', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const eq = engine.hb.compile('{{match a "=" b}}');
+    expect(eq({ a: true, b: 'true' })).toBe('true');
+    expect(eq({ a: 'true', b: true })).toBe('true');
+    expect(eq({ a: false, b: 'false' })).toBe('true');
+    expect(eq({ a: true, b: 'false' })).toBe('false');
+  });
+
+  test('two-arg form also coerces "true"/"false" string<->boolean', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{match flag "true"}}');
+    expect(tpl({ flag: true })).toBe('true');
+    expect(tpl({ flag: false })).toBe('false');
+    expect(tpl({ flag: 'true' })).toBe('true');
+  });
+
+  test('"!=" inverts the coerced equality result', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const ne = engine.hb.compile('{{match a "!=" b}}');
+    expect(ne({ a: true, b: 'true' })).toBe('false');
+    expect(ne({ a: true, b: 'false' })).toBe('true');
   });
 });
 

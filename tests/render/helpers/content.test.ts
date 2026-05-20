@@ -224,6 +224,39 @@ describe('content helper', () => {
     });
     expect(out).toBe('one two');
   });
+
+  // #436 — access gating for members/paid posts.
+  // The loader (src/content/paywall.ts) is responsible for truncating body
+  // HTML and appending the `.gh-paywall-stub` snippet *before* the renderer
+  // ever sees it. `{{content}}` itself must not strip or rewrite that stub;
+  // verify the pre-truncated HTML passes through (and the body h1 still
+  // downshifts so it doesn't collide with the layout title).
+  test('emits the loader-truncated paywall stub verbatim for members-only posts', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{{content}}}')({
+      visibility: 'members',
+      html: '<p>Free preview.</p><div class="gh-paywall-stub" data-paywall-visibility="members"><h2 class="gh-paywall-stub-title">Subscribe to read</h2></div>',
+    });
+    expect(out).toContain('<p>Free preview.</p>');
+    expect(out).toContain('class="gh-paywall-stub"');
+    expect(out).toContain('data-paywall-visibility="members"');
+    expect(out).toContain('<h2 class="gh-paywall-stub-title">Subscribe to read</h2>');
+  });
+
+  test('access helper stays false alongside a members-visibility post (themes still hit the inverse)', () => {
+    // Belt-and-suspenders: the lock-icon flow uses `{{#unless access}}` so
+    // even when content delivers a stub, themes that branch on `access`
+    // continue to render the locked CTA. Confirms #436 doesn't accidentally
+    // flip the `access` helper.
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{#unless access}}LOCKED{{/unless}}')({
+      visibility: 'members',
+      html: '<p>preview</p>',
+    });
+    expect(out).toBe('LOCKED');
+  });
 });
 
 describe('meta_title helper pagination', () => {
@@ -686,6 +719,49 @@ describe('authors helper', () => {
     const out = engine.hb.compile('{{#authors}}[{{name}}]{{/authors}}')(ctx);
     expect(out).toBe('[Ada][Grace][Linus]');
   });
+
+  test('fallback= renders when the author list is empty', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors fallback="Anonymous"}}')({ authors: [] });
+    expect(out).toBe('Anonymous');
+  });
+
+  test('fallback= still wraps with prefix/suffix when the list is empty', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors prefix="By " suffix="." fallback="Anonymous"}}')({
+      authors: [],
+    });
+    expect(out).toBe('By Anonymous.');
+  });
+
+  test('visibility="public" mirrors the tags helper: keeps authors without an explicit visibility', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    // Nectar's loader does not stamp visibility on authors today, so the
+    // default `public` filter must accept missing fields rather than wipe the
+    // list — same convention as tags.
+    const out = engine.hb.compile('{{authors visibility="public" autolink=false}}')({
+      authors: [
+        { name: 'Ada', url: '/author/ada/' },
+        { name: 'Eve', url: '/author/eve/', visibility: 'internal' },
+      ],
+    });
+    expect(out).toBe('Ada');
+  });
+
+  test('visibility="all" surfaces internal-tagged authors too', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors visibility="all" autolink=false}}')({
+      authors: [
+        { name: 'Ada', url: '/author/ada/' },
+        { name: 'Eve', url: '/author/eve/', visibility: 'internal' },
+      ],
+    });
+    expect(out).toBe('Ada, Eve');
+  });
 });
 
 describe('tags helper', () => {
@@ -844,6 +920,50 @@ describe('tags helper', () => {
       ],
     });
     expect(out).toBe('[News]');
+  });
+
+  test('default visibility="public" omitted: hash- prefix slugs flagged internal are dropped', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    // Mirrors the loader output (slug.startsWith('hash-') -> visibility:'internal').
+    const out = engine.hb.compile('{{tags autolink=false}}')({
+      tags: [{ name: 'Hidden', slug: 'hash-x', url: '/tag/hash-x/', visibility: 'internal' }],
+    });
+    expect(out).toBe('');
+  });
+
+  test('fallback= renders when the tag list is empty', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags fallback="Untagged"}}')({ tags: [] });
+    expect(out).toBe('Untagged');
+  });
+
+  test('fallback= still wraps with prefix/suffix when the list is empty', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags prefix="Tagged: " suffix="." fallback="None"}}')({
+      tags: [],
+    });
+    expect(out).toBe('Tagged: None.');
+  });
+
+  test('fallback= escapes HTML special characters', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags fallback="<Untagged>"}}')({ tags: [] });
+    expect(out).toBe('&lt;Untagged&gt;');
+  });
+
+  test('fallback= triggers when default visibility filters out every tag', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    // All tags are internal so the default `public` filter wipes the list,
+    // forcing fallback to render rather than producing an empty string.
+    const out = engine.hb.compile('{{tags fallback="Untagged"}}')({
+      tags: [{ name: 'Hidden', slug: 'hash-x', url: '/tag/hash-x/', visibility: 'internal' }],
+    });
+    expect(out).toBe('Untagged');
   });
 });
 

@@ -50,8 +50,18 @@ export function registerContentHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'authors',
     function authorsHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const ctx = this as { authors?: { name: string; url?: string }[] };
-      const list = ctx.authors ?? [];
+      const ctx = this as { authors?: { name: string; url?: string; visibility?: string }[] };
+      // Authors in Nectar's content graph don't carry per-row visibility today,
+      // but mirror the tags helper API so themes can write the same hash on
+      // either. `visibility="all"` is a no-op when no rows are filtered; a
+      // restrictive value like `visibility="public"` keeps authors that either
+      // declare `public` or omit the field (default), matching Ghost.
+      const visibility = parseVisibility(options.hash.visibility);
+      const list = (ctx.authors ?? []).filter((author) => {
+        if (visibility === 'all') return true;
+        const v = author.visibility ?? 'public';
+        return visibility.has(v);
+      });
       if (options.fn) {
         let out = '';
         for (const author of list) out += options.fn(author);
@@ -60,6 +70,8 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const separator = typeof options.hash.separator === 'string' ? options.hash.separator : ', ';
       const prefix = typeof options.hash.prefix === 'string' ? options.hash.prefix : '';
       const suffix = typeof options.hash.suffix === 'string' ? options.hash.suffix : '';
+      const fallback =
+        typeof options.hash.fallback === 'string' ? options.hash.fallback : undefined;
       // Ghost treats only the string 'false' (not the empty/missing hash) as
       // disabling autolink, so undefined/'true'/boolean true all link.
       const autolink = !(options.hash.autolink === false || options.hash.autolink === 'false');
@@ -67,7 +79,9 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const fromRaw = parseNum(options.hash.from);
       const toRaw = parseNum(options.hash.to);
 
-      if (list.length === 0) return new engine.hb.SafeString('');
+      if (list.length === 0) {
+        return new engine.hb.SafeString(fallback ? prefix + escapeHtml(fallback) + suffix : '');
+      }
 
       let items = list.map((author) => {
         if (!autolink || typeof author.url !== 'string' || author.url.length === 0) {
@@ -106,6 +120,8 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const separator = typeof options.hash.separator === 'string' ? options.hash.separator : ', ';
       const prefix = typeof options.hash.prefix === 'string' ? options.hash.prefix : '';
       const suffix = typeof options.hash.suffix === 'string' ? options.hash.suffix : '';
+      const fallback =
+        typeof options.hash.fallback === 'string' ? options.hash.fallback : undefined;
       // Ghost treats only boolean false and the string 'false' as disabling
       // autolink, so undefined/'true'/boolean true all link.
       const autolink = !(options.hash.autolink === false || options.hash.autolink === 'false');
@@ -113,7 +129,12 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const fromRaw = parseNum(options.hash.from);
       const toRaw = parseNum(options.hash.to);
 
-      if (list.length === 0) return new engine.hb.SafeString('');
+      // `fallback="Untagged"` is Ghost's documented escape hatch for posts that
+      // would otherwise emit no tag list at all. We honour it even when the
+      // visibility filter wipes out every tag (e.g. only internal tags exist).
+      if (list.length === 0) {
+        return new engine.hb.SafeString(fallback ? prefix + escapeHtml(fallback) + suffix : '');
+      }
 
       let items = list.map((tag) => {
         if (!autolink || typeof tag.url !== 'string' || tag.url.length === 0) {

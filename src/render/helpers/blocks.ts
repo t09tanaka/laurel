@@ -55,9 +55,12 @@ export function registerBlockHelpers(engine: NectarEngine): void {
 
   engine.hb.registerHelper('is', function isHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
+    // Ghost lets themes write `{{#is "post, page"}}` with commas or
+    // `{{#is "post page"}}` with spaces (or any mix). Splitting on `[\s,]+`
+    // covers both forms so a stray space in a theme template still matches.
     const targets = args
       .slice(0, -1)
-      .flatMap((a) => (typeof a === 'string' ? a.split(',') : []))
+      .flatMap((a) => (typeof a === 'string' ? a.split(/[\s,]+/) : []))
       .map((s) => s.trim())
       .filter(Boolean);
     const route = (options.data?.route ?? {}) as {
@@ -190,7 +193,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (params.length === 1) {
       result = Boolean(params[0]);
     } else if (params.length === 2) {
-      result = params[0] === params[1];
+      result = looseEquals(params[0], params[1]);
     } else if (params.length === 3) {
       const [left, op, right] = params;
       result = compare(left, String(op), right);
@@ -542,13 +545,35 @@ function evaluateCountAttr(ctx: Record<string, unknown>, property: string, value
   }
 }
 
+// Ghost themes routinely write `{{match foo "=" "true"}}` even when `foo` is
+// the literal boolean `true` (or vice versa). JS strict equality says
+// `true === "true"` is `false`, so coerce the obvious string<->boolean
+// literals before comparing. Same for `"false"` <-> `false`. Other types fall
+// through to plain strict equality so themes that compare numbers or strings
+// keep their existing semantics.
+function looseEquals(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  const lb = boolFromString(left);
+  const rb = boolFromString(right);
+  if (lb !== undefined && typeof right === 'boolean') return lb === right;
+  if (rb !== undefined && typeof left === 'boolean') return rb === left;
+  return false;
+}
+
+function boolFromString(value: unknown): boolean | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
+
 function compare(left: unknown, op: string, right: unknown): boolean {
   switch (op) {
     case '=':
     case '==':
-      return left === right;
+      return looseEquals(left, right);
     case '!=':
-      return left !== right;
+      return !looseEquals(left, right);
     case '>':
     case '<':
     case '>=':
