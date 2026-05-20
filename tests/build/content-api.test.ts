@@ -444,6 +444,73 @@ describe('emitContentApiStubs', () => {
     expect(body.authors[0].count).toEqual({ posts: 1 });
   });
 
+  test('emits public tags with count.posts ordered by name asc (#753)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tags-'));
+    const alpha = makeTag({ id: 'tag-alpha', slug: 'alpha', name: 'Alpha', count: { posts: 0 } });
+    const zulu = makeTag({ id: 'tag-zulu', slug: 'zulu', name: 'Zulu', count: { posts: 0 } });
+    const internal = makeTag({
+      id: 'tag-internal',
+      slug: 'hash-internal',
+      name: '#internal',
+      visibility: 'internal',
+      count: { posts: 0 },
+    });
+    const posts = [
+      makePost({ id: 'p-alpha-1', slug: 'alpha-1', tags: [alpha], primary_tag: alpha }),
+      makePost({ id: 'p-zulu', slug: 'zulu', tags: [zulu], primary_tag: zulu }),
+      makePost({ id: 'p-alpha-2', slug: 'alpha-2', tags: [alpha], primary_tag: alpha }),
+      makePost({
+        id: 'p-alpha-draft',
+        slug: 'alpha-draft',
+        status: 'draft',
+        tags: [alpha],
+        primary_tag: alpha,
+      }),
+    ];
+    await emitContentApiStubs({
+      content: makeGraph({ tags: [zulu, internal, alpha], posts }),
+      outputDir,
+    });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
+    expect(body.tags.map((tag: { slug: string }) => tag.slug)).toEqual(['alpha', 'zulu']);
+    expect(body.tags.map((tag: { count: { posts: number } }) => tag.count.posts)).toEqual([2, 1]);
+    expect(body.meta.pagination.total).toBe(2);
+  });
+
+  test('emits per-slug public tag shards and skips internal tags (#753)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tags-'));
+    const news = makeTag({ id: 'tag-news', slug: 'news', name: 'News', count: { posts: 0 } });
+    const internal = makeTag({
+      id: 'tag-internal',
+      slug: 'hash-internal',
+      name: '#internal',
+      visibility: 'internal',
+      count: { posts: 0 },
+    });
+    await emitContentApiStubs({
+      content: makeGraph({
+        tags: [internal, news],
+        posts: [makePost({ tags: [news, internal], primary_tag: news })],
+      }),
+      outputDir,
+    });
+
+    const flat = readFileSync(join(outputDir, 'content', 'tags', 'slug', 'news.json'), 'utf8');
+    const dirIndex = readFileSync(
+      join(outputDir, 'content', 'tags', 'slug', 'news', 'index.json'),
+      'utf8',
+    );
+    expect(dirIndex).toBe(flat);
+    const bySlug = JSON.parse(flat);
+    expect(bySlug.tags).toHaveLength(1);
+    expect(bySlug.tags[0]).toMatchObject({ slug: 'news', visibility: 'public' });
+    expect(bySlug.tags[0].count).toEqual({ posts: 1 });
+    expect(existsSync(join(outputDir, 'content', 'tags', 'slug', 'hash-internal.json'))).toBe(
+      false,
+    );
+  });
+
   test('emits per-post shards by id and by slug (#752)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
     const id = '0123456789abcdefabcdef12';

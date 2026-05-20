@@ -22,6 +22,7 @@ import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './heade
 //   content/pages/<id>.json                  — single page by id
 //   content/pages/slug/<slug>.json           — single page by slug
 //   content/tags.json                        — all public tags
+//   content/tags/slug/<slug>.json            — single public tag by slug
 //   content/authors.json                     — all authors (with count.posts)
 //   content/settings.json                    — site settings singleton
 //   content/404.json                         — Ghost-shaped 404 error envelope
@@ -63,7 +64,8 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
   const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
   const publishedPages = content.pages.filter((p) => p.status === 'published');
   const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
-  const serializedTags = content.tags.map(serializeTag);
+  const publicTags = selectPublicTags(content.tags, publishedPosts);
+  const serializedTags = publicTags.map(({ tag, countPosts }) => serializeTag(tag, countPosts));
   const serializedAuthors = content.authors.map(serializeAuthor);
 
   await Promise.all([
@@ -77,6 +79,7 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writePerIdPosts(outputDir, serializedPosts),
     writePerSlugPages(outputDir, serializedPages),
     writePerIdPages(outputDir, serializedPages),
+    writePerSlugTags(outputDir, publicTags),
     writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase),
     writeContentApi404(outputDir),
     writeCorsHeaders(outputDir, '_headers'),
@@ -193,6 +196,21 @@ async function writePerIdPages(
       const body = { pages: [page] };
       const flat = join(outputDir, 'content', 'pages', `${id}.json`);
       const dirIndex = join(outputDir, 'content', 'pages', id, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
+async function writePerSlugTags(
+  outputDir: string,
+  tags: Array<{ tag: Tag; countPosts: number }>,
+): Promise<void> {
+  await Promise.all(
+    tags.map(({ tag, countPosts }) => {
+      const serialized = serializeTag(tag, countPosts);
+      const body = { tags: [serialized] };
+      const flat = join(outputDir, 'content', 'tags', 'slug', `${tag.slug}.json`);
+      const dirIndex = join(outputDir, 'content', 'tags', 'slug', tag.slug, 'index.json');
       return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
     }),
   );
@@ -401,7 +419,20 @@ function serializePost(post: Post, urlBase: string | undefined): Record<string, 
   };
 }
 
-function serializeTag(tag: Tag): Record<string, unknown> {
+function selectPublicTags(
+  tags: Tag[],
+  publishedPosts: Post[],
+): Array<{ tag: Tag; countPosts: number }> {
+  return tags
+    .filter((tag) => tag.visibility === 'public')
+    .map((tag) => ({
+      tag,
+      countPosts: publishedPosts.filter((post) => post.tags.some((t) => t.id === tag.id)).length,
+    }))
+    .sort((a, b) => a.tag.name.localeCompare(b.tag.name));
+}
+
+function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<string, unknown> {
   return {
     id: tag.id,
     slug: tag.slug,
@@ -413,7 +444,7 @@ function serializeTag(tag: Tag): Record<string, unknown> {
     meta_title: tag.meta_title ?? null,
     meta_description: tag.meta_description ?? null,
     url: tag.url,
-    count: tag.count,
+    count: { ...tag.count, posts: countPosts },
   };
 }
 

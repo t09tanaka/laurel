@@ -466,6 +466,78 @@ describe('emitContentApiShadows', () => {
     expect(authors.authors[0].count).toEqual({ posts: 1 });
   });
 
+  test('tags include public count.posts ordered by name asc (#753)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-count-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const alpha = makeTag({ id: 'tag-alpha', slug: 'alpha', name: 'Alpha', count: { posts: 0 } });
+    const zulu = makeTag({ id: 'tag-zulu', slug: 'zulu', name: 'Zulu', count: { posts: 0 } });
+    const internal = makeTag({
+      id: 'tag-internal',
+      slug: 'hash-internal',
+      name: '#internal',
+      visibility: 'internal',
+      count: { posts: 0 },
+    });
+    const posts = [
+      makePost({ id: 'p-zulu', slug: 'zulu', tags: [zulu], primary_tag: zulu }),
+      makePost({ id: 'p-alpha-1', slug: 'alpha-1', tags: [alpha], primary_tag: alpha }),
+      makePost({ id: 'p-alpha-2', slug: 'alpha-2', tags: [alpha], primary_tag: alpha }),
+      makePost({
+        id: 'p-alpha-draft',
+        slug: 'alpha-draft',
+        status: 'draft',
+        tags: [alpha],
+        primary_tag: alpha,
+      }),
+    ];
+    await emitContentApiShadows({
+      config,
+      content: { ...makeGraph(), tags: [zulu, internal, alpha], posts },
+      outputDir,
+    });
+
+    const tags = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8'));
+    expect(tags.tags.map((tag: { slug: string }) => tag.slug)).toEqual(['alpha', 'zulu']);
+    expect(tags.tags.map((tag: { count: { posts: number } }) => tag.count.posts)).toEqual([2, 1]);
+    expect(tags.meta.pagination.total).toBe(2);
+  });
+
+  test('tag slug shadows are public-only and carry count.posts (#753)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-slug-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const news = makeTag({ id: 'tag-news', slug: 'news', name: 'News', count: { posts: 0 } });
+    const internal = makeTag({
+      id: 'tag-internal',
+      slug: 'hash-internal',
+      name: '#internal',
+      visibility: 'internal',
+      count: { posts: 0 },
+    });
+    await emitContentApiShadows({
+      config,
+      content: {
+        ...makeGraph(),
+        tags: [internal, news],
+        posts: [makePost({ tags: [news, internal], primary_tag: news })],
+      },
+      outputDir,
+    });
+
+    const tag = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/tags/slug/news.json'), 'utf8'),
+    );
+    expect(tag.tags[0]).toMatchObject({ slug: 'news', visibility: 'public' });
+    expect(tag.tags[0].count).toEqual({ posts: 1 });
+    expect(() =>
+      readFileSync(join(outputDir, 'ghost/api/content/tags/slug/hash-internal.json'), 'utf8'),
+    ).toThrow();
+    const redirects = readFileSync(join(outputDir, '_redirects'), 'utf8');
+    expect(redirects).toContain(
+      '/ghost/api/content/tags/slug/news/  /ghost/api/content/tags/slug/news/index.json  200',
+    );
+    expect(redirects).not.toContain('/ghost/api/content/tags/slug/hash-internal/');
+  });
+
   test('absolute_urls rewrites html to absolute URLs (#743)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-abs-'));
     const config = configSchema.parse({

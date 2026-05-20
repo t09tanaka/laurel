@@ -28,7 +28,8 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
 
   const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
   const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
-  const serializedTags = content.tags.map(serializeTag);
+  const publicTags = selectPublicTags(content.tags, publishedPosts);
+  const serializedTags = publicTags.map(({ tag, countPosts }) => serializeTag(tag, countPosts));
   const serializedAuthors = content.authors.map(serializeAuthor);
 
   await Promise.all([
@@ -66,8 +67,8 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
         authors: [serializeAuthor(author)],
       }),
     ),
-    ...content.tags.map((tag) =>
-      writeBySlug(outputDir, 'tags', tag.slug, { tags: [serializeTag(tag)] }),
+    ...publicTags.map(({ tag, countPosts }) =>
+      writeBySlug(outputDir, 'tags', tag.slug, { tags: [serializeTag(tag, countPosts)] }),
     ),
   ]);
 
@@ -207,7 +208,7 @@ async function writeRedirects(
     posts: content.posts,
     pages: content.pages,
     authors: content.authors,
-    tags: content.tags,
+    tags: content.tags.filter((tag) => tag.visibility === 'public'),
   };
   for (const resource of COLLECTIONS) {
     for (const item of slugMap[resource]) {
@@ -328,7 +329,20 @@ function serializePage(page: Page, urlBase: string | undefined): Record<string, 
   };
 }
 
-function serializeTag(tag: Tag): Record<string, unknown> {
+function selectPublicTags(
+  tags: Tag[],
+  publishedPosts: Post[],
+): Array<{ tag: Tag; countPosts: number }> {
+  return tags
+    .filter((tag) => tag.visibility === 'public')
+    .map((tag) => ({
+      tag,
+      countPosts: publishedPosts.filter((post) => post.tags.some((t) => t.id === tag.id)).length,
+    }))
+    .sort((a, b) => a.tag.name.localeCompare(b.tag.name));
+}
+
+function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<string, unknown> {
   return {
     id: tag.id,
     slug: tag.slug,
@@ -340,7 +354,7 @@ function serializeTag(tag: Tag): Record<string, unknown> {
     meta_title: tag.meta_title ?? null,
     meta_description: tag.meta_description ?? null,
     url: tag.url,
-    count: tag.count,
+    count: { ...tag.count, posts: countPosts },
   };
 }
 
