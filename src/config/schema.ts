@@ -93,8 +93,9 @@ export const configSchema = z
           .string()
           .url('site.url must be an absolute URL (e.g. `https://example.com`)')
           .default('http://localhost:4321')
+          .transform((value) => value.replace(/\/+$/, ''))
           .describe(
-            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads.',
+            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854).',
           ),
         locale: z
           .string()
