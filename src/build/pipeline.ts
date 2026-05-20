@@ -85,7 +85,7 @@ import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
-import { loadAllRedirects } from './redirects.ts';
+import { buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
@@ -846,7 +846,15 @@ async function runBuild({
   // at the publish root; the Netlify emitter translates `force: true` into the
   // `!` status suffix Netlify needs. Vercel / Apache / nginx emitters read
   // from the same parsed list.
-  const redirects = await loadAllRedirects(cwd);
+  const userRedirects = await loadAllRedirects(cwd);
+  const deployRedirects = [
+    ...userRedirects,
+    ...buildTrailingSlashRedirects({
+      routes,
+      policy: config.build.trailing_slash,
+      basePath: config.build.base_path,
+    }),
+  ];
   // Component-level emit runs first so platform-specific emitters can layer
   // their own files (`_headers`, `vercel.json`, …) on top. The component emit
   // writes a baseline `_redirects` whenever rules exist and the toggle is on —
@@ -854,50 +862,50 @@ async function runBuild({
   // redirect history regardless of which host the build targets.
   await emitRedirectsComponent({
     outputDir,
-    rules: redirects,
+    rules: userRedirects,
     enabled: config.components.redirects.enabled,
     emitHtml: config.components.redirects.emit_html,
   });
   await emitGithubPagesRedirects({
     outputDir,
-    rules: redirects,
+    rules: userRedirects,
     enabled: config.deploy.github_pages.redirects,
     basePath: config.build.base_path,
   });
   await emitCustomRedirects({
     outputDir,
-    rules: redirects,
+    rules: deployRedirects,
     enabled: config.deploy.cloudflare_pages.enabled,
   });
   await emitCloudflareWorkersManifest({
     outputDir,
     enabled: config.deploy.cloudflare_workers.enabled,
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
   });
   await emitNetlifyRedirects({
     outputDir,
-    rules: redirects,
+    rules: deployRedirects,
     enabled: config.deploy.netlify.enabled,
   });
   await emitVercelJson({
     outputDir,
     enabled: config.deploy.vercel.enabled || autoNoindexProvider === 'vercel',
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
     trailingSlash: config.build.trailing_slash,
   });
   await emitApacheHtaccess({
     outputDir,
     enabled: config.deploy.apache.enabled,
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
   });
   await emitNginxConf({
     outputDir,
     enabled: config.deploy.nginx.enabled,
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
   });
@@ -905,7 +913,7 @@ async function runBuild({
     outputDir,
     enabled: config.deploy.caddy.enabled,
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
     root: config.deploy.caddy.root,
     siteAddress: config.deploy.caddy.site_address,
   });

@@ -223,6 +223,17 @@ describe('routeUrlToOutputPath', () => {
     expect(routeUrlToOutputPath('/featured')).toBe('featured/index.html');
   });
 
+  test('maps clean HTML routes to flat files when trailing slashes are disabled', () => {
+    expect(routeUrlToOutputPath('/featured/', 'never')).toBe('featured.html');
+    expect(routeUrlToOutputPath('/a/b/', 'never')).toBe('a/b.html');
+    expect(routeUrlToOutputPath('/featured', 'never')).toBe('featured.html');
+  });
+
+  test('preserves URL shape when requested', () => {
+    expect(routeUrlToOutputPath('/featured/', 'preserve')).toBe('featured/index.html');
+    expect(routeUrlToOutputPath('/featured', 'preserve')).toBe('featured.html');
+  });
+
   test('throws when the URL does not start with /', () => {
     expect(() => routeUrlToOutputPath('featured/')).toThrow();
   });

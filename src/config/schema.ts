@@ -396,6 +396,12 @@ export const configSchema = z
           .positive()
           .default(12)
           .describe('Posts per paginated index / archive page.'),
+        trailing_slash: z
+          .enum(['always', 'never', 'preserve'])
+          .default('always')
+          .describe(
+            "Controls clean HTML route shape. `always` keeps Ghost-style `/slug/` URLs and writes `slug/index.html`; `never` emits slashless `/slug` canonicals and writes `slug.html`; `preserve` follows each route's authored URL shape.",
+          ),
         copy_content_assets: z
           .boolean()
           .default(true)

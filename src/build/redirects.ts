@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
+import type { TrailingSlashPolicy } from '~/build/routes-yaml.ts';
+import type { RouteContext } from '~/render/types.ts';
 import { logger } from '~/util/logger.ts';
+import { withBasePath } from '~/util/url.ts';
 
 // Cross-cutting `redirects.yaml` schema. Ghost exports persist custom redirects
 // as a JSON list with `{from, to, permanent}`; Nectar consumes the same idea as
@@ -84,6 +87,39 @@ export function collapseRedirects(rules: readonly RedirectRule[]): RedirectRule[
     out.push(r);
   }
   return out;
+}
+
+export function buildTrailingSlashRedirects(opts: {
+  routes: readonly RouteContext[];
+  policy: TrailingSlashPolicy;
+  basePath: string;
+}): RedirectRule[] {
+  if (opts.policy === 'preserve') return [];
+  const out: RedirectRule[] = [];
+  const seen = new Set<string>();
+  for (const route of opts.routes) {
+    const from = alternateTrailingSlashUrl(route.url, opts.policy);
+    if (from === undefined) continue;
+    const fromWithBasePath = withBasePath(opts.basePath, from);
+    if (seen.has(fromWithBasePath)) continue;
+    seen.add(fromWithBasePath);
+    out.push({
+      from: fromWithBasePath,
+      to: withBasePath(opts.basePath, route.url),
+      status: 308,
+      force: true,
+    });
+  }
+  return out;
+}
+
+function alternateTrailingSlashUrl(url: string, policy: TrailingSlashPolicy): string | undefined {
+  if (url === '/') return undefined;
+  const trimmed = url.endsWith('/') ? url.slice(0, -1) : url;
+  const lastSegment = trimmed.split('/').pop() ?? '';
+  if (lastSegment.includes('.')) return undefined;
+  if (policy === 'always') return url.endsWith('/') ? trimmed : undefined;
+  return url.endsWith('/') ? undefined : `${url}/`;
 }
 
 // Ghost-compat loader. Ghost persists custom redirects under

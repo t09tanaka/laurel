@@ -310,6 +310,27 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('accepts build.trailing_slash policy values', async () => {
+    for (const policy of ['always', 'never', 'preserve'] as const) {
+      await withTempDir(async (cwd) => {
+        await writeFile(
+          join(cwd, 'nectar.toml'),
+          `[build]\ntrailing_slash = "${policy}"\n`,
+          'utf8',
+        );
+        const config = await loadConfig({ cwd });
+        expect(config.build.trailing_slash).toBe(policy);
+      });
+    }
+  });
+
+  test('rejects unknown build.trailing_slash policy values', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'nectar.toml'), '[build]\ntrailing_slash = "sometimes"\n', 'utf8');
+      await expect(loadConfig({ cwd })).rejects.toThrow(/trailing_slash/);
+    });
+  });
+
   // #854: doubled trailing slashes break URL joins downstream. Strip on load
   // so `https://example.com/` and `https://example.com//` both normalise to
   // `https://example.com`.

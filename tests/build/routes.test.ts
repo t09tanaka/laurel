@@ -351,6 +351,30 @@ describe('planRoutes — defaultMeta.canonical', () => {
     const post = routes.find((r) => r.kind === 'post');
     expect(post?.meta.canonical).toBe('https://example.com/hello/');
   });
+
+  test('build.trailing_slash = never emits slashless canonical route URLs and flat HTML files', () => {
+    const config = makeConfig('https://example.com');
+    config.build.trailing_slash = 'never';
+    const content = makeGraph({
+      posts: [makePost('hello')],
+      pages: [makePage('about')],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    const post = routes.find((r) => r.kind === 'post');
+    const page = routes.find((r) => r.kind === 'page');
+
+    expect(home?.url).toBe('/');
+    expect(home?.outputPath).toBe('index.html');
+    expect(home?.meta.canonical).toBe('https://example.com/');
+    expect(post?.url).toBe('/hello');
+    expect(post?.outputPath).toBe('hello.html');
+    expect(post?.meta.canonical).toBe('https://example.com/hello');
+    expect(page?.url).toBe('/about');
+    expect(page?.outputPath).toBe('about.html');
+    expect(page?.meta.canonical).toBe('https://example.com/about');
+  });
 });
 
 describe('planRoutes — home meta title includes site description', () => {

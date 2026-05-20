@@ -9,7 +9,9 @@ import { assignPostUrls } from './permalinks.ts';
 import {
   type ResolvedCollection,
   type RoutesYaml,
+  type TrailingSlashPolicy,
   applyTaxonomyTemplate,
+  canonicalRouteUrl,
   emptyRoutesYaml,
   resolveCollections,
   resolveRouteEntries,
@@ -38,14 +40,18 @@ export function planRoutes(opts: {
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
   const basePath = config.build.base_path || '/';
   const paginationPrefix = config.components?.pagination?.prefix ?? 'page';
+  const trailingSlash = config.build.trailing_slash ?? 'always';
 
   const homeTemplate = theme.templates.home ? 'home' : 'index';
   const indexTemplate = theme.templates.index ?? theme.templates.home;
   if (indexTemplate) {
     const pages = paginatePosts(content.posts, perPage);
     pages.forEach((slice, idx) => {
-      const url = idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`;
-      const outputPath = idx === 0 ? 'index.html' : `${paginationPrefix}/${idx + 1}/index.html`;
+      const url = canonicalRouteUrl(
+        idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`,
+        trailingSlash,
+      );
+      const outputPath = routeUrlToOutputPath(url, trailingSlash);
       routes.push({
         kind: idx === 0 ? 'home' : 'index',
         url,
@@ -67,6 +73,7 @@ export function planRoutes(opts: {
             '/',
             basePath,
             paginationPrefix,
+            trailingSlash,
           ),
         },
         meta: defaultMeta(
@@ -80,7 +87,7 @@ export function planRoutes(opts: {
 
   for (const post of content.posts) {
     const assignment = postAssignments.get(post.id);
-    const url = assignment?.urlPath ?? `/${post.slug}/`;
+    const url = canonicalRouteUrl(assignment?.urlPath ?? `/${post.slug}/`, trailingSlash);
     // Per-collection `template:` field opts a bucket of posts into a custom
     // theme template (`{template}.hbs`). Fall back to the warned template if
     // the theme doesn't ship the requested file — same UX as `routes:`
@@ -89,7 +96,7 @@ export function planRoutes(opts: {
     routes.push({
       kind: 'post',
       url,
-      outputPath: routeUrlToOutputPath(url),
+      outputPath: routeUrlToOutputPath(url, trailingSlash),
       template,
       lastmod: post.updated_at ?? post.published_at,
       data: { post },
@@ -105,11 +112,11 @@ export function planRoutes(opts: {
 
   if (theme.templates.page) {
     for (const page of content.pages) {
-      const url = `/${page.slug}/`;
+      const url = canonicalRouteUrl(`/${page.slug}/`, trailingSlash);
       routes.push({
         kind: 'page',
         url,
-        outputPath: `${page.slug}/index.html`,
+        outputPath: routeUrlToOutputPath(url, trailingSlash),
         template: resolvePageTemplate(page, theme),
         lastmod: page.updated_at ?? page.published_at,
         data: { page },
@@ -142,8 +149,11 @@ export function planRoutes(opts: {
       const pages = paginatePosts(tagPosts, perPage);
       const base = applyTaxonomyTemplate(tagTemplate, tag.slug);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`;
-        const outputPath = routeUrlToOutputPath(url);
+        const url = canonicalRouteUrl(
+          idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
+          trailingSlash,
+        );
+        const outputPath = routeUrlToOutputPath(url, trailingSlash);
         routes.push({
           kind: 'tag',
           url,
@@ -165,6 +175,7 @@ export function planRoutes(opts: {
               base,
               basePath,
               paginationPrefix,
+              trailingSlash,
             ),
           },
           meta: defaultMeta(
@@ -211,11 +222,11 @@ export function planRoutes(opts: {
     }
     routes.push({
       kind: 'custom',
-      url: entry.url,
-      outputPath: routeUrlToOutputPath(entry.url),
+      url: canonicalRouteUrl(entry.url, trailingSlash),
+      outputPath: routeUrlToOutputPath(entry.url, trailingSlash),
       template: entry.template,
       data: {},
-      meta: defaultMeta(config, entry.url, config.site.title),
+      meta: defaultMeta(config, canonicalRouteUrl(entry.url, trailingSlash), config.site.title),
     });
   }
 
@@ -252,8 +263,11 @@ export function planRoutes(opts: {
       const pages = paginatePosts(authorPosts, perPage);
       const base = applyTaxonomyTemplate(authorTemplate, author.slug);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`;
-        const outputPath = routeUrlToOutputPath(url);
+        const url = canonicalRouteUrl(
+          idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
+          trailingSlash,
+        );
+        const outputPath = routeUrlToOutputPath(url, trailingSlash);
         routes.push({
           kind: 'author',
           url,
@@ -275,6 +289,7 @@ export function planRoutes(opts: {
               base,
               basePath,
               paginationPrefix,
+              trailingSlash,
             ),
           },
           meta: defaultMeta(
@@ -301,11 +316,11 @@ export function planRoutes(opts: {
     const stubTemplate = theme.templates.post ? 'post' : indexTemplate ? 'index' : undefined;
     if (stubTemplate !== undefined) {
       for (const post of content.emailOnlyPosts) {
-        const url = `/email-only/${post.slug}/`;
+        const url = canonicalRouteUrl(`/email-only/${post.slug}/`, trailingSlash);
         routes.push({
           kind: 'post',
           url,
-          outputPath: routeUrlToOutputPath(url),
+          outputPath: routeUrlToOutputPath(url, trailingSlash),
           template: stubTemplate,
           lastmod: post.updated_at ?? post.published_at,
           indexable: false,
@@ -431,6 +446,7 @@ function paginationInfo(
   baseUrl: string,
   basePath: string,
   paginationPrefix: string,
+  trailingSlash: TrailingSlashPolicy,
 ): PaginationInfo {
   const page = index + 1;
   const numPages = pages.length;
@@ -441,7 +457,8 @@ function paginationInfo(
   // ghost-head), so they must already include the configured `base_path`.
   // The slug-relative shape (`/tag/foo/`, `/<prefix>/2/`) survives across base
   // paths because `withBasePath` strips the leading slash before joining.
-  const prefixed = (raw: string): string => withBasePath(basePath, raw);
+  const prefixed = (raw: string): string =>
+    withBasePath(basePath, canonicalRouteUrl(raw, trailingSlash));
   const prevUrl =
     prev === undefined
       ? undefined

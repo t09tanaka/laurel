@@ -107,6 +107,7 @@ export type RouteEntry = z.infer<typeof routeEntrySchema>;
 export type RouteEntryObject = z.infer<typeof routeEntryObjectSchema>;
 export type RouteCollection = z.infer<typeof collectionSchema>;
 export type ResolvedTaxonomies = Partial<Record<TaxonomyKind, string>>;
+export type TrailingSlashPolicy = 'always' | 'never' | 'preserve';
 
 export interface ResolvedRouteEntry {
   url: string;
@@ -179,18 +180,32 @@ export function resolveRouteEntries(yaml: RoutesYaml): ResolvedRouteEntry[] {
 // build output. Trailing-slash URLs (the Ghost default) become directory
 // index files; URLs that look like a literal filename (`/sitemap.xml`)
 // are written verbatim.
-export function routeUrlToOutputPath(url: string): string {
+export function routeUrlToOutputPath(url: string, policy: TrailingSlashPolicy = 'always'): string {
   if (!url.startsWith('/')) {
     throw new Error(`routes.yaml: route URL must start with '/', got '${url}'`);
   }
   const trimmed = url.slice(1);
   if (trimmed === '') return 'index.html';
-  if (trimmed.endsWith('/')) return `${trimmed}index.html`;
-  // No trailing slash. If the last segment has an extension we treat it
-  // as a literal file; otherwise we still produce an index.html under
-  // that path so the static output matches Ghost's directory-style URLs.
+  const withoutTrailingSlash = trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
   const lastSegment = trimmed.split('/').pop() ?? '';
-  return lastSegment.includes('.') ? trimmed : `${trimmed}/index.html`;
+  // Literal file URLs (`/sitemap.xml`) are already exact assets, so trailing
+  // slash policy only applies to clean HTML routes.
+  if (!trimmed.endsWith('/') && lastSegment.includes('.')) return trimmed;
+  if (policy === 'always') {
+    return trimmed.endsWith('/') ? `${trimmed}index.html` : `${trimmed}/index.html`;
+  }
+  if (policy === 'never') return `${withoutTrailingSlash}.html`;
+  return trimmed.endsWith('/') ? `${trimmed}index.html` : `${trimmed}.html`;
+}
+
+export function canonicalRouteUrl(url: string, policy: TrailingSlashPolicy): string {
+  if (url === '/') return '/';
+  const trimmed = url.endsWith('/') ? url.slice(0, -1) : url;
+  const lastSegment = trimmed.split('/').pop() ?? '';
+  if (!url.endsWith('/') && lastSegment.includes('.')) return url;
+  if (policy === 'never') return trimmed;
+  if (policy === 'always') return `${trimmed}/`;
+  return url;
 }
 
 // Reserved for sections we recognize but do not yet apply during the build.

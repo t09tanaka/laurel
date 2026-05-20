@@ -246,10 +246,13 @@ describe('build pipeline strict mode wiring', () => {
     const summary = await build({ cwd });
     const body = JSON.parse(readFileSync(join(summary.outputDir, '_routes-manifest.json'), 'utf8'));
 
-    expect(body).toMatchObject({
-      version: 1,
-      redirects: [{ source: '/old', destination: '/new', status: 308 }],
-    });
+    expect(body.version).toBe(1);
+    expect(body.redirects).toEqual(
+      expect.arrayContaining([
+        { source: '/old', destination: '/new', status: 308 },
+        { source: '/hello', destination: '/hello/', status: 308 },
+      ]),
+    );
     expect(body.headers).toContainEqual(
       expect.objectContaining({
         source: '/*',
@@ -350,6 +353,37 @@ describe('build pipeline basePath override', () => {
   test('rejects an empty base path', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     expect(build({ cwd, basePath: '' })).rejects.toThrow(/must not be empty/);
+  });
+});
+
+describe('build pipeline trailing slash policy', () => {
+  test('build.trailing_slash = never writes flat HTML and redirects slash URLs to slashless canonicals', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[build]',
+        'trailing_slash = "never"',
+        '',
+        '[deploy.netlify]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, 'hello.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'hello', 'index.html'))).toBe(false);
+    const html = readFileSync(join(summary.outputDir, 'hello.html'), 'utf8');
+    expect(html).toContain('<link rel="canonical" href="https://strict.test/hello">');
+    const search = JSON.parse(
+      readFileSync(join(summary.outputDir, 'content', 'search.json'), 'utf8'),
+    );
+    expect(search.posts[0].url).toBe('https://strict.test/hello');
+    const redirects = readFileSync(join(summary.outputDir, '_redirects'), 'utf8');
+    expect(redirects).toContain('/hello/  /hello  308!');
   });
 });
 

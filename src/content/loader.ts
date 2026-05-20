@@ -6,7 +6,9 @@ import { assignPostUrls } from '~/build/permalinks.ts';
 import {
   type ResolvedTaxonomies,
   type RoutesYaml,
+  type TrailingSlashPolicy,
   applyTaxonomyTemplate,
+  canonicalRouteUrl,
   emptyRoutesYaml,
   resolveCollections,
   resolveTaxonomies,
@@ -84,10 +86,11 @@ function taxonomyArchiveUrl(
   taxonomies: ResolvedTaxonomies,
   kind: 'tag' | 'author',
   slug: string,
+  trailingSlash: TrailingSlashPolicy,
 ): string {
   const template = taxonomies[kind];
   if (template === undefined) return '';
-  return joinUrl(siteUrl, basePath, applyTaxonomyTemplate(template, slug));
+  return joinRouteUrl(siteUrl, basePath, applyTaxonomyTemplate(template, slug), trailingSlash);
 }
 
 export async function loadContent({
@@ -195,7 +198,15 @@ async function loadContentWithPool({
       if (raw.status === 'scheduled') continue;
       if (new Date(raw.published_at).getTime() > nowMs) continue;
     }
-    const resolved = resolvePostRelations(raw, authorMap, tagMap, site, basePath, taxonomies);
+    const resolved = resolvePostRelations(
+      raw,
+      authorMap,
+      tagMap,
+      site,
+      basePath,
+      taxonomies,
+      config.build.trailing_slash,
+    );
     // Posts with `email_only: true` ship via newsletter only and must not
     // appear in any public aggregate (home, archives, RSS, sitemap, search
     // index, OG generation). Partition them into a separate list here so
@@ -206,7 +217,12 @@ async function loadContentWithPool({
     // stub emission is on (a missing href would lead to a 404; an
     // `/email-only/<slug>/` href just 404s when stubs are off, matching).
     if (resolved.email_only) {
-      resolved.url = joinUrl(site.url, basePath, `/email-only/${resolved.slug}/`);
+      resolved.url = joinRouteUrl(
+        site.url,
+        basePath,
+        `/email-only/${resolved.slug}/`,
+        config.build.trailing_slash,
+      );
       emailOnlyPosts.push(resolved);
     } else {
       resolvedPosts.push(resolved);
@@ -235,14 +251,22 @@ async function loadContentWithPool({
     for (const post of resolvedPosts) {
       const a = assignments.get(post.id);
       if (!a) continue;
-      post.url = joinUrl(site.url, basePath, a.urlPath);
+      post.url = joinRouteUrl(site.url, basePath, a.urlPath, config.build.trailing_slash);
     }
   }
 
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
     if (raw.status === 'draft' && !includeDrafts) continue;
-    const resolved = resolvePageRelations(raw, authorMap, tagMap, site, basePath, taxonomies);
+    const resolved = resolvePageRelations(
+      raw,
+      authorMap,
+      tagMap,
+      site,
+      basePath,
+      taxonomies,
+      config.build.trailing_slash,
+    );
     resolvedPages.push(resolved);
   }
   resolvedPages.sort((a, b) => a.title.localeCompare(b.title));
@@ -944,7 +968,14 @@ async function normalizeAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(config.site.url, basePath, taxonomies, 'author', slug),
+    url: taxonomyArchiveUrl(
+      config.site.url,
+      basePath,
+      taxonomies,
+      'author',
+      slug,
+      config.build.trailing_slash,
+    ),
   };
 }
 
@@ -969,7 +1000,14 @@ async function normalizeTag(
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(config.site.url, basePath, taxonomies, 'tag', slug),
+    url: taxonomyArchiveUrl(
+      config.site.url,
+      basePath,
+      taxonomies,
+      'tag',
+      slug,
+      config.build.trailing_slash,
+    ),
     count: { posts: 0 },
   };
 }
@@ -1009,14 +1047,22 @@ function resolvePostRelations(
   site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
+  trailingSlash: TrailingSlashPolicy,
 ): Post {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, basePath, taxonomies);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies, trailingSlash);
+  const authorList = resolveAuthorSlugs(
+    raw.authorSlugs,
+    authors,
+    site,
+    basePath,
+    taxonomies,
+    trailingSlash,
+  );
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinUrl(site.url, basePath, `/${raw.slug}/`);
+  const url = joinRouteUrl(site.url, basePath, `/${raw.slug}/`, trailingSlash);
 
   return {
     id: raw.id,
@@ -1077,14 +1123,22 @@ function resolvePageRelations(
   site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
+  trailingSlash: TrailingSlashPolicy,
 ): Page {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, basePath, taxonomies);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies, trailingSlash);
+  const authorList = resolveAuthorSlugs(
+    raw.authorSlugs,
+    authors,
+    site,
+    basePath,
+    taxonomies,
+    trailingSlash,
+  );
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinUrl(site.url, basePath, `/${raw.slug}/`);
+  const url = joinRouteUrl(site.url, basePath, `/${raw.slug}/`, trailingSlash);
 
   return {
     id: raw.id,
@@ -1147,6 +1201,7 @@ function resolveTagSlugs(
   site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
+  trailingSlash: TrailingSlashPolicy,
 ): Tag[] {
   return slugs.map((slug) => {
     const existing = tags.get(slug);
@@ -1172,7 +1227,7 @@ function resolveTagSlugs(
       visibility: slug.startsWith('hash-') ? 'internal' : 'public',
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'tag', slug),
+      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'tag', slug, trailingSlash),
       count: { posts: 0 },
     };
     tags.set(slug, created);
@@ -1186,6 +1241,7 @@ function resolveAuthorSlugs(
   site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
+  trailingSlash: TrailingSlashPolicy,
 ): Author[] {
   return slugs.map((slug) => {
     const existing = authors.get(slug);
@@ -1220,7 +1276,7 @@ function resolveAuthorSlugs(
       instagram: undefined,
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'author', slug),
+      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'author', slug, trailingSlash),
     };
     authors.set(slug, created);
     return created;
@@ -1250,6 +1306,15 @@ function joinUrl(base: string, basePath: string, path: string): string {
   const clean = path.startsWith('/') ? path.slice(1) : path;
   const composed = prefix === '/' ? `/${clean}` : `${prefix}${clean}`;
   return new URL(composed, base.endsWith('/') ? base : `${base}/`).toString();
+}
+
+function joinRouteUrl(
+  base: string,
+  basePath: string,
+  path: string,
+  trailingSlash: TrailingSlashPolicy,
+): string {
+  return joinUrl(base, basePath, canonicalRouteUrl(path, trailingSlash));
 }
 
 // `plaintext.slice(0, 200)` cut by code-unit count, which means 200 Japanese
