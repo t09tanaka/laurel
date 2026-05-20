@@ -111,6 +111,30 @@ export function renderCliReference(
     '`Env var` column.',
   );
   lines.push('');
+  lines.push('## Config discovery and `--config`');
+  lines.push('');
+  lines.push(
+    'Commands with `--config <path>` accept one TOML file. Without it, Nectar',
+    'checks only the current working directory, first `nectar.toml`, then',
+    '`nectar.config.toml`; the first existing file wins. If neither exists, the',
+    'config schema defaults are used.',
+  );
+  lines.push('');
+  lines.push(
+    'Passing `--config`, or setting the matching env var such as',
+    '`NECTAR_BUILD_CONFIG`, disables that discovery and loads exactly the',
+    'specified file. Relative paths are resolved from the process cwd. Repeating',
+    'a string flag is not treated as a list; the last `--config` value is the one',
+    'used.',
+  );
+  lines.push('');
+  lines.push(
+    'The programmatic build API mirrors the loader behaviour through',
+    '`build({ cwd, configPath })`, but it does not parse CLI flags or',
+    '`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass a single `configPath`',
+    'yourself if you want explicit-file mode.',
+  );
+  lines.push('');
 
   lines.push('## Commands');
   lines.push('');

@@ -39,6 +39,40 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
     'falls back to the listed default.',
   );
   lines.push('');
+  lines.push('## File discovery and precedence');
+  lines.push('');
+  lines.push(
+    'When a caller does not provide an explicit config path, Nectar looks only in',
+    'the current working directory. It checks `nectar.toml` first, then',
+    '`nectar.config.toml`; the first existing file wins. If neither file exists,',
+    'the schema defaults shown below are used.',
+  );
+  lines.push('');
+  lines.push(
+    'Passing `--config <path>` on the CLI, setting the command-specific config',
+    'environment variable such as `NECTAR_BUILD_CONFIG`, or passing',
+    '`configPath` to the build API disables discovery and loads exactly that one',
+    'file. Relative config paths are resolved from the command or API `cwd`.',
+    'Nectar does not merge multiple config files, and repeated string flags use',
+    'Node `parseArgs` semantics: the last `--config` value wins.',
+  );
+  lines.push('');
+  lines.push(
+    'The value precedence for config-backed behaviour is: CLI flag, then',
+    'command-specific env var, then config file, then schema default. Separately,',
+    '`NECTAR_<SECTION>_<KEY>` environment variables override scalar',
+    '`nectar.toml` keys after the file is parsed, for example',
+    '`NECTAR_SITE_URL=https://preview.example`.',
+  );
+  lines.push('');
+  lines.push(
+    'Most relative project paths in the config, including `theme.dir` and the',
+    '`content.*_dir` fields, are anchored to the directory containing the loaded',
+    'config file when that file is outside `cwd`. `build.output_dir` is the',
+    'notable exception: it remains relative to the project root / build `cwd` and',
+    'must stay inside that root.',
+  );
+  lines.push('');
 
   lines.push('## Top-level keys');
   lines.push('');
