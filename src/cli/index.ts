@@ -167,6 +167,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runDoctor } = await import('./commands/doctor.js');
       return runDoctor(rest);
     }
+    case 'diagnostics': {
+      const { runDiagnostics } = await import('./commands/diagnostics.js');
+      return runDiagnostics(rest);
+    }
     case 'clean': {
       const { runClean } = await import('./commands/clean.js');
       return runClean(rest);

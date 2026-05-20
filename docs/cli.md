@@ -110,6 +110,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
+| [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
 | [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
 | [`nectar config`](#nectar-config) | Inspect the loaded nectar.toml config |
@@ -391,6 +392,42 @@ Examples:
 nectar doctor                                # full project health check
 nectar doctor --no-network                   # skip the connectivity probe
 nectar doctor --json                         # machine-readable for CI
+```
+
+### `nectar diagnostics`
+
+Create support-safe diagnostics bundles
+
+Usage:
+
+```
+nectar diagnostics [--config <path>] [--output <file>] [--log-lines <n>] [--dry-run] [--list] [--json] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | `bundle` (write a redacted diagnostics .tar.gz) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_DIAGNOSTICS_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `-o, --output <file>` | string | `NECTAR_DIAGNOSTICS_OUTPUT` | Path for the .tar.gz bundle. Defaults to nectar-diagnostics-<timestamp>.tar.gz in the current directory |
+| `--log-lines <n>` | string | `NECTAR_DIAGNOSTICS_LOG_LINES` | Maximum number of lines to include from each known Nectar log file. Defaults to 200; use 0 to omit log text while still listing log candidates |
+| `--dry-run` | boolean | `NECTAR_DIAGNOSTICS_DRY_RUN` | Print the archive path and entry list without writing a bundle. Useful for auditing what support artifacts would be collected |
+| `--list` | boolean | `NECTAR_DIAGNOSTICS_LIST` | Alias for --dry-run: list planned bundle entries without writing the archive |
+| `-j, --json` | boolean | `NECTAR_DIAGNOSTICS_JSON` | Emit the bundle result as JSON ({ output, entries, bytes, dryRun }) for CI or support scripts |
+
+Examples:
+
+```
+nectar diagnostics bundle
+nectar diagnostics bundle --output support/nectar-diagnostics.tar.gz
+nectar diagnostics bundle --dry-run
+nectar diagnostics bundle --log-lines 50 --json
 ```
 
 ### `nectar clean`

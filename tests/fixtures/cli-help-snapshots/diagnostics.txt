@@ -1,0 +1,32 @@
+Create support-safe diagnostics bundles
+
+Usage:
+  nectar diagnostics [--config <path>] [--output <file>] [--log-lines <n>] [--dry-run] [--list] [--json] <subcommand>
+
+Arguments:
+  subcommand          `bundle` (write a redacted diagnostics .tar.gz)
+
+Options:
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
+  -o, --output <file> Path for the .tar.gz bundle. Defaults to nectar-diagnostics-<timestamp>.tar.gz in the current directory
+  --log-lines <n>     Maximum number of lines to include from each known Nectar log file. Defaults to 200; use 0 to omit log text while still listing log candidates
+  --dry-run           Print the archive path and entry list without writing a bundle. Useful for auditing what support artifacts would be collected
+  --list              Alias for --dry-run: list planned bundle entries without writing the archive
+  -j, --json          Emit the bundle result as JSON ({ output, entries, bytes, dryRun }) for CI or support scripts
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_DIAGNOSTICS_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar diagnostics bundle
+  nectar diagnostics bundle --output support/nectar-diagnostics.tar.gz
+  nectar diagnostics bundle --dry-run
+  nectar diagnostics bundle --log-lines 50 --json

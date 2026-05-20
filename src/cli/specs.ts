@@ -523,6 +523,58 @@ export const DOCTOR_SPEC: CommandSpec = {
   ],
 };
 
+export const DIAGNOSTICS_SPEC: CommandSpec = {
+  name: 'diagnostics',
+  summary: 'Create support-safe diagnostics bundles',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    output: {
+      type: 'string',
+      short: 'o',
+      description:
+        'Path for the .tar.gz bundle. Defaults to nectar-diagnostics-<timestamp>.tar.gz in the current directory',
+      placeholder: '<file>',
+    },
+    'log-lines': {
+      type: 'string',
+      description:
+        'Maximum number of lines to include from each known Nectar log file. Defaults to 200; use 0 to omit log text while still listing log candidates',
+      placeholder: '<n>',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Print the archive path and entry list without writing a bundle. Useful for auditing what support artifacts would be collected',
+    },
+    list: {
+      type: 'boolean',
+      description: 'Alias for --dry-run: list planned bundle entries without writing the archive',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the bundle result as JSON ({ output, entries, bytes, dryRun }) for CI or support scripts',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`bundle` (write a redacted diagnostics .tar.gz)',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar diagnostics bundle',
+    'nectar diagnostics bundle --output support/nectar-diagnostics.tar.gz',
+    'nectar diagnostics bundle --dry-run',
+    'nectar diagnostics bundle --log-lines 50 --json',
+  ],
+};
+
 export const CLEAN_SPEC: CommandSpec = {
   name: 'clean',
   summary: 'Remove dist/ and .nectar-cache build artifacts',
@@ -1179,6 +1231,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   serve: SERVE_SPEC,
   check: CHECK_SPEC,
   doctor: DOCTOR_SPEC,
+  diagnostics: DIAGNOSTICS_SPEC,
   clean: CLEAN_SPEC,
   completions: COMPLETIONS_SPEC,
   config: CONFIG_SPEC,
