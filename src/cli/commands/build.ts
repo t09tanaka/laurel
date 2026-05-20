@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import { type BuildSummary, type DryRunRouteSummary, build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
 import { ensureContentDirs } from '../ensure-content-dirs.ts';
@@ -210,6 +211,29 @@ async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): P
   let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
   let building = false;
   let pending = false;
+  const cleanup = createCleanupRegistry();
+
+  cleanup.register(
+    () => {
+      if (rebuildTimer !== undefined) {
+        clearTimeout(rebuildTimer);
+        rebuildTimer = undefined;
+      }
+    },
+    { name: 'build-watch-debounce-timer' },
+  );
+  cleanup.register(
+    () => {
+      for (const w of watchers) {
+        try {
+          w.close();
+        } catch {
+          // already closed; ignore
+        }
+      }
+    },
+    { name: 'build-watchers' },
+  );
 
   const runRebuild = async (): Promise<void> => {
     building = true;
@@ -250,16 +274,7 @@ async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): P
   }
   logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
 
-  await waitForShutdownSignal();
-
-  if (rebuildTimer !== undefined) clearTimeout(rebuildTimer);
-  for (const w of watchers) {
-    try {
-      w.close();
-    } catch {
-      // already closed; ignore
-    }
-  }
+  await cleanup.waitForSignal({ signals: ['SIGINT', 'SIGTERM'] });
   return EXIT_CODES.ok;
 }
 
@@ -293,18 +308,6 @@ export function isIgnoredChange(filename: string): boolean {
   if (norm.includes('/.') || norm.startsWith('.')) return true;
   if (norm.endsWith('~') || norm.endsWith('.swp') || norm.endsWith('.tmp')) return true;
   return false;
-}
-
-function waitForShutdownSignal(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const handler = (): void => {
-      process.removeListener('SIGINT', handler);
-      process.removeListener('SIGTERM', handler);
-      resolve();
-    };
-    process.once('SIGINT', handler);
-    process.once('SIGTERM', handler);
-  });
 }
 
 function parseConcurrency(raw: string): number | CliUsageError {
