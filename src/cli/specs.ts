@@ -307,6 +307,12 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         "Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/",
       placeholder: '<dir>',
     },
+    output: {
+      type: 'string',
+      description:
+        'Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories',
+      placeholder: '<dir>',
+    },
     'download-images': {
       type: 'boolean',
       description:
@@ -357,6 +363,7 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     'nectar import-ghost ghost-export.json',
     'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
     'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
+    'nectar import-ghost export.json --output review-import',
     'nectar import-ghost export.json --download-images --max-image-size 5MB',
     'nectar import-ghost export.json --on-conflict overwrite',
   ],

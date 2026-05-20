@@ -2730,6 +2730,81 @@ describe('importGhostExport — --dry-run (#502)', () => {
   });
 });
 
+describe('importGhostExport — outputDir (#265)', () => {
+  let cwd: string;
+  let exportFolder: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-output-')));
+    exportFolder = join(cwd, 'ghost-export');
+    await Bun.write(
+      join(exportFolder, 'my-blog.ghost.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [
+                {
+                  id: 't1',
+                  slug: 'Old News',
+                  name: 'Old News',
+                  description: 'newsy',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    await Bun.write(join(exportFolder, 'content/images/2024/cover.jpg'), 'COVER');
+    await Bun.write(
+      join(exportFolder, 'content/data/redirects.json'),
+      JSON.stringify([{ from: '^/legacy/$', to: '/hello/', permanent: true }]),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('writes markdown, assets, and redirect files under the review output root', async () => {
+    const outputDir = join(cwd, 'review-import');
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFolder,
+      outputDir,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.tags).toBe(1);
+    expect(summary.assetsCopied).toBe(1);
+    expect(summary.redirectsImported).toBe(1);
+    expect(summary.slugRedirects).toBe(1);
+    expect(summary.plannedPaths).toContain(join(outputDir, 'posts/hello.md'));
+    expect(summary.plannedPaths).toContain(join(outputDir, 'images/2024/cover.jpg'));
+    expect(summary.plannedPaths).toContain(join(outputDir, 'migration/redirects/_redirects'));
+
+    expect(await readFile(join(outputDir, 'posts/hello.md'), 'utf8')).toContain('title: "Hello"');
+    expect(await readFile(join(outputDir, 'images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    expect(await readFile(join(outputDir, 'migration/redirects/_redirects'), 'utf8')).toContain(
+      '/legacy/  /hello/  301',
+    );
+    await expect(access(join(cwd, 'content/posts/hello.md'))).rejects.toThrow();
+    await expect(access(join(cwd, 'migration/redirects/_redirects'))).rejects.toThrow();
+  });
+});
+
 describe('importGhostExport — JSON size cap (#558)', () => {
   let cwd: string;
   let exportFile: string;

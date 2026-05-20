@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -310,9 +310,62 @@ describe('cli import-ghost — --dry-run (#502)', () => {
     expect(stdout).toContain('Drafts');
     expect(stdout).toContain('Status-filtered');
     expect(stdout).toContain('Empty bodies');
+    expect(stdout).toContain('Planned paths');
+    expect(stdout).toContain('content/posts/hello.md');
+    expect(stdout).toContain('content/pages/about.md');
 
     await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).rejects.toThrow();
     await expect(readFile(join(dir, 'content/pages/about.md'), 'utf8')).rejects.toThrow();
+  });
+});
+
+describe('cli import-ghost — --output (#265)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-output-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(exportFile, exportPayload());
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --output', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--output');
+    expect(stdout).toContain('<dir>');
+  });
+
+  test('writes imported markdown under the requested review directory', async () => {
+    const { exitCode } = await runCli(
+      ['import-ghost', exportFile, '--output', 'review-import', '--on-conflict', 'overwrite'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(await readFile(join(dir, 'review-import/posts/hello.md'), 'utf8')).toContain(
+      'title: "Hello"',
+    );
+    await expect(access(join(dir, 'content/posts/hello.md'))).rejects.toThrow();
+  });
+
+  test('dry-run prints planned output paths without writing to --output', async () => {
+    const { stdout, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--output', 'review-import', '--dry-run'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Dry run: no files written.');
+    expect(stdout).toContain('Target output: review-import');
+    expect(stdout).toContain('Planned paths');
+    expect(stdout).toContain('review-import/posts/hello.md');
+    await expect(access(join(dir, 'review-import/posts/hello.md'))).rejects.toThrow();
+    await expect(access(join(dir, 'content/posts/hello.md'))).rejects.toThrow();
   });
 });
 

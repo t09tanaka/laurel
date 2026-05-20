@@ -192,6 +192,10 @@ export interface ImportSummary {
   // another. Refused regardless of `onConflict` (first-write wins); the count
   // is surfaced so operators can audit the source export (#1138).
   slugCollisions: number;
+  // Absolute paths the import wrote, or would write in dry-run mode. This is
+  // primarily surfaced by `nectar import-ghost --dry-run` so operators can
+  // review the exact files before committing an import.
+  plannedPaths: string[];
 }
 
 export interface ImportGhostOptions {
@@ -240,6 +244,10 @@ export interface ImportGhostOptions {
   // `{{ghost_foot}}`. The CLI surface flag is `--keep-code-injection`
   // (#561).
   keepCodeInjection?: boolean;
+  // Optional content-output root. When omitted, imported Markdown and assets
+  // land in <cwd>/content as before. When set, posts/pages/tags/authors and
+  // copied assets land under this directory for review-first imports.
+  outputDir?: string;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -399,6 +407,10 @@ async function importFromResolvedInput(
 ): Promise<ImportSummary> {
   const keepCodeInjection = opts.keepCodeInjection === true;
   const dryRun = opts.dryRun === true;
+  const outputRoot = resolve(opts.outputDir ?? join(opts.cwd, 'content'));
+  const redirectRoot = opts.outputDir
+    ? join(outputRoot, 'migration', 'redirects')
+    : join(opts.cwd, 'migration', 'redirects');
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
   const raw = await readFile(resolved.jsonFile, 'utf8');
@@ -418,6 +430,7 @@ async function importFromResolvedInput(
     opts.downloadImages && !dryRun
       ? new GhostImageDownloader({
           cwd: opts.cwd,
+          outputRoot,
           fetcher: opts.fetcher,
           maxImageSizeBytes: opts.maxImageSizeBytes,
         })
@@ -527,6 +540,7 @@ async function importFromResolvedInput(
   // writtenThisRun + the live filesystem to pick the next numeric suffix.
   const writeLimit = pLimit(IMPORT_CONCURRENCY);
   const writeQueue: Array<Promise<void>> = [];
+  const plannedPaths: string[] = [];
   for (const r of renderedPosts) {
     if (!r) continue;
     recordSlugChange(r.isPage ? 'page' : 'post', r.originalSlug, r.slug);
@@ -542,6 +556,7 @@ async function importFromResolvedInput(
       writeLimit,
     );
     if (!written) continue;
+    plannedPaths.push(written);
     if (r.isPage) pageCount += 1;
     else postCount += 1;
   }
@@ -562,7 +577,7 @@ async function importFromResolvedInput(
       continue;
     }
     recordSlugChange('tag', tag.slug, tagSlug);
-    const baseDir = join(opts.cwd, 'content/tags');
+    const baseDir = join(outputRoot, 'tags');
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
     const tagFeatureImage = sanitizeImageUrl(
@@ -591,7 +606,10 @@ async function importFromResolvedInput(
       writeQueue,
       writeLimit,
     );
-    if (written) tagCount += 1;
+    if (written) {
+      plannedPaths.push(written);
+      tagCount += 1;
+    }
   }
 
   let authorCount = 0;
@@ -604,7 +622,7 @@ async function importFromResolvedInput(
       continue;
     }
     recordSlugChange('author', user.slug, userSlug);
-    const baseDir = join(opts.cwd, 'content/authors');
+    const baseDir = join(outputRoot, 'authors');
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
     const userLabel = `author ${JSON.stringify(user.slug ?? user.id ?? '')}`;
@@ -646,7 +664,10 @@ async function importFromResolvedInput(
       writeQueue,
       writeLimit,
     );
-    if (written) authorCount += 1;
+    if (written) {
+      plannedPaths.push(written);
+      authorCount += 1;
+    }
   }
   // Drain queued writes before reading the resulting filesystem (asset copy,
   // redirect emission). Without this, copyGhostAssets or writeRedirectMaps
@@ -654,7 +675,13 @@ async function importFromResolvedInput(
   await Promise.all(writeQueue);
 
   const assetsCopied = resolved.assetsDir
-    ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit, dryRun)
+    ? await copyGhostAssets(
+        resolved.assetsDir,
+        outputRoot,
+        resolved.assetsDirIsExplicit,
+        dryRun,
+        plannedPaths,
+      )
     : 0;
 
   // Ghost stores custom redirects at content/data/redirects.json. The resolved
@@ -664,10 +691,12 @@ async function importFromResolvedInput(
   const customRedirects = resolved.assetsDir ? await loadRedirectsJson(resolved.assetsDir) : [];
   const redirectMaps = await writeRedirectMaps({
     cwd: opts.cwd,
+    outDir: redirectRoot,
     customRedirects,
     slugChanges,
     dryRun,
   });
+  plannedPaths.push(...redirectMaps.written);
 
   return {
     posts: postCount,
@@ -688,6 +717,7 @@ async function importFromResolvedInput(
     slugRedirects: redirectMaps.slugCount,
     codeInjectionSkipped: counters.codeInjectionSkipped,
     slugCollisions: counters.slugCollisions,
+    plannedPaths,
   };
 }
 
@@ -875,9 +905,10 @@ async function hasAnyAssetSubdir(dir: string): Promise<boolean> {
 // project" risk that build-time asset copying already defends against.
 async function copyGhostAssets(
   assetsRoot: string,
-  cwd: string,
+  outputRoot: string,
   isExplicit: boolean,
   dryRun: boolean,
+  plannedPaths: string[],
 ): Promise<number> {
   let total = 0;
   for (const name of GHOST_ASSET_SUBDIRS) {
@@ -888,7 +919,7 @@ async function copyGhostAssets(
       }
       continue;
     }
-    const dst = join(cwd, 'content', name);
+    const dst = join(outputRoot, name);
     const rels = await scanGlob('**/*', { cwd: src, onlyFiles: true });
     for (const rel of rels) {
       if (pathContainsSymlink(src, rel)) {
@@ -902,6 +933,7 @@ async function copyGhostAssets(
         await ensureDir(dirname(to));
         await copyFile(from, to);
       }
+      plannedPaths.push(to);
       total += 1;
     }
   }
@@ -934,7 +966,7 @@ async function dispatchWrite(
   writtenThisRun: Set<string>,
   writeQueue: Array<Promise<void>>,
   writeLimit: <T>(fn: () => Promise<T>) => Promise<T>,
-): Promise<boolean> {
+): Promise<string | undefined> {
   // Intra-export slug collision: another entity in the same import run has
   // already claimed this destination. Ghost rejects duplicate slugs in normal
   // admin flows, so a duplicate inside a single export indicates a malformed
@@ -949,7 +981,7 @@ async function dispatchWrite(
       `Slug collision within Ghost export (refusing to overwrite item already written in this run): ${dest}\n`,
     );
     counters.slugCollisions += 1;
-    return false;
+    return undefined;
   }
   // Treat "already claimed in this run" as equivalent to "already on disk".
   // Without this, a second post writing to the same dest can race past the
@@ -963,26 +995,26 @@ async function dispatchWrite(
     // claim and routes through the collision branch above.
     writtenThisRun.add(dest);
     if (!dryRun) writeQueue.push(writeLimit(() => writeFile(dest, contents, 'utf8')));
-    return true;
+    return dest;
   }
   switch (onConflict) {
     case 'skip':
       process.stderr.write(`Skipped (already exists): ${dest}\n`);
       counters.skipped += 1;
-      return false;
+      return undefined;
     case 'overwrite':
       process.stderr.write(`Overwrote: ${dest}\n`);
       counters.overwritten += 1;
       writtenThisRun.add(dest);
       if (!dryRun) writeQueue.push(writeLimit(() => writeFile(dest, contents, 'utf8')));
-      return true;
+      return dest;
     case 'rename': {
       const renamed = await nextAvailablePath(dest, writtenThisRun);
       process.stderr.write(`Renamed (conflict with ${dest}): ${renamed}\n`);
       counters.renamed += 1;
       writtenThisRun.add(renamed);
       if (!dryRun) writeQueue.push(writeLimit(() => writeFile(renamed, contents, 'utf8')));
-      return true;
+      return renamed;
     }
   }
 }
@@ -1039,7 +1071,7 @@ async function renderPostRecord(
     return undefined;
   }
   if (post.status === 'draft') counters.drafts += 1;
-  const dir = isPage ? 'content/pages' : 'content/posts';
+  const dir = isPage ? 'pages' : 'posts';
   const rawBody = renderPostBody(post);
   if (rawBody === '') counters.bodiesEmpty += 1;
   const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
@@ -1102,7 +1134,8 @@ async function renderPostRecord(
     codeinjection_head,
     codeinjection_foot,
   });
-  const baseDir = join(opts.cwd, dir);
+  const outputRoot = resolve(opts.outputDir ?? join(opts.cwd, 'content'));
+  const baseDir = join(outputRoot, dir);
   const dest = join(baseDir, `${slug}.md`);
   assertWithin(baseDir, dest);
   return {

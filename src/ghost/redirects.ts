@@ -181,6 +181,7 @@ function slugPaths(
 
 export interface WriteRedirectMapsOptions {
   cwd: string;
+  outDir?: string;
   customRedirects: GhostRedirectRule[];
   slugChanges: SlugChange[];
   dryRun: boolean;
@@ -203,7 +204,7 @@ export async function writeRedirectMaps(
   if (allRules.length === 0) {
     return { customCount: 0, slugCount: slugRules.length, written: [] };
   }
-  const outDir = join(opts.cwd, 'migration', 'redirects');
+  const outDir = opts.outDir ?? join(opts.cwd, 'migration', 'redirects');
   const netlify = join(outDir, '_redirects');
   const vercel = join(outDir, 'vercel.json');
   const nginx = join(outDir, 'nginx.conf');

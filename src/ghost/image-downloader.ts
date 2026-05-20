@@ -14,6 +14,10 @@ export const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 export interface GhostImageDownloaderOptions {
   // Project root. Downloaded files are written under <cwd>/content/images/.
   cwd: string;
+  // Optional content-output root. Defaults to <cwd>/content. When import-ghost
+  // uses --output, downloaded files are written under that review directory
+  // while markdown URLs remain Ghost-compatible /content/... paths.
+  outputRoot?: string;
   // Optional fetch override (test seam). Defaults to globalThis.fetch.
   fetcher?: typeof fetch;
   // Maximum per-image size in bytes. Defaults to DEFAULT_MAX_IMAGE_SIZE_BYTES
@@ -64,9 +68,8 @@ const MIME_TO_EXT: Record<string, string> = {
 };
 
 export class GhostImageDownloader {
-  private readonly cwd: string;
   private readonly fetcher: typeof fetch;
-  private readonly imagesRoot: string;
+  private readonly contentRoot: string;
   private readonly maxBytes: number;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
@@ -75,9 +78,8 @@ export class GhostImageDownloader {
   private _failed = 0;
 
   constructor(opts: GhostImageDownloaderOptions) {
-    this.cwd = opts.cwd;
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
-    this.imagesRoot = resolve(opts.cwd, 'content', 'images');
+    this.contentRoot = resolve(opts.outputRoot ?? join(opts.cwd, 'content'));
     // A negative cap is meaningless; treat it the same as 0 (disabled) rather
     // than silently rejecting every fetch.
     const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
@@ -140,10 +142,10 @@ export class GhostImageDownloader {
         return null;
       }
       const { localPath, rewrittenUrl } = derivePaths(url, contentType);
-      const absPath = join(this.cwd, localPath);
+      const absPath = join(this.contentRoot, stripContentPrefix(localPath));
       // Defense in depth: pathname normalization in `URL` already strips
-      // `..`, but assert we stay under content/images/ before writing.
-      assertWithinImages(this.imagesRoot, absPath);
+      // `..`, but assert we stay under the configured content output root.
+      assertWithinContent(this.contentRoot, absPath);
       await ensureDir(dirname(absPath));
       await writeFile(absPath, buf);
       const entry: CacheEntry = { rewrittenUrl };
@@ -257,12 +259,17 @@ function sha256Hex(s: string): string {
   return createHash('sha256').update(s).digest('hex');
 }
 
-function assertWithinImages(imagesRoot: string, candidate: string): void {
-  const resolvedBase = resolve(imagesRoot);
+function stripContentPrefix(localPath: string): string {
+  const prefix = `content${sep}`;
+  return localPath.startsWith(prefix) ? localPath.slice(prefix.length) : localPath;
+}
+
+function assertWithinContent(contentRoot: string, candidate: string): void {
+  const resolvedBase = resolve(contentRoot);
   const resolvedCandidate = resolve(candidate);
   if (resolvedCandidate !== resolvedBase && !resolvedCandidate.startsWith(resolvedBase + sep)) {
     throw new Error(
-      `Refusing to write downloaded image outside content/images: candidate=${resolvedCandidate} base=${resolvedBase}`,
+      `Refusing to write downloaded image outside content output: candidate=${resolvedCandidate} base=${resolvedBase}`,
     );
   }
 }

@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import { ON_CONFLICT_VALUES, type OnConflict, importGhostExport } from '~/ghost/import.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -43,6 +44,9 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const rawAssets = parsed.values.assets;
   const assetsDir = typeof rawAssets === 'string' ? rawAssets : undefined;
+
+  const rawOutput = parsed.values.output;
+  const outputDir = typeof rawOutput === 'string' ? rawOutput : undefined;
 
   const downloadImages = parsed.values['download-images'] === true;
 
@@ -95,20 +99,21 @@ export async function runImportGhost(args: string[]): Promise<number> {
       dryRun,
       maxFileSizeBytes,
       keepCodeInjection,
+      outputDir,
     });
     if (asJson) {
       process.stdout.write(`${JSON.stringify({ ok: true, dryRun, summary })}\n`);
       return 0;
     }
     if (dryRun) {
-      process.stdout.write(formatDryRunSummary(summary, { downloadImages }));
+      process.stdout.write(formatDryRunSummary(summary, { cwd, downloadImages, outputDir }));
       return 0;
     }
     logger.info(
       `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,
     );
     if (summary.assetsCopied > 0) {
-      logger.info(`Copied ${summary.assetsCopied} asset files into content/`);
+      logger.info(`Copied ${summary.assetsCopied} asset files into ${outputDir ?? 'content/'}`);
     }
     if (summary.imagesDownloaded > 0 || summary.imagesFailed > 0) {
       logger.info(
@@ -150,7 +155,7 @@ interface DryRunSummaryRow {
 
 function formatDryRunSummary(
   summary: Awaited<ReturnType<typeof importGhostExport>>,
-  ctx: { downloadImages: boolean },
+  ctx: { cwd: string; downloadImages: boolean; outputDir?: string },
 ): string {
   const rows: DryRunSummaryRow[] = [
     { label: 'Posts to import', value: summary.posts },
@@ -175,7 +180,7 @@ function formatDryRunSummary(
     {
       label: 'Assets to copy',
       value: summary.assetsCopied,
-      note: 'images/files/media into content/',
+      note: 'images/files/media into the target output',
     },
     {
       label: 'Conflicts (would skip)',
@@ -213,7 +218,12 @@ function formatDryRunSummary(
   ];
   const labelWidth = Math.max(...rows.map((r) => r.label.length));
   const valueWidth = Math.max(...rows.map((r) => String(r.value).length));
-  const lines = ['Dry run: no files written. Summary of what would land:', ''];
+  const target = ctx.outputDir ?? 'content/';
+  const lines = [
+    'Dry run: no files written. Summary of what would land:',
+    `Target output: ${target}`,
+    '',
+  ];
   for (const r of rows) {
     const padLabel = r.label.padEnd(labelWidth);
     const padValue = String(r.value).padStart(valueWidth);
@@ -226,8 +236,16 @@ function formatDryRunSummary(
   if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
     lines.push('');
     lines.push(
-      '  Note: redirect snippets (_redirects, vercel.json, nginx.conf) would land in migration/redirects/.',
+      '  Note: redirect snippets (_redirects, vercel.json, nginx.conf) would land under the target migration/redirects/.',
     );
+  }
+  if (summary.plannedPaths.length > 0) {
+    lines.push('');
+    lines.push(`  Planned paths (${summary.plannedPaths.length}):`);
+    for (const path of summary.plannedPaths) {
+      const rel = relative(ctx.cwd, path);
+      lines.push(`    ${rel.startsWith('..') ? path : rel}`);
+    }
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
