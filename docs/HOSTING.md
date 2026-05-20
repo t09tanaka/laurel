@@ -58,7 +58,9 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/firebase-hosting.md`](./deploy/firebase-hosting.md) —
   Firebase Hosting quickstart for serving the static `dist/` directory with
   Nectar's generated `firebase.json`. Nectar does not currently expose
-  `nectar deploy firebase`, so publishing still uses the Firebase CLI.
+  `nectar deploy firebase`, so publishing still uses the Firebase CLI or the
+  [`examples/ci/firebase.yml`](../examples/ci/firebase.yml) GitHub Actions
+  sample.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and

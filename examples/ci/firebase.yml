@@ -1,0 +1,60 @@
+# Deploy a Nectar site to Firebase Hosting.
+#
+# Copy this file to .github/workflows/firebase.yml in your repo. In Firebase,
+# initialize Hosting once, then add these repository settings:
+#   - secret FIREBASE_SERVICE_ACCOUNT  (created by `firebase init hosting:github`)
+#   - variable FIREBASE_PROJECT_ID     (your Firebase project ID)
+#
+# Enable the Nectar Firebase emitter before using this workflow:
+#
+#   [deploy.firebase]
+#   enabled = true
+#
+# The build writes dist/firebase.json with `hosting.public = "."`; the action's
+# `entryPoint: dist` tells FirebaseExtended/action-hosting-deploy to deploy that
+# generated Hosting config and static output to the live Hosting channel.
+
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build site
+        run: bunx nectar build
+
+      - name: Verify Firebase Hosting config
+        run: test -f dist/firebase.json
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: live
+          entryPoint: dist

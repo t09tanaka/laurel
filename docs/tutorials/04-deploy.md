@@ -416,6 +416,12 @@ The emitter writes `dist/firebase.json` with `hosting.public = "."`, shared
 headers, redirects, `cleanUrls: true`, the configured trailing-slash policy,
 and an empty `rewrites` array so Nectar is not treated as an SPA.
 
+For GitHub Actions, copy
+[`examples/ci/firebase.yml`](../../examples/ci/firebase.yml) to
+`.github/workflows/firebase.yml`. The workflow builds with Bun, checks that
+`dist/firebase.json` exists, then runs FirebaseExtended/action-hosting-deploy
+with `channelId: live` and `entryPoint: dist`.
+
 ---
 
 ## Netlify

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { load as loadYaml } from 'js-yaml';
 import {
   buildFirebaseConfig,
   buildFirebaseHeaders,
@@ -17,6 +18,7 @@ async function makeOutputDir(): Promise<string> {
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
+const root = join(import.meta.dir, '..', '..');
 
 describe('toFirebaseSource', () => {
   test('translates root catch-all patterns to Firebase recursive globs', () => {
@@ -155,5 +157,51 @@ describe('emitFirebaseJson', () => {
         redirects: [{ source: '/old', destination: '/new', type: 301 }],
       },
     });
+  });
+});
+
+describe('Firebase Hosting deploy samples', () => {
+  test('documents a valid GitHub Actions live deploy workflow', async () => {
+    const workflowPath = join(root, 'examples', 'ci', 'firebase.yml');
+    const body = await readFile(workflowPath, 'utf8');
+    const parsed = loadYaml(body) as {
+      jobs?: {
+        deploy?: {
+          steps?: Array<Record<string, unknown>>;
+        };
+      };
+    };
+
+    expect(parsed.jobs?.deploy?.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ uses: 'oven-sh/setup-bun@v2' }),
+        expect.objectContaining({ run: 'bun install --frozen-lockfile' }),
+        expect.objectContaining({ run: 'bunx nectar build' }),
+        expect.objectContaining({ run: 'test -f dist/firebase.json' }),
+        expect.objectContaining({
+          uses: 'FirebaseExtended/action-hosting-deploy@v0',
+          with: expect.objectContaining({
+            firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
+            projectId: '${{ vars.FIREBASE_PROJECT_ID }}',
+            channelId: 'live',
+            entryPoint: 'dist',
+          }),
+        }),
+      ]),
+    );
+  });
+
+  test('links the Firebase workflow from deploy docs and examples index', async () => {
+    const docs = await Promise.all([
+      readFile(join(root, 'examples', 'ci', 'README.md'), 'utf8'),
+      readFile(join(root, 'examples', 'README.md'), 'utf8'),
+      readFile(join(root, 'docs', 'deployment', 'firebase-hosting.md'), 'utf8'),
+      readFile(join(root, 'docs', 'deploy', 'firebase-hosting.md'), 'utf8'),
+      readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8'),
+    ]);
+
+    for (const body of docs) {
+      expect(body).toContain('firebase.yml');
+    }
   });
 });

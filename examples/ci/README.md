@@ -36,6 +36,7 @@ line in the workflow you copy.
 | `netlify-cli.yml`     | Netlify CLI upload  | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Use when Netlify is not connected to Git and Actions uploads `dist/`. |
 | `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses Vercel CLI prebuilt deploys (`pull`, `build`, `deploy --prebuilt`). |
 | `azure-static-web-apps.yml` | Azure Static Web Apps | Secret `AZURE_STATIC_WEB_APPS_API_TOKEN` from the SWA resource. PR previews land in named slots automatically.       |
+| `firebase.yml`       | Firebase Hosting    | Secret `FIREBASE_SERVICE_ACCOUNT`, variable `FIREBASE_PROJECT_ID`. Enable `[deploy.firebase]` so `dist/firebase.json` exists, then the action deploys `entryPoint: dist` to the live Hosting channel. |
 | `s3-cloudfront.yml`   | AWS S3 + CloudFront | Secret `AWS_ROLE_TO_ASSUME` (OIDC), `CLOUDFRONT_DISTRIBUTION_ID`. Variables `AWS_REGION`, `S3_BUCKET`.                |
 | `render.yml`          | Render Static Site  | Secret `RENDER_DEPLOY_HOOK_URL`. Build artifact uploaded for inspection, then Render rebuilds and publishes `dist/` on the hook call. |
 | `fly.yml`             | Fly.io              | Secret `FLY_API_TOKEN`. Needs project-local `Dockerfile` + `fly.toml`; see `docs/deploy/fly.md`.                     |
@@ -51,6 +52,9 @@ line in the workflow you copy.
   Vercel. For Netlify's native Git integration, use the `netlify.toml` flow in
   `docs/deploy/netlify.md`. If GitHub Actions should upload `dist/` to a
   Netlify site that is not connected to Git, copy `netlify-cli.yml`.
+- **You already use Firebase:** `firebase.yml`. Enable `[deploy.firebase]` so
+  Nectar emits `dist/firebase.json`, then FirebaseExtended/action-hosting-deploy
+  uploads that self-contained output with `entryPoint: dist`.
 - **You already live in AWS:** `s3-cloudfront.yml`. Pair with the CloudFront
   Function at `examples/s3-cloudfront/append-index.js` to keep directory-style
   URLs working from an S3 origin. The full setup checklist lives in

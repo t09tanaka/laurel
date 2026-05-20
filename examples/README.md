@@ -10,7 +10,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 
 | Folder                     | Purpose                                                                 |
 |----------------------------|-------------------------------------------------------------------------|
-| `ci/`                      | GitHub Actions workflow templates for shipping a Nectar build to popular static hosts (GitHub Pages, Cloudflare Pages, Netlify, Vercel, Azure Static Web Apps, S3 + CloudFront, Fly.io, Render). See `ci/README.md` for the per-host setup matrix. |
+| `ci/`                      | GitHub Actions workflow templates for shipping a Nectar build to popular static hosts (GitHub Pages, Cloudflare Pages, Netlify, Vercel, Azure Static Web Apps, Firebase Hosting via `ci/firebase.yml`, S3 + CloudFront, Fly.io, Render). See `ci/README.md` for the per-host setup matrix. |
 | `fly/fly.toml`             | Fly.io nginx Machine sample at `examples/fly/fly.toml` that serves a pre-built `dist/` directory with the matching `Dockerfile`, using `dist/.nectar/nginx.conf` for generated redirects and headers. `examples/fly/nginx.conf` is the static-only fallback. Pairs with `docs/deploy/fly.md`. |
 | `deploy/apache/.htaccess`  | Apache HTTPD `.htaccess` with Cache-Control, ETag, security headers, and pre-compressed-sidecar serving. Pairs with `docs/deploy/apache.md`. |
 | `deploy/caddy/Caddyfile`   | Caddy v2 server block with HTTPS, header pinning, and `/404.html` fallback. Pairs with `docs/deploy/caddy.md`. |

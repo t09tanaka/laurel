@@ -5,11 +5,8 @@ files. Nectar can emit a Firebase Hosting `firebase.json` into the build output
 from `[deploy.firebase]`, translating the shared `deploy.headers`,
 `redirects.yaml`, `build.trailing_slash`, and clean URL policy into Firebase's
 native Hosting config. Nectar does not currently ship a `nectar deploy firebase`
-command, so publishing still uses the Firebase CLI.
-
-This guide covers the local CLI path only. If you want GitHub Actions to run
-the deploy, wire the same commands into your own workflow; Nectar does not
-currently include a Firebase Actions template.
+command, so publishing still uses the Firebase CLI or the maintained GitHub
+Actions sample in [`examples/ci/firebase.yml`](../../examples/ci/firebase.yml).
 
 ## Quickstart
 
@@ -73,6 +70,13 @@ currently include a Firebase Actions template.
    cd dist
    firebase deploy --only hosting
    ```
+
+   For GitHub Actions, copy
+   [`examples/ci/firebase.yml`](../../examples/ci/firebase.yml) to
+   `.github/workflows/firebase.yml`, add the `FIREBASE_SERVICE_ACCOUNT` secret
+   and `FIREBASE_PROJECT_ID` variable, and keep `entryPoint: dist` so
+   FirebaseExtended/action-hosting-deploy reads Nectar's generated
+   `dist/firebase.json`.
 
 ## Redirects
 
