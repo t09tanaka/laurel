@@ -158,11 +158,13 @@ export function renderCliReference(
   lines.push('## Config discovery and `--config`');
   lines.push('');
   lines.push(
-    'Commands with `--config <path>` accept one or more TOML files. Without it, Nectar',
-    'checks only the current working directory, first `nectar.toml`, then',
-    '`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,',
-    'Nectar then appends `nectar.<env>.toml` when that file exists. If no config',
-    'file exists, the config schema defaults are used.',
+    'Commands with `--config <path>` accept one or more TOML or JSON files. Without',
+    'it, Nectar checks only the current working directory, first `nectar.toml`, then',
+    '`nectar.config.toml`, then `nectar.config.json`; the first existing base file',
+    'wins. If `NECTAR_ENV` is set, Nectar then appends `nectar.<env>.toml` when that',
+    'file exists. Finally, `.nectar.local.toml` is appended when present so local',
+    'overrides written by `nectar config set` win. If no config file exists, the',
+    'config schema defaults are used.',
   );
   lines.push('');
   lines.push(

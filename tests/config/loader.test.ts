@@ -58,6 +58,29 @@ url = "/"
     });
   });
 
+  test('parses nectar.config.json during default discovery', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.config.json'),
+        `${JSON.stringify({ site: { title: 'JSON Site', url: 'https://json.example' } })}\n`,
+        'utf8',
+      );
+      const config = await loadConfig({ cwd });
+      expect(config.site.title).toBe('JSON Site');
+      expect(config.site.url).toBe('https://json.example');
+    });
+  });
+
+  test('applies .nectar.local.toml after base and environment config layers', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'nectar.toml'), `[site]\ntitle = "Base"\n`, 'utf8');
+      await writeFile(join(cwd, 'nectar.production.toml'), `[site]\ntitle = "Env"\n`, 'utf8');
+      await writeFile(join(cwd, '.nectar.local.toml'), `[site]\ntitle = "Local"\n`, 'utf8');
+      const config = await loadConfig({ cwd, env: { NECTAR_ENV: 'production' } });
+      expect(config.site.title).toBe('Local');
+    });
+  });
+
   test('deep-merges explicit config paths in order', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

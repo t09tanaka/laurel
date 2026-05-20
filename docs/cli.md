@@ -73,11 +73,13 @@ where a negated form exists, for example `--watch --no-watch`.
 
 ## Config discovery and `--config`
 
-Commands with `--config <path>` accept one or more TOML files. Without it, Nectar
-checks only the current working directory, first `nectar.toml`, then
-`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,
-Nectar then appends `nectar.<env>.toml` when that file exists. If no config
-file exists, the config schema defaults are used.
+Commands with `--config <path>` accept one or more TOML or JSON files. Without
+it, Nectar checks only the current working directory, first `nectar.toml`, then
+`nectar.config.toml`, then `nectar.config.json`; the first existing base file
+wins. If `NECTAR_ENV` is set, Nectar then appends `nectar.<env>.toml` when that
+file exists. Finally, `.nectar.local.toml` is appended when present so local
+overrides written by `nectar config set` win. If no config file exists, the
+config schema defaults are used.
 
 Passing `--config`, or setting the matching env var such as
 `NECTAR_BUILD_CONFIG`, disables discovery and `NECTAR_ENV` file selection.
@@ -113,7 +115,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
 | [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
-| [`nectar config`](#nectar-config) | Inspect the loaded nectar.toml config |
+| [`nectar config`](#nectar-config) | Inspect or update the loaded Nectar config |
 | [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
@@ -491,7 +493,7 @@ nectar completions fish > ~/.config/fish/completions/nectar.fish
 
 ### `nectar config`
 
-Inspect the loaded nectar.toml config
+Inspect or update the loaded Nectar config
 
 Usage:
 
@@ -503,14 +505,14 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value, e.g. `site.url` or `build.base_path`), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
+| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
 | `--format <json\|toml>` | string | `NECTAR_CONFIG_FORMAT` | For `print`, choose the resolved config output format: `toml` (default) or `json`. |
 
 Examples:
@@ -520,6 +522,8 @@ nectar config print                          # resolved config as TOML
 nectar config print --format json            # resolved config as JSON
 nectar config path                           # absolute path of the loaded toml
 nectar config get site.url
+nectar config set site.title "My Site"
+nectar config set components.rss.enabled false
 nectar config get build.base_path --json
 ```
 

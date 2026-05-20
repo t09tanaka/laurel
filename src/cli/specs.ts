@@ -803,7 +803,7 @@ export const AUTHORS_SPEC: CommandSpec = {
 
 export const CONFIG_SPEC: CommandSpec = {
   name: 'config',
-  summary: 'Inspect the loaded nectar.toml config',
+  summary: 'Inspect or update the loaded Nectar config',
   options: {
     config: {
       type: 'string',
@@ -813,7 +813,7 @@ export const CONFIG_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".',
+        'Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".',
     },
     format: {
       type: 'string',
@@ -826,7 +826,7 @@ export const CONFIG_SPEC: CommandSpec = {
     {
       name: 'subcommand',
       description:
-        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value, e.g. `site.url` or `build.base_path`), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)',
+        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)',
       required: true,
       variadic: true,
     },
@@ -836,6 +836,8 @@ export const CONFIG_SPEC: CommandSpec = {
     'nectar config print --format json            # resolved config as JSON',
     'nectar config path                           # absolute path of the loaded toml',
     'nectar config get site.url',
+    'nectar config set site.title "My Site"',
+    'nectar config set components.rss.enabled false',
     'nectar config get build.base_path --json',
   ],
 };

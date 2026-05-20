@@ -29,7 +29,7 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(AUTOGEN_BANNER);
   lines.push('');
   lines.push(
-    'This page lists every key understood by `nectar.toml`. It is generated from the',
+    'This page lists every key understood by Nectar config files. It is generated from the',
     'Zod schema in `src/config/schema.ts`; run `bun run docs:config` after changing a',
     'field to refresh it.',
   );
@@ -43,10 +43,12 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push('');
   lines.push(
     'When a caller does not provide an explicit config path, Nectar looks only in',
-    'the current working directory. It checks `nectar.toml` first, then',
-    '`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,',
-    'Nectar then appends `nectar.<env>.toml` when that file exists. If no config',
-    'file exists, the schema defaults shown below are used.',
+    'the current working directory. It checks `nectar.toml`, `nectar.config.toml`,',
+    'then `nectar.config.json`; the first existing base file wins. If `NECTAR_ENV`',
+    'is set, Nectar then appends `nectar.<env>.toml` when that file exists.',
+    'Finally, `.nectar.local.toml` is appended when present so local overrides',
+    'written by `nectar config set` win over the base and environment layers. If',
+    'no config file exists, the schema defaults shown below are used.',
   );
   lines.push('');
   lines.push(
@@ -61,8 +63,8 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(
     'The value precedence for config-backed behaviour is: CLI flag, then',
     'command-specific env var, then config file, then schema default. Separately,',
-    '`NECTAR_<SECTION>_<KEY>` environment variables override matching',
-    '`nectar.toml` keys after the file is parsed, for example',
+    '`NECTAR_<SECTION>_<KEY>` environment variables override matching config',
+    'keys after the file is parsed, for example',
     '`NECTAR_SITE_URL=https://preview.example`. String, number, boolean, and',
     'array keys are coerced through the same schema parser as TOML config;',
     'primitive arrays may be comma-separated or JSON arrays, while object arrays',

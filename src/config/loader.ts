@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import TOML from '@iarna/toml';
 import { ZodError, type ZodTypeAny, z } from 'zod';
 import { NectarError, suggestClosest } from '~/util/errors.ts';
@@ -7,7 +7,8 @@ import { logger } from '~/util/logger.ts';
 import { applyNoindexHeaderForNonProduction } from './deploy-environment.ts';
 import { type NectarConfig, configSchema } from './schema.ts';
 
-const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml'];
+const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml', 'nectar.config.json'];
+const LOCAL_CONFIG_NAME = '.nectar.local.toml';
 
 export interface LoadConfigOptions {
   cwd: string;
@@ -32,13 +33,7 @@ export async function loadConfig({
   const configDir = lastConfigPath ? dirname(lastConfigPath) : cwd;
   let parsed: unknown = {};
   for (const file of resolved) {
-    const raw = await readFile(file, 'utf8');
-    let layer: unknown;
-    try {
-      layer = TOML.parse(raw);
-    } catch (err) {
-      throw wrapTomlError(err, file);
-    }
+    let layer = await parseConfigLayer(file);
     layer = resolveParsedProjectPaths(layer, cwd, dirname(file));
     parsed = deepMerge(parsed, layer);
   }
@@ -121,7 +116,26 @@ async function findConfigLayers(
     const file = Bun.file(candidate);
     if (await file.exists()) layers.push(candidate);
   }
+  const local = join(cwd, LOCAL_CONFIG_NAME);
+  if (await Bun.file(local).exists()) layers.push(local);
   return layers;
+}
+
+async function parseConfigLayer(file: string): Promise<unknown> {
+  const raw = await readFile(file, 'utf8');
+  const ext = extname(file).toLowerCase();
+  if (ext === '.json') {
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      throw wrapJsonError(err, file);
+    }
+  }
+  try {
+    return TOML.parse(raw);
+  } catch (err) {
+    throw wrapTomlError(err, file);
+  }
 }
 
 function normalizeConfigEnvironment(value: string | undefined): string | undefined {
@@ -547,6 +561,15 @@ function wrapTomlError(err: unknown, file: string): NectarError {
   if (typeof e.line === 'number') init.line = e.line + 1;
   if (typeof e.col === 'number') init.col = e.col + 1;
   return new NectarError(init);
+}
+
+function wrapJsonError(err: unknown, file: string): NectarError {
+  return new NectarError({
+    message: `invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    file,
+    cause: err,
+    code: 'config',
+  });
 }
 
 function stripTomlContext(message: string): string {

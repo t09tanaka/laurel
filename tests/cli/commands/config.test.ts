@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import TOML from '@iarna/toml';
-import { lookupDotted } from '~/cli/commands/config.ts';
+import { lookupDotted, parseConfigValue } from '~/cli/commands/config.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -58,6 +58,18 @@ describe('lookupDotted', () => {
   test('rejects empty segments', () => {
     expect(lookupDotted({ a: 1 }, '')).toBeUndefined();
     expect(lookupDotted({ a: 1 }, 'a..b')).toBeUndefined();
+  });
+});
+
+describe('parseConfigValue', () => {
+  test('coerces booleans and numbers while leaving strings intact', () => {
+    expect(parseConfigValue('true')).toBe(true);
+    expect(parseConfigValue('false')).toBe(false);
+    expect(parseConfigValue('12')).toBe(12);
+    expect(parseConfigValue('3.5')).toBe(3.5);
+    expect(parseConfigValue('003')).toBe('003');
+    expect(parseConfigValue('Config Test')).toBe('Config Test');
+    expect(parseConfigValue('"false"')).toBe('false');
   });
 });
 
@@ -197,6 +209,86 @@ describe('cli config', () => {
     const { stderr, exitCode } = await runCli(['config', 'print', '--format', 'yaml']);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid config print format');
+  });
+
+  test('config set updates a TOML string value and preserves trailing comments', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-toml-')));
+    try {
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        [
+          '# Site settings',
+          '[site]',
+          'title = "Before" # keep this comment',
+          'url = "https://config.test"',
+          '',
+        ].join('\n'),
+      );
+      const result = await runCli(['config', 'set', 'site.title', 'After'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Set site.title');
+      const body = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(body).toContain('# Site settings');
+      expect(body).toContain('title = "After" # keep this comment');
+      const get = await runCli(['config', 'get', 'site.title'], dir);
+      expect(get.exitCode).toBe(0);
+      expect(get.stdout.trim()).toBe('After');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config set writes numbers and booleans at dotted paths', async () => {
+    const dir = await makeFixture();
+    try {
+      const count = await runCli(['config', 'set', 'build.posts_per_page', '12'], dir);
+      expect(count.exitCode).toBe(0);
+      const rss = await runCli(['config', 'set', 'components.rss.enabled', 'true'], dir);
+      expect(rss.exitCode).toBe(0);
+      const countGet = await runCli(['config', 'get', 'build.posts_per_page', '--json'], dir);
+      expect(JSON.parse(countGet.stdout)).toBe(12);
+      const rssGet = await runCli(['config', 'get', 'components.rss.enabled', '--json'], dir);
+      expect(JSON.parse(rssGet.stdout)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config set updates JSON config files', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-json-')));
+    try {
+      await writeFile(
+        join(dir, 'nectar.config.json'),
+        `${JSON.stringify({ site: { title: 'Before', url: 'https://config.test' } }, null, 2)}\n`,
+      );
+      const result = await runCli(['config', 'set', 'site.title', 'From JSON'], dir);
+      expect(result.exitCode).toBe(0);
+      const body = JSON.parse(await readFile(join(dir, 'nectar.config.json'), 'utf8')) as {
+        site: { title: string };
+      };
+      expect(body.site.title).toBe('From JSON');
+      const get = await runCli(['config', 'get', 'site.title'], dir);
+      expect(get.stdout.trim()).toBe('From JSON');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config set writes a local TOML override next to TS configs', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-ts-')));
+    try {
+      await writeFile(join(dir, 'nectar.config.ts'), 'export default {};\n');
+      const result = await runCli(['config', 'set', 'site.title', 'Local Override'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('local TOML override');
+      const body = await readFile(join(dir, '.nectar.local.toml'), 'utf8');
+      expect(body).toContain('[site]');
+      expect(body).toContain('title = "Local Override"');
+      const get = await runCli(['config', 'get', 'site.title'], dir);
+      expect(get.stdout.trim()).toBe('Local Override');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test('unknown subcommand exits with code 2', async () => {
