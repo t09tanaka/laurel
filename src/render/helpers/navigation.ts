@@ -67,7 +67,10 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
           typeof registeredPartial === 'function'
             ? registeredPartial
             : engine.hb.compile(themePartial, { noEscape: false });
-        const html = compiled({ navigation: enriched, type }, { data: options.data });
+        const html = compiled(
+          { navigation: enriched, type, isSecondary: type === 'secondary' },
+          { data: options.data },
+        );
         return new engine.hb.SafeString(html);
       }
 

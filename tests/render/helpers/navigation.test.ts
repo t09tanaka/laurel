@@ -740,7 +740,7 @@ describe('navigation helper theme partial override', () => {
   test('forwards type="secondary" and the resolved items into the theme partial', () => {
     const engine = makeEngine({
       partials: {
-        navigation: `<nav data-type="{{type}}">{{#each navigation}}<i>{{label}}</i>{{/each}}</nav>`,
+        navigation: `<nav data-type="{{type}}" data-secondary="{{#if isSecondary}}yes{{else}}no{{/if}}">{{#each navigation}}<i>{{label}}</i>{{/each}}</nav>`,
       },
     });
     registerNavigationHelpers(engine);
@@ -758,7 +758,33 @@ describe('navigation helper theme partial override', () => {
       },
     );
     expect(html).toContain('data-type="secondary"');
+    expect(html).toContain('data-secondary="yes"');
     expect(html).toContain('<i>Contact</i>');
+  });
+
+  test('forwards isSecondary=false for primary navigation partial calls', () => {
+    const engine = makeEngine({
+      partials: {
+        navigation: `<nav data-secondary="{{#if isSecondary}}yes{{else}}no{{/if}}">{{#each navigation}}<i>{{label}}</i>{{/each}}</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [{ label: 'Home', url: '/' }],
+            secondary_navigation: [{ label: 'Contact', url: '/contact/' }],
+          },
+          route: { url: '/' },
+        },
+      },
+    );
+    expect(html).toContain('data-secondary="no"');
+    expect(html).toContain('<i>Home</i>');
+    expect(html).not.toContain('<i>Contact</i>');
   });
 
   test('sanitises item URLs before exposing them to the theme partial', () => {
