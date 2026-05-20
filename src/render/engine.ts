@@ -1,4 +1,5 @@
 import Handlebars from 'handlebars';
+import slugify from 'slugify';
 import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
@@ -498,8 +499,8 @@ function normaliseNavUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
 }
 
-function normalizeThemeSiteUrl(url: string): string {
-  return url.replace(/\/+$/, '');
+function normalizeThemeSiteUrl(url: string | undefined): string {
+  return typeof url === 'string' ? url.replace(/\/+$/, '') : '';
 }
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
@@ -548,10 +549,22 @@ function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): 
   if ((route.kind === 'home' || route.kind === 'index') && paginationPage === 1) {
     tokens.push('home-template');
   }
-  if (route.kind === 'post') tokens.push('post-template');
-  if (route.kind === 'page') tokens.push('page-template');
-  if (route.kind === 'tag') tokens.push('tag-template', 'archive-template');
-  if (route.kind === 'author') tokens.push('author-template', 'archive-template');
+  if (route.kind === 'post') {
+    tokens.push('post-template');
+    pushBodyClassToken(tokens, 'post-template', route.data.post?.slug);
+  }
+  if (route.kind === 'page') {
+    tokens.push('page-template');
+    pushBodyClassToken(tokens, 'page-template', route.data.page?.slug);
+  }
+  if (route.kind === 'tag') {
+    tokens.push('tag-template', 'archive-template');
+    pushBodyClassToken(tokens, 'tag-template', route.data.tag?.slug);
+  }
+  if (route.kind === 'author') {
+    tokens.push('author-template', 'archive-template');
+    pushBodyClassToken(tokens, 'author-template', route.data.author?.slug);
+  }
   // Paginated home / index archives are aggregated listings too; Ghost's
   // Source theme styles `body.archive-template` regardless of which archive
   // kind it is. Surface the marker on every page > 1 of a home archive so
@@ -566,8 +579,8 @@ function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): 
   if (route.data.pagination && route.data.pagination.page > 1) {
     tokens.push('paged');
   }
-  if (route.data.tag) tokens.push(`tag-${route.data.tag.slug}`);
-  if (route.data.author) tokens.push(`author-${route.data.author.slug}`);
+  if (route.data.tag) pushBodyClassToken(tokens, 'tag', route.data.tag.slug);
+  if (route.data.author) pushBodyClassToken(tokens, 'author', route.data.author.slug);
   // Ghost emits `tag-<slug>` for every tag on the current post, including
   // internal tags. Internal tag slugs already carry the `hash-` prefix
   // (see content/loader.ts), so they surface here as `tag-hash-<name>`
@@ -576,13 +589,26 @@ function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): 
   if (route.kind === 'post' && route.data.post) {
     const seen = new Set(tokens);
     for (const tag of route.data.post.tags ?? []) {
-      const token = `tag-${tag.slug}`;
+      const token = bodyClassToken('tag', tag.slug);
+      if (!token) continue;
       if (seen.has(token)) continue;
       seen.add(token);
       tokens.push(token);
     }
   }
   return tokens.join(' ');
+}
+
+function pushBodyClassToken(tokens: string[], prefix: string, slug: unknown): void {
+  const token = bodyClassToken(prefix, slug);
+  if (token) tokens.push(token);
+}
+
+function bodyClassToken(prefix: string, slug: unknown): string | undefined {
+  if (typeof slug !== 'string') return undefined;
+  const sanitized = slugify(slug, { lower: true, strict: true });
+  if (!sanitized) return undefined;
+  return `${prefix}-${sanitized}`;
 }
 
 // Ghost's `post_class` emits more than just tag/featured tokens — themes

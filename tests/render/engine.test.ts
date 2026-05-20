@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
+import type { Author, ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
 import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import type { RouteContext } from '~/render/types.ts';
@@ -132,6 +132,34 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     meta_title: undefined,
     meta_description: undefined,
     url: `/tag/${slug}/`,
+    count: { posts: 0 },
+    ...overrides,
+  };
+}
+
+function makeAuthor(overrides: Partial<Author> = {}): Author {
+  const slug = overrides.slug ?? 'jane';
+  return {
+    id: `author-${slug}`,
+    slug,
+    name: 'Jane',
+    bio: '',
+    profile_image: undefined,
+    cover_image: undefined,
+    website: undefined,
+    location: undefined,
+    twitter: undefined,
+    facebook: undefined,
+    linkedin: undefined,
+    bluesky: undefined,
+    mastodon: undefined,
+    threads: undefined,
+    tiktok: undefined,
+    youtube: undefined,
+    instagram: undefined,
+    meta_title: undefined,
+    meta_description: undefined,
+    url: `/author/${slug}/`,
     count: { posts: 0 },
     ...overrides,
   };
@@ -539,6 +567,79 @@ describe('buildContext', () => {
     const authorTokens = String(buildContext(engine, authorRoute).body_class).split(' ');
     expect(authorTokens).toContain('author-template');
     expect(authorTokens).toContain('archive-template');
+  });
+
+  test('resource routes include per-resource body_class slug modifiers (issue #979)', () => {
+    const postRoute: RouteContext = {
+      kind: 'post',
+      url: '/source-news/',
+      outputPath: 'source-news/index.html',
+      template: 'post',
+      data: { post: makePost({ slug: 'source-news' }) },
+      meta: baseMeta,
+    };
+    const pageRoute: RouteContext = {
+      kind: 'page',
+      url: '/about-us/',
+      outputPath: 'about-us/index.html',
+      template: 'page',
+      data: { page: makePage({ slug: 'about-us' }) },
+      meta: baseMeta,
+    };
+    const tagRoute: RouteContext = {
+      kind: 'tag',
+      url: '/tag/product/',
+      outputPath: 'tag/product/index.html',
+      template: 'tag',
+      data: { tag: makeTag({ slug: 'product' }) },
+      meta: baseMeta,
+    };
+    const authorRoute: RouteContext = {
+      kind: 'author',
+      url: '/author/jane/',
+      outputPath: 'author/jane/index.html',
+      template: 'author',
+      data: { author: makeAuthor({ slug: 'jane' }) },
+      meta: baseMeta,
+    };
+
+    expect(String(buildContext(engine, postRoute).body_class).split(' ')).toContain(
+      'post-template-source-news',
+    );
+    expect(String(buildContext(engine, pageRoute).body_class).split(' ')).toContain(
+      'page-template-about-us',
+    );
+    expect(String(buildContext(engine, tagRoute).body_class).split(' ')).toEqual(
+      expect.arrayContaining(['tag-template-product', 'tag-product']),
+    );
+    expect(String(buildContext(engine, authorRoute).body_class).split(' ')).toEqual(
+      expect.arrayContaining(['author-template-jane', 'author-jane']),
+    );
+  });
+
+  test('resource body_class slug modifiers sanitize unsafe slug text (issue #979)', () => {
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hello-world/',
+      outputPath: 'hello-world/index.html',
+      template: 'post',
+      data: {
+        post: makePost({
+          slug: 'Hello World',
+          tags: [makeTag({ slug: 'Feature Launch' })],
+        }),
+      },
+      meta: baseMeta,
+    };
+    const bodyClass = String(buildContext(engine, route).body_class);
+    const tokens = bodyClass.split(' ');
+
+    expect(tokens).toContain('post-template-hello-world');
+    expect(tokens).toContain('tag-feature-launch');
+    expect(tokens).not.toContain('post-template-Hello');
+    expect(tokens).not.toContain('World');
+    expect(bodyClass).not.toContain('Hello World');
+    expect(bodyClass).not.toContain('Feature Launch');
   });
 
   test('tag archive context exposes tag theme fields at root and under tag', () => {
