@@ -319,6 +319,24 @@ ${numberedWords(53, 3).join(' ')}
     expect(posts.posts[0].canonical_url).toBeNull();
   });
 
+  test('post.url is absolute and preserves base_path plus route-assigned permalink (#769)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-post-url-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      build: { base_path: '/base/' },
+    });
+    const content = makeGraph();
+    const post = content.posts[0];
+    expect(post).toBeDefined();
+    if (!post) return;
+    post.url = '/base/news/hello-world/';
+
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0].url).toBe('https://example.com/base/news/hello-world/');
+  });
+
   test('also writes directory-index variants for trailing-slash SDK requests', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });

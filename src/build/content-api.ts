@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
-import { absoluteUrl, withBasePath } from '~/util/url.ts';
+import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './headers.ts';
@@ -54,23 +54,28 @@ export interface EmitContentApiStubsOptions {
   emitHtaccess?: boolean;
 }
 
+interface ApiUrlContext {
+  siteUrl: string;
+  basePath: string;
+}
+
 export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Promise<void> {
   const { content, outputDir } = opts;
   const absoluteUrls = opts.absoluteUrls ?? false;
   const postsPerPage = opts.postsPerPage ?? 15;
   const basePath = opts.basePath ?? '/';
   const urlBase = absoluteUrls ? buildUrlBase(content.site.url, basePath) : undefined;
+  const urlContext = { siteUrl: content.site.url, basePath };
 
   const publishedPosts = content.posts.filter((p) => p.status === 'published');
-  const tagUrlContext = { siteUrl: content.site.url, basePath };
-  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, tagUrlContext));
+  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, urlContext));
   const publishedPages = content.pages.filter((p) => p.status === 'published');
-  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
+  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase, urlContext));
   const publicTags = selectPublicTags(content.tags, publishedPosts);
   const serializedTags = publicTags.map(({ tag, countPosts }) =>
-    serializeTag(tag, tagUrlContext, countPosts),
+    serializeTag(tag, countPosts, urlContext),
   );
-  const serializedAuthors = content.authors.map(serializeAuthor);
+  const serializedAuthors = content.authors.map((author) => serializeAuthor(author, urlContext));
 
   await Promise.all([
     writeCollection(outputDir, 'posts', serializedPosts),
@@ -83,8 +88,8 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writePerIdPosts(outputDir, serializedPosts),
     writePerSlugPages(outputDir, serializedPages),
     writePerIdPages(outputDir, serializedPages),
-    writePerSlugTags(outputDir, publicTags, tagUrlContext),
-    writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase, tagUrlContext),
+    writePerSlugTags(outputDir, publicTags, urlContext),
+    writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase, urlContext),
     writeContentApi404(outputDir),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
@@ -208,11 +213,11 @@ async function writePerIdPages(
 async function writePerSlugTags(
   outputDir: string,
   tags: Array<{ tag: Tag; countPosts: number }>,
-  tagUrlContext: TagUrlContext,
+  urlContext: ApiUrlContext,
 ): Promise<void> {
   await Promise.all(
     tags.map(({ tag, countPosts }) => {
-      const serialized = serializeTag(tag, tagUrlContext, countPosts);
+      const serialized = serializeTag(tag, countPosts, urlContext);
       const body = { tags: [serialized] };
       const flat = join(outputDir, 'content', 'tags', 'slug', `${tag.slug}.json`);
       const dirIndex = join(outputDir, 'content', 'tags', 'slug', tag.slug, 'index.json');
@@ -226,12 +231,12 @@ async function writePerTagPosts(
   tags: Tag[],
   posts: Post[],
   urlBase: string | undefined,
-  tagUrlContext: TagUrlContext,
+  urlContext: ApiUrlContext,
 ): Promise<void> {
   await Promise.all(
     tags.map((tag) => {
       const matching = posts.filter((post) => post.tags.some((t) => t.id === tag.id));
-      const serialized = matching.map((p) => serializePost(p, urlBase, tagUrlContext));
+      const serialized = matching.map((p) => serializePost(p, urlBase, urlContext));
       const body = {
         posts: serialized,
         meta: {
@@ -373,15 +378,10 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
   };
 }
 
-interface TagUrlContext {
-  siteUrl: string | undefined;
-  basePath: string;
-}
-
 function serializePost(
   post: Post,
   urlBase: string | undefined,
-  tagUrlContext: TagUrlContext,
+  urlContext: ApiUrlContext,
 ): Record<string, unknown> {
   // Public JSON omits all members-only body content. For non-public posts
   // (visibility != 'public') we strip the paywalled body fields so the
@@ -414,11 +414,13 @@ function serializePost(
     // members-only entries; the `access` field marks the payload itself,
     // not the underlying gating, as public. See docs/api-stability.md.
     access: 'public',
-    tags: post.tags.map((tag) => serializeTag(tag, tagUrlContext)),
-    primary_tag: post.primary_tag ? serializeTag(post.primary_tag, tagUrlContext) : null,
-    authors: post.authors.map((a) => serializeAuthorBare(a)),
-    primary_author: post.primary_author ? serializeAuthorBare(post.primary_author) : null,
-    url: post.url,
+    tags: post.tags.map((tag) => serializeTag(tag, undefined, urlContext)),
+    primary_tag: post.primary_tag ? serializeTag(post.primary_tag, undefined, urlContext) : null,
+    authors: post.authors.map((a) => serializeAuthorBare(a, urlContext)),
+    primary_author: post.primary_author
+      ? serializeAuthorBare(post.primary_author, urlContext)
+      : null,
+    url: serializeApiUrl(post.url, urlContext),
     canonical_url: post.canonical_url ?? null,
     meta_title: post.meta_title ?? null,
     meta_description: post.meta_description ?? null,
@@ -449,8 +451,8 @@ function selectPublicTags(
 
 function serializeTag(
   tag: Tag,
-  tagUrlContext: TagUrlContext,
-  countPosts = tag.count?.posts ?? 0,
+  countPosts: number | undefined,
+  urlContext: ApiUrlContext,
 ): Record<string, unknown> {
   return {
     id: tag.id,
@@ -462,40 +464,36 @@ function serializeTag(
     visibility: tag.visibility,
     meta_title: tag.meta_title ?? null,
     meta_description: tag.meta_description ?? null,
-    url: serializeTagUrl(tag.url, tagUrlContext),
-    count: { ...tag.count, posts: countPosts },
+    url: serializeApiUrl(tag.url, urlContext),
+    count: { ...tag.count, posts: countPosts ?? tag.count?.posts ?? 0 },
   };
 }
 
-function serializeTagUrl(url: string, { siteUrl, basePath }: TagUrlContext): string {
-  if (url.length === 0) return url;
-  const withSlash = url.endsWith('/') ? url : `${url}/`;
-  if (/^https?:/i.test(withSlash)) return withSlash;
-  const normalizedBasePath = normalizeApiBasePath(basePath);
-  const path = pathHasBasePath(withSlash, normalizedBasePath)
-    ? withSlash
-    : withBasePath(basePath, withSlash);
-  return absoluteUrl(siteUrl, path);
+function serializeApiUrl(url: string, ctx: ApiUrlContext): string {
+  if (/^https?:/i.test(url)) return url;
+  const normalizedBasePath = normalizeApiBasePath(ctx.basePath);
+  if (
+    normalizedBasePath !== '/' &&
+    (url === normalizedBasePath.replace(/\/$/, '') || url.startsWith(normalizedBasePath))
+  ) {
+    return absoluteUrl(ctx.siteUrl, url);
+  }
+  return absoluteUrlWithBasePath(ctx.siteUrl, normalizedBasePath, url);
 }
 
 function normalizeApiBasePath(basePath: string): string {
-  if (basePath === '/' || basePath === '') return '';
-  return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+  if (!basePath || basePath === '/') return '/';
+  return `/${basePath.replace(/^\/+|\/+$/g, '')}/`;
 }
 
-function pathHasBasePath(path: string, basePath: string): boolean {
-  if (basePath.length === 0) return true;
-  return path === `${basePath}/` || path.startsWith(`${basePath}/`);
-}
-
-function serializeAuthor(author: Author): Record<string, unknown> {
+function serializeAuthor(author: Author, urlContext: ApiUrlContext): Record<string, unknown> {
   return {
-    ...serializeAuthorBare(author),
+    ...serializeAuthorBare(author, urlContext),
     count: author.count,
   };
 }
 
-function serializeAuthorBare(author: Author): Record<string, unknown> {
+function serializeAuthorBare(author: Author, urlContext: ApiUrlContext): Record<string, unknown> {
   return {
     id: author.id,
     slug: author.slug,
@@ -509,7 +507,7 @@ function serializeAuthorBare(author: Author): Record<string, unknown> {
     facebook: author.facebook ?? null,
     meta_title: author.meta_title ?? null,
     meta_description: author.meta_description ?? null,
-    url: author.url,
+    url: serializeApiUrl(author.url, urlContext),
   };
 }
 
@@ -518,7 +516,11 @@ export { buildContentApiHeadersBody as buildCorsHeadersBody } from './headers.ts
 
 // Exported only for type-completeness on consumers that want to render
 // pages alongside posts.
-export function serializePage(page: Page, urlBase?: string): Record<string, unknown> {
+export function serializePage(
+  page: Page,
+  urlBase?: string,
+  urlContext?: ApiUrlContext,
+): Record<string, unknown> {
   return {
     id: page.id,
     uuid: page.uuid ?? page.id,
@@ -535,6 +537,6 @@ export function serializePage(page: Page, urlBase?: string): Record<string, unkn
     reading_time: page.reading_time,
     visibility: page.visibility,
     access: 'public',
-    url: page.url,
+    url: urlContext ? serializeApiUrl(page.url, urlContext) : page.url,
   };
 }

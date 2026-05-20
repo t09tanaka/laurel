@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emitContentApiStubs } from '~/build/content-api.ts';
+import { routesYamlSchema } from '~/build/routes-yaml.ts';
+import { configSchema } from '~/config/schema.ts';
+import { loadContent } from '~/content/loader.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 function makeTag(over: Partial<Tag> = {}): Tag {
@@ -283,6 +286,50 @@ describe('emitContentApiStubs', () => {
       next: null,
       prev: null,
     });
+  });
+
+  test('post.url is absolute and preserves base_path plus routes.yaml permalink (#769)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-url-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/tags'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: Hello
+date: 2026-01-01T00:00:00Z
+tags:
+  - News
+---
+
+Hello.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/tags/news.md'),
+      `---
+name: News
+---
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      build: { base_path: '/base/' },
+    });
+    const routesYaml = routesYamlSchema.parse({
+      collections: {
+        '/news/': { permalink: '/news/{slug}/', filter: 'tag:news' },
+      },
+    });
+    const content = await loadContent({ cwd, config, routesYaml });
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-url-out-'));
+
+    await emitContentApiStubs({ content, outputDir, basePath: config.build.base_path });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(content.posts[0]?.url).toBe('/base/news/hello/');
+    expect(body.posts[0].url).toBe('https://example.com/base/news/hello/');
   });
 
   test('posts.json embeds tags, primary_tag, authors, primary_author', async () => {
