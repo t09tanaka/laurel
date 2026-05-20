@@ -54,6 +54,20 @@ export async function writeHtml(
   await writeFile(dest, html, 'utf8');
 }
 
+// Sibling of writeHtml for binary payloads (sitemap `.xml.gz` companions,
+// future gzipped JSON feeds, …). Keeps the same path-safety guarantees so
+// callers can't escape `outputDir` via crafted paths.
+export async function writeBytes(
+  outputDir: string,
+  outputPath: string,
+  data: Uint8Array,
+): Promise<void> {
+  const dest = join(outputDir, outputPath);
+  assertWithinOutputDir(outputDir, dest);
+  await ensureDir(dirname(dest));
+  await writeFile(dest, data);
+}
+
 export interface HtmlOutput {
   outputPath: string;
   html: string;

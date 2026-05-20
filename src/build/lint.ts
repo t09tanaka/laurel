@@ -432,6 +432,13 @@ const KNOWN_GENERATED_ROUTES: ReadonlySet<string> = new Set([
   'rss.xml',
   'sitemap',
   'sitemap.xml',
+  // Ghost splits its sitemap into per-kind sub-files (and `-2.xml` overflows
+  // beyond 50k URLs). Whitelist the bare names so the dead-link checker
+  // doesn't flag any literal/relative reference to them from theme markup.
+  'sitemap-posts.xml',
+  'sitemap-pages.xml',
+  'sitemap-tags.xml',
+  'sitemap-authors.xml',
   'feed',
   'feed.xml',
   'recommendations',

@@ -160,9 +160,23 @@ describe('example build', () => {
 
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
     expect(existsSync(join(distRoot, 'sitemap.xml'))).toBeTrue();
+    // Ghost-style split: sitemap.xml is the index, individual URLs live in
+    // sitemap-posts.xml / sitemap-pages.xml / sitemap-tags.xml / sitemap-authors.xml.
+    expect(existsSync(join(distRoot, 'sitemap-posts.xml'))).toBeTrue();
+    expect(existsSync(join(distRoot, 'sitemap-pages.xml'))).toBeTrue();
+    expect(existsSync(join(distRoot, 'sitemap-tags.xml'))).toBeTrue();
+    expect(existsSync(join(distRoot, 'sitemap-authors.xml'))).toBeTrue();
+    // gzip companions land next to every sitemap so hosts can serve
+    // pre-compressed payloads without a runtime gzip step.
+    expect(existsSync(join(distRoot, 'sitemap.xml.gz'))).toBeTrue();
+    expect(existsSync(join(distRoot, 'sitemap-posts.xml.gz'))).toBeTrue();
 
-    const sitemap = readFileSync(join(distRoot, 'sitemap.xml'), 'utf8');
-    expect(sitemap).toContain('<loc>https://nectar.example.com/hello-nectar/</loc>');
+    const sitemapIndex = readFileSync(join(distRoot, 'sitemap.xml'), 'utf8');
+    expect(sitemapIndex).toContain('<sitemapindex');
+    expect(sitemapIndex).toContain('<loc>https://nectar.example.com/sitemap-posts.xml</loc>');
+
+    const sitemapPosts = readFileSync(join(distRoot, 'sitemap-posts.xml'), 'utf8');
+    expect(sitemapPosts).toContain('<loc>https://nectar.example.com/hello-nectar/</loc>');
 
     // a11y/perf (issue #199): the contrast class must be emitted on <html>
     // at build time so there is no FOUC, and the inline script that reads

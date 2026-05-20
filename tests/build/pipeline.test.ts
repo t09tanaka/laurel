@@ -254,9 +254,14 @@ describe('build pipeline baseUrl override (#250)', () => {
   test('retargets sitemap entries at the override host', async () => {
     const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
-    const sitemap = readFileSync(join(summary.outputDir, 'sitemap.xml'), 'utf8');
-    expect(sitemap).toContain('https://pr-42.example.com/hello/');
-    expect(sitemap).not.toContain('prod.example.com');
+    const index = readFileSync(join(summary.outputDir, 'sitemap.xml'), 'utf8');
+    // sitemap.xml is the <sitemapindex>; sub-sitemap URLs must use the override host.
+    expect(index).toContain('https://pr-42.example.com/sitemap-posts.xml');
+    expect(index).not.toContain('prod.example.com');
+    // The post URL itself lives in sitemap-posts.xml after the Ghost-style split.
+    const posts = readFileSync(join(summary.outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts).toContain('https://pr-42.example.com/hello/');
+    expect(posts).not.toContain('prod.example.com');
   });
 
   test('strips a trailing slash on the override so URL joins do not double-up', async () => {

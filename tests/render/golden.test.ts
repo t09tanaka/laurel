@@ -19,7 +19,13 @@ const GOLDEN_FILES = [
   'author/casper/index.html',
   'about/index.html',
   '404.html',
+  // Ghost-style sitemap split (#105/#519/#537): index references four sub-sitemaps
+  // for posts/pages/tags/authors, each capped at 50k URLs before -2.xml overflow.
   'sitemap.xml',
+  'sitemap-posts.xml',
+  'sitemap-pages.xml',
+  'sitemap-tags.xml',
+  'sitemap-authors.xml',
   'rss.xml',
 ] as const;
 
