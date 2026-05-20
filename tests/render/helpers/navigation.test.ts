@@ -371,6 +371,10 @@ describe('link_class helper parent-route matching', () => {
     expect(renderLinkClass('/tag/news/', 'for="/tag/news/"')).toBe('nav-current');
   });
 
+  test('respects custom activeClass hash on an exact match', () => {
+    expect(renderLinkClass('/x/', 'for="/x/" activeClass="is-active"')).toBe('is-active');
+  });
+
   test('returns the active class for a paginated sub-route of a trailing-slash target', () => {
     expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/news/"')).toBe('nav-current');
   });
