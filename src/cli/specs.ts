@@ -1040,7 +1040,7 @@ export const MIGRATE_SPEC: CommandSpec = {
 export const THEME_SPEC: CommandSpec = {
   name: 'theme',
   summary:
-    'Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials',
+    'Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server',
   options: {
     config: {
       type: 'string',
@@ -1069,12 +1069,24 @@ export const THEME_SPEC: CommandSpec = {
       type: 'boolean',
       description: '`list` / `lint`: emit JSON instead of the default table',
     },
+    port: {
+      type: 'string',
+      description:
+        '`serve` only: port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port)',
+      placeholder: '<n>',
+    },
+    host: {
+      type: 'string',
+      description:
+        '`serve` only: hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
+      placeholder: '<host>',
+    },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)',
+        '`list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), `lint <path>` (audit a theme directory), or `serve` (fast theme dev server)',
       required: true,
       variadic: true,
     },
@@ -1086,6 +1098,8 @@ export const THEME_SPEC: CommandSpec = {
     'nectar theme new my-fork --from source       # fork the active theme',
     'nectar theme zip                             # ship-ready zip in cwd',
     'nectar theme lint themes/my-theme            # audit before shipping',
+    'nectar theme serve                           # fast theme dev server using fixture content',
+    'nectar theme serve --port 8080               # pick a different port',
     'nectar theme:lint themes/my-theme            # colon-style alias',
   ],
 };

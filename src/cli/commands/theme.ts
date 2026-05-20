@@ -44,8 +44,12 @@ export async function runTheme(args: string[]): Promise<number> {
   if (sub === 'list') {
     return runList({ parsed, cwd, configPath });
   }
+  if (sub === 'serve') {
+    const { runThemeServe } = await import('./theme-serve.js');
+    return runThemeServe({ parsed, cwd, configPath });
+  }
   process.stderr.write(
-    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`list\`, \`new <name>\`, \`zip\`, or \`lint <path>\`.\n`,
+    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`list\`, \`new <name>\`, \`zip\`, \`lint <path>\`, or \`serve\`.\n`,
   );
   return 2;
 }

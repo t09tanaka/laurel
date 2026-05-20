@@ -123,7 +123,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar fmt`](#nectar-fmt) | Format content Markdown frontmatter in place |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
 | [`nectar authors`](#nectar-authors) | Inspect authors in the project |
-| [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
+| [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
@@ -756,19 +756,19 @@ nectar authors list --json                   # machine-readable author inventory
 
 ### `nectar theme`
 
-Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
+Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
 
 Usage:
 
 ```
-nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] <subcommand...>
+nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] [--port <n>] [--host <host>] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory) |
+| `<subcommand...>` | required (variadic) | `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), `lint <path>` (audit a theme directory), or `serve` (fast theme dev server) |
 
 Options:
 
@@ -779,6 +779,8 @@ Options:
 | `-o, --output <path>` | string | `NECTAR_THEME_OUTPUT` | `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory) |
 | `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
 | `-j, --json` | boolean | `NECTAR_THEME_JSON` | `list` / `lint`: emit JSON instead of the default table |
+| `-p, --port <n>` | string | `NECTAR_THEME_PORT` | `serve` only: port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port) |
+| `--host <host>` | string | `NECTAR_THEME_HOST` | `serve` only: hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 
 Examples:
 
@@ -789,6 +791,8 @@ nectar theme new my-theme                    # scaffold themes/my-theme/
 nectar theme new my-fork --from source       # fork the active theme
 nectar theme zip                             # ship-ready zip in cwd
 nectar theme lint themes/my-theme            # audit before shipping
+nectar theme serve                           # fast theme dev server using fixture content
+nectar theme serve --port 8080               # pick a different port
 nectar theme:lint themes/my-theme            # colon-style alias
 ```
 

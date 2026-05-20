@@ -1,10 +1,10 @@
-Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
+Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
 
 Usage:
-  nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] <subcommand...>
+  nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] [--port <n>] [--host <host>] <subcommand...>
 
 Arguments:
-  subcommand          `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)
+  subcommand          `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), `lint <path>` (audit a theme directory), or `serve` (fast theme dev server)
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -12,6 +12,8 @@ Options:
   -o, --output <path> `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory)
   --force             Overwrite the destination directory (`new`) or archive (`zip`) if it already exists
   -j, --json          `list` / `lint`: emit JSON instead of the default table
+  -p, --port <n>      `serve` only: port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port)
+  --host <host>       `serve` only: hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
   -h, --help          Show help for this command
 
 Environment variables:
@@ -31,4 +33,6 @@ Examples:
   nectar theme new my-fork --from source       # fork the active theme
   nectar theme zip                             # ship-ready zip in cwd
   nectar theme lint themes/my-theme            # audit before shipping
+  nectar theme serve                           # fast theme dev server using fixture content
+  nectar theme serve --port 8080               # pick a different port
   nectar theme:lint themes/my-theme            # colon-style alias

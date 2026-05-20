@@ -921,16 +921,22 @@ are a manual gate. CI-friendly automation is tracked separately.
 cd example
 bun ../src/cli/index.ts build         # full build into dist/
 bun ../src/cli/index.ts serve         # rebuild + serve on file change
+bun ../src/cli/index.ts theme serve   # fast theme-only server with fixture content
 ```
 
 Common iteration loop:
 
 1. Edit a template under `themes/<name>/`.
-2. `bun ../src/cli/index.ts build` (or leave `serve` running).
+2. `bun ../src/cli/index.ts build` (or leave `theme serve` / `serve` running).
 3. Inspect output under `dist/`. Look for `{{` left in the HTML — that's a
    missing or misnamed helper.
 4. Check the build log for warnings about symlinked assets, unrecognised
    filter clauses in `{{#get}}`, or malformed locale files.
+
+`theme serve` is the quickest loop when you are only editing theme files. It
+builds a tiny generated fixture site against the active theme, serves it with
+live reload, and watches only `themes/<name>/` so large real content trees do
+not slow down each rebuild.
 
 `bun test` in the repo root exercises the helper unit suite; `tests/source-smoke.test.ts`
 builds the bundled Source theme end-to-end and is the closest thing to "does

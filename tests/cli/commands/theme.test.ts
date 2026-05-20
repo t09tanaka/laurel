@@ -4,6 +4,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from '~/build/pipeline.ts';
+import { createThemeServeFixture, gatherThemeServeWatchPaths } from '~/cli/commands/theme-serve.ts';
 import { buildZipFromEntries } from '~/cli/commands/theme.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
@@ -219,4 +221,68 @@ describe('cli theme zip', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+});
+
+describe('cli theme serve', () => {
+  test('rejects invalid --port values before starting the server', async () => {
+    const { stderr, exitCode } = await runCli(['theme', 'serve', '--port', '80.5']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --port');
+  });
+
+  test('creates a small fixture site and watches only the active theme root', async () => {
+    const dir = await makeProject();
+    try {
+      await runCli(['theme', 'new', 'demo'], dir);
+      const fixture = await createThemeServeFixture({ cwd: dir });
+      try {
+        expect(gatherThemeServeWatchPaths(fixture)).toEqual([join(dir, 'themes', 'demo')]);
+        const configText = await readFile(fixture.configPath, 'utf8');
+        expect(configText).toContain('posts_dir = "content/posts"');
+        expect(configText).toContain(`dir = "${join(dir, 'themes')}"`);
+
+        const summary = await build({ cwd: fixture.workDir, configPath: fixture.configPath });
+        expect(summary.routeCount).toBeGreaterThan(0);
+        expect(summary.routeCount).toBeLessThan(10);
+      } finally {
+        await rm(fixture.workDir, { recursive: true, force: true });
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('starts, serves the fixture build, and shuts down on SIGTERM', async () => {
+    const dir = await makeProject();
+    try {
+      await runCli(['theme', 'new', 'demo'], dir);
+      const proc = Bun.spawn(['bun', CLI_ENTRY, 'theme', 'serve', '--port', '0'], {
+        cwd: dir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      try {
+        const reader = proc.stdout.getReader();
+        const decoder = new TextDecoder();
+        let stdout = '';
+        const deadline = Date.now() + 15000;
+        while (Date.now() < deadline) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          stdout += decoder.decode(value, { stream: true });
+          if (stdout.includes('Theme watch mode enabled')) break;
+        }
+        expect(stdout).toContain('Running initial theme build');
+        expect(stdout).toContain('Initial theme build complete');
+        expect(stdout).toContain('Theme server listening on');
+        expect(stdout).toContain('Theme watch mode enabled: tracking 1 path(s)');
+        reader.releaseLock();
+      } finally {
+        proc.kill('SIGTERM');
+        await proc.exited;
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 30000);
 });
