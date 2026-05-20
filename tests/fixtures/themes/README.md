@@ -27,6 +27,10 @@ the smoke fixture site at `tests/fixtures/theme-smoke/site/`, built via
 - `headline-mini/` — hand-trimmed Headline-shaped fixture that keeps the
   secondary section guard `{{#if tags.[3]}}` under `{{#get "tags"}}`, locking
   Handlebars built-in array-index path support without a custom helper.
+- `solo-mini/` — hand-trimmed Solo-shaped fixture that keeps the
+  `{{#unless feature_image}}` post fallback reusing `gh-content gh-canvas`,
+  locking the gh-prefixed class contract across HTML emit, asset emit, and
+  minified theme smoke builds.
 
 ## Adding a real release tarball
 

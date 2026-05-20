@@ -138,6 +138,66 @@ describe('real Ghost theme contract', () => {
     expect(indexHtml).toContain('data-headline-secondary');
     expect(indexHtml).toContain('data-topic="delta"');
   });
+
+  test('solo-mini preserves gh-prefixed no-image post classes through minified smoke build', async () => {
+    const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-solo-gh-content-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    await cp(join(FIXTURE_DIR, 'solo-mini'), join(workDir, 'themes', 'solo-mini'), {
+      recursive: true,
+    });
+
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Solo GH Content"',
+        'description = "Smoke fixture for Solo no-image post layout"',
+        'url = "https://smoke.example.com"',
+        'locale = "en"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        '',
+        '[theme]',
+        'name = "solo-mini"',
+        'dir = "themes"',
+        '',
+        '[content]',
+        'posts_dir = "content/posts"',
+        'pages_dir = "content/pages"',
+        'authors_dir = "content/authors"',
+        'tags_dir = "content/tags"',
+        'assets_dir = "content/images"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 5',
+        'copy_content_assets = true',
+        'minify_html = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+
+    const postHtml = readFileSync(join(workDir, 'dist', 'second-take', 'index.html'), 'utf8');
+    expect(postHtml).toContain('class="gh-content gh-canvas solo-fallback-header"');
+    expect(postHtml).toContain('class="gh-content gh-canvas"');
+    expect(postHtml).not.toContain('class="content canvas solo-fallback-header"');
+
+    const cssHref = postHtml.match(/href="([^"]*assets\/built\/screen\.[A-Za-z0-9]+\.css)"/)?.[1];
+    expect(cssHref).toBeString();
+    const cssPath = join(workDir, 'dist', cssHref?.replace(/^\//, '') ?? '');
+    const css = readFileSync(cssPath, 'utf8');
+    expect(css).toContain('.gh-canvas');
+    expect(css).toContain('.gh-content');
+    expect(css).not.toContain('.canvas');
+    expect(css).not.toContain('.content');
+  });
 });
 
 describe('casper-mini i18n contract (issue #1707)', () => {

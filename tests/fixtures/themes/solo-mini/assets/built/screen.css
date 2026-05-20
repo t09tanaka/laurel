@@ -1,0 +1,13 @@
+/* Solo-derived no-image layouts depend on Casper-style gh-prefixed classes. */
+.gh-canvas {
+  display: grid;
+  grid-template-columns: minmax(1rem, 1fr) minmax(0, 720px) minmax(1rem, 1fr);
+}
+
+.gh-content {
+  font-family: Georgia, serif;
+}
+
+.gh-content > * {
+  grid-column: 2;
+}
