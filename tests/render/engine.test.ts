@@ -883,6 +883,35 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('comments-off|members|members');
   });
 
+  test('@site exposes Portal settings to Ghost theme guards (issue #964)', () => {
+    const engine = makeEngine();
+    engine.content = {
+      ...engine.content,
+      site: {
+        locale: 'en',
+        title: 'Portal Site',
+        portal_button: true,
+        portal_button_icon: 'icon-2',
+        portal_button_signup_text: 'Join now',
+        portal_button_style: 'icon-and-text',
+        portal_name: 'Nectar Portal',
+        portal_plans: ['free', 'monthly'],
+        portal_signup_checkbox_required: true,
+        portal_signup_terms_html: '<p>Terms apply</p>',
+        signup_url: 'https://portal.example/signup/',
+      },
+    } as unknown as NectarEngine['content'];
+    const data = buildRootData(engine, makeRoute());
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      '{{#if @site.portal_button}}button{{/if}}|{{@site.portal_button_icon}}|{{@site.portal_button_signup_text}}|{{@site.portal_button_style}}|{{@site.portal_name}}|{{@site.portal_plans.length}}|{{#if @setting.portal_signup_checkbox_required}}terms{{/if}}|{{@site.portal_signup_terms_html}}|{{@setting.signup_url}}',
+    );
+
+    expect(tpl({}, { data })).toBe(
+      'button|icon-2|Join now|icon-and-text|Nectar Portal|2|terms|&lt;p&gt;Terms apply&lt;/p&gt;|https://portal.example/signup/',
+    );
+  });
+
   // Regression coverage for issue #111: the Source theme renders the home grid
   // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
   // `get` helper falls back to 15 when `limit` is undefined, which would mask

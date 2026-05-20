@@ -200,6 +200,15 @@ function makeGraph(): ContentGraph {
       members_invite_only: false,
       comments_enabled: false,
       comments_access: 'all',
+      portal_button: false,
+      portal_button_icon: '',
+      portal_button_signup_text: '',
+      portal_button_style: '',
+      portal_name: false,
+      portal_plans: [],
+      portal_signup_checkbox_required: false,
+      portal_signup_terms_html: '',
+      signup_url: '',
       recommendations_enabled: false,
       meta_title: undefined,
       meta_description: undefined,
@@ -252,6 +261,15 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.members_invite_only).toBe(false);
     expect(settings.settings.comments_enabled).toBe(false);
     expect(settings.settings.comments_access).toBe('all');
+    expect(settings.settings.portal_button).toBe(false);
+    expect(settings.settings.portal_button_icon).toBe('');
+    expect(settings.settings.portal_button_signup_text).toBe('');
+    expect(settings.settings.portal_button_style).toBe('');
+    expect(settings.settings.portal_name).toBe(false);
+    expect(settings.settings.portal_plans).toEqual([]);
+    expect(settings.settings.portal_signup_checkbox_required).toBe(false);
+    expect(settings.settings.portal_signup_terms_html).toBe('');
+    expect(settings.settings.signup_url).toBe('');
     expect(settings.settings.recommendations_enabled).toBe(false);
 
     const notFound = JSON.parse(

@@ -138,6 +138,65 @@ const referrerPolicySchema = z.enum([
   'unsafe-url',
 ]);
 
+const sitePortalSchema = z
+  .object({
+    portal_button: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Ghost Portal floating-button visibility surfaced as `@site.portal_button`. Static Nectar defaults it off; set true only when a Portal-compatible runtime is wired separately.',
+      ),
+    portal_button_icon: z
+      .string()
+      .default('')
+      .describe(
+        'Ghost Portal floating-button icon identifier surfaced as `@site.portal_button_icon`.',
+      ),
+    portal_button_signup_text: z
+      .string()
+      .default('')
+      .describe(
+        'Ghost Portal floating-button signup label surfaced as `@site.portal_button_signup_text`.',
+      ),
+    portal_button_style: z
+      .string()
+      .default('')
+      .describe(
+        'Ghost Portal floating-button style identifier surfaced as `@site.portal_button_style`.',
+      ),
+    portal_name: z
+      .union([z.boolean(), z.string()])
+      .default(false)
+      .describe(
+        "Ghost Portal display-name toggle or label surfaced as `@site.portal_name`. Defaults false to match Nectar's static-only Portal stance.",
+      ),
+    portal_plans: z
+      .array(z.string())
+      .default([])
+      .describe('Ghost Portal plan handles surfaced as `@site.portal_plans`.'),
+    portal_signup_checkbox_required: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Ghost Portal signup terms checkbox requirement surfaced as `@site.portal_signup_checkbox_required`.',
+      ),
+    portal_signup_terms_html: z
+      .string()
+      .default('')
+      .describe(
+        'Ghost Portal signup terms HTML surfaced as `@site.portal_signup_terms_html`. The value is theme-facing compatibility data; themes are responsible for escaping when rendering raw HTML.',
+      ),
+    signup_url: z
+      .string()
+      .default('')
+      .describe('Ghost Portal signup URL surfaced as `@site.signup_url`.'),
+  })
+  .strict()
+  .default({})
+  .describe(
+    'Ghost Portal settings mirrored into the flat `@site.portal_*` / `@site.signup_url` theme context.',
+  );
+
 const imageCdnAdapterSchema = z.enum(['cloudflare', 'netlify', 'vercel', 'cloudinary', 'imgproxy']);
 
 const imageCdnFormatSchema = z.enum(['auto', 'avif', 'webp', 'jpg', 'jpeg', 'png']);
@@ -385,6 +444,7 @@ export const configSchema = z
           .describe(
             'Ghost comments access mode surfaced as `@site.comments_access` so themes can branch on public, members-only, or paid-only comment UI. Static Nectar still does not render a comments backend; this is a theme-compatibility field.',
           ),
+        portal: sitePortalSchema,
         // Issue #491: Source / Casper-style themes occasionally probe
         // `{{@site.stripe_publishable_key}}` to decide whether to render a
         // Stripe-backed checkout widget. Nectar settles no payments (members

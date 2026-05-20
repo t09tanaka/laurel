@@ -315,6 +315,15 @@ interface SiteData {
   members_invite_only: boolean;
   comments_enabled: boolean;
   comments_access: 'all' | 'members' | 'paid';
+  portal_button: boolean;
+  portal_button_icon: string;
+  portal_button_signup_text: string;
+  portal_button_style: string;
+  portal_name: boolean | string;
+  portal_plans: string[];
+  portal_signup_checkbox_required: boolean;
+  portal_signup_terms_html: string;
+  signup_url: string;
   recommendations_enabled: boolean;
   meta_title: string | undefined;
   meta_description: string | undefined;

@@ -197,6 +197,15 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     comments_enabled: site.comments_enabled,
     comments_access: site.comments_access,
     recommendations_enabled: site.recommendations_enabled,
+    portal_button: site.portal_button,
+    portal_button_icon: site.portal_button_icon,
+    portal_button_signup_text: site.portal_button_signup_text,
+    portal_button_style: site.portal_button_style,
+    portal_name: site.portal_name,
+    portal_plans: site.portal_plans,
+    portal_signup_checkbox_required: site.portal_signup_checkbox_required,
+    portal_signup_terms_html: site.portal_signup_terms_html,
+    signup_url: site.signup_url,
   };
   const body = { settings };
   await writeJson(join(outputDir, API_BASE, 'settings.json'), body);

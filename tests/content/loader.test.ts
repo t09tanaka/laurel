@@ -634,6 +634,15 @@ About JA.
     expect(graph.site.members_invite_only).toBe(false);
     expect(graph.site.comments_enabled).toBe(false);
     expect(graph.site.comments_access).toBe('all');
+    expect(graph.site.portal_button).toBe(false);
+    expect(graph.site.portal_button_icon).toBe('');
+    expect(graph.site.portal_button_signup_text).toBe('');
+    expect(graph.site.portal_button_style).toBe('');
+    expect(graph.site.portal_name).toBe(false);
+    expect(graph.site.portal_plans).toEqual([]);
+    expect(graph.site.portal_signup_checkbox_required).toBe(false);
+    expect(graph.site.portal_signup_terms_html).toBe('');
+    expect(graph.site.signup_url).toBe('');
     expect(graph.site.recommendations_enabled).toBe(false);
   });
 
@@ -707,6 +716,40 @@ About JA.
     expect(graph.site.members_invite_only).toBe(true);
     expect(graph.site.comments_enabled).toBe(true);
     expect(graph.site.comments_access).toBe('paid');
+  });
+
+  test('[site.portal] settings round-trip to Ghost-compatible @site fields (issue #964)', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: {
+          title: 'X',
+          url: 'https://x.test',
+          portal: {
+            portal_button: true,
+            portal_button_icon: 'icon-2',
+            portal_button_signup_text: 'Join now',
+            portal_button_style: 'icon-and-text',
+            portal_name: 'Nectar Portal',
+            portal_plans: ['free', 'monthly'],
+            portal_signup_checkbox_required: true,
+            portal_signup_terms_html: '<p>Terms apply</p>',
+            signup_url: 'https://x.test/signup/',
+          },
+        },
+      }),
+    });
+
+    expect(graph.site.portal_button).toBe(true);
+    expect(graph.site.portal_button_icon).toBe('icon-2');
+    expect(graph.site.portal_button_signup_text).toBe('Join now');
+    expect(graph.site.portal_button_style).toBe('icon-and-text');
+    expect(graph.site.portal_name).toBe('Nectar Portal');
+    expect(graph.site.portal_plans).toEqual(['free', 'monthly']);
+    expect(graph.site.portal_signup_checkbox_required).toBe(true);
+    expect(graph.site.portal_signup_terms_html).toBe('<p>Terms apply</p>');
+    expect(graph.site.signup_url).toBe('https://x.test/signup/');
   });
 
   // Issue #491: themes that probe `{{@site.stripe_publishable_key}}` to

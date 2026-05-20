@@ -54,6 +54,7 @@ See `DESIGN.md` §4 for the master matrix.
 | `secondary_navigation` | `nectar.toml [[secondary_navigation]]` |
 | `members_enabled` | Always `false`. Nectar has no members backend; this stable default makes Source's sidebar/header/footer/CTA `{{#if @site.members_enabled}}` branches collapse to the public path. |
 | `paid_members_enabled` | Always `false`. Same rationale as `members_enabled`; gates the paid-only badge in `post-list.hbs`. |
+| `portal_button`, `portal_button_icon`, `portal_button_signup_text`, `portal_button_style`, `portal_name`, `portal_plans`, `portal_signup_checkbox_required`, `portal_signup_terms_html`, `signup_url` | From `nectar.toml [site.portal]`. These mirror Ghost Portal settings for themes that probe `@site.portal_*` fields, but Nectar still does not authenticate members by itself. |
 | `recommendations_enabled` | Always `false`. Gates Source's recommendations widget in `post-list.hbs`. Recommendations are a Ghost server feature with no static equivalent. |
 
 ### `@custom`

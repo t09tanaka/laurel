@@ -641,6 +641,8 @@ Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
 | `accent_color`         | `[site].accent_color`                 |
 | `navigation`           | `[[navigation]]` array                |
 | `secondary_navigation` | `[[secondary_navigation]]` array      |
+| `portal_button` / `portal_button_icon` / `portal_button_signup_text` / `portal_button_style` | `[site.portal]` |
+| `portal_name` / `portal_plans` / `portal_signup_checkbox_required` / `portal_signup_terms_html` / `signup_url` | `[site.portal]` |
 | `build`                | Deploy metadata, when present         |
 
 `@site.build` is omitted for ordinary local builds. When metadata env vars are

@@ -616,6 +616,15 @@ function buildSite(config: NectarConfig): SiteData {
     members_invite_only: inviteOnly,
     comments_enabled: config.site.comments_enabled,
     comments_access: config.site.comments_access,
+    portal_button: config.site.portal.portal_button,
+    portal_button_icon: config.site.portal.portal_button_icon,
+    portal_button_signup_text: config.site.portal.portal_button_signup_text,
+    portal_button_style: config.site.portal.portal_button_style,
+    portal_name: config.site.portal.portal_name,
+    portal_plans: config.site.portal.portal_plans,
+    portal_signup_checkbox_required: config.site.portal.portal_signup_checkbox_required,
+    portal_signup_terms_html: config.site.portal.portal_signup_terms_html,
+    signup_url: config.site.portal.signup_url,
     stripe_publishable_key: config.site.stripe_publishable_key,
     // Drives the Source theme's `{{#if @site.recommendations_enabled}}` block
     // that renders the sidebar list and the "See all" portal button. Only flip

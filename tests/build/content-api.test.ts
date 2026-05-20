@@ -197,6 +197,15 @@ function makeGraph(over: Partial<ContentGraph> = {}): ContentGraph {
       members_invite_only: false,
       comments_enabled: false,
       comments_access: 'all',
+      portal_button: false,
+      portal_button_icon: '',
+      portal_button_signup_text: '',
+      portal_button_style: '',
+      portal_name: false,
+      portal_plans: [],
+      portal_signup_checkbox_required: false,
+      portal_signup_terms_html: '',
+      signup_url: '',
       recommendations_enabled: false,
     },
     ...over,
@@ -420,23 +429,51 @@ name: News
     expect(body.settings.navigation).toEqual([{ label: 'Home', url: '/' }]);
     expect(body.settings.comments_enabled).toBe(false);
     expect(body.settings.comments_access).toBe('all');
+    expect(body.settings.portal_button).toBe(false);
+    expect(body.settings.portal_button_icon).toBe('');
+    expect(body.settings.portal_button_signup_text).toBe('');
+    expect(body.settings.portal_button_style).toBe('');
+    expect(body.settings.portal_name).toBe(false);
+    expect(body.settings.portal_plans).toEqual([]);
+    expect(body.settings.portal_signup_checkbox_required).toBe(false);
+    expect(body.settings.portal_signup_terms_html).toBe('');
+    expect(body.settings.signup_url).toBe('');
   });
 
-  test('settings.json hardcodes members fields to false / empty', async () => {
+  test('settings.json hardcodes auth fields but preserves Portal settings', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
     // Even if the underlying site says members are enabled, the stub forces
-    // them off because Nectar is static-only and cannot authenticate.
+    // them off because Nectar is static-only and cannot authenticate. Portal
+    // display settings are public theme compatibility data, so they still
+    // round-trip through settings.
     const graph = makeGraph();
     graph.site.members_enabled = true;
     graph.site.paid_members_enabled = true;
     graph.site.members_invite_only = true;
+    graph.site.portal_button = true;
+    graph.site.portal_button_icon = 'icon-2';
+    graph.site.portal_button_signup_text = 'Join now';
+    graph.site.portal_button_style = 'icon-and-text';
+    graph.site.portal_name = 'Nectar Portal';
+    graph.site.portal_plans = ['free', 'monthly'];
+    graph.site.portal_signup_checkbox_required = true;
+    graph.site.portal_signup_terms_html = '<p>Terms apply</p>';
+    graph.site.signup_url = 'https://example.com/signup/';
     await emitContentApiStubs({ content: graph, outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'settings.json'), 'utf8'));
     expect(body.settings.members_enabled).toBe(false);
     expect(body.settings.paid_members_enabled).toBe(false);
     expect(body.settings.members_invite_only).toBe(false);
-    expect(body.settings.portal_plans).toEqual([]);
+    expect(body.settings.portal_button).toBe(true);
+    expect(body.settings.portal_button_icon).toBe('icon-2');
+    expect(body.settings.portal_button_signup_text).toBe('Join now');
+    expect(body.settings.portal_button_style).toBe('icon-and-text');
+    expect(body.settings.portal_name).toBe('Nectar Portal');
+    expect(body.settings.portal_plans).toEqual(['free', 'monthly']);
+    expect(body.settings.portal_signup_checkbox_required).toBe(true);
+    expect(body.settings.portal_signup_terms_html).toBe('<p>Terms apply</p>');
+    expect(body.settings.signup_url).toBe('https://example.com/signup/');
     expect(body.settings.portal_products).toEqual([]);
   });
 
