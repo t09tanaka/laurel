@@ -71,6 +71,8 @@ root so nginx never serves it as public content.
 The generated server block:
 
 - sets `root` and `server_name` from `[deploy.nginx]`;
+- emits `etag on;` so conditional requests keep working even if a parent
+  nginx config changed the default validator setting;
 - enables `gzip_static on;` and `brotli_static on;` for pre-compressed
   sidecars;
 - emits one `location` per `[deploy.headers].cache_rules` entry;
@@ -92,6 +94,17 @@ headers:
 | `/assets/*` | `public, max-age=31536000, immutable` |
 | `/content/images/*` | `public, max-age=31536000, immutable` |
 | `/*` | `public, max-age=0, must-revalidate` |
+
+The long-lived rules are for fingerprinted build output: when the asset
+content changes, Nectar changes the URL, so nginx can serve those paths with
+`immutable` caching. The catch-all rule covers HTML and other stable URLs and
+forces browsers to revalidate before reuse.
+
+Nectar does not emit nginx `expires` directives. `Cache-Control` is the
+authoritative freshness policy across the generated deploy targets, and
+emitting both would make custom cache rules harder to reason about. The
+generated `etag on;` directive keeps nginx validators enabled for revalidation
+responses.
 
 Customize those rules, plus security headers such as
 `X-Content-Type-Options`, `Referrer-Policy`, and

@@ -137,6 +137,8 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
   lines.push(`    root ${root};`);
   lines.push('    index index.html;');
   lines.push('');
+  lines.push('    etag on;');
+  lines.push('');
   // `gzip_static` / `brotli_static` let nginx serve pre-compressed `.gz` /
   // `.br` siblings without re-compressing on every request. The `always`
   // qualifier on `gzip_static` would be `always` but here the directive only

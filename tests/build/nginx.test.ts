@@ -57,6 +57,18 @@ describe('buildNginxServerBlock', () => {
     expect(out).toContain('    brotli_static on;');
   });
 
+  test('makes validator and freshness policy explicit without emitting expires directives', () => {
+    const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
+    expect(out).toContain('    etag on;');
+    expect(out).toContain(
+      '        add_header Cache-Control "public, max-age=31536000, immutable" always;',
+    );
+    expect(out).toContain(
+      '        add_header Cache-Control "public, max-age=0, must-revalidate" always;',
+    );
+    expect(out).not.toContain('expires ');
+  });
+
   test('emits try_files with trailing-slash variant for SPA-style index.html resolution inside every location', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
     // The `$uri/` trailing-slash variant must sit between `$uri` and
