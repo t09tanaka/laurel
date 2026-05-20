@@ -12,7 +12,7 @@ import {
   encodeReloadMessage,
   injectLiveReload,
 } from '~/dev/livereload.ts';
-import { logger } from '~/util/logger.ts';
+import { getLogLevel, logger } from '~/util/logger.ts';
 import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -189,78 +189,100 @@ export async function runServe(args: string[]): Promise<number> {
         message() {},
       },
       async fetch(request, srv) {
-        const url = new URL(request.url);
-        if (watchMode && url.pathname === LIVERELOAD_PATH) {
-          if (srv.upgrade(request, { data: undefined })) return undefined;
-          return new Response('upgrade failed', { status: 426 });
-        }
-        // External livereload script (mirrors `nectar dev`). Same client logic
-        // works whether the inline tag is injected into the HTML or the script
-        // is fetched separately; serving both shapes lets manually-injected
-        // HTML or non-rebuilt fixtures still find a working client.
-        if (watchMode && url.pathname === LIVERELOAD_SCRIPT_PATH) {
-          return new Response(LIVERELOAD_CLIENT_JS, {
-            headers: {
-              'Content-Type': 'application/javascript; charset=utf-8',
-              'Cache-Control': 'no-store',
-            },
-          });
-        }
-        const simulatedRedirect = findServeSimulationRedirect(simulation, url.pathname);
-        if (simulatedRedirect !== undefined && simulatedRedirect.status >= 300) {
-          return new Response(null, {
-            status: simulatedRedirect.status,
-            headers: { Location: simulatedRedirect.destination },
-          });
-        }
-        const servedPath =
-          simulatedRedirect !== undefined && simulatedRedirect.status === 200
-            ? simulatedRedirect.destination
-            : url.pathname;
-        const simulatedHeaders = collectServeSimulationHeaders(simulation, url.pathname);
-        const effectivePathname = servedPath === '/' ? '/index.html' : servedPath;
-        const target = effectivePathname.endsWith('/')
-          ? `${effectivePathname}index.html`
-          : effectivePathname;
-        let decodedTarget: string;
+        const startedAt = performance.now();
+        let status = 500;
+        const finish = (response: Response | undefined): Response | undefined => {
+          status = response?.status ?? 101;
+          return response;
+        };
         try {
-          decodedTarget = decodeURIComponent(target);
-        } catch {
-          return new Response('Bad Request', { status: 400 });
-        }
-        const filePath = normalize(join(distDir, decodedTarget));
-        if (!isInsideServeRoot(distDir, filePath)) {
-          return new Response('Forbidden', { status: 403 });
-        }
-        const file = Bun.file(filePath);
-        if (await file.exists()) {
-          if (watchMode && filePath.endsWith('.html')) {
-            const html = await file.text();
-            return new Response(injectLiveReloadScript(html), {
-              headers: mergeServeHeaders(simulatedHeaders, {
-                'Content-Type': 'text/html; charset=utf-8',
-              }),
-            });
+          const url = new URL(request.url);
+          if (watchMode && url.pathname === LIVERELOAD_PATH) {
+            if (srv.upgrade(request, { data: undefined })) return finish(undefined);
+            return finish(new Response('upgrade failed', { status: 426 }));
           }
-          return new Response(file, { headers: serveFileHeaders(simulatedHeaders, filePath) });
-        }
-        const fallback = Bun.file(join(distDir, '404.html'));
-        if (await fallback.exists()) {
-          if (watchMode) {
-            const html = await fallback.text();
-            return new Response(injectLiveReloadScript(html), {
-              status: 404,
-              headers: mergeServeHeaders(simulatedHeaders, {
-                'Content-Type': 'text/html; charset=utf-8',
+          // External livereload script (mirrors `nectar dev`). Same client logic
+          // works whether the inline tag is injected into the HTML or the script
+          // is fetched separately; serving both shapes lets manually-injected
+          // HTML or non-rebuilt fixtures still find a working client.
+          if (watchMode && url.pathname === LIVERELOAD_SCRIPT_PATH) {
+            return finish(
+              new Response(LIVERELOAD_CLIENT_JS, {
+                headers: {
+                  'Content-Type': 'application/javascript; charset=utf-8',
+                  'Cache-Control': 'no-store',
+                },
               }),
-            });
+            );
           }
-          return new Response(fallback, {
-            status: 404,
-            headers: serveFileHeaders(simulatedHeaders, '404.html'),
-          });
+          const simulatedRedirect = findServeSimulationRedirect(simulation, url.pathname);
+          if (simulatedRedirect !== undefined && simulatedRedirect.status >= 300) {
+            return finish(
+              new Response(null, {
+                status: simulatedRedirect.status,
+                headers: { Location: simulatedRedirect.destination },
+              }),
+            );
+          }
+          const servedPath =
+            simulatedRedirect !== undefined && simulatedRedirect.status === 200
+              ? simulatedRedirect.destination
+              : url.pathname;
+          const simulatedHeaders = collectServeSimulationHeaders(simulation, url.pathname);
+          const effectivePathname = servedPath === '/' ? '/index.html' : servedPath;
+          const target = effectivePathname.endsWith('/')
+            ? `${effectivePathname}index.html`
+            : effectivePathname;
+          let decodedTarget: string;
+          try {
+            decodedTarget = decodeURIComponent(target);
+          } catch {
+            return finish(new Response('Bad Request', { status: 400 }));
+          }
+          const filePath = normalize(join(distDir, decodedTarget));
+          if (!isInsideServeRoot(distDir, filePath)) {
+            return finish(new Response('Forbidden', { status: 403 }));
+          }
+          const file = Bun.file(filePath);
+          if (await file.exists()) {
+            if (watchMode && filePath.endsWith('.html')) {
+              const html = await file.text();
+              return finish(
+                new Response(injectLiveReloadScript(html), {
+                  headers: mergeServeHeaders(simulatedHeaders, {
+                    'Content-Type': 'text/html; charset=utf-8',
+                  }),
+                }),
+              );
+            }
+            return finish(
+              new Response(file, { headers: serveFileHeaders(simulatedHeaders, filePath) }),
+            );
+          }
+          const fallback = Bun.file(join(distDir, '404.html'));
+          if (await fallback.exists()) {
+            if (watchMode) {
+              const html = await fallback.text();
+              return finish(
+                new Response(injectLiveReloadScript(html), {
+                  status: 404,
+                  headers: mergeServeHeaders(simulatedHeaders, {
+                    'Content-Type': 'text/html; charset=utf-8',
+                  }),
+                }),
+              );
+            }
+            return finish(
+              new Response(fallback, {
+                status: 404,
+                headers: serveFileHeaders(simulatedHeaders, '404.html'),
+              }),
+            );
+          }
+          return finish(new Response('Not Found', { status: 404, headers: simulatedHeaders }));
+        } finally {
+          writeServeAccessLog(request, status, performance.now() - startedAt);
         }
-        return new Response('Not Found', { status: 404, headers: simulatedHeaders });
       },
     });
   } catch (err) {
@@ -525,6 +547,17 @@ function serveFileHeaders(base: Headers, filePath: string): Headers {
   const contentType = inferServeContentType(filePath);
   if (contentType === undefined) return base;
   return mergeServeHeaders(base, { 'Content-Type': contentType });
+}
+
+function writeServeAccessLog(request: Request, status: number, elapsedMs: number): void {
+  if (!isServeAccessLogEnabled()) return;
+  const url = new URL(request.url);
+  process.stderr.write(`${request.method} ${url.pathname} ${status} ${Math.round(elapsedMs)}ms\n`);
+}
+
+function isServeAccessLogEnabled(): boolean {
+  const level = getLogLevel();
+  return level === 'debug' || level === 'trace';
 }
 
 function servePatternMatches(pattern: string, pathname: string): boolean {

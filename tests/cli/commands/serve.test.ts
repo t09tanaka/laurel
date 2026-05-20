@@ -72,6 +72,23 @@ async function waitForServe(url: string): Promise<void> {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+async function readUntil(
+  reader: { read(): Promise<{ value?: Uint8Array; done: boolean }> },
+  predicate: (text: string) => boolean,
+  timeoutMs = 5000,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (predicate(text)) break;
+  }
+  return text;
+}
+
 describe('cli serve — host binding', () => {
   let dir: string;
 
@@ -205,6 +222,77 @@ describe('cli serve — watch mode', () => {
     const { stderr, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
     expect(exitCode).toBe(0);
     expect(stderr).not.toContain('Watch mode enabled');
+  });
+});
+
+describe('cli serve — access logs', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--verbose emits one stderr access log line per request', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, '--verbose', 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    const stdoutReader = proc.stdout.getReader();
+    const stderrReader = proc.stderr.getReader();
+    try {
+      await readUntil(stdoutReader, (stdout) => stdout.includes('Watch mode enabled'));
+      const response = await fetch(`http://127.0.0.1:${port}/missing`);
+      await response.text();
+      expect(response.status).toBe(404);
+
+      const stderr = await readUntil(stderrReader, (text) => /GET \/missing 404 \d+ms/.test(text));
+      expect(stderr).toMatch(/GET \/missing 404 \d+ms/);
+      expect(stderr.match(/GET \/missing 404 \d+ms/g)).toHaveLength(1);
+    } finally {
+      stdoutReader.releaseLock();
+      stderrReader.releaseLock();
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+
+  test('access logs stay silent without --verbose', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    const stdoutReader = proc.stdout.getReader();
+    const stderrReader = proc.stderr.getReader();
+    try {
+      await readUntil(stdoutReader, (stdout) => stdout.includes('Watch mode enabled'));
+      const response = await fetch(`http://127.0.0.1:${port}/missing`);
+      await response.text();
+      expect(response.status).toBe(404);
+
+      await Bun.sleep(150);
+      proc.kill('SIGTERM');
+      const stderr = await readUntil(stderrReader, () => false, 1000);
+      expect(stderr).not.toMatch(/GET \/missing 404 \d+ms/);
+    } finally {
+      stdoutReader.releaseLock();
+      stderrReader.releaseLock();
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
   });
 });
 
@@ -594,6 +682,8 @@ describe('cli serve — port collision', () => {
     const blockerPort = blocker.port;
     if (blockerPort === undefined) throw new Error('Bun did not allocate a port');
     try {
+      const blockerPort = blocker.port;
+      if (blockerPort === undefined) throw new Error('Bun did not allocate a port');
       const { stderr, exitCode } = await runCli(
         ['serve', '--port', String(blockerPort), '--host', '127.0.0.1', '--no-watch'],
         dir,
