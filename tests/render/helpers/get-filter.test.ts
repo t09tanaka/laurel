@@ -636,3 +636,102 @@ describe('get helper filter — OR operator', () => {
     expect(tpl({})).toBe('a,');
   });
 });
+
+describe('get helper filter — NQL parser subset', () => {
+  test('parentheses override AND/OR precedence', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: false,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [{ slug: 'bob', name: 'Bob' }],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        featured: true,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [{ slug: 'alice', name: 'Alice' }],
+      },
+      {
+        id: 'c',
+        slug: 'c',
+        published_at: '2026-05-17T00:00:00.000Z',
+        featured: true,
+        tags: [{ slug: 'opinion', name: 'Opinion' }],
+        authors: [{ slug: 'bob', name: 'Bob' }],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:news+(featured:true,author:bob)" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('quoted strings keep delimiters literal and decode escapes', () => {
+    const posts = [
+      { id: 'a', slug: 'a', title: 'Hello, + World', published_at: '2026-05-19T00:00:00.000Z' },
+      { id: 'b', slug: 'b', title: "Alice's post", published_at: '2026-05-18T00:00:00.000Z' },
+      { id: 'c', slug: 'c', title: 'Hello', published_at: '2026-05-17T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="title:'Hello, + World',title:'Alice\\'s post'" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('contains operators match substring, prefix, and suffix', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        title: 'Alpha release notes',
+        published_at: '2026-05-19T00:00:00.000Z',
+      },
+      { id: 'b', slug: 'b', title: 'Notes from beta', published_at: '2026-05-18T00:00:00.000Z' },
+      { id: 'c', slug: 'c', title: 'Roadmap alpha', published_at: '2026-05-17T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const contains = engine.hb.compile(
+      `{{#get "posts" filter="title:~alpha" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const starts = engine.hb.compile(
+      `{{#get "posts" filter="title:~^Alpha" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const ends = engine.hb.compile(
+      `{{#get "posts" filter="title:~$alpha" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(contains({})).toBe('a,c,');
+    expect(starts({})).toBe('a,');
+    expect(ends({})).toBe('c,');
+  });
+
+  test('quoted null is a string while bare null remains typed', () => {
+    const posts = [
+      { id: 'a', slug: 'a', feature_image: null, published_at: '2026-05-19T00:00:00.000Z' },
+      { id: 'b', slug: 'b', feature_image: 'null', published_at: '2026-05-18T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const bare = engine.hb.compile(
+      `{{#get "posts" filter="feature_image:null" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const quoted = engine.hb.compile(
+      `{{#get "posts" filter="feature_image:'null'" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(bare({})).toBe('a,');
+    expect(quoted({})).toBe('b,');
+  });
+
+  test('invalid filter syntax returns an empty result', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:news+(featured:true" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{else}}empty{{/get}}`,
+    );
+    expect(tpl({})).toBe('empty');
+  });
+});

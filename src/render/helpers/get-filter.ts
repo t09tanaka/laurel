@@ -16,7 +16,13 @@ const INDEXED_SET: ReadonlySet<string> = new Set<string>(INDEXED_KEYS);
 
 export type FilterIndex = Map<IndexedKey, Map<string, Set<unknown>>>;
 
-type FilterOp = '=' | '>' | '<' | '>=' | '<=';
+type FilterOp = '=' | '>' | '<' | '>=' | '<=' | '~' | '~^' | '~$';
+type FilterScalar = string | number | boolean | null;
+
+interface FilterValue {
+  value: FilterScalar;
+  quoted: boolean;
+}
 
 // A single comparison: `key OP value(s)` with optional negation. `op === '='`
 // with no special-typed values is the fast path that hits the secondary index.
@@ -26,15 +32,17 @@ interface ParsedClause {
   key: string;
   op: FilterOp;
   negate: boolean;
-  // Values after interpolation, before type coercion. Each is a raw string
-  // that may decode to a typed scalar via `decodeValue`.
-  values: string[];
+  values: FilterValue[];
 }
 
-// Ghost-NQL supports OR at the top level via `,` and AND via `+`. Each OR
-// branch ANDs its clauses. We evaluate per branch and union the results.
+type FilterExpr =
+  | { kind: 'clause'; clause: ParsedClause }
+  | { kind: 'and' | 'or'; left: FilterExpr; right: FilterExpr };
+
 interface FilterTree {
+  expr: FilterExpr | null;
   branches: ParsedClause[][];
+  invalid: boolean;
 }
 
 // Routes the Ghost `{{#get}}` filter through per-resource secondary indexes
@@ -50,7 +58,8 @@ export function applyGetFilter(
   route?: unknown,
 ): unknown[] {
   const tree = parseFilterTree(filter, ctx, route);
-  if (tree.branches.length === 0) return items.slice();
+  if (tree.invalid) return [];
+  if (!tree.expr || tree.branches.length === 0) return items.slice();
 
   // Each OR branch contributes a set; final result = union.
   const seen = new Set<unknown>();
@@ -92,7 +101,7 @@ function applyAndBranch(
     const indexable =
       clause.op === '=' &&
       INDEXED_SET.has(clause.key) &&
-      clause.values.every((v) => !isTypedLiteral(v));
+      clause.values.every((v) => typeof v.value === 'string');
     const map = indexable ? index.get(clause.key as IndexedKey) : undefined;
     if (!map) {
       unindexed.push(clause);
@@ -100,7 +109,8 @@ function applyAndBranch(
     }
     const matchSet = new Set<unknown>();
     for (const value of clause.values) {
-      const bucket = map.get(value);
+      if (typeof value.value !== 'string') continue;
+      const bucket = map.get(value.value);
       if (bucket) for (const it of bucket) matchSet.add(it);
     }
     if (clause.negate) {
@@ -194,83 +204,187 @@ function addEntry(index: FilterIndex, key: IndexedKey, value: string, item: unkn
   set.add(item);
 }
 
-// Splits the filter source into OR branches (top-level `,`) then AND clauses
-// (top-level `+`). Both splits skip over any character that sits inside a
-// `[...]` bracket group or `{{...}}` interpolation, so `tag:[a,b]+id:c` parses
-// as `[tag:[a,b], id:c]` and `id:{{post.id,fallback}}` keeps the embedded `,`
-// inside the interpolation rather than becoming an OR boundary.
+// Parses the Ghost NQL subset used by themes. Operator precedence is:
+// parentheses, AND (`+`), then OR (`,`). Parsed expressions are converted to
+// DNF so existing per-AND-branch index evaluation remains available.
 function parseFilterTree(filter: string, ctx: unknown, route?: unknown): FilterTree {
+  const source = interpolate(filter, ctx, route).trim();
+  if (source === '') return { expr: null, branches: [], invalid: false };
+  const parser = new FilterParser(source);
+  const expr = parser.parse();
+  if (parser.invalid) return { expr: null, branches: [], invalid: true };
+  return { expr, branches: expr ? toDnf(expr) : [], invalid: false };
+}
+
+class FilterParser {
+  invalid = false;
+  #pos = 0;
+
+  constructor(private readonly source: string) {}
+
+  parse(): FilterExpr | null {
+    const expr = this.#parseOr();
+    this.#skipSpace();
+    if (this.#pos < this.source.length) this.invalid = true;
+    return expr;
+  }
+
+  #parseOr(): FilterExpr | null {
+    let left = this.#parseAnd();
+    while (!this.invalid) {
+      this.#skipSpace();
+      if (!this.#consume(',')) break;
+      const right = this.#parseAnd();
+      if (!right) continue;
+      left = left ? { kind: 'or', left, right } : right;
+    }
+    return left;
+  }
+
+  #parseAnd(): FilterExpr | null {
+    let left = this.#parsePrimary();
+    while (!this.invalid) {
+      this.#skipSpace();
+      if (!this.#consume('+')) break;
+      const right = this.#parsePrimary();
+      if (!right) {
+        this.invalid = true;
+        return left;
+      }
+      left = left ? { kind: 'and', left, right } : right;
+    }
+    return left;
+  }
+
+  #parsePrimary(): FilterExpr | null {
+    this.#skipSpace();
+    const ch = this.#peek();
+    if (ch === undefined || ch === ',' || ch === ')') return null;
+    if (this.#consume('(')) {
+      const expr = this.#parseOr();
+      this.#skipSpace();
+      if (!expr || !this.#consume(')')) this.invalid = true;
+      return expr;
+    }
+    const clause = this.#parseClause();
+    return clause ? { kind: 'clause', clause } : null;
+  }
+
+  #parseClause(): ParsedClause | null {
+    const key = this.#readUntil(':').trim();
+    if (key === '' || !this.#consume(':')) {
+      this.invalid = true;
+      return null;
+    }
+    this.#skipSpace();
+    const negate = this.#consume('-');
+    this.#skipSpace();
+    const op = this.#parseOp();
+    this.#skipSpace();
+    const values = this.#consume('[') ? this.#parseListValues() : [this.#parseValue()];
+    if (this.invalid || values.length === 0) return null;
+    return { key, op, negate, values };
+  }
+
+  #parseOp(): FilterOp {
+    for (const op of ['<=', '>=', '~^', '~$', '<', '>', '~'] as const) {
+      if (this.source.startsWith(op, this.#pos)) {
+        this.#pos += op.length;
+        return op;
+      }
+    }
+    return '=';
+  }
+
+  #parseListValues(): FilterValue[] {
+    const values: FilterValue[] = [];
+    while (!this.invalid) {
+      this.#skipSpace();
+      if (this.#consume(']')) return values;
+      values.push(this.#parseValue());
+      this.#skipSpace();
+      if (this.#consume(',')) continue;
+      if (this.#consume(']')) return values;
+      this.invalid = true;
+    }
+    return values;
+  }
+
+  #parseValue(): FilterValue {
+    this.#skipSpace();
+    const quote = this.#peek();
+    if (quote === "'" || quote === '"') return this.#parseQuotedValue(quote);
+
+    const start = this.#pos;
+    while (this.#pos < this.source.length) {
+      const ch = this.source[this.#pos];
+      if (ch === ',' || ch === '+' || ch === ')' || ch === ']') break;
+      this.#pos += 1;
+    }
+    return decodeValue(this.source.slice(start, this.#pos).trim(), false);
+  }
+
+  #parseQuotedValue(quote: '"' | "'"): FilterValue {
+    this.#pos += 1;
+    let value = '';
+    while (this.#pos < this.source.length) {
+      const ch = this.source[this.#pos];
+      this.#pos += 1;
+      if (ch === '\\') {
+        if (this.#pos >= this.source.length) {
+          this.invalid = true;
+          return decodeValue(value, true);
+        }
+        value += this.source[this.#pos];
+        this.#pos += 1;
+        continue;
+      }
+      if (ch === quote) return decodeValue(value, true);
+      value += ch;
+    }
+    this.invalid = true;
+    return decodeValue(value, true);
+  }
+
+  #readUntil(char: string): string {
+    const start = this.#pos;
+    while (this.#pos < this.source.length && this.source[this.#pos] !== char) {
+      const ch = this.source[this.#pos];
+      if (ch === ',' || ch === '+' || ch === ')' || ch === '(' || ch === '[' || ch === ']') break;
+      this.#pos += 1;
+    }
+    return this.source.slice(start, this.#pos);
+  }
+
+  #skipSpace(): void {
+    while (this.#pos < this.source.length && /\s/.test(this.source[this.#pos] ?? '')) {
+      this.#pos += 1;
+    }
+  }
+
+  #consume(char: string): boolean {
+    if (this.source.startsWith(char, this.#pos)) {
+      this.#pos += char.length;
+      return true;
+    }
+    return false;
+  }
+
+  #peek(): string | undefined {
+    return this.source[this.#pos];
+  }
+}
+
+function toDnf(expr: FilterExpr): ParsedClause[][] {
+  if (expr.kind === 'clause') return [[expr.clause]];
+  if (expr.kind === 'or') return [...toDnf(expr.left), ...toDnf(expr.right)];
+  const left = toDnf(expr.left);
+  const right = toDnf(expr.right);
   const branches: ParsedClause[][] = [];
-  for (const branchSrc of splitTopLevel(filter, ',')) {
-    const clauses: ParsedClause[] = [];
-    for (const raw of splitTopLevel(branchSrc, '+')) {
-      const trimmed = raw.trim();
-      if (!trimmed) continue;
-      const parsed = parseClause(trimmed, ctx, route);
-      if (parsed) clauses.push(parsed);
-    }
-    if (clauses.length > 0) branches.push(clauses);
+  for (const l of left) {
+    for (const r of right) branches.push([...l, ...r]);
   }
-  return { branches };
-}
-
-function splitTopLevel(src: string, delim: ',' | '+'): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let interpolating = false;
-  let start = 0;
-  for (let i = 0; i < src.length; i += 1) {
-    const ch = src[i];
-    if (!interpolating && ch === '{' && src[i + 1] === '{') {
-      interpolating = true;
-      i += 1;
-      continue;
-    }
-    if (interpolating && ch === '}' && src[i + 1] === '}') {
-      interpolating = false;
-      i += 1;
-      continue;
-    }
-    if (interpolating) continue;
-    if (ch === '[') depth += 1;
-    else if (ch === ']') depth = Math.max(0, depth - 1);
-    else if (ch === delim && depth === 0) {
-      out.push(src.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(src.slice(start));
-  return out;
-}
-
-function parseClause(clause: string, ctx: unknown, route?: unknown): ParsedClause | null {
-  const colon = clause.indexOf(':');
-  if (colon < 0) return null;
-  const key = clause.slice(0, colon).trim();
-  let value = clause.slice(colon + 1).trim();
-  value = interpolate(value, ctx, route);
-  let negate = false;
-  if (value.startsWith('-')) {
-    negate = true;
-    value = value.slice(1);
-  }
-  // Leading comparison operator: `>`, `<`, `>=`, `<=`. Anything else is `=`.
-  let op: FilterOp = '=';
-  const opMatch = value.match(/^(<=|>=|<|>)\s*/);
-  if (opMatch) {
-    op = opMatch[1] as FilterOp;
-    value = value.slice(opMatch[0].length);
-  }
-  let values: string[];
-  if (value.startsWith('[') && value.endsWith(']')) {
-    values = value
-      .slice(1, -1)
-      .split(',')
-      .map((s) => s.trim());
-  } else {
-    values = [value];
-  }
-  return { key, op, negate, values };
+  return branches;
 }
 
 // Ghost themes write filter expressions like `id:-{{post.id}}` that need to
@@ -347,21 +461,19 @@ function evaluateClause(item: unknown, clause: ParsedClause): boolean {
 // numbers. `featured:null` is "IS NULL", not the string "null" — without this,
 // a theme writing `featured:-null` to mean "featured is set" would silently
 // match nothing.
-function isTypedLiteral(value: string): boolean {
-  return value === 'null' || value === 'true' || value === 'false';
-}
-
 // Maps the raw value into its NQL-decoded form. Strings stay strings; the
 // literals `null`/`true`/`false` decode to their JS counterparts; bare numeric
 // strings decode to numbers (so `>5` reads as a numeric comparison).
-function decodeValue(value: string): string | number | boolean | null {
-  if (value === 'null') return null;
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  if (value !== '' && !Number.isNaN(Number(value)) && /^-?\d+(?:\.\d+)?$/.test(value)) {
-    return Number(value);
+function decodeValue(value: string, quoted: boolean): FilterValue {
+  if (!quoted) {
+    if (value === 'null') return { value: null, quoted };
+    if (value === 'true') return { value: true, quoted };
+    if (value === 'false') return { value: false, quoted };
+    if (value !== '' && !Number.isNaN(Number(value)) && /^-?\d+(?:\.\d+)?$/.test(value)) {
+      return { value: Number(value), quoted };
+    }
   }
-  return value;
+  return { value, quoted };
 }
 
 // `fieldMatches` is the per-item evaluator used when the secondary index can't
@@ -369,13 +481,13 @@ function decodeValue(value: string): string | number | boolean | null {
 function fieldMatches(
   item: Record<string, unknown>,
   key: string,
-  value: string,
+  value: FilterValue,
   op: FilterOp,
 ): boolean {
-  const decoded = decodeValue(value);
   const actual = resolveField(item, key);
-  if (op === '=') return compareEq(actual, decoded);
-  return compareRange(actual, decoded, op);
+  if (op === '=') return compareEq(actual, value.value);
+  if (op === '~' || op === '~^' || op === '~$') return compareContains(actual, value.value, op);
+  return compareRange(actual, value.value, op);
 }
 
 // Resolves the field path used in NQL keys. Ghost surfaces `primary_tag` and
@@ -414,6 +526,7 @@ function resolveField(item: Record<string, unknown>, key: string): unknown {
     case 'tiers':
       return item[key] ?? null;
     default:
+      if (key.includes('.')) return resolvePath(item, key.split('.')) ?? null;
       return item[key] ?? null;
   }
 }
@@ -480,6 +593,21 @@ function compareRange(actual: unknown, expected: unknown, op: '>' | '<' | '>=' |
       return as >= es;
     case '<=':
       return as <= es;
+  }
+}
+
+function compareContains(actual: unknown, expected: unknown, op: '~' | '~^' | '~$'): boolean {
+  if (actual == null || expected == null) return false;
+  if (Array.isArray(actual)) return actual.some((v) => compareContains(v, expected, op));
+  const haystack = String(actual).toLowerCase();
+  const needle = String(expected).toLowerCase();
+  switch (op) {
+    case '~':
+      return haystack.includes(needle);
+    case '~^':
+      return haystack.startsWith(needle);
+    case '~$':
+      return haystack.endsWith(needle);
   }
 }
 
