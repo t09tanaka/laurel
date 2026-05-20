@@ -304,6 +304,118 @@ describe('build pipeline baseUrl override (#250)', () => {
   });
 });
 
+describe('build pipeline base_path applied to content URLs (#432)', () => {
+  // Pipeline-level fixture mirroring the `baseUrl` suite above so we can
+  // exercise canonical, RSS, sitemap, and robots together against a single
+  // build that has feeds + sitemap turned on (the minimal fixture disables
+  // them for unrelated reasons).
+  async function makeSiteWithFeeds(opts: { dateValue: string }): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-basepath-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/pages'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Subpath Site"',
+        'url = "https://example.com"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      `---\ntitle: "Hello"\ndate: ${opts.dateValue}\ntags: [news]\nauthors: [casper]\n---\n\nBody\n`,
+      'utf8',
+    );
+    await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  test('post canonical / og:url include base_path', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(html).toContain('href="https://example.com/blog/hello/"');
+    expect(html).toContain('content="https://example.com/blog/hello/"');
+    // The post's slug-only canonical (no base_path) must no longer leak.
+    expect(html).not.toContain('href="https://example.com/hello/"');
+  });
+
+  test('home / index canonical includes base_path', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(html).toContain('href="https://example.com/blog/"');
+  });
+
+  test('sitemap entries and the index point at the deployed subpath', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const index = readFileSync(join(summary.outputDir, 'sitemap.xml'), 'utf8');
+    expect(index).toContain('<loc>https://example.com/blog/sitemap-posts.xml</loc>');
+    const posts = readFileSync(join(summary.outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts).toContain('<loc>https://example.com/blog/hello/</loc>');
+    // The host-rooted URL is the broken shape we are fixing -- guard against it.
+    expect(posts).not.toContain('<loc>https://example.com/hello/</loc>');
+  });
+
+  test('RSS channel link and atom:link include base_path', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const rss = readFileSync(join(summary.outputDir, 'rss.xml'), 'utf8');
+    expect(rss).toContain('<link>https://example.com/blog</link>');
+    expect(rss).toContain('href="https://example.com/blog/rss.xml"');
+    // Item permalinks pick up base_path via post.url.
+    expect(rss).toContain('<link>https://example.com/blog/hello/</link>');
+  });
+
+  test('robots.txt Sitemap directive includes base_path', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(body).toContain('Sitemap: https://example.com/blog/sitemap.xml');
+    expect(body).not.toContain('Sitemap: https://example.com/sitemap.xml');
+  });
+
+  test('a trailing-slash-less basePath behaves identically to the canonical form', async () => {
+    const cwdA = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summaryA = await build({ cwd: cwdA, basePath: '/blog' });
+    const cwdB = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summaryB = await build({ cwd: cwdB, basePath: '/blog/' });
+    const htmlA = readFileSync(join(summaryA.outputDir, 'hello/index.html'), 'utf8');
+    const htmlB = readFileSync(join(summaryB.outputDir, 'hello/index.html'), 'utf8');
+    expect(htmlA).toContain('https://example.com/blog/hello/');
+    expect(htmlB).toContain('https://example.com/blog/hello/');
+  });
+
+  test('default base_path = "/" keeps URLs at the host root (regression)', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(html).toContain('href="https://example.com/hello/"');
+    expect(html).not.toContain('href="https://example.com//hello/"');
+    const robots = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(robots).toContain('Sitemap: https://example.com/sitemap.xml');
+  });
+
+  test('outputPath stays host-rooted regardless of base_path', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd, basePath: '/blog/' });
+    // dist layout must NOT nest under /blog/ -- the static host strips
+    // base_path at request time, so files live at the dist root.
+    expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'blog/hello/index.html'))).toBe(false);
+  });
+});
+
 describe('build pipeline 404 emission', () => {
   test('emits a fallback 404.html when the theme lacks an error-404 template', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });

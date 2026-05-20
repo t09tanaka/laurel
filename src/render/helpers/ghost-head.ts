@@ -2,7 +2,7 @@ import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
 import { joinPath } from '~/theme/assets.ts';
 import { nonceAttr } from '~/util/csp.ts';
-import { absoluteUrl } from '~/util/url.ts';
+import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
@@ -19,7 +19,8 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         | undefined;
       const site = engine.content.site;
       const ctx = this as Record<string, unknown>;
-      const meta = computeMeta(ctx, route, site);
+      const basePath = engine.config?.build?.base_path ?? '/';
+      const meta = computeMeta(ctx, route, site, basePath);
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
@@ -126,13 +127,13 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       // RSS autodiscovery: browsers and feed readers look for <link rel="alternate">.
       if (engine.config?.components?.rss?.enabled !== false) {
-        const rssHref = absoluteUrl(site.url, 'rss.xml');
+        const rssHref = absoluteUrlWithBasePath(site.url, basePath, 'rss.xml');
         parts.push(
           `<link rel="alternate" type="application/rss+xml" title="${escapeAttr(site.title)}" href="${escapeAttr(rssHref)}">`,
         );
       }
 
-      const jsonLdEntities = buildJsonLd(ctx, route, site, meta);
+      const jsonLdEntities = buildJsonLd(ctx, route, site, meta, basePath);
       const nonce = nonceAttr(engine.config?.build?.csp_nonce);
       for (const entity of jsonLdEntities) {
         parts.push(
@@ -231,6 +232,7 @@ function computeMeta(
     twitter_title?: string;
     twitter_description?: string;
   },
+  basePath: string,
 ): ComputedMeta {
   const titleFromCtx =
     (ctx.meta_title as string | undefined) ||
@@ -247,7 +249,10 @@ function computeMeta(
   // [site].og_image still drives every page's social preview when no per-route
   // image is present.
   const rawImage = ogImage || twitterImage || featureImage || site.og_image || site.twitter_image;
-  const image = rawImage ? absoluteUrl(site.url, rawImage) : undefined;
+  // Apply base_path so a root-relative `/content/images/foo.jpg` becomes
+  // `https://host/blog/content/images/foo.jpg` on a subpath deploy. Absolute
+  // http(s) URLs pass through unchanged via absoluteUrlWithBasePath.
+  const image = rawImage ? absoluteUrlWithBasePath(site.url, basePath, rawImage) : undefined;
   const imageType = image ? mimeTypeForImage(image) : undefined;
   // Width/height come from feature_image probing at load time, so only attach
   // them when the emitted og:image actually points at the feature image (not an
@@ -259,7 +264,8 @@ function computeMeta(
   // Canonical is precomputed in route.meta (build/routes.ts:defaultMeta). Fall
   // back to deriving from route.url for callers that hand-construct a partial
   // route object (some unit tests do this).
-  const canonical = route?.meta?.canonical ?? absoluteUrl(site.url, route?.url ?? '/');
+  const canonical =
+    route?.meta?.canonical ?? absoluteUrlWithBasePath(site.url, basePath, route?.url ?? '/');
 
   let ogType = 'website';
   if (route?.data?.post) ogType = 'article';
@@ -335,6 +341,7 @@ function buildJsonLd(
     logo_height?: number;
   },
   meta: ComputedMeta,
+  basePath: string,
 ): Record<string, unknown>[] {
   const entities: Record<string, unknown>[] = [];
   const kind = route?.kind;
@@ -364,13 +371,13 @@ function buildJsonLd(
         '@type': 'Organization',
         name: site.title,
         url: site.url,
-        logo: buildPublisherLogo(site),
+        logo: buildPublisherLogo(site, basePath),
       },
     });
   } else if (kind === 'tag' || kind === 'author' || kind === 'index') {
     entities.push(buildCollectionPage(route, site, meta));
   } else if (kind === 'home') {
-    entities.push(buildHomeWebSite(site));
+    entities.push(buildHomeWebSite(site, basePath));
   } else {
     entities.push({
       '@context': 'https://schema.org',
@@ -380,7 +387,7 @@ function buildJsonLd(
     });
   }
 
-  const breadcrumb = buildBreadcrumbList(ctx, route, site, meta);
+  const breadcrumb = buildBreadcrumbList(ctx, route, site, meta, basePath);
   if (breadcrumb) entities.push(breadcrumb);
 
   return entities;
@@ -426,8 +433,13 @@ function buildCollectionPage(
 // Emit SearchAction on the home WebSite entity so Google can surface a sitelinks
 // search box when applicable. We point at `/?s={search_term_string}` which is the
 // Ghost convention; client-side search components in themes resolve `?s=` to a query.
-function buildHomeWebSite(site: { title: string; url: string }): Record<string, unknown> {
-  const base = site.url.replace(/\/$/, '');
+function buildHomeWebSite(
+  site: { title: string; url: string },
+  basePath: string,
+): Record<string, unknown> {
+  // Search target lives at `${site.url}${base_path}?s=...` so a `/blog/` deploy
+  // points the sitelinks search box at the deployed root, not the host root.
+  const searchTarget = absoluteUrlWithBasePath(site.url, basePath, '/');
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -437,7 +449,7 @@ function buildHomeWebSite(site: { title: string; url: string }): Record<string, 
       '@type': 'SearchAction',
       target: {
         '@type': 'EntryPoint',
-        urlTemplate: `${base}/?s={search_term_string}`,
+        urlTemplate: `${searchTarget.replace(/\/$/, '')}/?s={search_term_string}`,
       },
       'query-input': 'required name=search_term_string',
     },
@@ -459,8 +471,9 @@ function buildBreadcrumbList(
     | undefined,
   site: { title: string; url: string },
   meta: ComputedMeta,
+  basePath: string,
 ): Record<string, unknown> | undefined {
-  const home = absoluteUrl(site.url, '/');
+  const home = absoluteUrlWithBasePath(site.url, basePath, '/');
   const items: { name: string; item: string }[] = [{ name: site.title, item: home }];
 
   if (route?.data?.post && ctx.id) {
@@ -514,16 +527,19 @@ function buildImageObject(
 // In a static SSG we cannot probe image files, so we honour the configured
 // logo_width / logo_height and fall back to Ghost's documented 60x60 default
 // when the logo is set without explicit dimensions.
-function buildPublisherLogo(site: {
-  url: string;
-  logo?: string;
-  logo_width?: number;
-  logo_height?: number;
-}): Record<string, unknown> | undefined {
+function buildPublisherLogo(
+  site: {
+    url: string;
+    logo?: string;
+    logo_width?: number;
+    logo_height?: number;
+  },
+  basePath: string,
+): Record<string, unknown> | undefined {
   if (!site.logo) return undefined;
   return {
     '@type': 'ImageObject',
-    url: absoluteUrl(site.url, site.logo),
+    url: absoluteUrlWithBasePath(site.url, basePath, site.logo),
     width: site.logo_width ?? 60,
     height: site.logo_height ?? 60,
   };

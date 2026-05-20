@@ -4,7 +4,7 @@ import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
-import { absoluteUrl } from '~/util/url.ts';
+import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
 import { assignPostUrls } from './permalinks.ts';
 import {
   type ResolvedCollection,
@@ -31,6 +31,7 @@ export function planRoutes(opts: {
   const pickPostTemplate = makePostTemplatePicker(theme);
   const routes: RouteContext[] = [];
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
+  const basePath = config.build.base_path || '/';
 
   const homeTemplate = theme.templates.home ? 'home' : 'index';
   const indexTemplate = theme.templates.index ?? theme.templates.home;
@@ -47,7 +48,7 @@ export function planRoutes(opts: {
         lastmod: latestPostTimestamp(slice),
         data: {
           posts: slice,
-          pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/'),
+          pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/', basePath),
         },
         meta: defaultMeta(
           config,
@@ -122,7 +123,7 @@ export function planRoutes(opts: {
           data: {
             tag,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, tagPosts.length, base),
+            pagination: paginationInfo(idx, pages, perPage, tagPosts.length, base, basePath),
           },
           meta: defaultMeta(
             config,
@@ -211,7 +212,7 @@ export function planRoutes(opts: {
           data: {
             author,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, authorPosts.length, base),
+            pagination: paginationInfo(idx, pages, perPage, authorPosts.length, base, basePath),
           },
           meta: defaultMeta(
             config,
@@ -328,13 +329,25 @@ function paginationInfo(
   perPage: number,
   total: number,
   baseUrl: string,
+  basePath: string,
 ): PaginationInfo {
   const page = index + 1;
   const numPages = pages.length;
   const prev = page > 1 ? page - 1 : undefined;
   const next = page < numPages ? page + 1 : undefined;
-  const prevUrl = prev === undefined ? undefined : prev === 1 ? baseUrl : `${baseUrl}page/${prev}/`;
-  const nextUrl = next === undefined ? undefined : `${baseUrl}page/${next}/`;
+  // `prev_url` / `next_url` / `base_url` are emitted as raw `href` attributes
+  // by the `{{pagination}}` helper (and `<link rel="prev/next">` from
+  // ghost-head), so they must already include the configured `base_path`.
+  // The slug-relative shape (`/tag/foo/`, `/page/2/`) survives across base
+  // paths because `withBasePath` strips the leading slash before joining.
+  const prefixed = (raw: string): string => withBasePath(basePath, raw);
+  const prevUrl =
+    prev === undefined
+      ? undefined
+      : prev === 1
+        ? prefixed(baseUrl)
+        : prefixed(`${baseUrl}page/${prev}/`);
+  const nextUrl = next === undefined ? undefined : prefixed(`${baseUrl}page/${next}/`);
   return {
     page,
     pages: numPages,
@@ -344,7 +357,7 @@ function paginationInfo(
     limit: perPage,
     prev_url: prevUrl,
     next_url: nextUrl,
-    base_url: baseUrl,
+    base_url: prefixed(baseUrl),
   };
 }
 
@@ -360,10 +373,14 @@ function defaultMeta(
   description?: string,
   image?: string,
 ) {
+  // `route.url` and `outputPath` stay root-relative (no base_path) so the
+  // emit path lands at `dist/<slug>/index.html` regardless of where the site
+  // is served from. Canonical is the user-facing absolute URL, so it must
+  // include `base_path` (e.g. `https://host/blog/post-slug/`).
   return {
     title,
     description: description ?? config.site.description,
-    canonical: absoluteUrl(config.site.url, routeUrl),
+    canonical: absoluteUrlWithBasePath(config.site.url, config.build.base_path, routeUrl),
     image,
   };
 }

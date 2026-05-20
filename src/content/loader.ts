@@ -75,15 +75,19 @@ export interface LoadContentOptions {
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
 // when the taxonomy is disabled so template guards like
 // `typeof tag.url === 'string' && tag.url.length > 0` keep skipping the link.
+// `basePath` is the normalised `build.base_path` so subpath deploys (e.g.
+// hosting under `/blog/`) produce browser-resolvable archive URLs instead of
+// `https://host/tag/foo/`.
 function taxonomyArchiveUrl(
   siteUrl: string,
+  basePath: string,
   taxonomies: ResolvedTaxonomies,
   kind: 'tag' | 'author',
   slug: string,
 ): string {
   const template = taxonomies[kind];
   if (template === undefined) return '';
-  return joinUrl(siteUrl, applyTaxonomyTemplate(template, slug));
+  return joinUrl(siteUrl, basePath, applyTaxonomyTemplate(template, slug));
 }
 
 export async function loadContent({
@@ -152,9 +156,13 @@ async function loadContentWithPool({
   includeFuturePosts: boolean;
   markdownTransforms: readonly MarkdownTransformHook[];
 }): Promise<ContentGraph> {
+  // Normalised `build.base_path` is set by the pipeline before `loadContent`
+  // runs; defaulting here keeps unit tests that hand-roll a partial config
+  // (and skip the pipeline) from blowing up with `undefined`.
+  const basePath = config.build.base_path || '/';
   const [authors, tags, posts, pages] = await Promise.all([
-    loadAuthors(cwd, config, taxonomies),
-    loadTags(cwd, config, taxonomies),
+    loadAuthors(cwd, config, taxonomies, basePath),
+    loadTags(cwd, config, taxonomies, basePath),
     loadPosts(cwd, config, pool, markdownTransforms),
     loadPages(cwd, config, pool, markdownTransforms),
   ]);
@@ -185,7 +193,7 @@ async function loadContentWithPool({
       if (raw.status === 'scheduled') continue;
       if (new Date(raw.published_at).getTime() > nowMs) continue;
     }
-    const resolved = resolvePostRelations(raw, authorMap, tagMap, site, taxonomies);
+    const resolved = resolvePostRelations(raw, authorMap, tagMap, site, basePath, taxonomies);
     resolvedPosts.push(resolved);
   }
   resolvedPosts.sort(
@@ -208,14 +216,14 @@ async function loadContentWithPool({
     for (const post of resolvedPosts) {
       const a = assignments.get(post.id);
       if (!a) continue;
-      post.url = joinUrl(site.url, a.urlPath);
+      post.url = joinUrl(site.url, basePath, a.urlPath);
     }
   }
 
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
     if (raw.status === 'draft' && !includeDrafts) continue;
-    const resolved = resolvePageRelations(raw, authorMap, tagMap, site, taxonomies);
+    const resolved = resolvePageRelations(raw, authorMap, tagMap, site, basePath, taxonomies);
     resolvedPages.push(resolved);
   }
   resolvedPages.sort((a, b) => a.title.localeCompare(b.title));
@@ -467,11 +475,12 @@ async function loadAuthors(
   cwd: string,
   config: NectarConfig,
   taxonomies: ResolvedTaxonomies,
+  basePath: string,
 ): Promise<Author[]> {
   const dir = join(cwd, config.content.authors_dir);
   return loadMarkdownDir(
     dir,
-    async (file, raw) => normalizeAuthor(file, raw, config, taxonomies),
+    async (file, raw) => normalizeAuthor(file, raw, config, taxonomies, basePath),
     config.content.max_markdown_bytes,
   );
 }
@@ -480,11 +489,12 @@ async function loadTags(
   cwd: string,
   config: NectarConfig,
   taxonomies: ResolvedTaxonomies,
+  basePath: string,
 ): Promise<Tag[]> {
   const dir = join(cwd, config.content.tags_dir);
   return loadMarkdownDir(
     dir,
-    async (file, raw) => normalizeTag(file, raw, config, taxonomies),
+    async (file, raw) => normalizeTag(file, raw, config, taxonomies, basePath),
     config.content.max_markdown_bytes,
   );
 }
@@ -820,6 +830,7 @@ async function normalizeAuthor(
   raw: string,
   config: NectarConfig,
   taxonomies: ResolvedTaxonomies,
+  basePath: string,
 ): Promise<Author> {
   const { data, body } = parseFrontmatter(raw, { filePath });
   const slug =
@@ -847,7 +858,7 @@ async function normalizeAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(config.site.url, taxonomies, 'author', slug),
+    url: taxonomyArchiveUrl(config.site.url, basePath, taxonomies, 'author', slug),
   };
 }
 
@@ -856,6 +867,7 @@ async function normalizeTag(
   raw: string,
   config: NectarConfig,
   taxonomies: ResolvedTaxonomies,
+  basePath: string,
 ): Promise<Tag> {
   const { data } = parseFrontmatter(raw, { filePath });
   const slug =
@@ -871,7 +883,7 @@ async function normalizeTag(
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(config.site.url, taxonomies, 'tag', slug),
+    url: taxonomyArchiveUrl(config.site.url, basePath, taxonomies, 'tag', slug),
     count: { posts: 0 },
   };
 }
@@ -909,15 +921,16 @@ function resolvePostRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   site: SiteData,
+  basePath: string,
   taxonomies: ResolvedTaxonomies,
 ): Post {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, taxonomies);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, taxonomies);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies);
+  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, basePath, taxonomies);
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinUrl(site.url, `/${raw.slug}/`);
+  const url = joinUrl(site.url, basePath, `/${raw.slug}/`);
 
   return {
     id: raw.id,
@@ -975,15 +988,16 @@ function resolvePageRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   site: SiteData,
+  basePath: string,
   taxonomies: ResolvedTaxonomies,
 ): Page {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, taxonomies);
-  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, taxonomies);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies);
+  const authorList = resolveAuthorSlugs(raw.authorSlugs, authors, site, basePath, taxonomies);
   const primary_tag = raw.primaryTag ? tagList.find((t) => t.slug === raw.primaryTag) : tagList[0];
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinUrl(site.url, `/${raw.slug}/`);
+  const url = joinUrl(site.url, basePath, `/${raw.slug}/`);
 
   return {
     id: raw.id,
@@ -1032,6 +1046,7 @@ function resolveTagSlugs(
   slugs: string[],
   tags: Map<string, Tag>,
   site: SiteData,
+  basePath: string,
   taxonomies: ResolvedTaxonomies,
 ): Tag[] {
   return slugs.map((slug) => {
@@ -1046,7 +1061,7 @@ function resolveTagSlugs(
       visibility: 'public',
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, taxonomies, 'tag', slug),
+      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'tag', slug),
       count: { posts: 0 },
     };
     tags.set(slug, created);
@@ -1058,6 +1073,7 @@ function resolveAuthorSlugs(
   slugs: string[],
   authors: Map<string, Author>,
   site: SiteData,
+  basePath: string,
   taxonomies: ResolvedTaxonomies,
 ): Author[] {
   return slugs.map((slug) => {
@@ -1083,7 +1099,7 @@ function resolveAuthorSlugs(
       instagram: undefined,
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, taxonomies, 'author', slug),
+      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'author', slug),
     };
     authors.set(slug, created);
     return created;
@@ -1098,9 +1114,21 @@ function titleCase(slug: string): string {
     .join(' ');
 }
 
-function joinUrl(base: string, path: string): string {
+// Compose an external URL by inserting `basePath` between the host and the
+// route-relative `path`. Centralised here so every `*.url` on the content
+// graph (post, page, tag, author) reflects the normalised `build.base_path`.
+// Inputs:
+//  - `base` is `site.url`, with or without a trailing slash.
+//  - `basePath` is the normalised `'/'` or `'/segment/.../'` shape.
+//  - `path` is root-relative (e.g. `'/post-slug/'`) -- the leading slash is
+//    optional; we tolerate both shapes so callers stay free of base_path
+//    hygiene.
+function joinUrl(base: string, basePath: string, path: string): string {
   if (!base) return path;
-  return new URL(path, base.endsWith('/') ? base : `${base}/`).toString();
+  const prefix = basePath && basePath !== '/' ? basePath : '/';
+  const clean = path.startsWith('/') ? path.slice(1) : path;
+  const composed = prefix === '/' ? `/${clean}` : `${prefix}${clean}`;
+  return new URL(composed, base.endsWith('/') ? base : `${base}/`).toString();
 }
 
 // `plaintext.slice(0, 200)` cut by code-unit count, which means 200 Japanese

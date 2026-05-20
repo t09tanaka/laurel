@@ -1,5 +1,6 @@
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
+import { withBasePath } from '~/util/url.ts';
 import { writeHtml } from './emit.ts';
 
 // Sitemap emission has its own module (./sitemap.ts) so the Ghost 5-file
@@ -37,7 +38,10 @@ export async function emitRss(opts: {
     channel: {
       title: config.site.title,
       description: config.site.description,
-      link: config.site.url.replace(/\/$/, ''),
+      // Channel `<link>` is the absolute homepage URL. Strip the configured
+      // base_path's trailing slash so the value byte-matches the historical
+      // `${site.url}` shape on root deploys (no trailing slash).
+      link: `${config.site.url.replace(/\/$/, '')}${trimTrailingSlash(config.build.base_path || '/')}`,
     },
   });
 
@@ -107,7 +111,12 @@ async function emitRssFeed(opts: {
   channel: RssChannel;
 }): Promise<void> {
   const { config, posts, outputDir, limit, pageFilename, channel } = opts;
+  // `base` is the absolute host root (no path). The feed's atom:link / item
+  // link entries that need the configured `base_path` apply it explicitly via
+  // `withBasePath` so each callsite stays explicit about whether it composes
+  // the host-only origin (e.g. `feature_image`) or the deployed-root URL.
   const base = config.site.url.replace(/\/$/, '');
+  const basePath = config.build.base_path || '/';
   const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
   const totalPages = Math.max(1, Math.ceil(posts.length / perPage));
   // Ghost's default-on behavior would inline post.html into every <item>,
@@ -119,25 +128,29 @@ async function emitRssFeed(opts: {
   const fullContent = config.components.rss.full_content;
 
   const lastBuildDate = computeLastBuildDate(posts);
-  const imageBlock = renderChannelImage(config, base);
+  const imageBlock = renderChannelImage(config, base, basePath);
 
+  // Compose the host-relative feed URL once per page. atom:link href entries
+  // must be fully-qualified (RSS readers need an absolute origin), and they
+  // live under `base_path` on subpath deploys (e.g. `/blog/rss.xml`).
+  const filenameHref = (page: number) => `${base}${withBasePath(basePath, pageFilename(page))}`;
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = posts.slice(start, start + perPage);
-    const items = pagePosts.map((post) => renderItem(post, base, fullContent)).join('');
+    const items = pagePosts.map((post) => renderItem(post, base, fullContent, basePath)).join('');
     const filename = pageFilename(page);
-    const selfHref = `${base}/${filename}`;
+    const selfHref = filenameHref(page);
     const atomLinks: string[] = [
       `<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>`,
     ];
     if (page > 1) {
-      const prevHref = `${base}/${pageFilename(page - 1)}`;
+      const prevHref = filenameHref(page - 1);
       atomLinks.push(
         `<atom:link href="${escapeXml(prevHref)}" rel="prev" type="application/rss+xml"/>`,
       );
     }
     if (page < totalPages) {
-      const nextHref = `${base}/${pageFilename(page + 1)}`;
+      const nextHref = filenameHref(page + 1);
       atomLinks.push(
         `<atom:link href="${escapeXml(nextHref)}" rel="next" type="application/rss+xml"/>`,
       );
@@ -176,21 +189,39 @@ function computeLastBuildDate(posts: ContentGraph['posts']): string {
   return new Date(latest > 0 ? latest : Date.now()).toUTCString();
 }
 
-function renderChannelImage(config: NectarConfig, base: string): string {
+function renderChannelImage(config: NectarConfig, base: string, basePath: string): string {
   if (!config.site.logo) return '';
-  const logoUrl = toAbsoluteUrl(base, config.site.logo);
+  const logoUrl = toAbsoluteUrl(base, basePath, config.site.logo);
+  // The channel image's `<link>` points at the deployed homepage, not the
+  // raw host root, so subpath deploys send users to `https://host/blog/`
+  // instead of `https://host/`.
+  const homeLink = `${base}${trimTrailingSlash(basePath || '/')}`;
   return [
     '\n<image>',
     `<url>${escapeXml(logoUrl)}</url>`,
     `<title>${escapeXml(config.site.title)}</title>`,
-    `<link>${escapeXml(base)}</link>`,
+    `<link>${escapeXml(homeLink || base)}</link>`,
     '</image>',
   ].join('');
 }
 
-function toAbsoluteUrl(base: string, value: string): string {
+// Compose an external URL from a (host, base_path, value) triple. `value`
+// is either an absolute http(s) URL (returned unchanged) or a root-relative
+// path (e.g. `/content/images/foo.jpg`). When `base_path` is non-trivial
+// (`/blog/`), the path is rebased so the asset lives under the deployed
+// subpath rather than the raw host root.
+function toAbsoluteUrl(base: string, basePath: string, value: string): string {
   if (/^https?:\/\//i.test(value)) return value;
-  return `${base}${value.startsWith('/') ? value : `/${value}`}`;
+  return `${base}${withBasePath(basePath, value)}`;
+}
+
+// Strip the trailing slash for joins like `${origin}${base_path}` so the
+// composed string keeps the historical "no trailing slash on the home URL"
+// shape callers depend on (e.g. RSS channel link, robots.txt). `/` collapses
+// to the empty string so root deploys keep producing `https://host` exactly.
+function trimTrailingSlash(value: string): string {
+  if (!value || value === '/') return '';
+  return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
 // Page 1 keeps the canonical `rss.xml` filename so existing feed-reader
@@ -204,12 +235,17 @@ function renderItem(
   post: ContentGraph['posts'][number],
   base: string,
   fullContent: boolean,
+  basePath = '/',
 ): string {
+  // `post.url` already encodes `base_path` (the loader threads it in), so
+  // the parsed pathname carries the subpath through to the feed's `<link>`.
   const link = `${base}${new URL(post.url).pathname}`;
   // Absolutise only when we plan to ship the HTML body. Skipping the regex
   // walk when `fullContent=false` is the whole point of #517: at 10k items
   // the rewrite-then-discard cost was the second-largest slice of feed time.
-  const html = fullContent ? absolutizeHtmlUrls(post.feed_html, base) : '';
+  // Pass `basePath` through so root-relative srcs in the body land under
+  // `https://host/blog/...` rather than the raw host root.
+  const html = fullContent ? absolutizeHtmlUrls(post.feed_html, base, basePath) : '';
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
@@ -234,7 +270,7 @@ function renderItem(
   // media:content advertises the feature image to readers that render
   // thumbnails (Feedly, Inoreader). Ghost always emits this when present.
   if (post.feature_image) {
-    const mediaUrl = toAbsoluteUrl(base, post.feature_image);
+    const mediaUrl = toAbsoluteUrl(base, basePath, post.feature_image);
     parts.push(`<media:content url="${escapeXml(mediaUrl)}" medium="image"/>`);
   }
   // CDATA is required for both description (when title/excerpt contains
@@ -274,30 +310,33 @@ const SRCSET_ATTR_RE = /\bsrcset\s*=\s*(["'])([^"']*)\1/gi;
 // RSS readers fetch the feed from rss.xml's URL, but post content is hosted at the
 // post's canonical URL. Relative URLs in post.html misresolve against the feed
 // origin, so rewrite root-relative URLs to absolute form against site.url.
-export function absolutizeHtmlUrls(html: string, base: string): string {
+// `basePath` defaults to `'/'` so existing callers (non-build callers, tests)
+// keep their root-deploy behaviour while build-time callers thread the
+// configured `[build].base_path` through.
+export function absolutizeHtmlUrls(html: string, base: string, basePath = '/'): string {
   if (!html || !base) return html;
   const origin = base.replace(/\/$/, '');
   const withAttrs = html.replace(URL_ATTR_RE, (match, attr, quote, value) => {
-    const abs = toAbsolute(value, origin);
+    const abs = toAbsolute(value, origin, basePath);
     return abs === value ? match : `${attr}=${quote}${abs}${quote}`;
   });
   return withAttrs.replace(SRCSET_ATTR_RE, (match, quote, value) => {
-    const rewritten = rewriteSrcset(value, origin);
+    const rewritten = rewriteSrcset(value, origin, basePath);
     return rewritten === value ? match : `srcset=${quote}${rewritten}${quote}`;
   });
 }
 
-function toAbsolute(value: string, base: string): string {
+function toAbsolute(value: string, base: string, basePath: string): string {
   const trimmed = value.trim();
   if (!trimmed) return value;
   if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return value;
   if (trimmed.startsWith('//')) return value;
   if (trimmed.startsWith('#')) return value;
   if (!trimmed.startsWith('/')) return value;
-  return `${base}${trimmed}`;
+  return `${base}${withBasePath(basePath, trimmed)}`;
 }
 
-function rewriteSrcset(value: string, base: string): string {
+function rewriteSrcset(value: string, base: string, basePath: string): string {
   return value
     .split(',')
     .map((part) => {
@@ -305,7 +344,7 @@ function rewriteSrcset(value: string, base: string): string {
       if (!segment) return part;
       const [url, ...descriptors] = segment.split(/\s+/);
       if (!url) return part;
-      const abs = toAbsolute(url, base);
+      const abs = toAbsolute(url, base, basePath);
       const leading = part.match(/^\s*/)?.[0] ?? '';
       const trailing = part.match(/\s*$/)?.[0] ?? '';
       const rest = descriptors.length > 0 ? ` ${descriptors.join(' ')}` : '';
