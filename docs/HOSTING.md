@@ -133,9 +133,15 @@ instead of waiting for a failed Pages upload.
 `[site].codeinjection_head` / `[site].codeinjection_foot` config are dropped
 at config / content load time, with a warning. When on, those values ship
 verbatim into `{{ghost_head}}` / `{{ghost_foot}}` — including any inline
-`<script>`. Combine that with a baseline CSP that allows `'unsafe-inline'`
-(the default for Ghost-theme compatibility) and a single PR can ship
-site-wide JS once merged.
+`<script>`.
+
+If `[deploy.headers].security.content_security_policy` is set, Nectar scans the
+final rendered HTML and appends build-time `sha256-...` entries for inline
+`<script>` bodies to `script-src` in generated deploy artifacts. This is the CSP
+side of the existing SRI behavior: external theme assets keep their
+`integrity` attributes, while inline scripts get CSP hash sources because SRI
+does not apply to inline code. Keep `'unsafe-inline'` or add nonce/style hashes
+separately for inline `<style>`.
 
 If you flip the flag on, treat every PR that touches `content/` like a code
 review of the inlined HTML. See

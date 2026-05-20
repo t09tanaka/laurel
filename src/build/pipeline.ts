@@ -71,6 +71,7 @@ import {
   planImageVariants,
   resolveCacheDir,
 } from './images.ts';
+import { collectInlineScriptCspHashes, withInlineScriptCspHashes } from './inline-script-csp.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
 import { emitLunrIndex, emitLunrWidget } from './lunr.ts';
 import {
@@ -659,6 +660,7 @@ async function runBuild({
   const previousRoutes = previousManifest?.routes ?? {};
   let skippedCount = 0;
   let renderedCount = 0;
+  const inlineScriptCspHashes = new Set<string>();
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
   // per-route `Bun.file().exists()` / `.text()` I/O for reused entries instead
@@ -895,6 +897,12 @@ async function runBuild({
         minifyInputBytes += stats.inputBytes;
         minifyOutputBytes += stats.outputBytes;
         minifiedAnyBatch ||= stats.minified;
+      }
+
+      for (const output of htmlOutputs) {
+        for (const hash of collectInlineScriptCspHashes(output.html)) {
+          inlineScriptCspHashes.add(hash);
+        }
       }
 
       await withProgressPhase(progress, 'html', 'Writing HTML', () =>
@@ -1177,9 +1185,20 @@ async function runBuild({
       basePath: config.build.base_path,
     }),
   ];
+  const deployHeaders = withInlineScriptCspHashes(config.deploy.headers, inlineScriptCspHashes);
+  const deploymentConfig =
+    deployHeaders === config.deploy.headers
+      ? config
+      : {
+          ...config,
+          deploy: {
+            ...config.deploy,
+            headers: deployHeaders,
+          },
+        };
   const deploymentArtifacts = {
     outputDir,
-    config,
+    config: deploymentConfig,
     routes,
     userRedirects,
     deployRedirects,
@@ -1198,7 +1217,7 @@ async function runBuild({
   keepOutput('.nectar/cloudfront-response-headers-policy.json');
   await emitCloudFrontResponseHeadersPolicy({
     outputDir,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
   });
   // Static content API dump: `dist/content/posts.json`,
   // `dist/content/settings.json`, plus CORS `_headers` (Netlify) and
@@ -1254,7 +1273,7 @@ async function runBuild({
   await emitCloudflareWorkersManifest({
     outputDir,
     enabled: config.deploy.cloudflare_workers.enabled,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
     rules: deployRedirects,
   });
   markPlannedDeploymentRoutingOutputs({ config, autoNoindexProvider, deployRedirects, keepOutput });
@@ -1263,7 +1282,7 @@ async function runBuild({
   await emitFirebaseJson({
     outputDir,
     enabled: config.deploy.firebase.enabled,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
     rules: deployRedirects,
     trailingSlash: config.build.trailing_slash,
   });
@@ -1271,14 +1290,14 @@ async function runBuild({
   await emitApacheHtaccess({
     outputDir,
     enabled: config.deploy.apache.enabled,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
     rules: deployRedirects,
   });
   if (config.deploy.nginx.enabled) keepOutput('.nectar/nginx.conf');
   await emitNginxConf({
     outputDir,
     enabled: config.deploy.nginx.enabled,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
     rules: deployRedirects,
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
@@ -1287,7 +1306,7 @@ async function runBuild({
   await emitCaddyfile({
     outputDir,
     enabled: config.deploy.caddy.enabled,
-    headers: config.deploy.headers,
+    headers: deployHeaders,
     rules: deployRedirects,
     root: config.deploy.caddy.root,
     siteAddress: config.deploy.caddy.site_address,

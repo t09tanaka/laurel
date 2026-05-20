@@ -109,16 +109,18 @@ scripts can do. Two viable approaches for a static deploy:
   is the cleanest path because it does not require build-time bookkeeping
   and works with arbitrary `codeinjection_*` content.
 - **Precomputed hashes.** Run a post-build step that hashes every inline
-  `<script>` / `<style>` block in `dist/` and emits a `_headers` /
-  `vercel.json` with `'sha256-…'` entries in `script-src` / `style-src`.
-  This pins exactly the scripts your build produced; any new inline script
-  from a malicious `codeinjection_*` after the build would be blocked.
-  Trade-off: hashes change on every build, so the header file is rebuilt
-  too.
+  `<style>` block in `dist/` and emits a matching `style-src` policy.
+  Nectar handles the script half automatically when
+  `[deploy.headers].security.content_security_policy` is set: it scans the
+  final rendered HTML, computes `sha256-...` for every inline `<script>` body,
+  and appends those sources to `script-src` in generated deploy artifacts. This
+  pins exactly the scripts your build produced; any new inline script from a
+  malicious `codeinjection_*` after the build would be blocked. Trade-off:
+  hashes change when inline content changes, so the header file is rebuilt too.
 
 See [`hosting.md`](./hosting.md) for the baseline CSP and tightening steps.
-Neither edge nonces nor precomputed hashes are bundled with Nectar today;
-both are operator-side wiring on top of the static output.
+Edge nonces and style hashes remain operator-side wiring on top of the static
+output.
 
 ### Content assets (`content/images/`)
 

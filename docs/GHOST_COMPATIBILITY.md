@@ -409,6 +409,12 @@ theme so the script is vendored locally or updated deliberately. Nectar's build
 pipeline may minify surrounding HTML, but it must preserve explicit `src` and
 `integrity` attributes emitted by the theme.
 
+SRI applies only to fetched subresources. Inline `<script>` blocks from
+`{{ghost_head}}`, theme layouts, or code injection are instead covered by CSP:
+when `[deploy.headers].security.content_security_policy` is configured, Nectar
+hashes the final inline script bodies and appends `sha256-...` sources to
+`script-src` in generated deploy artifacts.
+
 ## Things Ghost themes do that we explicitly do *not* handle
 
 - Members context (`@member.*`) — undefined; templates that read it get

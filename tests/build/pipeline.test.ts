@@ -433,10 +433,9 @@ feature_image_alt: "Cover"
       ),
     );
 
-    expect(body.SecurityHeadersConfig.ContentSecurityPolicy).toEqual({
-      ContentSecurityPolicy: "default-src 'self'",
-      Override: true,
-    });
+    const csp = body.SecurityHeadersConfig.ContentSecurityPolicy.ContentSecurityPolicy;
+    expect(body.SecurityHeadersConfig.ContentSecurityPolicy.Override).toBe(true);
+    expect(csp).toMatch(/^default-src 'self'; script-src 'self' 'sha256-/);
   });
 
   test('emits dist/.nectar/asset-manifest.json for fingerprinted theme assets', async () => {

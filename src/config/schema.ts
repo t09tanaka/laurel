@@ -900,7 +900,7 @@ export const configSchema = z
                   .nullable()
                   .default(null)
                   .describe(
-                    'Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup.',
+                    'Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. When set, Nectar scans rendered HTML and appends build-time `sha256-...` hash sources for inline `<script>` bodies to `script-src` so strict deploy artifacts can allow the exact scripts the build produced without `unsafe-inline`.',
                   ),
                 permissions_policy: z
                   .string()
