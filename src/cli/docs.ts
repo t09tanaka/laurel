@@ -134,14 +134,38 @@ export function renderCliReference(
     '  and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.',
     '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,',
     '  `NECTAR_LOG_FORMAT`.',
-    '- **Precedence:** CLI flag → env var → config file → built-in default.',
+    '- **Precedence:** CLI flag → env var → project `.nectarrc` → config file →',
+    '  built-in default.',
     '- **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,',
     '  `off`, and the empty string are false (case-insensitive). Anything else is',
     '  rejected as a usage error.',
     '- **String values:** used verbatim. An empty string is treated as unset so',
-    '  the next layer (config file or default) wins.',
+    '  the next lower-priority layer wins.',
     '- **Verbosity:** `NECTAR_VERBOSE` takes a non-negative integer (`0` = info,',
     '  `1` = debug, `2+` = trace), matching how `-V` / `-VV` stack on the CLI.',
+  );
+  lines.push('');
+  lines.push('## Project `.nectarrc` defaults');
+  lines.push('');
+  lines.push(
+    'A project can keep CLI flag defaults in `.nectarrc.json` (or `.nectarrc`) in',
+    'the process cwd. The file is JSON with a `global` object for top-level flags',
+    'and one object per command name. Only known flags are read; env vars and CLI',
+    'flags override these defaults.',
+  );
+  lines.push('');
+  lines.push('```json');
+  lines.push('{');
+  lines.push('  "global": { "verbose": 1 },');
+  lines.push('  "build": { "output": "dist-preview", "progress": false },');
+  lines.push('  "serve": { "port": 5000 }');
+  lines.push('}');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    '`nectar config path` prints both the resolved config file and whether a',
+    'project rc file was detected; `nectar config path --json` exposes',
+    '`config_path` and `rc_path`.',
   );
   lines.push('');
   lines.push(

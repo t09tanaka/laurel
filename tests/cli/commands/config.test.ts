@@ -79,19 +79,55 @@ describe('cli config', () => {
     try {
       const { stdout, exitCode } = await runCli(['config', 'path'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe(join(dir, 'nectar.toml'));
+      expect(stdout).toContain(`Config: ${join(dir, 'nectar.toml')}`);
+      expect(stdout).toContain('Project rc: not found');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('config path --json returns a config_path envelope', async () => {
+  test('config path reports project rc detection', async () => {
     const dir = await makeFixture();
     try {
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ build: { output: 'dist-docs' } }),
+      );
+      const { stdout, exitCode } = await runCli(['config', 'path'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain(`Config: ${join(dir, 'nectar.toml')}`);
+      expect(stdout).toContain(`Project rc: ${join(dir, '.nectarrc.json')}`);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config command reads json default from project rc below CLI args', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(join(dir, '.nectarrc.json'), JSON.stringify({ config: { json: true } }));
+      const { stdout, exitCode } = await runCli(['config', 'path'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { config_path: string | null; rc_path: string | null };
+      expect(parsed.config_path).toBe(join(dir, 'nectar.toml'));
+      expect(parsed.rc_path).toBe(join(dir, '.nectarrc.json'));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config path --json returns config_path and rc_path envelope', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ build: { output: 'dist-docs' } }),
+      );
       const { stdout, exitCode } = await runCli(['config', 'path', '--json'], dir);
       expect(exitCode).toBe(0);
-      const parsed = JSON.parse(stdout) as { config_path: string | null };
+      const parsed = JSON.parse(stdout) as { config_path: string | null; rc_path: string | null };
       expect(parsed.config_path).toBe(join(dir, 'nectar.toml'));
+      expect(parsed.rc_path).toBe(join(dir, '.nectarrc.json'));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -102,8 +138,9 @@ describe('cli config', () => {
     try {
       const { stdout, exitCode } = await runCli(['config', 'path', '--json'], dir);
       expect(exitCode).toBe(0);
-      const parsed = JSON.parse(stdout) as { config_path: string | null };
+      const parsed = JSON.parse(stdout) as { config_path: string | null; rc_path: string | null };
       expect(parsed.config_path).toBeNull();
+      expect(parsed.rc_path).toBeNull();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

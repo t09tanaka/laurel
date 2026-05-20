@@ -20,7 +20,7 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --config → NECTAR_NEW_CONFIG
 

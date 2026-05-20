@@ -872,7 +872,7 @@ export const CONFIG_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit the value as JSON. For `print`: equivalent to `--format json`. For `validate`: emit `{ ok, errors }`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".',
+        'Emit the value as JSON. For `print`: equivalent to `--format json`. For `validate`: emit `{ ok, errors }`. For `get`: pretty-printed JSON of the value at the dotted path. For `set`: a `{ "config_path": "..." }` envelope. For `path`: a `{ "config_path": "...", "rc_path": "..." }` envelope so CI consumers can branch on `null` for missing files.',
     },
     format: {
       type: 'string',
@@ -885,7 +885,7 @@ export const CONFIG_SPEC: CommandSpec = {
     {
       name: 'subcommand',
       description:
-        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)',
+        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the detected config path and project .nectarrc path/status)',
       required: true,
       variadic: true,
     },
@@ -894,7 +894,7 @@ export const CONFIG_SPEC: CommandSpec = {
     'nectar config print                          # resolved config as TOML',
     'nectar config print --format json            # resolved config as JSON',
     'nectar config validate                       # config-only validation',
-    'nectar config path                           # absolute path of the loaded toml',
+    'nectar config path                           # detected config and .nectarrc paths',
     'nectar config get site.url',
     'nectar config set site.title "My Site"',
     'nectar config set components.rss.enabled false',

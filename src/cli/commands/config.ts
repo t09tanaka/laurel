@@ -5,6 +5,7 @@ import TOML from '@iarna/toml';
 import { loadConfig } from '~/config/loader.ts';
 import { reportConfigValidationError, validateConfigOnly } from '../config-validation.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
+import { discoverRcPath } from '../rc.ts';
 import { reportError } from '../report.ts';
 import { CONFIG_SPEC } from '../specs.ts';
 
@@ -102,10 +103,17 @@ export async function runConfig(args: string[]): Promise<number> {
       return 2;
     }
     const resolved = resolveConfigPath(cwd, configPath);
+    const rcPath = discoverRcPath(cwd);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify({ config_path: resolved }, null, 2)}\n`);
-    } else if (resolved) {
-      process.stdout.write(`${resolved}\n`);
+      process.stdout.write(
+        `${JSON.stringify({ config_path: resolved, rc_path: rcPath }, null, 2)}\n`,
+      );
+    } else {
+      process.stdout.write(
+        [`Config: ${resolved ?? 'not found'}`, `Project rc: ${rcPath ?? 'not found'}`, ''].join(
+          '\n',
+        ),
+      );
     }
     return 0;
   }
@@ -206,7 +214,7 @@ function resolvePrintFormat(
 
 function renderResolvedConfig(config: unknown, format: ConfigPrintFormat): string {
   if (format === 'json') return `${JSON.stringify(config, null, 2)}\n`;
-  return TOML.stringify(config as Record<string, unknown>);
+  return TOML.stringify(config as Parameters<typeof TOML.stringify>[0]);
 }
 
 function resolveConfigPath(cwd: string, configPath: string | undefined): string | null {

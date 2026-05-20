@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   CliUsageError,
   type CommandSpec,
@@ -271,6 +274,39 @@ describe('parseCommand', () => {
     expect(result.values.cache).toBe(false);
     expect(result.values['copy-content-assets']).toBe(false);
     expect(result.values['emit-content-api']).toBe(false);
+  });
+
+  test('applies project .nectarrc defaults below env and CLI flags', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-parse-'));
+    try {
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ build: { output: 'rc-dist', strict: true } }),
+      );
+      expect(parseCommand(BUILD_SPEC, [], {}, dir).values.output).toBe('rc-dist');
+      expect(parseCommand(BUILD_SPEC, [], {}, dir).values.strict).toBe(true);
+      expect(
+        parseCommand(BUILD_SPEC, [], { NECTAR_BUILD_OUTPUT: 'env-dist' }, dir).values.output,
+      ).toBe('env-dist');
+      expect(parseCommand(BUILD_SPEC, ['--output', 'cli-dist'], {}, dir).values.output).toBe(
+        'cli-dist',
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('accepts negated boolean defaults in project .nectarrc', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-negated-'));
+    try {
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ build: { 'no-progress': true } }),
+      );
+      expect(parseCommand(BUILD_SPEC, [], {}, dir).values.progress).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test('rejects --no-* for non-boolean options', () => {

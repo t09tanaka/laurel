@@ -1,4 +1,5 @@
 import { CliUsageError, globalEnvVarName, parseBooleanEnv } from './parse.ts';
+import { globalRcDefaults, rcValue, readRcBoolean, readRcInteger, readRcString } from './rc.ts';
 
 export interface GlobalFlags {
   quiet: boolean;
@@ -26,7 +27,7 @@ const WARNINGS_AS_ERRORS_ENV = globalEnvVarName('warnings-as-errors');
 // Strips top-level verbosity / output-mode flags from argv so subcommand
 // parsers (which run node:util `parseArgs` in strict mode) don't choke on
 // them. Flags may appear anywhere before `--`; after `--`, tokens are passed
-// through untouched. CLI flags take priority over env-var fallbacks
+// through untouched. CLI flags take priority over env-var and .nectarrc fallbacks
 // (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_LOG_FORMAT / NECTAR_JSON /
 // NECTAR_NO_COLOR / NECTAR_DEBUG / NECTAR_WARNINGS_AS_ERRORS).
 // We also recognise the conventional `NO_COLOR` (any non-empty value disables
@@ -34,6 +35,7 @@ const WARNINGS_AS_ERRORS_ENV = globalEnvVarName('warnings-as-errors');
 export function extractGlobalFlags(
   argv: string[],
   env: Record<string, string | undefined> = {},
+  cwd: string = process.cwd(),
 ): ExtractResult {
   const rest: string[] = [];
   let quiet = false;
@@ -165,11 +167,74 @@ export function extractGlobalFlags(
   if (!warningsAsErrorsFromCli && warningsAsErrorsRaw !== undefined) {
     warningsAsErrors = parseBooleanEnv(warningsAsErrorsRaw, WARNINGS_AS_ERRORS_ENV);
   }
+  let rc: ReturnType<typeof globalRcDefaults>;
+  try {
+    rc = globalRcDefaults(cwd);
+  } catch (err) {
+    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+  }
+  if (rc !== undefined) {
+    if (!quietFromCli && quietRaw === undefined) {
+      quiet = readGlobalRcBoolean(rc, 'quiet') ?? quiet;
+    }
+    if (verboseCount === 0 && verboseRaw === undefined) {
+      verboseCount = readGlobalRcInteger(rc, 'verbose') ?? verboseCount;
+    }
+    if (!jsonFromCli && jsonRaw === undefined) {
+      const rcJson = readGlobalRcBoolean(rc, 'json');
+      if (rcJson !== undefined) {
+        json = rcJson;
+        if (json && !logFormatFromCli && logFormatRaw === undefined) logFormat = 'json';
+      }
+    }
+    if (!logFormatFromCli && logFormatRaw === undefined) {
+      const rcLogFormat = readGlobalRcString(rc, 'log-format');
+      if (rcLogFormat !== undefined)
+        logFormat = parseLogFormat(rcLogFormat, '.nectarrc global.log-format');
+    }
+    if (
+      !noColorFromCli &&
+      env[NO_COLOR_ENV_NECTAR] === undefined &&
+      (env.NO_COLOR === undefined || env.NO_COLOR === '')
+    ) {
+      noColor = readGlobalRcBoolean(rc, 'no-color') ?? noColor;
+    }
+    if (!debugFromCli && debugRaw === undefined) {
+      debug = readGlobalRcBoolean(rc, 'debug') ?? debug;
+    }
+    if (!warningsAsErrorsFromCli && warningsAsErrorsRaw === undefined) {
+      warningsAsErrors = readGlobalRcBoolean(rc, 'warnings-as-errors') ?? warningsAsErrors;
+    }
+  }
 
   return {
     flags: { quiet, verboseCount, json, logFormat, noColor, debug, warningsAsErrors },
     rest,
   };
+}
+
+function readGlobalRcBoolean(rc: Record<string, unknown>, key: string): boolean | undefined {
+  try {
+    return readRcBoolean(rcValue(rc, key), `.nectarrc global.${key}`);
+  } catch (err) {
+    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+function readGlobalRcInteger(rc: Record<string, unknown>, key: string): number | undefined {
+  try {
+    return readRcInteger(rcValue(rc, key), `.nectarrc global.${key}`);
+  } catch (err) {
+    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+function readGlobalRcString(rc: Record<string, unknown>, key: string): string | undefined {
+  try {
+    return readRcString(rcValue(rc, key), `.nectarrc global.${key}`);
+  } catch (err) {
+    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+  }
 }
 
 function parseLogFormat(raw: string, source: string): NonNullable<GlobalFlags['logFormat']> {

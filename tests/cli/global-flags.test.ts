@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { extractGlobalFlags } from '~/cli/global-flags.ts';
 
 describe('extractGlobalFlags', () => {
@@ -239,5 +242,27 @@ describe('extractGlobalFlags env var fallbacks', () => {
   test('NECTAR_WARNINGS_AS_ERRORS=true enables warnings-as-errors mode', () => {
     const { flags } = extractGlobalFlags(['build'], { NECTAR_WARNINGS_AS_ERRORS: 'true' });
     expect(flags.warningsAsErrors).toBe(true);
+  });
+
+  test('project .nectarrc supplies global defaults below env and CLI flags', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-global-'));
+    try {
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ global: { verbose: 2, json: true, 'log-format': 'pretty' } }),
+      );
+      const fromRc = extractGlobalFlags(['build'], {}, dir).flags;
+      expect(fromRc.verboseCount).toBe(2);
+      expect(fromRc.json).toBe(true);
+      expect(fromRc.logFormat).toBe('pretty');
+
+      const fromEnv = extractGlobalFlags(['build'], { NECTAR_VERBOSE: '1' }, dir).flags;
+      expect(fromEnv.verboseCount).toBe(1);
+
+      const fromCli = extractGlobalFlags(['-V', 'build'], { NECTAR_VERBOSE: '3' }, dir).flags;
+      expect(fromCli.verboseCount).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

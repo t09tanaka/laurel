@@ -1,4 +1,5 @@
 import { type ParseArgsConfig, parseArgs as nodeParseArgs } from 'node:util';
+import { coerceRcValue, commandRcDefaults, hasRcKey, rcValue } from './rc.ts';
 
 export interface OptionSpec {
   type: 'string' | 'boolean';
@@ -74,6 +75,7 @@ export function parseCommand(
   spec: CommandSpec,
   args: string[],
   env: Record<string, string | undefined> = {},
+  cwd: string = process.cwd(),
 ): ParsedCommand {
   const options: NonNullable<ParseArgsConfig['options']> = {};
   options.help = { type: HELP_OPTION.type, short: HELP_OPTION.short };
@@ -131,6 +133,7 @@ export function parseCommand(
   const values = result.values as Record<string, string | boolean | undefined>;
   applyNegativeAliases(values, result.tokens ?? [], negativeAliases);
   applyEnvFallbacks(spec, values, env);
+  applyRcFallbacks(spec, values, cwd);
   normalizeRepeatableStringValues(spec, values);
 
   return {
@@ -208,6 +211,45 @@ function applyEnvFallbacks(
       values[name] = parseBooleanEnv(envValue, envKey);
     } else if (envValue !== '') {
       values[name] = envValue;
+    }
+  }
+}
+
+function applyRcFallbacks(
+  spec: CommandSpec,
+  values: Record<string, string | boolean | undefined>,
+  cwd: string,
+): void {
+  let defaults: ReturnType<typeof commandRcDefaults>;
+  try {
+    defaults = commandRcDefaults(spec.name, cwd);
+  } catch (err) {
+    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+  }
+  if (defaults === undefined) return;
+  for (const [name, opt] of Object.entries(spec.options)) {
+    if (name === 'help') continue;
+    if (values[name] !== undefined) continue;
+    const source = `.nectarrc ${spec.name}.${name}`;
+    if (hasRcKey(defaults, name)) {
+      try {
+        values[name] = coerceRcValue(rcValue(defaults, name), opt, source);
+      } catch (err) {
+        throw new CliUsageError(err instanceof Error ? err.message : String(err));
+      }
+      continue;
+    }
+    if (!hasAutoNegativeAlias(name, opt, spec.options)) continue;
+    const negativeName = `no-${name}`;
+    if (!hasRcKey(defaults, negativeName)) continue;
+    try {
+      values[name] = !coerceRcValue(
+        rcValue(defaults, negativeName),
+        { ...opt, type: 'boolean' },
+        `.nectarrc ${spec.name}.${negativeName}`,
+      );
+    } catch (err) {
+      throw new CliUsageError(err instanceof Error ? err.message : String(err));
     }
   }
 }
@@ -290,7 +332,9 @@ export function formatCommandHelp(spec: CommandSpec): string {
   if (firstOption !== undefined) {
     lines.push('');
     lines.push('Environment variables:');
-    lines.push('  Every flag has an env var fallback (CLI flag > env var > config > default).');
+    lines.push(
+      '  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).',
+    );
     lines.push('  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).');
     lines.push(`  Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`);
     lines.push('');

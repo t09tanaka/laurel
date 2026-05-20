@@ -50,14 +50,34 @@ command line. Useful for `docker-compose`, CI, devcontainers, and `.env` files.
   and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.
   Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,
   `NECTAR_LOG_FORMAT`.
-- **Precedence:** CLI flag → env var → config file → built-in default.
+- **Precedence:** CLI flag → env var → project `.nectarrc` → config file →
+  built-in default.
 - **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,
   `off`, and the empty string are false (case-insensitive). Anything else is
   rejected as a usage error.
 - **String values:** used verbatim. An empty string is treated as unset so
-  the next layer (config file or default) wins.
+  the next lower-priority layer wins.
 - **Verbosity:** `NECTAR_VERBOSE` takes a non-negative integer (`0` = info,
   `1` = debug, `2+` = trace), matching how `-V` / `-VV` stack on the CLI.
+
+## Project `.nectarrc` defaults
+
+A project can keep CLI flag defaults in `.nectarrc.json` (or `.nectarrc`) in
+the process cwd. The file is JSON with a `global` object for top-level flags
+and one object per command name. Only known flags are read; env vars and CLI
+flags override these defaults.
+
+```json
+{
+  "global": { "verbose": 1 },
+  "build": { "output": "dist-preview", "progress": false },
+  "serve": { "port": 5000 }
+}
+```
+
+`nectar config path` prints both the resolved config file and whether a
+project rc file was detected; `nectar config path --json` exposes
+`config_path` and `rc_path`.
 
 Each command section below lists the env-var name for every flag in its
 `Env var` column.
@@ -515,14 +535,14 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
+| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the detected config path and project .nectarrc path/status) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `validate`: emit `{ ok, errors }`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `validate`: emit `{ ok, errors }`. For `get`: pretty-printed JSON of the value at the dotted path. For `set`: a `{ "config_path": "..." }` envelope. For `path`: a `{ "config_path": "...", "rc_path": "..." }` envelope so CI consumers can branch on `null` for missing files. |
 | `--format <json\|toml>` | string | `NECTAR_CONFIG_FORMAT` | For `print`, choose the resolved config output format: `toml` (default) or `json`. |
 
 Examples:
@@ -531,7 +551,7 @@ Examples:
 nectar config print                          # resolved config as TOML
 nectar config print --format json            # resolved config as JSON
 nectar config validate                       # config-only validation
-nectar config path                           # absolute path of the loaded toml
+nectar config path                           # detected config and .nectarrc paths
 nectar config get site.url
 nectar config set site.title "My Site"
 nectar config set components.rss.enabled false
