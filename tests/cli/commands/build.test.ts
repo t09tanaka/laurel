@@ -230,6 +230,30 @@ describe('nectar build --dry-run (#252)', () => {
     expect(payload.dryRun).toBe(true);
   });
 
+  test('--strict exits non-zero when rendered HTML has image alt warnings', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      [
+        '---',
+        'title: "Hello"',
+        'date: 2026-01-01T00:00:00Z',
+        '---',
+        '',
+        '<figure class="kg-card kg-product-card"><img src="/content/images/product.jpg" alt=""></figure>',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const result = await runCli(['build', '--dry-run', '--strict', '--no-progress'], dir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Image accessibility:');
+    expect(result.stderr).toContain('Strict mode: build emitted');
+  });
+
   test('--quiet suppresses build progress output', async () => {
     const dir = await makeDryRunFixture();
     cleanups.push(dir);

@@ -120,6 +120,26 @@ Body
     const summary = await build({ cwd });
 
     expect(summary.routeCount).toBeGreaterThan(0);
+    expect(summary.warningCount).toBe(2);
+  });
+
+  test('warns when rendered post HTML contains an image without alt text', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+<figure class="kg-card kg-image-card"><img src="/content/images/cover.jpg"></figure>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(summary.routeCount).toBeGreaterThan(0);
     expect(summary.warningCount).toBe(1);
   });
 

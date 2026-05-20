@@ -56,6 +56,7 @@ import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './githu
 import { collectContentApiHeaderRules } from './headers.ts';
 import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
+import { collectImageAltWarnings, formatImageAltWarning } from './image-alt-lint.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
 import {
   type ImageFormat,
@@ -867,6 +868,12 @@ async function runBuild({
           reused: result.reused,
         });
         htmlOutputs.push(result.htmlOutput);
+        for (const warning of collectImageAltWarnings(result.htmlOutput.html, {
+          outputPath: result.outputPath,
+          routeUrl: result.url,
+        })) {
+          logger.warn(formatImageAltWarning(warning));
+        }
         keepOutput(result.outputPath);
         if (result.reused) skippedCount += 1;
         else renderedCount += 1;
