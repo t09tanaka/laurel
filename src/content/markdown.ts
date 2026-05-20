@@ -6,6 +6,7 @@ import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
 import { codeToHtml } from 'shiki';
 import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
+import { NectarError } from '~/util/errors.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
@@ -34,6 +35,12 @@ export interface RenderMarkdownOptions {
   // When there is no feature_image, the first promoted in-body image is the
   // likely LCP candidate and should not inherit the below-the-fold lazy default.
   prioritizeFirstImage?: boolean;
+}
+
+export interface KoenigShortcodeDiagnostic {
+  shortcode: string;
+  expectedClose: string;
+  line: number;
 }
 
 const sanitizeOptions: IOptions = {
@@ -230,7 +237,17 @@ export async function renderMarkdown(
   body: string,
   options: RenderMarkdownOptions = {},
 ): Promise<RenderedMarkdown> {
-  const expanded = expandKoenigShortcodes(stripGhostUrlPlaceholder(body));
+  const stripped = stripGhostUrlPlaceholder(body);
+  const shortcodeDiagnostic = findMalformedKoenigShortcode(stripped);
+  if (shortcodeDiagnostic) {
+    throw new NectarError({
+      message: malformedKoenigShortcodeMessage(shortcodeDiagnostic),
+      line: shortcodeDiagnostic.line,
+      hint: 'Close the shortcode or remove the malformed card block.',
+      code: 'content',
+    });
+  }
+  const expanded = expandKoenigShortcodes(stripped);
   const raw = await marked.parse(expanded);
   const highlighted = await highlightCodeBlocks(raw);
   const promoted = promoteImagesToFigures(highlighted, {
@@ -591,6 +608,116 @@ const VIDEO_TRACK_SHORTCODE_RE =
 
 const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const NFT_SHORTCODE_RE = /\{\{<\s+nft((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
+const BLOCK_SHORTCODES = new Set([
+  'button',
+  'callout',
+  'gallery',
+  'gallery-row',
+  'toggle',
+  'video',
+]);
+const LIQUID_BLOCK_SHORTCODES = new Set(['callout', 'gallery', 'gallery-row', 'toggle', 'video']);
+const SHORTCODE_TOKEN_RE = /\{\{<([\s\S]*?)>\}\}|\{%([\s\S]*?)%\}/g;
+
+interface OpenShortcode {
+  name: string;
+  line: number;
+  syntax: 'hugo' | 'liquid';
+}
+
+export function findMalformedKoenigShortcode(
+  markdown: string,
+): KoenigShortcodeDiagnostic | undefined {
+  const stack: OpenShortcode[] = [];
+  const lineStarts = computeLineStarts(markdown);
+  SHORTCODE_TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null = SHORTCODE_TOKEN_RE.exec(markdown);
+  while (match !== null) {
+    const hugoToken = match[1];
+    const liquidToken = match[2];
+    const syntax: OpenShortcode['syntax'] = hugoToken !== undefined ? 'hugo' : 'liquid';
+    const token = (hugoToken ?? liquidToken ?? '').trim();
+    const line = lineForIndex(lineStarts, match.index);
+    const parsed = parseShortcodeToken(token, syntax);
+    if (parsed) {
+      if (parsed.kind === 'open') {
+        stack.push({ name: parsed.name, line, syntax });
+      } else {
+        const open = stack.pop();
+        if (!open || open.name !== parsed.name) {
+          return {
+            shortcode: parsed.name,
+            expectedClose: closeTokenFor({ name: parsed.name, line, syntax }),
+            line,
+          };
+        }
+      }
+    }
+    match = SHORTCODE_TOKEN_RE.exec(markdown);
+  }
+
+  const open = stack[stack.length - 1];
+  if (!open) return undefined;
+  return {
+    shortcode: open.name,
+    expectedClose: closeTokenFor(open),
+    line: open.line,
+  };
+}
+
+export function malformedKoenigShortcodeMessage(diagnostic: KoenigShortcodeDiagnostic): string {
+  return `Malformed Koenig shortcode "${diagnostic.shortcode}": missing closing shortcode ${JSON.stringify(diagnostic.expectedClose)}.`;
+}
+
+function parseShortcodeToken(
+  token: string,
+  syntax: OpenShortcode['syntax'],
+): { kind: 'open' | 'close'; name: string } | undefined {
+  if (!token) return undefined;
+  if (token.startsWith('/')) {
+    const name = firstShortcodeToken(token.slice(1));
+    if (!name || !isBlockShortcode(name, syntax)) return undefined;
+    return { kind: 'close', name };
+  }
+
+  const name = firstShortcodeToken(token);
+  if (!name || !isBlockShortcode(name, syntax)) return undefined;
+  if (syntax === 'hugo' && token.endsWith('/')) return undefined;
+  return { kind: 'open', name };
+}
+
+function firstShortcodeToken(token: string): string | undefined {
+  return token.match(/^[a-zA-Z][\w-]*/)?.[0];
+}
+
+function isBlockShortcode(name: string, syntax: OpenShortcode['syntax']): boolean {
+  return syntax === 'hugo' ? BLOCK_SHORTCODES.has(name) : LIQUID_BLOCK_SHORTCODES.has(name);
+}
+
+function closeTokenFor(open: OpenShortcode): string {
+  return open.syntax === 'hugo' ? `{{< /${open.name} >}}` : `{% /${open.name} %}`;
+}
+
+function computeLineStarts(input: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < input.length; i += 1) {
+    if (input.charCodeAt(i) === 10) starts.push(i + 1);
+  }
+  return starts;
+}
+
+function lineForIndex(lineStarts: readonly number[], index: number): number {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const start = lineStarts[mid] ?? 0;
+    if (start <= index) low = mid + 1;
+    else high = mid - 1;
+  }
+  return high + 1;
+}
 
 export function expandKoenigShortcodes(markdown: string): string {
   return markdown

@@ -379,6 +379,16 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html).toContain('<h4 class="kg-toggle-heading-text">Advanced options</h4>');
     expect(html).toContain('<strong>carefully</strong>');
   });
+
+  test('reports a clear line number for an unclosed toggle shortcode', async () => {
+    await expect(
+      renderMarkdown('Intro.\n\n{% toggle heading="Broken" %}\nHidden paragraph.'),
+    ).rejects.toMatchObject({
+      message: 'Malformed Koenig shortcode "toggle": missing closing shortcode "{% /toggle %}".',
+      line: 3,
+      code: 'content',
+    });
+  });
 });
 
 describe('renderMarkdown — callout shortcode expansion', () => {

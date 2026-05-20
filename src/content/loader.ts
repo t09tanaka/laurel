@@ -15,7 +15,7 @@ import {
   resolveTaxonomies,
 } from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
-import { NectarError, toNectarError } from '~/util/errors.ts';
+import { NectarError, formatNectarError, toNectarError } from '~/util/errors.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
@@ -29,7 +29,12 @@ import {
   parseFrontmatter,
 } from './frontmatter.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
-import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
+import {
+  findMalformedKoenigShortcode,
+  malformedKoenigShortcodeMessage,
+  sanitizeInlineCaptionHtml,
+  truncateByWords,
+} from './markdown.ts';
 import type {
   Author,
   ContentGraph,
@@ -862,7 +867,7 @@ async function loadMarkdownDirs<T>(
     dir: ContentDir,
     sourceStat: Stats,
     source: ContentSourceFingerprint,
-  ) => Promise<T>,
+  ) => Promise<T | undefined>,
   maxBytes: number,
 ): Promise<T[]> {
   const chunks = await Promise.all(
@@ -884,7 +889,7 @@ async function loadMarkdownDir<T>(
     raw: string,
     sourceStat: Stats,
     source: ContentSourceFingerprint,
-  ) => Promise<T>,
+  ) => Promise<T | undefined>,
   maxBytes: number,
 ): Promise<T[]> {
   if (!existsSync(dir)) return [];
@@ -898,7 +903,7 @@ async function loadMarkdownDir<T>(
     files.push(join(dir, rel));
   }
 
-  const results: T[] = new Array(files.length);
+  const results: T[] = [];
   for (let i = 0; i < files.length; i += MARKDOWN_LOAD_CONCURRENCY) {
     const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);
     const chunkResults = await Promise.all(
@@ -913,8 +918,8 @@ async function loadMarkdownDir<T>(
         }
       }),
     );
-    for (let j = 0; j < chunkResults.length; j += 1) {
-      results[i + j] = chunkResults[j] as T;
+    for (const result of chunkResults) {
+      if (result !== undefined) results.push(result);
     }
   }
   return results;
@@ -1083,12 +1088,22 @@ async function normalizePost(
   kind: 'post' | 'page' = 'post',
   pathLocale?: string,
   source?: ContentSourceFingerprint,
-): Promise<RawPost> {
+): Promise<RawPost | undefined> {
   const { data, body: rawBody } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
   const locale = config?.site.locale;
   const contentLocale = resolveContentLocale(data, filePath, pathLocale, locale ?? 'en');
   const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
+  if (
+    warnAndSkipMalformedKoenigShortcode({
+      body,
+      bodyStartLine: sourceBodyStartLine(raw, rawBody),
+      cwd,
+      filePath,
+    })
+  ) {
+    return undefined;
+  }
   const featureImage = asString(data.feature_image);
   const renderOptions = {
     unsafe: unsafeHtml,
@@ -1294,7 +1309,7 @@ async function normalizePage(
   transforms: readonly MarkdownTransformHook[],
   pathLocale?: string,
   source?: ContentSourceFingerprint,
-): Promise<RawPage> {
+): Promise<RawPage | undefined> {
   const base = await normalizePost(
     filePath,
     raw,
@@ -1308,6 +1323,7 @@ async function normalizePage(
     pathLocale,
     source,
   );
+  if (!base) return undefined;
   const { data } = parseFrontmatter(raw, { filePath });
   return {
     ...base,
@@ -1318,6 +1334,43 @@ async function normalizePage(
       filePath,
     ),
   };
+}
+
+function warnAndSkipMalformedKoenigShortcode(opts: {
+  body: string;
+  bodyStartLine: number;
+  cwd: string;
+  filePath: string;
+}): boolean {
+  try {
+    const diagnostic = findMalformedKoenigShortcode(opts.body);
+    if (!diagnostic) return false;
+    logger.warn(
+      formatNectarError(
+        new NectarError({
+          file: opts.filePath,
+          line: opts.bodyStartLine + diagnostic.line - 1,
+          message: malformedKoenigShortcodeMessage(diagnostic),
+          hint: 'Close the shortcode or remove the malformed card block. This entry was skipped so the rest of the site can continue building.',
+          code: 'content',
+        }),
+        { cwd: opts.cwd },
+      ),
+    );
+    return true;
+  } catch (err) {
+    throw toNectarError(err, { file: opts.filePath });
+  }
+}
+
+function sourceBodyStartLine(raw: string, body: string): number {
+  const index = raw.indexOf(body);
+  if (index <= 0) return 1;
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (raw.charCodeAt(i) === 10) line += 1;
+  }
+  return line;
 }
 
 // Ghost admins select a `custom-{slug}.hbs` per page from a dropdown. We accept

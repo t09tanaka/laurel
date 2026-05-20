@@ -77,6 +77,24 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+function captureStderr(): { readonly output: string; restore: () => void } {
+  let output = '';
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    output += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+    return true;
+  }) as typeof process.stderr.write;
+  return {
+    get output() {
+      return output;
+    },
+    restore: () => {
+      process.stderr.write = originalStderrWrite;
+    },
+  };
+}
+
 describe('build pipeline strict mode wiring', () => {
   test('reports zero warnings for a clean build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
@@ -103,6 +121,40 @@ Body
 
     expect(summary.routeCount).toBeGreaterThan(0);
     expect(summary.warningCount).toBe(1);
+  });
+
+  test('warns and skips a post with malformed Koenig shortcode while continuing the build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/broken-toggle.md'),
+      `---
+title: "Broken Toggle"
+date: 2026-01-02T00:00:00Z
+---
+
+Intro.
+
+{% toggle heading="Broken" %}
+This card is never closed.
+`,
+      'utf8',
+    );
+
+    const stderr = captureStderr();
+    let summary!: Awaited<ReturnType<typeof build>>;
+    try {
+      summary = await build({ cwd });
+    } finally {
+      stderr.restore();
+    }
+
+    expect(summary.warningCount).toBe(1);
+    expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'broken-toggle/index.html'))).toBe(false);
+    expect(stderr.output).toContain(
+      'content/posts/broken-toggle.md:8 - Malformed Koenig shortcode "toggle"',
+    );
+    expect(stderr.output).not.toContain('at expandKoenigShortcodes');
   });
 
   test('fails before static passthrough replaces generated deploy headers', async () => {
