@@ -587,6 +587,12 @@ export const configSchema = z
       ),
     deploy: z
       .object({
+        merge: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Merge hand-written deploy artifacts from the static passthrough directory with generated `_headers`, `_redirects`, and `vercel.json` instead of failing on conflicts. Text artifacts keep the hand-written rules first so first-match hosts preserve explicit user intent; `vercel.json` keeps hand-written scalar keys and prepends hand-written `headers` / `redirects` arrays. Leave disabled to fail loudly when static files would replace generated deploy metadata; `nectar build --force` remains the explicit overwrite escape hatch.',
+          ),
         github_pages: z
           .object({
             redirects: z
@@ -1179,7 +1185,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            "Client-side search component. Emits a flat `content/search.json` and/or runs Pagefind. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent and consumers must wire a client-side search library (lunr / Fuse / minisearch) themselves.",
+            "Client-side search component. Emits a flat `content/search.json` and/or runs Pagefind. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent. Nectar wires Ghost-style `[data-ghost-search]` buttons to a static modal for JSON search and to Pagefind UI for Pagefind search.",
           ),
         robots: z
           .object({

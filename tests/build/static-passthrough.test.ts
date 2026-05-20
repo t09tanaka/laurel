@@ -90,6 +90,112 @@ describe('copyStaticDir', () => {
     expect(readFileSync(join(outputDir, 'robots.txt'), 'utf8')).toBe('user override\n');
   });
 
+  test('fails when static passthrough would replace a generated deploy artifact', async () => {
+    const outputDir = await makeOutputDir();
+    const cwd = await makeCwd();
+    await writeFile(join(outputDir, '_headers'), 'generated headers\n', 'utf8');
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_headers'), 'hand-written headers\n', 'utf8');
+
+    await expect(
+      copyStaticDir({
+        cwd,
+        staticDir: 'static',
+        outputDir,
+        generatedConflict: { paths: ['_headers'] },
+      }),
+    ).rejects.toThrow(/static\/_headers.*generated deploy artifact/);
+    expect(readFileSync(join(outputDir, '_headers'), 'utf8')).toBe('generated headers\n');
+  });
+
+  test('allows --force-style static passthrough over generated deploy artifacts', async () => {
+    const outputDir = await makeOutputDir();
+    const cwd = await makeCwd();
+    await writeFile(join(outputDir, '_redirects'), 'generated redirects\n', 'utf8');
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_redirects'), 'hand-written redirects\n', 'utf8');
+
+    const copied = await copyStaticDir({
+      cwd,
+      staticDir: 'static',
+      outputDir,
+      generatedConflict: { paths: ['_redirects'], force: true },
+    });
+
+    expect(copied).toBe(1);
+    expect(readFileSync(join(outputDir, '_redirects'), 'utf8')).toBe('hand-written redirects\n');
+  });
+
+  test('merges hand-written deploy artifacts before generated ones when configured', async () => {
+    const outputDir = await makeOutputDir();
+    const cwd = await makeCwd();
+    await writeFile(join(outputDir, '_headers'), 'generated headers\n', 'utf8');
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_headers'), 'hand-written headers\n', 'utf8');
+
+    const copied = await copyStaticDir({
+      cwd,
+      staticDir: 'static',
+      outputDir,
+      generatedConflict: { paths: ['_headers'], merge: true },
+    });
+
+    expect(copied).toBe(1);
+    expect(readFileSync(join(outputDir, '_headers'), 'utf8')).toBe(
+      'hand-written headers\n\ngenerated headers\n',
+    );
+  });
+
+  test('merges hand-written vercel.json with generated headers and redirects', async () => {
+    const outputDir = await makeOutputDir();
+    const cwd = await makeCwd();
+    await writeFile(
+      join(outputDir, 'vercel.json'),
+      JSON.stringify(
+        {
+          cleanUrls: true,
+          trailingSlash: true,
+          headers: [{ source: '/generated', headers: [{ key: 'X-Generated', value: '1' }] }],
+          redirects: [{ source: '/old', destination: '/new', statusCode: 301 }],
+        },
+        null,
+        2,
+      ),
+    );
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(
+      join(cwd, 'static', 'vercel.json'),
+      JSON.stringify(
+        {
+          trailingSlash: false,
+          headers: [{ source: '/manual', headers: [{ key: 'X-Manual', value: '1' }] }],
+          redirects: [{ source: '/manual-old', destination: '/manual-new', statusCode: 302 }],
+        },
+        null,
+        2,
+      ),
+    );
+
+    const copied = await copyStaticDir({
+      cwd,
+      staticDir: 'static',
+      outputDir,
+      generatedConflict: { paths: ['vercel.json'], merge: true },
+    });
+
+    const parsed = JSON.parse(readFileSync(join(outputDir, 'vercel.json'), 'utf8')) as {
+      cleanUrls?: boolean;
+      trailingSlash?: boolean;
+      headers?: Array<{ source: string }>;
+      redirects?: Array<{ source: string }>;
+    };
+    expect(copied).toBe(1);
+    expect(parsed.cleanUrls).toBe(true);
+    expect(parsed.trailingSlash).toBe(false);
+    expect(parsed.headers?.map((rule) => rule.source)).toEqual(['/manual', '/generated']);
+    expect(parsed.redirects?.map((rule) => rule.source)).toEqual(['/manual-old', '/old']);
+  });
+
   test('copies dotfiles dropped into the static directory', async () => {
     const outputDir = await makeOutputDir();
     const cwd = await makeCwd();

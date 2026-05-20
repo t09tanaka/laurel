@@ -97,6 +97,80 @@ Body
     expect(summary.warningCount).toBe(1);
   });
 
+  test('fails before static passthrough replaces generated deploy headers', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[components.content_api]',
+        'enabled = false',
+        '',
+        '[deploy.cloudflare_pages]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_headers'), '/*\n  X-Manual: yes\n', 'utf8');
+
+    await expect(build({ cwd })).rejects.toThrow(/static\/_headers.*generated deploy artifact/);
+  });
+
+  test('merges static deploy headers when deploy.merge is enabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[components.content_api]',
+        'enabled = false',
+        '',
+        '[deploy]',
+        'merge = true',
+        '',
+        '[deploy.cloudflare_pages]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_headers'), '/manual/*\n  X-Manual: yes\n', 'utf8');
+
+    const summary = await build({ cwd });
+    const body = readFileSync(join(summary.outputDir, '_headers'), 'utf8');
+
+    expect(body.indexOf('/manual/*')).toBeLessThan(body.indexOf('/assets/*'));
+    expect(body).toContain('Cache-Control: public, max-age=31536000, immutable');
+  });
+
+  test('lets build force replace generated deploy headers with static passthrough', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[components.content_api]',
+        'enabled = false',
+        '',
+        '[deploy.cloudflare_pages]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'static'), { recursive: true });
+    await writeFile(join(cwd, 'static', '_headers'), '/manual/*\n  X-Manual: yes\n', 'utf8');
+
+    const summary = await build({ cwd, force: true });
+
+    expect(readFileSync(join(summary.outputDir, '_headers'), 'utf8')).toBe(
+      '/manual/*\n  X-Manual: yes\n',
+    );
+  });
+
   test('reports asset copy substeps through build progress events', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

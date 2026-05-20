@@ -389,6 +389,7 @@ export async function build({
     concurrency,
     dryRun: isDryRun,
     includeDrafts: includeDrafts === true,
+    force: force === true,
     clean: clean !== false,
     emitContentApi,
     progress,
@@ -407,6 +408,7 @@ async function runBuild({
   concurrency,
   dryRun,
   includeDrafts,
+  force,
   clean,
   emitContentApi,
   progress,
@@ -422,6 +424,7 @@ async function runBuild({
   concurrency: number | undefined;
   dryRun: boolean;
   includeDrafts: boolean;
+  force: boolean;
   clean: boolean;
   emitContentApi: boolean | undefined;
   progress: BuildProgressReporter | undefined;
@@ -1290,15 +1293,24 @@ async function runBuild({
     siteAddress: config.deploy.caddy.site_address,
   });
 
-  // Static passthrough runs as the final emit step so a file the user drops
-  // under `<cwd>/<content.static_dir>/` wins over both theme assets and
-  // generated platform files (`_headers`, `_redirects`, `robots.txt`, …).
+  // Static passthrough runs as the final emit step so ordinary files the user
+  // drops under `<cwd>/<content.static_dir>/` win over generated output. Deploy
+  // metadata files are protected below so `_headers`, `_redirects`, and
+  // `vercel.json` cannot silently replace generated platform artifacts.
+  const generatedDeployArtifactPaths = ['_headers', '_redirects', 'vercel.json'].filter((path) =>
+    plannedOutputPaths.has(path),
+  );
   await timed(profiler, 'static_passthrough', () =>
     copyStaticDir({
       cwd,
       staticDir: config.content.static_dir,
       outputDir,
       onOutputPath: keepOutput,
+      generatedConflict: {
+        paths: generatedDeployArtifactPaths,
+        force,
+        merge: config.deploy.merge,
+      },
     }),
   );
   keepOutput('.nectar/asset-manifest.json');

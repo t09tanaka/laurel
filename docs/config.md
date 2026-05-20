@@ -244,6 +244,9 @@ Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tie
 
 Deploy-target-specific hints that influence files emitted alongside the site.
 
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.merge` | `boolean` | no | `false` | Merge hand-written deploy artifacts from the static passthrough directory with generated `_headers`, `_redirects`, and `vercel.json` instead of failing on conflicts. Text artifacts keep the hand-written rules first so first-match hosts preserve explicit user intent; `vercel.json` keeps hand-written scalar keys and prepends hand-written `headers` / `redirects` arrays. Leave disabled to fail loudly when static files would replace generated deploy metadata; `nectar build --force` remains the explicit overwrite escape hatch. |
 
 ## `deploy.github_pages`
 
