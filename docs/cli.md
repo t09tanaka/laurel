@@ -47,21 +47,22 @@ Each command section below lists the env-var name for every flag in its
 
 ## Config discovery and `--config`
 
-Commands with `--config <path>` accept one TOML file. Without it, Nectar
+Commands with `--config <path>` accept one or more TOML files. Without it, Nectar
 checks only the current working directory, first `nectar.toml`, then
-`nectar.config.toml`; the first existing file wins. If neither exists, the
-config schema defaults are used.
+`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,
+Nectar then appends `nectar.<env>.toml` when that file exists. If no config
+file exists, the config schema defaults are used.
 
 Passing `--config`, or setting the matching env var such as
-`NECTAR_BUILD_CONFIG`, disables that discovery and loads exactly the
-specified file. Relative paths are resolved from the process cwd. Repeating
-a string flag is not treated as a list; the last `--config` value is the one
-used.
+`NECTAR_BUILD_CONFIG`, disables discovery and `NECTAR_ENV` file selection.
+Repeat `--config` or comma-separate paths to load multiple files; later files
+deep-merge over earlier files, with arrays and scalar values replaced.
+Relative paths are resolved from the process cwd.
 
 The programmatic build API mirrors the loader behaviour through
 `build({ cwd, configPath })`, but it does not parse CLI flags or
-`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass a single `configPath`
-yourself if you want explicit-file mode.
+`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass `configPath` as one path,
+a comma-separated list, or an ordered array if you want explicit-file mode.
 
 ## Commands
 
@@ -131,7 +132,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_BUILD_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_BUILD_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-o, --output <dir>` | string | `NECTAR_BUILD_OUTPUT` | Override build.output_dir from the config (relative path inside the project root) |
 | `--base-path <path>` | string | `NECTAR_BUILD_BASE_PATH` | Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages) |
 | `--base-url <url>` | string | `NECTAR_BUILD_BASE_URL` | Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host |
@@ -181,7 +182,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_NEW_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_NEW_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--force` | boolean | `NECTAR_NEW_FORCE` | Overwrite the destination file if it already exists |
 | `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug) |
 | `--draft` | boolean | `NECTAR_NEW_DRAFT` | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
@@ -221,7 +222,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_OPEN_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_OPEN_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--kind <posts\|pages>` | string | `NECTAR_OPEN_KIND` | Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error |
 | `-j, --json` | boolean | `NECTAR_OPEN_JSON` | Emit the resolved file path (and slug/kind) as JSON on stdout instead of spawning $EDITOR. Useful for piping into other tooling |
 
@@ -247,7 +248,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_DEV_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_DEV_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-p, --port <n>` | string | `NECTAR_DEV_PORT` | Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests) |
 | `--host <host>` | string | `NECTAR_DEV_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 | `-j, --json` | boolean | `NECTAR_DEV_JSON` | Switch logger output (status / rebuild events) to one JSON object per line for CI / log forwarders. Accepted globally; flag here just makes it visible in `--help` |
@@ -305,7 +306,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_CHECK_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_CHECK_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--strict` | boolean | `NECTAR_CHECK_STRICT` | Exit with non-zero status if any warnings were emitted during the check |
 | `--check-links` | boolean | `NECTAR_CHECK_CHECK_LINKS` | Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check |
 | `--check-external` | boolean | `NECTAR_CHECK_CHECK_EXTERNAL` | Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s |
@@ -337,7 +338,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_DOCTOR_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_DOCTOR_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-j, --json` | boolean | `NECTAR_DOCTOR_JSON` | Emit results as JSON (for CI consumption) |
 | `--no-network` | boolean | `NECTAR_DOCTOR_NO_NETWORK` | Skip the network reachability check |
 
@@ -363,7 +364,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_CLEAN_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_CLEAN_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-y, --yes` | boolean | `NECTAR_CLEAN_YES` | Skip the confirmation prompt and delete immediately (non-interactive use) |
 | `--dry-run` | boolean | `NECTAR_CLEAN_DRY_RUN` | Print the paths that would be removed without actually deleting them. Implies non-interactive. |
 | `--keep <path[,path...]>` | string | `NECTAR_CLEAN_KEEP` | Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries |
@@ -428,7 +429,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
 
 Examples:
@@ -488,7 +489,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_CONTENT_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_CONTENT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
 | `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published; `list` only) |
 | `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have the given tag slug (`list` only) |
@@ -519,7 +520,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_INFO_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_INFO_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-j, --json` | boolean | `NECTAR_INFO_JSON` | Emit the report as JSON for CI consumption |
 
 Examples:
@@ -544,7 +545,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_LINT_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_LINT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-j, --json` | boolean | `NECTAR_LINT_JSON` | Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption |
 | `--strict` | boolean | `NECTAR_LINT_STRICT` | Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero) |
 | `--max-title-length <n>` | string | `NECTAR_LINT_MAX_TITLE_LENGTH` | Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb) |
@@ -578,7 +579,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_TAGS_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_TAGS_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--orphaned` | boolean | `NECTAR_TAGS_ORPHANED` | Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only) |
 | `--unused` | boolean | `NECTAR_TAGS_UNUSED` | Alias for --orphaned (`list` only) |
 | `-j, --json` | boolean | `NECTAR_TAGS_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
@@ -613,7 +614,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_THEME_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_THEME_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--from <theme-name>` | string | `NECTAR_THEME_FROM` | `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold |
 | `-o, --output <path>` | string | `NECTAR_THEME_OUTPUT` | `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory) |
 | `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
@@ -689,7 +690,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_DEPLOY_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_DEPLOY_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-b, --build` | boolean | `NECTAR_DEPLOY_BUILD` | Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step |
 | `--dry-run` | boolean | `NECTAR_DEPLOY_DRY_RUN` | Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed |
 | `--project-name <name>` | string | `NECTAR_DEPLOY_PROJECT_NAME` | cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config |
@@ -734,7 +735,7 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `-c, --config <path>` | string | `NECTAR_EXPORT_CONFIG` | Path to a config file; disables discovery when set |
+| `-c, --config <path>` | string | `NECTAR_EXPORT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |

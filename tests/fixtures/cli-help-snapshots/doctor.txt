@@ -4,7 +4,7 @@ Usage:
   nectar doctor [--config <path>] [--json] [--no-network]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -j, --json          Emit results as JSON (for CI consumption)
   --no-network        Skip the network reachability check
   -h, --help          Show help for this command

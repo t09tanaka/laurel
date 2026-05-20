@@ -58,6 +58,100 @@ url = "/"
     });
   });
 
+  test('deep-merges explicit config paths in order', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'base.toml'),
+        `[site]
+title = "Base"
+description = "Base description"
+
+[build]
+posts_per_page = 5
+
+[theme.custom]
+feed_layout = "Grid"
+navigation_layout = "Logo on the left"
+`,
+        'utf8',
+      );
+      await writeFile(
+        join(cwd, 'production.toml'),
+        `[site]
+title = "Production"
+
+[theme.custom]
+feed_layout = "List"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd, configPath: ['base.toml', 'production.toml'] });
+      expect(config.site.title).toBe('Production');
+      expect(config.site.description).toBe('Base description');
+      expect(config.build.posts_per_page).toBe(5);
+      expect(config.theme.custom.feed_layout).toBe('List');
+      expect(config.theme.custom.navigation_layout).toBe('Logo on the left');
+    });
+  });
+
+  test('accepts comma-separated explicit config paths', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'base.toml'), `[site]\ntitle = "Base"\n`, 'utf8');
+      await writeFile(
+        join(cwd, 'override.toml'),
+        `[site]\ndescription = "From override"\n`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd, configPath: 'base.toml, override.toml' });
+      expect(config.site.title).toBe('Base');
+      expect(config.site.description).toBe('From override');
+    });
+  });
+
+  test('NECTAR_ENV appends nectar.<env>.toml after the discovered base config', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Base"
+description = "Base description"
+`,
+        'utf8',
+      );
+      await writeFile(
+        join(cwd, 'nectar.production.toml'),
+        `[site]
+title = "Production"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd, env: { NECTAR_ENV: 'production' } });
+      expect(config.site.title).toBe('Production');
+      expect(config.site.description).toBe('Base description');
+    });
+  });
+
+  test('explicit config paths disable NECTAR_ENV config discovery', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'base.toml'), `[site]\ntitle = "Explicit"\n`, 'utf8');
+      await writeFile(
+        join(cwd, 'nectar.production.toml'),
+        `[site]\ntitle = "Production"\n`,
+        'utf8',
+      );
+
+      const config = await loadConfig({
+        cwd,
+        configPath: 'base.toml',
+        env: { NECTAR_ENV: 'production' },
+      });
+      expect(config.site.title).toBe('Explicit');
+    });
+  });
+
   test('parses post-build hook command from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

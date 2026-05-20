@@ -4,7 +4,7 @@ Usage:
   nectar lint [--config <path>] [--json] [--strict] [--max-title-length <n>]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -j, --json          Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption
   --strict            Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero)
   --max-title-length <n>  Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb)

@@ -13,15 +13,16 @@ falls back to the listed default.
 
 When a caller does not provide an explicit config path, Nectar looks only in
 the current working directory. It checks `nectar.toml` first, then
-`nectar.config.toml`; the first existing file wins. If neither file exists,
-the schema defaults shown below are used.
+`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,
+Nectar then appends `nectar.<env>.toml` when that file exists. If no config
+file exists, the schema defaults shown below are used.
 
 Passing `--config <path>` on the CLI, setting the command-specific config
 environment variable such as `NECTAR_BUILD_CONFIG`, or passing
-`configPath` to the build API disables discovery and loads exactly that one
-file. Relative config paths are resolved from the command or API `cwd`.
-Nectar does not merge multiple config files, and repeated string flags use
-Node `parseArgs` semantics: the last `--config` value wins.
+`configPath` to the build API disables discovery and `NECTAR_ENV` file
+selection. Repeat `--config` or comma-separate paths to load multiple files;
+later files deep-merge over earlier files, with arrays and scalar values
+replaced. Relative config paths are resolved from the command or API `cwd`.
 
 The value precedence for config-backed behaviour is: CLI flag, then
 command-specific env var, then config file, then schema default. Separately,
@@ -619,3 +620,22 @@ Inject a synthetic `@member` object into every render so themes that branch on `
 | `components.preview.member.paid` | `boolean` | no | `false` | When true the preview member is treated as paid. Drives `{{@member.paid}}` and the `{{#unless @member}}` branch in Source / Casper headers, footers, and locked-card CTAs. |
 | `components.preview.member.name` | `string` | no | — | Optional display name surfaced as `{{@member.name}}` (Source theme falls back to "Account" in the menu otherwise). |
 | `components.preview.member.email` | `string` | no | — | Optional email surfaced as `{{@member.email}}` (rare in themes). |
+| `components.preview.member.default_payment_card_last4` | `string` | no | — | Optional card suffix surfaced as `{{@member.default_payment_card_last4}}` for account templates such as Krabi that preview billing details. |
+
+## `components.preview.member.subscriptions[]`
+
+Optional Ghost-style subscription preview rows surfaced as `{{@member.subscriptions}}`. This exists only for build-time account-page previews; static output still has no authenticated viewer unless preview.member is configured.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.preview.member.subscriptions[].cancel_at_period_end` | `boolean` | no | — | Optional Ghost subscription cancellation flag surfaced as `{{cancel_at_period_end}}` inside `{{#foreach @member.subscriptions}}`. |
+| `components.preview.member.subscriptions[].current_period_end` | `string` | no | — | Optional billing period end surfaced as `{{current_period_end}}` inside `{{#foreach @member.subscriptions}}`. |
+
+## `components.preview.member.subscriptions[].plan`
+
+Optional Ghost plan preview object. Missing plan fields remain safely empty in templates.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.preview.member.subscriptions[].plan.currency_symbol` | `string` | no | — | Optional plan currency symbol surfaced as `{{plan.currency_symbol}}` for account templates. |
+| `components.preview.member.subscriptions[].plan.interval` | `string` | no | — | Optional plan interval surfaced as `{{plan.interval}}` for account templates. |

@@ -87,7 +87,8 @@ export function parseCommand(
       }
       usedShorts.set(short, name);
     }
-    options[name] = short ? { type: opt.type, short } : { type: opt.type };
+    const multiple = name === 'config' && opt.type === 'string' ? true : undefined;
+    options[name] = short ? { type: opt.type, short, multiple } : { type: opt.type, multiple };
     if (opt.type === 'boolean' && !name.startsWith('no-')) {
       const negativeName = `no-${name}`;
       if (!(negativeName in spec.options)) {
@@ -123,12 +124,21 @@ export function parseCommand(
   const values = result.values as Record<string, string | boolean | undefined>;
   applyNegativeAliases(values, result.tokens ?? [], negativeAliases);
   applyEnvFallbacks(spec, values, env);
+  normalizeConfigValue(values);
 
   return {
     values,
     positionals,
     helpRequested,
   };
+}
+
+function normalizeConfigValue(
+  values: Record<string, string | boolean | string[] | undefined>,
+): void {
+  const value = values.config;
+  if (!Array.isArray(value)) return;
+  values.config = value.join(',');
 }
 
 function firstPositionalBeforeTerminator(tokens: ParseArgToken[]): string | undefined {

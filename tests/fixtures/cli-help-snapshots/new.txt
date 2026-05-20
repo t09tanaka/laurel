@@ -8,7 +8,7 @@ Arguments:
   title               Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --force             Overwrite the destination file if it already exists
   --slug <slug>       Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug)
   --draft             Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only)

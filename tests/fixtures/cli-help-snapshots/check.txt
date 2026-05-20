@@ -4,7 +4,7 @@ Usage:
   nectar check [--config <path>] [--strict] [--check-links] [--check-external] [--check-frontmatter] [--check-templates] [--json]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --strict            Exit with non-zero status if any warnings were emitted during the check
   --check-links       Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check
   --check-external    Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s

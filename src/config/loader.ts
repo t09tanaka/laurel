@@ -11,7 +11,7 @@ const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml'];
 
 export interface LoadConfigOptions {
   cwd: string;
-  configPath?: string | undefined;
+  configPath?: string | readonly string[] | undefined;
   // When provided, takes precedence over `process.env` for `NECTAR_*`
   // overrides. Tests pass a hand-rolled record so they don't have to mutate
   // the real env and risk leaking state between cases. Production callers
@@ -24,24 +24,31 @@ export async function loadConfig({
   configPath,
   env,
 }: LoadConfigOptions): Promise<NectarConfig> {
-  const resolved = configPath ? resolveConfigPath(cwd, configPath) : await findConfig(cwd);
-  const configDir = resolved ? dirname(resolved) : cwd;
+  const configEnv = env ?? process.env;
+  const resolved = configPath
+    ? resolveConfigPaths(cwd, configPath)
+    : await findConfigLayers(cwd, configEnv);
+  const lastConfigPath = resolved[resolved.length - 1];
+  const configDir = lastConfigPath ? dirname(lastConfigPath) : cwd;
   let parsed: unknown = {};
-  if (resolved) {
-    const raw = await readFile(resolved, 'utf8');
+  for (const file of resolved) {
+    const raw = await readFile(file, 'utf8');
+    let layer: unknown;
     try {
-      parsed = TOML.parse(raw);
+      layer = TOML.parse(raw);
     } catch (err) {
-      throw wrapTomlError(err, resolved);
+      throw wrapTomlError(err, file);
     }
+    layer = resolveParsedProjectPaths(layer, cwd, dirname(file));
+    parsed = deepMerge(parsed, layer);
   }
 
-  const withEnv = applyEnvOverrides(parsed, env ?? process.env);
+  const withEnv = applyEnvOverrides(parsed, configEnv);
   let config: NectarConfig;
   try {
     config = configSchema.parse(withEnv);
   } catch (err) {
-    throw wrapZodError(err, resolved ?? join(cwd, 'nectar.toml'));
+    throw wrapZodError(err, resolved[resolved.length - 1] ?? join(cwd, 'nectar.toml'));
   }
   config = applyNoindexHeaderForNonProduction(config);
   // Anchor relative content/theme paths to the config file's directory
@@ -69,14 +76,27 @@ export async function findProjectRoot({
   configPath,
 }: {
   cwd: string;
-  configPath?: string | undefined;
+  configPath?: string | readonly string[] | undefined;
 }): Promise<string> {
-  const resolved = configPath ? resolveConfigPath(cwd, configPath) : await findConfig(cwd);
-  return resolved ? dirname(resolved) : cwd;
+  const resolved = configPath ? resolveConfigPaths(cwd, configPath) : await findConfigLayers(cwd);
+  const last = resolved[resolved.length - 1];
+  return last ? dirname(last) : cwd;
 }
 
 function resolveConfigPath(cwd: string, configPath: string): string {
   return isAbsolute(configPath) ? configPath : join(cwd, configPath);
+}
+
+function resolveConfigPaths(cwd: string, configPath: string | readonly string[]): string[] {
+  const values = typeof configPath === 'string' ? splitConfigPathList(configPath) : configPath;
+  return values.map((path) => resolveConfigPath(cwd, path));
+}
+
+function splitConfigPathList(configPath: string): string[] {
+  return configPath
+    .split(',')
+    .map((path) => path.trim())
+    .filter((path) => path.length > 0);
 }
 
 async function findConfig(cwd: string): Promise<string | undefined> {
@@ -86,6 +106,35 @@ async function findConfig(cwd: string): Promise<string | undefined> {
     if (await file.exists()) return candidate;
   }
   return undefined;
+}
+
+async function findConfigLayers(
+  cwd: string,
+  env: Record<string, string | undefined> = process.env,
+): Promise<string[]> {
+  const layers: string[] = [];
+  const base = await findConfig(cwd);
+  if (base) layers.push(base);
+  const environment = normalizeConfigEnvironment(env.NECTAR_ENV);
+  if (environment !== undefined) {
+    const candidate = join(cwd, `nectar.${environment}.toml`);
+    const file = Bun.file(candidate);
+    if (await file.exists()) layers.push(candidate);
+  }
+  return layers;
+}
+
+function normalizeConfigEnvironment(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    throw new NectarError({
+      message: `invalid NECTAR_ENV: ${JSON.stringify(value)} (expected letters, numbers, "_" or "-")`,
+      code: 'config',
+    });
+  }
+  return trimmed;
 }
 
 // Path-bearing config keys that should be resolved against the config file's
@@ -108,6 +157,45 @@ const PROJECT_RELATIVE_PATHS: readonly (readonly string[])[] = [
   ['components', 'images', 'cache_dir'],
   ['components', 'og_images', 'template'],
 ];
+
+function resolveParsedProjectPaths(parsed: unknown, cwd: string, configDir: string): unknown {
+  if (resolve(configDir) === resolve(cwd)) return parsed;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return parsed;
+  const cloned = deepClone(parsed) as Record<string, unknown>;
+  for (const path of PROJECT_RELATIVE_PATHS) {
+    const parent = walkParent(cloned, path);
+    if (!parent) continue;
+    const key = path[path.length - 1];
+    if (!key) continue;
+    const current = parent[key];
+    if (typeof current !== 'string' || current.length === 0 || isAbsolute(current)) continue;
+    parent[key] = resolve(configDir, current);
+  }
+  return cloned;
+}
+
+function deepMerge(base: unknown, override: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(override)) return deepClone(override);
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    merged[key] = key in merged ? deepMerge(merged[key], value) : deepClone(value);
+  }
+  return merged;
+}
+
+function deepClone(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => deepClone(item));
+  if (isPlainObject(value)) {
+    const cloned: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) cloned[key] = deepClone(child);
+    return cloned;
+  }
+  return value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 function resolveProjectPaths(config: NectarConfig, configDir: string): NectarConfig {
   // Cast through `unknown` so we can write into the strict schema-typed

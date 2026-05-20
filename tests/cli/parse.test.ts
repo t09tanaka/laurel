@@ -160,9 +160,9 @@ describe('parseCommand', () => {
     expect(result.positionals).toEqual(['post', '--not-a-flag', 'My Title']);
   });
 
-  test('repeated string flag keeps the last value (node:util semantics)', () => {
+  test('repeated --config values are preserved in order for layered loading', () => {
     const result = parseCommand(SAMPLE_SPEC, ['--config', 'a.toml', '--config', 'b.toml']);
-    expect(result.values.config).toBe('b.toml');
+    expect(result.values.config).toBe('a.toml,b.toml');
   });
 
   test('repeated boolean flag stays true', () => {

@@ -4,7 +4,7 @@ Usage:
   nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--cache] [--progress] [--copy-content-assets] [--watch] [--emit-content-api] [--json]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -o, --output <dir>  Override build.output_dir from the config (relative path inside the project root)
   --base-path <path>  Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages)
   --base-url <url>    Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host

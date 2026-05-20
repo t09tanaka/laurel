@@ -4,7 +4,7 @@ Usage:
   nectar info [--config <path>] [--json]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -j, --json          Emit the report as JSON for CI consumption
   -h, --help          Show help for this command
 

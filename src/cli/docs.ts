@@ -114,25 +114,26 @@ export function renderCliReference(
   lines.push('## Config discovery and `--config`');
   lines.push('');
   lines.push(
-    'Commands with `--config <path>` accept one TOML file. Without it, Nectar',
+    'Commands with `--config <path>` accept one or more TOML files. Without it, Nectar',
     'checks only the current working directory, first `nectar.toml`, then',
-    '`nectar.config.toml`; the first existing file wins. If neither exists, the',
-    'config schema defaults are used.',
+    '`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,',
+    'Nectar then appends `nectar.<env>.toml` when that file exists. If no config',
+    'file exists, the config schema defaults are used.',
   );
   lines.push('');
   lines.push(
     'Passing `--config`, or setting the matching env var such as',
-    '`NECTAR_BUILD_CONFIG`, disables that discovery and loads exactly the',
-    'specified file. Relative paths are resolved from the process cwd. Repeating',
-    'a string flag is not treated as a list; the last `--config` value is the one',
-    'used.',
+    '`NECTAR_BUILD_CONFIG`, disables discovery and `NECTAR_ENV` file selection.',
+    'Repeat `--config` or comma-separate paths to load multiple files; later files',
+    'deep-merge over earlier files, with arrays and scalar values replaced.',
+    'Relative paths are resolved from the process cwd.',
   );
   lines.push('');
   lines.push(
     'The programmatic build API mirrors the loader behaviour through',
     '`build({ cwd, configPath })`, but it does not parse CLI flags or',
-    '`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass a single `configPath`',
-    'yourself if you want explicit-file mode.',
+    '`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass `configPath` as one path,',
+    'a comma-separated list, or an ordered array if you want explicit-file mode.',
   );
   lines.push('');
 

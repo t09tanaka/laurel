@@ -4,7 +4,7 @@ Usage:
   nectar dev [--config <path>] [--port <n>] [--host <host>] [--json]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -p, --port <n>      Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests)
   --host <host>       Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
   -j, --json          Switch logger output (status / rebuild events) to one JSON object per line for CI / log forwarders. Accepted globally; flag here just makes it visible in `--help`

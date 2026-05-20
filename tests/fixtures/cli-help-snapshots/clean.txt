@@ -4,7 +4,7 @@ Usage:
   nectar clean [--config <path>] [--yes] [--dry-run] [--keep <path[,path...]>] [--json]
 
 Options:
-  -c, --config <path> Path to a config file; disables discovery when set
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -y, --yes           Skip the confirmation prompt and delete immediately (non-interactive use)
   --dry-run           Print the paths that would be removed without actually deleting them. Implies non-interactive.
   --keep <path[,path...]>  Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries

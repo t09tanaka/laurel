@@ -6,7 +6,7 @@ export const BUILD_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     output: {
@@ -111,7 +111,7 @@ export const NEW_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     force: {
@@ -182,7 +182,7 @@ export const DEV_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     port: {
@@ -263,7 +263,7 @@ export const CHECK_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     strict: {
@@ -456,7 +456,7 @@ export const DOCTOR_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     json: {
@@ -482,7 +482,7 @@ export const CLEAN_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     yes: {
@@ -545,7 +545,7 @@ export const CONTENT_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     kind: {
@@ -602,7 +602,7 @@ export const INFO_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     json: {
@@ -624,7 +624,7 @@ export const TAGS_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     orphaned: {
@@ -669,7 +669,7 @@ export const CONFIG_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     json: {
@@ -719,7 +719,7 @@ export const LINT_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     json: {
@@ -828,7 +828,7 @@ export const THEME_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     from: {
@@ -879,7 +879,7 @@ export const OPEN_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     kind: {
@@ -915,7 +915,7 @@ export const DEPLOY_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     build: {
@@ -1012,7 +1012,7 @@ export const EXPORT_SPEC: CommandSpec = {
   options: {
     config: {
       type: 'string',
-      description: 'Path to a config file; disables discovery when set',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
     output: {

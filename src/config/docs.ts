@@ -44,17 +44,18 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(
     'When a caller does not provide an explicit config path, Nectar looks only in',
     'the current working directory. It checks `nectar.toml` first, then',
-    '`nectar.config.toml`; the first existing file wins. If neither file exists,',
-    'the schema defaults shown below are used.',
+    '`nectar.config.toml`; the first existing file wins. If `NECTAR_ENV` is set,',
+    'Nectar then appends `nectar.<env>.toml` when that file exists. If no config',
+    'file exists, the schema defaults shown below are used.',
   );
   lines.push('');
   lines.push(
     'Passing `--config <path>` on the CLI, setting the command-specific config',
     'environment variable such as `NECTAR_BUILD_CONFIG`, or passing',
-    '`configPath` to the build API disables discovery and loads exactly that one',
-    'file. Relative config paths are resolved from the command or API `cwd`.',
-    'Nectar does not merge multiple config files, and repeated string flags use',
-    'Node `parseArgs` semantics: the last `--config` value wins.',
+    '`configPath` to the build API disables discovery and `NECTAR_ENV` file',
+    'selection. Repeat `--config` or comma-separate paths to load multiple files;',
+    'later files deep-merge over earlier files, with arrays and scalar values',
+    'replaced. Relative config paths are resolved from the command or API `cwd`.',
   );
   lines.push('');
   lines.push(
