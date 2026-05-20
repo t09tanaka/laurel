@@ -195,6 +195,11 @@ export type BuildProgressEvent =
 
 export type BuildProgressReporter = (event: BuildProgressEvent) => void;
 
+// Route HTML can be tens of KB per page. Keep the render/write live set
+// bounded independently from the route count while still amortising per-batch
+// scheduling and directory work.
+export const ROUTE_RENDER_BATCH_SIZE = 512;
+
 export interface DryRunRouteSummary {
   url: string;
   outputPath: string;
@@ -589,8 +594,6 @@ async function runBuild({
     logger.warn(finding.message);
   }
   const portalUrls = resolvePortalUrls(config.components.portal);
-  const htmlOutputs: HtmlOutput[] = [];
-  let renderedBytes = 0;
 
   const globalHash = computeGlobalHash({ config, site: content.site, theme });
   const nextRoutes: Record<string, ManifestEntry> = {};
@@ -616,166 +619,197 @@ async function runBuild({
     reused: boolean;
   };
   let completedRoutes = 0;
-  const renderResults = await timed(profiler, 'render', () =>
-    withProgressPhase(
+  const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
+    renderLimit(async (): Promise<RenderResult> => {
+      const routeHash = computeRouteHash({ globalHash, route, theme });
+      const previous = previousRoutes[route.url];
+      const reusableEntry =
+        previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+          ? previous
+          : undefined;
+
+      if (reusableEntry) {
+        const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
+        if (await previousFile.exists()) {
+          const stop = profiler?.startRoute({
+            url: route.url,
+            outputPath: route.outputPath,
+            template: route.template,
+            kind: route.kind,
+          });
+          const html = await previousFile.text();
+          const bytes = Buffer.byteLength(html, 'utf8');
+          stop?.({ bytes, reused: true });
+          completedRoutes += 1;
+          notifyProgress(progress, {
+            type: 'route-rendered',
+            completedRoutes,
+            totalRoutes: routes.length,
+            route: route.url,
+            reused: true,
+          });
+          return {
+            htmlOutput: { outputPath: route.outputPath, html, reused: true },
+            routeHash,
+            outputPath: route.outputPath,
+            url: route.url,
+            bytes,
+            reused: true,
+          };
+        }
+      }
+
+      const stop = profiler?.startRoute({
+        url: route.url,
+        outputPath: route.outputPath,
+        template: route.template,
+        kind: route.kind,
+      });
+      try {
+        // Per-route plugin hook. Sequential per route; routes still render in
+        // parallel because each route's hook chain awaits independently.
+        for (const plugin of pluginSet.plugins) {
+          if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
+        }
+        let html = collapseDegenerateSrcset(
+          rewritePortalLinks({
+            html: rewriteRecommendationsButton({
+              html: stripUnusedLightbox(
+                transformSubscribeForms(
+                  injectSkipLink(engine.render(route), config.build.csp_nonce),
+                  subscribeConfig,
+                ),
+              ),
+              basePath: config.build.base_path,
+              enabled: recommendationsEnabled,
+            }),
+            urls: portalUrls,
+          }),
+        );
+        // Pagefind integration: inject the runtime shim script on any page
+        // that has a `[data-ghost-search]` trigger, and tag non-public post
+        // HTML with `<meta name="pagefind-skip">` so Pagefind drops those
+        // pages from the public index. Both are no-ops unless the search
+        // component is enabled with a pagefind-emitting engine.
+        if (
+          config.components.search.enabled &&
+          (config.components.search.engine === 'pagefind' ||
+            config.components.search.engine === 'json+pagefind')
+        ) {
+          html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
+          const post = route.kind === 'post' ? route.data.post : undefined;
+          if (post && post.visibility !== 'public') {
+            html = injectPagefindSkipMeta(html);
+          }
+        }
+        // Resource-hint post-processing. Runs after every theme-side or
+        // injected script/link has landed so we see the final document shape,
+        // but before plugin afterRender so plugins can still react to the
+        // rewritten head.
+        if (config.performance.dedupe_script_preload) {
+          html = removeRedundantScriptPreload(html);
+        }
+        if (config.performance.preload_stylesheet) {
+          html = injectStylesheetPreload(html);
+        }
+        html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+        // afterRender chain: each plugin sees the previous transform's output
+        // (including the Pagefind shim above when enabled). Returning anything
+        // other than a string is treated as a pass-through so a plugin that
+        // just wants to observe the HTML can omit the return.
+        for (const plugin of pluginSet.plugins) {
+          if (!plugin.afterRender) continue;
+          const next = await plugin.afterRender(pluginCtx, route, html);
+          if (typeof next === 'string') html = next;
+        }
+        const bytes = Buffer.byteLength(html, 'utf8');
+        stop?.({ bytes, reused: false });
+        completedRoutes += 1;
+        notifyProgress(progress, {
+          type: 'route-rendered',
+          completedRoutes,
+          totalRoutes: routes.length,
+          route: route.url,
+          reused: false,
+        });
+        return {
+          htmlOutput: { outputPath: route.outputPath, html },
+          routeHash,
+          outputPath: route.outputPath,
+          url: route.url,
+          bytes,
+          reused: false,
+        };
+      } catch (err) {
+        stop?.();
+        throw wrapRenderError(err, route.url, route.template);
+      }
+    });
+
+  const dryRunRoutes: DryRunRouteSummary[] = [];
+  let minifyInputBytes = 0;
+  let minifyOutputBytes = 0;
+  let minifiedAnyBatch = false;
+  for (let start = 0; start < routes.length; start += ROUTE_RENDER_BATCH_SIZE) {
+    const batchRoutes = routes.slice(start, start + ROUTE_RENDER_BATCH_SIZE);
+    const renderResults = await withProgressPhase(
       progress,
       'render',
       'Rendering routes',
-      () =>
-        Promise.all(
-          routes.map((route) =>
-            renderLimit(async (): Promise<RenderResult> => {
-              const routeHash = computeRouteHash({ globalHash, route, theme });
-              const previous = previousRoutes[route.url];
-              const reusableEntry =
-                previous && previous.hash === routeHash && previous.outputPath === route.outputPath
-                  ? previous
-                  : undefined;
-
-              if (reusableEntry) {
-                const previousFile = Bun.file(join(finalOutputDir, reusableEntry.outputPath));
-                if (await previousFile.exists()) {
-                  const stop = profiler?.startRoute({
-                    url: route.url,
-                    outputPath: route.outputPath,
-                    template: route.template,
-                    kind: route.kind,
-                  });
-                  const html = await previousFile.text();
-                  const bytes = Buffer.byteLength(html, 'utf8');
-                  stop?.({ bytes, reused: true });
-                  completedRoutes += 1;
-                  notifyProgress(progress, {
-                    type: 'route-rendered',
-                    completedRoutes,
-                    totalRoutes: routes.length,
-                    route: route.url,
-                    reused: true,
-                  });
-                  return {
-                    htmlOutput: { outputPath: route.outputPath, html, reused: true },
-                    routeHash,
-                    outputPath: route.outputPath,
-                    url: route.url,
-                    bytes,
-                    reused: true,
-                  };
-                }
-              }
-
-              const stop = profiler?.startRoute({
-                url: route.url,
-                outputPath: route.outputPath,
-                template: route.template,
-                kind: route.kind,
-              });
-              try {
-                // Per-route plugin hook. Sequential per route; routes still render
-                // in parallel because each route's hook chain awaits independently.
-                for (const plugin of pluginSet.plugins) {
-                  if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
-                }
-                let html = collapseDegenerateSrcset(
-                  rewritePortalLinks({
-                    html: rewriteRecommendationsButton({
-                      html: stripUnusedLightbox(
-                        transformSubscribeForms(
-                          injectSkipLink(engine.render(route), config.build.csp_nonce),
-                          subscribeConfig,
-                        ),
-                      ),
-                      basePath: config.build.base_path,
-                      enabled: recommendationsEnabled,
-                    }),
-                    urls: portalUrls,
-                  }),
-                );
-                // Pagefind integration: inject the runtime shim script on any page
-                // that has a `[data-ghost-search]` trigger, and tag non-public
-                // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
-                // those pages from the public index. Both are no-ops unless the
-                // search component is enabled with a pagefind-emitting engine.
-                if (
-                  config.components.search.enabled &&
-                  (config.components.search.engine === 'pagefind' ||
-                    config.components.search.engine === 'json+pagefind')
-                ) {
-                  html = injectSearchShimScript(
-                    html,
-                    config.build.base_path,
-                    config.build.csp_nonce,
-                  );
-                  const post = route.kind === 'post' ? route.data.post : undefined;
-                  if (post && post.visibility !== 'public') {
-                    html = injectPagefindSkipMeta(html);
-                  }
-                }
-                // Resource-hint post-processing. Runs after every theme-side or
-                // injected script/link has landed so we see the final document
-                // shape, but before plugin afterRender so plugins can still react
-                // to the rewritten head. dedupe_script_preload deletes the
-                // `<link rel="preload" as="script">` that the Source theme ships
-                // alongside its `<script>` (#528); preload_stylesheet adds a sibling
-                // preload to bare `<link rel="stylesheet">` (#527, opt-in).
-                if (config.performance.dedupe_script_preload) {
-                  html = removeRedundantScriptPreload(html);
-                }
-                if (config.performance.preload_stylesheet) {
-                  html = injectStylesheetPreload(html);
-                }
-                html = injectSubresourceIntegrity(
-                  html,
-                  theme.assets.values(),
-                  config.build.base_path,
-                );
-                // afterRender chain: each plugin sees the previous transform's
-                // output (including the Pagefind shim above when enabled). Returning
-                // anything other than a string is treated as a pass-through so a
-                // plugin that just wants to observe the HTML can omit the return.
-                for (const plugin of pluginSet.plugins) {
-                  if (!plugin.afterRender) continue;
-                  const next = await plugin.afterRender(pluginCtx, route, html);
-                  if (typeof next === 'string') html = next;
-                }
-                const bytes = Buffer.byteLength(html, 'utf8');
-                stop?.({ bytes, reused: false });
-                completedRoutes += 1;
-                notifyProgress(progress, {
-                  type: 'route-rendered',
-                  completedRoutes,
-                  totalRoutes: routes.length,
-                  route: route.url,
-                  reused: false,
-                });
-                return {
-                  htmlOutput: { outputPath: route.outputPath, html },
-                  routeHash,
-                  outputPath: route.outputPath,
-                  url: route.url,
-                  bytes,
-                  reused: false,
-                };
-              } catch (err) {
-                stop?.();
-                throw wrapRenderError(err, route.url, route.template);
-              }
-            }),
-          ),
-        ),
+      () => timed(profiler, 'render', () => Promise.all(batchRoutes.map(renderOneRoute))),
       { totalRoutes: routes.length },
-    ),
-  );
+    );
 
-  // Aggregate in route order so htmlOutputs (consumed by minify_html and
-  // writeHtmlBatch) and the manifest stay deterministic regardless of which
-  // chunk finished first.
-  for (const result of renderResults) {
-    nextRoutes[result.url] = { hash: result.routeHash, outputPath: result.outputPath };
-    htmlOutputs.push(result.htmlOutput);
-    keepOutput(result.outputPath);
-    renderedBytes += result.bytes;
-    if (result.reused) skippedCount += 1;
-    else renderedCount += 1;
+    const htmlOutputs: HtmlOutput[] = [];
+    for (let i = 0; i < renderResults.length; i++) {
+      const result = renderResults[i];
+      const route = batchRoutes[i];
+      if (result === undefined || route === undefined) {
+        throw new Error('render batch entry missing');
+      }
+      nextRoutes[result.url] = { hash: result.routeHash, outputPath: result.outputPath };
+      htmlOutputs.push(result.htmlOutput);
+      keepOutput(result.outputPath);
+      if (result.reused) skippedCount += 1;
+      else renderedCount += 1;
+      if (dryRun) {
+        dryRunRoutes.push({
+          url: route.url,
+          outputPath: route.outputPath,
+          template: route.template,
+          kind: route.kind,
+          bytes: result.bytes,
+          reused: result.reused,
+        });
+      }
+    }
+
+    if (dryRun) continue;
+
+    if (config.build.minify_html) {
+      // Reused outputs already went through minification on the build that
+      // emitted them; re-minifying would just pay the cost again and risk
+      // skewing the stats line below.
+      const toMinify = htmlOutputs.filter((o) => !o.reused);
+      const stats = await timed(
+        profiler,
+        'minify_html',
+        () => minifyHtmlOutputs(toMinify),
+        (r) => r.outputBytes,
+      );
+      minifyInputBytes += stats.inputBytes;
+      minifyOutputBytes += stats.outputBytes;
+      minifiedAnyBatch ||= stats.minified;
+    }
+
+    await withProgressPhase(progress, 'html', 'Writing HTML', () =>
+      timed(
+        profiler,
+        'write_html',
+        () => writeHtmlBatch(outputDir, htmlOutputs),
+        () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
+      ),
+    );
   }
 
   if (dryRun) {
@@ -796,48 +830,17 @@ async function runBuild({
       renderedCount,
       skippedCount,
       dryRun: true,
-      routes: routes.map((route, i) => {
-        const result = renderResults[i];
-        return {
-          url: route.url,
-          outputPath: route.outputPath,
-          template: route.template,
-          kind: route.kind,
-          bytes: result?.bytes ?? 0,
-          reused: result?.reused ?? false,
-        };
-      }),
+      routes: dryRunRoutes,
     };
   }
 
-  if (config.build.minify_html) {
-    // Reused outputs already went through minification on the build that
-    // emitted them; re-minifying would just pay the cost again and risk
-    // skewing the stats line below.
-    const toMinify = htmlOutputs.filter((o) => !o.reused);
-    const stats = await timed(
-      profiler,
-      'minify_html',
-      () => minifyHtmlOutputs(toMinify),
-      (r) => r.outputBytes,
+  if (minifiedAnyBatch && minifyInputBytes > 0) {
+    const saved = minifyInputBytes - minifyOutputBytes;
+    const pct = ((saved / minifyInputBytes) * 100).toFixed(1);
+    logger.info(
+      `HTML minified: ${minifyInputBytes} -> ${minifyOutputBytes} bytes (${pct}% smaller across ${renderedCount} files)`,
     );
-    if (stats.minified && stats.inputBytes > 0) {
-      const saved = stats.inputBytes - stats.outputBytes;
-      const pct = ((saved / stats.inputBytes) * 100).toFixed(1);
-      logger.info(
-        `HTML minified: ${stats.inputBytes} -> ${stats.outputBytes} bytes (${pct}% smaller across ${toMinify.length} files)`,
-      );
-    }
   }
-
-  await withProgressPhase(progress, 'html', 'Writing HTML', () =>
-    timed(
-      profiler,
-      'write_html',
-      () => writeHtmlBatch(outputDir, htmlOutputs),
-      () => htmlOutputs.reduce((sum, out) => sum + Buffer.byteLength(out.html, 'utf8'), 0),
-    ),
-  );
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
     keepOutput('404.html');

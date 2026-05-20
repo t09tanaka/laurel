@@ -4,7 +4,7 @@ import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
-import type { BuildProgressEvent } from '~/build/pipeline.ts';
+import { type BuildProgressEvent, ROUTE_RENDER_BATCH_SIZE } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
@@ -60,6 +60,12 @@ name: Casper
   await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
 
   return dir;
+}
+
+async function prependTomlTopLevel(cwd: string, snippet: string): Promise<void> {
+  const tomlPath = join(cwd, 'nectar.toml');
+  const existing = readFileSync(tomlPath, 'utf8');
+  await writeFile(tomlPath, `${snippet}\n${existing}`, 'utf8');
 }
 
 describe('build pipeline strict mode wiring', () => {
@@ -1214,6 +1220,90 @@ describe('build pipeline --concurrency cap (#251)', () => {
   });
 });
 
+describe('build pipeline chunked route rendering (#536)', () => {
+  test('renders and writes >1k routes in bounded batches while preserving stats and keep set', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const routeCount = ROUTE_RENDER_BATCH_SIZE * 2 + 5;
+    await mkdir(join(cwd, 'dist'), { recursive: true });
+    await writeFile(join(cwd, 'dist/stale.html'), 'stale', 'utf8');
+    await writeFile(
+      join(cwd, 'chunked-routes-plugin.mjs'),
+      `
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const state = globalThis.__nectar_chunked_route_test_state;
+const routeCount = ${routeCount};
+const batchSize = ${ROUTE_RENDER_BATCH_SIZE};
+
+export default {
+  name: 'chunked-routes',
+  routes() {
+    return Array.from({ length: routeCount }, (_, i) => ({
+      kind: 'custom',
+      url: \`/bulk-\${i}/\`,
+      outputPath: \`bulk-\${i}/index.html\`,
+      template: 'home',
+      data: { posts: [] },
+      meta: {
+        title: \`Bulk \${i}\`,
+        description: '',
+        canonical: \`https://strict.test/bulk-\${i}/\`,
+        image: undefined,
+      },
+    }));
+  },
+  afterRender(ctx, route, html) {
+    if (route.url === \`/bulk-\${batchSize}/\`) {
+      state.observedSecondBatch = true;
+      state.firstBatchFileAlreadyWritten = existsSync(join(ctx.outputDir, 'bulk-0/index.html'));
+    }
+    return html;
+  },
+};
+`,
+      'utf8',
+    );
+    await prependTomlTopLevel(cwd, 'plugins = ["./chunked-routes-plugin.mjs"]');
+    const state = {
+      observedSecondBatch: false,
+      firstBatchFileAlreadyWritten: false,
+    };
+    (
+      globalThis as unknown as {
+        __nectar_chunked_route_test_state: typeof state;
+      }
+    ).__nectar_chunked_route_test_state = state;
+
+    const summary = await build({ cwd, profile: true, concurrency: 4 });
+
+    expect(summary.routeCount).toBeGreaterThan(1000);
+    expect(state.observedSecondBatch).toBe(true);
+    expect(state.firstBatchFileAlreadyWritten).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'stale.html'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, `bulk-${routeCount - 1}/index.html`))).toBe(true);
+
+    const parsed = JSON.parse(
+      readFileSync(join(summary.outputDir, '.nectar-build-stats.json'), 'utf8'),
+    ) as {
+      routeCount: number;
+      routes: Array<{ url: string; outputPath: string; bytes: number; reused: boolean }>;
+    };
+    expect(parsed.routeCount).toBe(summary.routeCount);
+    expect(parsed.routes.length).toBe(summary.routeCount);
+    expect(parsed.routes).toContainEqual(
+      expect.objectContaining({
+        url: `/bulk-${routeCount - 1}/`,
+        outputPath: `bulk-${routeCount - 1}/index.html`,
+        reused: false,
+      }),
+    );
+    for (const route of parsed.routes) {
+      expect(route.bytes).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('build pipeline --dry-run (#252)', () => {
   test('plans routes and renders without writing dist/ or any sibling staging dir', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
@@ -1248,6 +1338,52 @@ describe('build pipeline --dry-run (#252)', () => {
     expect(post).toBeDefined();
     expect(post?.kind).toBe('post');
     expect(post?.bytes).toBeGreaterThan(0);
+  });
+
+  test('summary.routes remains complete across multiple render batches', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const routeCount = ROUTE_RENDER_BATCH_SIZE + 7;
+    await writeFile(
+      join(cwd, 'dry-run-routes-plugin.mjs'),
+      `
+const routeCount = ${routeCount};
+
+export default {
+  name: 'dry-run-routes',
+  routes() {
+    return Array.from({ length: routeCount }, (_, i) => ({
+      kind: 'custom',
+      url: \`/dry-bulk-\${i}/\`,
+      outputPath: \`dry-bulk-\${i}/index.html\`,
+      template: 'home',
+      data: { posts: [] },
+      meta: {
+        title: \`Dry Bulk \${i}\`,
+        description: '',
+        canonical: \`https://strict.test/dry-bulk-\${i}/\`,
+        image: undefined,
+      },
+    }));
+  },
+};
+`,
+      'utf8',
+    );
+    await prependTomlTopLevel(cwd, 'plugins = ["./dry-run-routes-plugin.mjs"]');
+
+    const summary = await build({ cwd, dryRun: true, concurrency: 3 });
+
+    expect(summary.routes?.length).toBe(summary.routeCount);
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({
+        url: `/dry-bulk-${routeCount - 1}/`,
+        outputPath: `dry-bulk-${routeCount - 1}/index.html`,
+        kind: 'custom',
+        reused: false,
+      }),
+    );
+    expect(summary.routes?.every((route) => route.bytes > 0)).toBe(true);
+    expect(existsSync(resolve(cwd, 'dist'))).toBe(false);
   });
 
   test('does not overwrite an existing dist/ from a prior real build', async () => {
