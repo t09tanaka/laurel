@@ -5,11 +5,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   type ServeSimulation,
+  browserOpenCommand,
   collectServeSimulationHeaders,
   findServeSimulationRedirect,
+  formatServeUrl,
   inferServeContentType,
   injectLiveReloadScript,
   isIgnoredChange,
+  openBrowserUrl,
   parseServeHeadersArtifact,
   parseServeRedirectsArtifact,
   parseServeSimulationTarget,
@@ -109,28 +112,28 @@ describe('cli serve — host binding', () => {
   });
 
   test('default binding is localhost — log line reports it explicitly', async () => {
-    const { stderr, exitCode } = await runCli(['serve', '--port', '52001', '--no-watch'], dir);
+    const { stdout, exitCode } = await runCli(['serve', '--port', '52001', '--no-watch'], dir);
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('bound to localhost');
-    expect(stderr).not.toContain('bound to 0.0.0.0');
+    expect(stdout).toContain('bound to localhost');
+    expect(stdout).not.toContain('bound to 0.0.0.0');
   });
 
   test('--host 0.0.0.0 opts in to LAN exposure and is reflected in the log line', async () => {
-    const { stderr, exitCode } = await runCli(
+    const { stdout, exitCode } = await runCli(
       ['serve', '--port', '52002', '--host', '0.0.0.0', '--no-watch'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('bound to 0.0.0.0');
+    expect(stdout).toContain('bound to 0.0.0.0');
   });
 
   test('--host 127.0.0.1 is honored verbatim in the log line', async () => {
-    const { stderr, exitCode } = await runCli(
+    const { stdout, exitCode } = await runCli(
       ['serve', '--port', '52003', '--host', '127.0.0.1', '--no-watch'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('bound to 127.0.0.1');
+    expect(stdout).toContain('bound to 127.0.0.1');
   });
 
   test('rejects empty --host with exit code 2', async () => {
@@ -199,17 +202,17 @@ describe('cli serve — watch mode', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
+      const reader = proc.stdout.getReader();
       const decoder = new TextDecoder();
-      let stderr = '';
+      let stdout = '';
       const deadline = Date.now() + 5000;
       while (Date.now() < deadline) {
         const { value, done } = await reader.read();
         if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Watch mode enabled')) break;
+        stdout += decoder.decode(value, { stream: true });
+        if (stdout.includes('Watch mode enabled')) break;
       }
-      expect(stderr).toContain('Watch mode enabled');
+      expect(stdout).toContain('Watch mode enabled');
       expect(proc.killed).toBe(false);
       reader.releaseLock();
     } finally {
@@ -219,9 +222,46 @@ describe('cli serve — watch mode', () => {
   });
 
   test('serve --no-watch returns immediately without engaging watchers', async () => {
-    const { stderr, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
+    const { stdout, exitCode } = await runCli(['serve', '--port', '52011', '--no-watch'], dir);
     expect(exitCode).toBe(0);
-    expect(stderr).not.toContain('Watch mode enabled');
+    expect(stdout).not.toContain('Watch mode enabled');
+  });
+});
+
+describe('cli serve — --open', () => {
+  test('serve --help advertises the browser opener flag', async () => {
+    const { stdout, exitCode } = await runCli(['serve', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--open');
+    expect(stdout).toContain('default browser');
+  });
+
+  test('formats the bound URL before opening it', () => {
+    expect(formatServeUrl('localhost', 4321, '/')).toBe('http://localhost:4321/');
+    expect(formatServeUrl('localhost', 4321, '/blog/')).toBe('http://localhost:4321/blog/');
+  });
+
+  test('maps supported platforms to their browser opener commands', () => {
+    const url = 'http://localhost:4321/';
+    expect(browserOpenCommand(url, 'darwin')).toEqual(['open', url]);
+    expect(browserOpenCommand(url, 'linux')).toEqual(['xdg-open', url]);
+    expect(browserOpenCommand(url, 'win32')).toEqual(['cmd', '/c', 'start', '', url]);
+    expect(browserOpenCommand(url, 'freebsd')).toBeNull();
+  });
+
+  test('uses an injected opener so tests do not launch a real browser', () => {
+    const calls: string[][] = [];
+    const opened = openBrowserUrl('http://localhost:4321/', (command) => calls.push(command));
+    expect(opened).toBe(
+      process.platform === 'darwin' || process.platform === 'linux' || process.platform === 'win32',
+    );
+    if (opened) {
+      expect(calls).toHaveLength(1);
+      const [command] = calls;
+      expect(command?.at(-1)).toBe('http://localhost:4321/');
+    } else {
+      expect(calls).toEqual([]);
+    }
   });
 });
 
@@ -475,11 +515,11 @@ describe('cli serve — auto-build when dist/ is missing', () => {
   });
 
   test('serve --no-watch runs an initial build instead of erroring out', async () => {
-    const { stderr, exitCode } = await runCli(['serve', '--port', '52020', '--no-watch'], dir);
+    const { stdout, exitCode } = await runCli(['serve', '--port', '52020', '--no-watch'], dir);
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('running an initial build');
-    expect(stderr).toContain('Initial build complete');
-    expect(stderr).not.toContain('No build output found');
+    expect(stdout).toContain('running an initial build');
+    expect(stdout).toContain('Initial build complete');
+    expect(stdout).not.toContain('No build output found');
   });
 });
 
@@ -568,9 +608,9 @@ describe('cli serve — base_path in startup log', () => {
   test('subpath base_path appears in the announced URL', async () => {
     const dir = await makeFixtureWithBasePath('/blog/');
     try {
-      const { stderr, exitCode } = await runCli(['serve', '--port', '52030', '--no-watch'], dir);
+      const { stdout, exitCode } = await runCli(['serve', '--port', '52030', '--no-watch'], dir);
       expect(exitCode).toBe(0);
-      expect(stderr).toContain('http://localhost:52030/blog/');
+      expect(stdout).toContain('http://localhost:52030/blog/');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -579,10 +619,10 @@ describe('cli serve — base_path in startup log', () => {
   test('root base_path keeps the trailing slash', async () => {
     const dir = await makeFixtureWithBasePath('/');
     try {
-      const { stderr, exitCode } = await runCli(['serve', '--port', '52031', '--no-watch'], dir);
+      const { stdout, exitCode } = await runCli(['serve', '--port', '52031', '--no-watch'], dir);
       expect(exitCode).toBe(0);
-      expect(stderr).toContain('http://localhost:52031/');
-      expect(stderr).not.toContain('http://localhost:52031/blog');
+      expect(stdout).toContain('http://localhost:52031/');
+      expect(stdout).not.toContain('http://localhost:52031/blog');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -631,13 +671,13 @@ describe('cli serve — --build', () => {
   test('--build triggers a fresh build even when dist/ already exists', async () => {
     const dir = await makeFixtureWithBuiltSite();
     try {
-      const { stderr, exitCode } = await runCli(
+      const { stdout, exitCode } = await runCli(
         ['serve', '--port', '52040', '--no-watch', '--build'],
         dir,
       );
       expect(exitCode).toBe(0);
-      expect(stderr).toContain('--build requested');
-      expect(stderr).toContain('Initial build complete');
+      expect(stdout).toContain('--build requested');
+      expect(stdout).toContain('Initial build complete');
       const rebuilt = await Bun.file(join(dir, 'dist/index.html')).text();
       expect(rebuilt).not.toBe('STALE');
     } finally {
@@ -648,12 +688,12 @@ describe('cli serve — --build', () => {
   test('-b short form also triggers a build', async () => {
     const dir = await makeFixtureWithBuiltSite();
     try {
-      const { stderr, exitCode } = await runCli(
+      const { stdout, exitCode } = await runCli(
         ['serve', '--port', '52041', '--no-watch', '-b'],
         dir,
       );
       expect(exitCode).toBe(0);
-      expect(stderr).toContain('--build requested');
+      expect(stdout).toContain('--build requested');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -682,8 +722,6 @@ describe('cli serve — port collision', () => {
     const blockerPort = blocker.port;
     if (blockerPort === undefined) throw new Error('Bun did not allocate a port');
     try {
-      const blockerPort = blocker.port;
-      if (blockerPort === undefined) throw new Error('Bun did not allocate a port');
       const { stderr, exitCode } = await runCli(
         ['serve', '--port', String(blockerPort), '--host', '127.0.0.1', '--no-watch'],
         dir,

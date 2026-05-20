@@ -49,6 +49,11 @@ const SERVE_CONTENT_TYPES_BY_EXTENSION = new Map<string, string>([
 ]);
 
 export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
+export type BrowserOpener = (command: string[]) => void;
+
+export interface ServeRunOptions {
+  openBrowser?: BrowserOpener;
+}
 
 export interface ServeHeaderRule {
   pattern: string;
@@ -67,7 +72,7 @@ export interface ServeSimulation {
   redirects: ServeRedirectRule[];
 }
 
-export async function runServe(args: string[]): Promise<number> {
+export async function runServe(args: string[], options: ServeRunOptions = {}): Promise<number> {
   let parsed: ParsedCommand;
   try {
     parsed = parseCommand(SERVE_SPEC, args, process.env);
@@ -125,6 +130,7 @@ export async function runServe(args: string[]): Promise<number> {
 
   const watchMode = parsed.values.watch !== false;
   const forceBuild = parsed.values.build === true;
+  const openOnStart = parsed.values.open === true;
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
@@ -298,7 +304,15 @@ export async function runServe(args: string[]): Promise<number> {
   // subpath (e.g. `/blog/`) point operators at the actual landing page
   // instead of a 404 at the bare host:port root.
   const basePath = config.build.base_path || '/';
-  logger.info(t('serve.serving', { distDir, host: displayHost, port, basePath, hostname }));
+  const announcedPort = server.port ?? port;
+  const servedUrl = formatServeUrl(displayHost, announcedPort, basePath);
+  logger.info(
+    t('serve.serving', { distDir, host: displayHost, port: announcedPort, basePath, hostname }),
+  );
+
+  if (openOnStart) {
+    openBrowserUrl(servedUrl, options.openBrowser);
+  }
 
   if (!watchMode) return 0;
 
@@ -440,6 +454,35 @@ export function parseServeSimulationTarget(value: string): ServeSimulationTarget
   if (normalized === 'cloudflare' || normalized === 'cloudflare-pages') return 'cloudflare-pages';
   if (normalized === 'netlify' || normalized === 'vercel') return normalized;
   return undefined;
+}
+
+export function formatServeUrl(host: string, port: number, basePath: string): string {
+  return `http://${host}:${port}${basePath}`;
+}
+
+export function browserOpenCommand(
+  url: string,
+  platform: NodeJS.Platform = process.platform,
+): string[] | null {
+  if (platform === 'darwin') return ['open', url];
+  if (platform === 'linux') return ['xdg-open', url];
+  if (platform === 'win32') return ['cmd', '/c', 'start', '', url];
+  return null;
+}
+
+export function openBrowserUrl(url: string, opener: BrowserOpener = spawnBrowserOpener): boolean {
+  const command = browserOpenCommand(url);
+  if (command === null) return false;
+  opener(command);
+  return true;
+}
+
+function spawnBrowserOpener(command: string[]): void {
+  Bun.spawn(command, {
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
 }
 
 export function parseServeHeadersArtifact(body: string): ServeHeaderRule[] {

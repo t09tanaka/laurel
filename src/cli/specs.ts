@@ -266,6 +266,10 @@ export const SERVE_SPEC: CommandSpec = {
       description:
         'Run a full build before starting the server, regardless of whether dist/ already exists',
     },
+    open: {
+      type: 'boolean',
+      description: 'Open the served URL in the default browser after the server starts',
+    },
     simulate: {
       type: 'string',
       description:
@@ -282,6 +286,7 @@ export const SERVE_SPEC: CommandSpec = {
   examples: [
     'nectar serve                                 # serve dist/ + rebuild on change',
     'nectar serve --no-watch                      # serve dist/ as a static snapshot',
+    'nectar serve --open                          # open the local preview in a browser',
     'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
     'nectar serve --build                         # build first, then serve',
     'nectar serve --port 8080 --host 0.0.0.0',

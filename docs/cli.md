@@ -319,7 +319,7 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--simulate <target>] [--json]
+nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--json]
 ```
 
 Options:
@@ -331,6 +331,7 @@ Options:
 | `-w, --watch` | boolean | `NECTAR_SERVE_WATCH` | Enable the default rebuild-on-change loop while serving dist/ |
 | `--no-watch` | boolean | `NECTAR_SERVE_WATCH=0` | Disable the default rebuild-on-change loop; serve dist/ as a static snapshot |
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
+| `--open` | boolean | `NECTAR_SERVE_OPEN` | Open the served URL in the default browser after the server starts |
 | `--simulate <target>` | string | `NECTAR_SERVE_SIMULATE` | Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel |
 | `-j, --json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
 
@@ -339,6 +340,7 @@ Examples:
 ```
 nectar serve                                 # serve dist/ + rebuild on change
 nectar serve --no-watch                      # serve dist/ as a static snapshot
+nectar serve --open                          # open the local preview in a browser
 nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally
 nectar serve --build                         # build first, then serve
 nectar serve --port 8080 --host 0.0.0.0
