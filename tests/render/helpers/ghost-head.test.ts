@@ -1418,6 +1418,27 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
 });
 
 describe('ghost_head rel="prev"/rel="next" for paginated archives', () => {
+  test('emits issue #1015 archive pagination links from route pagination URLs', () => {
+    const html = renderGhostHead({}, '/blog/tag/news/page/2/', {
+      routeData: {
+        tag: { name: 'news', url: 'https://example.com/blog/tag/news/' },
+        pagination: {
+          page: 2,
+          pages: 4,
+          prev: 1,
+          next: 3,
+          total: 40,
+          limit: 10,
+          prev_url: '/blog/tag/news/',
+          next_url: '/blog/tag/news/page/3/',
+        },
+      },
+    });
+
+    expect(html).toContain('<link rel="prev" href="https://example.com/blog/tag/news/">');
+    expect(html).toContain('<link rel="next" href="https://example.com/blog/tag/news/page/3/">');
+  });
+
   test('emits absolute rel="next" on the first page of a paginated tag archive', () => {
     const html = renderGhostHead({}, '/tag/news/', {
       routeData: {
