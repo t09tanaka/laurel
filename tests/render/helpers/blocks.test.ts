@@ -723,23 +723,32 @@ describe('match helper', () => {
     expect(tpl({ foo: 'bar' })).toBe('yes');
   });
 
-  test('two-argument form returns the strict equality result', () => {
+  test('two-argument inline form renders true or empty string', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
     const tpl = engine.hb.compile('{{match a b}}');
     expect(tpl({ a: 'x', b: 'x' })).toBe('true');
-    expect(tpl({ a: 'x', b: 'y' })).toBe('false');
+    expect(tpl({ a: 'x', b: 'y' })).toBe('');
   });
 
-  test('three-argument form honours the comparison operator', () => {
+  test('three-argument inline form honours the comparison operator', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
     const ge = engine.hb.compile('{{match a ">=" b}}');
     const tilde = engine.hb.compile('{{match a "~" b}}');
     expect(ge({ a: 5, b: 3 })).toBe('true');
-    expect(ge({ a: 1, b: 3 })).toBe('false');
+    expect(ge({ a: 1, b: 3 })).toBe('');
     expect(tilde({ a: 'hello world', b: 'world' })).toBe('true');
-    expect(tilde({ a: 'hello', b: 'world' })).toBe('false');
+    expect(tilde({ a: 'hello', b: 'world' })).toBe('');
+  });
+
+  test('one-argument inline form returns the truthy operand and empty string for falsy values', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{match foo}}');
+    expect(tpl({ foo: 'is-active' })).toBe('is-active');
+    expect(tpl({ foo: '' })).toBe('');
+    expect(tpl({ foo: false })).toBe('');
   });
 
   test('"~^" matches strings by prefix in block form', () => {
@@ -798,7 +807,7 @@ describe('match helper', () => {
     expect(gt({ a: 'foo', b: 'bar' })).toBe('true');
     expect(lt({ a: 'apple', b: 'banana' })).toBe('true');
     expect(ge({ a: 'foo', b: 'foo' })).toBe('true');
-    expect(gt({ a: 'apple', b: 'banana' })).toBe('false');
+    expect(gt({ a: 'apple', b: 'banana' })).toBe('');
   });
 
   test('numeric comparators still work with numeric strings', () => {
@@ -806,7 +815,7 @@ describe('match helper', () => {
     registerBlockHelpers(engine);
     const gt = engine.hb.compile('{{match a ">" b}}');
     expect(gt({ a: '10', b: '9' })).toBe('true');
-    expect(gt({ a: '9', b: '10' })).toBe('false');
+    expect(gt({ a: '9', b: '10' })).toBe('');
   });
 
   test('numeric comparators mix numbers and numeric strings', () => {
@@ -824,7 +833,7 @@ describe('match helper', () => {
     expect(eq({ a: true, b: 'true' })).toBe('true');
     expect(eq({ a: 'true', b: true })).toBe('true');
     expect(eq({ a: false, b: 'false' })).toBe('true');
-    expect(eq({ a: true, b: 'false' })).toBe('false');
+    expect(eq({ a: true, b: 'false' })).toBe('');
   });
 
   test('two-arg form also coerces "true"/"false" string<->boolean', () => {
@@ -832,7 +841,7 @@ describe('match helper', () => {
     registerBlockHelpers(engine);
     const tpl = engine.hb.compile('{{match flag "true"}}');
     expect(tpl({ flag: true })).toBe('true');
-    expect(tpl({ flag: false })).toBe('false');
+    expect(tpl({ flag: false })).toBe('');
     expect(tpl({ flag: 'true' })).toBe('true');
   });
 
@@ -840,7 +849,7 @@ describe('match helper', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
     const ne = engine.hb.compile('{{match a "!=" b}}');
-    expect(ne({ a: true, b: 'true' })).toBe('false');
+    expect(ne({ a: true, b: 'true' })).toBe('');
     expect(ne({ a: true, b: 'false' })).toBe('true');
   });
 });

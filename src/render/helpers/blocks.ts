@@ -229,6 +229,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (options.fn) {
       return result ? options.fn(this) : options.inverse(this);
     }
+    if (!result) return '';
+    if (params.length === 1) return params[0];
     return result;
   });
 }
