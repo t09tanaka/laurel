@@ -1096,7 +1096,9 @@ async function normalizePost(
   const created = asDateISO(data.created_at ?? data.date, published, `${dateContext} created_at`);
   const status = (asString(data.status) ?? 'published') as RawPost['status'];
   const visibility = parsePostVisibility(asString(data.visibility), filePath);
-  const customExcerpt = asString(data.custom_excerpt ?? data.excerpt);
+  // Match Ghost Content API semantics: `custom_excerpt` is the editor-managed
+  // field, while `excerpt` is generated below from it or from plaintext.
+  const customExcerpt = asString(data.custom_excerpt);
 
   let html = rendered.html;
   let plaintext = rendered.plaintext;

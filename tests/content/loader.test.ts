@@ -61,6 +61,10 @@ bio: Friendly ghost
   return dir;
 }
 
+function numberedWords(count: number, start = 1): string[] {
+  return Array.from({ length: count }, (_, i) => `w${String(start + i).padStart(2, '0')}`);
+}
+
 async function readRenderCacheEntry(
   cwd: string,
   relSourcePath: string,
@@ -109,6 +113,74 @@ describe('loadContent', () => {
     expect(graph.authors.find((a) => a.slug === 'casper')?.count.posts).toBe(1);
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
+  });
+
+  test('normalizes Ghost excerpt fields from custom_excerpt or 50 plaintext words', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-excerpt-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+
+    const longPlaintext = numberedWords(55).join(' ');
+    const fallbackWords = numberedWords(53, 3).join(' ');
+    await writeFile(
+      join(cwd, 'content/posts/custom.md'),
+      `---
+title: Custom excerpt
+date: 2026-01-01T00:00:00Z
+custom_excerpt: Editor summary
+---
+
+${longPlaintext}
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/generated.md'),
+      `---
+title: Generated excerpt
+date: 2026-01-02T00:00:00Z
+unsafe_html: true
+---
+
+<p>w01 <strong>w02</strong></p>
+
+${fallbackWords}
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/null-custom.md'),
+      `---
+title: Null custom excerpt
+date: 2026-01-03T00:00:00Z
+custom_excerpt:
+excerpt: Legacy excerpt input
+---
+
+${longPlaintext}
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    const custom = graph.bySlug.posts.get('custom');
+    expect(custom?.custom_excerpt).toBe('Editor summary');
+    expect(custom?.excerpt).toBe('Editor summary');
+
+    const generated = graph.bySlug.posts.get('generated');
+    const first50Words = numberedWords(50).join(' ');
+    expect(generated?.custom_excerpt).toBeUndefined();
+    expect(generated?.plaintext).toBe(numberedWords(55).join(' '));
+    expect(generated?.plaintext).not.toContain('<strong>');
+    expect(generated?.excerpt).toBe(first50Words);
+
+    const nullCustom = graph.bySlug.posts.get('null-custom');
+    expect(nullCustom?.custom_excerpt).toBeUndefined();
+    expect(nullCustom?.excerpt).toBe(first50Words);
+    expect(nullCustom?.excerpt).not.toBe('Legacy excerpt input');
   });
 
   test('counts primary and secondary author posts from the public post graph', async () => {
