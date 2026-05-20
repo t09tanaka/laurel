@@ -389,6 +389,13 @@ describe('has helper', () => {
     expect(tpl({ tags: [] })).toBe('MISS');
   });
 
+  test('falls through to inverse when none of the context tags match the requested tag', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has tag="x"}}A{{else}}B{{/has}}');
+    expect(tpl({ tags: [{ slug: 'y', name: 'Y' }] })).toBe('B');
+  });
+
   test('number= compares against the current pagination page', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
