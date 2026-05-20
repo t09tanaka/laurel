@@ -52,7 +52,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
         even: i % 2 === 0,
         odd: i % 2 !== 0,
         rowStart: i % columns === 0,
-        rowEnd: (i + 1) % columns === 0,
+        rowEnd: (i + 1) % columns === 0 || i === sliced.length - 1,
       };
       if (entry.key !== undefined) foreachState.key = entry.key;
       Object.assign(data, foreachState);

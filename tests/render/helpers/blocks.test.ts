@@ -236,6 +236,16 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('a:S|b:|c:E|d:S|e:|f:E|');
   });
 
+  test('columns marks the final item as rowEnd for incomplete rows', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns=3}}{{slug}}:{{#if @rowStart}}S{{/if}}{{#if @rowEnd}}E{{/if}}|{{/foreach}}',
+    );
+    const items = [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }, { slug: 'd' }, { slug: 'e' }];
+    expect(tpl({ items })).toBe('a:S|b:|c:E|d:S|e:E|');
+  });
+
   // A `columns=` value supplied as a string (the Handlebars literal form) must
   // parse to a number so themes can write `columns="2"` without the helper
   // silently falling back to the default.
