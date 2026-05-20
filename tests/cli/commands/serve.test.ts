@@ -7,6 +7,7 @@ import {
   type ServeSimulation,
   collectServeSimulationHeaders,
   findServeSimulationRedirect,
+  inferServeContentType,
   injectLiveReloadScript,
   isIgnoredChange,
   parseServeHeadersArtifact,
@@ -41,6 +42,34 @@ async function makeServeFixture(): Promise<string> {
   await Bun.write(join(dir, 'nectar.toml'), '[site]\ntitle = "x"\n');
   await Bun.write(join(dir, 'dist/index.html'), '<!doctype html><title>ok</title>');
   return dir;
+}
+
+function pickPort(): number {
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch() {
+      return new Response('ok');
+    },
+  });
+  const { port } = server;
+  server.stop(true);
+  return port;
+}
+
+async function waitForServe(url: string): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      await response.arrayBuffer();
+      if (response.ok) return;
+    } catch {
+      // Server startup is asynchronous; retry until the deadline.
+    }
+    await Bun.sleep(25);
+  }
+  throw new Error(`Timed out waiting for ${url}`);
 }
 
 describe('cli serve — host binding', () => {
@@ -217,6 +246,63 @@ describe('cli serve — deploy artifact simulation', () => {
     expect(assetHeaders.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
     expect(assetHeaders.get('X-Robots-Tag')).toBe('noindex');
     expect(parseServeSimulationTarget('cloudflare')).toBe('cloudflare-pages');
+  });
+});
+
+describe('cli serve — content types', () => {
+  test('maps common SSG outputs to explicit Content-Type values', () => {
+    expect(inferServeContentType('/dist/sitemap.xml')).toBe('application/xml');
+    expect(inferServeContentType('/dist/rss.xml')).toBe('application/rss+xml');
+    expect(inferServeContentType('/dist/site.webmanifest')).toBe('application/manifest+json');
+    expect(inferServeContentType('/dist/assets/app.css')).toBe('text/css; charset=utf-8');
+    expect(inferServeContentType('/dist/assets/app.js')).toBe(
+      'application/javascript; charset=utf-8',
+    );
+    expect(inferServeContentType('/dist/assets/data.json')).toBe('application/json; charset=utf-8');
+  });
+
+  test('serves common SSG outputs with explicit Content-Type headers', async () => {
+    const dir = await makeServeFixture();
+    await Bun.write(join(dir, 'dist/sitemap.xml'), '<sitemapindex></sitemapindex>');
+    await Bun.write(join(dir, 'dist/rss.xml'), '<rss></rss>');
+    await Bun.write(join(dir, 'dist/site.webmanifest'), '{"name":"Nectar"}');
+    await Bun.write(join(dir, 'dist/assets/app.css'), 'body { color: black; }');
+    await Bun.write(join(dir, 'dist/assets/app.js'), 'console.log("ok");');
+    await Bun.write(join(dir, 'dist/assets/data.json'), '{"ok":true}');
+
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+
+      const cases = [
+        ['/sitemap.xml', 'application/xml'],
+        ['/rss.xml', 'application/rss+xml'],
+        ['/site.webmanifest', 'application/manifest+json'],
+        ['/assets/app.css', 'text/css; charset=utf-8'],
+        ['/assets/app.js', 'application/javascript; charset=utf-8'],
+        ['/assets/data.json', 'application/json; charset=utf-8'],
+      ] as const;
+
+      for (const [path, contentType] of cases) {
+        const response = await fetch(`${baseUrl}${path}`);
+        await response.arrayBuffer();
+        expect(response.status, path).toBe(200);
+        expect(response.headers.get('Content-Type'), path).toBe(contentType);
+      }
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

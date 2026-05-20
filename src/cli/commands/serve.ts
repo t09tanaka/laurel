@@ -1,6 +1,6 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, normalize } from 'node:path';
+import { basename, extname, isAbsolute, join, normalize } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -21,6 +21,32 @@ import { SERVE_SPEC } from '../specs.ts';
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 120;
+
+const SERVE_CONTENT_TYPES_BY_FILENAME = new Map<string, string>([
+  ['rss.xml', 'application/rss+xml'],
+  ['sitemap.xml', 'application/xml'],
+  ['robots.txt', 'text/plain; charset=utf-8'],
+]);
+
+const SERVE_CONTENT_TYPES_BY_EXTENSION = new Map<string, string>([
+  ['.avif', 'image/avif'],
+  ['.css', 'text/css; charset=utf-8'],
+  ['.gif', 'image/gif'],
+  ['.html', 'text/html; charset=utf-8'],
+  ['.ico', 'image/x-icon'],
+  ['.jpeg', 'image/jpeg'],
+  ['.jpg', 'image/jpeg'],
+  ['.js', 'application/javascript; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.mjs', 'application/javascript; charset=utf-8'],
+  ['.png', 'image/png'],
+  ['.svg', 'image/svg+xml'],
+  ['.txt', 'text/plain; charset=utf-8'],
+  ['.webmanifest', 'application/manifest+json'],
+  ['.webp', 'image/webp'],
+  ['.woff2', 'font/woff2'],
+  ['.xml', 'application/xml'],
+]);
 
 export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
 
@@ -210,7 +236,7 @@ export async function runServe(args: string[]): Promise<number> {
               }),
             });
           }
-          return new Response(file, { headers: simulatedHeaders });
+          return new Response(file, { headers: serveFileHeaders(simulatedHeaders, filePath) });
         }
         const fallback = Bun.file(join(distDir, '404.html'));
         if (await fallback.exists()) {
@@ -223,7 +249,10 @@ export async function runServe(args: string[]): Promise<number> {
               }),
             });
           }
-          return new Response(fallback, { status: 404, headers: simulatedHeaders });
+          return new Response(fallback, {
+            status: 404,
+            headers: serveFileHeaders(simulatedHeaders, '404.html'),
+          });
         }
         return new Response('Not Found', { status: 404, headers: simulatedHeaders });
       },
@@ -365,6 +394,14 @@ export function isIgnoredChange(filename: string): boolean {
   return false;
 }
 
+export function inferServeContentType(filePath: string): string | undefined {
+  const filename = basename(filePath).toLowerCase();
+  return (
+    SERVE_CONTENT_TYPES_BY_FILENAME.get(filename) ??
+    SERVE_CONTENT_TYPES_BY_EXTENSION.get(extname(filename))
+  );
+}
+
 export function parseServeSimulationTarget(value: string): ServeSimulationTarget | undefined {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'cloudflare' || normalized === 'cloudflare-pages') return 'cloudflare-pages';
@@ -471,6 +508,12 @@ function mergeServeHeaders(base: Headers, extra: Record<string, string>): Header
     headers.set(key, value);
   }
   return headers;
+}
+
+function serveFileHeaders(base: Headers, filePath: string): Headers {
+  const contentType = inferServeContentType(filePath);
+  if (contentType === undefined) return base;
+  return mergeServeHeaders(base, { 'Content-Type': contentType });
 }
 
 function servePatternMatches(pattern: string, pathname: string): boolean {
