@@ -845,11 +845,11 @@ describe('authors helper', () => {
     expect(out).toBe('Ada, Grace, Linus');
   });
 
-  test('limit= truncates from the start', () => {
+  test('limit=1 renders only the first author', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
-    const out = engine.hb.compile('{{authors limit=2 autolink=false}}')(ctx);
-    expect(out).toBe('Ada, Grace');
+    const out = engine.hb.compile('{{authors limit=1 autolink=false}}')(ctx);
+    expect(out).toBe('Ada');
   });
 
   test('from= is 1-indexed (Ghost semantics) and skips earlier entries', () => {
