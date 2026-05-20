@@ -784,6 +784,18 @@ About JA.
     expect(graph.site.portal_signup_terms_html).toBe('');
     expect(graph.site.signup_url).toBe('');
     expect(graph.site.recommendations_enabled).toBe(false);
+    expect(graph.site.private).toBe(false);
+  });
+
+  test('[site].private round-trips to the Ghost-compatible @site flag', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test', private: true },
+      }),
+    });
+    expect(graph.site.private).toBe(true);
   });
 
   test('site.members_enabled flips on when `[components.portal].provider != "none"`', async () => {

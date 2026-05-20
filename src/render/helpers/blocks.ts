@@ -98,6 +98,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     };
     const matches = targets.some((target) => {
       if (target === 'paged') return (route.data?.pagination?.page ?? 1) > 1;
+      if (target === 'private') return isPrivatePublication(engine, options);
       const aliasSet = aliases[target] ?? [target];
       return kind ? aliasSet.includes(kind) : false;
     });
@@ -489,6 +490,24 @@ function registerAdjacentPostBlock(
       if (!target) return options.inverse ? options.inverse(this) : '';
       return options.fn(withTrustedCaptionHtml(engine.hb, target));
     },
+  );
+}
+
+function isPrivatePublication(engine: NectarEngine, options: Handlebars.HelperOptions): boolean {
+  const data = (options.data ?? {}) as {
+    site?: { private?: unknown };
+    blog?: { private?: unknown };
+    setting?: { private?: unknown };
+  };
+  // Ghost's `private` context is a publication-wide password-protection flag,
+  // not a route kind. Nectar has no runtime auth gate, so unset data stays
+  // false; `[site].private = true` lets static deployments whose host enforces
+  // protection render the matching theme branch.
+  return (
+    data.site?.private === true ||
+    data.blog?.private === true ||
+    data.setting?.private === true ||
+    engine.content.site?.private === true
   );
 }
 

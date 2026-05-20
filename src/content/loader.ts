@@ -602,6 +602,7 @@ function buildSite(config: NectarConfig): SiteData {
     icon: config.site.icon,
     accent_color: config.site.accent_color,
     referrer_policy: config.site.referrer_policy,
+    private: config.site.private,
     navigation: config.navigation,
     // Coerce an empty `secondary_navigation` array to `undefined` so theme
     // guards like `{{#unless @site.secondary_navigation}}` (Wave / Alto /

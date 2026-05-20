@@ -381,6 +381,27 @@ describe('is helper', () => {
     expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('MISS');
   });
 
+  test('"private" is false by default for static publications', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "private"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'home' } } })).toBe('MISS');
+  });
+
+  test('"private" matches the publication-wide @site.private flag', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "private"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'home' }, site: { private: true } } })).toBe('HIT');
+  });
+
+  test('"private" can fall back to the loaded content site flag', () => {
+    const engine = makeEngine({ content: { site: { private: true } as ContentGraph['site'] } });
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "private"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('HIT');
+  });
+
   // Cross-theme regression coverage (issue #866). Casper, Source, and Edition
   // all branch on `{{#is "home"}}` vs `{{#is "index"}}` vs `{{#is "paged"}}`
   // with subtly different intents:

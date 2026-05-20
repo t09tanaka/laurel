@@ -341,6 +341,12 @@ export const configSchema = z
           .describe(
             'Referrer policy emitted by `{{ghost_head}}` as `<meta name="referrer">`. Defaults to `strict-origin-when-cross-origin` so cross-site requests keep only the origin while same-site navigation retains full referrers.',
           ),
+        private: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Whether the publication should be treated as Ghost password-protected for theme compatibility. Static Nectar does not enforce HTTP authentication; this only surfaces `@site.private` and drives `{{#is "private"}}` so themes can render their private-site branch when an external host handles access control.',
+          ),
         twitter: z
           .string()
           .optional()

@@ -30,6 +30,11 @@ export interface SiteData {
   icon: string | undefined;
   accent_color: string;
   referrer_policy?: string | undefined;
+  // Ghost marks password-protected publications as "private". Nectar is
+  // static-only and cannot enforce that access control itself, but operators
+  // can set `[site].private = true` when their host handles protection so
+  // themes using `{{#is "private"}}` / `@site.private` take the same branch.
+  private?: boolean;
   navigation: NavigationItem[];
   // Optional rather than `NavigationItem[]` so the loader can pass `undefined`
   // when the operator hasn't configured any secondary items. Themes like Wave
