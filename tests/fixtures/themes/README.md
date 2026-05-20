@@ -21,6 +21,9 @@ the smoke fixture site at `tests/fixtures/theme-smoke/site/`, built via
   block. Locale files for `en`, `de`, and `ja` so the i18n contract test can
   flip `[site].locale` and observe placeholder swap. Not a real Casper
   release; just enough HBS to exercise the contract.
+- `alto/` — hand-trimmed Alto-shaped fixture that keeps the PhotoSwipe
+  `pswp` partial behind `{{#is "post, page"}}`, locking the comma-separated
+  route guard used by Alto's default layout.
 
 ## Adding a real release tarball
 

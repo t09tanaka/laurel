@@ -1,0 +1,9 @@
+{{!< default}}
+<section class="alto-feed">
+  {{#foreach posts}}
+    <article class="alto-card">
+      <h2><a href="{{url}}">{{title}}</a></h2>
+      <p>{{excerpt}}</p>
+    </article>
+  {{/foreach}}
+</section>
