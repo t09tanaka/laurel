@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emptyRoutesYaml } from '~/build/routes-yaml.ts';
@@ -61,6 +61,35 @@ bio: Friendly ghost
   return dir;
 }
 
+async function readRenderCacheEntry(
+  cwd: string,
+  relSourcePath: string,
+): Promise<{
+  path: string;
+  entry: {
+    cache_key: string;
+    source_path: string;
+    result: {
+      html: string;
+      plaintext: string;
+      word_count: number;
+      reading_time: number;
+    };
+  };
+}> {
+  const cacheDir = join(cwd, '.nectar/cache');
+  const files = await readdir(cacheDir);
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const path = join(cacheDir, file);
+    const entry = JSON.parse(await readFile(path, 'utf8'));
+    if (entry.source_path === join(cwd, relSourcePath)) {
+      return { path, entry };
+    }
+  }
+  throw new Error(`No render cache entry found for ${relSourcePath}`);
+}
+
 describe('loadContent', () => {
   test('loads posts, pages, authors, and derives tags', async () => {
     const cwd = await fixture();
@@ -79,6 +108,67 @@ describe('loadContent', () => {
     expect(graph.authors[0]?.name).toBe('Casper');
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
+  });
+
+  test('reuses cached markdown render results until source content changes', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+
+    await loadContent({ cwd, config });
+    const { path, entry } = await readRenderCacheEntry(cwd, 'content/posts/hello.md');
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...entry,
+        result: {
+          html: '<p>cached hello</p>',
+          plaintext: 'cached hello',
+          word_count: 2,
+          reading_time: 1,
+        },
+      }),
+      'utf8',
+    );
+
+    const cached = await loadContent({ cwd, config });
+    expect(cached.bySlug.posts.get('hello')?.html).toBe('<p>cached hello</p>');
+    expect(cached.bySlug.posts.get('hello')?.plaintext).toBe('cached hello');
+
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello world"
+date: 2026-01-01T00:00:00Z
+tags: [news]
+authors: [casper]
+featured: true
+---
+
+# Hello
+
+Fresh body.
+`,
+      'utf8',
+    );
+
+    const invalidated = await loadContent({ cwd, config });
+    expect(invalidated.bySlug.posts.get('hello')?.html).toContain('Fresh body.');
+    expect(invalidated.bySlug.posts.get('hello')?.html).not.toBe('<p>cached hello</p>');
+  });
+
+  test('ignores corrupt markdown render cache entries and rewrites them', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+
+    await loadContent({ cwd, config });
+    const { path } = await readRenderCacheEntry(cwd, 'content/posts/second.md');
+    await writeFile(path, '{not json', 'utf8');
+
+    const graph = await loadContent({ cwd, config });
+    expect(graph.bySlug.posts.get('second')?.html).toContain('Body 2');
+
+    const rewritten = JSON.parse(await readFile(path, 'utf8'));
+    expect(rewritten.result.html).toContain('Body 2');
   });
 
   test('copies config site.icon into SiteData', async () => {

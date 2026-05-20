@@ -38,3 +38,4 @@ coverage/
 
 # Nectar build caches (image transcoder, etc.)
 .nectar-cache/
+.nectar/cache/

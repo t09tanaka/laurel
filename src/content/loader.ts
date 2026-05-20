@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { type Stats, existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
@@ -31,6 +31,7 @@ import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag, Tier } from './model.ts';
 import { type PaywallVisibility, buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
+import { renderMarkdownWithCache } from './render-cache.ts';
 
 // Plugin-supplied transform applied to the raw markdown body (after
 // frontmatter is stripped) before `marked.parse` runs. The pipeline composes
@@ -614,8 +615,19 @@ async function loadPosts(
   const dirs = await discoverContentDirs(cwd, config.content.posts_dir);
   const posts = await loadMarkdownDirs(
     dirs,
-    async (file, raw, dir) =>
-      normalizePost(file, raw, cwd, dir.dir, config, pool, transforms, 'post', dir.locale),
+    async (file, raw, dir, sourceStat) =>
+      normalizePost(
+        file,
+        raw,
+        sourceStat,
+        cwd,
+        dir.dir,
+        config,
+        pool,
+        transforms,
+        'post',
+        dir.locale,
+      ),
     config.content.max_markdown_bytes,
   );
   if (config.content.visibility_policy === 'skip') {
@@ -633,8 +645,8 @@ async function loadPages(
   const dirs = await discoverContentDirs(cwd, config.content.pages_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir) =>
-      normalizePage(file, raw, cwd, dir.dir, config, pool, transforms, dir.locale),
+    async (file, raw, dir, sourceStat) =>
+      normalizePage(file, raw, sourceStat, cwd, dir.dir, config, pool, transforms, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
@@ -643,7 +655,7 @@ async function loadAuthors(cwd: string, config: NectarConfig): Promise<RawAuthor
   const dirs = await discoverContentDirs(cwd, config.content.authors_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir) => normalizeRawAuthor(file, raw, config, dir.locale),
+    async (file, raw, dir, _sourceStat) => normalizeRawAuthor(file, raw, config, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
@@ -652,7 +664,7 @@ async function loadTags(cwd: string, config: NectarConfig): Promise<RawTag[]> {
   const dirs = await discoverContentDirs(cwd, config.content.tags_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir) => normalizeRawTag(file, raw, config, dir.locale),
+    async (file, raw, dir, _sourceStat) => normalizeRawTag(file, raw, config, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
@@ -712,18 +724,24 @@ async function discoverContentDirs(cwd: string, configuredDir: string): Promise<
 
 async function loadMarkdownDirs<T>(
   dirs: readonly ContentDir[],
-  normalize: (filePath: string, raw: string, dir: ContentDir) => Promise<T>,
+  normalize: (filePath: string, raw: string, dir: ContentDir, sourceStat: Stats) => Promise<T>,
   maxBytes: number,
 ): Promise<T[]> {
   const chunks = await Promise.all(
-    dirs.map((dir) => loadMarkdownDir(dir.dir, (file, raw) => normalize(file, raw, dir), maxBytes)),
+    dirs.map((dir) =>
+      loadMarkdownDir(
+        dir.dir,
+        (file, raw, sourceStat) => normalize(file, raw, dir, sourceStat),
+        maxBytes,
+      ),
+    ),
   );
   return chunks.flat();
 }
 
 async function loadMarkdownDir<T>(
   dir: string,
-  normalize: (filePath: string, raw: string) => Promise<T>,
+  normalize: (filePath: string, raw: string, sourceStat: Stats) => Promise<T>,
   maxBytes: number,
 ): Promise<T[]> {
   if (!existsSync(dir)) return [];
@@ -742,10 +760,10 @@ async function loadMarkdownDir<T>(
     const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);
     const chunkResults = await Promise.all(
       chunk.map(async (file) => {
-        await enforceMarkdownSizeLimit(file, maxBytes);
+        const sourceStat = await enforceMarkdownSizeLimit(file, maxBytes);
         const raw = await readFile(file, 'utf8');
         try {
-          return await normalize(file, raw);
+          return await normalize(file, raw, sourceStat);
         } catch (err) {
           throw toNectarError(err, { file });
         }
@@ -766,10 +784,10 @@ async function loadMarkdownDir<T>(
 // approaching that bound stalls the tokenizer for tens of seconds. Failing fast
 // at stat() avoids loading the body into memory at all and gives a useful
 // error pointer at the offending path.
-async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise<void> {
-  if (maxBytes <= 0) return;
+async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise<Stats> {
   const info = await stat(file);
-  if (info.size <= maxBytes) return;
+  if (maxBytes <= 0) return info;
+  if (info.size <= maxBytes) return info;
   throw new NectarError({
     file,
     message: `Markdown file is ${formatBytes(info.size)}, exceeding the configured limit of ${formatBytes(maxBytes)}.`,
@@ -900,6 +918,7 @@ async function applyMarkdownTransforms(
 async function normalizePost(
   filePath: string,
   raw: string,
+  sourceStat: Stats,
   cwd: string,
   rootDir: string,
   config: NectarConfig | undefined,
@@ -913,7 +932,15 @@ async function normalizePost(
   const locale = config?.site.locale;
   const contentLocale = resolveContentLocale(data, filePath, pathLocale, locale ?? 'en');
   const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
-  const rendered = await pool.render(body, { unsafe: unsafeHtml, locale: contentLocale.locale });
+  const renderOptions = { unsafe: unsafeHtml, locale: contentLocale.locale };
+  const rendered = await renderMarkdownWithCache({
+    cwd,
+    sourcePath: filePath,
+    sourceStat,
+    body,
+    options: renderOptions,
+    render: () => pool.render(body, renderOptions),
+  });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
@@ -951,9 +978,17 @@ async function normalizePost(
   let feedPlaintext = plaintext;
   if (config && isPaywallVisibility(visibility)) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
-    const reRendered = await pool.render(truncated, {
+    const reRenderOptions = {
       unsafe: unsafeHtml,
       locale: contentLocale.locale,
+    };
+    const reRendered = await renderMarkdownWithCache({
+      cwd,
+      sourcePath: filePath,
+      sourceStat,
+      body: truncated,
+      options: reRenderOptions,
+      render: () => pool.render(truncated, reRenderOptions),
     });
     feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
     feedPlaintext = reRendered.plaintext;
@@ -1080,6 +1115,7 @@ function resolveCodeInjection(
 async function normalizePage(
   filePath: string,
   raw: string,
+  sourceStat: Stats,
   cwd: string,
   rootDir: string,
   config: NectarConfig | undefined,
@@ -1090,6 +1126,7 @@ async function normalizePage(
   const base = await normalizePost(
     filePath,
     raw,
+    sourceStat,
     cwd,
     rootDir,
     config,
