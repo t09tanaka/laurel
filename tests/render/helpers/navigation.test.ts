@@ -72,6 +72,132 @@ describe('navigation helper', () => {
   });
 });
 
+describe('navigation helper href sanitisation', () => {
+  test('preserves http(s), mailto, tel, and relative URLs', () => {
+    const html = renderNavigation(
+      [
+        { label: 'Site', url: 'https://example.com/' },
+        { label: 'Mail', url: 'mailto:hi@example.com' },
+        { label: 'Phone', url: 'tel:+15551234' },
+        { label: 'About', url: '/about/' },
+        { label: 'Anchor', url: '#section' },
+      ],
+      undefined,
+    );
+    expect(html).toContain('href="https://example.com/"');
+    expect(html).toContain('href="mailto:hi@example.com"');
+    expect(html).toContain('href="tel:+15551234"');
+    expect(html).toContain('href="/about/"');
+    expect(html).toContain('href="#section"');
+  });
+
+  test('refuses javascript: navigation URL and collapses to #', () => {
+    const html = renderNavigation([{ label: 'Evil', url: 'javascript:alert(1)' }], undefined);
+    expect(html).toContain('<a href="#"');
+    expect(html).not.toContain('javascript:');
+  });
+
+  test('refuses obfuscated javascript: variants in navigation URLs', () => {
+    expect(renderNavigation([{ label: 'Evil', url: 'JaVaScRiPt:alert(1)' }], undefined)).toContain(
+      '<a href="#"',
+    );
+    expect(
+      renderNavigation([{ label: 'Evil', url: '\tjavascript:alert(1)' }], undefined),
+    ).toContain('<a href="#"');
+    expect(
+      renderNavigation([{ label: 'Evil', url: '  javascript:alert(1)' }], undefined),
+    ).toContain('<a href="#"');
+  });
+
+  test('refuses data:, vbscript:, file: navigation URLs', () => {
+    expect(
+      renderNavigation(
+        [{ label: 'Evil', url: 'data:text/html,<script>alert(1)</script>' }],
+        undefined,
+      ),
+    ).toContain('<a href="#"');
+    expect(renderNavigation([{ label: 'Evil', url: 'vbscript:msgbox(1)' }], undefined)).toContain(
+      '<a href="#"',
+    );
+    expect(renderNavigation([{ label: 'Evil', url: 'file:///etc/passwd' }], undefined)).toContain(
+      '<a href="#"',
+    );
+  });
+});
+
+function renderPagination(pagination: {
+  page: number;
+  pages: number;
+  prev_url: string | undefined;
+  next_url: string | undefined;
+}): string {
+  const engine = makeEngine();
+  registerNavigationHelpers(engine);
+  const template = engine.hb.compile('{{pagination}}');
+  return template(
+    {},
+    {
+      data: {
+        route: { data: { pagination } },
+      },
+    },
+  );
+}
+
+describe('pagination helper href sanitisation', () => {
+  test('preserves safe relative URLs', () => {
+    const html = renderPagination({
+      page: 2,
+      pages: 3,
+      prev_url: '/page/1/',
+      next_url: '/page/3/',
+    });
+    expect(html).toContain('href="/page/1/"');
+    expect(html).toContain('href="/page/3/"');
+  });
+
+  test('refuses javascript: in prev_url and next_url', () => {
+    const html = renderPagination({
+      page: 2,
+      pages: 3,
+      prev_url: 'javascript:alert("prev")',
+      next_url: 'javascript:alert("next")',
+    });
+    expect(html).not.toContain('javascript:');
+    const hrefs = html.match(/href="[^"]*"/g) ?? [];
+    expect(hrefs.length).toBeGreaterThanOrEqual(2);
+    for (const href of hrefs) {
+      expect(href).toBe('href="#"');
+    }
+  });
+
+  test('refuses obfuscated javascript: variants in pagination URLs', () => {
+    const html = renderPagination({
+      page: 2,
+      pages: 3,
+      prev_url: 'JAVASCRIPT:alert(1)',
+      next_url: '\tjavascript:alert(1)',
+    });
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).toContain('href="#"');
+  });
+
+  test('refuses data:, vbscript:, file: pagination URLs', () => {
+    const html = renderPagination({
+      page: 2,
+      pages: 3,
+      prev_url: 'data:text/html,<script>alert(1)</script>',
+      next_url: 'vbscript:msgbox(1)',
+    });
+    expect(html).not.toContain('data:');
+    expect(html).not.toContain('vbscript:');
+    const hrefs = html.match(/href="[^"]*"/g) ?? [];
+    for (const href of hrefs) {
+      expect(href).toBe('href="#"');
+    }
+  });
+});
+
 function renderLink(hash: string, inner = 'Click'): string {
   const engine = makeEngine();
   registerNavigationHelpers(engine);

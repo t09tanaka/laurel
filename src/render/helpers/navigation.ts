@@ -20,7 +20,8 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
             currentUrl !== undefined &&
             (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url));
           const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
-          return `<li class="nav-${slugify(item.label)}"${ariaCurrent}><a href="${escapeAttr(item.url)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
+          const safeUrl = sanitizeHref(String(item.url ?? ''), '{{navigation}} helper');
+          return `<li class="nav-${slugify(item.label)}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
         })
         .join('');
       return new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);
@@ -37,15 +38,13 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
         '<nav class="pagination" role="navigation" aria-label="Pagination">',
       ];
       if (pagination.prev_url) {
-        parts.push(
-          `<a class="newer-posts" href="${escapeAttr(pagination.prev_url)}">&larr; Newer Posts</a>`,
-        );
+        const safePrev = sanitizeHref(pagination.prev_url, '{{pagination}} helper (prev_url)');
+        parts.push(`<a class="newer-posts" href="${escapeAttr(safePrev)}">&larr; Newer Posts</a>`);
       }
       parts.push(`<span class="page-number">Page ${pagination.page} of ${pagination.pages}</span>`);
       if (pagination.next_url) {
-        parts.push(
-          `<a class="older-posts" href="${escapeAttr(pagination.next_url)}">Older Posts &rarr;</a>`,
-        );
+        const safeNext = sanitizeHref(pagination.next_url, '{{pagination}} helper (next_url)');
+        parts.push(`<a class="older-posts" href="${escapeAttr(safeNext)}">Older Posts &rarr;</a>`);
       }
       parts.push('</nav>');
       return new engine.hb.SafeString(parts.join(''));
