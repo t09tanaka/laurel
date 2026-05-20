@@ -246,6 +246,15 @@ describe('content helper', () => {
     expect(out).toBe('one two');
   });
 
+  test('words=N strips paragraph markup before truncating', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{{content words=3}}}')({
+      html: '<p>one two three four</p>',
+    });
+    expect(out).toBe('one two three');
+  });
+
   // #436 — access gating for members/paid posts.
   // The loader (src/content/paywall.ts) is responsible for truncating body
   // HTML and appending the `.gh-paywall-stub` snippet *before* the renderer
