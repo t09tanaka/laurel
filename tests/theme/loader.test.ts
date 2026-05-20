@@ -72,6 +72,28 @@ describe('loadTheme', () => {
     });
   });
 
+  test('discovers Headline-style empty custom-* templates as template variants', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'headline');
+      await mkdir(themeRoot, { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(join(themeRoot, 'post.hbs'), '{{!post}}', 'utf8');
+      await writeFile(join(themeRoot, 'page.hbs'), '{{!page}}', 'utf8');
+      await writeFile(join(themeRoot, 'custom-full-feature-image.hbs'), '', 'utf8');
+      await writeFile(join(themeRoot, 'custom-wide-feature-image.hbs'), '', 'utf8');
+
+      const config = configSchema.parse({
+        theme: { name: 'headline', dir: 'themes' },
+        site: { title: 'Headline', url: 'https://headline.example.com' },
+      });
+
+      const theme = await loadTheme({ cwd, config });
+
+      expect(theme.templates['custom-full-feature-image']).toBe('');
+      expect(theme.templates['custom-wide-feature-image']).toBe('');
+    });
+  });
+
   // #855: themes shipped as npm packages live under node_modules/<spec>/
   // rather than `<cwd>/themes/<name>/`. The loader falls back to
   // `node_modules/<theme.dir>` when nothing exists at the local-directory

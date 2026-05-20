@@ -251,8 +251,8 @@ function makeGraph(opts: {
 }
 
 function makeTheme(): ThemeBundle {
-  // Template sources are non-empty placeholders. planRoutes checks `if
-  // (theme.templates.tag)` etc., so an empty-string template would be skipped.
+  // Template sources are non-empty placeholders so individual tests can
+  // overwrite a template with "" only when pinning empty-file behavior.
   return {
     name: 'source',
     rootDir: '/themes/source',
@@ -606,6 +606,18 @@ describe('planRoutes — page custom_template (issue #1005)', () => {
     const pageRoute = routes.find((r) => r.kind === 'page');
     expect(pageRoute?.template).toBe('custom-no-feature-image');
   });
+
+  test('treats Headline empty custom-wide-feature-image.hbs as a selectable page variant', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('about', { custom_template: 'custom-wide-feature-image' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-wide-feature-image'] = '';
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('custom-wide-feature-image');
+  });
 });
 
 describe('planRoutes — post custom_template alternate layouts (issue #704)', () => {
@@ -671,6 +683,18 @@ describe('planRoutes — post custom_template alternate layouts (issue #704)', (
     });
     const postRoute = routes.find((r) => r.kind === 'post');
     expect(postRoute?.template).toBe('blog-post');
+  });
+
+  test('treats Headline empty custom-full-feature-image.hbs as a selectable post variant', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello', { custom_template: 'custom-full-feature-image' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-full-feature-image'] = '';
+    const routes = planRoutes({ config, content, theme });
+    const postRoute = routes.find((r) => r.kind === 'post');
+    expect(postRoute?.template).toBe('custom-full-feature-image');
   });
 });
 

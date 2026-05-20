@@ -89,6 +89,19 @@ describe('schema command', () => {
     expect(postSchema?.properties.tags).toMatchObject({
       anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     });
+    expect(postSchema?.properties.custom_template).toBeTruthy();
+    expect(postSchema?.properties.custom_template).toMatchObject({
+      description: 'Custom post template slug, with or without custom-.',
+    });
+
+    const pageSchema = parsed.definitions.NectarFrontmatter.anyOf[1];
+    expect(pageSchema?.properties.custom_template).toBeTruthy();
+    expect(pageSchema?.properties.custom_template).toMatchObject({
+      description: 'Custom page template slug, with or without custom-.',
+    });
+    expect(pageSchema?.properties.show_title_and_feature_image).toMatchObject({
+      type: 'boolean',
+    });
   });
 
   test('theme schema covers package.json config fields', async () => {

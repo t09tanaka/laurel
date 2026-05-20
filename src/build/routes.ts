@@ -126,7 +126,7 @@ export function planRoutes(opts: {
     });
   }
 
-  if (theme.templates.page) {
+  if (hasTemplate(theme, 'page')) {
     for (const page of content.pages) {
       const localizedUrl = canonicalRouteUrl(
         withLocaleRoutePrefix(localeRouting ? page.locale : undefined, `/${page.slug}/`),
@@ -151,7 +151,7 @@ export function planRoutes(opts: {
     }
   }
 
-  if (theme.templates.tag && taxonomies.tag !== undefined) {
+  if (hasTemplate(theme, 'tag') && taxonomies.tag !== undefined) {
     const tagTemplate = taxonomies.tag;
     // Skip empty tags by default so Ghost JSON imports (which routinely carry
     // hundreds of legacy / `hash-` tags with zero published posts) don't blow
@@ -230,7 +230,7 @@ export function planRoutes(opts: {
       continue;
     }
     seenCustomUrls.add(entry.url);
-    if (!theme.templates[entry.template]) {
+    if (!hasTemplate(theme, entry.template)) {
       logger.warn(
         `routes.yaml: route '${entry.url}' references template '${entry.template}' but the active theme has no '${entry.template}.hbs'; skipping.`,
       );
@@ -260,9 +260,9 @@ export function planRoutes(opts: {
     }
   }
 
-  const errorTemplate = theme.templates['error-404']
+  const errorTemplate = hasTemplate(theme, 'error-404')
     ? 'error-404'
-    : theme.templates.error
+    : hasTemplate(theme, 'error')
       ? 'error'
       : undefined;
   if (errorTemplate) {
@@ -281,7 +281,7 @@ export function planRoutes(opts: {
     });
   }
 
-  if (theme.templates.author && taxonomies.author !== undefined) {
+  if (hasTemplate(theme, 'author') && taxonomies.author !== undefined) {
     const authorTemplate = taxonomies.author;
     // Mirror of `min_posts_per_tag`: suppress dead `/author/<slug>/` archives
     // for imported staff profiles or placeholder authors with no published
@@ -350,7 +350,7 @@ export function planRoutes(opts: {
   // engines don't promote the stub above whatever the operator considers the
   // canonical landing target (the email itself, or a Portal-hosted archive).
   if (config.build.emit_email_only_stub === true && content.emailOnlyPosts.length > 0) {
-    const stubTemplate = theme.templates.post ? 'post' : indexTemplate ? 'index' : undefined;
+    const stubTemplate = hasTemplate(theme, 'post') ? 'post' : indexTemplate ? 'index' : undefined;
     if (stubTemplate !== undefined) {
       for (const post of content.emailOnlyPosts) {
         const url = canonicalRouteUrl(
@@ -520,7 +520,7 @@ function makePostTemplatePicker(
     const collectionTemplate = resolveCollectionPostTemplate(collection);
     const customTemplate = post.custom_template;
     if (customTemplate) {
-      if (theme.templates[customTemplate]) return customTemplate;
+      if (hasTemplate(theme, customTemplate)) return customTemplate;
       logger.warn(
         `Post "${post.slug}" requested template "${customTemplate}" but theme has no matching .hbs; falling back to ${collectionTemplate}.hbs.`,
       );
@@ -531,7 +531,7 @@ function makePostTemplatePicker(
   function resolveCollectionPostTemplate(collection: ResolvedCollection | undefined): string {
     if (!collection?.template) return 'post';
     const requested = collection.template;
-    if (theme.templates[requested]) return requested;
+    if (hasTemplate(theme, requested)) return requested;
     if (!warned.has(requested)) {
       warned.add(requested);
       logger.warn(
@@ -550,7 +550,7 @@ function makePostTemplatePicker(
 function resolvePageTemplate(page: Page, theme: ThemeBundle): string {
   const requested = page.custom_template;
   if (!requested) return 'page';
-  if (theme.templates[requested]) return requested;
+  if (hasTemplate(theme, requested)) return requested;
   logger.warn(
     `Page "${page.slug}" requested template "${requested}" but theme has no matching .hbs; falling back to page.hbs.`,
   );
