@@ -386,6 +386,72 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
   });
 });
 
+describe('importGhostExport — --keep-html (#808)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-html-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('preserves rendered Ghost HTML as a .md.html sibling when requested', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        {
+          slug: 'hello',
+          title: 'Hello',
+          html: '<p>Hello <strong>HTML</strong></p><figure class="kg-card">card</figure>',
+        },
+      ]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, keepHtml: true });
+
+    const markdownPath = join(cwd, 'content/posts/hello.md');
+    const htmlPath = join(cwd, 'content/posts/hello.md.html');
+    expect(summary.posts).toBe(1);
+    expect(summary.htmlPreserved).toBe(1);
+    expect(summary.plannedPaths).toContain(markdownPath);
+    expect(summary.plannedPaths).toContain(htmlPath);
+    expect(await readFile(markdownPath, 'utf8')).toContain('**HTML**');
+    expect(await readFile(htmlPath, 'utf8')).toBe(
+      '<p>Hello <strong>HTML</strong></p><figure class="kg-card">card</figure>',
+    );
+  });
+
+  test('dry-run plans the .md.html sibling without writing it', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'preview', title: 'Preview' }]));
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      keepHtml: true,
+      dryRun: true,
+    });
+
+    const htmlPath = join(cwd, 'content/posts/preview.md.html');
+    expect(summary.dryRun).toBe(true);
+    expect(summary.htmlPreserved).toBe(1);
+    expect(summary.plannedPaths).toContain(htmlPath);
+    await expect(access(htmlPath)).rejects.toThrow();
+  });
+
+  test('default import does not write rendered HTML siblings', async () => {
+    await writeFile(exportFile, makeExport([{ slug: 'plain', title: 'Plain' }]));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.htmlPreserved).toBe(0);
+    await expect(access(join(cwd, 'content/posts/plain.md.html'))).rejects.toThrow();
+  });
+});
+
 describe('importGhostExport — slug sanitization (#160)', () => {
   let cwd: string;
   let outside: string;

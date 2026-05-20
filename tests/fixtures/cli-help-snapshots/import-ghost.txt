@@ -1,7 +1,7 @@
 Convert a Ghost JSON export into Markdown content
 
 Usage:
-  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
+  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 
 Arguments:
   file                Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
@@ -16,6 +16,7 @@ Options:
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images
   --max-size <size>   Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.
   --keep-code-injection  Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.
+  --keep-html         Preserve each post/page rendered Ghost HTML body next to its imported Markdown as a sibling <slug>.md.html file.
   -j, --json          Emit the import summary as JSON on stdout for CI consumption
   -h, --help          Show help for this command
 

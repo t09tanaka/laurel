@@ -84,6 +84,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
   }
 
   const keepCodeInjection = parsed.values['keep-code-injection'] === true;
+  const keepHtml = parsed.values['keep-html'] === true;
   const asJson = parsed.values.json === true;
 
   const cwd = process.cwd();
@@ -99,6 +100,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       dryRun,
       maxFileSizeBytes,
       keepCodeInjection,
+      keepHtml,
       outputDir,
       onProgress:
         asJson || dryRun
@@ -149,6 +151,9 @@ export async function runImportGhost(args: string[]): Promise<number> {
       logger.info(
         `Skipped code injection in ${summary.codeInjectionSkipped} posts. Re-run with --keep-code-injection to import them.`,
       );
+    }
+    if (summary.htmlPreserved > 0) {
+      logger.info(`Preserved rendered HTML for ${summary.htmlPreserved} posts/pages`);
     }
     return 0;
   } catch (err) {
@@ -224,6 +229,11 @@ function formatDryRunSummary(
       label: 'Code injection skipped',
       value: summary.codeInjectionSkipped,
       note: 'posts whose codeinjection_head/foot were dropped; pass --keep-code-injection to import',
+    },
+    {
+      label: 'Rendered HTML preserved',
+      value: summary.htmlPreserved,
+      note: 'sibling .md.html files; pass --keep-html to write them',
     },
   ];
   const labelWidth = Math.max(...rows.map((r) => r.label.length));

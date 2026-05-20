@@ -613,6 +613,48 @@ describe('cli import-ghost — --keep-code-injection (#561)', () => {
   });
 });
 
+describe('cli import-ghost — --keep-html (#808)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-html-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(exportFile, exportPayload());
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --keep-html', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--keep-html');
+  });
+
+  test('--keep-html writes a rendered HTML sibling and reports it', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', exportFile, '--keep-html'], dir);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Preserved rendered HTML for 1 posts/pages');
+    expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
+    expect(await readFile(join(dir, 'content/posts/hello.md.html'), 'utf8')).toBe('<p>Hello</p>');
+  });
+
+  test('--dry-run shows the HTML summary row and planned sibling path', async () => {
+    const { stdout, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--keep-html', '--dry-run'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Rendered HTML preserved');
+    expect(stdout).toContain('content/posts/hello.md.html');
+    await expect(access(join(dir, 'content/posts/hello.md.html'))).rejects.toThrow();
+  });
+});
+
 describe('parseSizeSpec (#558)', () => {
   test('parses raw bytes', () => {
     expect(parseSizeSpec('1024')).toBe(1024);

@@ -172,6 +172,9 @@ export interface ImportSummary {
   // `keepCodeInjection` was not set. Surfaced so the operator can audit the
   // source and re-run with `--keep-code-injection` if they trust it (#561).
   codeInjectionSkipped: number;
+  // Rendered Ghost HTML bodies preserved next to imported Markdown as
+  // `<slug>.md.html` sibling files when `--keep-html` is set (#808).
+  htmlPreserved: number;
   // Entries (posts/pages/tags/authors) that resolved to the same destination
   // path as another entry already written in THIS import run. Ghost rejects
   // duplicate slugs in normal admin flows, so an intra-export collision
@@ -237,6 +240,10 @@ export interface ImportGhostOptions {
   // `{{ghost_foot}}`. The CLI surface flag is `--keep-code-injection`
   // (#561).
   keepCodeInjection?: boolean;
+  // When true, preserve the rendered Ghost HTML body next to the imported
+  // Markdown as a sibling `<slug>.md.html` file. Defaults to false because the
+  // Markdown output remains the canonical import artifact (#808).
+  keepHtml?: boolean;
   // Optional content-output root. When omitted, imported Markdown and assets
   // land in <cwd>/content as before. When set, posts/pages/tags/authors and
   // copied assets land under this directory for review-first imports.
@@ -407,6 +414,7 @@ async function importFromResolvedInput(
   },
 ): Promise<ImportSummary> {
   const keepCodeInjection = opts.keepCodeInjection === true;
+  const keepHtml = opts.keepHtml === true;
   const dryRun = opts.dryRun === true;
   const outputRoot = resolve(opts.outputDir ?? join(opts.cwd, 'content'));
   const redirectRoot = opts.outputDir
@@ -537,6 +545,7 @@ async function importFromResolvedInput(
           opts,
           counters,
           keepCodeInjection,
+          keepHtml,
           downloader,
           urlRewriter,
           tagSlugsForPost,
@@ -558,6 +567,7 @@ async function importFromResolvedInput(
   const writeLimit = pLimit(IMPORT_CONCURRENCY);
   const writeQueue: Array<Promise<void>> = [];
   const plannedPaths: string[] = [];
+  let htmlPreserved = 0;
   for (const r of renderedPosts) {
     if (!r) continue;
     recordSlugChange(r.isPage ? 'page' : 'post', r.originalSlug, r.slug);
@@ -574,6 +584,23 @@ async function importFromResolvedInput(
     );
     if (!written) continue;
     plannedPaths.push(written);
+    if (r.htmlContents !== undefined) {
+      const htmlDest = `${written}.html`;
+      const htmlWritten = await dispatchWrite(
+        htmlDest,
+        r.htmlContents,
+        onConflict,
+        counters,
+        dryRun,
+        writtenThisRun,
+        writeQueue,
+        writeLimit,
+      );
+      if (htmlWritten) {
+        plannedPaths.push(htmlWritten);
+        htmlPreserved += 1;
+      }
+    }
     if (r.isPage) pageCount += 1;
     else postCount += 1;
   }
@@ -734,6 +761,7 @@ async function importFromResolvedInput(
     redirectsImported: redirectMaps.customCount,
     slugRedirects: redirectMaps.slugCount,
     codeInjectionSkipped: counters.codeInjectionSkipped,
+    htmlPreserved,
     slugCollisions: counters.slugCollisions,
     plannedPaths,
   };
@@ -1044,6 +1072,7 @@ interface RenderedPostRecord {
   originalSlug: unknown;
   dest: string;
   contents: string;
+  htmlContents?: string;
 }
 
 interface RenderPostContext {
@@ -1059,6 +1088,7 @@ interface RenderPostContext {
     slugCollisions: number;
   };
   keepCodeInjection: boolean;
+  keepHtml: boolean;
   downloader: GhostImageDownloader | undefined;
   urlRewriter: GhostUrlRewriter | undefined;
   tagSlugsForPost: (postId: string) => string[];
@@ -1077,7 +1107,7 @@ async function renderPostRecord(
   post: GhostPost,
   ctx: RenderPostContext,
 ): Promise<RenderedPostRecord | undefined> {
-  const { opts, counters, keepCodeInjection, downloader, urlRewriter } = ctx;
+  const { opts, counters, keepCodeInjection, keepHtml, downloader, urlRewriter } = ctx;
   if (post.status && post.status !== 'published' && post.status !== 'draft') {
     counters.statusFiltered += 1;
     return undefined;
@@ -1092,10 +1122,23 @@ async function renderPostRecord(
   }
   if (post.status === 'draft') counters.drafts += 1;
   const dir = isPage ? 'pages' : 'posts';
-  const rawBody = renderPostBody(post);
+  const renderedHtml = renderPostHtml(post);
+  const rawBody = renderPostBody(post, renderedHtml);
   if (rawBody === '') counters.bodiesEmpty += 1;
   const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
   const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
+  const htmlAfterDownload =
+    keepHtml && renderedHtml.trim()
+      ? downloader
+        ? await downloader.rewriteText(renderedHtml)
+        : renderedHtml
+      : undefined;
+  const htmlContents =
+    htmlAfterDownload !== undefined
+      ? urlRewriter
+        ? urlRewriter.rewriteText(htmlAfterDownload)
+        : htmlAfterDownload
+      : undefined;
   const postLabel = `post ${JSON.stringify(post.slug ?? post.id ?? '')}`;
   const feature_image = sanitizeImageUrl(
     downloader
@@ -1168,6 +1211,7 @@ async function renderPostRecord(
     originalSlug: post.slug,
     dest,
     contents: `${frontmatter}\n\n${body}\n`,
+    htmlContents,
   };
 }
 
@@ -1309,9 +1353,30 @@ async function nextAvailablePath(dest: string, writtenThisRun?: Set<string>): Pr
   throw new Error(`Could not find a non-conflicting filename for ${dest} after many attempts`);
 }
 
-function renderPostBody(post: GhostPost): string {
+function renderPostHtml(post: GhostPost): string {
   if (post.html?.trim()) {
-    const html = stripGhostUrlPlaceholder(post.html);
+    return stripGhostUrlPlaceholder(post.html);
+  }
+  // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
+  // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
+  // kg-card-aware turndown pipeline can convert to Markdown (#127).
+  if (post.lexical) {
+    const html = stripGhostUrlPlaceholder(renderLexicalToHtml(post.lexical));
+    if (html.trim()) {
+      return html;
+    }
+  }
+  if (post.mobiledoc) {
+    const html = stripGhostUrlPlaceholder(renderMobiledocToHtml(post.mobiledoc));
+    if (html.trim()) {
+      return html;
+    }
+  }
+  return '';
+}
+
+function renderPostBody(post: GhostPost, html = renderPostHtml(post)): string {
+  if (html.trim()) {
     const lexicalMarkdownCards = extractLexicalMarkdownCards(post.lexical);
     const rawMarkdownCards =
       lexicalMarkdownCards.length > 0
@@ -1322,31 +1387,6 @@ function renderPostBody(post: GhostPost): string {
       if (body !== null) return body;
     }
     return turndownHtml(html);
-  }
-  // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
-  // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
-  // kg-card-aware turndown pipeline can convert to Markdown (#127).
-  if (post.lexical) {
-    const html = stripGhostUrlPlaceholder(renderLexicalToHtml(post.lexical));
-    if (html.trim()) {
-      const body = turndownHtmlPreservingRawMarkdownCards(
-        html,
-        extractLexicalMarkdownCards(post.lexical),
-      );
-      if (body !== null) return body;
-      return turndownHtml(html);
-    }
-  }
-  if (post.mobiledoc) {
-    const html = stripGhostUrlPlaceholder(renderMobiledocToHtml(post.mobiledoc));
-    if (html.trim()) {
-      const body = turndownHtmlPreservingRawMarkdownCards(
-        html,
-        extractMobiledocMarkdownCards(post.mobiledoc),
-      );
-      if (body !== null) return body;
-      return turndownHtml(html);
-    }
   }
   if (post.lexical || post.mobiledoc) {
     logger.warn(`Post ${post.slug}: Lexical/Mobiledoc body rendered to empty content, skipping.`);

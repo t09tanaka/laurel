@@ -377,6 +377,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.',
     },
+    'keep-html': {
+      type: 'boolean',
+      description:
+        'Preserve each post/page rendered Ghost HTML body next to its imported Markdown as a sibling <slug>.md.html file.',
+    },
     json: {
       type: 'boolean',
       description: 'Emit the import summary as JSON on stdout for CI consumption',
