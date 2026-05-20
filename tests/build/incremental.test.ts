@@ -180,4 +180,33 @@ Hello body, edited
     expect(existsSync(join(summary.outputDir, MANIFEST_FILENAME))).toBe(true);
     await rm(cwd, { recursive: true, force: true });
   });
+
+  test('--force re-renders every route even when nothing changed', async () => {
+    const cwd = await makeMinimalSite();
+    const first = await build({ cwd });
+    expect(first.renderedCount).toBe(first.routeCount);
+
+    // Sanity: a follow-up build with no changes skips every route.
+    const incremental = await build({ cwd });
+    expect(incremental.skippedCount).toBe(first.routeCount);
+    expect(incremental.renderedCount).toBe(0);
+
+    // Forced build ignores the manifest and rebuilds the whole tree.
+    const forced = await build({ cwd, force: true });
+    expect(forced.routeCount).toBe(first.routeCount);
+    expect(forced.renderedCount).toBe(first.routeCount);
+    expect(forced.skippedCount).toBe(0);
+
+    // The manifest is re-emitted so the next non-force build can resume
+    // incremental skipping.
+    const manifest = await loadManifest(forced.outputDir);
+    if (!manifest) throw new Error('expected manifest after forced build');
+    expect(Object.keys(manifest.routes).length).toBe(forced.routeCount);
+
+    const afterForce = await build({ cwd });
+    expect(afterForce.skippedCount).toBe(first.routeCount);
+    expect(afterForce.renderedCount).toBe(0);
+
+    await rm(cwd, { recursive: true, force: true });
+  });
 });

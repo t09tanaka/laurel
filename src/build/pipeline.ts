@@ -95,6 +95,11 @@ export interface BuildOptions {
   // WIP can't accidentally ship; this flag is intended for preview deploys
   // where the operator explicitly wants drafts visible.
   includeDrafts?: boolean | undefined;
+  // When true, the previous manifest is ignored and every route is re-rendered
+  // from scratch. Default behaviour reuses HTML from the prior build when the
+  // per-route hash matches; --force is the escape hatch for cases where the
+  // incremental cache is suspected stale or corrupted.
+  force?: boolean | undefined;
 }
 
 export interface DryRunRouteSummary {
@@ -167,6 +172,7 @@ export async function build({
   concurrency,
   dryRun,
   includeDrafts,
+  force,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -187,7 +193,10 @@ export async function build({
   // Read the previous manifest from the live output dir BEFORE staging so the
   // incremental decision and any reused-HTML reads see the last successful
   // build's tree, not the empty staging directory we are about to create.
-  const previousManifest = await loadManifest(finalOutputDir);
+  // `--force` skips this lookup so every route re-renders even when its hash
+  // would otherwise have matched; useful as an escape hatch if the cache or
+  // on-disk HTML appears stale.
+  const previousManifest = force === true ? undefined : await loadManifest(finalOutputDir);
 
   const isDryRun = dryRun === true;
 

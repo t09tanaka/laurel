@@ -45,6 +45,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const noAtomic = parsed.values['no-atomic'] === true;
   const dryRun = parsed.values['dry-run'] === true;
   const watch = parsed.values.watch === true;
+  const force = parsed.values.force === true;
   // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
   // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
   // populated `parsed.values['include-drafts']` if set; only fall back to the
@@ -97,6 +98,7 @@ export async function runBuild(args: string[]): Promise<number> {
     concurrency,
     dryRun,
     includeDrafts,
+    force,
   } as const;
 
   const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
