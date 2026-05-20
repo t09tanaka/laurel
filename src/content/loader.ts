@@ -362,6 +362,8 @@ function buildSite(config: NectarConfig): SiteData {
   const allowInjection = config.build.allow_code_injection === true;
   const siteCodeHead = allowInjection ? config.site.codeinjection_head : undefined;
   const siteCodeFoot = allowInjection ? config.site.codeinjection_foot : undefined;
+  const buildMetadata =
+    Object.keys(config.build.metadata).length > 0 ? config.build.metadata : undefined;
   if (!allowInjection && (config.site.codeinjection_head || config.site.codeinjection_foot)) {
     logger.warn(
       'Ignoring [site].codeinjection_head / [site].codeinjection_foot: set build.allow_code_injection = true in nectar.toml to enable site-wide raw HTML/JS injection.',
@@ -411,6 +413,7 @@ function buildSite(config: NectarConfig): SiteData {
     twitter_description: config.site.twitter_description,
     codeinjection_head: siteCodeHead,
     codeinjection_foot: siteCodeFoot,
+    build: buildMetadata,
   };
 }
 

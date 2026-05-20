@@ -34,6 +34,11 @@ is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar
 falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and
 `NECTAR_BUILD_BASE_URL` still override that loaded config value.
 
+On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`
+fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and
+`CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to
+templates as `@site.build`.
+
 Most relative project paths in the config, including `theme.dir` and the
 `content.*_dir` fields, are anchored to the directory containing the loaded
 config file when that file is outside `cwd`. `build.output_dir` is the
@@ -143,6 +148,16 @@ Build pipeline options that shape the emitted site.
 | `build.minify_html` | `boolean` | no | `false` | Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace and strips comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing. |
 | `build.precompress` | `boolean` | no | `false` | Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`, `.txt`, `.map`) with Brotli (quality 11) and Gzip (level 9), emitting `<file>.br` and `<file>.gz` siblings. Static hosts that support `brotli_static` / `gzip_static` (Cloudflare Pages, Netlify, nginx) serve the precompressed copy directly when `Accept-Encoding` matches, skipping per-request compression. Off by default because Brotli q=11 adds noticeable build time on large sites; flip on for production builds where transfer size matters more than rebuild latency. Files below 256 bytes are skipped (envelope overhead beats savings) and already-encoded outputs (`.br` / `.gz`) are excluded from a rerun. |
 | `build.csp_nonce` | `string` | no | — | CSP nonce stamped onto every inline `<script>` and `<style>` tag Nectar emits (JSON-LD blocks in `{{ghost_head}}`, the accessibility skip-link style, Disqus bootstrap, default 404 / recommendations page styles). Pair with a `Content-Security-Policy` header that lists `'nonce-<value>' 'strict-dynamic'` for `script-src` / `style-src` so a strict policy doesn't block these tags. Leave unset to skip nonce emission. Because this is a static build the same nonce is baked into every page, so rotate it per deploy and serve a matching CSP header — a static, never-rotated nonce defeats the purpose. Validated as a base64 / base64url value (`[A-Za-z0-9+/\-_]+={0,2}`) to keep the attribute safe to inject without HTML escaping. |
+
+## `build.metadata`
+
+Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `build.metadata.provider` | `"cloudflare_pages"` | no | — | Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`. |
+| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`. |
+| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`. |
 
 ## `performance`
 

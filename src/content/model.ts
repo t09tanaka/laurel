@@ -1,5 +1,11 @@
 import type { NavigationItem } from '~/config/schema.ts';
 
+export interface SiteBuildData {
+  provider?: 'cloudflare_pages' | undefined;
+  branch?: string | undefined;
+  commit_sha?: string | undefined;
+}
+
 export interface SiteData {
   title: string;
   description: string;
@@ -52,6 +58,10 @@ export interface SiteData {
   // load time (see loader.ts) so reaching here means the operator opted in.
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
+  // Optional deploy metadata surfaced to templates as `@site.build`. It stays
+  // absent for local/default builds so theme guards remain falsy unless a
+  // deploy provider or explicit config/env override populated it.
+  build?: SiteBuildData | undefined;
 }
 
 export interface Author {

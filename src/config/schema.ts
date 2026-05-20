@@ -78,6 +78,29 @@ const tierItemSchema = z
   })
   .strict();
 
+const buildMetadataSchema = z
+  .object({
+    provider: z
+      .enum(['cloudflare_pages'])
+      .optional()
+      .describe(
+        'Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`.',
+      ),
+    branch: z
+      .string()
+      .optional()
+      .describe(
+        'Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`.',
+      ),
+    commit_sha: z
+      .string()
+      .optional()
+      .describe(
+        'Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`.',
+      ),
+  })
+  .strict();
+
 export const configSchema = z
   .object({
     site: z
@@ -414,6 +437,11 @@ export const configSchema = z
           .optional()
           .describe(
             "CSP nonce stamped onto every inline `<script>` and `<style>` tag Nectar emits (JSON-LD blocks in `{{ghost_head}}`, the accessibility skip-link style, Disqus bootstrap, default 404 / recommendations page styles). Pair with a `Content-Security-Policy` header that lists `'nonce-<value>' 'strict-dynamic'` for `script-src` / `style-src` so a strict policy doesn't block these tags. Leave unset to skip nonce emission. Because this is a static build the same nonce is baked into every page, so rotate it per deploy and serve a matching CSP header — a static, never-rotated nonce defeats the purpose. Validated as a base64 / base64url value (`[A-Za-z0-9+/\\-_]+={0,2}`) to keep the attribute safe to inject without HTML escaping.",
+          ),
+        metadata: buildMetadataSchema
+          .default({})
+          .describe(
+            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.',
           ),
       })
       .strict()

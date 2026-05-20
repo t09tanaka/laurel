@@ -313,6 +313,14 @@ interface SiteData {
   twitter_description: string | undefined;
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
+  /**
+   * Deploy metadata, omitted for ordinary local builds.
+   */
+  build?: {
+    provider?: 'cloudflare_pages';
+    branch?: string;
+    commit_sha?: string;
+  };
 }
 ```
 

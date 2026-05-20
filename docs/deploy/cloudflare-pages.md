@@ -58,6 +58,16 @@ requests to Cloudflare's asset handler.
 
 6. Save and deploy.
 
+During a Cloudflare Pages build, Nectar automatically reads Pages-provided
+environment variables:
+
+- `CF_PAGES_URL` becomes the `site.url` fallback for generated canonical,
+  sitemap, RSS, and Open Graph URLs. Explicit `NECTAR_SITE_URL`,
+  `NECTAR_BUILD_BASE_URL`, and CLI `nectar build --base-url ...` overrides still
+  win.
+- `CF_PAGES_BRANCH` and `CF_PAGES_COMMIT_SHA` are exposed to themes as
+  `@site.build.branch` and `@site.build.commit_sha`.
+
 Cloudflare reads `_headers` and `_redirects` from the publish root. With
 `[deploy.cloudflare_pages].enabled = true`, Nectar emits `_headers` with the
 same cache defaults as Netlify: immutable caching for `/assets/*` and

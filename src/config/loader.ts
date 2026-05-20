@@ -149,7 +149,7 @@ function walkParent(
 // surface stays opt-in (#852).
 function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   const map = buildEnvVarMap(configSchema);
-  let target = applyNetlifyDeployUrlFallback(parsed, env);
+  let target = applyDeployEnvFallbacks(parsed, env);
   if (map.size === 0) return target;
   for (const [name, raw] of Object.entries(env)) {
     if (!name.startsWith('NECTAR_')) continue;
@@ -164,6 +164,12 @@ function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   return target;
 }
 
+function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  let target = applyNetlifyDeployUrlFallback(parsed, env);
+  target = applyCloudflarePagesEnvFallback(target, env);
+  return target;
+}
+
 function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   if (env.NETLIFY !== 'true' && env.NETLIFY !== '1') return parsed;
   if (env.CONTEXT !== 'deploy-preview' && env.CONTEXT !== 'branch-deploy') return parsed;
@@ -172,6 +178,29 @@ function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv):
   const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
   if (deployUrl === undefined) return parsed;
   return setDeep(parsed, ['site', 'url'], deployUrl);
+}
+
+function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (env.CF_PAGES !== 'true' && env.CF_PAGES !== '1') return parsed;
+
+  let target = parsed;
+  if (env.NECTAR_SITE_URL === undefined) {
+    const deployUrl = firstNonEmptyEnv(env.CF_PAGES_URL);
+    if (deployUrl !== undefined) {
+      target = setDeep(target, ['site', 'url'], deployUrl);
+    }
+  }
+
+  target = setDeep(target, ['build', 'metadata', 'provider'], 'cloudflare_pages');
+  const branch = firstNonEmptyEnv(env.CF_PAGES_BRANCH);
+  if (branch !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'branch'], branch);
+  }
+  const commitSha = firstNonEmptyEnv(env.CF_PAGES_COMMIT_SHA);
+  if (commitSha !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
+  }
+  return target;
 }
 
 function firstNonEmptyEnv(...values: (string | undefined)[]): string | undefined {

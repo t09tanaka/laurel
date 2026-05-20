@@ -426,6 +426,68 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('uses Cloudflare Pages deployment URL and metadata when present', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          CF_PAGES: '1',
+          CF_PAGES_URL: 'https://feature-docs.example.pages.dev/',
+          CF_PAGES_BRANCH: 'feature/docs',
+          CF_PAGES_COMMIT_SHA: 'abc123def456',
+        },
+      });
+      expect(config.site.url).toBe('https://feature-docs.example.pages.dev');
+      expect(config.build.metadata).toEqual({
+        provider: 'cloudflare_pages',
+        branch: 'feature/docs',
+        commit_sha: 'abc123def456',
+      });
+    });
+  });
+
+  test('keeps explicit NECTAR_SITE_URL ahead of the Cloudflare Pages URL fallback', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          CF_PAGES: '1',
+          CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
+          NECTAR_SITE_URL: 'https://explicit-env.example',
+        },
+      });
+      expect(config.site.url).toBe('https://explicit-env.example');
+    });
+  });
+
+  test('ignores Cloudflare Pages URL when not running on Pages', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
+        },
+      });
+      expect(config.site.url).toBe('https://prod.example.com');
+      expect(config.build.metadata).toEqual({});
+    });
+  });
+
   test('does not apply Netlify deploy URLs outside preview or branch deploy context', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

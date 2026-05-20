@@ -620,6 +620,12 @@ Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
 | `accent_color`         | `[site].accent_color`                 |
 | `navigation`           | `[[navigation]]` array                |
 | `secondary_navigation` | `[[secondary_navigation]]` array      |
+| `build`                | Deploy metadata, when present         |
+
+`@site.build` is omitted for ordinary local builds. Cloudflare Pages builds
+populate `@site.build.provider`, `@site.build.branch`, and
+`@site.build.commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and
+`CF_PAGES_COMMIT_SHA`.
 
 ### `@custom`
 

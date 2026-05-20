@@ -73,6 +73,13 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   );
   lines.push('');
   lines.push(
+    'On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`',
+    'fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and',
+    '`CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to',
+    'templates as `@site.build`.',
+  );
+  lines.push('');
+  lines.push(
     'Most relative project paths in the config, including `theme.dir` and the',
     '`content.*_dir` fields, are anchored to the directory containing the loaded',
     'config file when that file is outside `cwd`. `build.output_dir` is the',

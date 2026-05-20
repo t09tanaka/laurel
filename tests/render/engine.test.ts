@@ -913,6 +913,48 @@ describe('buildRootData', () => {
     );
     expect(tpl({}, { data })).toBe('fallback');
   });
+
+  test('@site.build exposes deploy metadata to templates when present', () => {
+    const themePkg: ThemePackage = {
+      name: 'theme',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+    };
+    const engine = {
+      config: { theme: { custom: {} }, build: {} } as unknown as NectarEngine['config'],
+      content: {
+        site: {
+          locale: 'en',
+          navigation: [],
+          secondary_navigation: [],
+          build: {
+            provider: 'cloudflare_pages',
+            branch: 'feature/docs',
+            commit_sha: 'abc123def456',
+          },
+        },
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+    } as NectarEngine;
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      '{{@site.build.provider}}|{{@site.build.branch}}|{{@site.build.commit_sha}}',
+    );
+    expect(tpl({}, { data })).toBe('cloudflare_pages|feature/docs|abc123def456');
+  });
 });
 
 // Regression coverage for issue #1131: some Ghost themes use `{{> post}}` from

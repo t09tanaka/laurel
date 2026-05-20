@@ -195,6 +195,40 @@ describe('nectar build base URL precedence', () => {
     expect(html).toContain('https://build-env.example/hello/');
     expect(html).not.toContain('branch--site.netlify.app');
   });
+
+  test('uses Cloudflare Pages URL below explicit env and CLI base URL overrides', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const cloudflare = {
+      CF_PAGES: '1',
+      CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
+    };
+
+    const automatic = await runCli(['build'], dir, cloudflare);
+    expect(automatic.exitCode).toBe(0);
+    const automaticHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(automaticHtml).toContain('https://feature-docs.example.pages.dev/hello/');
+    expect(automaticHtml).not.toContain('https://dryrun.test/hello/');
+
+    const explicitEnv = await runCli(['build'], dir, {
+      ...cloudflare,
+      NECTAR_SITE_URL: 'https://explicit-env.example',
+    });
+    expect(explicitEnv.exitCode).toBe(0);
+    const explicitEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(explicitEnvHtml).toContain('https://explicit-env.example/hello/');
+    expect(explicitEnvHtml).not.toContain('feature-docs.example.pages.dev');
+
+    const cli = await runCli(['build', '--base-url', 'https://cli-preview.example'], dir, {
+      ...cloudflare,
+      NECTAR_SITE_URL: 'https://explicit-env.example',
+    });
+    expect(cli.exitCode).toBe(0);
+    const cliHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(cliHtml).toContain('https://cli-preview.example/hello/');
+    expect(cliHtml).not.toContain('explicit-env.example');
+    expect(cliHtml).not.toContain('feature-docs.example.pages.dev');
+  });
 });
 
 describe('formatDryRunRouteTable', () => {
