@@ -110,6 +110,26 @@ external contributors) and wants to bypass either layer, the right knob
 is `unsafe: true` on `renderMarkdown` — not widening the import-time
 allowlist, which would silently apply to every future re-import.
 
+## Theme runtime assets
+
+Ghost's official themes sometimes rely on client-side JavaScript that is not
+part of the `.hbs` helper surface. Real Ghost serves this through its
+`shared-theme-assets` bundle, while Nectar only renders static files and
+copies assets that are present in the theme directory.
+
+The Ease theme is the current compatibility example: its `index.hbs` and
+`tag.hbs` templates emit a `<button class="gh-loadmore">` load-more control.
+That button is intentionally just markup unless the theme also vendors the
+Ghost infinite-scroll JavaScript from `shared-theme-assets` and loads it from
+`{{ghost_foot}}`, the theme's own bundled script, or another static asset
+included in the site. Without that vendored runtime, Nectar still renders the
+button for theme parity, but it is inert in the browser.
+
+When porting a Ghost theme, audit classes and `data-*` hooks that expect
+Ghost-admin or shared-theme-assets code. Either vendor the required script as a
+theme asset, replace the hook with a Nectar-managed optional component, or
+remove the control from the template.
+
 ## Things Ghost themes do that we explicitly do *not* handle
 
 - Members context (`@member.*`) — undefined; templates that read it get
@@ -132,3 +152,7 @@ allowlist, which would silently apply to every future re-import.
   optionally shell out to Pagefind (`engine = "pagefind"` /
   `"json+pagefind"`) to emit `pagefind/*`. Themes that hard-code the
   `/search/` POST shape need to be re-wired to one of these consumers.
+- Ghost's `shared-theme-assets` runtime — not bundled by Nectar. Theme
+  controls such as Ease's `<button class="gh-loadmore">` require the theme to
+  vendor and load the matching infinite-scroll JavaScript; otherwise they
+  remain static markup.
