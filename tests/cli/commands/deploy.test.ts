@@ -282,6 +282,51 @@ describe('cli deploy', () => {
     }
   });
 
+  test('s3 --dry-run uploads precompressed sidecars with content encoding', async () => {
+    const dir = await makeFixtureWithDist();
+    try {
+      await writeFile(join(dir, 'dist/index.html.br'), 'brotli-body');
+      await writeFile(join(dir, 'dist/assets.css.gz'), 'gzip-body');
+
+      const { stdout, exitCode } = await runCli(
+        ['deploy', 's3', '--dry-run', '--bucket', 'my-bucket', '--region', 'us-west-2'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('aws s3 sync');
+      expect(stdout).toContain("--exclude '*.br' --exclude '*.gz'");
+      expect(stdout).toContain(
+        `aws s3 cp ${join(dir, 'dist/assets.css.gz')} s3://my-bucket/assets.css.gz --content-encoding gzip --content-type 'text/css; charset=utf-8' --region us-west-2`,
+      );
+      expect(stdout).toContain(
+        `aws s3 cp ${join(dir, 'dist/index.html.br')} s3://my-bucket/index.html.br --content-encoding br --content-type 'text/html; charset=utf-8' --region us-west-2`,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('s3 --dry-run deletes stale remote sidecars when delete is enabled', async () => {
+    const dir = await makeFixtureWithDist(['', '[deploy.s3]', 'delete = true']);
+    try {
+      await writeFile(join(dir, 'dist/index.html.br'), 'brotli-body');
+
+      const { stdout, exitCode } = await runCli(
+        ['deploy', 's3', '--dry-run', '--bucket', 'my-bucket'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain(
+        "aws s3 rm s3://my-bucket --recursive --exclude '*' --include '*.br' --include '*.gz'",
+      );
+      expect(stdout).toContain(
+        `aws s3 cp ${join(dir, 'dist/index.html.br')} s3://my-bucket/index.html.br --content-encoding br --content-type 'text/html; charset=utf-8'`,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('s3 --preflight warns when the bucket policy is public', async () => {
     const dir = await makeFixtureWithDist();
     const binDir = join(dir, 'bin');

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { changedPathsAbsPath, loadBuildManifest } from '~/build/build-manifest.ts';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -210,6 +210,10 @@ export interface DeployPlan {
   // Optional pre-deploy validation command. It is only executed when the user
   // explicitly passes --preflight so normal deploy behavior stays unchanged.
   preflight?: DeployPreflightPlan;
+  // Follow-up commands that must run after the headline command. Kept separate
+  // from `extra`, which is currently used by github-pages as a dry-run-only
+  // explanation of its git plumbing.
+  followUp?: Array<{ command: string; args: string[] }>;
   env: Record<string, string | undefined>;
   cwd: string;
   // What the operator should see in --dry-run output: a shell-quoted summary
@@ -591,9 +595,25 @@ function planS3(args: PlanDeployArgs): DeployPlan {
     );
   }
   const region = pickString(args.cliValues.region) ?? cfg.region;
-  const argv = ['s3', 'sync', args.outputDir, `s3://${bucket}`];
+  const destination = `s3://${bucket}`;
+  const argv = [
+    's3',
+    'sync',
+    args.outputDir,
+    destination,
+    '--exclude',
+    '*.br',
+    '--exclude',
+    '*.gz',
+  ];
   if (cfg.delete) argv.push('--delete');
   if (region) argv.push('--region', region);
+  const encodedUploads = planS3EncodedSidecarUploads(
+    args.outputDir,
+    destination,
+    region,
+    cfg.delete,
+  );
   if (!args.env.AWS_ACCESS_KEY_ID && !args.env.AWS_PROFILE) {
     logger.warn(
       'Neither AWS_ACCESS_KEY_ID nor AWS_PROFILE is set; aws will use its default credential chain (instance profile, shared config, etc.).',
@@ -605,9 +625,13 @@ function planS3(args: PlanDeployArgs): DeployPlan {
     args: argv,
     extra: [],
     preflight: planS3PublicAccessPreflight(bucket, region),
+    followUp: encodedUploads,
     env: args.env,
     cwd: args.cwd,
-    summary: shellQuote(['aws', ...argv]),
+    summary: [
+      shellQuote(['aws', ...argv]),
+      ...encodedUploads.map((cmd) => shellQuote(['aws', ...cmd.args])),
+    ].join('\n'),
   };
 }
 
@@ -680,17 +704,20 @@ function planRsync(args: PlanDeployArgs): DeployPlan {
 }
 
 async function executePlan(plan: DeployPlan): Promise<number> {
-  logger.info(`Deploying via ${plan.command} ${plan.args.join(' ')}`);
-  const proc = Bun.spawn([plan.command, ...plan.args], {
-    cwd: plan.cwd,
-    env: filterDefinedEnv(plan.env),
-    stdout: 'inherit',
-    stderr: 'inherit',
-  });
-  const code = await proc.exited;
-  if (code !== 0) {
-    process.stderr.write(`${plan.command} exited with code ${code}\n`);
-    return EXIT_CODES.generic;
+  const commands = [{ command: plan.command, args: plan.args }, ...(plan.followUp ?? [])];
+  for (const cmd of commands) {
+    logger.info(`Deploying via ${cmd.command} ${cmd.args.join(' ')}`);
+    const proc = Bun.spawn([cmd.command, ...cmd.args], {
+      cwd: plan.cwd,
+      env: filterDefinedEnv(plan.env),
+      stdout: 'inherit',
+      stderr: 'inherit',
+    });
+    const code = await proc.exited;
+    if (code !== 0) {
+      process.stderr.write(`${cmd.command} exited with code ${code}\n`);
+      return EXIT_CODES.generic;
+    }
   }
   return EXIT_CODES.ok;
 }
@@ -748,6 +775,72 @@ function parseS3BucketPolicyIsPublic(stdout: string): boolean | undefined {
   if (policyStatus === null || typeof policyStatus !== 'object') return undefined;
   const isPublic = (policyStatus as { IsPublic?: unknown }).IsPublic;
   return typeof isPublic === 'boolean' ? isPublic : undefined;
+}
+
+function planS3EncodedSidecarUploads(
+  outputDir: string,
+  destination: string,
+  region: string | undefined,
+  deleteStale: boolean,
+): Array<{ command: string; args: string[] }> {
+  const files = listFilesRecursive(outputDir)
+    .map((file) => file.path)
+    .filter((path) => path.endsWith('.br') || path.endsWith('.gz'))
+    .sort();
+  const commands: Array<{ command: string; args: string[] }> = [];
+  if (deleteStale) {
+    const args = [
+      's3',
+      'rm',
+      destination,
+      '--recursive',
+      '--exclude',
+      '*',
+      '--include',
+      '*.br',
+      '--include',
+      '*.gz',
+    ];
+    if (region) args.push('--region', region);
+    commands.push({ command: 'aws', args });
+  }
+  commands.push(
+    ...files.map((path) => {
+      const encoding = path.endsWith('.br') ? 'br' : 'gzip';
+      const source = join(outputDir, path);
+      const args = ['s3', 'cp', source, `${destination}/${path}`, '--content-encoding', encoding];
+      const contentType = contentTypeForPrecompressedSource(path);
+      if (contentType !== undefined) args.push('--content-type', contentType);
+      if (region) args.push('--region', region);
+      return { command: 'aws', args };
+    }),
+  );
+  return commands;
+}
+
+function contentTypeForPrecompressedSource(path: string): string | undefined {
+  const sourcePath = path.slice(0, -3);
+  switch (extname(sourcePath).toLowerCase()) {
+    case '.html':
+    case '.htm':
+      return 'text/html; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.js':
+    case '.mjs':
+      return 'text/javascript; charset=utf-8';
+    case '.json':
+    case '.map':
+      return 'application/json; charset=utf-8';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.xml':
+      return 'application/xml; charset=utf-8';
+    case '.txt':
+      return 'text/plain; charset=utf-8';
+    default:
+      return undefined;
+  }
 }
 
 function pickString(v: string | boolean | undefined): string | undefined {

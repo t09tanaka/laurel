@@ -874,12 +874,14 @@ export const configSchema = z
               .string()
               .optional()
               .describe(
-                'S3 bucket name for `nectar deploy s3`. Forwarded to `aws s3 sync dist s3://<bucket>`.',
+                'S3 bucket name for `nectar deploy s3`. Used for the base `aws s3 sync dist s3://<bucket>` upload and for metadata-correct `.br` / `.gz` sidecar uploads.',
               ),
             region: z
               .string()
               .optional()
-              .describe('Optional AWS region forwarded as `--region <region>` to `aws s3 sync`.'),
+              .describe(
+                'Optional AWS region forwarded as `--region <region>` to S3 sync and sidecar upload commands.',
+              ),
             delete: z
               .boolean()
               .default(false)
@@ -890,7 +892,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'AWS S3 deploy target consumed by `nectar deploy s3`. Wraps `aws s3 sync dist s3://<bucket>`.',
+            'AWS S3 deploy target consumed by `nectar deploy s3`. Syncs `dist` to S3 and uploads pre-compressed `.br` / `.gz` sidecars with `Content-Encoding` metadata so CloudFront can serve origin-compressed assets correctly.',
           ),
         r2: z
           .object({

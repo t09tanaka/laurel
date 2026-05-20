@@ -1,9 +1,10 @@
 # Deploying Nectar to S3 + CloudFront
 
 S3 + CloudFront is the AWS-native path for serving Nectar's static `dist/`
-behind a private bucket. Nectar's deploy CLI handles the S3 upload with
-`aws s3 sync`; CloudFront distribution setup, directory-style URL rewrites,
-cache policy, and invalidations stay in AWS or your CI workflow.
+behind a private bucket. Nectar's deploy CLI handles the S3 upload, including
+metadata-correct `.br` / `.gz` sidecars when `[build].precompress = true`;
+CloudFront distribution setup, directory-style URL rewrites, cache policy, and
+invalidations stay in AWS or your CI workflow.
 
 Use this guide when you already operate in AWS or need CloudFront-specific
 controls. For a lower-ops static host, Cloudflare Pages, Netlify, Vercel, and
@@ -96,6 +97,12 @@ GitHub Pages have more managed defaults.
    bunx nectar build
    test -f dist/.nectar-manifest.json
    ```
+
+   If you enable `[build].precompress = true`, `nectar deploy s3` uploads the
+   generated `.br` and `.gz` sidecars with `Content-Encoding: br` and
+   `Content-Encoding: gzip` respectively. S3 does not infer Brotli metadata
+   from filenames, so uploading the sidecars as ordinary objects is not enough
+   for CloudFront to serve them correctly.
 
 8. Commit and push to `main`. The workflow installs Bun, builds `dist/`,
    verifies `dist/.nectar-manifest.json`, syncs fingerprinted assets with long

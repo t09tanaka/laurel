@@ -368,12 +368,12 @@ Cloudflare Pages deploy target consumed by `nectar deploy cloudflare`. Wraps `wr
 
 ## `deploy.s3`
 
-AWS S3 deploy target consumed by `nectar deploy s3`. Wraps `aws s3 sync dist s3://<bucket>`.
+AWS S3 deploy target consumed by `nectar deploy s3`. Syncs `dist` to S3 and uploads pre-compressed `.br` / `.gz` sidecars with `Content-Encoding` metadata so CloudFront can serve origin-compressed assets correctly.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.s3.bucket` | `string` | no | — | S3 bucket name for `nectar deploy s3`. Forwarded to `aws s3 sync dist s3://<bucket>`. |
-| `deploy.s3.region` | `string` | no | — | Optional AWS region forwarded as `--region <region>` to `aws s3 sync`. |
+| `deploy.s3.bucket` | `string` | no | — | S3 bucket name for `nectar deploy s3`. Used for the base `aws s3 sync dist s3://<bucket>` upload and for metadata-correct `.br` / `.gz` sidecar uploads. |
+| `deploy.s3.region` | `string` | no | — | Optional AWS region forwarded as `--region <region>` to S3 sync and sidecar upload commands. |
 | `deploy.s3.delete` | `boolean` | no | `false` | Pass `--delete` to `aws s3 sync` so the remote bucket mirrors the local `dist/` exactly, removing stale objects. Default `false` to avoid surprise deletions; opt in when stale files at the bucket root are a problem. |
 
 ## `deploy.r2`

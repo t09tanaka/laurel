@@ -729,10 +729,12 @@ Then run:
 bunx nectar deploy s3 --build
 ```
 
-The CLI wraps `aws s3 sync dist s3://<bucket>` and forwards `--region` when
-configured. It does not create CloudFront invalidations or apply the
-workflow's split cache-control metadata; keep using the workflow for the full
-production S3 + CloudFront path.
+The CLI syncs `dist/` to the bucket and forwards `--region` when configured.
+When `[build].precompress = true` has emitted `.br` / `.gz` sidecars, it
+uploads those objects with `Content-Encoding: br` / `gzip` metadata so
+CloudFront can serve origin-compressed assets correctly. It does not create
+CloudFront invalidations or apply the workflow's split cache-control metadata;
+keep using the workflow for the full production S3 + CloudFront path.
 
 ---
 
