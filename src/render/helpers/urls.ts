@@ -24,10 +24,13 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     const ctx = this as { url?: string };
     const candidate = typeof positional === 'string' ? positional : ctx.url;
     const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
+    const secure = options.hash.secure === true || options.hash.secure === 'true';
     if (!candidate) return '';
-    if (!absolute) return candidate;
+    if (!absolute && !secure) return candidate;
     try {
-      return new URL(candidate, engine.content.site.url).toString();
+      const resolved = new URL(candidate, engine.content.site.url);
+      if (secure) resolved.protocol = 'https:';
+      return resolved.toString();
     } catch {
       return candidate;
     }

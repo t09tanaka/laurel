@@ -48,6 +48,13 @@ describe('url helper', () => {
     expect(tpl({ url: '/hello/' })).toBe('https://blog.example.com/hello/');
   });
 
+  test('secure=true resolves the canonical url with an https scheme', () => {
+    const engine = makeEngine('http://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url secure=true}}');
+    expect(tpl({ url: '/hello/' })).toBe('https://blog.example.com/hello/');
+  });
+
   test('returns the input unchanged when the site URL is invalid (URL parser throws)', () => {
     const engine = makeEngine('not a url');
     registerUrlHelpers(engine);
