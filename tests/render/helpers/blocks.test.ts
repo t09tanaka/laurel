@@ -821,6 +821,42 @@ describe('has helper', () => {
     // neither matches
     expect(tpl({ slug: 'beta', tags: [{ slug: 'foo' }] })).toBe('MISS');
   });
+
+  test('ORs comma-separated values within attrs and ORs across multiple attrs', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#has tag="news,features" author="jane,pat"}}HIT{{else}}MISS{{/has}}',
+    );
+
+    expect(tpl({ tags: [{ slug: 'features' }], authors: [{ slug: 'sam' }] })).toBe('HIT');
+    expect(tpl({ tags: [{ slug: 'updates' }], authors: [{ slug: 'pat' }] })).toBe('HIT');
+    expect(tpl({ tags: [{ slug: 'updates' }], authors: [{ slug: 'sam' }] })).toBe('MISS');
+  });
+
+  test('nested has blocks compose OR checks into an explicit AND', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#has tag="news,features"}}{{#has author="jane,pat"}}HIT{{else}}NO_AUTHOR{{/has}}{{else}}NO_TAG{{/has}}',
+    );
+
+    expect(tpl({ tags: [{ slug: 'news' }], authors: [{ slug: 'jane' }] })).toBe('HIT');
+    expect(tpl({ tags: [{ slug: 'features' }], authors: [{ slug: 'sam' }] })).toBe('NO_AUTHOR');
+    expect(tpl({ tags: [{ slug: 'updates' }], authors: [{ slug: 'pat' }] })).toBe('NO_TAG');
+  });
+
+  test('inverted has renders only when the OR across attrs has no match', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{^has tag="news,features" author="jane,pat"}}NO_MATCH{{else}}MATCH{{/has}}',
+    );
+
+    expect(tpl({ tags: [{ slug: 'news' }], authors: [{ slug: 'sam' }] })).toBe('MATCH');
+    expect(tpl({ tags: [{ slug: 'updates' }], authors: [{ slug: 'pat' }] })).toBe('MATCH');
+    expect(tpl({ tags: [{ slug: 'updates' }], authors: [{ slug: 'sam' }] })).toBe('NO_MATCH');
+  });
 });
 
 describe('match helper', () => {
