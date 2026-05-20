@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-import { mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 type Target = {
   triple: string;
@@ -70,6 +71,20 @@ async function compileOne(target: Target, outDir: string): Promise<void> {
   console.log(`Built ${outfile}`);
 }
 
+async function writeShasums(outDir: string, targets: ReadonlyArray<Target>): Promise<void> {
+  const lines: string[] = [];
+  for (const target of targets) {
+    const path = `${outDir}/${target.outfile}`;
+    const buf = await readFile(path);
+    const hash = createHash('sha256').update(buf).digest('hex');
+    lines.push(`${hash}  ${target.outfile}`);
+  }
+  const body = `${lines.join('\n')}\n`;
+  const outPath = `${outDir}/SHASUMS256.txt`;
+  await writeFile(outPath, body, 'utf8');
+  console.log(`Wrote ${outPath}`);
+}
+
 const argv = process.argv.slice(2);
 const outDir = 'dist-bin';
 await mkdir(outDir, { recursive: true });
@@ -77,4 +92,8 @@ await mkdir(outDir, { recursive: true });
 const targets = selectTargets(argv);
 for (const target of targets) {
   await compileOne(target, outDir);
+}
+
+if (argv.includes('--shasums')) {
+  await writeShasums(outDir, targets);
 }

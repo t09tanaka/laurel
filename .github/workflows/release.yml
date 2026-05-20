@@ -4,23 +4,55 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v0.1.0). Must already exist on the repo.'
+        required: true
+        type: string
 
 permissions:
   contents: write
   id-token: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  resolve-ref:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      ref: ${{ steps.tag.outputs.ref }}
+    steps:
+      - name: Compute tag and ref
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ github.event.inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          if [[ -z "$tag" ]]; then
+            echo "No tag resolved" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "ref=refs/tags/${tag}" >> "$GITHUB_OUTPUT"
+
   verify:
     name: verify (check / typecheck / test)
+    needs: resolve-ref
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -55,7 +87,7 @@ jobs:
 
   build:
     name: build (${{ matrix.artifact }})
-    needs: verify
+    needs: [resolve-ref, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -75,6 +107,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -119,12 +153,16 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: build
+    needs: [resolve-ref, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      TAG_NAME: ${{ needs.resolve-ref.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Download all binaries
         uses: actions/download-artifact@v4
@@ -140,10 +178,13 @@ jobs:
           sha256sum nectar-* > SHASUMS256.txt
           cat SHASUMS256.txt
 
+      # Signing (cosign / minisign) is intentionally out of scope for now.
+      # When added, sign SHASUMS256.txt and upload alongside the binaries.
+      # See https://docs.sigstore.dev/cosign/ and https://jedisct1.github.io/minisign/.
+
       - name: Extract release notes from CHANGELOG.md
         id: notes
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
           VERSION="${TAG_NAME#v}"
           have_notes=false
           if [[ -f CHANGELOG.md ]]; then
@@ -164,30 +205,75 @@ jobs:
           fi
           echo "have_notes=${have_notes}" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      - name: Append verification instructions to release notes
+        if: steps.notes.outputs.have_notes == 'true'
+        run: |
+          {
+            echo ""
+            echo "## Verification"
+            echo ""
+            echo "Each release includes a \`SHASUMS256.txt\` listing SHA-256 hashes of every binary."
+            echo "Download \`SHASUMS256.txt\` and the binary you want, then verify:"
+            echo ""
+            echo "\`\`\`sh"
+            echo "shasum -a 256 -c SHASUMS256.txt --ignore-missing"
+            echo "\`\`\`"
+            echo ""
+            echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
+          } >> release_notes.md
+
+      - name: Create GitHub Release (with CHANGELOG notes)
+        if: steps.notes.outputs.have_notes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ steps.notes.outputs.have_notes }}" == "true" ]]; then
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --notes-file release_notes.md \
-              release/*
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --generate-notes \
-              release/*
-          fi
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --notes-file release_notes.md \
+            release/*
+
+      - name: Create GitHub Release (auto-generated notes)
+        if: steps.notes.outputs.have_notes != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --generate-notes \
+            release/*
+
+      - name: Append verification note via release edit (auto-generated path)
+        if: steps.notes.outputs.have_notes != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh release view "$TAG_NAME" --json body --jq '.body')
+          {
+            printf '%s\n' "$existing"
+            echo ""
+            echo "## Verification"
+            echo ""
+            echo "Each release includes a \`SHASUMS256.txt\` listing SHA-256 hashes of every binary."
+            echo "Download \`SHASUMS256.txt\` and the binary you want, then verify:"
+            echo ""
+            echo "\`\`\`sh"
+            echo "shasum -a 256 -c SHASUMS256.txt --ignore-missing"
+            echo "\`\`\`"
+            echo ""
+            echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
+          } > combined_notes.md
+          gh release edit "$TAG_NAME" --notes-file combined_notes.md
 
   publish-npm:
     name: Publish to npm
-    needs: release
+    needs: [resolve-ref, release]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
