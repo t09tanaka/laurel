@@ -63,6 +63,31 @@ static routes. Do not add a catch-all `_redirects` rewrite for missing paths to
 `/404.html`, such as `/* /404.html 404`, unless you are intentionally replacing
 Cloudflare Pages' built-in static 404 convention.
 
+## Cloudflare Workers Static Assets
+
+If you deploy the same `dist/` directory with Cloudflare Workers Static Assets
+instead of Pages, keep Nectar's multi-page output as static files and let
+Cloudflare serve `dist/404.html` for missing routes:
+
+```toml
+name = "my-blog"
+compatibility_date = "2025-04-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "404-page"
+```
+
+Use `not_found_handling = "404-page"` for Nectar sites. Nectar emits separate
+HTML files for posts, pages, tag indexes, author indexes, and `dist/404.html`;
+that setting preserves direct navigation to those files while returning the
+generated 404 page for a real miss.
+
+Do not use `not_found_handling = "single-page-application"` for a normal
+Nectar deploy. SPA fallback serves `index.html` for navigation requests that do
+not match an asset, which can hide missing pages behind the homepage and break
+Nectar's direct navigation / 404 semantics.
+
 ## Redirects
 
 Add redirects to `redirects.yaml` at the project root:

@@ -162,6 +162,21 @@ paths to `/404.html`.
 enabled = true
 ```
 
+If you deploy `dist/` through Cloudflare Workers Static Assets rather than
+Pages, configure the asset bundle to use Nectar's generated 404 page:
+
+```toml
+[assets]
+directory = "./dist"
+not_found_handling = "404-page"
+```
+
+Nectar is a multi-page static site, so direct navigation should resolve the
+matching HTML file and real misses should use `dist/404.html`. Avoid
+`not_found_handling = "single-page-application"` for normal Nectar deploys
+because it can serve the homepage for missing navigation requests and weaken
+the intended 404 behavior.
+
 ```yaml
 # redirects.yaml
 - from: /feed

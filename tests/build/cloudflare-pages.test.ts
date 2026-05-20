@@ -123,3 +123,23 @@ describe('emitCloudflarePagesHeaders', () => {
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
   });
 });
+
+describe('Cloudflare deployment docs', () => {
+  test('document Workers Static Assets 404 handling for Nectar output', async () => {
+    const root = join(import.meta.dir, '..', '..');
+    const guide = await readFile(join(root, 'docs', 'deploy', 'cloudflare-pages.md'), 'utf8');
+    const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
+
+    expect(guide).toContain('Cloudflare Workers Static Assets');
+    expect(guide).toContain('not_found_handling = "404-page"');
+    expect(guide).toContain('Nectar emits separate');
+    expect(guide).toContain('dist/404.html');
+    expect(guide).toContain('not_found_handling = "single-page-application"');
+    expect(guide).toContain('direct navigation / 404 semantics');
+    expect(tutorial).toContain('Cloudflare Workers Static Assets');
+    expect(tutorial).toContain('not_found_handling = "404-page"');
+    expect(tutorial).toContain('not_found_handling = "single-page-application"');
+    expect(tutorial).toContain('missing navigation requests');
+    expect(tutorial).toContain('intended 404 behavior');
+  });
+});
