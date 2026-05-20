@@ -41,6 +41,14 @@ export interface LoadContentOptions {
   // builds. Scheduled posts continue to be gated on their `published_at`
   // timestamp regardless of this flag.
   includeDrafts?: boolean;
+  // When true, posts whose `published_at` is in the future, and posts with
+  // `status: scheduled` regardless of date, are kept in the content graph
+  // instead of being filtered out. Default-excluded so embargoed announcements
+  // can't ship before their wall-clock release time. Surfaced through
+  // `[build].include_future_posts` for preview deploys that want to see
+  // scheduled content. Independent of `includeDrafts`: a future-dated
+  // `status: draft` still needs `includeDrafts: true` as well.
+  includeFuturePosts?: boolean;
 }
 
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
@@ -62,6 +70,7 @@ export async function loadContent({
   config,
   routesYaml,
   includeDrafts,
+  includeFuturePosts,
 }: LoadContentOptions): Promise<ContentGraph> {
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
@@ -80,6 +89,11 @@ export async function loadContent({
   // (e.g. 30 posts but all members-only) still benefit from workers.
   const pool = createMarkdownPool({ estimatedJobs: postCount * 2 + pageCount });
 
+  // Explicit option wins; otherwise fall back to the config flag so a
+  // `nectar.toml` opt-in propagates without every caller having to plumb it.
+  const futureFromConfig = config.build.include_future_posts === true;
+  const includeFuture = includeFuturePosts === true || futureFromConfig;
+
   try {
     return await loadContentWithPool({
       cwd,
@@ -88,6 +102,7 @@ export async function loadContent({
       pool,
       taxonomies,
       includeDrafts: includeDrafts === true,
+      includeFuturePosts: includeFuture,
     });
   } finally {
     await pool.close();
@@ -101,11 +116,13 @@ async function loadContentWithPool({
   pool,
   taxonomies,
   includeDrafts,
+  includeFuturePosts,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
   taxonomies: ResolvedTaxonomies;
   includeDrafts: boolean;
+  includeFuturePosts: boolean;
 }): Promise<ContentGraph> {
   const [authors, tags, posts, pages] = await Promise.all([
     loadAuthors(cwd, config, taxonomies),
@@ -117,17 +134,29 @@ async function loadContentWithPool({
   const authorMap = new Map(authors.map((a) => [a.slug, a]));
   const tagMap = new Map(tags.map((t) => [t.slug, t]));
 
-  // Scheduled posts must stay hidden until their `published_at` timestamp has
-  // passed. Without this check a contributor who sets `status: scheduled` with
-  // a future date — the standard Ghost embargo workflow — would have the post
-  // ship publicly on the next build, leaking embargoed announcements via HTML,
-  // RSS, and sitemap. Captured once so every post is judged against the same
-  // wall-clock instant within a build.
+  // Scheduled posts and posts with a future `published_at` must stay hidden
+  // until the wall-clock release time has passed. Two distinct gates fold into
+  // the same filter:
+  //   1. `status: scheduled` — Ghost's embargo workflow. A post staged for
+  //      future release that ships on the next build would leak the
+  //      announcement via HTML, RSS, and sitemap. Match Ghost by excluding
+  //      every scheduled post outright; the author flips it to `published`
+  //      when the embargo lifts.
+  //   2. `published_at > now()` regardless of status — covers the case where
+  //      a contributor sets `status: published` but post-dates the entry to
+  //      stagger a launch. Ghost waits for the timestamp; we should too.
+  // `include_future_posts` (config) / `includeFuturePosts` (option) is the
+  // explicit opt-in for preview deploys that *want* to see embargoed content.
+  // Captured once so every post is judged against the same wall-clock instant
+  // within a build.
   const nowMs = Date.now();
   const resolvedPosts: Post[] = [];
   for (const raw of posts) {
     if (raw.status === 'draft' && !includeDrafts) continue;
-    if (raw.status === 'scheduled' && new Date(raw.published_at).getTime() > nowMs) continue;
+    if (!includeFuturePosts) {
+      if (raw.status === 'scheduled') continue;
+      if (new Date(raw.published_at).getTime() > nowMs) continue;
+    }
     const resolved = resolvePostRelations(raw, authorMap, tagMap, site, taxonomies);
     resolvedPosts.push(resolved);
   }

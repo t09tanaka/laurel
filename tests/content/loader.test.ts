@@ -861,7 +861,12 @@ Public.
     expect(graph.posts.map((p) => p.slug)).toEqual(['live']);
   });
 
-  test('includes scheduled posts whose published_at has already passed', async () => {
+  test('excludes scheduled posts even when published_at has already passed', async () => {
+    // Ghost only ships a post once the author flips `status` from `scheduled`
+    // to `published`. A scheduled post with a past date means the cron flip
+    // hasn't happened yet (or the author edited the date), so Nectar must keep
+    // it out of the build until the status is updated — otherwise issue #447's
+    // silent leak path reopens.
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-past-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const pastIso = new Date(Date.now() - 60 * 1000).toISOString();
@@ -879,7 +884,140 @@ Now live.
     );
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
     const graph = await loadContent({ cwd, config });
-    expect(graph.posts.map((p) => p.slug)).toEqual(['late']);
+    expect(graph.posts).toHaveLength(0);
+  });
+
+  test('excludes posts with future published_at even when status is published', async () => {
+    // Issue #444: a post staged with `status: published` and a future date
+    // would otherwise ship immediately on the next build, defeating the date
+    // gate Ghost authors expect.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-future-published-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/launch.md'),
+      `---
+title: Launch
+status: published
+date: ${futureIso}
+---
+
+Not yet.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/live.md'),
+      `---
+title: Live
+status: published
+date: 2024-01-01T00:00:00Z
+---
+
+Already out.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.map((p) => p.slug)).toEqual(['live']);
+  });
+
+  test('include_future_posts config opts back into future-dated and scheduled posts', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-include-future-config-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/embargo.md'),
+      `---
+title: Embargo
+status: scheduled
+date: ${futureIso}
+---
+
+Secret.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/launch.md'),
+      `---
+title: Launch
+status: published
+date: ${futureIso}
+---
+
+Post-dated.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/live.md'),
+      `---
+title: Live
+status: published
+date: 2024-01-01T00:00:00Z
+---
+
+Past.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { include_future_posts: true },
+    });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.map((p) => p.slug).sort()).toEqual(['embargo', 'launch', 'live']);
+  });
+
+  test('includeFuturePosts option overrides default exclusion', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-include-future-option-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await writeFile(
+      join(cwd, 'content/posts/embargo.md'),
+      `---
+title: Embargo
+status: scheduled
+date: ${futureIso}
+---
+
+Secret.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const excluded = await loadContent({ cwd, config });
+    expect(excluded.posts).toHaveLength(0);
+    const included = await loadContent({ cwd, config, includeFuturePosts: true });
+    expect(included.posts.map((p) => p.slug)).toEqual(['embargo']);
+  });
+
+  test('include_future_posts does not unmask drafts on its own', async () => {
+    // Drafts and future-dated content are independently gated. A scheduled
+    // *and* draft post stays hidden unless both opt-ins are flipped, so the
+    // looser preview policy can't accidentally promote WIP work.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-future-not-drafts-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/wip.md'),
+      `---
+title: WIP
+status: draft
+date: 2024-01-01T00:00:00Z
+---
+
+Not ready.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { include_future_posts: true },
+    });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts).toHaveLength(0);
   });
 
   test('excludes drafts by default regardless of date', async () => {
