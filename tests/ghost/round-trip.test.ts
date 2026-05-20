@@ -1,0 +1,263 @@
+import { describe, expect, test } from 'bun:test';
+import { readFile, readdir } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import type { ChildNode, Element } from 'domhandler';
+import { parseDocument } from 'htmlparser2';
+import { renderMarkdown } from '~/content/markdown.ts';
+import { createGhostTurndown, preprocessKoenigCardFences } from '~/ghost/turndown-rules.ts';
+
+const FIXTURE_DIR = join(import.meta.dir, '..', 'fixtures', 'cards');
+const turndown = createGhostTurndown();
+
+const EXPECTED_LOSS = {
+  paywall: {
+    reason:
+      'Direct Markdown rendering does not model the content-loader paywall split, so the marker is not a rendered HTML node.',
+    sourceMarkers: ['kg-card-begin: paywall'],
+    renderedLossMarkers: ['members-only'],
+  },
+  recommendations: {
+    reason:
+      'Recommendations cards do not have a native Turndown carrier yet; the links survive but the kg-recommendations hooks are flattened.',
+    sourceMarkers: ['kg-recommendations-card', 'kg-recommendation'],
+    renderedLossMarkers: ['kg-recommendations-card', 'kg-recommendation'],
+  },
+  signup: {
+    reason:
+      'Signup card import captures metadata as a Liquid shortcode, but renderMarkdown does not expand that shortcode into a kg-signup-card scaffold yet.',
+    sourceMarkers: ['kg-signup-card', 'data-members-form'],
+    renderedLossMarkers: ['kg-signup-card'],
+  },
+} as const;
+
+type ExpectedLossFixture = keyof typeof EXPECTED_LOSS;
+
+interface RoundTripResult {
+  fixture: string;
+  sourceHtml: string;
+  importedMarkdown: string;
+  renderedHtml: string;
+  normalizedSource: string;
+  normalizedRendered: string;
+}
+
+async function fixtureNames(): Promise<string[]> {
+  const entries = await readdir(FIXTURE_DIR);
+  return entries
+    .filter((entry) => entry.endsWith('.md') && entry !== 'README.md')
+    .map((entry) => basename(entry, '.md'))
+    .sort();
+}
+
+async function loadFixture(name: string): Promise<string> {
+  return readFile(join(FIXTURE_DIR, `${name}.md`), 'utf8');
+}
+
+async function ghostHtmlForFixture(source: string): Promise<string> {
+  if (looksLikeHtml(source)) return source;
+  return (await renderMarkdown(source)).html;
+}
+
+function looksLikeHtml(source: string): boolean {
+  return /<!--/.test(source) || /<[a-z][\s/>]/i.test(source);
+}
+
+async function roundTripFixture(name: string): Promise<RoundTripResult> {
+  const fixtureSource = await loadFixture(name);
+  const sourceHtml = await ghostHtmlForFixture(fixtureSource);
+  const importedMarkdown = turndown.turndown(preprocessKoenigCardFences(sourceHtml));
+  const renderedHtml = (await renderMarkdown(importedMarkdown)).html;
+  return {
+    fixture: name,
+    sourceHtml,
+    importedMarkdown,
+    renderedHtml,
+    normalizedSource: normalizeRoundTripHtml(sourceHtml),
+    normalizedRendered: normalizeRoundTripHtml(renderedHtml),
+  };
+}
+
+function normalizeRoundTripHtml(html: string): string {
+  const doc = parseDocument(html, {
+    decodeEntities: true,
+    lowerCaseAttributeNames: false,
+  });
+  return canonicalizeNodes(doc.children).join('\n');
+}
+
+function canonicalizeNodes(nodes: ChildNode[], depth = 0): string[] {
+  const lines: string[] = [];
+  for (const node of nodes) {
+    lines.push(...canonicalizeNode(node, depth));
+  }
+  return lines;
+}
+
+function canonicalizeNode(node: ChildNode, depth: number): string[] {
+  if (isElement(node)) return canonicalizeElement(node, depth);
+  if ('type' in node && node.type === 'comment') return [];
+  if (!('data' in node)) return [];
+  const text = normalizeText(node.data);
+  return text ? [`${indent(depth)}${text}`] : [];
+}
+
+function canonicalizeElement(node: Element, depth: number): string[] {
+  const attrs = normalizedAttrs(node);
+  const open = `${indent(depth)}<${node.name}${attrs ? ` ${attrs}` : ''}>`;
+  const children = canonicalChildren(node);
+  if (children.length === 0) return [open];
+  return [open, ...canonicalizeNodes(children, depth + 1), `${indent(depth)}</${node.name}>`];
+}
+
+function canonicalChildren(node: Element): ChildNode[] {
+  if (!hasClass(node, 'kg-callout-text')) return node.children;
+  const significant = node.children.filter((child) => {
+    if (!('data' in child)) return true;
+    return normalizeText(child.data) !== '';
+  });
+  const only = significant[0];
+  if (significant.length === 1 && only && isElement(only) && only.name === 'p') {
+    return only.children;
+  }
+  return node.children;
+}
+
+function normalizedAttrs(node: Element): string {
+  return Object.entries(node.attribs)
+    .flatMap(([name, value]): Array<[string, string]> => {
+      const normalizedName = name.toLowerCase();
+      if (node.name === 'img' && normalizedName === 'loading' && value === 'lazy') return [];
+      if (normalizedName === 'class') {
+        const classes = normalizeClasses(value);
+        return classes ? [[normalizedName, classes]] : [];
+      }
+      return [[normalizedName, normalizeAttrValue(normalizedName, value)]];
+    })
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, value]) => {
+      if (value === '') return name;
+      return `${name}="${escapeAttr(value)}"`;
+    })
+    .join(' ');
+}
+
+function normalizeClasses(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter((cls) => cls !== '')
+    .filter((cls) => cls !== 'kg-width-regular')
+    .filter((cls) => cls !== 'kg-card-hascaption')
+    .filter((cls) => cls !== 'kg-image')
+    .sort()
+    .join(' ');
+}
+
+function normalizeAttrValue(name: string, value: string): string {
+  if (name !== 'style') return value;
+  return value
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .map((part) => part.replace(/\s*:\s*/g, ':'))
+    .sort()
+    .join(';');
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+function hasClass(node: Element, className: string): boolean {
+  return (node.attribs.class ?? '').split(/\s+/).includes(className);
+}
+
+function isElement(node: ChildNode): node is Element {
+  return 'attribs' in node && 'children' in node && 'name' in node;
+}
+
+function indent(depth: number): string {
+  return '  '.repeat(depth);
+}
+
+function normalizedDiff(actual: RoundTripResult): string {
+  const expectedLines = actual.normalizedSource.split('\n');
+  const actualLines = actual.normalizedRendered.split('\n');
+  const max = Math.max(expectedLines.length, actualLines.length);
+  for (let i = 0; i < max; i += 1) {
+    const expected = expectedLines[i] ?? '<missing>';
+    const received = actualLines[i] ?? '<missing>';
+    if (expected !== received) {
+      return [
+        `fixture: ${actual.fixture}`,
+        `first differing normalized line: ${i + 1}`,
+        `expected: ${expected}`,
+        `received: ${received}`,
+        '',
+        'imported markdown:',
+        actual.importedMarkdown,
+      ].join('\n');
+    }
+  }
+  return `fixture: ${actual.fixture}\nno normalized diff found`;
+}
+
+describe('Ghost card round-trip fidelity', () => {
+  test('tracks expected-loss fixtures explicitly', async () => {
+    const names = await fixtureNames();
+
+    for (const name of Object.keys(EXPECTED_LOSS) as ExpectedLossFixture[]) {
+      expect(names).toContain(name);
+      const actual = await roundTripFixture(name);
+      const expectation = EXPECTED_LOSS[name];
+
+      expect(actual.normalizedRendered).not.toBe(actual.normalizedSource);
+      for (const marker of expectation.sourceMarkers) {
+        expect(actual.sourceHtml).toContain(marker);
+      }
+      for (const marker of expectation.renderedLossMarkers) {
+        expect(actual.renderedHtml).not.toContain(marker);
+      }
+      expect(expectation.reason.length).toBeGreaterThan(20);
+    }
+  });
+
+  test('keeps supported card fixtures at zero normalized diff', async () => {
+    const names = (await fixtureNames()).filter((name) => !(name in EXPECTED_LOSS));
+
+    for (const name of names) {
+      const actual = await roundTripFixture(name);
+      if (actual.normalizedRendered !== actual.normalizedSource) {
+        throw new Error(normalizedDiff(actual));
+      }
+    }
+  });
+
+  test('covers the full card fixture corpus', async () => {
+    const names = await fixtureNames();
+    expect(names).toEqual([
+      'audio',
+      'bookmark',
+      'button',
+      'callout',
+      'code',
+      'embed',
+      'file',
+      'gallery',
+      'header',
+      'html',
+      'image',
+      'markdown',
+      'nft',
+      'paywall',
+      'product',
+      'recommendations',
+      'signup',
+      'toggle',
+      'video',
+    ]);
+  });
+});
