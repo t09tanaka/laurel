@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
+import { logger } from '~/util/logger.ts';
 
 function buildEngine(content: {
   posts?: unknown[];
@@ -510,5 +511,22 @@ describe('get helper tiers resource', () => {
     const engine = buildEngine({ tiers: [] });
     const tpl = engine.hb.compile(`{{#get "tiers"}}has tiers{{else}}no tiers{{/get}}`);
     expect(tpl({})).toBe('no tiers');
+  });
+
+  test('warns once that live membership tiers are not supported', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const engine = buildEngine({ tiers: [] });
+      const tpl = engine.hb.compile(`{{#get "tiers"}}has tiers{{else}}no tiers{{/get}}`);
+
+      expect(tpl({})).toBe('no tiers');
+      expect(tpl({})).toBe('no tiers');
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toContain('live members backend');
+      expect(warn.mock.calls[0]?.[0]).toContain('{{#get "tiers"}}');
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import { logger } from '~/util/logger.ts';
 import type { NectarEngine } from '../engine.ts';
 import { withTrustedCaptionHtml, withTrustedCaptionHtmlArray } from '../safe-context.ts';
 import { applyGetFilter } from './get-filter.ts';
@@ -17,6 +18,8 @@ interface IterationEntry {
   key?: string;
   value: unknown;
 }
+
+const warnedTiersGetHelpers = new WeakSet<NectarEngine>();
 
 export function registerBlockHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('foreach', function foreachHelper(this: unknown, ...args: unknown[]) {
@@ -191,6 +194,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const fields = parseFieldsTokens(hash.fields);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
+    if (resource === 'tiers') warnTiersGetHelper(engine);
     const sorted = getSortedResource(engine, resource, order);
     const slugFiltered = slugFilter
       ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
@@ -241,6 +245,14 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (params.length === 1) return params[0];
     return result;
   });
+}
+
+function warnTiersGetHelper(engine: NectarEngine): void {
+  if (warnedTiersGetHelpers.has(engine)) return;
+  warnedTiersGetHelpers.add(engine);
+  logger.warn(
+    'Ghost membership tiers are not backed by a live members backend in Nectar; {{#get "tiers"}} exposes configured static tiers only, or an empty list when none are configured.',
+  );
 }
 
 function exposeGetResource(resource: string, results: unknown[]): unknown[] {
