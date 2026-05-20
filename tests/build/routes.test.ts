@@ -553,6 +553,7 @@ describe('planRoutes — error-404 route', () => {
     const routes = planRoutes({ config, content, theme });
     const errorRoute = routes.find((r) => r.kind === 'error');
     expect(errorRoute).toBeDefined();
+    expect(errorRoute?.kind).toBe('error');
     expect(errorRoute?.url).toBe('/404.html');
     expect(errorRoute?.outputPath).toBe('404.html');
     expect(errorRoute?.template).toBe('error-404');

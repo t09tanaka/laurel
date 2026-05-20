@@ -373,6 +373,14 @@ describe('is helper', () => {
     expect(tpl({}, { data: { route: { kind: 'author' } } })).toBe('yes');
   });
 
+  test('"error" matches the error route', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "error"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'error' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('MISS');
+  });
+
   // Cross-theme regression coverage (issue #866). Casper, Source, and Edition
   // all branch on `{{#is "home"}}` vs `{{#is "index"}}` vs `{{#is "paged"}}`
   // with subtly different intents:

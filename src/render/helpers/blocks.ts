@@ -93,6 +93,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       page: ['page'],
       tag: ['tag'],
       author: ['author'],
+      error: ['error'],
       paged: [],
     };
     const matches = targets.some((target) => {
