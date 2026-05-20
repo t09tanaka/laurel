@@ -1,6 +1,7 @@
 import { Marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
+import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
@@ -55,7 +56,7 @@ const sanitizeOptions: IOptions = {
       'loading',
       'referrerpolicy',
     ],
-    img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+    img: ['src', 'srcset', 'sizes', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
     source: ['src', 'srcset', 'type', 'media', 'sizes'],
     video: [
       'src',
@@ -129,7 +130,7 @@ export async function renderMarkdown(
   body: string,
   options: RenderMarkdownOptions = {},
 ): Promise<RenderedMarkdown> {
-  const expanded = expandKoenigShortcodes(body);
+  const expanded = expandKoenigShortcodes(stripGhostUrlPlaceholder(body));
   const raw = await marked.parse(expanded);
   const promoted = promoteImagesToFigures(raw);
   const newsletterStripped = stripEmailCtaCards(promoted);

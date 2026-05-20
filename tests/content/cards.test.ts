@@ -53,6 +53,30 @@ describe('card fixture corpus', () => {
     expect(html).toContain('<figcaption>Sample cover caption.</figcaption>');
   });
 
+  test('figure shortcode strips Ghost URL placeholders from responsive image attrs', async () => {
+    const { html } = await renderMarkdown(
+      '{{< figure src="__GHOST_URL__/content/images/2024/01/photo.jpg" srcset="__GHOST_URL__/content/images/size/w600/photo.jpg 600w, __GHOST_URL__/content/images/photo.jpg 1200w" sizes="(min-width: 720px) 720px, 100vw" alt="Photo" />}}',
+    );
+    expect(html).not.toContain('__GHOST_URL__');
+    expect(html).toContain('src="/content/images/2024/01/photo.jpg"');
+    expect(html).toContain(
+      'srcset="/content/images/size/w600/photo.jpg 600w, /content/images/photo.jpg 1200w"',
+    );
+    expect(html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
+  test('plain raw img strips Ghost URL placeholders without dropping srcset or sizes', async () => {
+    const { html } = await renderMarkdown(
+      '<p><img src="__GHOST_URL__/content/images/2024/01/plain.jpg" srcset="__GHOST_URL__/content/images/size/w600/plain.jpg 600w, __GHOST_URL__/content/images/plain.jpg 1200w" sizes="100vw" alt="Plain"></p>',
+    );
+    expect(html).not.toContain('__GHOST_URL__');
+    expect(html).toContain('src="/content/images/2024/01/plain.jpg"');
+    expect(html).toContain(
+      'srcset="/content/images/size/w600/plain.jpg 600w, /content/images/plain.jpg 1200w"',
+    );
+    expect(html).toContain('sizes="100vw"');
+  });
+
   test('gallery card preserves the kg-gallery-container row structure', async () => {
     const html = await renderFixture('gallery');
     expect(html).toContain('class="kg-card kg-gallery-card kg-width-wide"');

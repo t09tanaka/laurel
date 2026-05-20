@@ -188,7 +188,7 @@ const HTML_CARD_SANITIZE_OPTIONS: IOptions = {
     ...sanitizeHtml.defaults.allowedAttributes,
     '*': ['id', 'class', 'lang', 'dir', 'title', 'style'],
     a: ['href', 'name', 'target', 'rel', 'hreflang'],
-    img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+    img: ['src', 'srcset', 'sizes', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
     iframe: [
       'src',
       'width',
@@ -629,18 +629,41 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const caption = text(node.querySelector('figcaption'));
       const src = attr(img, 'src');
       const alt = attr(img, 'alt');
-      if (!caption) return wrap(`![${alt}](${src})`);
+      const srcset = attr(img, 'srcset');
+      const sizes = attr(img, 'sizes');
+      if (!caption && !srcset && !sizes) return wrap(`![${alt}](${src})`);
       return wrap(
         shortcode('figure', {
           src,
           alt,
           width: attr(img, 'width'),
           height: attr(img, 'height'),
+          srcset,
+          sizes,
           size: classByPrefix(node, 'kg-width-'),
           caption,
         }),
       );
     },
+  });
+
+  // Plain raw <img> tags with responsive metadata need a shortcode carrier.
+  // Turndown's default image rule emits `![alt](src)`, which permanently drops
+  // `srcset` and `sizes` before renderMarkdown can rebuild the HTML.
+  turndown.addRule('plain-responsive-img', {
+    filter: (node) =>
+      node.nodeName === 'IMG' && (!!node.getAttribute('srcset') || !!node.getAttribute('sizes')),
+    replacement: (_content, node) =>
+      wrap(
+        shortcode('figure', {
+          src: attr(node, 'src'),
+          alt: attr(node, 'alt'),
+          width: attr(node, 'width'),
+          height: attr(node, 'height'),
+          srcset: attr(node, 'srcset'),
+          sizes: attr(node, 'sizes'),
+        }),
+      ),
   });
 
   // <picture> wraps an <img> with <source> fallbacks. Default behaviour drops

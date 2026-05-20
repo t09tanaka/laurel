@@ -137,6 +137,26 @@ describe('Ghost Turndown rules — kg-image-card', () => {
     );
     expect(md).toContain('sizes="(min-width: 1200px) 1000px, 100vw"');
   });
+
+  test('plain raw img preserves srcset and sizes via figure shortcode', () => {
+    const html = `
+      <p>
+        <img
+          src="/content/images/plain.jpg"
+          srcset="/content/images/size/w600/plain.jpg 600w, /content/images/plain.jpg 1200w"
+          sizes="100vw"
+          alt="Plain"
+        />
+      </p>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="/content/images/plain.jpg"');
+    expect(md).toContain(
+      'srcset="/content/images/size/w600/plain.jpg 600w, /content/images/plain.jpg 1200w"',
+    );
+    expect(md).toContain('sizes="100vw"');
+  });
 });
 
 describe('Ghost Turndown rules — kg-gallery-card', () => {

@@ -19,6 +19,7 @@ import { renderLexicalToHtml } from './lexical-renderer.ts';
 import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
 import { type SlugChange, loadRedirectsJson, writeRedirectMaps } from './redirects.ts';
 import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
+import { stripGhostUrlPlaceholder } from './url-placeholder.ts';
 import { GhostUrlRewriter } from './url-rewriter.ts';
 
 export type OnConflict = 'skip' | 'overwrite' | 'rename';
@@ -43,28 +44,6 @@ const turndown = createGhostTurndown();
 // one. See backlog #522 / #523. Bumping above ~64 risks fd exhaustion when
 // users also run with --download-images (which opens its own fds per fetch).
 const IMPORT_CONCURRENCY = 32;
-
-// Ghost exports replace site URLs with the literal `__GHOST_URL__` placeholder
-// in HTML bodies and image/URL fields. We rewrite to the empty string so the
-// remaining `/content/images/...` path resolves against the deployed site root.
-const GHOST_URL_PLACEHOLDER = /__GHOST_URL__/g;
-
-function stripGhostUrlPlaceholder<T>(value: T): T {
-  if (typeof value === 'string') {
-    return value.replace(GHOST_URL_PLACEHOLDER, '') as T;
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => stripGhostUrlPlaceholder(item)) as T;
-  }
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = stripGhostUrlPlaceholder(v);
-    }
-    return out as T;
-  }
-  return value;
-}
 
 interface GhostExportDbEntry {
   data?: {

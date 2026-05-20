@@ -1087,6 +1087,7 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
                   '<figure class="kg-card kg-image-card">',
                   '<img src="__GHOST_URL__/content/images/2024/01/photo.jpg" srcset="__GHOST_URL__/content/images/size/w600/photo.jpg 600w, __GHOST_URL__/content/images/photo.jpg 1200w" sizes="(min-width: 720px) 720px, 100vw" alt="Photo" />',
                   '</figure>',
+                  '<p><img src="__GHOST_URL__/content/images/2024/01/plain.jpg" srcset="__GHOST_URL__/content/images/size/w600/plain.jpg 600w, __GHOST_URL__/content/images/plain.jpg 1200w" sizes="100vw" alt="Plain" /></p>',
                   '<figure class="kg-card kg-video-card">',
                   '<div class="kg-video-container" style="background-image:url(__GHOST_URL__/content/images/2024/01/bg.jpg);--aspect-ratio: 1.777">',
                   '<video poster="__GHOST_URL__/content/images/2024/01/poster.jpg" preload="metadata">',
@@ -1130,6 +1131,11 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
     expect(postMd).toContain(
       'srcset="/content/images/size/w600/photo.jpg 600w, /content/images/photo.jpg 1200w"',
     );
+    expect(postMd).toContain('src="/content/images/2024/01/plain.jpg"');
+    expect(postMd).toContain(
+      'srcset="/content/images/size/w600/plain.jpg 600w, /content/images/plain.jpg 1200w"',
+    );
+    expect(postMd).toContain('sizes="100vw"');
     expect(postMd).toContain('poster="/content/images/2024/01/poster.jpg"');
     expect(postMd).toContain('src="/content/media/2024/01/demo.mp4"');
     expect(postMd).toContain('src="/content/media/2024/01/podcast.mp3"');
