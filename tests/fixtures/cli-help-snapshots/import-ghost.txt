@@ -9,14 +9,14 @@ Arguments:
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --assets <dir>      Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
-  --output <dir>      Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories
+  -o, --output <dir>  Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories
   --download-images   Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths
   --max-image-size <size>  Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.
   --source-url <url>  Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images
   --max-size <size>   Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.
   --keep-code-injection  Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.
-  --json              Emit the import summary as JSON on stdout for CI consumption
+  -j, --json          Emit the import summary as JSON on stdout for CI consumption
   -h, --help          Show help for this command
 
 Environment variables:

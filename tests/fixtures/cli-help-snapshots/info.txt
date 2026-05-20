@@ -4,8 +4,8 @@ Usage:
   nectar info [--config <path>] [--json]
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
-  --json              Emit the report as JSON for CI consumption
+  -c, --config <path> Path to a config file; disables discovery when set
+  -j, --json          Emit the report as JSON for CI consumption
   -h, --help          Show help for this command
 
 Environment variables:

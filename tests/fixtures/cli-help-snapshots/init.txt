@@ -7,7 +7,7 @@ Options:
   -y, --yes           Skip prompts and use defaults (non-interactive)
   --force             Overwrite existing files in the target directory
   --dir <path>        Target directory to scaffold into (defaults to .)
-  --json              Emit the scaffold summary (created paths) as JSON on stdout instead of the human "Scaffolded" log
+  -j, --json          Emit the scaffold summary (created paths) as JSON on stdout instead of the human "Scaffolded" log
   -h, --help          Show help for this command
 
 Environment variables:

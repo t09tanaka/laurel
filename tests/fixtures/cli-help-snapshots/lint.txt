@@ -4,8 +4,8 @@ Usage:
   nectar lint [--config <path>] [--json] [--strict] [--max-title-length <n>]
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
-  --json              Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption
+  -c, --config <path> Path to a config file; disables discovery when set
+  -j, --json          Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption
   --strict            Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero)
   --max-title-length <n>  Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb)
   -h, --help          Show help for this command

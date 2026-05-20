@@ -20,6 +20,12 @@ describe('extractGlobalFlags', () => {
     expect(rest).toEqual(['build']);
   });
 
+  test('strips -q from argv as the quiet alias', () => {
+    const { flags, rest } = extractGlobalFlags(['-q', 'build']);
+    expect(flags.quiet).toBe(true);
+    expect(rest).toEqual(['build']);
+  });
+
   test('strips --verbose and counts as 1', () => {
     const { flags, rest } = extractGlobalFlags(['--verbose', 'build']);
     expect(flags.verboseCount).toBe(1);
@@ -131,6 +137,18 @@ describe('extractGlobalFlags env var fallbacks', () => {
     // see it via parsed.values.json.
     expect(rest).not.toContain('--json');
     expect(rest).toEqual(['config', 'path']);
+  });
+
+  test('-j sets the global json flag and is stripped from argv', () => {
+    const { flags, rest } = extractGlobalFlags(['config', '-j', 'path']);
+    expect(flags.json).toBe(true);
+    expect(rest).toEqual(['config', 'path']);
+  });
+
+  test('leaves lower -v for the top-level version command', () => {
+    const { flags, rest } = extractGlobalFlags(['-v']);
+    expect(flags.verboseCount).toBe(0);
+    expect(rest).toEqual(['-v']);
   });
 
   test('--no-color sets flag and is stripped from argv', () => {

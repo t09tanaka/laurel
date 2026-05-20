@@ -4,13 +4,13 @@ Usage:
   nectar check [--config <path>] [--strict] [--check-links] [--check-external] [--check-frontmatter] [--check-templates] [--json]
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
+  -c, --config <path> Path to a config file; disables discovery when set
   --strict            Exit with non-zero status if any warnings were emitted during the check
   --check-links       Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check
   --check-external    Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s
   --check-frontmatter Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings
   --check-templates   Cross-check the active theme against the route plan: warn when a route would request a template name (post, page, tag, author, index, default) that does not exist in the theme. Stops a typo in a route layout from rendering through the default fallback unnoticed
-  --json              Emit the check report as JSON ({ ok, errors: [...], warnings: [...] }) on stdout for CI consumption. Each entry includes file, line, message, and code
+  -j, --json          Emit the check report as JSON ({ ok, errors: [...], warnings: [...] }) on stdout for CI consumption. Each entry includes file, line, message, and code
   -h, --help          Show help for this command
 
 Environment variables:

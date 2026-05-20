@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import type { CommandSpec, OptionSpec, PositionalSpec } from './parse.ts';
-import { envVarName, formatUsageLine, globalEnvVarName } from './parse.ts';
+import { envVarName, formatUsageLine, globalEnvVarName, optionShort } from './parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
 export interface GlobalOptionDoc {
@@ -11,7 +11,7 @@ export interface GlobalOptionDoc {
 
 export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
   {
-    flag: '--quiet',
+    flag: '-q, --quiet',
     description: 'Suppress info/debug output (keeps warn/error)',
     envVar: globalEnvVarName('quiet'),
   },
@@ -21,7 +21,7 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     envVar: globalEnvVarName('verbose'),
   },
   {
-    flag: '--json',
+    flag: '-j, --json',
     description:
       'Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`.',
     envVar: globalEnvVarName('json'),
@@ -233,7 +233,8 @@ function requiredLabel(p: PositionalSpec): string {
 }
 
 function formatFlagLabel(name: string, opt: OptionSpec): string {
-  const short = opt.short ? `-${opt.short}, ` : '';
+  const shortName = optionShort(name, opt);
+  const short = shortName ? `-${shortName}, ` : '';
   const placeholder = opt.type === 'string' ? ` ${opt.placeholder ?? '<value>'}` : '';
   return `${short}--${name}${placeholder}`;
 }

@@ -9,7 +9,7 @@ Arguments:
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files
-  --json              Emit the import summary as JSON on stdout for CI consumption
+  -j, --json          Emit the import summary as JSON on stdout for CI consumption
   -h, --help          Show help for this command
 
 Environment variables:

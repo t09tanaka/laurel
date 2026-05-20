@@ -59,6 +59,32 @@ describe('parseCommand', () => {
     expect(result.values.watch).toBe(true);
   });
 
+  test('accepts stable short aliases by option name', () => {
+    const spec: CommandSpec = {
+      name: 'dev',
+      summary: 'Serve locally',
+      options: {
+        config: { type: 'string', description: 'Config path', placeholder: '<path>' },
+        port: { type: 'string', description: 'Port', placeholder: '<n>' },
+        output: { type: 'string', description: 'Output path', placeholder: '<dir>' },
+        watch: { type: 'boolean', description: 'Watch files' },
+        json: { type: 'boolean', description: 'JSON output' },
+      },
+      positionals: [],
+    };
+    const result = parseCommand(spec, ['-c', 'alt.toml', '-p', '4310', '-o', 'dist', '-w', '-j']);
+
+    expect(result.values.config).toBe('alt.toml');
+    expect(result.values.port).toBe('4310');
+    expect(result.values.output).toBe('dist');
+    expect(result.values.watch).toBe(true);
+    expect(result.values.json).toBe(true);
+  });
+
+  test('keeps lower -v reserved for the top-level version command', () => {
+    expect(() => parseCommand(SAMPLE_SPEC, ['-v'])).toThrow(CliUsageError);
+  });
+
   test('flags --help via long and short form', () => {
     expect(parseCommand(SAMPLE_SPEC, ['--help']).helpRequested).toBe(true);
     expect(parseCommand(SAMPLE_SPEC, ['-h']).helpRequested).toBe(true);
@@ -232,7 +258,8 @@ describe('formatCommandHelp', () => {
     expect(help).toContain('Build the site');
     expect(help).toContain('Usage:');
     expect(help).toContain('nectar build');
-    expect(help).toContain('--config <path>');
+    expect(help).toContain('-c, --config <path>');
+    expect(help).toContain('-w, --watch');
     expect(help).toContain('-h, --help');
   });
 

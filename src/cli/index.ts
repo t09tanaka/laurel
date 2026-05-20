@@ -46,10 +46,10 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   lines.push(`  ${'help'.padEnd(width)}Show this help (or pass --help to any command)`);
   lines.push('');
   lines.push('Global options:');
-  lines.push(`  ${'--quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
+  lines.push(`  ${'-q, --quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
   lines.push(`  ${'-V, --verbose'.padEnd(width)}Increase verbosity to debug (stack -VV for trace)`);
   lines.push(
-    `  ${'--json'.padEnd(width)}Emit one JSON object per log line + JSON-shaped command output where supported`,
+    `  ${'-j, --json'.padEnd(width)}Emit one JSON object per log line + JSON-shaped command output where supported`,
   );
   lines.push(
     `  ${'--no-color'.padEnd(width)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,

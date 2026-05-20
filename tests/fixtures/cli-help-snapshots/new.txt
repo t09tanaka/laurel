@@ -8,7 +8,7 @@ Arguments:
   title               Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
+  -c, --config <path> Path to a config file; disables discovery when set
   --force             Overwrite the destination file if it already exists
   --slug <slug>       Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug)
   --draft             Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only)
@@ -16,7 +16,7 @@ Options:
   --tags <a,b,c>      Comma-separated list of tag slugs to seed in frontmatter (post only)
   --author <slug>     Author slug to seed in frontmatter (post only)
   --open              Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset)
-  --json              Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line
+  -j, --json          Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line
   -h, --help          Show help for this command
 
 Environment variables:

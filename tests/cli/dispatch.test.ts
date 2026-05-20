@@ -174,6 +174,12 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('Build the site');
   });
 
+  test('-q is stripped before subcommand parsing', async () => {
+    const { stdout, exitCode } = await runCli(['-q', 'build', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Build the site');
+  });
+
   test('-VV is stripped before subcommand parsing', async () => {
     const { stdout, exitCode } = await runCli(['-VV', 'build', '--help']);
     expect(exitCode).toBe(0);
@@ -231,6 +237,12 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['--json', 'config', 'path']);
     expect(exitCode).toBe(0);
     // Expect a JSON object on stdout (not a plain absolute path).
+    expect(stdout.trim().startsWith('{')).toBe(true);
+  });
+
+  test('global -j before subcommand flows through to the subcommand parser', async () => {
+    const { stdout, exitCode } = await runCli(['-j', 'config', 'path']);
+    expect(exitCode).toBe(0);
     expect(stdout.trim().startsWith('{')).toBe(true);
   });
 });

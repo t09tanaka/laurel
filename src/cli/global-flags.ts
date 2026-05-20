@@ -52,7 +52,7 @@ export function extractGlobalFlags(
       rest.push(arg);
       continue;
     }
-    if (arg === '--quiet') {
+    if (arg === '--quiet' || arg === '-q') {
       quiet = true;
       quietFromCli = true;
       continue;
@@ -61,7 +61,7 @@ export function extractGlobalFlags(
       verboseCount += 1;
       continue;
     }
-    if (arg === '--json') {
+    if (arg === '--json' || arg === '-j') {
       json = true;
       jsonFromCli = true;
       // `--json` is stripped here so the dispatcher doesn't see it as a

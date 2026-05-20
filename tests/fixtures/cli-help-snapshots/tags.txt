@@ -7,10 +7,10 @@ Arguments:
   subcommand          `list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically)
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
+  -c, --config <path> Path to a config file; disables discovery when set
   --orphaned          Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only)
   --unused            Alias for --orphaned (`list` only)
-  --json              Emit results as JSON for CI consumption (both `list` and `rename`)
+  -j, --json          Emit results as JSON for CI consumption (both `list` and `rename`)
   --dry-run           On `rename`: scan and report the files that would change without writing anything
   -h, --help          Show help for this command
 

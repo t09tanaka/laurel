@@ -7,11 +7,11 @@ Arguments:
   subcommand          `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
+  -c, --config <path> Path to a config file; disables discovery when set
   --from <theme-name> `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold
   -o, --output <path> `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory)
   --force             Overwrite the destination directory (`new`) or archive (`zip`) if it already exists
-  --json              `lint` only: emit findings as JSON instead of the default table
+  -j, --json          `lint` only: emit findings as JSON instead of the default table
   -h, --help          Show help for this command
 
 Environment variables:

@@ -50,6 +50,19 @@ const HELP_OPTION: OptionSpec = {
   short: 'h',
   description: 'Show help for this command',
 };
+const HELP_SHORT = 'h';
+
+export const STABLE_SHORT_FLAG_ALIASES: Readonly<Record<string, string>> = {
+  config: 'c',
+  port: 'p',
+  output: 'o',
+  watch: 'w',
+  json: 'j',
+};
+
+export function optionShort(name: string, def: OptionSpec): string | undefined {
+  return def.short ?? STABLE_SHORT_FLAG_ALIASES[name];
+}
 
 export function parseCommand(
   spec: CommandSpec,
@@ -59,11 +72,22 @@ export function parseCommand(
   const options: NonNullable<ParseArgsConfig['options']> = {};
   options.help = { type: HELP_OPTION.type, short: HELP_OPTION.short };
   const negativeAliases = new Map<string, string>();
+  const usedShorts = new Map<string, string>([[HELP_SHORT, 'help']]);
   for (const [name, opt] of Object.entries(spec.options)) {
     if (name === 'help') {
       throw new Error(`Option "help" is reserved and cannot be redefined on "${spec.name}"`);
     }
-    options[name] = opt.short ? { type: opt.type, short: opt.short } : { type: opt.type };
+    const short = optionShort(name, opt);
+    if (short !== undefined) {
+      const existing = usedShorts.get(short);
+      if (existing !== undefined) {
+        throw new Error(
+          `Short option "-${short}" is assigned to both "${existing}" and "${name}" on "${spec.name}"`,
+        );
+      }
+      usedShorts.set(short, name);
+    }
+    options[name] = short ? { type: opt.type, short } : { type: opt.type };
     if (opt.type === 'boolean' && !name.startsWith('no-')) {
       const negativeName = `no-${name}`;
       if (!(negativeName in spec.options)) {
@@ -251,7 +275,8 @@ export function formatCommandHelp(spec: CommandSpec): string {
 
 function formatFlag(name: string, def: OptionSpec): string {
   const placeholder = def.type === 'string' ? ` ${def.placeholder ?? '<value>'}` : '';
-  const short = def.short ? `-${def.short}, ` : '';
+  const shortName = optionShort(name, def);
+  const short = shortName ? `-${shortName}, ` : '';
   return `${short}--${name}${placeholder}`;
 }
 

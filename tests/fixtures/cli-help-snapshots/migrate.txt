@@ -15,7 +15,7 @@ Options:
   --source-url <url>  ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths
   --max-size <size>   ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)
   --keep-code-injection  ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source.
-  --json              Emit the migration summary as JSON on stdout for CI consumption
+  -j, --json          Emit the migration summary as JSON on stdout for CI consumption
   -h, --help          Show help for this command
 
 Environment variables:

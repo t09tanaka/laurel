@@ -7,7 +7,7 @@ Arguments:
   shell               Target shell: bash, zsh, fish, or powershell
 
 Options:
-  --json              No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text
+  -j, --json          No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text
   -h, --help          Show help for this command
 
 Environment variables:

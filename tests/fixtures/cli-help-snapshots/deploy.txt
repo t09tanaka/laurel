@@ -7,7 +7,7 @@ Arguments:
   target              Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`
 
 Options:
-  --config <path>     Path to a config file; disables discovery when set
+  -c, --config <path> Path to a config file; disables discovery when set
   -b, --build         Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step
   --dry-run           Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed
   --project-name <name>  cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config
@@ -19,7 +19,7 @@ Options:
   --endpoint <url>    r2 only: R2 S3-compatible endpoint URL forwarded as `--endpoint-url <url>` to `aws s3 sync`. Overrides `[deploy.r2].endpoint`
   --destination <user@host:path>  rsync only: destination string (e.g. `user@host:/var/www/site/`). Overrides `[deploy.rsync].destination`
   --remote <name>     github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`)
-  --json              Emit the deploy plan / outcome as JSON on stdout for CI consumption
+  -j, --json          Emit the deploy plan / outcome as JSON on stdout for CI consumption
   -h, --help          Show help for this command
 
 Environment variables:
