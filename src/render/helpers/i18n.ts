@@ -9,12 +9,14 @@ export function registerI18nHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('t', function tHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const key = String(args[0] ?? '');
-    // Ghost locale files use "" as a sentinel for "no translation; use the key
-    // as the English label." Using `||` (rather than `??`) treats both
-    // undefined and "" as "missing", so an empty active-locale entry falls
-    // through to the English fallback and finally to the key itself.
-    // Otherwise aria-labels and other UI text would render as "".
-    const lookup = active[key] || fallback[key] || key;
+    // Ghost treats an existing locale entry as authoritative even when its
+    // value is ""; only an absent key falls through to en.json and then the key.
+    let lookup = key;
+    if (hasLocaleEntry(active, key)) {
+      lookup = active[key] ?? '';
+    } else if (hasLocaleEntry(fallback, key)) {
+      lookup = fallback[key] ?? '';
+    }
     // Casper-family themes pass positional values for the legacy `%`
     // placeholder (e.g. `{{t "Powered by %" "Ghost"}}`). Hash values still win
     // on `{name}` placeholders, but positional args 1..n-1 (every argument
@@ -27,6 +29,10 @@ export function registerI18nHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('lang', function langHelper() {
     return locale;
   });
+}
+
+function hasLocaleEntry(locale: Record<string, string>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(locale, key);
 }
 
 function interpolate(

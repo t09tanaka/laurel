@@ -31,29 +31,30 @@ describe('t helper', () => {
     expect(engine.hb.compile('{{t "Search"}}')({})).toBe('Search');
   });
 
-  test('falls back to the key when active locale value is an empty string', () => {
-    // Ghost ships en.json with "" for every key as a "use the key" sentinel.
-    // Regression guard for icon buttons rendering aria-label="".
-    const engine = makeEngine({ en: { Menu: '', 'Search this site': '' } }, 'en');
+  test('returns an empty string when the active locale value is an empty string', () => {
+    // Ghost treats an existing locale entry as authoritative even when its
+    // value is "", so this must not fall back to the key.
+    const engine = makeEngine({ en: { Featured: '' } }, 'en');
     registerI18nHelpers(engine);
-    expect(engine.hb.compile('{{t "Menu"}}')({})).toBe('Menu');
-    expect(engine.hb.compile('{{t "Search this site"}}')({})).toBe('Search this site');
+    expect(engine.hb.compile('{{t "Featured"}}')({})).toBe('');
   });
 
-  test('falls back to the key when both active and fallback values are empty', () => {
+  test('returns an empty active-locale value instead of the English fallback value', () => {
+    const engine = makeEngine({ en: { Featured: 'Featured' }, fr: { Featured: '' } }, 'fr');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Featured"}}')({})).toBe('');
+  });
+
+  test('returns an empty active-locale value when both active and fallback values are empty', () => {
     const engine = makeEngine({ en: { Menu: '' }, fr: { Menu: '' } }, 'fr');
     registerI18nHelpers(engine);
-    expect(engine.hb.compile('{{t "Menu"}}')({})).toBe('Menu');
+    expect(engine.hb.compile('{{t "Menu"}}')({})).toBe('');
   });
 
-  // Issue #469: lookup chain uses `||` semantics so an empty active-locale
-  // value falls through to the fallback. Pin down the active-empty,
-  // fallback-set path explicitly so a future regression to `??` is caught
-  // here, not in downstream theme renders.
-  test('empty active-locale value falls through to the English fallback value', () => {
-    const engine = makeEngine({ en: { Subscribe: 'Subscribe' }, fr: { Subscribe: '' } }, 'fr');
+  test('falls back to the English value when active locale is missing the key, even when empty', () => {
+    const engine = makeEngine({ en: { Subscribe: '' }, fr: {} }, 'fr');
     registerI18nHelpers(engine);
-    expect(engine.hb.compile('{{t "Subscribe"}}')({})).toBe('Subscribe');
+    expect(engine.hb.compile('{{t "Subscribe"}}')({})).toBe('');
   });
 
   test('falls back to the key when the key is not in any locale', () => {
@@ -63,7 +64,9 @@ describe('t helper', () => {
   });
 
   test('interpolates named hash placeholders', () => {
-    const engine = makeEngine({ en: { 'A collection of {numberOfPosts} posts': '' } }, 'en');
+    const engine = makeEngine({
+      en: { 'A collection of {numberOfPosts} posts': 'A collection of {numberOfPosts} posts' },
+    });
     registerI18nHelpers(engine);
     expect(
       engine.hb.compile('{{t "A collection of {numberOfPosts} posts" numberOfPosts=3}}')({}),
@@ -75,13 +78,13 @@ describe('t helper', () => {
   // implementation only consulted `options.hash`, so positional invocations
   // shipped a literal `%` to readers. Issue #1707.
   test('substitutes the positional argument into a `%` placeholder', () => {
-    const engine = makeEngine({ en: { 'Powered by %': '' } }, 'en');
+    const engine = makeEngine({ en: { 'Powered by %': 'Powered by %' } }, 'en');
     registerI18nHelpers(engine);
     expect(engine.hb.compile('{{t "Powered by %" "Ghost"}}')({})).toBe('Powered by Ghost');
   });
 
   test('positional `%` arg wins over a hash entry, but hash still fills {name} placeholders', () => {
-    const engine = makeEngine({ en: { 'By % about {topic}': '' } }, 'en');
+    const engine = makeEngine({ en: { 'By % about {topic}': 'By % about {topic}' } }, 'en');
     registerI18nHelpers(engine);
     expect(engine.hb.compile('{{t "By % about {topic}" "Alice" topic="cats"}}')({})).toBe(
       'By Alice about cats',

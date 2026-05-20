@@ -78,7 +78,7 @@ describe('real Ghost theme contract', () => {
 });
 
 describe('casper-mini i18n contract (issue #1707)', () => {
-  test('locale=de swaps Source-style {{t "Sign in"}} into the German placeholder', async () => {
+  test('locale=en preserves empty-string locale entries instead of falling back to keys', async () => {
     const result = await runSmoke({
       themeName: 'casper-mini',
       themePath: join(FIXTURE_DIR, 'casper-mini'),
@@ -86,11 +86,13 @@ describe('casper-mini i18n contract (issue #1707)', () => {
       log: () => {},
     });
     const indexHtml = readFileSync(join(result.workDir, 'dist', 'index.html'), 'utf8');
-    // The smoke fixture sets locale=en so the German JSON is loaded but the
-    // English key falls through to itself (empty-string sentinel). Pin that
-    // baseline so the locale-flip test below has a stable counter-example.
-    expect(indexHtml).toContain('Sign in');
-    expect(indexHtml).toContain('Powered by Casper-Mini');
+    // The smoke fixture sets locale=en and casper-mini/en.json intentionally
+    // contains empty strings. Ghost treats those as authoritative values, so
+    // Nectar must not fall through to the English keys.
+    expect(indexHtml).toContain('<button class="gh-signin" data-portal="signin"></button>');
+    expect(indexHtml).toContain('<footer></footer>');
+    expect(indexHtml).not.toContain('Sign in');
+    expect(indexHtml).not.toContain('Powered by Casper-Mini');
   });
 
   test('Casper-mini de.json placeholders are applied when site.locale=de', async () => {

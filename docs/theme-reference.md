@@ -69,7 +69,7 @@ the rest return plain strings and Handlebars escapes them.
 
 ### i18n helpers — `src/render/helpers/i18n.ts`
 
-- `{{t "key" [name=value …]}}` — Translation lookup against the theme's `locales/<locale>.json`.
+- `{{t "key" [name=value …]}}` — Translation lookup against the theme's `locales/<locale>.json`; present empty-string values render as empty strings.
 - `{{lang}}` — Active build locale code.
 
 ### Image-dimension helpers — `src/render/helpers/image-dimensions.ts`

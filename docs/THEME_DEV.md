@@ -503,8 +503,9 @@ or precomputed hashes) for defence in depth — see
 #### `{{t "key" [name=value …]}}` — inline
 
 Look up `key` in `themes/<name>/locales/<site.locale>.json`, falling back to
-`en.json`, then to the literal `key`. Empty strings are treated as missing
-(Ghost convention).
+`en.json`, then to the literal `key`. A present empty string is returned as an
+intentional translation, not treated as missing; this matches Ghost, even though
+it can be surprising for labels such as `"Featured": ""`.
 
 Interpolation:
 - `{name}` placeholders are replaced by `name=` hash values.
@@ -709,6 +710,10 @@ The active locale is `[site].locale`. Nectar falls back through:
 1. `<locale>.json` (exact match)
 2. `en.json`
 3. The literal key
+
+Fallback is based on key presence, not truthiness: `"Featured": ""` in the
+active locale renders an empty string instead of falling through to `en.json`
+or the literal key. Omit the key when you want fallback text.
 
 So you can ship a theme with only `en.json` and still call `{{t}}` everywhere —
 the keys themselves act as the default text.
