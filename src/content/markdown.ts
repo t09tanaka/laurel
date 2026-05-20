@@ -244,6 +244,11 @@ export function sanitizeInlineCaptionHtml(html: string): string {
   return sanitizeHtml(html, captionSanitizeOptions);
 }
 
+function renderInlineCaptionMarkdown(caption: string): string {
+  const html = marked.parseInline(caption, { async: false }) as string;
+  return sanitizeInlineCaptionHtml(html);
+}
+
 export async function renderMarkdown(
   body: string,
   options: RenderMarkdownOptions = {},
@@ -1112,7 +1117,9 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const pictureSources = renderFigurePictureSourcesHtml(attrs);
   const media = pictureSources ? `<picture>${pictureSources}${image}</picture>` : image;
   const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${media}</a>` : media;
-  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const figcaption = caption
+    ? `<figcaption>${renderInlineCaptionMarkdown(caption)}</figcaption>`
+    : '';
   return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
 }
 

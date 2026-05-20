@@ -153,6 +153,21 @@ describe('card fixture corpus', () => {
     expect(html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
   });
 
+  test('figure shortcode renders caption as sanitized inline markdown', async () => {
+    const { html } = await renderMarkdown(
+      [
+        '{{< figure src="https://cdn.test/cover.jpg" alt="Cover"',
+        'caption="Photo by **Jane** and [Nectar](https://nectar.test/about) ![tracking](https://evil.test/pixel.jpg)<figure><img src=https://evil.test/nested.jpg></figure>" />}}',
+      ].join(' '),
+    );
+
+    const figcaption = html.match(/<figcaption>([\s\S]*?)<\/figcaption>/)?.[1] ?? '';
+    expect(figcaption).toContain('<strong>Jane</strong>');
+    expect(figcaption).toContain('<a href="https://nectar.test/about">Nectar</a>');
+    expect(figcaption).not.toContain('<img');
+    expect(figcaption).not.toContain('<figure');
+  });
+
   test('plain raw img strips Ghost URL placeholders without dropping srcset or sizes', async () => {
     const { html } = await renderMarkdown(
       '<p><img src="__GHOST_URL__/content/images/2024/01/plain.jpg" srcset="__GHOST_URL__/content/images/size/w600/plain.jpg 600w, __GHOST_URL__/content/images/plain.jpg 1200w" sizes="100vw" alt="Plain"></p>',
