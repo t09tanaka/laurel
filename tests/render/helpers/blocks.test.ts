@@ -304,6 +304,13 @@ describe('is helper', () => {
     expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('HIT');
   });
 
+  test('unknown target strings fall through to inverse without throwing', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "banana"}}yes{{else}}no{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('no');
+  });
+
   test('"author" matches the author route', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
