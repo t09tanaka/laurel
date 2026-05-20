@@ -549,6 +549,31 @@ describe('planRoutes — error-404 route', () => {
 });
 
 describe('planRoutes — home template precedence (#706)', () => {
+  test('uses home.hbs for / and index.hbs for paginated index tails when both exist (#785)', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const content = makeGraph({
+      posts: Array.from({ length: 5 }, (_, idx) => makePost(`post-${idx + 1}`)),
+    });
+    const theme = makeTheme();
+
+    const routes = planRoutes({ config, content, theme });
+
+    const home = routes.find((route) => route.url === '/');
+    const page2 = routes.find((route) => route.url === '/page/2/');
+
+    expect(home).toMatchObject({
+      kind: 'home',
+      outputPath: 'index.html',
+      template: 'home',
+    });
+    expect(page2).toMatchObject({
+      kind: 'index',
+      outputPath: 'page/2/index.html',
+      template: 'index',
+    });
+  });
+
   test('Digest home.hbs overrides index.hbs for the root home route', () => {
     const config = makeConfig('https://example.com');
     const content = makeGraph({
