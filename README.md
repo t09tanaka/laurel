@@ -36,7 +36,10 @@ theme-compatibility policy,
 `docs/THEME_DEV.md` for the theme developer handbook (helpers, partials,
 locales, asset fingerprinting, golden snapshot tests),
 `docs/theme-reference.md` for the machine-checked helper inventory plus
-content-shape index, and
+content-shape index,
+[`docs/api.md`](./docs/api.md) for the static Content API contract plus
+[`docs/EXAMPLE_SPA.md`](./docs/EXAMPLE_SPA.md) for a minimal
+`@tryghost/content-api` SPA consumer, and
 [`docs/MIGRATION.md`](./docs/MIGRATION.md) for the Ghost Admin export ->
 Markdown migration path, and `docs/migration/ghost.md` for the step-by-step
 guide to moving a real blog off Ghost. If your Ghost site uses Members / Portal, read

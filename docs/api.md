@@ -4,6 +4,9 @@ Nectar emits a static, Ghost-shaped Content API at build time. This document
 describes what is and is not supported, and how it diverges from Ghost's
 hosted Content API.
 
+For a minimal browser app that consumes the SDK shadow tree with
+`@tryghost/content-api`, see [`EXAMPLE_SPA.md`](./EXAMPLE_SPA.md).
+
 ## Layout
 
 Each `nectar build` writes two parallel JSON trees into the output:
