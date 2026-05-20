@@ -5,6 +5,7 @@ import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 import { renderSearchShim } from '~/search/runtime.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { absoluteUrlWithBasePath } from '~/util/url.ts';
 
 export interface SearchEntryPost {
   id: string;
@@ -65,44 +66,54 @@ export function truncateExcerpt(text: string, words: number): string {
   return `${tokens.slice(0, words).join(' ')}…`;
 }
 
-function buildPostEntry(post: Post, excerptWords: number): SearchEntryPost {
+function buildPostEntry(
+  post: Post,
+  excerptWords: number,
+  siteUrl: string,
+  basePath: string,
+): SearchEntryPost {
   return {
     id: post.id,
     slug: post.slug,
     title: post.title,
     excerpt: truncateExcerpt(post.custom_excerpt ?? post.excerpt, excerptWords),
-    url: post.url,
+    url: absoluteUrlWithBasePath(siteUrl, basePath, post.url),
     tags: post.tags.map((t) => t.slug),
     authors: post.authors.map((a) => a.slug),
     published_at: post.published_at,
   };
 }
 
-function buildPageEntry(page: Page, excerptWords: number): SearchEntryPage {
+function buildPageEntry(
+  page: Page,
+  excerptWords: number,
+  siteUrl: string,
+  basePath: string,
+): SearchEntryPage {
   return {
     id: page.id,
     slug: page.slug,
     title: page.title,
     excerpt: truncateExcerpt(page.custom_excerpt ?? page.excerpt, excerptWords),
-    url: page.url,
+    url: absoluteUrlWithBasePath(siteUrl, basePath, page.url),
   };
 }
 
-function buildTagEntry(tag: Tag): SearchEntryTag {
+function buildTagEntry(tag: Tag, siteUrl: string, basePath: string): SearchEntryTag {
   return {
     id: tag.id,
     slug: tag.slug,
     name: tag.name,
-    url: tag.url,
+    url: absoluteUrlWithBasePath(siteUrl, basePath, tag.url),
   };
 }
 
-function buildAuthorEntry(author: Author): SearchEntryAuthor {
+function buildAuthorEntry(author: Author, siteUrl: string, basePath: string): SearchEntryAuthor {
   return {
     id: author.id,
     slug: author.slug,
     name: author.name,
-    url: author.url,
+    url: absoluteUrlWithBasePath(siteUrl, basePath, author.url),
   };
 }
 
@@ -112,18 +123,24 @@ export function buildSearchIndex(opts: {
 }): SearchIndex {
   const { config, content } = opts;
   const cfg = config.components.search;
+  const siteUrl = config.site.url;
+  const basePath = config.build.base_path;
   const posts = content.posts
     .filter((p) => p.visibility === 'public' && p.status === 'published')
-    .map((p) => buildPostEntry(p, cfg.excerpt_words));
+    .map((p) => buildPostEntry(p, cfg.excerpt_words, siteUrl, basePath));
   const pages = cfg.include_pages
     ? content.pages
         .filter((p) => p.status === 'published')
-        .map((p) => buildPageEntry(p, cfg.excerpt_words))
+        .map((p) => buildPageEntry(p, cfg.excerpt_words, siteUrl, basePath))
     : [];
   const tags = cfg.include_tags
-    ? content.tags.filter((t) => t.visibility === 'public').map(buildTagEntry)
+    ? content.tags
+        .filter((t) => t.visibility === 'public')
+        .map((t) => buildTagEntry(t, siteUrl, basePath))
     : [];
-  const authors = cfg.include_authors ? content.authors.map(buildAuthorEntry) : [];
+  const authors = cfg.include_authors
+    ? content.authors.map((a) => buildAuthorEntry(a, siteUrl, basePath))
+    : [];
 
   return {
     posts,

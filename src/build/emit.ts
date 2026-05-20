@@ -156,6 +156,7 @@ export interface CopyContentAssetsOptions {
   // Skip raster image files (under contentImagesDir) larger than this many
   // bytes, logging a warning per skip. 0 (or undefined) disables the check.
   maxImageBytes?: number;
+  onOutputPath?: ((path: string) => void) | undefined;
 }
 
 export async function copyContentAssets(
@@ -166,29 +167,53 @@ export async function copyContentAssets(
 ): Promise<number> {
   const maxImageBytes = options?.maxImageBytes ?? 0;
   let total = 0;
-  total += await copyTree(resolve(cwd, contentImagesDir), join(outputDir, 'content/images'), {
-    maxImageBytes,
-  });
+  total += await copyTree(
+    resolve(cwd, contentImagesDir),
+    join(outputDir, 'content/images'),
+    'content/images',
+    {
+      maxImageBytes,
+      onOutputPath: options?.onOutputPath,
+    },
+  );
   // content/files and content/media come straight from Ghost exports
   // (import-ghost copies them next to content/images). They mirror Ghost's
   // /content/<name>/ URL layout so imported markdown links resolve. The image
   // size cap is intentionally not applied here: these dirs hold PDFs, video,
   // and audio, which are not LCP candidates and have legitimate large-file
   // use cases.
-  total += await copyTree(join(cwd, 'content/files'), join(outputDir, 'content/files'), {
-    maxImageBytes: 0,
-  });
-  total += await copyTree(join(cwd, 'content/media'), join(outputDir, 'content/media'), {
-    maxImageBytes: 0,
-  });
+  total += await copyTree(
+    join(cwd, 'content/files'),
+    join(outputDir, 'content/files'),
+    'content/files',
+    {
+      maxImageBytes: 0,
+      onOutputPath: options?.onOutputPath,
+    },
+  );
+  total += await copyTree(
+    join(cwd, 'content/media'),
+    join(outputDir, 'content/media'),
+    'content/media',
+    {
+      maxImageBytes: 0,
+      onOutputPath: options?.onOutputPath,
+    },
+  );
   return total;
 }
 
 interface CopyTreeOptions {
   maxImageBytes: number;
+  onOutputPath?: ((path: string) => void) | undefined;
 }
 
-async function copyTree(source: string, target: string, opts: CopyTreeOptions): Promise<number> {
+async function copyTree(
+  source: string,
+  target: string,
+  targetRelPrefix: string,
+  opts: CopyTreeOptions,
+): Promise<number> {
   const tasks: Array<{ src: string; dst: string; size: number; mtimeMs: number }> = [];
   let rels: string[] = [];
   try {
@@ -239,6 +264,7 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
       }
     }
     tasks.push({ src, dst: join(target, rel), size: srcStat.size, mtimeMs: srcStat.mtimeMs });
+    opts.onOutputPath?.(`${targetRelPrefix}/${toPosix(rel)}`);
   }
   if (tasks.length === 0) return 0;
 
@@ -308,4 +334,8 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n}B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
   return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function toPosix(path: string): string {
+  return sep === '/' ? path : path.split(sep).join('/');
 }

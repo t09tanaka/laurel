@@ -1,5 +1,5 @@
 import { copyFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -19,6 +19,7 @@ export async function copyStaticDir(opts: {
   cwd: string;
   staticDir: string;
   outputDir: string;
+  onOutputPath?: ((path: string) => void) | undefined;
 }): Promise<number> {
   const { cwd, staticDir, outputDir } = opts;
   if (staticDir.length === 0) return 0;
@@ -37,6 +38,7 @@ export async function copyStaticDir(opts: {
       continue;
     }
     tasks.push({ src: join(source, rel), dst: join(outputDir, rel) });
+    opts.onOutputPath?.(toPosix(rel));
   }
   if (tasks.length === 0) return 0;
 
@@ -45,4 +47,8 @@ export async function copyStaticDir(opts: {
   const limit = pLimit(COPY_CONCURRENCY);
   await Promise.all(tasks.map((t) => limit(() => copyFile(t.src, t.dst))));
   return tasks.length;
+}
+
+function toPosix(path: string): string {
+  return sep === '/' ? path : path.split(sep).join('/');
 }

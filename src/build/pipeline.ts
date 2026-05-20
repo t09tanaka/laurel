@@ -1,10 +1,11 @@
-import { rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
+import type { ContentGraph } from '~/content/model.ts';
 import { validatePortalConfig } from '~/members/portal-validation.ts';
 import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
@@ -25,25 +26,34 @@ import { findMissingAssetReferences, formatMissingAssetReference } from './asset
 import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
-import { emitBuildManifest, loadBuildManifest } from './build-manifest.ts';
+import {
+  buildManifestRelPath,
+  changedPathsRelPath,
+  emitBuildManifest,
+  loadBuildManifest,
+} from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
-import { emitCardAssets } from './card-assets.ts';
-import { emitCloudflareWorkersManifest } from './cloudflare-workers.ts';
+import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH, emitCardAssets } from './card-assets.ts';
+import {
+  CLOUDFLARE_WORKERS_MANIFEST_FILE,
+  emitCloudflareWorkersManifest,
+} from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
 import {
+  type DeploymentProvider,
   deploymentHeaderTargets,
   deploymentRoutingTargets,
   emitDeployTargets,
 } from './emitters/registry.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
-import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
+import { SITEMAP_MAX_URLS_PER_FILE, type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
-import { emitGithubPagesRedirects } from './github-pages.ts';
+import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
 import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
 import {
@@ -75,27 +85,22 @@ import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import {
-  clearDirContents,
-  commitStagingDir,
-  prepareStagingDir,
-  resolveOutputDir,
-} from './output-dir.ts';
+import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
 import {
   injectStylesheetPreload,
   injectSubresourceIntegrity,
   removeRedundantScriptPreload,
 } from './perf-hints.ts';
-import { emitPortalRuntime } from './portal-runtime.ts';
+import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
-import { preserveUserFiles } from './preserve.ts';
+import { loadPreservePatterns } from './preserve.ts';
 import { type Profiler, buildStatsPath, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
-import { buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
+import { type RedirectRule, buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
@@ -333,55 +338,32 @@ export async function build({
 
   const isDryRun = dryRun === true;
 
-  // Dry-run skips both staging and the final-dir clear: nothing is ever
-  // written, so there is no half-built state to confine and no stale files
-  // to clobber. Render targets `finalOutputDir` only as the nominal path used
-  // for incremental-reuse reads from a previous real build.
+  // Dry-run skips filesystem writes entirely. Real builds write directly into
+  // the final output directory and clean stale files by set difference after
+  // the current build's outputs are known; this avoids deleting a large dist/
+  // tree only to copy most of it back unchanged.
   let outputDir: string;
   if (isDryRun) {
     outputDir = finalOutputDir;
   } else {
-    // Stage the entire build into a sibling temp dir and swap it into place at
-    // the end. Two reasons: (1) `nectar dev` will produce overlapping rebuilds
-    // and a partially-cleared `dist/` lets readers (a browser, a deploy script)
-    // see "index.html missing for 200ms"; staging confines the half-written
-    // state to a path no one is watching. (2) On build failure the previous
-    // good `dist/` is left untouched instead of being half-deleted.
-    //
-    // `--no-atomic` opts out: writes go straight into the final dir. Used as an
-    // escape hatch for sandboxed runners where the staging-rename step is
-    // blocked, at the cost of dropping the two protections above.
-    outputDir = noAtomic ? finalOutputDir : await prepareStagingDir(finalOutputDir);
-    if (noAtomic) {
-      // Match the pre-staging behaviour so a previous build's stale files do
-      // not bleed into this one. Wipes the previous manifest's on-disk HTML,
-      // which forces a full rebuild — acceptable since `--no-atomic` is opt-in.
-      await clearDirContents(finalOutputDir);
-    }
+    outputDir = finalOutputDir;
   }
 
-  try {
-    return await runBuild({
-      cwd,
-      config,
-      outputDir,
-      finalOutputDir,
-      profiler,
-      previousManifest,
-      previousBuildManifest,
-      noAtomic: noAtomic === true,
-      concurrency,
-      dryRun: isDryRun,
-      includeDrafts: includeDrafts === true,
-      emitContentApi,
-      progress,
-    });
-  } catch (err) {
-    if (!isDryRun && !noAtomic) {
-      await rm(outputDir, { recursive: true, force: true }).catch(() => {});
-    }
-    throw err;
-  }
+  return await runBuild({
+    cwd,
+    config,
+    outputDir,
+    finalOutputDir,
+    profiler,
+    previousManifest,
+    previousBuildManifest,
+    noAtomic: noAtomic === true,
+    concurrency,
+    dryRun: isDryRun,
+    includeDrafts: includeDrafts === true,
+    emitContentApi,
+    progress,
+  });
 }
 
 async function runBuild({
@@ -417,6 +399,17 @@ async function runBuild({
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
   // tooling to detect generator upgrades.
   const nectarVersion = await getNectarVersion();
+  const plannedOutputPaths = new Set<string>();
+  const keepOutput = (path: string): void => {
+    const normalized = normalizeOutputRelPath(path);
+    if (normalized) plannedOutputPaths.add(normalized);
+  };
+  keepOutput('.nectar-manifest.json');
+  keepOutput(buildManifestRelPath());
+  keepOutput(changedPathsRelPath());
+  keepOutput('staticwebapp.config.json');
+  keepOutput('.nojekyll');
+  if (profiler) keepOutput('.nectar-build-stats.json');
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
   const { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants } = await timed(
@@ -487,6 +480,15 @@ async function runBuild({
   );
 
   const imagesCfg = config.components.images;
+  markPlannedOgImages({ config, content, cwd, keepOutput });
+  markPlannedImageVariants({
+    cwd,
+    config,
+    plan: imageVariantPlan,
+    themeImageSizes: theme.pkg.image_sizes,
+    formats: formatVariants,
+    keepOutput,
+  });
 
   // OG image generation writes PNG/SVG files into outputDir, so dry-run skips
   // it. Themes consume `meta.image` set during route construction (above), not
@@ -770,6 +772,7 @@ async function runBuild({
   for (const result of renderResults) {
     nextRoutes[result.url] = { hash: result.routeHash, outputPath: result.outputPath };
     htmlOutputs.push(result.htmlOutput);
+    keepOutput(result.outputPath);
     renderedBytes += result.bytes;
     if (result.reused) skippedCount += 1;
     else renderedCount += 1;
@@ -837,12 +840,14 @@ async function runBuild({
   );
 
   if (!routes.some((r) => r.kind === 'error' && r.outputPath === '404.html')) {
+    keepOutput('404.html');
     await timed(profiler, 'default_404', () =>
       emitDefault404({ config, content, outputDir, favicons }),
     );
   }
 
   if (recommendationsEnabled) {
+    keepOutput('recommendations/index.html');
     await timed(profiler, 'recommendations_page', () =>
       emitRecommendationsPage({ config, content, outputDir, favicons }),
     );
@@ -856,28 +861,35 @@ async function runBuild({
           label: 'Theme assets',
           run: async () => {
             assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+            for (const asset of theme.assets.values()) keepOutput(asset.fingerprintedPath);
           },
         },
         {
           label: 'Ghost card assets',
           run: async () => {
-            await timed(profiler, 'card_assets', () =>
+            const emitted = await timed(profiler, 'card_assets', () =>
               emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
             );
+            if (emitted) {
+              keepOutput(CARD_ASSETS_CSS_PATH);
+              keepOutput(CARD_ASSETS_JS_PATH);
+            }
           },
         },
         {
           label: 'Favicons',
           run: async () => {
             await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
+            for (const copy of favicons.copies) keepOutput(copy.outputPath);
           },
         },
         {
           label: 'Portal runtime',
           run: async () => {
-            await timed(profiler, 'portal_runtime', () =>
+            const emitted = await timed(profiler, 'portal_runtime', () =>
               emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
             );
+            if (emitted) keepOutput(PORTAL_RUNTIME_PATH);
           },
         },
       ];
@@ -889,6 +901,7 @@ async function runBuild({
             await timed(profiler, 'copy_content_assets', () =>
               copyContentAssets(cwd, config.content.assets_dir, outputDir, {
                 maxImageBytes: config.build.max_image_bytes,
+                onOutputPath: keepOutput,
               }),
             );
           },
@@ -961,6 +974,7 @@ async function runBuild({
 
   await timed(profiler, 'feedEmit', async () => {
     if (config.components.sitemap.enabled) {
+      markPlannedSitemapOutputs({ routes, keepOutput });
       await timed(profiler, 'sitemap', () =>
         emitSitemap({
           config,
@@ -981,6 +995,7 @@ async function runBuild({
       );
     }
     if (config.components.rss.enabled) {
+      markPlannedRssOutputs({ config, content, keepOutput });
       await timed(profiler, 'rss', () =>
         emitRss({
           config,
@@ -997,17 +1012,21 @@ async function runBuild({
   // and the flat-dump stubs (`emitContentApiStubs`) below.
   const contentApiEnabled = emitContentApi ?? config.components.content_api.enabled;
   if (contentApiEnabled) {
+    markPlannedContentApiShadowOutputs({ config, content, keepOutput });
     await timed(profiler, 'content_api', () =>
       emitContentApiShadows({ config, content, outputDir }),
     );
   }
   if (config.components.robots.enabled) {
+    keepOutput('robots.txt');
     await timed(profiler, 'robots', () => emitRobots({ cwd, config, outputDir }));
   }
   if (config.components.humans.enabled) {
+    keepOutput('humans.txt');
     await timed(profiler, 'humans', () => emitHumans({ cwd, config, outputDir }));
   }
   if (config.components.search.enabled) {
+    markPlannedSearchOutputs({ config, keepOutput });
     await timed(profiler, 'search_json', () => emitSearchJson({ config, content, outputDir }));
     // Emit the `[data-ghost-search]` runtime shim before Pagefind crawls,
     // so the shim itself lands in the staging dir alongside the index.
@@ -1015,7 +1034,8 @@ async function runBuild({
     // Pagefind walks the staged HTML and emits a `pagefind/` index. Run it
     // here (before `commitStagingDir`) so the index is part of the atomic
     // swap into `dist/` — never a half-indexed live deploy.
-    await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
+    const pagefindRan = await timed(profiler, 'pagefind', () => runPagefind({ config, outputDir }));
+    if (pagefindRan) keepOutput('pagefind');
     await timed(profiler, 'lunr_index', () => emitLunrIndex({ config, content, outputDir }));
     await timed(profiler, 'lunr_widget', () => emitLunrWidget({ config, outputDir }));
     await timed(profiler, 'search_ui_css', () => emitSearchUiCss({ config, outputDir }));
@@ -1027,7 +1047,9 @@ async function runBuild({
       emitMeilisearchRecords({ config, content, outputDir }),
     );
   }
+  keepOutput('.nojekyll');
   await emitNojekyll({ outputDir });
+  if (config.deploy.github_pages.custom_domain) keepOutput('CNAME');
   await emitCname({
     outputDir,
     customDomain: config.deploy.github_pages.custom_domain,
@@ -1057,6 +1079,7 @@ async function runBuild({
     deployRedirects,
     autoNoindexProvider,
   };
+  markPlannedDeploymentHeaderOutputs({ config, autoNoindexProvider, keepOutput });
   await emitDeployTargets(deploymentHeaderTargets, deploymentArtifacts);
   // Azure Static Web Apps config. Emitted unconditionally — the file is
   // azure-specific and inert on every other host, and a single nectar build
@@ -1064,7 +1087,9 @@ async function runBuild({
   // need richer routing should drop a `staticwebapp.config.json` into the
   // static-passthrough dir, which overrides this default via the post-emit
   // passthrough step below.
+  keepOutput('staticwebapp.config.json');
   await emitAzureStaticWebAppConfig({ outputDir });
+  keepOutput('.nectar/cloudfront-response-headers-policy.json');
   await emitCloudFrontResponseHeadersPolicy({
     outputDir,
     headers: config.deploy.headers,
@@ -1076,6 +1101,7 @@ async function runBuild({
   // PREpend the CORS rule onto whatever cache/security headers those
   // emitters already wrote, rather than overwriting them.
   if (contentApiEnabled) {
+    markPlannedContentApiStubOutputs({ content, config, keepOutput });
     await timed(profiler, 'content_api_stubs', () =>
       emitContentApiStubs({
         content,
@@ -1091,11 +1117,23 @@ async function runBuild({
   // writes a baseline `_redirects` whenever rules exist and the toggle is on —
   // independent of deploy-target gates — so a Ghost migration retains its
   // redirect history regardless of which host the build targets.
+  markPlannedRedirectOutputs({
+    rules: userRedirects,
+    enabled: config.components.redirects.enabled,
+    emitHtml: config.components.redirects.emit_html,
+    keepOutput,
+  });
   await emitRedirectsComponent({
     outputDir,
     rules: userRedirects,
     enabled: config.components.redirects.enabled,
     emitHtml: config.components.redirects.emit_html,
+  });
+  markPlannedGithubPagesRedirectOutputs({
+    rules: userRedirects,
+    enabled: config.deploy.github_pages.redirects,
+    basePath: config.build.base_path,
+    keepOutput,
   });
   await emitGithubPagesRedirects({
     outputDir,
@@ -1103,13 +1141,18 @@ async function runBuild({
     enabled: config.deploy.github_pages.redirects,
     basePath: config.build.base_path,
   });
+  if (config.deploy.cloudflare_workers.enabled) {
+    keepOutput(CLOUDFLARE_WORKERS_MANIFEST_FILE);
+  }
   await emitCloudflareWorkersManifest({
     outputDir,
     enabled: config.deploy.cloudflare_workers.enabled,
     headers: config.deploy.headers,
     rules: deployRedirects,
   });
+  markPlannedDeploymentRoutingOutputs({ config, autoNoindexProvider, deployRedirects, keepOutput });
   await emitDeployTargets(deploymentRoutingTargets, deploymentArtifacts);
+  if (config.deploy.firebase.enabled) keepOutput('firebase.json');
   await emitFirebaseJson({
     outputDir,
     enabled: config.deploy.firebase.enabled,
@@ -1117,12 +1160,14 @@ async function runBuild({
     rules: deployRedirects,
     trailingSlash: config.build.trailing_slash,
   });
+  if (config.deploy.apache.enabled) keepOutput('.htaccess');
   await emitApacheHtaccess({
     outputDir,
     enabled: config.deploy.apache.enabled,
     headers: config.deploy.headers,
     rules: deployRedirects,
   });
+  if (config.deploy.nginx.enabled) keepOutput('.nectar/nginx.conf');
   await emitNginxConf({
     outputDir,
     enabled: config.deploy.nginx.enabled,
@@ -1131,6 +1176,7 @@ async function runBuild({
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
   });
+  if (config.deploy.caddy.enabled) keepOutput('.nectar/Caddyfile');
   await emitCaddyfile({
     outputDir,
     enabled: config.deploy.caddy.enabled,
@@ -1144,9 +1190,24 @@ async function runBuild({
   // under `<cwd>/<content.static_dir>/` wins over both theme assets and
   // generated platform files (`_headers`, `_redirects`, `robots.txt`, …).
   await timed(profiler, 'static_passthrough', () =>
-    copyStaticDir({ cwd, staticDir: config.content.static_dir, outputDir }),
+    copyStaticDir({
+      cwd,
+      staticDir: config.content.static_dir,
+      outputDir,
+      onOutputPath: keepOutput,
+    }),
   );
+  keepOutput('.nectar/asset-manifest.json');
   await timed(profiler, 'asset_manifest', () => emitAssetManifest({ outputDir, theme }));
+
+  const preservePatterns = noAtomic ? [] : await loadPreservePatterns(cwd);
+  await timed(profiler, 'stale_cleanup', () =>
+    cleanupStaleOutput({
+      outputDir,
+      keepRelPaths: plannedOutputPaths,
+      preservePatterns,
+    }),
+  );
 
   // Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`,
   // `.txt`, `.map`) into `.br` + `.gz` siblings. Runs after every emitter so
@@ -1174,18 +1235,10 @@ async function runBuild({
   };
   await saveManifest(outputDir, nextManifest);
 
-  if (!noAtomic) {
-    // Copy user-owned files (CNAME, .well-known/*, …) from the previous build's
-    // final dir into staging so the upcoming atomic swap does not drop them.
-    await preserveUserFiles({ cwd, finalOutputDir, stagingDir: outputDir });
-  }
-
   // Emit the deploy-facing build manifest last so its file list reflects every
   // artifact in the tree — including incremental cache, preserved user files,
   // and platform descriptors. Excludes itself and its derived changed-paths
-  // companion to avoid self-referential hashes. Runs before commitStagingDir
-  // (atomic mode) so the manifest swaps in atomically with the rest of the
-  // site; under --no-atomic it lands directly in finalOutputDir.
+  // companion to avoid self-referential hashes.
   await timed(profiler, 'build_manifest', () =>
     emitBuildManifest({
       outputDir,
@@ -1197,10 +1250,6 @@ async function runBuild({
       previousBuildManifest,
     }),
   );
-
-  if (!noAtomic) {
-    await commitStagingDir(outputDir, finalOutputDir);
-  }
 
   // afterEmit fires once the site is fully on-disk at `finalOutputDir`.
   // Plugins that publish to external systems (Algolia push, search-index
@@ -1233,6 +1282,334 @@ async function runBuild({
     skippedCount,
     dryRun: false,
   };
+}
+
+type KeepOutput = (path: string) => void;
+
+function normalizeOutputRelPath(path: string): string | undefined {
+  const normalized = (sep === '/' ? path : path.split(sep).join('/'))
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function markPlannedSitemapOutputs(opts: {
+  routes: readonly RouteContext[];
+  keepOutput: KeepOutput;
+}): void {
+  const counts = new Map<SitemapKind, number>([
+    ['posts', 0],
+    ['pages', 0],
+    ['tags', 0],
+    ['authors', 0],
+  ]);
+  for (const route of opts.routes) {
+    if (route.indexable === false) continue;
+    const kind = routeKindToSitemapKind(route.kind) ?? 'pages';
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  for (const kind of ['posts', 'pages', 'tags', 'authors'] as const) {
+    const count = counts.get(kind) ?? 0;
+    const pages = Math.max(1, Math.ceil(count / SITEMAP_MAX_URLS_PER_FILE));
+    for (let page = 1; page <= pages; page++) {
+      const suffix = page === 1 ? '' : `-${page}`;
+      opts.keepOutput(`sitemap-${kind}${suffix}.xml`);
+      opts.keepOutput(`sitemap-${kind}${suffix}.xml.gz`);
+    }
+  }
+  opts.keepOutput('sitemap.xml');
+  opts.keepOutput('sitemap.xml.gz');
+}
+
+function markPlannedRssOutputs(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  content: ContentGraph;
+  keepOutput: KeepOutput;
+}): void {
+  const perPage = Math.max(1, Math.min(opts.config.components.rss.items, 250));
+  const pages = Math.max(1, Math.ceil(opts.content.posts.length / perPage));
+  for (let page = 1; page <= pages; page++) {
+    opts.keepOutput(page === 1 ? 'rss.xml' : `rss-${page}.xml`);
+  }
+  if (opts.config.components.rss.per_tag) {
+    for (const tag of opts.content.tags) {
+      if (tag.visibility !== 'public') continue;
+      const posts = opts.content.postsByTag.get(tag.slug) ?? [];
+      if (posts.length > 0) opts.keepOutput(`tag/${tag.slug}/rss/index.xml`);
+    }
+  }
+  if (opts.config.components.rss.per_author) {
+    for (const author of opts.content.authors) {
+      const posts = opts.content.postsByAuthor.get(author.slug) ?? [];
+      if (posts.length > 0) opts.keepOutput(`author/${author.slug}/rss/index.xml`);
+    }
+  }
+}
+
+function markPlannedImageVariants(opts: {
+  cwd: string;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  plan: Awaited<ReturnType<typeof planImageVariants>>;
+  themeImageSizes: Record<string, { width?: number | undefined; height?: number | undefined }>;
+  formats: readonly ImageFormat[];
+  keepOutput: KeepOutput;
+}): void {
+  for (const [rel, widths] of opts.plan) {
+    for (const w of widths) {
+      opts.keepOutput(`content/images/size/w${w}/${rel}`);
+      for (const format of opts.config.components.images.formats) {
+        opts.keepOutput(`content/images/size/w${w}/${rel}.${format}`);
+      }
+    }
+  }
+
+  const sizeSegments = Object.values(opts.themeImageSizes)
+    .map((size) => buildThemeImageSizeSegmentForCleanup(size))
+    .filter((segment) => segment.length > 0);
+  if (sizeSegments.length === 0) return;
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
+  if (!existsSync(assetsRoot)) return;
+  for (const rel of new Bun.Glob('**/*').scanSync({ cwd: assetsRoot, onlyFiles: true })) {
+    const normalizedRel = normalizeOutputRelPath(rel);
+    if (!normalizedRel || !isRasterImage(normalizedRel)) continue;
+    if (normalizedRel.startsWith('size/')) continue;
+    for (const segment of sizeSegments) {
+      opts.keepOutput(`content/images/size/${segment}/${normalizedRel}`);
+      for (const format of opts.formats) {
+        opts.keepOutput(`content/images/size/${segment}/format/${format}/${normalizedRel}`);
+      }
+    }
+  }
+}
+
+function markPlannedOgImages(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  content: ContentGraph;
+  cwd: string;
+  keepOutput: KeepOutput;
+}): void {
+  if (opts.config.components.og_images.enabled && opts.config.components.og_images.template) {
+    for (const item of [...opts.content.posts, ...opts.content.pages]) {
+      if (!item.og_image && !item.twitter_image && !item.feature_image) {
+        opts.keepOutput(`content/images/og/${item.slug}.png`);
+      }
+    }
+  }
+  if (!opts.config.components.opengraph.rasterize_svg) return;
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
+  for (const item of [...opts.content.posts, ...opts.content.pages]) {
+    const featureImage = item.feature_image;
+    if (!featureImage) continue;
+    const marker = '/content/images/';
+    const clean = featureImage.split(/[?#]/)[0] ?? '';
+    const idx = clean.indexOf(marker);
+    if (idx < 0 || !clean.toLowerCase().endsWith('.svg')) continue;
+    const rel = clean.slice(idx + marker.length);
+    if (!rel || rel.includes('..')) continue;
+    const source = join(assetsRoot, rel);
+    if (!existsSync(source)) continue;
+    const withoutExt = rel.slice(0, rel.length - extname(rel).length);
+    opts.keepOutput(`content/images/${withoutExt}.og.png`);
+  }
+}
+
+function markPlannedContentApiShadowOutputs(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  content: ContentGraph;
+  keepOutput: KeepOutput;
+}): void {
+  const base = 'ghost/api/content';
+  for (const resource of ['posts', 'pages', 'authors', 'tags'] as const) {
+    opts.keepOutput(`${base}/${resource}.json`);
+    opts.keepOutput(`${base}/${resource}/index.json`);
+  }
+  opts.keepOutput(`${base}/settings.json`);
+  opts.keepOutput(`${base}/settings/index.json`);
+  const posts = opts.content.posts.filter((p) => p.status === 'published');
+  const pages = opts.content.pages.filter((p) => p.status === 'published');
+  const pageCount = Math.max(
+    1,
+    Math.ceil(posts.length / opts.config.components.content_api.posts_per_page),
+  );
+  for (let page = 1; page <= pageCount; page++) {
+    opts.keepOutput(`${base}/posts/page/${page}.json`);
+    opts.keepOutput(`${base}/posts/page/${page}/index.json`);
+  }
+  for (const post of posts) {
+    opts.keepOutput(`${base}/posts/${post.id}.json`);
+    opts.keepOutput(`${base}/posts/${post.id}/index.json`);
+    opts.keepOutput(`${base}/posts/slug/${post.slug}.json`);
+    opts.keepOutput(`${base}/posts/slug/${post.slug}/index.json`);
+  }
+  for (const page of pages) {
+    opts.keepOutput(`${base}/pages/${page.id}.json`);
+    opts.keepOutput(`${base}/pages/${page.id}/index.json`);
+    opts.keepOutput(`${base}/pages/slug/${page.slug}.json`);
+    opts.keepOutput(`${base}/pages/slug/${page.slug}/index.json`);
+  }
+  for (const author of opts.content.authors) {
+    opts.keepOutput(`${base}/authors/slug/${author.slug}.json`);
+    opts.keepOutput(`${base}/authors/slug/${author.slug}/index.json`);
+  }
+  for (const tag of opts.content.tags) {
+    opts.keepOutput(`${base}/tags/slug/${tag.slug}.json`);
+    opts.keepOutput(`${base}/tags/slug/${tag.slug}/index.json`);
+    opts.keepOutput(`${base}/posts/tag/${tag.slug}.json`);
+    opts.keepOutput(`${base}/posts/tag/${tag.slug}/index.json`);
+  }
+  opts.keepOutput('_redirects');
+}
+
+function markPlannedContentApiStubOutputs(opts: {
+  content: ContentGraph;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  keepOutput: KeepOutput;
+}): void {
+  for (const resource of ['posts', 'pages', 'tags', 'authors'] as const) {
+    opts.keepOutput(`content/${resource}.json`);
+    opts.keepOutput(`content/${resource}/index.json`);
+  }
+  opts.keepOutput('content/settings.json');
+  opts.keepOutput('content/settings/index.json');
+  const posts = opts.content.posts.filter((p) => p.status === 'published');
+  const pages = opts.content.pages.filter((p) => p.status === 'published');
+  const pageCount = Math.max(
+    1,
+    Math.ceil(posts.length / opts.config.components.content_api.posts_per_page),
+  );
+  for (let page = 1; page <= pageCount; page++) {
+    opts.keepOutput(`content/posts/page/${page}.json`);
+    opts.keepOutput(`content/posts/page/${page}/index.json`);
+  }
+  for (const post of posts) {
+    opts.keepOutput(`content/posts/${post.id}.json`);
+    opts.keepOutput(`content/posts/${post.id}/index.json`);
+    opts.keepOutput(`content/posts/slug/${post.slug}.json`);
+    opts.keepOutput(`content/posts/slug/${post.slug}/index.json`);
+  }
+  for (const page of pages) {
+    opts.keepOutput(`content/pages/${page.id}.json`);
+    opts.keepOutput(`content/pages/${page.id}/index.json`);
+    opts.keepOutput(`content/pages/slug/${page.slug}.json`);
+    opts.keepOutput(`content/pages/slug/${page.slug}/index.json`);
+  }
+  for (const tag of opts.content.tags) {
+    opts.keepOutput(`content/posts/tag/${tag.slug}.json`);
+    opts.keepOutput(`content/posts/tag/${tag.slug}/index.json`);
+  }
+  opts.keepOutput('_headers');
+  opts.keepOutput('_headers.cf');
+}
+
+function markPlannedSearchOutputs(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  keepOutput: KeepOutput;
+}): void {
+  const cfg = opts.config.components.search;
+  if (
+    cfg.engine === 'json' ||
+    cfg.engine === 'json+pagefind' ||
+    cfg.engine === 'json+lunr' ||
+    cfg.engine === 'json+sodo-search'
+  ) {
+    opts.keepOutput('content/search.json');
+  }
+  if (cfg.engine === 'pagefind' || cfg.engine === 'json+pagefind') {
+    opts.keepOutput('search/ghost-search.js');
+  }
+  if (cfg.engine === 'lunr' || cfg.engine === 'json+lunr') {
+    opts.keepOutput('search-index.json');
+    opts.keepOutput('search/widget.js');
+    opts.keepOutput('search/lunr.min.js');
+  }
+  opts.keepOutput('search/search.css');
+  if (cfg.emit_algolia_records) {
+    opts.keepOutput('.nectar/algolia-records.json');
+    opts.keepOutput('search/algolia-docsearch.css');
+  }
+  if (cfg.emit_meilisearch_records) {
+    opts.keepOutput('.nectar/meilisearch-records.json');
+  }
+}
+
+function markPlannedDeploymentHeaderOutputs(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  autoNoindexProvider: DeploymentProvider | undefined;
+  keepOutput: KeepOutput;
+}): void {
+  if (
+    opts.config.deploy.cloudflare_pages.enabled ||
+    opts.autoNoindexProvider === 'cloudflare_pages'
+  ) {
+    opts.keepOutput('_headers');
+  }
+  if (opts.config.deploy.netlify.enabled || opts.autoNoindexProvider === 'netlify') {
+    opts.keepOutput('_headers');
+  }
+}
+
+function markPlannedDeploymentRoutingOutputs(opts: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  autoNoindexProvider: DeploymentProvider | undefined;
+  deployRedirects: readonly RedirectRule[];
+  keepOutput: KeepOutput;
+}): void {
+  if (opts.config.deploy.cloudflare_pages.enabled) {
+    opts.keepOutput('_routes.json');
+    if (opts.deployRedirects.length > 0) opts.keepOutput('_redirects');
+  }
+  if (opts.config.deploy.netlify.enabled && opts.deployRedirects.length > 0) {
+    opts.keepOutput('_redirects');
+  }
+  if (opts.config.deploy.vercel.enabled || opts.autoNoindexProvider === 'vercel') {
+    opts.keepOutput('vercel.json');
+  }
+}
+
+function markPlannedRedirectOutputs(opts: {
+  rules: readonly RedirectRule[];
+  enabled: boolean;
+  emitHtml: boolean;
+  keepOutput: KeepOutput;
+}): void {
+  if (!opts.enabled) return;
+  if (opts.rules.length > 0) opts.keepOutput('_redirects');
+  if (!opts.emitHtml) return;
+  for (const rule of opts.rules) {
+    const rel = rule.from.replace(/^\/+/, '');
+    if (!rel || rel.includes('..') || rel.includes('\\')) continue;
+    opts.keepOutput(`${rel.replace(/\/+$/, '')}/index.html`);
+  }
+}
+
+function markPlannedGithubPagesRedirectOutputs(opts: {
+  rules: readonly RedirectRule[];
+  enabled: boolean;
+  basePath: string;
+  keepOutput: KeepOutput;
+}): void {
+  if (!opts.enabled) return;
+  for (const rule of opts.rules) {
+    const outputPath = githubPagesRedirectOutputPath(rule.from, opts.basePath);
+    if (outputPath) opts.keepOutput(outputPath);
+  }
+}
+
+function buildThemeImageSizeSegmentForCleanup(size: {
+  width?: number | undefined;
+  height?: number | undefined;
+}): string {
+  let segment = '';
+  if (typeof size.width === 'number' && size.width > 0) segment += `w${size.width}`;
+  if (typeof size.height === 'number' && size.height > 0) segment += `h${size.height}`;
+  return segment;
+}
+
+function isRasterImage(path: string): boolean {
+  return ['.jpg', '.jpeg', '.png', '.webp'].includes(extname(path).toLowerCase());
 }
 
 // Iterate the loaded plugin set in registration order and invoke a hook on

@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readlink, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import {
+  cleanupStaleOutput,
   clearDirContents,
   commitStagingDir,
   prepareStagingDir,
@@ -77,6 +78,77 @@ describe('clearDirContents', () => {
 
     expect(existsSync(target)).toBe(true);
     expect(await readdir(target)).toEqual([]);
+  });
+});
+
+describe('cleanupStaleOutput', () => {
+  test('removes only files outside the current build keep set', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-'));
+    await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
+    await mkdir(join(target, 'old-post'), { recursive: true });
+    await writeFile(join(target, 'old-post/index.html'), '<old/>', 'utf8');
+    await mkdir(join(target, 'assets'), { recursive: true });
+    await writeFile(join(target, 'assets/app.css'), 'body{}', 'utf8');
+    await writeFile(join(target, 'assets/old.css'), 'old', 'utf8');
+
+    const result = await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['index.html', 'assets/app.css'],
+    });
+
+    expect(result.removed).toEqual(['assets/old.css', 'old-post/index.html']);
+    expect(existsSync(join(target, 'index.html'))).toBe(true);
+    expect(existsSync(join(target, 'assets/app.css'))).toBe(true);
+    expect(existsSync(join(target, 'assets/old.css'))).toBe(false);
+    expect(existsSync(join(target, 'old-post'))).toBe(false);
+  });
+
+  test('honours .nectarignore-style preserve patterns', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-preserve-'));
+    await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
+    await writeFile(join(target, 'CNAME'), 'blog.example.com', 'utf8');
+    await mkdir(join(target, '.well-known'), { recursive: true });
+    await writeFile(join(target, '.well-known/security.txt'), 'Contact: x', 'utf8');
+
+    await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['index.html'],
+      preservePatterns: ['CNAME', '.well-known'],
+    });
+
+    expect(readFileSync(join(target, 'CNAME'), 'utf8')).toBe('blog.example.com');
+    expect(readFileSync(join(target, '.well-known/security.txt'), 'utf8')).toBe('Contact: x');
+  });
+
+  test('unlinks stale symlinks without following their targets', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-symlink-'));
+    const outside = await mkdtemp(join(tmpdir(), 'nectar-stale-outside-'));
+    await writeFile(join(outside, 'secret.txt'), 'SECRET', 'utf8');
+    await symlink(join(outside, 'secret.txt'), join(target, 'leak.txt'));
+    await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
+
+    await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['index.html'],
+    });
+
+    expect(existsSync(join(target, 'leak.txt'))).toBe(false);
+    expect(readFileSync(join(outside, 'secret.txt'), 'utf8')).toBe('SECRET');
+  });
+
+  test('preserves kept symlinks as links', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-kept-symlink-'));
+    const outside = await mkdtemp(join(tmpdir(), 'nectar-stale-outside-'));
+    const source = join(outside, 'asset.txt');
+    await writeFile(source, 'ASSET', 'utf8');
+    await symlink(source, join(target, 'asset.txt'));
+
+    await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['asset.txt'],
+    });
+
+    expect(await readlink(join(target, 'asset.txt'))).toBe(source);
   });
 });
 

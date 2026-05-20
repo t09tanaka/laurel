@@ -248,16 +248,24 @@ describe('buildSearchIndex', () => {
       id: 'post-1',
       slug: 'hello',
       title: 'Hello world',
-      url: '/hello/',
+      url: 'https://search.test/hello/',
       tags: ['news'],
       authors: ['jane'],
     });
     expect(index.pages).toHaveLength(1);
-    expect(index.pages[0]).toMatchObject({ slug: 'about', url: '/about/' });
+    expect(index.pages[0]).toMatchObject({ slug: 'about', url: 'https://search.test/about/' });
     expect(index.tags).toHaveLength(1);
-    expect(index.tags[0]).toMatchObject({ slug: 'news', name: 'News' });
+    expect(index.tags[0]).toMatchObject({
+      slug: 'news',
+      name: 'News',
+      url: 'https://search.test/tag/news/',
+    });
     expect(index.authors).toHaveLength(1);
-    expect(index.authors[0]).toMatchObject({ slug: 'jane', name: 'Jane Doe' });
+    expect(index.authors[0]).toMatchObject({
+      slug: 'jane',
+      name: 'Jane Doe',
+      url: 'https://search.test/author/jane/',
+    });
     expect(index.meta.site_url).toBe('https://search.test');
     expect(index.meta.note).toMatch(/NOT Ghost/);
   });

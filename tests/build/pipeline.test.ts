@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { chmod, cp, mkdir, mkdtemp, readdir, realpath, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
@@ -1110,6 +1110,47 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     const summary = await build({ cwd, noAtomic: true });
 
     expect(existsSync(join(summary.outputDir, 'leftover.txt'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+  });
+
+  test('default build removes stale files without clearing the whole output dir first', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const distDir = resolve(cwd, 'dist');
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/old.png'), 'OLD', 'utf8');
+    await build({ cwd });
+    await writeFile(join(distDir, 'manual-stale.txt'), 'stale', 'utf8');
+
+    await rm(join(cwd, 'content/images/old.png'));
+    await writeFile(join(cwd, 'content/images/new.png'), 'NEW', 'utf8');
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'manual-stale.txt'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'content/images/old.png'))).toBe(false);
+    expect(readFileSync(join(summary.outputDir, 'content/images/new.png'), 'utf8')).toBe('NEW');
+    expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'))).toBe(true);
+  });
+
+  test('stale cleanup removes old route html when the route plan changes', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/pages/old-page.md'),
+      `---
+title: "Old Page"
+---
+
+Old
+`,
+      'utf8',
+    );
+    await build({ cwd });
+    expect(existsSync(join(cwd, 'dist/old-page/index.html'))).toBe(true);
+
+    await rm(join(cwd, 'content/pages/old-page.md'));
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'old-page/index.html'))).toBe(false);
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
   });
 
