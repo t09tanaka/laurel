@@ -1235,6 +1235,65 @@ About body
   });
 });
 
+describe('loadContent post custom_template alternate layouts (issue #704)', () => {
+  test('reads `template` frontmatter and stores it as the canonical custom-<name>', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: Hello
+template: narrow-feature-image
+---
+
+Hello body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts[0]?.custom_template).toBe('custom-narrow-feature-image');
+  });
+
+  test('accepts Dawn pre-prefixed custom-no-feature-image without double-prefixing', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-pref-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: Hello
+custom_template: custom-no-feature-image
+---
+
+Hello body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts[0]?.custom_template).toBe('custom-no-feature-image');
+  });
+
+  test('rejects unsafe post template names', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-bad-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: Hello
+template: "../etc/passwd"
+---
+
+Hello body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts[0]?.custom_template).toBeUndefined();
+  });
+});
+
 describe('loadContent scheduled posts', () => {
   test('excludes scheduled posts whose published_at is still in the future', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-future-'));

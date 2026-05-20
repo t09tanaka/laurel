@@ -607,6 +607,7 @@ interface RawPost {
   twitter_image: string | undefined;
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
+  custom_template: string | undefined;
   email_only: boolean;
   source: ContentSourceFingerprint;
 }
@@ -1137,6 +1138,10 @@ async function normalizePost(
     twitter_title: asString(data.twitter_title),
     twitter_description: asString(data.twitter_description),
     twitter_image: asString(data.twitter_image),
+    custom_template: sanitizeCustomTemplate(
+      asString(data.template ?? data.custom_template),
+      filePath,
+    ),
     email_only: asBool(data.email_only, false),
     source: source ?? contentSourceFingerprint(filePath, rootDir, await stat(filePath)),
     ...resolveCodeInjection(data, filePath, config),
@@ -1499,6 +1504,7 @@ function resolvePostRelations(
     twitter_image: raw.twitter_image,
     codeinjection_head: raw.codeinjection_head,
     codeinjection_foot: raw.codeinjection_foot,
+    custom_template: raw.custom_template,
     comments: true,
     // Anonymous viewer in a static build: the current reader never has access
     // to gated content, so themes branching on `{{#unless this.access}}` take

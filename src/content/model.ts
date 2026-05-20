@@ -162,6 +162,7 @@ export interface Post {
   twitter_image: string | undefined;
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
+  custom_template: string | undefined;
   comments: boolean;
   // Ghost exposes `post.access` as a boolean telling the theme whether the
   // *current viewer* may read the gated body. Nectar's static build has no

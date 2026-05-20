@@ -113,6 +113,7 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
     twitter_image: undefined,
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
+    custom_template: undefined,
     comments: false,
     prev: undefined,
     next: undefined,
@@ -559,6 +560,84 @@ describe('planRoutes — page custom_template (issue #1005)', () => {
     const routes = planRoutes({ config, content, theme });
     const pageRoute = routes.find((r) => r.kind === 'page');
     expect(pageRoute?.template).toBe('page');
+  });
+
+  test('supports Dawn no-feature-image alternate page layout', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('about', { custom_template: 'custom-no-feature-image' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-no-feature-image'] = '{{!dawn page alt}}';
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('custom-no-feature-image');
+  });
+});
+
+describe('planRoutes — post custom_template alternate layouts (issue #704)', () => {
+  test('renders post through custom-* template when theme provides one', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello', { custom_template: 'custom-narrow-feature-image' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-narrow-feature-image'] = '{{!dawn post alt}}';
+    const routes = planRoutes({ config, content, theme });
+    const postRoute = routes.find((r) => r.kind === 'post');
+    expect(postRoute?.template).toBe('custom-narrow-feature-image');
+  });
+
+  test('falls back to post.hbs when requested custom-* template is absent', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello', { custom_template: 'custom-missing' })],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const postRoute = routes.find((r) => r.kind === 'post');
+    expect(postRoute?.template).toBe('post');
+  });
+
+  test('post custom_template takes precedence over routes.yaml collection template', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello', { custom_template: 'custom-no-feature-image' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-no-feature-image'] = '{{!dawn post alt}}';
+    theme.templates['blog-post'] = '{{!collection}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/': { permalink: '/{slug}/', template: 'blog-post' } },
+      },
+    });
+    const postRoute = routes.find((r) => r.kind === 'post');
+    expect(postRoute?.template).toBe('custom-no-feature-image');
+  });
+
+  test('missing post custom_template falls back to collection template when present', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: [makePost('hello', { custom_template: 'custom-missing' })],
+    });
+    const theme = makeTheme();
+    theme.templates['blog-post'] = '{{!collection}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: {
+        ...emptyRoutesYaml(),
+        collections: { '/': { permalink: '/{slug}/', template: 'blog-post' } },
+      },
+    });
+    const postRoute = routes.find((r) => r.kind === 'post');
+    expect(postRoute?.template).toBe('blog-post');
   });
 });
 

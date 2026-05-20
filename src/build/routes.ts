@@ -100,11 +100,11 @@ export function planRoutes(opts: {
       ),
       trailingSlash,
     );
-    // Per-collection `template:` field opts a bucket of posts into a custom
-    // theme template (`{template}.hbs`). Fall back to the warned template if
-    // the theme doesn't ship the requested file — same UX as `routes:`
-    // entries with a missing template, but applied to the entire bucket.
-    const template = pickPostTemplate(assignment?.collection);
+    // Per-post `custom_template` takes precedence over any collection-level
+    // `template:` override. If the requested custom template is missing, fall
+    // back through the collection picker so a bad entry does not disable a
+    // valid routes.yaml template for the bucket.
+    const template = pickPostTemplate(post, assignment?.collection);
     routes.push({
       kind: 'post',
       url,
@@ -497,9 +497,21 @@ function assertNoRouteCollisions(routes: readonly RouteContext[]): void {
 // noise doesn't leak across invocations or tests.
 function makePostTemplatePicker(
   theme: ThemeBundle,
-): (collection: ResolvedCollection | undefined) => string {
+): (post: Post, collection: ResolvedCollection | undefined) => string {
   const warned = new Set<string>();
-  return (collection) => {
+  return (post, collection) => {
+    const collectionTemplate = resolveCollectionPostTemplate(collection);
+    const customTemplate = post.custom_template;
+    if (customTemplate) {
+      if (theme.templates[customTemplate]) return customTemplate;
+      logger.warn(
+        `Post "${post.slug}" requested template "${customTemplate}" but theme has no matching .hbs; falling back to ${collectionTemplate}.hbs.`,
+      );
+    }
+    return collectionTemplate;
+  };
+
+  function resolveCollectionPostTemplate(collection: ResolvedCollection | undefined): string {
     if (!collection?.template) return 'post';
     const requested = collection.template;
     if (theme.templates[requested]) return requested;
@@ -510,7 +522,7 @@ function makePostTemplatePicker(
       );
     }
     return 'post';
-  };
+  }
 }
 
 // Mirrors Ghost's per-page template override: when a page's frontmatter declares

@@ -95,6 +95,10 @@ const entryBaseFields = {
 export const postFrontmatterSchema = z
   .object({
     ...entryBaseFields,
+    template: slugSchema.optional().describe('Custom post template slug, with or without custom-.'),
+    custom_template: slugSchema
+      .optional()
+      .describe('Custom post template slug, with or without custom-.'),
     visibility: z.enum(frontmatterVisibilityValues).optional().default('public'),
     featured: z.boolean().optional().default(false).describe('Mark this post as featured.'),
     email_only: z
