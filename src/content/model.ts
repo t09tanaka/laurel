@@ -104,8 +104,17 @@ export interface Author {
   tiktok: string | undefined;
   youtube: string | undefined;
   instagram: string | undefined;
+  accent_color: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;
+  og_title: string | undefined;
+  og_description: string | undefined;
+  og_image: string | undefined;
+  twitter_title: string | undefined;
+  twitter_description: string | undefined;
+  twitter_image: string | undefined;
+  codeinjection_head: string | undefined;
+  codeinjection_foot: string | undefined;
   url: string;
   count: { posts: number };
 }

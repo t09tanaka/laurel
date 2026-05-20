@@ -112,8 +112,17 @@ const AUTHOR_KEYS: ReadonlySet<string> = new Set([
   'tiktok',
   'youtube',
   'instagram',
+  'accent_color',
   'meta_title',
   'meta_description',
+  'og_title',
+  'og_description',
+  'og_image',
+  'twitter_title',
+  'twitter_description',
+  'twitter_image',
+  'codeinjection_head',
+  'codeinjection_foot',
 ]);
 
 const TAG_KEYS: ReadonlySet<string> = new Set([

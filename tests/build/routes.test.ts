@@ -213,8 +213,17 @@ function makeAuthor(slug: string): Author {
     tiktok: undefined,
     youtube: undefined,
     instagram: undefined,
+    accent_color: undefined,
     meta_title: undefined,
     meta_description: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     url: `/author/${slug}/`,
     count: { posts: 0 },
   };
@@ -375,6 +384,27 @@ describe('planRoutes — defaultMeta.canonical', () => {
     const routes = planRoutes({ config, content, theme });
     const authorRoute = routes.find((r) => r.kind === 'author');
     expect(authorRoute?.meta.canonical).toBe('https://example.com/author/alice/');
+  });
+
+  test('author archive meta prefers author social SEO fields', () => {
+    const config = makeConfig('https://example.com');
+    const author = makeAuthor('alice');
+    author.og_title = 'Alice OG';
+    author.og_description = 'Alice OG description';
+    author.og_image = '/content/images/alice-og.jpg';
+    author.twitter_title = 'Alice Twitter';
+    author.twitter_description = 'Alice Twitter description';
+    author.twitter_image = '/content/images/alice-twitter.jpg';
+    const content = makeGraph({
+      posts: [makePost('a', { authors: [author], primary_author: author })],
+      authors: [author],
+    });
+    const routes = planRoutes({ config, content, theme: makeTheme() });
+    const authorRoute = routes.find((r) => r.kind === 'author');
+
+    expect(authorRoute?.meta.title).toBe('Alice OG');
+    expect(authorRoute?.meta.description).toBe('Alice OG description');
+    expect(authorRoute?.meta.image).toBe('/content/images/alice-og.jpg');
   });
 
   test('paginated index pages get a canonical pointing at the paginated URL', () => {

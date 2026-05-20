@@ -484,6 +484,52 @@ codeinjection_foot: "<script>window.__tag='news'</script>"
     });
   });
 
+  test('loads author archive SEO fields and exposes them on primary_author', async () => {
+    const cwd = await fixture();
+    await writeFile(
+      join(cwd, 'content/authors/casper.md'),
+      `---
+name: Casper
+bio: Friendly ghost
+accent_color: "#7851a9"
+og_title: "Casper OG"
+og_description: "Casper OG description"
+og_image: "/content/images/casper-og.jpg"
+twitter_title: "Casper Twitter"
+twitter_description: "Casper Twitter description"
+twitter_image: "/content/images/casper-twitter.jpg"
+codeinjection_head: "<meta name=\\"author-head\\" content=\\"casper\\">"
+codeinjection_foot: "<script>window.__author='casper'</script>"
+---
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { allow_code_injection: true },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    const author = graph.bySlug.authors.get('casper');
+    expect(author).toMatchObject({
+      accent_color: '#7851a9',
+      og_title: 'Casper OG',
+      og_description: 'Casper OG description',
+      og_image: '/content/images/casper-og.jpg',
+      twitter_title: 'Casper Twitter',
+      twitter_description: 'Casper Twitter description',
+      twitter_image: '/content/images/casper-twitter.jpg',
+      codeinjection_head: '<meta name="author-head" content="casper">',
+      codeinjection_foot: "<script>window.__author='casper'</script>",
+    });
+    expect(graph.bySlug.posts.get('hello')?.primary_author).toMatchObject({
+      accent_color: '#7851a9',
+      og_image: '/content/images/casper-og.jpg',
+      twitter_image: '/content/images/casper-twitter.jpg',
+    });
+  });
+
   test('reuses cached markdown render results until source content changes', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

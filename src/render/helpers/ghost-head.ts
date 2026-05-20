@@ -331,10 +331,12 @@ function computeMeta(
   const ogImage = ctx.og_image as string | undefined;
   const twitterImage = ctx.twitter_image as string | undefined;
   const featureImage = ctx.feature_image as string | undefined;
+  const routeImage = routeScopedMetaImage(ctx, route);
   // Fall back through site-wide og_image / twitter_image so a config-only
   // [site].og_image still drives every page's social preview when no per-route
   // image is present.
-  const rawImage = ogImage || twitterImage || featureImage || site.og_image || site.twitter_image;
+  const rawImage =
+    ogImage || twitterImage || featureImage || routeImage || site.og_image || site.twitter_image;
   // Apply base_path so a root-relative `/content/images/foo.jpg` becomes
   // `https://host/blog/content/images/foo.jpg` on a subpath deploy. Absolute
   // http(s) URLs pass through unchanged via absoluteUrlWithBasePath.
@@ -407,6 +409,8 @@ function resolveMetaDescription(
   if (route?.kind === 'author') {
     const author = pickResource(ctx.author, route.data?.author);
     return (
+      pickString(author?.og_description) ||
+      pickString(author?.twitter_description) ||
       pickString(author?.meta_description) ||
       pickString(author?.bio) ||
       siteDescriptionFallback(site)
@@ -815,11 +819,21 @@ function routeScopedMetaTitle(
   if (route?.kind === 'author') {
     const authorFromCtx = recordValue(ctx.author);
     if (authorFromCtx) {
-      return firstNonEmptyString(authorFromCtx.meta_title, authorFromCtx.name);
+      return firstNonEmptyString(
+        authorFromCtx.meta_title,
+        authorFromCtx.og_title,
+        authorFromCtx.twitter_title,
+        authorFromCtx.name,
+      );
     }
     if (firstNonEmptyString(ctx.meta_title, ctx.og_title, ctx.title)) return undefined;
     const author = recordValue(route.data?.author);
-    return firstNonEmptyString(author?.meta_title, author?.name);
+    return firstNonEmptyString(
+      author?.meta_title,
+      author?.og_title,
+      author?.twitter_title,
+      author?.name,
+    );
   }
   return undefined;
 }
@@ -840,6 +854,21 @@ function routeScopedCanonicalUrl(
     tagFromCtx?.canonical_url,
     recordValue(route.data?.tag)?.canonical_url,
   );
+}
+
+function routeScopedMetaImage(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+): string | undefined {
+  if (route?.kind !== 'author') return undefined;
+  if (firstNonEmptyString(ctx.og_image, ctx.twitter_image, ctx.feature_image)) return undefined;
+  const author = recordValue(ctx.author) ?? recordValue(route.data?.author);
+  return firstNonEmptyString(author?.og_image, author?.twitter_image, author?.cover_image);
 }
 
 // Normalise a Twitter handle / URL into the `@handle` form expected by the

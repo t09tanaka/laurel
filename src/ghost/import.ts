@@ -139,8 +139,17 @@ interface GhostUser {
   location?: string | null;
   twitter?: string | null;
   facebook?: string | null;
+  accent_color?: string | null;
   meta_title?: string | null;
   meta_description?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image?: string | null;
+  twitter_title?: string | null;
+  twitter_description?: string | null;
+  twitter_image?: string | null;
+  codeinjection_head?: string | null;
+  codeinjection_foot?: string | null;
 }
 
 export interface ImportSummary {
@@ -765,6 +774,12 @@ async function importFromResolvedInput(
 
   let authorCount = 0;
   for (const user of users) {
+    const hasAuthorCodeInjection =
+      (typeof user.codeinjection_head === 'string' && user.codeinjection_head.length > 0) ||
+      (typeof user.codeinjection_foot === 'string' && user.codeinjection_foot.length > 0);
+    if (hasAuthorCodeInjection && !keepCodeInjection) {
+      counters.codeInjectionSkipped += 1;
+    }
     const userSlug = safeSlug(user.slug) || safeSlug(user.name);
     if (!userSlug) {
       logger.warn(
@@ -792,6 +807,20 @@ async function importFromResolvedInput(
       'cover_image',
       userLabel,
     );
+    const ogImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(user.og_image ?? undefined)
+        : (user.og_image ?? undefined),
+      'og_image',
+      userLabel,
+    );
+    const twitterImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(user.twitter_image ?? undefined)
+        : (user.twitter_image ?? undefined),
+      'twitter_image',
+      userLabel,
+    );
     const frontmatter = buildFrontmatter({
       slug: userSlug,
       name: user.name,
@@ -802,8 +831,17 @@ async function importFromResolvedInput(
       location: user.location ?? undefined,
       twitter: user.twitter ?? undefined,
       facebook: user.facebook ?? undefined,
+      accent_color: user.accent_color ?? undefined,
       meta_title: user.meta_title ?? undefined,
       meta_description: user.meta_description ?? undefined,
+      og_title: user.og_title ?? undefined,
+      og_description: user.og_description ?? undefined,
+      og_image: ogImage,
+      twitter_title: user.twitter_title ?? undefined,
+      twitter_description: user.twitter_description ?? undefined,
+      twitter_image: twitterImage,
+      codeinjection_head: keepCodeInjection ? (user.codeinjection_head ?? undefined) : undefined,
+      codeinjection_foot: keepCodeInjection ? (user.codeinjection_foot ?? undefined) : undefined,
     });
     if (!dryRun) await ensureDirOnce(baseDir);
     const written = await dispatchWrite(

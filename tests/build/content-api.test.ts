@@ -53,8 +53,17 @@ function makeAuthor(over: Partial<Author> = {}): Author {
     tiktok: undefined,
     youtube: undefined,
     instagram: undefined,
+    accent_color: undefined,
     meta_title: undefined,
     meta_description: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     url: 'https://example.com/author/casper/',
     count: { posts: 1 },
     ...over,
@@ -400,6 +409,41 @@ name: News
       twitter_image: '/content/images/news-twitter.jpg',
       codeinjection_head: '<meta name="tag-head" content="news">',
       codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
+  });
+
+  test('authors.json serializes author social and code injection fields', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-author-fields-'));
+    const author = makeAuthor({
+      accent_color: '#7851a9',
+      og_title: 'Casper OG',
+      og_description: 'Casper OG description',
+      og_image: '/content/images/casper-og.jpg',
+      twitter_title: 'Casper Twitter',
+      twitter_description: 'Casper Twitter description',
+      twitter_image: '/content/images/casper-twitter.jpg',
+      codeinjection_head: '<meta name="author-head" content="casper">',
+      codeinjection_foot: '<script>window.__author = "casper"</script>',
+    });
+    await emitContentApiStubs({
+      content: makeGraph({
+        authors: [author],
+        posts: [makePost({ authors: [author], primary_author: author })],
+      }),
+      outputDir,
+    });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
+    expect(body.authors[0]).toMatchObject({
+      accent_color: '#7851a9',
+      og_title: 'Casper OG',
+      og_description: 'Casper OG description',
+      og_image: '/content/images/casper-og.jpg',
+      twitter_title: 'Casper Twitter',
+      twitter_description: 'Casper Twitter description',
+      twitter_image: '/content/images/casper-twitter.jpg',
+      codeinjection_head: '<meta name="author-head" content="casper">',
+      codeinjection_foot: '<script>window.__author = "casper"</script>',
     });
   });
 

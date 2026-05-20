@@ -414,6 +414,54 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
     expect(tagMd).toContain('codeinjection_head: "<meta name=\\"tag-head\\" content=\\"ruby\\">"');
     expect(tagMd).toContain('codeinjection_foot: "<script>window.__tag = \\"ruby\\"</script>"');
   });
+
+  test('preserves Ghost author archive SEO fields in author frontmatter', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              users: [
+                {
+                  id: 'u1',
+                  slug: 'jane',
+                  name: 'Jane',
+                  accent_color: '#7851a9',
+                  og_title: 'Jane OG',
+                  og_description: 'Jane OG description',
+                  og_image: 'https://cdn.example.com/jane-og.jpg',
+                  twitter_title: 'Jane Twitter',
+                  twitter_description: 'Jane Twitter description',
+                  twitter_image: 'https://cdn.example.com/jane-twitter.jpg',
+                  codeinjection_head: '<meta name="author-head" content="jane">',
+                  codeinjection_foot: '<script>window.__author = "jane"</script>',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, keepCodeInjection: true });
+
+    expect(summary.authors).toBe(1);
+    const authorMd = await readFile(join(cwd, 'content/authors/jane.md'), 'utf8');
+    expect(authorMd).toContain('accent_color: "#7851a9"');
+    expect(authorMd).toContain('og_title: "Jane OG"');
+    expect(authorMd).toContain('og_description: "Jane OG description"');
+    expect(authorMd).toContain('og_image: "https://cdn.example.com/jane-og.jpg"');
+    expect(authorMd).toContain('twitter_title: "Jane Twitter"');
+    expect(authorMd).toContain('twitter_description: "Jane Twitter description"');
+    expect(authorMd).toContain('twitter_image: "https://cdn.example.com/jane-twitter.jpg"');
+    expect(authorMd).toContain(
+      'codeinjection_head: "<meta name=\\"author-head\\" content=\\"jane\\">"',
+    );
+    expect(authorMd).toContain(
+      'codeinjection_foot: "<script>window.__author = \\"jane\\"</script>"',
+    );
+  });
 });
 
 describe('importGhostExport — --keep-html (#808)', () => {

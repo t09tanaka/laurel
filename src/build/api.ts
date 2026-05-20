@@ -442,8 +442,17 @@ function serializeAuthorBare(author: Author, urlContext: ApiUrlContext): Record<
     location: author.location ?? null,
     twitter: author.twitter ?? null,
     facebook: author.facebook ?? null,
+    accent_color: author.accent_color ?? null,
     meta_title: author.meta_title ?? null,
     meta_description: author.meta_description ?? null,
+    og_title: author.og_title ?? null,
+    og_description: author.og_description ?? null,
+    og_image: author.og_image ?? null,
+    twitter_title: author.twitter_title ?? null,
+    twitter_description: author.twitter_description ?? null,
+    twitter_image: author.twitter_image ?? null,
+    codeinjection_head: author.codeinjection_head ?? null,
+    codeinjection_foot: author.codeinjection_foot ?? null,
     url: serializeApiUrl(author.url, urlContext),
   };
 }

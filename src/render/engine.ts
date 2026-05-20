@@ -299,6 +299,15 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.meta_title = route.meta.title;
     ctx.meta_description = route.meta.description;
     ctx.feature_image = data.author.cover_image;
+    ctx.accent_color = data.author.accent_color;
+    ctx.og_title = data.author.og_title;
+    ctx.og_description = data.author.og_description;
+    ctx.og_image = data.author.og_image;
+    ctx.twitter_title = data.author.twitter_title;
+    ctx.twitter_description = data.author.twitter_description;
+    ctx.twitter_image = data.author.twitter_image;
+    ctx.codeinjection_head = data.author.codeinjection_head;
+    ctx.codeinjection_foot = data.author.codeinjection_foot;
   }
   if (data.posts) {
     ctx.posts = withTrustedCaptionHtmlArray(engine.hb, data.posts);

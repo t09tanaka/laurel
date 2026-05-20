@@ -376,9 +376,15 @@ export function planRoutes(opts: {
           meta: defaultMeta(
             config,
             url,
-            author.meta_title ?? `${author.name} | ${config.site.title}`,
-            author.meta_description ?? author.bio,
-            author.cover_image,
+            author.meta_title ??
+              author.og_title ??
+              author.twitter_title ??
+              `${author.name} | ${config.site.title}`,
+            author.og_description ??
+              author.twitter_description ??
+              author.meta_description ??
+              author.bio,
+            author.og_image ?? author.twitter_image ?? author.cover_image,
           ),
         });
       });

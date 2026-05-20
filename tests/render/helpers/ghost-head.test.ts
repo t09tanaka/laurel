@@ -1334,6 +1334,40 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
     expect(withoutBio).toContain('<meta name="description" content="Site default description">');
   });
 
+  test('author archive uses author social image and code injection fields', () => {
+    const author = {
+      name: 'Jane',
+      bio: 'Author biography',
+      url: '/author/jane/',
+      og_description: 'Jane OG description',
+      og_image: '/content/images/jane-og.jpg',
+      twitter_image: '/content/images/jane-twitter.jpg',
+      codeinjection_head: '<meta name="author-head" content="jane">',
+      codeinjection_foot: '<script>window.__author = "jane"</script>',
+    };
+    const ctx = {
+      author,
+      codeinjection_head: author.codeinjection_head,
+      codeinjection_foot: author.codeinjection_foot,
+    };
+    const head = renderGhostHead(ctx, '/author/jane/', {
+      routeKind: 'author',
+      routeData: { author },
+    });
+
+    expect(head).toContain(
+      '<meta property="og:image" content="https://example.com/content/images/jane-og.jpg">',
+    );
+    expect(head).toContain(
+      '<meta name="twitter:image" content="https://example.com/content/images/jane-og.jpg">',
+    );
+    expect(head).toContain('<meta property="og:description" content="Jane OG description">');
+    expect(head).toContain('<meta name="author-head" content="jane">');
+
+    const foot = renderGhostFoot(ctx);
+    expect(foot).toContain('<script>window.__author = "jane"</script>');
+  });
+
   test('paginated home (index kind) emits CollectionPage', () => {
     const html = renderGhostHead({}, '/page/2/', {
       routeKind: 'index',
