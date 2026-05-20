@@ -758,3 +758,66 @@ describe('build pipeline --dry-run (#252)', () => {
     expect(existsSync(join(distDir, '.nectar', 'build-manifest.json'))).toBe(false);
   });
 });
+
+describe('build pipeline content_api stubs (#210/#211/#212)', () => {
+  test('emits content/posts.json, content/settings.json, _headers, _headers.cf by default', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'content', 'posts.json'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'content', 'settings.json'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, '_headers'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, '_headers.cf'))).toBe(true);
+
+    const posts = JSON.parse(
+      readFileSync(join(summary.outputDir, 'content', 'posts.json'), 'utf8'),
+    );
+    expect(Array.isArray(posts.posts)).toBe(true);
+    expect(posts.meta.pagination.page).toBe(1);
+
+    const settings = JSON.parse(
+      readFileSync(join(summary.outputDir, 'content', 'settings.json'), 'utf8'),
+    );
+    expect(settings.settings.title).toBe('Strict Test');
+    expect(settings.settings.url).toBe('https://strict.test');
+    expect(settings.settings.members_enabled).toBe(false);
+
+    const headers = readFileSync(join(summary.outputDir, '_headers'), 'utf8');
+    expect(headers).toContain('/content/*');
+    expect(headers).toContain('Access-Control-Allow-Origin: *');
+  });
+
+  test('skips all four artifacts when components.content_api.enabled is false', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+        '[components.content_api]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'content', 'posts.json'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'content', 'settings.json'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, '_headers'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, '_headers.cf'))).toBe(false);
+  });
+});

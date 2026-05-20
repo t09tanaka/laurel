@@ -257,7 +257,7 @@ JSON content API component.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.content_api.enabled` | `boolean` | no | `true` | Emit JSON snapshots of posts, pages, tags, and authors under `content-api/` so themes (and external consumers) can fetch a Ghost-style content view. |
+| `components.content_api.enabled` | `boolean` | no | `true` | Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Nectar is static-only. |
 
 ## `components.search`
 

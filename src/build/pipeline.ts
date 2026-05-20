@@ -19,6 +19,7 @@ import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest } from './build-manifest.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCname } from './cname.ts';
+import { emitContentApiStubs } from './content-api.ts';
 import { emitCustomRedirects } from './custom-redirects.ts';
 import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
 import { emitDefault404 } from './error-page.ts';
@@ -594,6 +595,15 @@ async function runBuild({
     enabled: config.deploy.netlify.enabled,
     headers: config.deploy.headers,
   });
+  // Static content API dump: `dist/content/posts.json`,
+  // `dist/content/settings.json`, plus CORS `_headers` (Netlify) and
+  // `_headers.cf` (Cloudflare Pages) twin files announcing `/content/*` is
+  // cross-origin-safe. Runs after the platform header emitters so it can
+  // PREpend the CORS rule onto whatever cache/security headers those
+  // emitters already wrote, rather than overwriting them.
+  if (config.components.content_api.enabled) {
+    await timed(profiler, 'content_api_stubs', () => emitContentApiStubs({ content, outputDir }));
+  }
   // Load `redirects.yaml` once and hand the canonical rules to every emitter
   // that consumes them. Cloudflare Pages and Netlify both consume `_redirects`
   // at the publish root; the Netlify emitter translates `force: true` into the
