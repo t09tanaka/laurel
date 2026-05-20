@@ -29,6 +29,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/netlify.md`](./deploy/netlify.md) — Netlify-specific
   quickstart for Git builds and CI uploads, including Nectar's generated
   `_headers` / `_redirects` behavior.
+- [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
+  CloudFront quickstart, including the GitHub Actions workflow template,
+  private S3 origin notes, directory-style URL rewrites, and
+  `nectar deploy s3`.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 
@@ -72,6 +76,5 @@ review of the inlined HTML. See
 - A general "how to host static sites" tutorial — the deploy walkthroughs
   under `tutorials/` are the right starting point if you've never shipped a
   Nectar build.
-- A platform comparison — the four hosts covered are the ones whose
-  configuration files Nectar (and most Ghost-theme operators) actually
-  recognise.
+- A platform comparison — the hosts covered are the ones whose deploy
+  conventions Nectar documents or emits first-class static artifacts for.

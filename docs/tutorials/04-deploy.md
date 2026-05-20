@@ -1,10 +1,10 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, or GitHub Pages
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, or S3 + CloudFront
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host will serve them. The
 configs below are the minimum to get a working CI build on each major
-free-tier host.
+free-tier host, plus the AWS-native S3 + CloudFront path.
 
 **Universal pre-flight:**
 
@@ -247,6 +247,53 @@ writes `dist/CNAME` with that hostname for Pages custom-domain binding.
 
 ---
 
+## S3 + CloudFront
+
+**Recommended for:** teams already operating in AWS, private S3 origins, and
+CloudFront-managed TLS / caching.
+
+For the focused AWS guide, including OIDC setup, the CloudFront Function for
+directory-style URLs, and `nectar deploy s3`, see
+[`docs/deploy/s3-cloudfront.md`](../deploy/s3-cloudfront.md).
+
+Copy [`examples/ci/s3-cloudfront.yml`](../../examples/ci/s3-cloudfront.yml)
+to `.github/workflows/s3-cloudfront.yml`, then set:
+
+| Type | Name |
+| --- | --- |
+| Secret | `AWS_ROLE_TO_ASSUME` |
+| Secret | `CLOUDFRONT_DISTRIBUTION_ID` |
+| Variable | `AWS_REGION` |
+| Variable | `S3_BUCKET` |
+
+The workflow builds with Bun, syncs `dist/` to S3 with cache-control metadata,
+and invalidates CloudFront. Pair a private S3 origin with the CloudFront
+Function at
+[`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
+so `/about/` resolves to Nectar's generated `/about/index.html` object.
+
+For local uploads after a successful build, configure:
+
+```toml
+[deploy.s3]
+bucket = "my-blog-prod"
+region = "us-east-1"
+# delete = true
+```
+
+Then run:
+
+```bash
+bunx nectar deploy s3 --build
+```
+
+The CLI wraps `aws s3 sync dist s3://<bucket>` and forwards `--region` when
+configured. It does not create CloudFront invalidations or apply the
+workflow's split cache-control metadata; keep using the workflow for the full
+production S3 + CloudFront path.
+
+---
+
 ## Troubleshooting deploys
 
 - **Build runs locally, fails in CI.** Usually a missing Bun. Confirm the
@@ -259,6 +306,10 @@ writes `dist/CNAME` with that hostname for Pages custom-domain binding.
 - **Assets 404 with `/<repo>/...` prefix on GitHub Pages.** You missed
   `[build] base_path`. Set it to your subdirectory path with leading and
   trailing slash, e.g. `"/my-blog/"`, and rebuild.
+- **S3 + CloudFront returns 403 or 404 for nested pages.** CloudFront's
+  default root object only covers `/`. Attach the CloudFront Function from
+  `examples/s3-cloudfront/append-index.js` so directory-style URLs request
+  each page's generated `index.html`.
 - **Site builds but RSS / sitemap missing.** Check `nectar.toml` — those are
   optional components; they default to enabled but can be turned off:
   ```toml
