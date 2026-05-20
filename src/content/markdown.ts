@@ -627,6 +627,7 @@ function renderFigureHtml(attrs: Record<string, string>): string {
     attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
     attrs.srcset ? `srcset="${escapeHtmlAttr(attrs.srcset)}"` : '',
     attrs.sizes ? `sizes="${escapeHtmlAttr(attrs.sizes)}"` : '',
+    lazyImageAttr(attrs),
   ]
     .filter((s) => s !== '')
     .join(' ');
@@ -634,6 +635,10 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${image}</a>` : image;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
   return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+}
+
+function lazyImageAttr(attrs: Record<string, string>): string {
+  return attrs.lazy !== undefined && !truthyShortcodeAttr(attrs.lazy) ? '' : 'loading="lazy"';
 }
 
 type StaticEmbed = {

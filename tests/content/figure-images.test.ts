@@ -11,6 +11,32 @@ describe('promoteImagesToFigures', () => {
     expect(out).not.toContain('<p><img');
   });
 
+  test('defaults promoted images to lazy loading while preserving existing attrs', () => {
+    const out = promoteImagesToFigures(
+      '<p><img src="/a.png" alt="x" srcset="/a-600.png 600w, /a.png 1200w" sizes="100vw" width="1200" height="800"></p>',
+    );
+
+    expect(out).toContain('loading="lazy"');
+    expect(out).toContain('srcset="/a-600.png 600w, /a.png 1200w"');
+    expect(out).toContain('sizes="100vw"');
+    expect(out).toContain('width="1200"');
+    expect(out).toContain('height="800"');
+  });
+
+  test('does not override an explicit loading attr on promoted images', () => {
+    const out = promoteImagesToFigures('<p><img src="/a.png" alt="x" loading="eager"></p>');
+    expect(out).toContain('loading="eager"');
+    expect(out).not.toContain('loading="lazy"');
+  });
+
+  test('supports lazy=false markdown image override on promoted images', () => {
+    const out = promoteImagesToFigures('<p><img src="/a.png" alt="x">{lazy=false}</p>');
+    expect(out).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
+    expect(out).toContain('<img class="kg-image"');
+    expect(out).not.toContain('loading=');
+    expect(out).not.toContain('{lazy=false}');
+  });
+
   test('leaves a paragraph with text alongside the image untouched', () => {
     const input = '<p>Hello <img src="/a.png" alt="x"></p>';
     expect(promoteImagesToFigures(input)).toBe(input);
@@ -104,6 +130,28 @@ describe('renderMarkdown — image figure promotion', () => {
     expect(html).toContain('<img class="kg-image"');
     expect(html).toContain('src="https://cdn.test/x.png"');
     expect(html).toContain('alt="alt text"');
+    expect(html).toContain('loading="lazy"');
+  });
+
+  test('keeps responsive attrs and adds lazy loading for figure shortcode images', async () => {
+    const { html } = await renderMarkdown(
+      '{{< figure src="https://cdn.test/x.png" alt="Alt" srcset="https://cdn.test/x-600.png 600w, https://cdn.test/x.png 1200w" sizes="(min-width: 720px) 720px, 100vw" width="1200" height="800" />}}',
+    );
+
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain(
+      'srcset="https://cdn.test/x-600.png 600w, https://cdn.test/x.png 1200w"',
+    );
+    expect(html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+    expect(html).toContain('width="1200"');
+    expect(html).toContain('height="800"');
+  });
+
+  test('honors lazy=false override on bare markdown images', async () => {
+    const { html } = await renderMarkdown('![alt](https://cdn.test/x.png){lazy=false}');
+    expect(html).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
+    expect(html).not.toContain('loading=');
+    expect(html).not.toContain('{lazy=false}');
   });
 
   test('attaches a following blockquote as figcaption', async () => {

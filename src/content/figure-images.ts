@@ -11,7 +11,8 @@
 // text, consume it as the <figcaption>. This mirrors the convention Hugo,
 // Eleventy, and most static generators use for markdown image captions.
 
-const SINGLE_IMG_PARAGRAPH_RE = /<p>\s*(<a\b[^>]*>)?\s*(<img\b[^>]*?\/?>)\s*(<\/a>)?\s*<\/p>/gi;
+const SINGLE_IMG_PARAGRAPH_RE =
+  /<p>\s*(<a\b[^>]*>)?\s*(<img\b[^>]*?\/?>)\s*(<\/a>)?\s*(\{\s*lazy\s*=\s*(?:"(?:false|true)"|'(?:false|true)'|false|true)\s*\})?\s*<\/p>/gi;
 
 const FOLLOWING_BLOCKQUOTE_CAPTION_RE = /^\s*<blockquote>\s*<p>([\s\S]*?)<\/p>\s*<\/blockquote>/i;
 
@@ -27,7 +28,7 @@ export function promoteImagesToFigures(html: string): string {
     const match = SINGLE_IMG_PARAGRAPH_RE.exec(html);
     if (match === null) break;
 
-    const [full, aOpen, imgTag, aClose] = match;
+    const [full, aOpen, imgTag, aClose, lazyOverride] = match;
 
     result += html.slice(cursor, match.index);
 
@@ -39,7 +40,10 @@ export function promoteImagesToFigures(html: string): string {
       continue;
     }
 
-    const imgWithClass = addKgImageClass(imgTag);
+    const imgWithClass = addDefaultLazyLoading(
+      addKgImageClass(imgTag),
+      lazyOverride !== undefined && /\bfalse\b/i.test(lazyOverride),
+    );
     const inner = aOpen ? `${aOpen}${imgWithClass}${aClose}` : imgWithClass;
 
     const tail = html.slice(match.index + full.length);
@@ -73,4 +77,10 @@ function addKgImageClass(imgTag: string): string {
     return imgTag.replace(/(\sclass\s*=\s*)("[^"]*"|'[^']*')/i, `$1"${merged}"`);
   }
   return imgTag.replace(/^<img\b/i, '<img class="kg-image"');
+}
+
+function addDefaultLazyLoading(imgTag: string, disabled: boolean): string {
+  if (disabled || /\sloading\s*=/i.test(imgTag)) return imgTag;
+  if (/\/\s*>$/.test(imgTag)) return imgTag.replace(/\s*\/\s*>$/, ' loading="lazy" />');
+  return imgTag.replace(/\s*>$/, ' loading="lazy">');
 }
