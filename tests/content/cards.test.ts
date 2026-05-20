@@ -384,10 +384,11 @@ describe('card fixture corpus', () => {
   test('html card fence is stripped, inner raw HTML survives', async () => {
     const html = await renderFixture('html');
     // The `<!--kg-card-begin: html-->` / `<!--kg-card-end: html-->` markers
-    // are HTML comments; sanitize-html drops them by default. The inner
-    // markup must reach the rendered output verbatim.
+    // are converted back to Ghost's kg-html-card wrapper so theme card spacing
+    // and width rules can match the custom HTML block.
     expect(html).not.toContain('kg-card-begin');
     expect(html).not.toContain('kg-card-end');
+    expect(html).toContain('<div class="kg-card kg-html-card">');
     expect(html).toContain('<div class="custom-embed">');
     expect(html).toContain('Raw HTML wrapped in an html card fence.');
   });

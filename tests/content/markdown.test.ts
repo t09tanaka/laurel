@@ -768,6 +768,14 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain('<figcaption>Hero caption</figcaption>');
   });
 
+  test('keeps imported html card wrappers so theme width classes apply', async () => {
+    const { html } = await renderMarkdown(
+      '<div class="kg-card kg-html-card kg-width-wide"><div class="custom-embed">Wide HTML</div></div>',
+    );
+    expect(html).toContain('<div class="kg-card kg-html-card kg-width-wide">');
+    expect(html).toContain('<div class="custom-embed">Wide HTML</div>');
+  });
+
   test('expands figure shortcode source set into a picture-wrapped image', async () => {
     const md =
       '{{< figure src="https://media.tenor.com/fallback.gif" alt="Animated clip" width="640" height="360" source1_srcset="https://media.tenor.com/clip.mp4" source1_type="video/mp4" source1_media="(prefers-reduced-motion: no-preference)" source2_srcset="https://media.tenor.com/clip.gif" source2_type="image/gif" />}}';

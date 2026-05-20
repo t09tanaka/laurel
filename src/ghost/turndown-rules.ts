@@ -90,6 +90,19 @@ function classTokens(node: DomNode | null): string[] {
   return (node?.getAttribute('class') ?? '').split(/\s+/).filter((cls) => cls !== '');
 }
 
+function htmlCardClass(node: DomNode | null): string {
+  const classes = ['kg-card', 'kg-html-card'];
+  for (const token of classTokens(node)) {
+    if (!/^[A-Za-z0-9_-]+$/.test(token)) continue;
+    if (!classes.includes(token)) classes.push(token);
+  }
+  return classes.join(' ');
+}
+
+function htmlCardWrapper(inner: string, className = 'kg-card kg-html-card'): string {
+  return `<div class="${escapeHtmlAttr(className)}">${inner}</div>`;
+}
+
 function normalizeCodeLanguage(raw: string): string {
   return raw
     .trim()
@@ -995,15 +1008,16 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   });
 
   // HTML card: <div class="kg-card kg-html-card">...raw HTML...</div>
-  // Preserve the inner HTML so handcrafted layouts survive, but pass it
-  // through `sanitizeImportedHtmlCard` first to strip the stored-XSS surface
+  // Preserve both the handcrafted layout and the outer `kg-html-card` wrapper
+  // so theme width modifiers like `kg-width-wide` still apply after import.
+  // The inner payload is sanitised first to strip the stored-XSS surface
   // (`<script>`, event-handler attributes, `javascript:` URLs). See the
   // policy comment on `HTML_CARD_SANITIZE_OPTIONS` for what stays vs goes.
   turndown.addRule('kg-html-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-html-card'),
     replacement: (_content, node) => {
       const inner = sanitizeImportedHtmlCard(node.innerHTML);
-      return inner ? wrap(inner) : '';
+      return inner ? wrap(htmlCardWrapper(inner, htmlCardClass(node))) : '';
     },
   });
 
@@ -1161,7 +1175,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     filter: (node) => isDataKgCard(node, 'html'),
     replacement: (_content, node) => {
       const inner = sanitizeImportedHtmlCard(node.innerHTML);
-      return inner ? wrap(inner) : '';
+      return inner ? wrap(htmlCardWrapper(inner)) : '';
     },
   });
 

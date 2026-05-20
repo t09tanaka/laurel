@@ -1063,15 +1063,16 @@ describe('Ghost Turndown rules — kg-header-card v1', () => {
 });
 
 describe('Ghost Turndown rules — kg-html-card', () => {
-  test('preserves the inner HTML verbatim', () => {
+  test('preserves the wrapper and inner HTML verbatim', () => {
     const html = `
-      <div class="kg-card kg-html-card"><div class="hand-rolled">Hello <span style="color:red">world</span></div></div>
+      <div class="kg-card kg-html-card kg-width-wide"><div class="hand-rolled">Hello <span style="color:red">world</span></div></div>
     `;
     const md = td.turndown(html);
+    expect(md).toContain('<div class="kg-card kg-html-card kg-width-wide">');
     expect(md).toContain(
       '<div class="hand-rolled">Hello <span style="color:red">world</span></div>',
     );
-    expect(md).not.toContain('kg-html-card');
+    expect(md).toContain('</div>');
   });
 });
 
@@ -1316,11 +1317,12 @@ describe('Ghost Turndown rules — email / email-cta cards (comment-fenced)', ()
 });
 
 describe('Ghost Turndown rules — html card (comment-fenced)', () => {
-  test('preserves inner HTML verbatim', () => {
+  test('re-wraps the inner HTML in a kg-html-card', () => {
     const html = preprocessKoenigCardFences(
       '<!--kg-card-begin: html--><div class="custom"><span style="color:red">x</span></div><!--kg-card-end: html-->',
     );
     const md = td.turndown(html);
+    expect(md).toContain('<div class="kg-card kg-html-card">');
     expect(md).toContain('<div class="custom"><span style="color:red">x</span></div>');
   });
 

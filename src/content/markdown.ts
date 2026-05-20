@@ -249,6 +249,16 @@ function renderInlineCaptionMarkdown(caption: string): string {
   return sanitizeInlineCaptionHtml(html);
 }
 
+const HTML_CARD_FENCE_RE =
+  /<!--\s*kg-card-begin:\s*html\s*-->([\s\S]*?)<!--\s*kg-card-end:\s*html\s*-->/g;
+
+function expandHtmlCardFences(markdown: string): string {
+  return markdown.replace(HTML_CARD_FENCE_RE, (_match, body: string) => {
+    const inner = body.trim();
+    return inner ? `\n\n<div class="kg-card kg-html-card">\n${inner}\n</div>\n\n` : '';
+  });
+}
+
 export async function renderMarkdown(
   body: string,
   options: RenderMarkdownOptions = {},
@@ -274,7 +284,8 @@ export async function renderMarkdown(
       code: 'content',
     });
   }
-  const expanded = expandKoenigShortcodes(stripped);
+  const htmlFencesExpanded = expandHtmlCardFences(stripped);
+  const expanded = expandKoenigShortcodes(htmlFencesExpanded);
   const raw = await marked.parse(expanded);
   const calloutsRestored = restoreKoenigCalloutDirectives(raw);
   const highlighted = await highlightCodeBlocks(calloutsRestored);
