@@ -386,6 +386,92 @@ describe('nectar build --watch (#254)', () => {
   });
 });
 
+describe('nectar build --emit-content-api (#214)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function makeSite(opts: { contentApiEnabled: boolean }): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-emit-capi-')));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Emit CAPI"',
+        'url = "https://emit-capi.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+        '[components.content_api]',
+        `enabled = ${opts.contentApiEnabled}`,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      '---\ntitle: Hello\ndate: 2026-01-01T00:00:00Z\n---\n\nhi\n',
+      'utf8',
+    );
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  test('--emit-content-api forces shadows ON even when config disables them', async () => {
+    const dir = await makeSite({ contentApiEnabled: false });
+    cleanups.push(dir);
+    const result = await runCli(['build', '--emit-content-api'], dir);
+    expect(result.exitCode).toBe(0);
+    // Shadow tree (api.ts) and flat dump (content-api.ts) both materialise.
+    expect(existsSync(join(dir, 'dist', 'content', 'posts.json'))).toBe(true);
+    expect(existsSync(join(dir, 'dist', 'content', 'posts', 'index.json'))).toBe(true);
+    expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(true);
+    expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts', 'index.json'))).toBe(
+      true,
+    );
+  });
+
+  test('NECTAR_BUILD_EMIT_CONTENT_API=0 forces shadows OFF even when config enables them', async () => {
+    const dir = await makeSite({ contentApiEnabled: true });
+    cleanups.push(dir);
+    const result = await runCli(['build'], dir, { NECTAR_BUILD_EMIT_CONTENT_API: '0' });
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(dir, 'dist', 'content', 'posts.json'))).toBe(false);
+    expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(false);
+  });
+
+  test('no flag and no env var: respects the config value (default true)', async () => {
+    const dir = await makeSite({ contentApiEnabled: true });
+    cleanups.push(dir);
+    const result = await runCli(['build'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(dir, 'dist', 'content', 'posts.json'))).toBe(true);
+    expect(existsSync(join(dir, 'dist', 'content', 'posts', 'index.json'))).toBe(true);
+  });
+
+  test('--help advertises --emit-content-api', async () => {
+    const dir = await makeFixture({});
+    cleanups.push(dir);
+    const { stdout } = await runCli(['build', '--help'], dir);
+    expect(stdout).toContain('--emit-content-api');
+  });
+});
+
 describe('isIgnoredChange (build --watch)', () => {
   test('ignores generated theme artifacts and editor noise', () => {
     expect(isIgnoredChange('assets/built/source.js.map')).toBe(true);

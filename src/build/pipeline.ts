@@ -116,6 +116,13 @@ export interface BuildOptions {
   // per-route hash matches; --force is the escape hatch for cases where the
   // incremental cache is suspected stale or corrupted.
   force?: boolean | undefined;
+  // Override for `[components.content_api].enabled`. Undefined leaves the
+  // config value alone; `true` forces the JSON shadows under `dist/content/`
+  // and `dist/ghost/api/content/` on; `false` forces them off. Exposed
+  // through `--emit-content-api` (and `NECTAR_BUILD_EMIT_CONTENT_API=0`) so
+  // operators can preview / disable the SDK surface without editing the
+  // config.
+  emitContentApi?: boolean | undefined;
 }
 
 export interface DryRunRouteSummary {
@@ -189,6 +196,7 @@ export async function build({
   dryRun,
   includeDrafts,
   force,
+  emitContentApi,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -255,6 +263,7 @@ export async function build({
       concurrency,
       dryRun: isDryRun,
       includeDrafts: includeDrafts === true,
+      emitContentApi,
     });
   } catch (err) {
     if (!isDryRun && !noAtomic) {
@@ -275,6 +284,7 @@ async function runBuild({
   concurrency,
   dryRun,
   includeDrafts,
+  emitContentApi,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -286,6 +296,7 @@ async function runBuild({
   concurrency: number | undefined;
   dryRun: boolean;
   includeDrafts: boolean;
+  emitContentApi: boolean | undefined;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
   // the end of the pipeline embeds it into `build-manifest.json` for deploy
@@ -717,7 +728,12 @@ async function runBuild({
       }),
     );
   }
-  if (config.components.content_api.enabled) {
+  // `--emit-content-api` (BuildOptions.emitContentApi) overrides the config
+  // gate per-build without forcing the operator to edit `nectar.toml`. The
+  // override applies symmetrically to the SDK shadow tree (`emitContentApiShadows`)
+  // and the flat-dump stubs (`emitContentApiStubs`) below.
+  const contentApiEnabled = emitContentApi ?? config.components.content_api.enabled;
+  if (contentApiEnabled) {
     await timed(profiler, 'content_api', () =>
       emitContentApiShadows({ config, content, outputDir }),
     );
@@ -766,7 +782,7 @@ async function runBuild({
   // cross-origin-safe. Runs after the platform header emitters so it can
   // PREpend the CORS rule onto whatever cache/security headers those
   // emitters already wrote, rather than overwriting them.
-  if (config.components.content_api.enabled) {
+  if (contentApiEnabled) {
     await timed(profiler, 'content_api_stubs', () => emitContentApiStubs({ content, outputDir }));
   }
   // Load `redirects.yaml` once and hand the canonical rules to every emitter

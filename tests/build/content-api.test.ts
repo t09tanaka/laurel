@@ -199,6 +199,48 @@ describe('emitContentApiStubs', () => {
     expect(existsSync(join(outputDir, '_headers.cf'))).toBe(true);
   });
 
+  test('duo emit: posts / tags / authors / settings each land at both .json and /index.json (#215)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    for (const resource of ['posts', 'tags', 'authors', 'settings']) {
+      // Bare resource path: `dist/content/<resource>.json`.
+      expect(existsSync(join(outputDir, 'content', `${resource}.json`))).toBe(true);
+      // Directory-index variant: `dist/content/<resource>/index.json`.
+      expect(existsSync(join(outputDir, 'content', resource, 'index.json'))).toBe(true);
+
+      // The two payloads must be byte-identical so an SDK that resolves
+      // `/content/posts/` to `index.json` and one that hits the bare `.json`
+      // see exactly the same payload.
+      const flat = readFileSync(join(outputDir, 'content', `${resource}.json`), 'utf8');
+      const dirIndex = readFileSync(join(outputDir, 'content', resource, 'index.json'), 'utf8');
+      expect(dirIndex).toBe(flat);
+    }
+  });
+
+  test('tags.json and authors.json have Ghost canonical meta.pagination shape (#216)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const tagsBody = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
+    expect(Array.isArray(tagsBody.tags)).toBe(true);
+    expect(tagsBody.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      pages: 1,
+      total: 1,
+      next: null,
+      prev: null,
+    });
+
+    const authorsBody = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'),
+    );
+    expect(Array.isArray(authorsBody.authors)).toBe(true);
+    expect(authorsBody.meta.pagination.page).toBe(1);
+    expect(authorsBody.meta.pagination.total).toBe(1);
+  });
+
   test('posts.json shape includes posts array and meta.pagination', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });

@@ -68,6 +68,11 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop',
     },
+    'emit-content-api': {
+      type: 'boolean',
+      description:
+        'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used',
+    },
   },
   positionals: [],
 };

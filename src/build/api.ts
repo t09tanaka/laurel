@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { projectPagination } from './api/pagination.ts';
 
 export interface EmitContentApiOptions {
   config: NectarConfig;
@@ -53,14 +54,7 @@ async function writeResource<T, U>(
   const body = {
     [resource]: data,
     meta: {
-      pagination: {
-        page: 1,
-        limit: data.length,
-        pages: 1,
-        total: data.length,
-        next: null,
-        prev: null,
-      },
+      pagination: projectPagination({ total: data.length }),
     },
   };
   await writeJson(join(outputDir, API_BASE, `${resource}.json`), body);

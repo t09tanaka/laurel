@@ -1,7 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { projectPagination } from './api/pagination.ts';
 
 // Static dump of Ghost Content API-shaped JSON under `dist/content/` so a
 // browser-only consumer can `fetch('/content/posts.json')` and treat the
@@ -9,6 +10,13 @@ import { ensureDir } from '~/util/fs.ts';
 // page 1 with all items in one shard. The CORS `_headers` (Netlify) and
 // `_headers.cf` (Cloudflare Pages) twin files announce that `/content/*`
 // is safe to read cross-origin. Pagination shards live in a separate task.
+//
+// Duo emit (#215): each collection lands at both `content/<resource>.json`
+// and `content/<resource>/index.json`. Static hosts disagree on directory
+// index resolution -- Netlify maps `/content/posts/` to `index.json` while
+// other setups expect the bare `.json` -- so writing both lets the
+// `@tryghost/content-api` SDK and direct `fetch('/content/posts.json')`
+// calls land on the same payload from a single build.
 
 export interface EmitContentApiStubsOptions {
   content: ContentGraph;
@@ -27,38 +35,52 @@ const CORS_HEADERS_BODY = [
 export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Promise<void> {
   const { content, outputDir } = opts;
 
+  const publishedPosts = content.posts.filter((p) => p.status === 'published');
+
   await Promise.all([
-    writePostsDump(outputDir, content.posts),
+    writeCollection(outputDir, 'posts', publishedPosts.map(serializePost)),
+    writeCollection(outputDir, 'tags', content.tags.map(serializeTag)),
+    writeCollection(outputDir, 'authors', content.authors.map(serializeAuthor)),
     writeSettingsDump(outputDir, content.site),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
   ]);
 }
 
-async function writePostsDump(outputDir: string, posts: Post[]): Promise<void> {
-  const published = posts.filter((p) => p.status === 'published');
+// Writes a Ghost-shaped collection envelope to BOTH
+//   `dist/content/<resource>.json`
+// and
+//   `dist/content/<resource>/index.json`.
+// Same payload, identical bytes; the duo emit covers static-host directory
+// index quirks without forcing the consumer to know the host's resolution
+// rules. See #215.
+async function writeCollection(
+  outputDir: string,
+  resource: 'posts' | 'tags' | 'authors',
+  items: Array<Record<string, unknown>>,
+): Promise<void> {
   const body = {
-    posts: published.map(serializePost),
+    [resource]: items,
     meta: {
-      pagination: {
-        page: 1,
-        limit: published.length,
-        pages: 1,
-        total: published.length,
-        next: null,
-        prev: null,
-      },
+      pagination: projectPagination({ total: items.length }),
     },
   };
-  const dest = join(outputDir, 'content', 'posts.json');
-  await ensureDir(join(outputDir, 'content'));
-  await writeFile(dest, `${JSON.stringify(body)}\n`, 'utf8');
+  const flat = join(outputDir, 'content', `${resource}.json`);
+  const dirIndex = join(outputDir, 'content', resource, 'index.json');
+  await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
 }
 
 async function writeSettingsDump(outputDir: string, site: SiteData): Promise<void> {
+  // Settings is a singleton, not a collection, so no pagination meta. The
+  // duo emit still applies so SDK trailing-slash requests resolve cleanly.
   const body = { settings: serializeSettings(site) };
-  const dest = join(outputDir, 'content', 'settings.json');
-  await ensureDir(join(outputDir, 'content'));
+  const flat = join(outputDir, 'content', 'settings.json');
+  const dirIndex = join(outputDir, 'content', 'settings', 'index.json');
+  await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
+}
+
+async function writeJson(dest: string, body: unknown): Promise<void> {
+  await ensureDir(dirname(dest));
   await writeFile(dest, `${JSON.stringify(body)}\n`, 'utf8');
 }
 

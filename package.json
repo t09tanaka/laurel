@@ -106,6 +106,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@tryghost/content-api": "^1.12.8",
     "@types/bun": "latest",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/js-yaml": "^4.0.9",

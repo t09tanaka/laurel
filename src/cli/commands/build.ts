@@ -87,6 +87,15 @@ export async function runBuild(args: string[]): Promise<number> {
     concurrency = parsedConcurrency;
   }
 
+  // `--emit-content-api` is tri-state at the BuildOptions layer (undefined =
+  // use config, true = force on, false = force off). The CLI parser only ever
+  // produces `true` or `undefined` for boolean flags, but the env-var
+  // fallback (NECTAR_BUILD_EMIT_CONTENT_API=0) can populate `false` directly,
+  // so we forward whatever the parser landed on without coercion.
+  const emitContentApiRaw = parsed.values['emit-content-api'];
+  const emitContentApi: boolean | undefined =
+    typeof emitContentApiRaw === 'boolean' ? emitContentApiRaw : undefined;
+
   const buildArgs = {
     cwd,
     configPath,
@@ -99,6 +108,7 @@ export async function runBuild(args: string[]): Promise<number> {
     dryRun,
     includeDrafts,
     force,
+    emitContentApi,
   } as const;
 
   const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
