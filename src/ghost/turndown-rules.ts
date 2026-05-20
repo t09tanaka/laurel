@@ -138,12 +138,57 @@ function providerFromUrl(url: string): string {
   if (/(?:^|\.)(?:youtube\.com|youtu\.be)$/.test(host)) return 'youtube';
   if (/(?:^|\.)vimeo\.com$/.test(host)) return 'vimeo';
   if (/(?:^|\.)spotify\.com$/.test(host)) return 'spotify';
-  if (/(?:^|\.)soundcloud\.com$/.test(host)) return 'soundcloud';
+  if (/(?:^|\.)(?:soundcloud\.com|w\.soundcloud\.com|api\.soundcloud\.com)$/.test(host))
+    return 'soundcloud';
   if (/(?:^|\.)tiktok\.com$/.test(host)) return 'tiktok';
   if (/(?:^|\.)(?:twitter\.com|x\.com)$/.test(host)) return 'twitter';
   if (/(?:^|\.)instagram\.com$/.test(host)) return 'instagram';
   if (/(?:^|\.)codepen\.io$/.test(host)) return 'codepen';
+  if (host === 'gist.github.com') return 'gist';
+  if (/(?:^|\.)figma\.com$/.test(host)) return 'figma';
+  if (/(?:^|\.)loom\.com$/.test(host)) return 'loom';
+  if (/(?:^|\.)bandcamp\.com$/.test(host)) return 'bandcamp';
+  if (/(?:^|\.)music\.apple\.com$/.test(host)) return 'apple-music';
+  if (/(?:^|\.)pinterest\.(?:com|[a-z.]+)$/.test(host)) return 'pinterest';
+  if (/(?:^|\.)reddit\.com$/.test(host)) return 'reddit';
+  if (/(?:^|\.)slideshare\.net$/.test(host)) return 'slideshare';
   return '';
+}
+
+function sourceUrlFromEmbedUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return rawUrl;
+  }
+
+  if (url.hostname.toLowerCase() === 'www.figma.com' && url.pathname === '/embed') {
+    const source = url.searchParams.get('url');
+    if (source && /^https?:\/\//i.test(source)) return source;
+  }
+
+  if (url.hostname.toLowerCase() === 'gist.github.com' && url.pathname.endsWith('.js')) {
+    url.pathname = url.pathname.replace(/\.js$/, '');
+    url.search = '';
+    return url.toString();
+  }
+
+  if (url.hostname.toLowerCase().endsWith('codepen.io')) {
+    const parts = url.pathname.split('/').filter(Boolean);
+    const embedIndex = parts.indexOf('embed');
+    if (embedIndex > 0 && parts[embedIndex + 1]) {
+      return `https://codepen.io/${parts[embedIndex - 1]}/pen/${parts[embedIndex + 1]}`;
+    }
+  }
+
+  if (url.hostname.toLowerCase() === 'w.soundcloud.com' && url.pathname.startsWith('/player')) {
+    const source = url.searchParams.get('url');
+    if (source && /^https?:\/\//i.test(source)) return source;
+  }
+
+  return rawUrl;
 }
 
 // Return the href of the first <a> inside a figure that wraps an <img>. Skips
@@ -452,11 +497,12 @@ export function registerGhostCardRules(turndown: TurndownService): void {
 
       const iframe = node.querySelector('iframe');
       if (iframe) {
-        const url = attr(iframe, 'src');
+        const rawUrl = attr(iframe, 'src');
+        const url = sourceUrlFromEmbedUrl(rawUrl);
         return wrap(
           shortcode('embed', {
             url,
-            provider: providerFromUrl(url),
+            provider: providerFromUrl(url) || providerFromUrl(rawUrl),
             title: attr(iframe, 'title'),
             width: attr(iframe, 'width'),
             height: attr(iframe, 'height'),
@@ -491,13 +537,30 @@ export function registerGhostCardRules(turndown: TurndownService): void {
         );
       }
 
+      const script = node.querySelector('script');
+      if (script) {
+        const rawUrl = attr(script, 'src');
+        const url = sourceUrlFromEmbedUrl(rawUrl);
+        if (url) {
+          return wrap(
+            shortcode('embed', {
+              url,
+              provider: providerFromUrl(url) || providerFromUrl(rawUrl),
+              caption,
+              size: classByPrefix(node, 'kg-width-'),
+            }),
+          );
+        }
+      }
+
       const fallbackAnchor = node.querySelector('a');
       if (fallbackAnchor) {
-        const url = attr(fallbackAnchor, 'href');
+        const rawUrl = attr(fallbackAnchor, 'href');
+        const url = sourceUrlFromEmbedUrl(rawUrl);
         return wrap(
           shortcode('embed', {
             url,
-            provider: providerFromUrl(url),
+            provider: providerFromUrl(url) || providerFromUrl(rawUrl),
             caption,
             size: classByPrefix(node, 'kg-width-'),
           }),

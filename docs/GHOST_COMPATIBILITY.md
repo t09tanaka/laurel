@@ -76,7 +76,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Image | Yes | Yes | Preserves `kg-image-card`, image link, caption, width/height, and width modifier classes where exported. |
 | Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape, intrinsic image dimensions, and width modifier classes; Nectar does not inject Ghost's legacy gallery bootstrap script. |
 | Bookmark | Yes | Yes | Converts to a `{{< bookmark />}}` shortcode and renders the static `kg-bookmark-card` scaffold with best-effort metadata. |
-| Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes; Twitter/X, Instagram, TikTok, and CodePen stay fallback links unless a site deliberately loads provider scripts. |
+| Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes; other known providers keep the source URL and render a bookmark-style fallback link unless a site deliberately loads provider scripts. |
 | HTML | Yes | Partial | Imports through the HTML-card sanitizer and renders allowed raw HTML. Script/style loaders and dangerous URL schemes are removed. |
 | Markdown | Yes | Yes | Ghost's rendered Markdown-card HTML is converted back through Turndown and then rendered as normal Markdown/HTML. |
 | Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost code-card wrappers use `.kg-code-card`, `pre`, `figcaption`, and the `.kg-code-card-with-line-numbers pre` gutter contract when that metadata survives import. |
@@ -210,25 +210,43 @@ turns those figures into `{{< embed ... />}}` shortcodes with the source URL
 and an inferred provider so the Markdown renderer can rebuild the card without
 requiring Source theme CSS beyond the top-level `.kg-embed-card` selector.
 
-Nectar renders static iframe embeds for providers whose public embed URL works
-without a per-page script loader:
+Nectar renders static iframe embeds only for providers whose public embed URL
+works without a per-page script loader. Every other known provider keeps the
+source URL in the shortcode and renders a bookmark-style fallback link inside
+`.kg-embed-card`, so a migrated post still points readers to the original
+embed target instead of losing the card entirely.
 
-| Provider | Rendered output | Notes |
-|----------|-----------------|-------|
-| YouTube | `https://www.youtube-nocookie.com/embed/...` iframe | Uses YouTube's privacy-enhanced host, but loading the iframe still contacts YouTube/Google once the reader's browser requests it. |
-| Vimeo | `https://player.vimeo.com/video/...` iframe | No vendor script is injected by Nectar. Vimeo may still process reader IP/user-agent data when the iframe loads. |
-| Spotify | `https://open.spotify.com/embed/...` iframe | No vendor script is injected by Nectar. Spotify receives a third-party iframe request when loaded. |
+| Provider | Migration target shape | Rendered output | Notes |
+|----------|------------------------|-----------------|-------|
+| YouTube | `{{< embed url="https://www.youtube.com/watch?v=..." provider="youtube" />}}` | `https://www.youtube-nocookie.com/embed/...` iframe | Uses YouTube's privacy-enhanced host, but loading the iframe still contacts YouTube/Google once the reader's browser requests it. |
+| Vimeo | `{{< embed url="https://vimeo.com/..." provider="vimeo" />}}` | `https://player.vimeo.com/video/...` iframe | No vendor script is injected by Nectar. Vimeo may still process reader IP/user-agent data when the iframe loads. |
+| Spotify | `{{< embed url="https://open.spotify.com/{type}/{id}" provider="spotify" />}}` | `https://open.spotify.com/embed/{type}/{id}` iframe | No vendor script is injected by Nectar. Spotify receives a third-party iframe request when loaded. |
+| Twitter/X | `{{< embed url="https://twitter.com/.../status/..." provider="twitter" />}}` | Bookmark-style fallback link | Official rendering requires `widgets.js`. |
+| Instagram | `{{< embed url="https://www.instagram.com/p/..." provider="instagram" />}}` | Bookmark-style fallback link | Import reads `data-instgrm-permalink` when Ghost exported it. |
+| TikTok | `{{< embed url="https://www.tiktok.com/@.../video/..." provider="tiktok" />}}` | Bookmark-style fallback link | Official rendering requires TikTok's embed script. |
+| CodePen | `{{< embed url="https://codepen.io/{user}/pen/{id}" provider="codepen" />}}` | Bookmark-style fallback link | Import unwraps `/embed/{id}` iframe URLs back to `/pen/{id}` where possible. |
+| GitHub Gist | `{{< embed url="https://gist.github.com/{user}/{id}" provider="gist" />}}` | Bookmark-style fallback link | Import strips `.js` from script-only Gist embeds so the source page is retained. |
+| Figma | `{{< embed url="https://www.figma.com/file/..." provider="figma" />}}` | Bookmark-style fallback link | Import unwraps Figma `/embed?url=...` iframe wrappers. |
+| SoundCloud | `{{< embed url="https://soundcloud.com/... or https://api.soundcloud.com/tracks/..." provider="soundcloud" />}}` | Bookmark-style fallback link | Import reads the wrapped `url=` parameter from `w.soundcloud.com/player` iframe URLs. |
+| Loom | `{{< embed url="https://www.loom.com/share/..." provider="loom" />}}` | Bookmark-style fallback link | No Loom player script is injected by Nectar. |
+| Bandcamp | `{{< embed url="https://{artist}.bandcamp.com/..." provider="bandcamp" />}}` | Bookmark-style fallback link | Provider-specific player HTML is not reconstructed. |
+| Apple Music | `{{< embed url="https://music.apple.com/..." provider="apple-music" />}}` | Bookmark-style fallback link | Provider-specific player HTML is not reconstructed. |
+| Pinterest | `{{< embed url="https://www.pinterest.../pin/..." provider="pinterest" />}}` | Bookmark-style fallback link | Official rendering requires Pinterest's widget script. |
+| Reddit | `{{< embed url="https://www.reddit.com/r/.../comments/..." provider="reddit" />}}` | Bookmark-style fallback link | Official rendering requires Reddit's embed script. |
+| SlideShare | `{{< embed url="https://www.slideshare.net/..." provider="slideshare" />}}` | Bookmark-style fallback link | Provider-specific iframe HTML is not reconstructed. |
+| Unknown provider | `{{< embed url="https://..." />}}` | Bookmark-style fallback link | The provider attribute is omitted, but the source URL is still retained. |
 
-Twitter/X, Instagram, TikTok, and CodePen embeds are intentionally not hydrated
-by default. Their official embeds require third-party JavaScript (`widgets.js`,
-Instagram `embed.js`, TikTok embed scripts, or CodePen loaders) to transform
-blockquote/link markup into the final widget. Injecting those scripts from
-post content would create a larger privacy/GDPR surface: reader identifiers,
-IP addresses, cookies, consent state, and cross-site tracking behaviour are
-controlled by the provider rather than Nectar. For those providers, Nectar
-keeps a `.kg-embed-card` fallback link and caption. Site operators who accept
-that tradeoff can add the provider's script deliberately in their theme or
-plugin and document the consent/cookie implications for their jurisdiction.
+Twitter/X, Instagram, TikTok, CodePen, GitHub Gist, Figma, SoundCloud, Loom,
+Bandcamp, Apple Music, Pinterest, Reddit, SlideShare, and other unsupported
+embeds are intentionally not hydrated by default. Their official embeds require
+third-party JavaScript or provider-specific iframe markup to transform a source
+URL into the final widget. Injecting those scripts from post content would
+create a larger privacy/GDPR surface: reader identifiers, IP addresses,
+cookies, consent state, and cross-site tracking behaviour are controlled by
+the provider rather than Nectar. For those providers, Nectar keeps a
+`.kg-embed-card` fallback link and caption. Site operators who accept that
+tradeoff can add the provider's script deliberately in their theme or plugin
+and document the consent/cookie implications for their jurisdiction.
 
 ## Theme runtime assets
 

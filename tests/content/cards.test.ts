@@ -276,8 +276,23 @@ describe('card fixture corpus', () => {
       '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
     );
     expect(html).toContain('class="kg-card kg-embed-card kg-width-regular kg-card-hascaption"');
+    expect(html).toContain('class="kg-bookmark-container kg-embed-card-fallback"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
+    expect(html).toContain('Twitter/X embed');
     expect(html).toContain('<figcaption>Open on Twitter</figcaption>');
+    expect(html).not.toContain('<iframe');
+    expect(html).not.toContain('<script');
+  });
+
+  test('embed shortcode renders unsupported providers as bookmark-style source links', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://www.figma.com/file/abc/Design" provider="figma" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-regular"');
+    expect(html).toContain('class="kg-bookmark-container kg-embed-card-fallback"');
+    expect(html).toContain('href="https://www.figma.com/file/abc/Design"');
+    expect(html).toContain('Figma embed');
+    expect(html).toContain('Open this Figma embed at its source URL.');
     expect(html).not.toContain('<iframe');
     expect(html).not.toContain('<script');
   });

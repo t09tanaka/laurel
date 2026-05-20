@@ -1125,7 +1125,7 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
   const cardClass = `kg-card kg-embed-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}`;
   if (!embed) {
-    return `\n\n<figure class="${cardClass}"><a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(url)}</a>${figcaption}</figure>\n\n`;
+    return renderEmbedFallbackLink(url, attrs, cardClass, figcaption);
   }
 
   const title = attrs.title || embed.title;
@@ -1212,7 +1212,75 @@ function providerFromUrl(url: URL): string {
   }
   if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) return 'vimeo';
   if (host === 'open.spotify.com') return 'spotify';
+  if (
+    host === 'w.soundcloud.com' ||
+    host === 'api.soundcloud.com' ||
+    host.endsWith('.soundcloud.com')
+  )
+    return 'soundcloud';
+  if (host === 'codepen.io' || host.endsWith('.codepen.io')) return 'codepen';
+  if (host === 'gist.github.com') return 'gist';
+  if (host === 'figma.com' || host.endsWith('.figma.com')) return 'figma';
+  if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) return 'tiktok';
+  if (host === 'twitter.com' || host === 'x.com') return 'twitter';
+  if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'instagram';
+  if (host === 'loom.com' || host.endsWith('.loom.com')) return 'loom';
+  if (host === 'bandcamp.com' || host.endsWith('.bandcamp.com')) return 'bandcamp';
+  if (host === 'music.apple.com' || host.endsWith('.music.apple.com')) return 'apple-music';
+  if (host.startsWith('pinterest.') || host.includes('.pinterest.')) return 'pinterest';
+  if (host === 'reddit.com' || host.endsWith('.reddit.com')) return 'reddit';
+  if (host === 'slideshare.net' || host.endsWith('.slideshare.net')) return 'slideshare';
   return '';
+}
+
+function renderEmbedFallbackLink(
+  url: string,
+  attrs: Record<string, string>,
+  cardClass: string,
+  figcaption: string,
+): string {
+  const provider = normalizeEmbedProvider(attrs.provider) || providerFromRawUrl(url);
+  const providerName = embedProviderLabel(provider);
+  const title = attrs.title || (providerName ? `${providerName} embed` : 'Embedded link');
+  const description = providerName
+    ? `Open this ${providerName} embed at its source URL.`
+    : 'Open this unsupported embed at its source URL.';
+  return `\n\n<figure class="${cardClass}"><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(url)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
+}
+
+function providerFromRawUrl(rawUrl: string): string {
+  try {
+    return providerFromUrl(new URL(rawUrl));
+  } catch {
+    return '';
+  }
+}
+
+function embedProviderLabel(provider: string): string {
+  switch (provider) {
+    case 'apple-music':
+      return 'Apple Music';
+    case 'codepen':
+      return 'CodePen';
+    case 'figma':
+      return 'Figma';
+    case 'gist':
+      return 'GitHub Gist';
+    case 'instagram':
+      return 'Instagram';
+    case 'soundcloud':
+      return 'SoundCloud';
+    case 'slideshare':
+      return 'SlideShare';
+    case 'tiktok':
+      return 'TikTok';
+    case 'twitter':
+      return 'Twitter/X';
+    case 'youtube':
+      return 'YouTube';
+    default:
+      return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : '';
+  }
 }
 
 function youtubeEmbed(url: URL): StaticEmbed | null {

@@ -415,6 +415,40 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     expect(md).toContain('provider="codepen"');
   });
 
+  test('preserves source urls for script-only provider embeds', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <script src="https://gist.github.com/octocat/abc123.js"></script>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('url="https://gist.github.com/octocat/abc123"');
+    expect(md).toContain('provider="gist"');
+  });
+
+  test('unwraps provider iframe wrappers back to source urls', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://www.figma.com/embed?embed_host=share&amp;url=https%3A%2F%2Fwww.figma.com%2Ffile%2Fabc%2FDesign"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('url="https://www.figma.com/file/abc/Design"');
+    expect(md).toContain('provider="figma"');
+  });
+
+  test('detects SoundCloud iframe embeds even when the player URL wraps the source', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/42"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('url="https://api.soundcloud.com/tracks/42"');
+    expect(md).toContain('provider="soundcloud"');
+  });
+
   test('omits provider attribute when host is unrecognised', () => {
     const html = `
       <figure class="kg-card kg-embed-card">

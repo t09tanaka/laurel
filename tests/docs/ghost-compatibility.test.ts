@@ -44,6 +44,25 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('`post.html`, `plaintext`, generated excerpts, `feed_html`');
   });
 
+  test('documents embed provider migration targets and fallback behaviour', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain('| Provider | Migration target shape | Rendered output | Notes |');
+    expect(doc).toContain(
+      '`{{< embed url="https://gist.github.com/{user}/{id}" provider="gist" />}}`',
+    );
+    expect(doc).toContain('`{{< embed url="https://www.figma.com/file/..." provider="figma" />}}`');
+    expect(doc).toContain(
+      '`{{< embed url="https://codepen.io/{user}/pen/{id}" provider="codepen" />}}`',
+    );
+    expect(doc).toContain(
+      '`{{< embed url="https://soundcloud.com/... or https://api.soundcloud.com/tracks/..." provider="soundcloud" />}}`',
+    );
+    expect(doc).toContain(
+      '| Unknown provider | `{{< embed url="https://..." />}}` | Bookmark-style fallback link |',
+    );
+  });
+
   test('documents shared-theme-assets requirements for Ease load-more controls', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 
