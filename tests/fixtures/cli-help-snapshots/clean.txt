@@ -7,7 +7,7 @@ Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -y, --yes           Skip the confirmation prompt and delete immediately (non-interactive use)
   --dry-run           Print the paths that would be removed without actually deleting them. Implies non-interactive.
-  --keep <path[,path...]>  Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries
+  --keep <path[,path...]>  Path (relative to cwd) to preserve inside the targets. Repeat or comma-separate values (e.g. "dist/.well-known,dist/uploads") to keep multiple entries
   -j, --json          Emit the deletion summary as JSON (paths, kept, bytes) for CI consumption
   -h, --help          Show help for this command
 
@@ -15,6 +15,11 @@ Environment variables:
   Every flag has an env var fallback (CLI flag > env var > config > default).
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --config → NECTAR_CLEAN_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
 
 Examples:
   nectar clean                                 # interactive; asks before deleting

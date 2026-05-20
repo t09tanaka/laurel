@@ -33,6 +33,11 @@ Environment variables:
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --config → NECTAR_BUILD_CONFIG
 
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
 Examples:
   nectar build                                 # one-shot build into dist/
   nectar build --strict                        # fail when the build emits any warnings

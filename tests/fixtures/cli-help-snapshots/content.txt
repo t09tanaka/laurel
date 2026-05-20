@@ -10,8 +10,8 @@ Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --kind <posts|pages>  For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)
   --draft             Include draft posts/pages in the listing (default: only published; `list` only)
-  --tag <slug>        Show only entries that have the given tag slug (`list` only)
-  --author <slug>     Show only entries that have the given author slug (`list` only)
+  --tag <slug>        Show only entries that have any given tag slug (`list` only); repeat or comma-separate
+  --author <slug>     Show only entries that have any given author slug (`list` only); repeat or comma-separate
   -j, --json          Emit results as JSON for CI consumption (both `list` and `rename`)
   --redirect          On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component
   -h, --help          Show help for this command
@@ -20,6 +20,11 @@ Environment variables:
   Every flag has an env var fallback (CLI flag > env var > config > default).
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --config → NECTAR_CONTENT_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
 
 Examples:
   nectar content list                          # posts + pages with status/date

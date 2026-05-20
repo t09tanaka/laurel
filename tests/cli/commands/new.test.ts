@@ -225,6 +225,16 @@ describe('cli new — frontmatter flags', () => {
     expect(body).toContain('tags: ["news", "getting-started", "migration"]');
   });
 
+  test('repeated --tags values are accumulated before slugifying', async () => {
+    const { exitCode } = await runCli(
+      ['new', 'post', 'Repeated Tags', '--tags', 'News', '--tags', 'Getting Started,migration'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/repeated-tags.md'), 'utf8');
+    expect(body).toContain('tags: ["news", "getting-started", "migration"]');
+  });
+
   test('--author writes a single-element authors array', async () => {
     const { exitCode } = await runCli(['new', 'post', 'By Casper', '--author', 'casper'], dir);
     expect(exitCode).toBe(0);

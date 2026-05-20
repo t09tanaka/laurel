@@ -17,6 +17,11 @@ Environment variables:
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --on-conflict → NECTAR_IMPORT_WORDPRESS_ON_CONFLICT
 
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
 Examples:
   nectar import-wordpress wordpress.xml
   nectar import-wordpress wordpress.xml --dry-run

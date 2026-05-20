@@ -17,6 +17,11 @@ Environment variables:
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --config → NECTAR_OPEN_CONFIG
 
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
 Examples:
   nectar open hello-world                      # opens content/posts/hello-world.md
   nectar open about --kind pages

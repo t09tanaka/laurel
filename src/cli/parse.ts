@@ -7,6 +7,9 @@ export interface OptionSpec {
   placeholder?: string;
   default?: boolean;
   negatedDescription?: string;
+  // Repeatable string options collect every occurrence in argv order and expose
+  // the result as a comma-separated string, matching existing CSV-style flags.
+  repeatable?: boolean;
 }
 
 export interface PositionalSpec {
@@ -46,6 +49,7 @@ type ParseArgToken = {
   name?: string;
   value?: string;
 };
+type ParseArgsOption = NonNullable<ParseArgsConfig['options']>[string];
 
 const HELP_OPTION: OptionSpec = {
   type: 'boolean',
@@ -89,8 +93,11 @@ export function parseCommand(
       }
       usedShorts.set(short, name);
     }
-    const multiple = name === 'config' && opt.type === 'string' ? true : undefined;
-    options[name] = short ? { type: opt.type, short, multiple } : { type: opt.type, multiple };
+    const optionConfig: ParseArgsOption = short ? { type: opt.type, short } : { type: opt.type };
+    if (isRepeatableStringOption(name, opt)) {
+      optionConfig.multiple = true;
+    }
+    options[name] = optionConfig;
     if (hasAutoNegativeAlias(name, opt, spec.options)) {
       const negativeName = `no-${name}`;
       options[negativeName] = { type: 'boolean' };
@@ -124,7 +131,7 @@ export function parseCommand(
   const values = result.values as Record<string, string | boolean | undefined>;
   applyNegativeAliases(values, result.tokens ?? [], negativeAliases);
   applyEnvFallbacks(spec, values, env);
-  normalizeConfigValue(values);
+  normalizeRepeatableStringValues(spec, values);
 
   return {
     values,
@@ -133,12 +140,21 @@ export function parseCommand(
   };
 }
 
-function normalizeConfigValue(
+function isRepeatableStringOption(name: string, opt: OptionSpec): boolean {
+  return opt.type === 'string' && (opt.repeatable === true || name === 'config');
+}
+
+function normalizeRepeatableStringValues(
+  spec: CommandSpec,
   values: Record<string, string | boolean | string[] | undefined>,
 ): void {
-  const value = values.config;
-  if (!Array.isArray(value)) return;
-  values.config = value.join(',');
+  for (const [name, opt] of Object.entries(spec.options)) {
+    if (!isRepeatableStringOption(name, opt)) continue;
+    const value = values[name];
+    if (Array.isArray(value)) {
+      values[name] = value.join(',');
+    }
+  }
 }
 
 function firstPositionalBeforeTerminator(tokens: ParseArgToken[]): string | undefined {
@@ -277,6 +293,11 @@ export function formatCommandHelp(spec: CommandSpec): string {
     lines.push('  Every flag has an env var fallback (CLI flag > env var > config > default).');
     lines.push('  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).');
     lines.push(`  Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`);
+    lines.push('');
+    lines.push('Repeated flags:');
+    lines.push('  Scalar string flags use the last value.');
+    lines.push('  List-style string flags accumulate as comma-separated values in argv order.');
+    lines.push('  Boolean flags use the last positive or negated spelling.');
   }
 
   if (spec.examples && spec.examples.length > 0) {

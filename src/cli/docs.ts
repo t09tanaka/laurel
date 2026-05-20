@@ -127,6 +127,19 @@ export function renderCliReference(
     '`Env var` column.',
   );
   lines.push('');
+  lines.push('## Repeated flags');
+  lines.push('');
+  lines.push(
+    'Scalar string flags use the last value, so `--output dist-a --output dist-b`',
+    'is the same as `--output dist-b`. List-style string flags accumulate in',
+    'argument order and are exposed as the same comma-separated value shape their',
+    'single-flag form already accepts: `--config base.toml --config prod.toml`,',
+    '`--tags news --tags tech`, `--tag news --tag tech`, and',
+    '`--keep dist/.well-known --keep dist/uploads` all preserve both values.',
+    'Boolean flags may be repeated; the last positive or negated spelling wins',
+    'where a negated form exists, for example `--watch --no-watch`.',
+  );
+  lines.push('');
   lines.push('## Config discovery and `--config`');
   lines.push('');
   lines.push(

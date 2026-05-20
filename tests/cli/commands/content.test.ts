@@ -124,6 +124,26 @@ describe('cli content list', () => {
     }
   });
 
+  test('repeated --tag filters match any accumulated tag slug', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/tech.md'),
+        '---\ntitle: Tech\ndate: 2026-01-04T00:00:00Z\ntags: [tech]\n---\n\nBody\n',
+      );
+      const { stdout, exitCode } = await runCli(
+        ['content', 'list', '--tag', 'news', '--tag', 'tech', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { count: number; items: Array<{ slug: string }> };
+      expect(parsed.count).toBe(2);
+      expect(parsed.items.map((item) => item.slug).sort()).toEqual(['hello', 'tech']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('text mode prints a table with slug, title, date, status', async () => {
     const dir = await makeFixture();
     try {

@@ -98,6 +98,25 @@ describe('cli clean', () => {
     }
   });
 
+  test('repeated --keep preserves each named path inside the target', async () => {
+    const dir = await makeFixture();
+    try {
+      await Bun.write(join(dir, 'dist/index.html'), '<!doctype html>ok');
+      await Bun.write(join(dir, 'dist/.well-known/security.txt'), 'hi');
+      await Bun.write(join(dir, 'dist/uploads/image.txt'), 'image');
+      const { exitCode } = await runCli(
+        ['clean', '--yes', '--keep', 'dist/.well-known', '--keep', 'dist/uploads', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(existsSync(join(dir, 'dist/index.html'))).toBe(false);
+      expect(existsSync(join(dir, 'dist/.well-known/security.txt'))).toBe(true);
+      expect(existsSync(join(dir, 'dist/uploads/image.txt'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('refuses non-interactive deletion without --yes', async () => {
     const dir = await makeFixture();
     try {

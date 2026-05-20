@@ -59,8 +59,10 @@ export async function runContent(args: string[]): Promise<number> {
   }
   const kind: Kind = kindRaw;
   const includeDrafts = parsed.values.draft === true;
-  const tagFilter = typeof parsed.values.tag === 'string' ? parsed.values.tag : undefined;
-  const authorFilter = typeof parsed.values.author === 'string' ? parsed.values.author : undefined;
+  const tagFilters = parseCsvList(typeof parsed.values.tag === 'string' ? parsed.values.tag : '');
+  const authorFilters = parseCsvList(
+    typeof parsed.values.author === 'string' ? parsed.values.author : '',
+  );
   const asJson = parsed.values.json === true;
 
   try {
@@ -69,8 +71,8 @@ export async function runContent(args: string[]): Promise<number> {
 
     const items = kind === 'posts' ? graph.posts : graph.pages;
     const rows = items
-      .filter((item) => (tagFilter ? hasTag(item, tagFilter) : true))
-      .filter((item) => (authorFilter ? hasAuthor(item, authorFilter) : true))
+      .filter((item) => (tagFilters.length > 0 ? hasAnyTag(item, tagFilters) : true))
+      .filter((item) => (authorFilters.length > 0 ? hasAnyAuthor(item, authorFilters) : true))
       .map(toRow);
 
     if (asJson) {
@@ -89,12 +91,19 @@ export async function runContent(args: string[]): Promise<number> {
   }
 }
 
-function hasTag(item: Post | Page, slug: string): boolean {
-  return item.tags.some((t) => t.slug === slug);
+function parseCsvList(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
-function hasAuthor(item: Post | Page, slug: string): boolean {
-  return item.authors.some((a) => a.slug === slug);
+function hasAnyTag(item: Post | Page, slugs: readonly string[]): boolean {
+  return item.tags.some((t) => slugs.includes(t.slug));
+}
+
+function hasAnyAuthor(item: Post | Page, slugs: readonly string[]): boolean {
+  return item.authors.some((a) => slugs.includes(a.slug));
 }
 
 function toRow(item: Post | Page): ContentRow {

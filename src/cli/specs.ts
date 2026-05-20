@@ -149,8 +149,9 @@ export const NEW_SPEC: CommandSpec = {
     },
     tags: {
       type: 'string',
-      description: 'Comma-separated list of tag slugs to seed in frontmatter (post only)',
+      description: 'Tag slugs to seed in frontmatter (post only); repeat or comma-separate',
       placeholder: '<a,b,c>',
+      repeatable: true,
     },
     author: {
       type: 'string',
@@ -514,8 +515,9 @@ export const CLEAN_SPEC: CommandSpec = {
     keep: {
       type: 'string',
       description:
-        'Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries',
+        'Path (relative to cwd) to preserve inside the targets. Repeat or comma-separate values (e.g. "dist/.well-known,dist/uploads") to keep multiple entries',
       placeholder: '<path[,path...]>',
+      repeatable: true,
     },
     json: {
       type: 'boolean',
@@ -577,13 +579,17 @@ export const CONTENT_SPEC: CommandSpec = {
     },
     tag: {
       type: 'string',
-      description: 'Show only entries that have the given tag slug (`list` only)',
+      description:
+        'Show only entries that have any given tag slug (`list` only); repeat or comma-separate',
       placeholder: '<slug>',
+      repeatable: true,
     },
     author: {
       type: 'string',
-      description: 'Show only entries that have the given author slug (`list` only)',
+      description:
+        'Show only entries that have any given author slug (`list` only); repeat or comma-separate',
       placeholder: '<slug>',
+      repeatable: true,
     },
     json: {
       type: 'boolean',

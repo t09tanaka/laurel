@@ -52,6 +52,17 @@ command line. Useful for `docker-compose`, CI, devcontainers, and `.env` files.
 Each command section below lists the env-var name for every flag in its
 `Env var` column.
 
+## Repeated flags
+
+Scalar string flags use the last value, so `--output dist-a --output dist-b`
+is the same as `--output dist-b`. List-style string flags accumulate in
+argument order and are exposed as the same comma-separated value shape their
+single-flag form already accepts: `--config base.toml --config prod.toml`,
+`--tags news --tags tech`, `--tag news --tag tech`, and
+`--keep dist/.well-known --keep dist/uploads` all preserve both values.
+Boolean flags may be repeated; the last positive or negated spelling wins
+where a negated form exists, for example `--watch --no-watch`.
+
 ## Config discovery and `--config`
 
 Commands with `--config <path>` accept one or more TOML files. Without it, Nectar
@@ -199,7 +210,7 @@ Options:
 | `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug) |
 | `--draft` | boolean | `NECTAR_NEW_DRAFT` | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
 | `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
-| `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Comma-separated list of tag slugs to seed in frontmatter (post only) |
+| `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
 | `-j, --json` | boolean | `NECTAR_NEW_JSON` | Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line |
@@ -381,7 +392,7 @@ Options:
 | `-c, --config <path>` | string | `NECTAR_CLEAN_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-y, --yes` | boolean | `NECTAR_CLEAN_YES` | Skip the confirmation prompt and delete immediately (non-interactive use) |
 | `--dry-run` | boolean | `NECTAR_CLEAN_DRY_RUN` | Print the paths that would be removed without actually deleting them. Implies non-interactive. |
-| `--keep <path[,path...]>` | string | `NECTAR_CLEAN_KEEP` | Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries |
+| `--keep <path[,path...]>` | string | `NECTAR_CLEAN_KEEP` | Path (relative to cwd) to preserve inside the targets. Repeat or comma-separate values (e.g. "dist/.well-known,dist/uploads") to keep multiple entries |
 | `-j, --json` | boolean | `NECTAR_CLEAN_JSON` | Emit the deletion summary as JSON (paths, kept, bytes) for CI consumption |
 
 Examples:
@@ -506,8 +517,8 @@ Options:
 | `-c, --config <path>` | string | `NECTAR_CONTENT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
 | `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published; `list` only) |
-| `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have the given tag slug (`list` only) |
-| `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have the given author slug (`list` only) |
+| `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have any given tag slug (`list` only); repeat or comma-separate |
+| `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have any given author slug (`list` only); repeat or comma-separate |
 | `-j, --json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
 | `--redirect` | boolean | `NECTAR_CONTENT_REDIRECT` | On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component |
 

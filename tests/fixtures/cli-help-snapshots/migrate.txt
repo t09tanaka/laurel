@@ -23,6 +23,11 @@ Environment variables:
   Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
   Example: --on-conflict → NECTAR_MIGRATE_ON_CONFLICT
 
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
 Examples:
   nectar migrate ghost export.json
   nectar migrate ghost export.zip --on-conflict overwrite

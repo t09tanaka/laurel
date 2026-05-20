@@ -52,6 +52,13 @@ describe('renderCliReference', () => {
     }
   });
 
+  test('documents repeated flag precedence and accumulation policy', () => {
+    const md = renderCliReference();
+    expect(md).toContain('## Repeated flags');
+    expect(md).toContain('Scalar string flags use the last value');
+    expect(md).toContain('List-style string flags accumulate');
+  });
+
   test('escapes pipe characters inside option descriptions', () => {
     const spec: CommandSpec = {
       name: 'demo',

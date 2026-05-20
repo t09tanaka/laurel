@@ -184,6 +184,37 @@ describe('parseCommand', () => {
     expect(result.values.config).toBe('a.toml,b.toml');
   });
 
+  test('repeated scalar string flags use the last value', () => {
+    const spec: CommandSpec = {
+      name: 'build',
+      summary: 'Build',
+      options: {
+        output: { type: 'string', description: 'Output directory', placeholder: '<dir>' },
+      },
+      positionals: [],
+    };
+    const result = parseCommand(spec, ['--output', 'dist-a', '--output=dist-b']);
+    expect(result.values.output).toBe('dist-b');
+  });
+
+  test('repeatable string flags accumulate in argument order', () => {
+    const spec: CommandSpec = {
+      name: 'content',
+      summary: 'List content',
+      options: {
+        tag: {
+          type: 'string',
+          description: 'Filter by tag',
+          placeholder: '<slug>',
+          repeatable: true,
+        },
+      },
+      positionals: [],
+    };
+    const result = parseCommand(spec, ['--tag', 'news', '--tag=release']);
+    expect(result.values.tag).toBe('news,release');
+  });
+
   test('repeated boolean flag stays true', () => {
     const result = parseCommand(SAMPLE_SPEC, ['--watch', '--watch']);
     expect(result.values.watch).toBe(true);
@@ -411,6 +442,8 @@ describe('formatCommandHelp env footer', () => {
     expect(help).toContain('Environment variables:');
     expect(help).toContain('NECTAR_<COMMAND>_<FLAG>');
     expect(help).toContain('--config → NECTAR_BUILD_CONFIG');
+    expect(help).toContain('Repeated flags:');
+    expect(help).toContain('Scalar string flags use the last value');
   });
 
   test('omits env section when the command has no options', () => {
