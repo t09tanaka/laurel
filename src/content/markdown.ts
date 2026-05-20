@@ -45,11 +45,27 @@ const sanitizeOptions: IOptions = {
     a: ['href', 'name', 'target', 'rel', 'hreflang'],
     img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
     source: ['src', 'srcset', 'type', 'media', 'sizes'],
-    video: ['src', 'poster', 'controls', 'preload', 'width', 'height', 'muted', 'loop'],
+    video: [
+      'src',
+      'poster',
+      'controls',
+      'preload',
+      'width',
+      'height',
+      'muted',
+      'loop',
+      'playsinline',
+    ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
+    div: ['style', 'data-rating'],
     th: ['scope', 'colspan', 'rowspan'],
     td: ['colspan', 'rowspan'],
+  },
+  allowedStyles: {
+    div: {
+      '--aspect-ratio': [/^\d+(?:\.\d+)?$/],
+    },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel'],
   allowedSchemesByTag: {
@@ -205,6 +221,19 @@ const GALLERY_ROW_RE =
 const GALLERY_IMAGE_RE =
   /\{\{<\s+gallery-image((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
+const FILE_SHORTCODE_RE = /\{\{<\s+file((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
+const AUDIO_SHORTCODE_RE = /\{\{<\s+audio((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
+const VIDEO_SHORTCODE_RE =
+  /\{\{<\s+video((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/video\s*>\}\}/g;
+const VIDEO_SELF_CLOSING_SHORTCODE_RE =
+  /\{\{<\s+video((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const VIDEO_TRACK_SHORTCODE_RE =
+  /\{\{<\s+video-track((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
+const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
 export function expandKoenigShortcodes(markdown: string): string {
   return markdown
     .replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
@@ -221,6 +250,21 @@ export function expandKoenigShortcodes(markdown: string): string {
     )
     .replace(GALLERY_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderGalleryHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(FILE_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderFileHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(AUDIO_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderAudioHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(VIDEO_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderVideoHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(VIDEO_SELF_CLOSING_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderVideoHtml(parseShortcodeAttrs(attrsStr), ''),
+    )
+    .replace(PRODUCT_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderProductHtml(parseShortcodeAttrs(attrsStr)),
     );
 }
 
@@ -373,6 +417,119 @@ function renderGalleryHtml(attrs: Record<string, string>, body: string): string 
   const container = `<div class="kg-gallery-container">${rows.join('')}</div>`;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
   return `\n\n<figure class="kg-card kg-gallery-card">${container}${figcaption}</figure>\n\n`;
+}
+
+function renderFileHtml(attrs: Record<string, string>): string {
+  const src = attrs.src ?? '';
+  if (!src) return '';
+  const titleHtml = attrs.title
+    ? `<div class="kg-file-card-title">${escapeHtmlAttr(attrs.title)}</div>`
+    : '';
+  const captionHtml = attrs.caption
+    ? `<div class="kg-file-card-caption">${escapeHtmlAttr(attrs.caption)}</div>`
+    : '';
+  const filenameHtml = attrs.name
+    ? `<div class="kg-file-card-filename">${escapeHtmlAttr(attrs.name)}</div>`
+    : '';
+  const filesizeHtml = attrs.size
+    ? `<div class="kg-file-card-filesize">${escapeHtmlAttr(attrs.size)}</div>`
+    : '';
+  return `\n\n<div class="kg-card kg-file-card"><a class="kg-file-card-container" href="${escapeHtmlAttr(src)}">${titleHtml}${captionHtml}${filenameHtml}${filesizeHtml}</a></div>\n\n`;
+}
+
+function renderAudioHtml(attrs: Record<string, string>): string {
+  const src = attrs.src ?? '';
+  if (!src) return '';
+  const thumbnailHtml = attrs.thumbnail
+    ? `<img src="${escapeHtmlAttr(attrs.thumbnail)}" alt="" class="kg-audio-thumbnail" />`
+    : '';
+  const titleHtml = attrs.title
+    ? `<div class="kg-audio-title">${escapeHtmlAttr(attrs.title)}</div>`
+    : '';
+  const durationHtml = attrs.duration
+    ? `<div class="kg-audio-duration">${escapeHtmlAttr(attrs.duration)}</div>`
+    : '';
+  return `\n\n<div class="kg-card kg-audio-card">${thumbnailHtml}<audio src="${escapeHtmlAttr(src)}" preload="metadata" controls></audio>${titleHtml}${durationHtml}</div>\n\n`;
+}
+
+function renderVideoHtml(attrs: Record<string, string>, body: string): string {
+  const src = attrs.src ?? '';
+  if (!src) return '';
+  const videoAttrs = [
+    `src="${escapeHtmlAttr(src)}"`,
+    attrs.poster ? `poster="${escapeHtmlAttr(attrs.poster)}"` : '',
+    attrs.width ? `width="${escapeHtmlAttr(attrs.width)}"` : '',
+    attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
+    attrs.preload ? `preload="${escapeHtmlAttr(attrs.preload)}"` : '',
+    truthyShortcodeAttr(attrs.controls) ? 'controls' : '',
+    truthyShortcodeAttr(attrs.loop) ? 'loop' : '',
+    truthyShortcodeAttr(attrs.muted) ? 'muted' : '',
+    truthyShortcodeAttr(attrs.playsinline) ? 'playsinline' : '',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  const tracks = renderVideoTracksHtml(body);
+  const aspectStyle =
+    attrs.aspect && /^\d+(?:\.\d+)?$/.test(attrs.aspect)
+      ? ` style="--aspect-ratio: ${escapeHtmlAttr(attrs.aspect)}"`
+      : '';
+  const figcaption = attrs.caption
+    ? `<figcaption>${escapeHtmlAttr(attrs.caption)}</figcaption>`
+    : '';
+  return `\n\n<figure class="kg-card kg-video-card"><div class="kg-video-container"${aspectStyle}><video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
+}
+
+function renderVideoTracksHtml(body: string): string {
+  const tracks: string[] = [];
+  let match: RegExpExecArray | null;
+  const trackRe = new RegExp(VIDEO_TRACK_SHORTCODE_RE.source, VIDEO_TRACK_SHORTCODE_RE.flags);
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard exec loop
+  while ((match = trackRe.exec(body)) !== null) {
+    const attrs = parseShortcodeAttrs(match[1] ?? '');
+    if (!attrs.src) continue;
+    const trackAttrs = [
+      `src="${escapeHtmlAttr(attrs.src)}"`,
+      attrs.kind ? `kind="${escapeHtmlAttr(attrs.kind)}"` : '',
+      attrs.srclang ? `srclang="${escapeHtmlAttr(attrs.srclang)}"` : '',
+      attrs.label ? `label="${escapeHtmlAttr(attrs.label)}"` : '',
+      truthyShortcodeAttr(attrs.default) ? 'default' : '',
+    ]
+      .filter((s) => s !== '')
+      .join(' ');
+    tracks.push(`<track ${trackAttrs} />`);
+  }
+  return tracks.join('');
+}
+
+function renderProductHtml(attrs: Record<string, string>): string {
+  const title = attrs.title ?? '';
+  const description = attrs.description ?? '';
+  const image = attrs.image ?? '';
+  const buttonHref = attrs['button-href'] ?? '';
+  const buttonText = attrs['button-text'] ?? '';
+  if (!title && !description && !image && !buttonHref) return '';
+  const imageHtml = image
+    ? `<img class="kg-product-card-image" src="${escapeHtmlAttr(image)}" alt="" />`
+    : '';
+  const titleHtml = title
+    ? `<div class="kg-product-card-title">${escapeHtmlAttr(title)}</div>`
+    : '';
+  const descriptionHtml = description
+    ? `<div class="kg-product-card-description">${escapeHtmlAttr(description)}</div>`
+    : '';
+  const ratingHtml =
+    attrs.rating && /^\d+(?:\.\d+)?$/.test(attrs.rating)
+      ? `<div class="kg-product-card-rating" data-rating="${escapeHtmlAttr(attrs.rating)}"></div>`
+      : '';
+  const buttonHtml =
+    buttonHref && buttonText
+      ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
+      : '';
+  return `\n\n<div class="kg-card kg-product-card"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
+}
+
+function truthyShortcodeAttr(value: string | undefined): boolean {
+  return value === 'true' || value === '1' || value === '';
 }
 
 function htmlToPlaintext(html: string): string {

@@ -406,3 +406,72 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     expect(html).not.toContain('kg-gallery-card');
   });
 });
+
+describe('renderMarkdown — imported Koenig media/product shortcode expansion', () => {
+  test('expands file shortcode into a kg-file-card download scaffold', async () => {
+    const md =
+      '{{< file src="https://cdn.test/files/resume.pdf" title="Resume" caption="Short PDF download." name="resume.pdf" size="123 KB" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-file-card"');
+    expect(html).toContain('class="kg-file-card-container"');
+    expect(html).toContain('href="https://cdn.test/files/resume.pdf"');
+    expect(html).toContain('<div class="kg-file-card-title">Resume</div>');
+    expect(html).toContain('<div class="kg-file-card-caption">Short PDF download.</div>');
+    expect(html).toContain('<div class="kg-file-card-filename">resume.pdf</div>');
+    expect(html).toContain('<div class="kg-file-card-filesize">123 KB</div>');
+    expect(html).not.toContain('{{< file');
+  });
+
+  test('expands audio shortcode into a kg-audio-card with player metadata', async () => {
+    const md =
+      '{{< audio src="https://cdn.test/audio/episode-1.mp3" title="Episode 1: pilot" duration="00:42:13" thumbnail="https://cdn.test/audio-thumb.jpg" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-audio-card"');
+    expect(html).toContain('class="kg-audio-thumbnail"');
+    expect(html).toContain('<audio src="https://cdn.test/audio/episode-1.mp3"');
+    expect(html).toContain('preload="metadata"');
+    expect(html).toContain('controls');
+    expect(html).toContain('<div class="kg-audio-title">Episode 1: pilot</div>');
+    expect(html).toContain('<div class="kg-audio-duration">00:42:13</div>');
+    expect(html).not.toContain('{{< audio');
+  });
+
+  test('expands video shortcode into a kg-video-card with track children', async () => {
+    const md = [
+      '{{< video src="https://cdn.test/video/clip.mp4" poster="https://cdn.test/video/clip-poster.jpg" width="1280" height="720" aspect="1.7777777777777777" preload="metadata" controls="true" caption="Sample video caption." >}}',
+      '{{< video-track src="https://cdn.test/video/captions.vtt" kind="captions" srclang="en" label="English" default="true" />}}',
+      '{{< /video >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-video-card"');
+    expect(html).toContain('class="kg-video-container"');
+    expect(html).toContain('style="--aspect-ratio:1.7777777777777777"');
+    expect(html).toContain('<video src="https://cdn.test/video/clip.mp4"');
+    expect(html).toContain('poster="https://cdn.test/video/clip-poster.jpg"');
+    expect(html).toContain('width="1280"');
+    expect(html).toContain('height="720"');
+    expect(html).toContain('controls');
+    expect(html).toContain(
+      '<track src="https://cdn.test/video/captions.vtt" kind="captions" srclang="en" label="English" default></track>',
+    );
+    expect(html).toContain('<figcaption>Sample video caption.</figcaption>');
+    expect(html).not.toContain('{{< video');
+  });
+
+  test('expands product shortcode into a kg-product-card scaffold', async () => {
+    const md =
+      '{{< product title="Sample widget" description="A short product description." image="https://cdn.test/product.jpg" rating="5" button-href="https://example.com/buy" button-text="Buy now" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-product-card"');
+    expect(html).toContain('class="kg-product-card-container"');
+    expect(html).toContain('class="kg-product-card-image"');
+    expect(html).toContain('src="https://cdn.test/product.jpg"');
+    expect(html).toContain('<div class="kg-product-card-title">Sample widget</div>');
+    expect(html).toContain('<div class="kg-product-card-description">');
+    expect(html).toContain('class="kg-product-card-rating"');
+    expect(html).toContain('data-rating="5"');
+    expect(html).toContain('class="kg-product-card-button kg-product-card-btn-accent"');
+    expect(html).toContain('href="https://example.com/buy"');
+    expect(html).not.toContain('{{< product');
+  });
+});

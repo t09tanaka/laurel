@@ -21,6 +21,28 @@ async function renderFixture(name: string): Promise<string> {
 }
 
 describe('card fixture corpus', () => {
+  test('keeps the major Casper-family Koenig card wrapper classes', async () => {
+    const requiredWrappers = [
+      ['bookmark', 'kg-bookmark-card'],
+      ['gallery', 'kg-gallery-card'],
+      ['callout', 'kg-callout-card'],
+      ['button', 'kg-button-card'],
+      ['product', 'kg-product-card'],
+      ['toggle', 'kg-toggle-card'],
+      ['file', 'kg-file-card'],
+      ['audio', 'kg-audio-card'],
+      ['video', 'kg-video-card'],
+      ['header', 'kg-header-card'],
+      ['nft', 'kg-nft-card'],
+      ['signup', 'kg-signup-card'],
+    ] as const;
+
+    for (const [fixture, wrapperClass] of requiredWrappers) {
+      const html = await renderFixture(fixture);
+      expect(html).toContain(wrapperClass);
+    }
+  });
+
   test('image card keeps the kg-image-card wrapper and figure shape', async () => {
     const html = await renderFixture('image');
     expect(html).toContain('class="kg-card kg-image-card kg-width-wide"');

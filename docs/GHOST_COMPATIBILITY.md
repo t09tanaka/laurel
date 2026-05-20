@@ -177,6 +177,42 @@ matching Koenig JavaScript or ensure a native `<audio controls>` element remains
 available. CSS alone cannot make an inert custom play button or seek slider
 control playback.
 
+### Koenig card class hooks
+
+Casper-family themes target Koenig card wrapper classes directly. Nectar keeps
+those hooks in `renderMarkdown` output rather than downgrading imported cards to
+plain paragraphs or bare media tags.
+
+The current Markdown renderer expands these Ghost-import shortcodes back to
+theme-compatible HTML scaffolds:
+
+| Shortcode/input | Rendered wrapper contract |
+|-----------------|---------------------------|
+| `{{< bookmark />}}` | `<figure class="kg-card kg-bookmark-card">` with `.kg-bookmark-container` children. |
+| `{{< gallery >}}` | `<figure class="kg-card kg-gallery-card">` with `.kg-gallery-container`, `.kg-gallery-row`, and `.kg-gallery-image`. |
+| `{{< callout >}}` | `<div class="kg-card kg-callout-card ...">` with `.kg-callout-emoji` and `.kg-callout-text`. |
+| `{{< button >}}` | `<div class="kg-card kg-button-card ...">` with an `.kg-btn` anchor. |
+| `{{< toggle >}}` | `<details class="kg-card kg-toggle-card">` plus native `<summary>` behaviour. |
+| `{{< file />}}` | `<div class="kg-card kg-file-card">` with `.kg-file-card-container` and metadata rows. |
+| `{{< audio />}}` | `<div class="kg-card kg-audio-card">` with an `<audio controls>` element and metadata rows. |
+| `{{< video />}}` | `<figure class="kg-card kg-video-card">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
+| `{{< product />}}` | `<div class="kg-card kg-product-card">` with image, title, description, optional rating, and CTA scaffold. |
+
+Raw Ghost-compatible HTML scaffolds for `kg-header-card`, `kg-nft-card`, and
+`kg-signup-card` are preserved through sanitisation so theme CSS hooks and
+optional hydration code can still target them. Nectar does not currently build
+those cards from first-class Markdown shortcodes: header cards remain static
+decorative HTML, NFT cards keep their static link/image/metadata scaffold
+without blockchain runtime integration, and signup cards keep the
+`kg-signup-card` wrapper while raw form fields are stripped unless a portal or
+members plugin rehydrates the card.
+
+`tests/fixtures/cards` pins this contract for the major Casper-family wrapper
+classes: `kg-bookmark-card`, `kg-gallery-card`, `kg-callout-card`,
+`kg-button-card`, `kg-product-card`, `kg-toggle-card`, `kg-file-card`,
+`kg-audio-card`, `kg-video-card`, `kg-header-card`, `kg-nft-card`, and
+`kg-signup-card`.
+
 The Ease theme is the current compatibility example: its `index.hbs` and
 `tag.hbs` templates emit a `<button class="gh-loadmore">` load-more control.
 That button is intentionally just markup unless the theme also vendors the
