@@ -20,6 +20,8 @@ export type SubscribeProvider =
   | 'beehiiv'
   | 'convertkit'
   | 'mailchimp'
+  | 'listmonk'
+  | 'customformaction'
   | 'custom';
 
 export type SubscribeFormMethod = 'get' | 'post';
@@ -32,6 +34,9 @@ export interface SubscribeAdapterConfig {
   publication_id?: string | undefined;
   // ConvertKit / Kit form id used by the hosted form POST endpoint.
   form_id?: string | undefined;
+  // listmonk public list UUID. `list_ids` is preferred for multi-list forms.
+  list_id?: string | undefined;
+  list_ids?: ReadonlyArray<string> | undefined;
   // Explicit form action (custom + mailchimp).
   action?: string | undefined;
   // HTML form method. Providers default to POST; custom backends may opt into GET.
@@ -60,6 +65,12 @@ export interface ResolvedSubscribeForm {
   nameFieldName: string;
   method: SubscribeFormMethod;
   disabled: boolean;
+  hiddenFields?: ReadonlyArray<ResolvedSubscribeHiddenField> | undefined;
+}
+
+export interface ResolvedSubscribeHiddenField {
+  readonly name: string;
+  readonly value: string;
 }
 
 // Adapter contract. `resolve()` returns the per-form rewrite plan;

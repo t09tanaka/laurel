@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { beehiivAdapter } from '~/members/adapters/beehiiv.ts';
 import { buttondownAdapter } from '~/members/adapters/buttondown.ts';
 import { customAdapter } from '~/members/adapters/custom.ts';
+import { customFormActionAdapter } from '~/members/adapters/customformaction.ts';
+import { listmonkAdapter } from '~/members/adapters/listmonk.ts';
 import { mailchimpAdapter } from '~/members/adapters/mailchimp.ts';
 import { noneAdapter, stripBySelector } from '~/members/adapters/none.ts';
 
@@ -38,6 +40,16 @@ describe('buttondown adapter', () => {
   test('throws without username', () => {
     expect(() => buttondownAdapter.resolve({ provider: 'buttondown' })).toThrow(/username/);
   });
+
+  test('field_map.email overrides the default field name', () => {
+    const r = buttondownAdapter.resolve({
+      provider: 'buttondown',
+      username: 'jamie',
+      email_field_name: 'fallback',
+      field_map: { email: 'subscriber[email]' },
+    });
+    expect(r.emailFieldName).toBe('subscriber[email]');
+  });
 });
 
 describe('mailchimp adapter', () => {
@@ -52,6 +64,62 @@ describe('mailchimp adapter', () => {
 
   test('throws when action is missing', () => {
     expect(() => mailchimpAdapter.resolve({ provider: 'mailchimp' })).toThrow(/action/);
+  });
+});
+
+describe('listmonk adapter', () => {
+  test('keeps the public subscription endpoint and injects list UUID as l', () => {
+    const r = listmonkAdapter.resolve({
+      provider: 'listmonk',
+      action: 'https://lists.example.com/api/public/subscription',
+      list_id: 'eb420c55-4cfb-4972-92ba-c93c34ba475d',
+    });
+    expect(r.action).toBe('https://lists.example.com/api/public/subscription');
+    expect(r.emailFieldName).toBe('email');
+    expect(r.hiddenFields).toEqual([{ name: 'l', value: 'eb420c55-4cfb-4972-92ba-c93c34ba475d' }]);
+  });
+
+  test('supports multiple list UUIDs', () => {
+    const r = listmonkAdapter.resolve({
+      provider: 'listmonk',
+      action: 'https://lists.example.com/api/public/subscription',
+      list_ids: ['list-a', 'list-b'],
+    });
+    expect(r.hiddenFields).toEqual([
+      { name: 'l', value: 'list-a' },
+      { name: 'l', value: 'list-b' },
+    ]);
+  });
+
+  test('throws when action or list UUID is missing', () => {
+    expect(() => listmonkAdapter.resolve({ provider: 'listmonk', list_id: 'list-a' })).toThrow(
+      /action/,
+    );
+    expect(() =>
+      listmonkAdapter.resolve({
+        provider: 'listmonk',
+        action: 'https://lists.example.com/api/public/subscription',
+      }),
+    ).toThrow(/list_id/);
+  });
+});
+
+describe('customformaction adapter', () => {
+  test('uses the raw action and optional field map', () => {
+    const r = customFormActionAdapter.resolve({
+      provider: 'customformaction',
+      action: 'https://forms.example.com/newsletter',
+      field_map: { email: 'subscriber[email]', name: 'subscriber[name]' },
+    });
+    expect(r.action).toBe('https://forms.example.com/newsletter');
+    expect(r.emailFieldName).toBe('subscriber[email]');
+    expect(r.nameFieldName).toBe('subscriber[name]');
+  });
+
+  test('throws without an action', () => {
+    expect(() => customFormActionAdapter.resolve({ provider: 'customformaction' })).toThrow(
+      /action/,
+    );
   });
 });
 

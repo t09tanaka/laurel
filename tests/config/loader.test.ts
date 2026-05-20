@@ -255,6 +255,27 @@ name_field_name = "fields[first_name]"
     });
   });
 
+  test('parses listmonk subscribe provider config', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.subscribe]
+provider = "listmonk"
+action = "https://lists.example.com/api/public/subscription"
+list_ids = ["list-a", "list-b"]
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.components.subscribe.provider).toBe('listmonk');
+      expect(config.components.subscribe.action).toBe(
+        'https://lists.example.com/api/public/subscription',
+      );
+      expect(config.components.subscribe.list_ids).toEqual(['list-a', 'list-b']);
+    });
+  });
+
   test('parses site.icon from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

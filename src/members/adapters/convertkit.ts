@@ -20,7 +20,7 @@ export const convertkitAdapter: PortalAdapter = {
     }
     return {
       action: cfg.action ?? `https://app.kit.com/forms/${encodeURIComponent(formId)}/subscriptions`,
-      emailFieldName: cfg.email_field_name ?? 'email_address',
+      emailFieldName: cfg.field_map?.email ?? cfg.email_field_name ?? 'email_address',
       nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'fields[first_name]',
       method: cfg.method ?? 'post',
       disabled: false,

@@ -18,6 +18,8 @@ export interface SubscribeFormConfig {
   username?: string | undefined;
   publication_id?: string | undefined;
   form_id?: string | undefined;
+  list_id?: string | undefined;
+  list_ids?: ReadonlyArray<string> | undefined;
   email_field_name?: string | undefined;
   name_field_name?: string | undefined;
   field_map?: Record<string, string> | undefined;
@@ -69,7 +71,7 @@ function rewriteMembersFormBlock(block: string, resolved: ResolvedSubscribeForm)
   const rewrittenBody = body
     .replace(INPUT_RE, (tag) => rewriteMembersInput(tag, resolved))
     .replace(BUTTON_RE, (tag) => rewriteMembersButton(tag));
-  return `${form}${rewrittenBody}`;
+  return `${form}${renderHiddenFields(resolved, rewrittenBody)}${rewrittenBody}`;
 }
 
 function rewriteMembersInput(tag: string, resolved: ResolvedSubscribeForm): string {
@@ -94,6 +96,33 @@ function rewriteMembersButton(tag: string): string {
   return hasAttribute(tag, 'data-members-submit')
     ? tag
     : setBooleanAttribute(tag, 'data-members-submit');
+}
+
+function renderHiddenFields(resolved: ResolvedSubscribeForm, body: string): string {
+  const fields = resolved.hiddenFields ?? [];
+  if (fields.length === 0) return '';
+  return fields
+    .filter((field) => !hasNamedInput(body, field.name, field.value))
+    .map(
+      (field) =>
+        `<input type="hidden" name="${escapeAttr(field.name)}" value="${escapeAttr(field.value)}">`,
+    )
+    .join('');
+}
+
+function hasNamedInput(body: string, name: string, value: string): boolean {
+  const expectedName = name.toLowerCase();
+  const expectedValue = value.toLowerCase();
+  INPUT_RE.lastIndex = 0;
+  let match = INPUT_RE.exec(body);
+  while (match !== null) {
+    const tag = match[0];
+    const hasExpectedName = getAttribute(tag, 'name')?.toLowerCase() === expectedName;
+    const hasExpectedValue = (getAttribute(tag, 'value') ?? '').toLowerCase() === expectedValue;
+    if (hasExpectedName && hasExpectedValue) return true;
+    match = INPUT_RE.exec(body);
+  }
+  return false;
 }
 
 function setAttribute(tag: string, attr: string, value: string): string {

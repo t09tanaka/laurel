@@ -167,7 +167,7 @@ example, includes a hand-written `data-members-form` / `data-members-email`
 subscribe form with `data-members-success` and `data-members-error` message
 elements. Nectar preserves that HTML shape as static markup, but it does not
 ship Ghost's members runtime JavaScript. Without a configured
-`[components.subscribe_form]` provider or your own JS handler, the form remains
+`[components.subscribe]` provider or your own JS handler, the form remains
 inert.
 
 ---
@@ -205,16 +205,24 @@ browser's default navigation alone.
 forms emit `data-members-form` / `data-members-email` attributes. Nectar's
 existing subscribe-form transform only targets those explicit hooks:
 
-| `[components.subscribe_form].provider` | Behaviour |
+| `[components.subscribe].provider` | Behaviour |
 |----------------------------------------|-----------|
 | `none`                                 | Keep the form shape, set `action="#"`, and add `onsubmit="event.preventDefault();return false;"`. |
-| `buttondown` / `beehiiv` / `mailchimp` | Patch the form `action` and email field name for the provider. |
-| `custom`                               | Patch the form `action` and optional field mapping you configure. |
+| `buttondown` / `beehiiv` / `convertkit` / `mailchimp` | Patch the form `action` and email field name for the provider. |
+| `listmonk`                             | Patch the form `action`, email/name fields, and inject `l` hidden fields from `list_id` / `list_ids`. |
+| `customformaction` / `custom`          | Patch the form `action` and optional field mapping you configure. |
 
 Nectar does not rewrite arbitrary forms that lack these members-form markers,
 and it does not implement Ghost's runtime success / error state machine.
 `data-members-success` and `data-members-error` are static presentation hooks
 until your JavaScript toggles them.
+
+Static subscribe forms never read provider secrets from environment variables.
+Use only public embed values in `[components.subscribe]`: Buttondown
+`username`, ConvertKit `form_id`, Mailchimp embed `action`, listmonk public
+subscription `action` plus `list_id` / `list_ids`, or a `customformaction` /
+`custom` `action`. If a provider workflow needs an API key, keep it behind the
+configured server-side form action instead of shipping it in the static site.
 
 The runtime dispatches a cancelable `nectar:portal` event before taking its
 fallback action. Custom provider code can listen for that event, call
@@ -237,6 +245,10 @@ trust implications.
 `nectar.toml`:
 
 ```toml
+[components.subscribe]
+provider = "buttondown"
+username = "<your-username>"
+
 [components.portal]
 provider = "buttondown"
 publication = "<your-username>"
@@ -244,14 +256,17 @@ paid = false
 invite_only = false
 ```
 
-To replace the `{{subscribe_form}}` no-op form with Buttondown's hosted form,
-override the theme partial that renders it (e.g.
-`partials/components/subscribe-form.hbs`) with the embed Buttondown gives you
-under *Settings → Subscribe form → Embed*.
+Nectar rewrites `data-members-form` to Buttondown's browser-safe embed
+endpoint. No environment variables or API keys are required; keep Buttondown
+API keys in Buttondown or behind your own server-side proxy.
 
 ### 4.2 Beehiiv
 
 ```toml
+[components.subscribe]
+provider = "beehiiv"
+publication_id = "<your-publication-id>"
+
 [components.portal]
 provider = "beehiiv"
 publication = "<your-pub>"
@@ -261,7 +276,56 @@ paid = true        # if you sell paid tiers on Beehiiv
 For inline subscribe forms, replace the rendered `data-members-form="subscribe"`
 form with Beehiiv's iframe embed via a theme partial override.
 
-### 4.3 Substack
+### 4.3 ConvertKit / Kit
+
+```toml
+[components.subscribe]
+provider = "convertkit"
+form_id = "<your-form-id>"
+```
+
+Nectar posts to Kit's hosted form endpoint and uses `email_address` plus
+`fields[first_name]` by default. No Kit API key is read from environment
+variables.
+
+### 4.4 Mailchimp
+
+```toml
+[components.subscribe]
+provider = "mailchimp"
+action = "https://example.us1.list-manage.com/subscribe/post?u=...&id=..."
+```
+
+Paste the public embedded-form action URL from Mailchimp. Nectar does not need
+or read a Mailchimp API key.
+
+### 4.5 listmonk
+
+```toml
+[components.subscribe]
+provider = "listmonk"
+action = "https://lists.example.com/api/public/subscription"
+list_id = "<public-list-uuid>"
+```
+
+For multiple lists, use `list_ids = ["<uuid-a>", "<uuid-b>"]`. Nectar submits
+the list UUIDs as repeated `l` hidden fields to listmonk's public subscription
+endpoint, so no listmonk API token is required in the static build.
+
+### 4.6 Custom form action
+
+```toml
+[components.subscribe]
+provider = "customformaction"
+action = "https://forms.example.com/newsletter"
+field_map = { email = "subscriber_email", name = "subscriber_name" }
+```
+
+Use this when a provider gives you a public HTML form endpoint or when your
+own serverless function owns the secrets. Nectar only rewrites the static
+form; any required API keys stay outside the generated site.
+
+### 4.7 Substack
 
 ```toml
 [components.portal]
@@ -273,7 +337,7 @@ paid = true
 For inline forms, Substack provides an `<iframe>` embed under *Settings →
 Embed*. Drop it into a theme partial that overrides `subscribe-form.hbs`.
 
-### 4.4 Self-hosted Ghost Portal (advanced)
+### 4.8 Self-hosted Ghost Portal (advanced)
 
 If you run your own Ghost-compatible backend (e.g. a stand-alone Members API)
 and want to reuse Ghost's own `portal.min.js`:

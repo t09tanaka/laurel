@@ -21,7 +21,7 @@ export const buttondownAdapter: PortalAdapter = {
     }
     return {
       action: `https://buttondown.email/api/emails/embed-subscribe/${encodeURIComponent(cfg.username)}`,
-      emailFieldName: cfg.email_field_name ?? 'email',
+      emailFieldName: cfg.field_map?.email ?? cfg.email_field_name ?? 'email',
       nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'name',
       method: cfg.method ?? 'post',
       disabled: false,

@@ -57,6 +57,30 @@ describe('resolveSubscribeForm', () => {
     expect(() => resolveSubscribeForm({ provider: 'mailchimp' })).toThrow(/action/);
   });
 
+  test('uses listmonk action and list UUID hidden fields', () => {
+    const r = resolveSubscribeForm({
+      provider: 'listmonk',
+      action: 'https://lists.example.com/api/public/subscription',
+      list_ids: ['list-a', 'list-b'],
+    });
+    expect(r.action).toBe('https://lists.example.com/api/public/subscription');
+    expect(r.emailFieldName).toBe('email');
+    expect(r.hiddenFields).toEqual([
+      { name: 'l', value: 'list-a' },
+      { name: 'l', value: 'list-b' },
+    ]);
+  });
+
+  test('uses customformaction action and field mapping', () => {
+    const r = resolveSubscribeForm({
+      provider: 'customformaction',
+      action: 'https://forms.example.com/newsletter',
+      field_map: { email: 'subscriber_email' },
+    });
+    expect(r.action).toBe('https://forms.example.com/newsletter');
+    expect(r.emailFieldName).toBe('subscriber_email');
+  });
+
   test('custom provider uses configured action and defaults to email field name', () => {
     const r = resolveSubscribeForm({ provider: 'custom', action: 'https://example.com/sub' });
     expect(r.action).toBe('https://example.com/sub');
@@ -184,6 +208,28 @@ describe('transformSubscribeForms', () => {
     expect(out).toMatch(/<input[^>]*\bdata-members-name[^>]*\bname="full_name"/);
     expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="subscriber_email"/);
     expect(out).toMatch(/<button[^>]*\bdata-members-submit/);
+  });
+
+  test('with listmonk provider, injects l hidden fields without duplicating existing values', () => {
+    const html = [
+      '<form class="gh-form" data-members-form>',
+      '<input type="hidden" name="l" value="list-a">',
+      '<input type="text" data-members-name>',
+      '<input type="email" data-members-email>',
+      '<button type="submit">Subscribe</button>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'listmonk',
+      action: 'https://lists.example.com/api/public/subscription',
+      list_ids: ['list-a', 'list-b'],
+    });
+    expect(out).toContain('action="https://lists.example.com/api/public/subscription"');
+    expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="email"/);
+    expect(out).toMatch(/<input[^>]*\bdata-members-name[^>]*\bname="name"/);
+    expect(out.match(/name="l"/g)?.length).toBe(2);
+    expect(out).toContain('value="list-a"');
+    expect(out).toContain('value="list-b"');
   });
 
   test('with custom provider and email_field_name override, rewrites both attributes', () => {

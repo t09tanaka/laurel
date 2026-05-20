@@ -1304,16 +1304,25 @@ export const configSchema = z
         subscribe: z
           .object({
             provider: z
-              .enum(['none', 'buttondown', 'beehiiv', 'convertkit', 'mailchimp', 'custom'])
+              .enum([
+                'none',
+                'buttondown',
+                'beehiiv',
+                'convertkit',
+                'mailchimp',
+                'listmonk',
+                'customformaction',
+                'custom',
+              ])
               .default('none')
               .describe(
-                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`.",
+                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` / `listmonk` rewrite the form action to the provider's public embed / subscription endpoint. `customformaction` and `custom` let the operator supply a raw `action` and optional `field_map`.",
               ),
             action: z
               .string()
               .optional()
               .describe(
-                'Form action URL. Required when `provider` is `custom` or `mailchimp`; inferred for known providers when omitted.',
+                'Form action URL. Required when `provider` is `custom`, `customformaction`, `mailchimp`, or `listmonk`; inferred for other known providers when omitted.',
               ),
             method: z
               .enum(['get', 'post'])
@@ -1338,6 +1347,18 @@ export const configSchema = z
               .optional()
               .describe(
                 'ConvertKit / Kit form id. The form action is rewritten to `https://app.kit.com/forms/<form_id>/subscriptions`. Falls back to `publication_id` or `username` for compatibility with older config snippets.',
+              ),
+            list_id: z
+              .string()
+              .optional()
+              .describe(
+                'listmonk public list UUID submitted as `l` to the public subscription endpoint. Use `list_ids` for multi-list forms.',
+              ),
+            list_ids: z
+              .array(z.string())
+              .optional()
+              .describe(
+                'listmonk public list UUIDs submitted as repeated `l` hidden fields to the public subscription endpoint.',
               ),
             email_field_name: z
               .string()

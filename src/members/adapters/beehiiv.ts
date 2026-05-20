@@ -29,7 +29,7 @@ export const beehiivAdapter: PortalAdapter = {
     }
     return {
       action: `https://api.beehiiv.com/v2/publications/${encodeURIComponent(publicationId)}/subscriptions`,
-      emailFieldName: cfg.email_field_name ?? 'email',
+      emailFieldName: cfg.field_map?.email ?? cfg.email_field_name ?? 'email',
       nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'name',
       method: cfg.method ?? 'post',
       disabled: false,

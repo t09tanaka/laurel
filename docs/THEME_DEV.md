@@ -332,7 +332,7 @@ Returns the post/page's `body_class` if set, otherwise
 - `{{access}}` → block: renders `{{else}}` (visitor is always
   "unauthenticated" in a static build); inline: returns `false`.
 - `{{subscribe_form}}` → a static `<form data-members-form="subscribe">`
-  hook. It is inert unless `[components.subscribe_form]` rewrites it to a
+  hook. It is inert unless `[components.subscribe]` rewrites it to a
   provider endpoint or your own client-side members runtime intercepts submit.
 - `{{input_email [placeholder="..."]}}` → a plain email input with
   `data-members-email` so existing themes don't break.
