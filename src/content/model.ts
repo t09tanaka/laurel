@@ -7,8 +7,10 @@ export interface ContentSourceFingerprint {
 }
 
 export interface SiteBuildData {
-  provider?: 'cloudflare_pages' | undefined;
+  provider?: 'cloudflare_pages' | 'netlify' | 'vercel' | undefined;
+  environment?: 'production' | 'preview' | 'development' | undefined;
   branch?: string | undefined;
+  build_id?: string | undefined;
   commit_sha?: string | undefined;
 }
 

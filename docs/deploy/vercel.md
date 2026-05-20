@@ -241,7 +241,8 @@ Nectar uses it automatically as the `site.url` fallback when
 scheme, so Nectar treats it as HTTPS before building canonical, sitemap, RSS,
 and Open Graph URLs. Vercel's `VERCEL_GIT_COMMIT_REF` and
 `VERCEL_GIT_COMMIT_SHA` are also exposed to themes as `@site.build.branch` and
-`@site.build.commit_sha`.
+`@site.build.commit_sha`. Explicit `NECTAR_BUILD_METADATA_*` vars and short
+aliases such as `NECTAR_COMMIT_SHA` override these provider values.
 
 The URL precedence remains:
 

@@ -96,13 +96,19 @@ const buildMetadataSchema = z
       .string()
       .optional()
       .describe(
-        'Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`.',
+        'Source branch for the current deploy. Explicit `NECTAR_BRANCH` / `NECTAR_GIT_BRANCH` values win, followed by provider env such as `CF_PAGES_BRANCH` and `VERCEL_GIT_COMMIT_REF`, then generic CI branch env such as `BRANCH`, `HEAD`, `GITHUB_REF_NAME`, and `CI_COMMIT_REF_NAME`.',
+      ),
+    build_id: z
+      .string()
+      .optional()
+      .describe(
+        'Deploy/build identifier for the current build. Explicit `NECTAR_BUILD_ID` wins, followed by generic `BUILD_ID` and provider IDs such as `VERCEL_DEPLOYMENT_ID` or `DEPLOY_ID`.',
       ),
     commit_sha: z
       .string()
       .optional()
       .describe(
-        'Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`.',
+        'Source commit SHA for the current deploy. Explicit `NECTAR_COMMIT_SHA` / `NECTAR_GIT_COMMIT_SHA` values win, followed by provider env such as `CF_PAGES_COMMIT_SHA` and `VERCEL_GIT_COMMIT_SHA`, then generic CI commit env such as `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, and `CI_COMMIT_SHA`.',
       ),
   })
   .strict();
@@ -489,7 +495,7 @@ export const configSchema = z
         metadata: buildMetadataSchema
           .default({})
           .describe(
-            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `environment`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Netlify preview deploys populate `provider` and `environment`; Vercel populates `provider`, `environment`, `branch`, and `commit_sha` from `VERCEL`, `VERCEL_ENV`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.',
+            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Provider env populates `provider` / `environment`; branch, `build_id`, and `commit_sha` are read from explicit Nectar aliases (`NECTAR_BRANCH`, `NECTAR_BUILD_ID`, `NECTAR_COMMIT_SHA`), provider env (`CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`, `VERCEL_GIT_COMMIT_SHA`), and generic CI env (`BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, `CI_COMMIT_SHA`). Explicit `NECTAR_BUILD_METADATA_*` env overrides still win last. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.',
           ),
       })
       .strict()

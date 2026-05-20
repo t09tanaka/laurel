@@ -772,6 +772,76 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('uses generic build metadata env vars without a provider flag', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          BUILD_ID: 'build-42',
+          COMMIT_REF: 'abc123def456',
+        },
+      });
+      expect(config.build.metadata).toEqual({
+        build_id: 'build-42',
+        commit_sha: 'abc123def456',
+      });
+    });
+  });
+
+  test('uses generic COMMIT_SHA when no provider commit env is present', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          COMMIT_SHA: 'generic-sha',
+        },
+      });
+      expect(config.build.metadata).toEqual({
+        commit_sha: 'generic-sha',
+      });
+    });
+  });
+
+  test('keeps explicit Nectar build metadata env aliases ahead of provider fallbacks', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          CF_PAGES: '1',
+          CF_PAGES_URL: 'https://feature-docs.example.pages.dev/',
+          CF_PAGES_BRANCH: 'feature/docs',
+          CF_PAGES_COMMIT_SHA: 'provider-sha',
+          BUILD_ID: 'generic-build',
+          NECTAR_BUILD_ID: 'nectar-build',
+          NECTAR_COMMIT_SHA: 'nectar-sha',
+          NECTAR_BUILD_METADATA_COMMIT_SHA: 'metadata-sha',
+        },
+      });
+      expect(config.build.metadata).toEqual({
+        provider: 'cloudflare_pages',
+        environment: 'preview',
+        branch: 'feature/docs',
+        build_id: 'nectar-build',
+        commit_sha: 'metadata-sha',
+      });
+    });
+  });
+
   test('keeps explicit NECTAR_SITE_URL ahead of the Vercel URL fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

@@ -81,15 +81,26 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(
     'On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback',
     'when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.',
-    '`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` are copied into',
-    '`build.metadata` and surfaced to templates as `@site.build`.',
+    '`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` populate',
+    '`build.metadata.branch` and `build.metadata.commit_sha`, unless an',
+    'explicit Nectar build metadata env var overrides them.',
   );
   lines.push('');
   lines.push(
     'On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`',
     'fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and',
-    '`CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to',
-    'templates as `@site.build`.',
+    '`CF_PAGES_COMMIT_SHA` populate `build.metadata.branch` and',
+    '`build.metadata.commit_sha`, unless an explicit Nectar build metadata env',
+    'var overrides them.',
+  );
+  lines.push('');
+  lines.push(
+    '`build.metadata` is surfaced to templates as `@site.build`. Precedence for',
+    'branch / build ID / commit SHA is: `NECTAR_BUILD_METADATA_*` env vars,',
+    'short Nectar aliases such as `NECTAR_BUILD_ID` and `NECTAR_COMMIT_SHA`,',
+    'provider env such as `VERCEL_GIT_COMMIT_SHA` or `CF_PAGES_COMMIT_SHA`,',
+    'then generic CI env such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and',
+    '`GITHUB_SHA`.',
   );
   lines.push('');
   lines.push(

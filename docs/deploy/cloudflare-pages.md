@@ -66,7 +66,9 @@ environment variables:
   `NECTAR_BUILD_BASE_URL`, and CLI `nectar build --base-url ...` overrides still
   win.
 - `CF_PAGES_BRANCH` and `CF_PAGES_COMMIT_SHA` are exposed to themes as
-  `@site.build.branch` and `@site.build.commit_sha`.
+  `@site.build.branch` and `@site.build.commit_sha`. Explicit
+  `NECTAR_BUILD_METADATA_*` vars and short aliases such as
+  `NECTAR_COMMIT_SHA` override these provider values.
 
 Cloudflare reads `_headers` and `_redirects` from the publish root. With
 `[deploy.cloudflare_pages].enabled = true`, Nectar emits `_headers` with the

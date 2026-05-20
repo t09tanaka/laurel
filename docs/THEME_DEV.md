@@ -643,11 +643,13 @@ Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
 | `secondary_navigation` | `[[secondary_navigation]]` array      |
 | `build`                | Deploy metadata, when present         |
 
-`@site.build` is omitted for ordinary local builds. Cloudflare Pages builds
-populate `@site.build.provider`, `@site.build.branch`, and
-`@site.build.commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and
-`CF_PAGES_COMMIT_SHA`. Vercel builds populate the same fields from `VERCEL`,
-`VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`.
+`@site.build` is omitted for ordinary local builds. When metadata env vars are
+present, themes can read `@site.build.branch`, `@site.build.build_id`, and
+`@site.build.commit_sha`. Precedence is explicit `NECTAR_BUILD_METADATA_*`
+vars, short Nectar aliases such as `NECTAR_BUILD_ID` / `NECTAR_COMMIT_SHA`,
+provider vars such as `CF_PAGES_COMMIT_SHA` / `VERCEL_GIT_COMMIT_SHA`, then
+generic CI vars such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
+`GITHUB_SHA`.
 
 ### `@custom`
 

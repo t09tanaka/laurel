@@ -320,12 +320,22 @@ interface SiteData {
    * Deploy metadata, omitted for ordinary local builds.
    */
   build?: {
-    provider?: 'cloudflare_pages';
+    provider?: 'cloudflare_pages' | 'netlify' | 'vercel';
+    environment?: 'production' | 'preview' | 'development';
     branch?: string;
+    build_id?: string;
     commit_sha?: string;
   };
 }
 ```
+
+`@site.build` is omitted for ordinary local builds. When metadata env vars are
+present, themes can read `@site.build.branch`, `@site.build.build_id`, and
+`@site.build.commit_sha`. Precedence is explicit `NECTAR_BUILD_METADATA_*`
+vars, short Nectar aliases such as `NECTAR_BUILD_ID` / `NECTAR_COMMIT_SHA`,
+provider vars such as `CF_PAGES_COMMIT_SHA` / `VERCEL_GIT_COMMIT_SHA`, then
+generic CI vars such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
+`GITHUB_SHA`.
 
 ### `pagination` (when present on a paginated route)
 

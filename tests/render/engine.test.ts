@@ -1315,6 +1315,7 @@ describe('buildRootData', () => {
           secondary_navigation: [],
           build: {
             provider: 'cloudflare_pages',
+            build_id: 'build-42',
             branch: 'feature/docs',
             commit_sha: 'abc123def456',
           },
@@ -1333,9 +1334,9 @@ describe('buildRootData', () => {
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
     const tpl = hb.compile(
-      '{{@site.build.provider}}|{{@site.build.branch}}|{{@site.build.commit_sha}}',
+      '{{@site.build.provider}}|{{@site.build.build_id}}|{{@site.build.branch}}|{{@site.build.commit_sha}}',
     );
-    expect(tpl({}, { data })).toBe('cloudflare_pages|feature/docs|abc123def456');
+    expect(tpl({}, { data })).toBe('cloudflare_pages|build-42|feature/docs|abc123def456');
   });
 });
 

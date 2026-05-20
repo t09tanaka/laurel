@@ -289,6 +289,7 @@ function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unkno
   let target = applyNetlifyDeployUrlFallback(parsed, env);
   target = applyVercelEnvFallback(target, env);
   target = applyCloudflarePagesEnvFallback(target, env);
+  target = applyBuildMetadataEnvFallbacks(target, env);
   return target;
 }
 
@@ -365,6 +366,60 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
     );
   }
   const commitSha = firstNonEmptyEnv(env.CF_PAGES_COMMIT_SHA);
+  if (commitSha !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
+  }
+  return target;
+}
+
+function applyBuildMetadataEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  let target = parsed;
+  const branch = firstNonEmptyEnv(
+    env.NECTAR_BRANCH,
+    env.NECTAR_GIT_BRANCH,
+    env.VERCEL_GIT_COMMIT_REF,
+    env.CF_PAGES_BRANCH,
+    env.BRANCH,
+    env.HEAD,
+    env.GITHUB_REF_NAME,
+    env.CI_COMMIT_REF_NAME,
+    env.CIRCLE_BRANCH,
+    env.TRAVIS_BRANCH,
+    env.BITBUCKET_BRANCH,
+  );
+  if (branch !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'branch'], branch);
+  }
+
+  const buildId = firstNonEmptyEnv(
+    env.NECTAR_BUILD_ID,
+    env.BUILD_ID,
+    env.VERCEL_DEPLOYMENT_ID,
+    env.DEPLOY_ID,
+    env.CF_PAGES_DEPLOYMENT_ID,
+    env.GITHUB_RUN_ID,
+    env.CI_PIPELINE_ID,
+    env.CIRCLE_BUILD_NUM,
+    env.TRAVIS_BUILD_ID,
+    env.BITBUCKET_BUILD_NUMBER,
+  );
+  if (buildId !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'build_id'], buildId);
+  }
+
+  const commitSha = firstNonEmptyEnv(
+    env.NECTAR_COMMIT_SHA,
+    env.NECTAR_GIT_COMMIT_SHA,
+    env.VERCEL_GIT_COMMIT_SHA,
+    env.CF_PAGES_COMMIT_SHA,
+    env.COMMIT_SHA,
+    env.COMMIT_REF,
+    env.GITHUB_SHA,
+    env.CI_COMMIT_SHA,
+    env.CIRCLE_SHA1,
+    env.TRAVIS_COMMIT,
+    env.BITBUCKET_COMMIT,
+  );
   if (commitSha !== undefined) {
     target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
   }

@@ -42,13 +42,22 @@ falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and
 
 On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback
 when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.
-`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` are copied into
-`build.metadata` and surfaced to templates as `@site.build`.
+`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` populate
+`build.metadata.branch` and `build.metadata.commit_sha`, unless an
+explicit Nectar build metadata env var overrides them.
 
 On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`
 fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and
-`CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to
-templates as `@site.build`.
+`CF_PAGES_COMMIT_SHA` populate `build.metadata.branch` and
+`build.metadata.commit_sha`, unless an explicit Nectar build metadata env
+var overrides them.
+
+`build.metadata` is surfaced to templates as `@site.build`. Precedence for
+branch / build ID / commit SHA is: `NECTAR_BUILD_METADATA_*` env vars,
+short Nectar aliases such as `NECTAR_BUILD_ID` and `NECTAR_COMMIT_SHA`,
+provider env such as `VERCEL_GIT_COMMIT_SHA` or `CF_PAGES_COMMIT_SHA`,
+then generic CI env such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
+`GITHUB_SHA`.
 
 Most relative project paths in the config, including `theme.dir` and the
 `content.*_dir` fields, are anchored to the directory containing the loaded
@@ -166,14 +175,15 @@ Build pipeline options that shape the emitted site.
 
 ## `build.metadata`
 
-Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `environment`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Netlify preview deploys populate `provider` and `environment`; Vercel populates `provider`, `environment`, `branch`, and `commit_sha` from `VERCEL`, `VERCEL_ENV`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.
+Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Provider env populates `provider` / `environment`; branch, `build_id`, and `commit_sha` are read from explicit Nectar aliases (`NECTAR_BRANCH`, `NECTAR_BUILD_ID`, `NECTAR_COMMIT_SHA`), provider env (`CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`, `VERCEL_GIT_COMMIT_SHA`), and generic CI env (`BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, `CI_COMMIT_SHA`). Explicit `NECTAR_BUILD_METADATA_*` env overrides still win last. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `build.metadata.provider` | `"cloudflare_pages" \| "netlify" \| "vercel"` | no | — | Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Netlify preview builds set this to `netlify`; Vercel builds set this to `vercel`. |
 | `build.metadata.environment` | `"production" \| "preview" \| "development"` | no | — | Deploy environment for the current build. Netlify deploy-preview / branch-deploy builds set this to `preview`; Vercel copies `VERCEL_ENV`; Cloudflare Pages infers `production` for `main` / `master` (or `CF_PAGES_PRODUCTION_BRANCH`) and `preview` for other branches. |
-| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`. |
-| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`. |
+| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Explicit `NECTAR_BRANCH` / `NECTAR_GIT_BRANCH` values win, followed by provider env such as `CF_PAGES_BRANCH` and `VERCEL_GIT_COMMIT_REF`, then generic CI branch env such as `BRANCH`, `HEAD`, `GITHUB_REF_NAME`, and `CI_COMMIT_REF_NAME`. |
+| `build.metadata.build_id` | `string` | no | — | Deploy/build identifier for the current build. Explicit `NECTAR_BUILD_ID` wins, followed by generic `BUILD_ID` and provider IDs such as `VERCEL_DEPLOYMENT_ID` or `DEPLOY_ID`. |
+| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Explicit `NECTAR_COMMIT_SHA` / `NECTAR_GIT_COMMIT_SHA` values win, followed by provider env such as `CF_PAGES_COMMIT_SHA` and `VERCEL_GIT_COMMIT_SHA`, then generic CI commit env such as `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, and `CI_COMMIT_SHA`. |
 
 ## `hooks`
 
