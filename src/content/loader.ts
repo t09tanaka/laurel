@@ -29,7 +29,16 @@ import {
 } from './frontmatter.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
-import type { Author, ContentGraph, Page, Post, SiteData, Tag, Tier } from './model.ts';
+import type {
+  Author,
+  ContentGraph,
+  ContentSourceFingerprint,
+  Page,
+  Post,
+  SiteData,
+  Tag,
+  Tier,
+} from './model.ts';
 import { type PaywallVisibility, buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 import { renderMarkdownWithCache } from './render-cache.ts';
 
@@ -356,6 +365,10 @@ async function loadContentWithPool({
   }
 
   const tiers = buildTiers(config);
+  const rawPostsById = new Map(posts.map((post) => [post.id, post]));
+  const rawPagesById = new Map(pages.map((page) => [page.id, page]));
+  const rawTagsById = new Map(rawTags.map((tag) => [tag.id, tag]));
+  const rawAuthorsById = new Map(rawAuthors.map((author) => [author.id, author]));
 
   return {
     posts: resolvedPosts,
@@ -371,6 +384,36 @@ async function loadContentWithPool({
     },
     postsByTag,
     postsByAuthor,
+    sources: {
+      posts: new Map(
+        [...resolvedPosts, ...emailOnlyPosts]
+          .map((post) => [post.id, rawPostsById.get(post.id)?.source] as const)
+          .filter(
+            (entry): entry is readonly [string, ContentSourceFingerprint] => entry[1] !== undefined,
+          ),
+      ),
+      pages: new Map(
+        resolvedPages
+          .map((page) => [page.id, rawPagesById.get(page.id)?.source] as const)
+          .filter(
+            (entry): entry is readonly [string, ContentSourceFingerprint] => entry[1] !== undefined,
+          ),
+      ),
+      tags: new Map(
+        tags
+          .map((tag) => [tag.id, rawTagsById.get(tag.id)?.source] as const)
+          .filter(
+            (entry): entry is readonly [string, ContentSourceFingerprint] => entry[1] !== undefined,
+          ),
+      ),
+      authors: new Map(
+        authors
+          .map((author) => [author.id, rawAuthorsById.get(author.id)?.source] as const)
+          .filter(
+            (entry): entry is readonly [string, ContentSourceFingerprint] => entry[1] !== undefined,
+          ),
+      ),
+    },
     emailOnlyPosts,
     site: { ...site, locales: localeInfo.locales, localeRouting: localeInfo.routing },
     locales: localeInfo.locales,
@@ -565,6 +608,7 @@ interface RawPost {
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
   email_only: boolean;
+  source: ContentSourceFingerprint;
 }
 
 interface RawPage extends Omit<RawPost, 'featured' | 'visibility' | 'email_only'> {
@@ -593,6 +637,7 @@ interface RawAuthor extends LocaleFields {
   instagram: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;
+  source: ContentSourceFingerprint;
 }
 
 interface RawTag extends LocaleFields {
@@ -604,6 +649,7 @@ interface RawTag extends LocaleFields {
   visibility: 'public' | 'internal';
   meta_title: string | undefined;
   meta_description: string | undefined;
+  source: ContentSourceFingerprint;
 }
 
 async function loadPosts(
@@ -615,7 +661,7 @@ async function loadPosts(
   const dirs = await discoverContentDirs(cwd, config.content.posts_dir);
   const posts = await loadMarkdownDirs(
     dirs,
-    async (file, raw, dir, sourceStat) =>
+    async (file, raw, dir, sourceStat, source) =>
       normalizePost(
         file,
         raw,
@@ -627,6 +673,7 @@ async function loadPosts(
         transforms,
         'post',
         dir.locale,
+        source,
       ),
     config.content.max_markdown_bytes,
   );
@@ -645,8 +692,19 @@ async function loadPages(
   const dirs = await discoverContentDirs(cwd, config.content.pages_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir, sourceStat) =>
-      normalizePage(file, raw, sourceStat, cwd, dir.dir, config, pool, transforms, dir.locale),
+    async (file, raw, dir, sourceStat, source) =>
+      normalizePage(
+        file,
+        raw,
+        sourceStat,
+        cwd,
+        dir.dir,
+        config,
+        pool,
+        transforms,
+        dir.locale,
+        source,
+      ),
     config.content.max_markdown_bytes,
   );
 }
@@ -655,7 +713,8 @@ async function loadAuthors(cwd: string, config: NectarConfig): Promise<RawAuthor
   const dirs = await discoverContentDirs(cwd, config.content.authors_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir, _sourceStat) => normalizeRawAuthor(file, raw, config, dir.locale),
+    async (file, raw, dir, _sourceStat, source) =>
+      normalizeRawAuthor(file, raw, config, dir.locale, source),
     config.content.max_markdown_bytes,
   );
 }
@@ -664,7 +723,8 @@ async function loadTags(cwd: string, config: NectarConfig): Promise<RawTag[]> {
   const dirs = await discoverContentDirs(cwd, config.content.tags_dir);
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir, _sourceStat) => normalizeRawTag(file, raw, config, dir.locale),
+    async (file, raw, dir, _sourceStat, source) =>
+      normalizeRawTag(file, raw, config, dir.locale, source),
     config.content.max_markdown_bytes,
   );
 }
@@ -724,14 +784,20 @@ async function discoverContentDirs(cwd: string, configuredDir: string): Promise<
 
 async function loadMarkdownDirs<T>(
   dirs: readonly ContentDir[],
-  normalize: (filePath: string, raw: string, dir: ContentDir, sourceStat: Stats) => Promise<T>,
+  normalize: (
+    filePath: string,
+    raw: string,
+    dir: ContentDir,
+    sourceStat: Stats,
+    source: ContentSourceFingerprint,
+  ) => Promise<T>,
   maxBytes: number,
 ): Promise<T[]> {
   const chunks = await Promise.all(
     dirs.map((dir) =>
       loadMarkdownDir(
         dir.dir,
-        (file, raw, sourceStat) => normalize(file, raw, dir, sourceStat),
+        (file, raw, sourceStat, source) => normalize(file, raw, dir, sourceStat, source),
         maxBytes,
       ),
     ),
@@ -741,7 +807,12 @@ async function loadMarkdownDirs<T>(
 
 async function loadMarkdownDir<T>(
   dir: string,
-  normalize: (filePath: string, raw: string, sourceStat: Stats) => Promise<T>,
+  normalize: (
+    filePath: string,
+    raw: string,
+    sourceStat: Stats,
+    source: ContentSourceFingerprint,
+  ) => Promise<T>,
   maxBytes: number,
 ): Promise<T[]> {
   if (!existsSync(dir)) return [];
@@ -762,8 +833,9 @@ async function loadMarkdownDir<T>(
       chunk.map(async (file) => {
         const sourceStat = await enforceMarkdownSizeLimit(file, maxBytes);
         const raw = await readFile(file, 'utf8');
+        const source = contentSourceFingerprint(file, dir, sourceStat);
         try {
-          return await normalize(file, raw, sourceStat);
+          return await normalize(file, raw, sourceStat, source);
         } catch (err) {
           throw toNectarError(err, { file });
         }
@@ -794,6 +866,18 @@ async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise
     hint: 'Split the file into smaller documents, raise `content.max_markdown_bytes` in nectar.toml, or set it to 0 to disable the cap.',
     code: 'content',
   });
+}
+
+function contentSourceFingerprint(
+  filePath: string,
+  rootDir: string,
+  info: Stats,
+): ContentSourceFingerprint {
+  return {
+    path: relative(rootDir, filePath).replaceAll('\\', '/'),
+    mtimeMs: Math.round(info.mtimeMs * 1000) / 1000,
+    size: info.size,
+  };
 }
 
 function formatBytes(bytes: number): string {
@@ -926,6 +1010,7 @@ async function normalizePost(
   transforms: readonly MarkdownTransformHook[],
   kind: 'post' | 'page' = 'post',
   pathLocale?: string,
+  source?: ContentSourceFingerprint,
 ): Promise<RawPost> {
   const { data, body: rawBody } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
@@ -1053,6 +1138,7 @@ async function normalizePost(
     twitter_description: asString(data.twitter_description),
     twitter_image: asString(data.twitter_image),
     email_only: asBool(data.email_only, false),
+    source: source ?? contentSourceFingerprint(filePath, rootDir, await stat(filePath)),
     ...resolveCodeInjection(data, filePath, config),
   };
 }
@@ -1122,6 +1208,7 @@ async function normalizePage(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   pathLocale?: string,
+  source?: ContentSourceFingerprint,
 ): Promise<RawPage> {
   const base = await normalizePost(
     filePath,
@@ -1134,6 +1221,7 @@ async function normalizePage(
     transforms,
     'page',
     pathLocale,
+    source,
   );
   const { data } = parseFrontmatter(raw, { filePath });
   return {
@@ -1172,6 +1260,7 @@ async function normalizeRawAuthor(
   raw: string,
   config: NectarConfig,
   pathLocale: string | undefined,
+  source?: ContentSourceFingerprint,
 ): Promise<RawAuthor> {
   const { data, body } = parseFrontmatter(raw, { filePath });
   const locale = resolveContentLocale(data, filePath, pathLocale, config.site.locale);
@@ -1202,6 +1291,7 @@ async function normalizeRawAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
+    source: source ?? contentSourceFingerprint(filePath, dirname(filePath), await stat(filePath)),
   };
 }
 
@@ -1249,6 +1339,7 @@ async function normalizeRawTag(
   raw: string,
   config: NectarConfig,
   pathLocale: string | undefined,
+  source?: ContentSourceFingerprint,
 ): Promise<RawTag> {
   const { data } = parseFrontmatter(raw, { filePath });
   const locale = resolveContentLocale(data, filePath, pathLocale, config.site.locale);
@@ -1267,6 +1358,7 @@ async function normalizeRawTag(
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
+    source: source ?? contentSourceFingerprint(filePath, dirname(filePath), await stat(filePath)),
   };
 }
 

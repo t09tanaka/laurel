@@ -27,6 +27,7 @@ import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
+  type BuildManifestRoute,
   buildManifestRelPath,
   changedPathsRelPath,
   emitBuildManifest,
@@ -76,8 +77,11 @@ import {
   type BuildManifest,
   MANIFEST_VERSION,
   type ManifestEntry,
+  collectRouteContentInputs,
   computeGlobalHash,
+  computeRouteContentFingerprint,
   computeRouteHash,
+  computeThemeFingerprint,
   loadManifest,
   saveManifest,
 } from './manifest.ts';
@@ -595,7 +599,13 @@ async function runBuild({
   }
   const portalUrls = resolvePortalUrls(config.components.portal);
 
-  const globalHash = computeGlobalHash({ config, site: content.site, theme });
+  const themeFingerprint = computeThemeFingerprint(theme);
+  const globalHash = computeGlobalHash({
+    config,
+    site: content.site,
+    theme,
+    themeFingerprint,
+  });
   const nextRoutes: Record<string, ManifestEntry> = {};
   const previousRoutes = previousManifest?.routes ?? {};
   let skippedCount = 0;
@@ -613,6 +623,7 @@ async function runBuild({
   type RenderResult = {
     htmlOutput: HtmlOutput;
     routeHash: string;
+    contentFingerprint: string;
     outputPath: string;
     url: string;
     bytes: number;
@@ -621,10 +632,21 @@ async function runBuild({
   let completedRoutes = 0;
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
     renderLimit(async (): Promise<RenderResult> => {
-      const routeHash = computeRouteHash({ globalHash, route, theme });
+      const contentFingerprint = computeRouteContentFingerprint(route, content);
+      const routeHash = computeRouteHash({
+        globalHash,
+        route,
+        theme,
+        contentFingerprint,
+        themeFingerprint,
+      });
       const previous = previousRoutes[route.url];
       const reusableEntry =
-        previous && previous.hash === routeHash && previous.outputPath === route.outputPath
+        previous &&
+        previous.hash === routeHash &&
+        previous.outputPath === route.outputPath &&
+        previous.contentFingerprint === contentFingerprint &&
+        previous.themeFingerprint === themeFingerprint
           ? previous
           : undefined;
 
@@ -651,6 +673,7 @@ async function runBuild({
           return {
             htmlOutput: { outputPath: route.outputPath, html, reused: true },
             routeHash,
+            contentFingerprint,
             outputPath: route.outputPath,
             url: route.url,
             bytes,
@@ -735,6 +758,7 @@ async function runBuild({
         return {
           htmlOutput: { outputPath: route.outputPath, html },
           routeHash,
+          contentFingerprint,
           outputPath: route.outputPath,
           url: route.url,
           bytes,
@@ -750,6 +774,7 @@ async function runBuild({
   let minifyInputBytes = 0;
   let minifyOutputBytes = 0;
   let minifiedAnyBatch = false;
+  const buildManifestRoutes: BuildManifestRoute[] = [];
   for (let start = 0; start < routes.length; start += ROUTE_RENDER_BATCH_SIZE) {
     const batchRoutes = routes.slice(start, start + ROUTE_RENDER_BATCH_SIZE);
     const renderResults = await withProgressPhase(
@@ -767,7 +792,22 @@ async function runBuild({
       if (result === undefined || route === undefined) {
         throw new Error('render batch entry missing');
       }
-      nextRoutes[result.url] = { hash: result.routeHash, outputPath: result.outputPath };
+      const contentInputs = collectRouteContentInputs(route, content);
+      nextRoutes[result.url] = {
+        hash: result.routeHash,
+        outputPath: result.outputPath,
+        contentFingerprint: result.contentFingerprint,
+        themeFingerprint,
+      };
+      buildManifestRoutes.push({
+        url: result.url,
+        output_path: result.outputPath,
+        route_fingerprint: result.routeHash,
+        content_fingerprint: result.contentFingerprint,
+        theme_fingerprint: themeFingerprint,
+        content_inputs: contentInputs,
+        reused: result.reused,
+      });
       htmlOutputs.push(result.htmlOutput);
       keepOutput(result.outputPath);
       if (result.reused) skippedCount += 1;
@@ -1234,6 +1274,7 @@ async function runBuild({
   const nextManifest: BuildManifest = {
     version: MANIFEST_VERSION,
     globalHash,
+    themeFingerprint,
     routes: nextRoutes,
   };
   await saveManifest(outputDir, nextManifest);
@@ -1251,6 +1292,7 @@ async function runBuild({
       assetCount,
       nectarVersion,
       previousBuildManifest,
+      routes: buildManifestRoutes,
     }),
   );
 

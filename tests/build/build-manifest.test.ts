@@ -65,7 +65,13 @@ describe('build-manifest', () => {
       expect(manifest.schema_version).toBe(BUILD_MANIFEST_VERSION);
       expect(manifest.generated_at).toBe('2026-05-20T00:00:00.000Z');
       expect(manifest.nectar.version).toBe('9.9.9');
-      expect(manifest.theme).toEqual({ name: 'source', version: '1.2.3', custom_settings: {} });
+      expect(manifest.theme).toEqual({
+        name: 'source',
+        version: '1.2.3',
+        fingerprint: expect.any(String),
+        custom_settings: {},
+      });
+      expect(manifest.theme.fingerprint).toHaveLength(64);
       expect(manifest.route_count).toBe(1);
       expect(manifest.asset_count).toBe(1);
       expect(manifest.hash_algorithm).toBe('sha256');
@@ -246,11 +252,17 @@ describe('build-manifest', () => {
         schema_version: BUILD_MANIFEST_VERSION,
         generated_at: '2026-05-19T00:00:00.000Z',
         nectar: { version: '1.0.0' },
-        theme: { name: 'source', version: '1.2.3', custom_settings: {} },
+        theme: {
+          name: 'source',
+          version: '1.2.3',
+          fingerprint: 'b'.repeat(64),
+          custom_settings: {},
+        },
         config_hash: 'a'.repeat(64),
         hash_algorithm: 'sha256',
         route_count: 2,
         asset_count: 1,
+        routes: [],
         files: [
           { path: 'index.html', size: 8, hash: sha256('old home') },
           { path: 'assets/app.css', size: 8, hash: sha256('same css') },

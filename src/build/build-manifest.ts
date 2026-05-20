@@ -4,7 +4,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ThemeBundle, ThemeCustomSettingDefinition } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, scanGlob } from '~/util/fs.ts';
-import { stableStringify } from './manifest.ts';
+import { type RouteContentInput, computeThemeFingerprint, stableStringify } from './manifest.ts';
 
 // Subdirectory inside the build output that holds Nectar-emitted metadata for
 // downstream tooling. Sibling files (e.g. additional deploy descriptors) can
@@ -16,7 +16,7 @@ export const CHANGED_PATHS_FILENAME = 'changed-paths.txt';
 // Schema version for `build-manifest.json`. Bump when the JSON shape changes
 // in a way that downstream consumers (deploy scripts, `nectar deploy`) cannot
 // silently absorb.
-export const BUILD_MANIFEST_VERSION = 1 as const;
+export const BUILD_MANIFEST_VERSION = 2 as const;
 
 // sha256 hex digests are used everywhere in this codebase (theme assets,
 // incremental render cache). Keeping the choice explicit in the manifest
@@ -47,13 +47,25 @@ export interface BuildManifestJson {
   theme: {
     name: string;
     version: string;
+    fingerprint: string;
     custom_settings: Record<string, ThemeCustomSettingDefinition>;
   };
   config_hash: string;
   hash_algorithm: typeof HASH_ALGORITHM;
   route_count: number;
   asset_count: number;
+  routes: BuildManifestRoute[];
   files: BuildManifestFile[];
+}
+
+export interface BuildManifestRoute {
+  url: string;
+  output_path: string;
+  route_fingerprint: string;
+  content_fingerprint: string;
+  theme_fingerprint: string;
+  content_inputs: RouteContentInput[];
+  reused: boolean;
 }
 
 export function buildManifestRelPath(): string {
@@ -80,6 +92,7 @@ export interface EmitBuildManifestOptions {
   assetCount: number;
   nectarVersion: string;
   previousBuildManifest?: BuildManifestJson | undefined;
+  routes?: BuildManifestRoute[] | undefined;
   // Visible for tests so the timestamp can be made deterministic.
   now?: Date;
 }
@@ -95,8 +108,10 @@ export async function emitBuildManifest(
     assetCount,
     nectarVersion,
     previousBuildManifest,
+    routes = [],
     now,
   } = opts;
+  const themeFingerprint = computeThemeFingerprint(theme);
 
   // The deploy manifest feeds the changed-paths companion artifact, so both
   // files are excluded from the hash list to avoid self-referential output.
@@ -111,12 +126,14 @@ export async function emitBuildManifest(
     theme: {
       name: theme.pkg.name,
       version: theme.pkg.version,
+      fingerprint: themeFingerprint,
       custom_settings: serializeCustomSettings(theme.pkg.custom),
     },
     config_hash: computeConfigHash(config),
     hash_algorithm: HASH_ALGORITHM,
     route_count: routeCount,
     asset_count: assetCount,
+    routes: [...routes].sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0)),
     files,
   };
 

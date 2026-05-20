@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MANIFEST_FILENAME, loadManifest, manifestPath } from '~/build/manifest.ts';
 import { build } from '~/build/pipeline.ts';
+import type { BuildStats } from '~/build/profile.ts';
 
 async function makeMinimalSite(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-incremental-'));
@@ -209,4 +210,86 @@ Hello body, edited
 
     await rm(cwd, { recursive: true, force: true });
   });
+
+  test('reuses unchanged route HTML and records route fingerprints', async () => {
+    const cwd = await makeMinimalSite();
+    await build({ cwd, profile: true });
+    const worldHtml = join(cwd, 'dist/world/index.html');
+    const before = (await stat(worldHtml)).mtimeMs;
+
+    const summary = await build({ cwd, profile: true });
+    const after = (await stat(worldHtml)).mtimeMs;
+    const stats = await readBuildStats(cwd);
+    const worldRoute = stats.routes.find((route) => route.url === '/world/');
+    const buildManifest = await Bun.file(join(cwd, 'dist/.nectar/build-manifest.json')).json();
+    const routeManifest = buildManifest.routes.find(
+      (route: { url: string }) => route.url === '/world/',
+    );
+    const routeThemeFingerprint = routeManifest.theme_fingerprint;
+    const routeContentFingerprint = routeManifest.content_fingerprint;
+
+    expect(summary.skippedCount).toBeGreaterThan(0);
+    expect(worldRoute?.reused).toBeTrue();
+    expect(after).toBe(before);
+    expect(routeManifest).toMatchObject({
+      url: '/world/',
+      output_path: 'world/index.html',
+      reused: true,
+      route_fingerprint: expect.any(String),
+      content_fingerprint: expect.any(String),
+      theme_fingerprint: expect.any(String),
+    });
+    expect(routeManifest.content_inputs).toContainEqual(
+      expect.objectContaining({
+        kind: 'post',
+        id: 'post-world',
+        path: 'world.md',
+        mtimeMs: expect.any(Number),
+      }),
+    );
+
+    const cache = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+    expect(cache.themeFingerprint).toBe(routeThemeFingerprint);
+    expect(cache.routes['/world/'].contentFingerprint).toBe(routeContentFingerprint);
+
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('invalidates only routes whose content fingerprint changes', async () => {
+    const cwd = await makeMinimalSite();
+    await build({ cwd, profile: true });
+    const previous = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+
+    await Bun.sleep(20);
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+Hello body, edited for fingerprint invalidation
+`,
+      'utf8',
+    );
+
+    await build({ cwd, profile: true });
+    const stats = await readBuildStats(cwd);
+    const current = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+
+    expect(stats.routes.find((route) => route.url === '/hello/')?.reused).toBeFalse();
+    expect(stats.routes.find((route) => route.url === '/world/')?.reused).toBeTrue();
+    expect(current.routes['/hello/'].contentFingerprint).not.toBe(
+      previous.routes['/hello/'].contentFingerprint,
+    );
+    expect(current.routes['/world/'].contentFingerprint).toBe(
+      previous.routes['/world/'].contentFingerprint,
+    );
+
+    await rm(cwd, { recursive: true, force: true });
+  });
 });
+
+async function readBuildStats(cwd: string): Promise<BuildStats> {
+  return JSON.parse(await readFile(join(cwd, 'dist/.nectar-build-stats.json'), 'utf8'));
+}

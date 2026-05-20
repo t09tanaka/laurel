@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
-import type { SiteData } from '~/content/model.ts';
+import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
 import { splitLayout } from '~/render/layouts.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
@@ -18,11 +18,14 @@ export const MANIFEST_FILENAME = '.nectar-manifest.json';
 export interface ManifestEntry {
   hash: string;
   outputPath: string;
+  contentFingerprint?: string;
+  themeFingerprint?: string;
 }
 
 export interface BuildManifest {
   version: typeof MANIFEST_VERSION;
   globalHash: string;
+  themeFingerprint?: string;
   routes: Record<string, ManifestEntry>;
 }
 
@@ -56,6 +59,7 @@ export function computeGlobalHash(opts: {
   config: NectarConfig;
   site: SiteData;
   theme: ThemeBundle;
+  themeFingerprint?: string;
 }): string {
   const { config, site, theme } = opts;
   const partials = Object.entries(theme.partials).sort(([a], [b]) => a.localeCompare(b));
@@ -63,6 +67,7 @@ export function computeGlobalHash(opts: {
     sig: MANIFEST_VERSION,
     config,
     site,
+    themeFingerprint: opts.themeFingerprint ?? computeThemeFingerprint(theme),
     partials,
     themeName: theme.pkg.name,
     themeVersion: theme.pkg.version,
@@ -82,6 +87,8 @@ export function computeRouteHash(opts: {
   globalHash: string;
   route: RouteContext;
   theme: ThemeBundle;
+  contentFingerprint?: string;
+  themeFingerprint?: string;
 }): string {
   const { globalHash, route, theme } = opts;
   const templateSource = theme.templates[route.template] ?? '';
@@ -95,11 +102,89 @@ export function computeRouteHash(opts: {
     template: route.template,
     templateSource,
     layoutSource,
+    contentFingerprint: opts.contentFingerprint,
+    themeFingerprint: opts.themeFingerprint,
     data: route.data,
     meta: route.meta,
     lastmod: route.lastmod ?? null,
   };
   return sha256(stableStringify(payload));
+}
+
+export function computeThemeFingerprint(theme: ThemeBundle): string {
+  const assets = [...theme.assets.values()]
+    .map((asset) => ({
+      logicalPath: asset.logicalPath,
+      fingerprintedPath: asset.fingerprintedPath,
+      hash: asset.hash,
+      integrity: asset.integrity,
+      size: asset.size,
+    }))
+    .sort((a, b) => (a.logicalPath < b.logicalPath ? -1 : a.logicalPath > b.logicalPath ? 1 : 0));
+  return sha256(
+    stableStringify({
+      name: theme.name,
+      rootDir: theme.rootDir,
+      pkg: theme.pkg,
+      templates: theme.templates,
+      partials: theme.partials,
+      locales: theme.locales,
+      assets,
+    }),
+  );
+}
+
+export interface RouteContentInput {
+  kind: 'post' | 'page' | 'tag' | 'author';
+  id: string;
+  path: string;
+  mtimeMs: number;
+  size: number;
+}
+
+export function collectRouteContentInputs(
+  route: RouteContext,
+  content: ContentGraph,
+): RouteContentInput[] {
+  const inputs = new Map<string, RouteContentInput>();
+  const add = (
+    kind: RouteContentInput['kind'],
+    id: string | undefined,
+    source: ContentSourceFingerprint | undefined,
+  ) => {
+    if (!id || !source) return;
+    inputs.set(`${kind}:${id}`, { kind, id, ...source });
+  };
+
+  add(
+    'post',
+    route.data.post?.id,
+    route.data.post && content.sources?.posts.get(route.data.post.id),
+  );
+  add(
+    'page',
+    route.data.page?.id,
+    route.data.page && content.sources?.pages.get(route.data.page.id),
+  );
+  add('tag', route.data.tag?.id, route.data.tag && content.sources?.tags.get(route.data.tag.id));
+  add(
+    'author',
+    route.data.author?.id,
+    route.data.author && content.sources?.authors.get(route.data.author.id),
+  );
+  for (const post of route.data.posts ?? []) {
+    add('post', post.id, content.sources?.posts.get(post.id));
+  }
+
+  return [...inputs.values()].sort((a, b) => {
+    const ak = `${a.kind}:${a.id}`;
+    const bk = `${b.kind}:${b.id}`;
+    return ak < bk ? -1 : ak > bk ? 1 : 0;
+  });
+}
+
+export function computeRouteContentFingerprint(route: RouteContext, content: ContentGraph): string {
+  return sha256(stableStringify(collectRouteContentInputs(route, content)));
 }
 
 function sha256(input: string): string {

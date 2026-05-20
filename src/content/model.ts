@@ -1,5 +1,11 @@
 import type { NavigationItem } from '~/config/schema.ts';
 
+export interface ContentSourceFingerprint {
+  path: string;
+  mtimeMs: number;
+  size: number;
+}
+
 export interface SiteBuildData {
   provider?: 'cloudflare_pages' | undefined;
   branch?: string | undefined;
@@ -256,6 +262,12 @@ export interface ContentGraph {
   // `posts` for every tag/author (O(tags x posts), O(authors x posts)).
   postsByTag: Map<string, Post[]>;
   postsByAuthor: Map<string, Post[]>;
+  sources?: {
+    posts: Map<string, ContentSourceFingerprint>;
+    pages: Map<string, ContentSourceFingerprint>;
+    tags: Map<string, ContentSourceFingerprint>;
+    authors: Map<string, ContentSourceFingerprint>;
+  };
   // Posts whose frontmatter sets `email_only: true`. Excluded from every other
   // collection on the graph (`posts`, `bySlug.posts`, `postsByTag`,
   // `postsByAuthor`) so feeds, search, OG generation, and the public route

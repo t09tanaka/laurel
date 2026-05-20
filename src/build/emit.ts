@@ -73,8 +73,8 @@ export interface HtmlOutput {
   outputPath: string;
   html: string;
   // True when `html` was loaded from the previous build's output instead of
-  // being freshly rendered. The minify pass uses this flag to skip work that
-  // has already been done; writers treat reused and rendered entries the same.
+  // being freshly rendered. The minify and write phases use this flag to skip
+  // work that has already been done while cleanup keeps the file live.
   reused?: boolean;
 }
 
@@ -119,6 +119,7 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
         if (dest === undefined || entry === undefined) {
           throw new Error('writeHtmlBatch: chunk entry missing');
         }
+        if (entry.reused) return Promise.resolve();
         return Bun.write(dest, entry.html);
       }),
     );
