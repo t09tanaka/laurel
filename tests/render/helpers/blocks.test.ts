@@ -627,6 +627,13 @@ describe('has helper', () => {
 });
 
 describe('match helper', () => {
+  test('one-argument block form renders the main block for truthy values', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match foo}}yes{{else}}no{{/match}}');
+    expect(tpl({ foo: 'bar' })).toBe('yes');
+  });
+
   test('two-argument form returns the strict equality result', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
