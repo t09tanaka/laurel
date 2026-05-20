@@ -841,6 +841,30 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('Alias Site|Alias Site|true|true|members:true');
   });
 
+  test('@site.url strips trailing slashes before themes access it (issue #976)', () => {
+    const engine = makeEngine();
+    engine.content = {
+      ...engine.content,
+      site: {
+        locale: 'en',
+        title: 'Theme URL Site',
+        url: 'https://example.com/blog//',
+      },
+    } as unknown as NectarEngine['content'];
+    const data = buildRootData(engine, makeRoute());
+    const site = data.site as { url: string };
+
+    expect(site.url).toBe('https://example.com/blog');
+    expect(data.setting).toBe(data.site);
+    expect(data.blog).toBe(data.site);
+
+    const hb = Handlebars.create();
+    const tpl = hb.compile('{{@site.url}}|{{@setting.url}}|{{@blog.url}}');
+    expect(tpl({}, { data })).toBe(
+      'https://example.com/blog|https://example.com/blog|https://example.com/blog',
+    );
+  });
+
   test('Journal-style @setting.paid_members_enabled blocks follow @site (issue #719)', () => {
     const renderPaidMembersBranch = (paid_members_enabled: boolean) => {
       const engine = makeEngine();

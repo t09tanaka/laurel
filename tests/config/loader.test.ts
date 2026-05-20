@@ -670,6 +670,22 @@ csp_nonce = "rAnd0m+Nonce/=="
     }
   });
 
+  test('strips trailing slashes from env-overridden site.url', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        '[site]\ntitle = "Blog"\nurl = "https://from-toml.example"\n',
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: { NECTAR_SITE_URL: 'https://from-env.example/blog//' },
+      });
+
+      expect(config.site.url).toBe('https://from-env.example/blog');
+    });
+  });
+
   // #852: NECTAR_<SECTION>_<KEY> overrides any scalar config key. Useful for
   // staging vs prod builds where the same nectar.toml ships everywhere but
   // a deploy hook flips `[site].url` per environment.

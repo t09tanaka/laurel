@@ -341,6 +341,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   const site = enrichSiteNavigation(
     {
       ...engine.content.site,
+      url: normalizeThemeSiteUrl(engine.content.site.url),
       locale: routeLocale,
       lang: routeLocale,
       direction: directionForLocale(routeLocale),
@@ -495,6 +496,10 @@ function navSlug(label: string): string {
 
 function normaliseNavUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
+}
+
+function normalizeThemeSiteUrl(url: string): string {
+  return url.replace(/\/+$/, '');
 }
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
