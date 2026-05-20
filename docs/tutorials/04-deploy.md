@@ -1,4 +1,4 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, Bunny.net, nginx, or Docker
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, Bunny.net, nginx, Docker, or Fly.io
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
@@ -8,7 +8,8 @@ major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
 AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and self-hosted nginx
 quickstarts. Docker is covered as a runtime wrapper around a pre-built
 `dist/` directory; Nectar does not currently ship a Dockerfile, compose file,
-or Docker-specific package script.
+`fly.toml`, or Docker-specific package script. Fly.io is covered as a
+container runtime around that pre-built output.
 
 **Universal pre-flight:**
 
@@ -65,6 +66,58 @@ Then rebuild and use `dist/.nectar/nginx.conf` with an nginx image compatible
 with the generated directives. The generated config includes `brotli_static`;
 the stock `nginx:alpine` image may not include that module, so treat the
 default-config command above as the portable smoke test.
+
+---
+
+## Fly.io
+
+**Recommended for:** teams that want Fly's container rollout model, regions,
+and TLS while serving a static Nectar build.
+
+For the focused Fly guide, including minimal `Dockerfile` and `fly.toml`
+examples, see [`docs/deploy/fly.md`](../deploy/fly.md).
+
+Nectar does not include a Fly runtime config. Add a project-local Dockerfile
+that serves the already-built `dist/` directory:
+
+```Dockerfile
+FROM nginx:alpine
+COPY dist /usr/share/nginx/html
+```
+
+Create the Fly app once:
+
+```bash
+flyctl launch --no-deploy
+```
+
+Then keep a minimal `fly.toml` that points Fly's HTTP service at nginx port
+80:
+
+```toml
+app = "my-nectar-site"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+```
+
+Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
+`.github/workflows/fly.yml`, add repository secret `FLY_API_TOKEN`, and push
+to `main`. The workflow builds `dist/` with Bun, then runs
+`flyctl deploy --remote-only`.
+
+This minimal Fly path has the same nginx caveats as the Docker quickstart:
+stock `nginx:alpine` does not apply Nectar-generated redirects, custom
+headers, or the generated pretty-URL fallback unless you provide a compatible
+nginx config.
 
 ---
 

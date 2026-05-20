@@ -37,8 +37,8 @@ line in the workflow you copy.
 | `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses Vercel CLI prebuilt deploys (`pull`, `build`, `deploy --prebuilt`). |
 | `azure-static-web-apps.yml` | Azure Static Web Apps | Secret `AZURE_STATIC_WEB_APPS_API_TOKEN` from the SWA resource. PR previews land in named slots automatically.       |
 | `s3-cloudfront.yml`   | AWS S3 + CloudFront | Secret `AWS_ROLE_TO_ASSUME` (OIDC), `CLOUDFRONT_DISTRIBUTION_ID`. Variables `AWS_REGION`, `S3_BUCKET`.                |
-| `fly.yml`             | Fly.io              | Secret `FLY_API_TOKEN`. Needs a `Dockerfile` + `fly.toml` in the repo (sample in the file header).                   |
 | `render.yml`          | Render Static Site  | Secret `RENDER_DEPLOY_HOOK_URL`. Build artifact uploaded for inspection, then Render rebuilds and publishes `dist/` on the hook call. |
+| `fly.yml`             | Fly.io              | Secret `FLY_API_TOKEN`. Needs project-local `Dockerfile` + `fly.toml`; see `docs/deploy/fly.md`.                     |
 
 ## Picking one
 

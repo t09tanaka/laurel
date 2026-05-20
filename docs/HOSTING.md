@@ -59,6 +59,10 @@ collects the operator-facing pieces of that contract in one place:
   serving a pre-built `dist/` directory with an external nginx container.
   Nectar does not currently ship a Dockerfile or Docker-specific package
   script.
+- [`docs/deploy/fly.md`](./deploy/fly.md) — Fly.io quickstart for shipping
+  the pre-built `dist/` directory inside a small nginx image. Nectar does not
+  currently ship a Dockerfile or `fly.toml`; the guide shows minimal
+  project-local examples.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 

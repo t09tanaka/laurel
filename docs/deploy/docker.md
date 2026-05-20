@@ -91,6 +91,9 @@ files but does not apply Nectar's generated nginx headers or redirects. For a
 production container, copy in a reviewed nginx config that matches your image's
 available modules.
 
+For a Fly.io-specific workflow, including the matching `fly.toml` shape and
+GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
+
 ## Redirects, headers, and compression
 
 - `redirects.yaml` is always emitted to `dist/_redirects` by the default
