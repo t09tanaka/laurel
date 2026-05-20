@@ -1,4 +1,8 @@
-import { type DryRunRouteSummary, build } from '~/build/pipeline.ts';
+import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
+import { type BuildSummary, type DryRunRouteSummary, build } from '~/build/pipeline.ts';
+import { loadConfig } from '~/config/loader.ts';
+import type { NectarConfig } from '~/config/schema.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
 import {
@@ -10,6 +14,8 @@ import {
 } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
+
+const WATCH_DEBOUNCE_MS = 100;
 
 export async function runBuild(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -38,6 +44,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const profile = parsed.values.profile === true;
   const noAtomic = parsed.values['no-atomic'] === true;
   const dryRun = parsed.values['dry-run'] === true;
+  const watch = parsed.values.watch === true;
   // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
   // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
   // populated `parsed.values['include-drafts']` if set; only fall back to the
@@ -61,6 +68,12 @@ export async function runBuild(args: string[]): Promise<number> {
   }
   const cwd = process.cwd();
 
+  if (watch && dryRun) {
+    process.stderr.write('--watch and --dry-run are mutually exclusive\n\n');
+    process.stderr.write(formatCommandHelp(BUILD_SPEC));
+    return EXIT_CODES.usage;
+  }
+
   let concurrency: number | undefined;
   const concurrencyRaw = parsed.values.concurrency;
   if (typeof concurrencyRaw === 'string') {
@@ -73,39 +86,184 @@ export async function runBuild(args: string[]): Promise<number> {
     concurrency = parsedConcurrency;
   }
 
-  try {
-    const summary = await build({
-      cwd,
-      configPath,
-      outputDir,
-      basePath,
-      baseUrl,
-      profile,
-      noAtomic,
-      concurrency,
-      dryRun,
-      includeDrafts,
-    });
-    const prefix = summary.dryRun ? 'Dry run: would build' : 'Built';
+  const buildArgs = {
+    cwd,
+    configPath,
+    outputDir,
+    basePath,
+    baseUrl,
+    profile,
+    noAtomic,
+    concurrency,
+    dryRun,
+    includeDrafts,
+  } as const;
+
+  const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
+    const prefix = opts.prefix ?? (summary.dryRun ? 'Dry run: would build' : 'Built');
     logger.info(
       `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );
     if (summary.dryRun && summary.routes && isVerbose()) {
       logger.info(formatDryRunRouteTable(summary.routes));
     }
-    if (strict && summary.warningCount > 0) {
+  };
+
+  let initialSummary: BuildSummary;
+  try {
+    initialSummary = await build(buildArgs);
+    reportSummary(initialSummary);
+    if (!watch && strict && initialSummary.warningCount > 0) {
       logger.error(
-        `Strict mode: build emitted ${summary.warningCount} warning${
-          summary.warningCount === 1 ? '' : 's'
+        `Strict mode: build emitted ${initialSummary.warningCount} warning${
+          initialSummary.warningCount === 1 ? '' : 's'
         }`,
       );
       return EXIT_CODES.generic;
     }
-    return EXIT_CODES.ok;
+  } catch (err) {
+    reportError(err, cwd);
+    if (!watch) return exitCodeForError(err);
+    logger.warn('Initial build failed; staying in watch mode so the next change can retry');
+  }
+
+  if (!watch) return EXIT_CODES.ok;
+
+  return runWatchLoop({
+    cwd,
+    configPath,
+    onRebuild: async () => {
+      const summary = await build(buildArgs);
+      reportSummary(summary, { prefix: 'Rebuilt' });
+      if (strict && summary.warningCount > 0) {
+        logger.warn(
+          `Strict mode: build emitted ${summary.warningCount} warning${
+            summary.warningCount === 1 ? '' : 's'
+          } (watch mode keeps running)`,
+        );
+      }
+    },
+  });
+}
+
+interface WatchLoopOptions {
+  cwd: string;
+  configPath?: string | undefined;
+  onRebuild: () => Promise<void>;
+}
+
+async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): Promise<number> {
+  // Re-load config so the watcher knows which paths the just-completed build
+  // actually depends on (content dirs, theme dir, config files). Failing to
+  // read config is fatal — there is nothing to watch otherwise.
+  let config: NectarConfig;
+  try {
+    config = await loadConfig({ cwd, configPath });
   } catch (err) {
     reportError(err, cwd);
     return exitCodeForError(err);
   }
+
+  const watchPaths = gatherWatchPaths(cwd, config);
+  const watchers: FSWatcher[] = [];
+  let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+  let building = false;
+  let pending = false;
+
+  const runRebuild = async (): Promise<void> => {
+    building = true;
+    try {
+      await onRebuild();
+    } catch (err) {
+      reportError(err, cwd);
+    } finally {
+      building = false;
+      if (pending) {
+        pending = false;
+        scheduleRebuild();
+      }
+    }
+  };
+  const scheduleRebuild = (): void => {
+    if (building) {
+      pending = true;
+      return;
+    }
+    if (rebuildTimer !== undefined) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => {
+      rebuildTimer = undefined;
+      void runRebuild();
+    }, WATCH_DEBOUNCE_MS);
+  };
+
+  for (const p of watchPaths) {
+    try {
+      const w = fsWatch(p, { recursive: true }, (_event, filename) => {
+        if (filename !== null && filename !== undefined && isIgnoredChange(filename)) return;
+        scheduleRebuild();
+      });
+      watchers.push(w);
+    } catch (err) {
+      logger.warn(`Failed to watch ${p}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
+
+  await waitForShutdownSignal();
+
+  if (rebuildTimer !== undefined) clearTimeout(rebuildTimer);
+  for (const w of watchers) {
+    try {
+      w.close();
+    } catch {
+      // already closed; ignore
+    }
+  }
+  return EXIT_CODES.ok;
+}
+
+function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
+  const paths = new Set<string>();
+  const add = (p: string): void => {
+    const abs = isAbsolute(p) ? p : join(cwd, p);
+    if (existsSync(abs)) paths.add(abs);
+  };
+  add(config.content.posts_dir);
+  add(config.content.pages_dir);
+  add(config.content.authors_dir);
+  add(config.content.tags_dir);
+  add(config.content.assets_dir);
+  add(join(config.theme.dir, config.theme.name));
+  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+    const p = join(cwd, name);
+    if (existsSync(p)) paths.add(p);
+  }
+  return [...paths];
+}
+
+// Filters fs.watch noise that would otherwise spam rebuilds: build artifacts
+// the next build will overwrite, editor swap files, hidden dotfiles, and
+// node_modules churn.
+export function isIgnoredChange(filename: string): boolean {
+  const norm = filename.replace(/\\/g, '/');
+  if (norm.endsWith('.map')) return true;
+  if (norm.includes('assets/built/')) return true;
+  if (norm.includes('node_modules/')) return true;
+  if (norm.includes('/.') || norm.startsWith('.')) return true;
+  if (norm.endsWith('~') || norm.endsWith('.swp') || norm.endsWith('.tmp')) return true;
+  return false;
+}
+
+function waitForShutdownSignal(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const handler = (): void => {
+      process.removeListener('SIGINT', handler);
+      process.removeListener('SIGTERM', handler);
+      resolve();
+    };
+    process.once('SIGINT', handler);
+    process.once('SIGTERM', handler);
+  });
 }
 
 function parseConcurrency(raw: string): number | CliUsageError {

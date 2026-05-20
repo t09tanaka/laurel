@@ -4,7 +4,7 @@ import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { formatDryRunRouteTable } from '~/cli/commands/build.ts';
+import { formatDryRunRouteTable, isIgnoredChange } from '~/cli/commands/build.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -256,5 +256,151 @@ Not ready.
     const result = await runCli(['build'], dir);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).not.toContain('Building with drafts');
+  });
+});
+
+async function makeWatchFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-watch-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/authors'), { recursive: true });
+  await Bun.write(
+    join(dir, 'nectar.toml'),
+    [
+      '[site]',
+      'title = "Watch Test"',
+      'url = "https://watch.test"',
+      '',
+      '[theme]',
+      'dir = "themes"',
+      'name = "source"',
+      '',
+      '[components.rss]',
+      'enabled = false',
+      '',
+      '[components.sitemap]',
+      'enabled = false',
+      '',
+    ].join('\n'),
+  );
+  await Bun.write(
+    join(dir, 'content/posts/hello.md'),
+    '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+  );
+  await Bun.write(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n');
+  const themeSrc = join(process.cwd(), 'example/themes/source');
+  await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+  return dir;
+}
+
+describe('nectar build --watch (#254)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--help advertises --watch', async () => {
+    const { stdout, exitCode } = await runCli(['build', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--watch');
+    expect(stdout).toContain('100ms debounce');
+  });
+
+  test('--watch and --dry-run together exit 2 (usage)', async () => {
+    const dir = await makeFixture({ 'nectar.toml': '[site]\ntitle = "x"\n' });
+    cleanups.push(dir);
+    const { stderr, exitCode } = await runCli(['build', '--watch', '--dry-run'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--watch and --dry-run are mutually exclusive');
+  });
+
+  test('--watch runs the initial build, prints Built, and stays alive', async () => {
+    const dir = await makeWatchFixture();
+    cleanups.push(dir);
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'build', '--watch'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    try {
+      const reader = proc.stderr.getReader();
+      const decoder = new TextDecoder();
+      let stderr = '';
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        stderr += decoder.decode(value, { stream: true });
+        if (stderr.includes('Watch mode enabled')) break;
+      }
+      expect(stderr).toContain('Built');
+      expect(stderr).toContain('Watch mode enabled');
+      expect(proc.killed).toBe(false);
+      reader.releaseLock();
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+
+  test('--watch rebuilds when a post changes', async () => {
+    const dir = await makeWatchFixture();
+    cleanups.push(dir);
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'build', '--watch'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    try {
+      const reader = proc.stderr.getReader();
+      const decoder = new TextDecoder();
+      let stderr = '';
+      const readUntil = async (needle: string, timeoutMs: number): Promise<boolean> => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          if (stderr.includes(needle)) return true;
+          const { value, done } = await reader.read();
+          if (done) return stderr.includes(needle);
+          stderr += decoder.decode(value, { stream: true });
+        }
+        return stderr.includes(needle);
+      };
+      const ready = await readUntil('Watch mode enabled', 15000);
+      expect(ready).toBe(true);
+      const before = stderr.length;
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        '---\ntitle: "Hello v2"\ndate: 2026-01-01T00:00:00Z\n---\n\nUpdated\n',
+        'utf8',
+      );
+      const rebuilt = await readUntil('Rebuilt', 15000);
+      expect(rebuilt).toBe(true);
+      expect(stderr.slice(before)).toContain('Rebuilt');
+      reader.releaseLock();
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+});
+
+describe('isIgnoredChange (build --watch)', () => {
+  test('ignores generated theme artifacts and editor noise', () => {
+    expect(isIgnoredChange('assets/built/source.js.map')).toBe(true);
+    expect(isIgnoredChange('assets/built/screen.css')).toBe(true);
+    expect(isIgnoredChange('node_modules/foo/index.js')).toBe(true);
+    expect(isIgnoredChange('.DS_Store')).toBe(true);
+    expect(isIgnoredChange('partials/.hidden.hbs')).toBe(true);
+    expect(isIgnoredChange('post.hbs~')).toBe(true);
+    expect(isIgnoredChange('foo.swp')).toBe(true);
+  });
+
+  test('allows real source files', () => {
+    expect(isIgnoredChange('posts/hello.md')).toBe(false);
+    expect(isIgnoredChange('index.hbs')).toBe(false);
+    expect(isIgnoredChange('locales/en.json')).toBe(false);
+    expect(isIgnoredChange('nectar.toml')).toBe(false);
   });
 });
