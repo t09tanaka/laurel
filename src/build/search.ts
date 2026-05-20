@@ -260,11 +260,29 @@ export async function emitSearchUiCss(opts: {
   return dest;
 }
 
+export function searchEngineUsesNectarGhostSearchShim(
+  engine: NectarConfig['components']['search']['engine'],
+): boolean {
+  return (
+    engine === 'json' ||
+    engine === 'json+lunr' ||
+    engine === 'pagefind' ||
+    engine === 'json+pagefind'
+  );
+}
+
+function searchShimStrategyForEngine(
+  engine: NectarConfig['components']['search']['engine'],
+): 'json' | 'pagefind' {
+  return engine === 'pagefind' || engine === 'json+pagefind' ? 'pagefind' : 'json';
+}
+
 // Emit the client-side runtime shim that wires `[data-ghost-search]` triggers
-// (and cmd+K / ctrl+K) into a Pagefind modal. Only emitted when the configured
-// engine actually produces a Pagefind index (`pagefind` or `json+pagefind`);
-// for other engines the shim would 404 on its `/pagefind/pagefind-ui.js`
-// import, so we skip emission entirely. See #553/#554/#556.
+// (and cmd+K / ctrl+K) into a search modal. Pagefind engines lazy-load
+// Pagefind UI; JSON-emitting engines use Nectar's flat `content/search.json`
+// so cross-theme Ghost search buttons do not sit inert on the default config.
+// Sodo Search engines are left to the explicit Sodo script injected via
+// `{{ghost_head}}`.
 export async function emitSearchShim(opts: {
   config: NectarConfig;
   outputDir: string;
@@ -272,21 +290,24 @@ export async function emitSearchShim(opts: {
   const { config, outputDir } = opts;
   const cfg = config.components.search;
   if (!cfg.enabled) return null;
-  if (cfg.engine !== 'pagefind' && cfg.engine !== 'json+pagefind') return null;
+  if (!searchEngineUsesNectarGhostSearchShim(cfg.engine)) return null;
   const dir = join(outputDir, 'search');
   await ensureDir(dir);
   const dest = join(dir, 'ghost-search.js');
-  const js = renderSearchShim({ basePath: config.build.base_path });
+  const js = renderSearchShim({
+    basePath: config.build.base_path,
+    strategy: searchShimStrategyForEngine(cfg.engine),
+  });
   await writeFile(dest, js, 'utf8');
   return dest;
 }
 
 // Inject a tiny `<script defer src="/search/ghost-search.js">` into rendered
 // HTML so Ghost themes that ship `[data-ghost-search]` buttons get a working
-// Pagefind modal without theme edits. We post-process the rendered HTML
-// rather than touching `ghost_head` because the helper is shared territory
-// with other in-flight work and we want to keep this change scoped to
-// search-specific code paths.
+// modal without theme edits. We post-process the rendered HTML rather than
+// touching `ghost_head` because the helper is shared territory with other
+// in-flight work and we want to keep this change scoped to search-specific code
+// paths.
 export function injectSearchShimScript(html: string, basePath: string, cspNonce?: string): string {
   // Don't inject twice on the same document. The marker attribute also makes
   // the side-effect visible to manual inspection.

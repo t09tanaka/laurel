@@ -431,14 +431,16 @@ pipeline may minify surrounding HTML, but it must preserve explicit `src` and
 - Ghost-only HTML transforms (responsive image srcsets via Ghost's image
   service) — pass-through; users can plug an optional `[components.images]`
   later.
-- Ghost's `/search/` endpoint and the `sodo-search` integration — Nectar
-  does not replicate the live `/content/search/` API shape. The
-  `[components.search]` component instead emits a flat
-  `content/search.json` ({ `posts`, `pages`, `tags`, `authors` }) for
-  client-side fuzzy search libraries (lunr / Fuse / minisearch), and can
-  optionally shell out to Pagefind (`engine = "pagefind"` /
-  `"json+pagefind"`) to emit `pagefind/*`. Themes that hard-code the
-  `/search/` POST shape need to be re-wired to one of these consumers.
+- Ghost's `/search/` endpoint and bundled `sodo-search` runtime — Nectar
+  does not replicate the live `/content/search/` API shape or vendor Ghost's
+  Sodo Search bundle. The `[components.search]` component instead emits a flat
+  `content/search.json` ({ `posts`, `pages`, `tags`, `authors` }) and injects a
+  static modal shim for Ghost-style `[data-ghost-search]` buttons on JSON
+  engines. It can also shell out to Pagefind (`engine = "pagefind"` /
+  `"json+pagefind"`) and route the same buttons to Pagefind UI. If you opt into
+  `engine = "sodo-search"`, pin or self-host the configured external script.
+  Themes that hard-code the `/search/` POST shape need to be re-wired to one of
+  these consumers.
 - Ghost's `shared-theme-assets` runtime — not bundled by Nectar. Theme
   controls such as Ease's `<button class="gh-loadmore">` require the theme to
   vendor and load the matching infinite-scroll JavaScript; otherwise they

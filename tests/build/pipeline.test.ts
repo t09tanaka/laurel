@@ -1627,7 +1627,7 @@ describe('build pipeline content_api stubs (#210/#211/#212)', () => {
   });
 });
 
-describe('build pipeline pagefind integration (#553/#554/#555/#556)', () => {
+describe('build pipeline Ghost search trigger integration (#553/#554/#555/#556/#863)', () => {
   // Adds a minimal members-only post to the fixture so we can assert
   // `<meta name="pagefind-skip">` only lands on non-public HTML. The
   // shim-script injection is asserted against the index page which carries
@@ -1691,10 +1691,14 @@ For members.
     expect(body).toContain('pagefind-ui.js');
   });
 
-  test('skips shim emission when engine is json only', async () => {
+  test('emits a JSON-backed runtime shim when engine is json only', async () => {
     const cwd = await withMembersPost({ engine: 'json' });
     const summary = await build({ cwd });
-    expect(existsSync(join(summary.outputDir, 'search', 'ghost-search.js'))).toBe(false);
+    const shim = join(summary.outputDir, 'search', 'ghost-search.js');
+    expect(existsSync(shim)).toBe(true);
+    const body = readFileSync(shim, 'utf8');
+    expect(body).toContain('/content/search.json');
+    expect(body).toContain('var SEARCH_MODE = "json"');
   });
 
   test('skips shim emission when search is disabled', async () => {

@@ -11,6 +11,7 @@ import {
   injectPagefindSkipMeta,
   injectSearchShimScript,
   runPagefind,
+  searchEngineUsesNectarGhostSearchShim,
   truncateExcerpt,
 } from '~/build/search.ts';
 import { configSchema } from '~/config/schema.ts';
@@ -492,11 +493,36 @@ describe('emitSearchShim', () => {
     expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(true);
   });
 
-  test('skips emission for json-only engine (nothing to wire)', async () => {
+  test('writes a JSON-backed shim for the default json engine', async () => {
     const outputDir = await makeOutputDir();
     const config = configSchema.parse({
       site: { title: 'S', url: 'https://x.test' },
       components: { search: { engine: 'json' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'ghost-search.js'));
+    const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
+    expect(js).toContain('data-ghost-search');
+    expect(js).toContain('/content/search.json');
+    expect(js).toContain('"json"');
+  });
+
+  test('writes a JSON-backed shim when json is combined with lunr', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'json+lunr' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'ghost-search.js'));
+    expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(true);
+  });
+
+  test('skips emission for sodo-search engines handled by ghost_head', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'sodo-search' } },
     });
     const dest = await emitSearchShim({ config, outputDir });
     expect(dest).toBeNull();
@@ -524,6 +550,33 @@ describe('emitSearchShim', () => {
     await emitSearchShim({ config, outputDir });
     const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
     expect(js).toContain('/blog/pagefind/pagefind-ui.js');
+  });
+
+  test('honours [build].base_path for the JSON index URL', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      build: { base_path: '/blog/' },
+      components: { search: { engine: 'json' } },
+    });
+    await emitSearchShim({ config, outputDir });
+    const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
+    expect(js).toContain('/blog/content/search.json');
+  });
+});
+
+describe('searchEngineUsesNectarGhostSearchShim', () => {
+  test('enables the built-in shim for JSON and Pagefind engines', () => {
+    expect(searchEngineUsesNectarGhostSearchShim('json')).toBe(true);
+    expect(searchEngineUsesNectarGhostSearchShim('json+lunr')).toBe(true);
+    expect(searchEngineUsesNectarGhostSearchShim('pagefind')).toBe(true);
+    expect(searchEngineUsesNectarGhostSearchShim('json+pagefind')).toBe(true);
+  });
+
+  test('leaves explicit Sodo Search engines to ghost_head injection', () => {
+    expect(searchEngineUsesNectarGhostSearchShim('sodo-search')).toBe(false);
+    expect(searchEngineUsesNectarGhostSearchShim('json+sodo-search')).toBe(false);
+    expect(searchEngineUsesNectarGhostSearchShim('lunr')).toBe(false);
   });
 });
 

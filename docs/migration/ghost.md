@@ -605,9 +605,11 @@ Things worth doing after you cut over:
   Ghost, Nectar does not replace that piece. You can leave those posts
   unpublished, switch them to `public`, or migrate the membership side to a
   third-party service (Buttondown, Beehiiv, Substack) separately.
-- **Wire up search**, if your theme expects it. Nectar treats search as an
-  optional client-side component; see `docs/DESIGN.md` for the integration
-  hook.
+- **Check search**, if your theme expects Ghost's `data-ghost-search` buttons.
+  Nectar's default JSON search component injects a static modal shim for those
+  buttons, and Pagefind engines route them to Pagefind UI. Nectar does not
+  vendor Ghost's Sodo Search script; pin or self-host `sodo_search_src` only if
+  you explicitly opt into the Sodo engine.
 
 ---
 

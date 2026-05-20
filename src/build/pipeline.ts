@@ -115,6 +115,7 @@ import {
   injectPagefindSkipMeta,
   injectSearchShimScript,
   runPagefind,
+  searchEngineUsesNectarGhostSearchShim,
 } from './search.ts';
 import { copyStaticDir } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
@@ -754,20 +755,23 @@ async function runBuild({
             urls: portalUrls,
           }),
         );
-        // Pagefind integration: inject the runtime shim script on any page
-        // that has a `[data-ghost-search]` trigger, and tag non-public post
-        // HTML with `<meta name="pagefind-skip">` so Pagefind drops those
-        // pages from the public index. Both are no-ops unless the search
-        // component is enabled with a pagefind-emitting engine.
+        // Search integration: inject the runtime shim script on any page that
+        // has a `[data-ghost-search]` trigger. Pagefind engines also tag
+        // non-public post HTML with `<meta name="pagefind-skip">` so Pagefind
+        // drops those pages from the public index.
         if (
           config.components.search.enabled &&
-          (config.components.search.engine === 'pagefind' ||
-            config.components.search.engine === 'json+pagefind')
+          searchEngineUsesNectarGhostSearchShim(config.components.search.engine)
         ) {
           html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
-          const post = route.kind === 'post' ? route.data.post : undefined;
-          if (post && post.visibility !== 'public') {
-            html = injectPagefindSkipMeta(html);
+          if (
+            config.components.search.engine === 'pagefind' ||
+            config.components.search.engine === 'json+pagefind'
+          ) {
+            const post = route.kind === 'post' ? route.data.post : undefined;
+            if (post && post.visibility !== 'public') {
+              html = injectPagefindSkipMeta(html);
+            }
           }
         }
         // Resource-hint post-processing. Runs after every theme-side or
@@ -1624,7 +1628,7 @@ function markPlannedSearchOutputs(opts: {
   ) {
     opts.keepOutput('content/search.json');
   }
-  if (cfg.engine === 'pagefind' || cfg.engine === 'json+pagefind') {
+  if (searchEngineUsesNectarGhostSearchShim(cfg.engine)) {
     opts.keepOutput('search/ghost-search.js');
   }
   if (cfg.engine === 'lunr' || cfg.engine === 'json+lunr') {
