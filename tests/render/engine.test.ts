@@ -1355,6 +1355,43 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(engine.render(pageRoute)).toBe('not-page2');
   });
 
+  test('Journal-style collection copy can gate on numeric pagination.total (issue #718)', () => {
+    const theme = makeTheme({
+      tag: [
+        '{{#match pagination.total ">" 1}}',
+        '{{t "A collection of {numberOfIssues} issues" numberOfIssues=pagination.total}}',
+        '{{else}}',
+        'single-or-empty',
+        '{{/match}}',
+      ].join(''),
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const route: RouteContext = {
+      kind: 'tag',
+      url: '/tag/news/',
+      outputPath: 'tag/news/index.html',
+      template: 'tag',
+      data: {
+        pagination: {
+          page: 1,
+          pages: 2,
+          prev: undefined,
+          next: 2,
+          total: 3,
+          limit: 2,
+          prev_url: undefined,
+          next_url: '/tag/news/page/2/',
+          base_url: '/tag/news/',
+        },
+        posts: [],
+      },
+      meta: baseMeta,
+    };
+
+    expect(engine.render(route)).toBe('A collection of 3 issues');
+  });
+
   test('post partial hashes resolve tiers from the post context', () => {
     const premium: Tier = {
       id: 'premium',
