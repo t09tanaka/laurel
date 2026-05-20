@@ -842,6 +842,28 @@ export const LINT_SPEC: CommandSpec = {
   ],
 };
 
+export const FMT_SPEC: CommandSpec = {
+  name: 'fmt',
+  summary: 'Format content Markdown frontmatter in place',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    check: {
+      type: 'boolean',
+      description:
+        'Check whether content Markdown frontmatter is already formatted without writing changes. Exits 1 when any file would change',
+    },
+  },
+  positionals: [],
+  examples: [
+    'nectar fmt                                   # rewrite content frontmatter in place',
+    'nectar fmt --check                           # CI check; exits 1 when formatting is needed',
+  ],
+};
+
 export const MIGRATE_SPEC: CommandSpec = {
   name: 'migrate',
   summary:
@@ -1164,6 +1186,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   content: CONTENT_SPEC,
   info: INFO_SPEC,
   lint: LINT_SPEC,
+  fmt: FMT_SPEC,
   tags: TAGS_SPEC,
   authors: AUTHORS_SPEC,
   theme: THEME_SPEC,

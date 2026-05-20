@@ -203,6 +203,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runLint } = await import('./commands/lint.js');
       return runLint(rest);
     }
+    case 'fmt': {
+      const { runFmt } = await import('./commands/fmt.js');
+      return runFmt(rest);
+    }
     case 'migrate': {
       const { runMigrate } = await import('./commands/migrate.js');
       return runMigrate(rest);

@@ -1,0 +1,23 @@
+Format content Markdown frontmatter in place
+
+Usage:
+  nectar fmt [--config <path>] [--check]
+
+Options:
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
+  --check             Check whether content Markdown frontmatter is already formatted without writing changes. Exits 1 when any file would change
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_FMT_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar fmt                                   # rewrite content frontmatter in place
+  nectar fmt --check                           # CI check; exits 1 when formatting is needed

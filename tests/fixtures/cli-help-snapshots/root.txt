@@ -19,6 +19,7 @@ Commands:
   content           Inspect or modify content in the project (posts, pages)
   info              Print Nectar, Bun, and project environment information
   lint              Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
+  fmt               Format content Markdown frontmatter in place
   tags              Inspect or modify tags in the project
   authors           Inspect authors in the project
   theme             Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials

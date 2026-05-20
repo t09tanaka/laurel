@@ -117,6 +117,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
 | [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
+| [`nectar fmt`](#nectar-fmt) | Format content Markdown frontmatter in place |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
 | [`nectar authors`](#nectar-authors) | Inspect authors in the project |
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
@@ -602,6 +603,30 @@ nectar lint                                  # warn-level summary table
 nectar lint --strict                         # exit non-zero on any warning
 nectar lint --json | jq                      # CI-friendly findings stream
 nectar lint --max-title-length 60
+```
+
+### `nectar fmt`
+
+Format content Markdown frontmatter in place
+
+Usage:
+
+```
+nectar fmt [--config <path>] [--check]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_FMT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `--check` | boolean | `NECTAR_FMT_CHECK` | Check whether content Markdown frontmatter is already formatted without writing changes. Exits 1 when any file would change |
+
+Examples:
+
+```
+nectar fmt                                   # rewrite content frontmatter in place
+nectar fmt --check                           # CI check; exits 1 when formatting is needed
 ```
 
 ### `nectar tags`
