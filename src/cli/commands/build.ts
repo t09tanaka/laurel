@@ -50,6 +50,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const dryRun = parsed.values['dry-run'] === true;
   const watch = parsed.values.watch === true;
   const force = parsed.values.force === true || parsed.values.cache === false;
+  const clean = parsed.values.clean !== false;
   const progress = parsed.values.progress !== false;
   const copyContentAssets =
     typeof parsed.values['copy-content-assets'] === 'boolean'
@@ -123,6 +124,7 @@ export async function runBuild(args: string[]): Promise<number> {
     dryRun,
     includeDrafts,
     force,
+    clean,
     emitContentApi,
     copyContentAssets,
   } as const;

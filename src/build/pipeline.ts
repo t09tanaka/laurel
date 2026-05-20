@@ -145,6 +145,10 @@ export interface BuildOptions {
   // per-route hash matches; --force is the escape hatch for cases where the
   // incremental cache is suspected stale or corrupted.
   force?: boolean | undefined;
+  // When false, skip deleting stale files from the output directory after the
+  // current build finishes. This is useful for deploy targets that publish
+  // hashed assets and handle their own cleanup lifecycle.
+  clean?: boolean | undefined;
   // Override for `[components.content_api].enabled`. Undefined leaves the
   // config value alone; `true` forces the JSON shadows under `dist/content/`
   // and `dist/ghost/api/content/` on; `false` forces them off. Exposed
@@ -304,6 +308,7 @@ export async function build({
   dryRun,
   includeDrafts,
   force,
+  clean,
   emitContentApi,
   copyContentAssets,
   progress,
@@ -370,6 +375,7 @@ export async function build({
     concurrency,
     dryRun: isDryRun,
     includeDrafts: includeDrafts === true,
+    clean: clean !== false,
     emitContentApi,
     progress,
   });
@@ -387,6 +393,7 @@ async function runBuild({
   concurrency,
   dryRun,
   includeDrafts,
+  clean,
   emitContentApi,
   progress,
 }: {
@@ -401,6 +408,7 @@ async function runBuild({
   concurrency: number | undefined;
   dryRun: boolean;
   includeDrafts: boolean;
+  clean: boolean;
   emitContentApi: boolean | undefined;
   progress: BuildProgressReporter | undefined;
 }): Promise<BuildSummary> {
@@ -1244,14 +1252,16 @@ async function runBuild({
   keepOutput('.nectar/asset-manifest.json');
   await timed(profiler, 'asset_manifest', () => emitAssetManifest({ outputDir, theme }));
 
-  const preservePatterns = noAtomic ? [] : await loadPreservePatterns(cwd);
-  await timed(profiler, 'stale_cleanup', () =>
-    cleanupStaleOutput({
-      outputDir,
-      keepRelPaths: plannedOutputPaths,
-      preservePatterns,
-    }),
-  );
+  if (clean) {
+    const preservePatterns = noAtomic ? [] : await loadPreservePatterns(cwd);
+    await timed(profiler, 'stale_cleanup', () =>
+      cleanupStaleOutput({
+        outputDir,
+        keepRelPaths: plannedOutputPaths,
+        preservePatterns,
+      }),
+    );
+  }
 
   // Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`,
   // `.txt`, `.map`) into `.br` + `.gz` siblings. Runs after every emitter so

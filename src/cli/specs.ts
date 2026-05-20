@@ -66,6 +66,14 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted',
     },
+    clean: {
+      type: 'boolean',
+      default: true,
+      description:
+        'Delete stale files from build.output_dir after the current build completes. Enabled by default; pass --no-clean when the deploy target owns cleanup, such as hashed filenames retained across releases',
+      negatedDescription:
+        'Skip stale-file cleanup in build.output_dir, preserving files that were not emitted by the current build',
+    },
     cache: {
       type: 'boolean',
       default: true,

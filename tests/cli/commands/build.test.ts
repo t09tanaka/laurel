@@ -240,6 +240,30 @@ describe('nectar build --dry-run (#252)', () => {
   });
 });
 
+describe('nectar build --no-clean (#831)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('preserves stale output files that the current build did not emit', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    await mkdir(join(dir, 'dist/assets'), { recursive: true });
+    const staleAsset = join(dir, 'dist/assets/app.abc123.js');
+    await writeFile(staleAsset, 'console.log("previous deploy");\n', 'utf8');
+
+    const result = await runCli(['build', '--no-clean', '--no-progress'], dir);
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(dir, 'dist/index.html'))).toBe(true);
+    expect(readFileSync(staleAsset, 'utf8')).toContain('previous deploy');
+  });
+});
+
 describe('nectar build --profile', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
