@@ -1,11 +1,13 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, S3 + CloudFront, or nginx
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, S3 + CloudFront, nginx, or Docker
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus AWS-native S3 + CloudFront and self-hosted nginx
-quickstarts.
+quickstarts. Docker is covered as a runtime wrapper around a pre-built
+`dist/` directory; Nectar does not currently ship a Dockerfile, compose file,
+or Docker-specific package script.
 
 **Universal pre-flight:**
 
@@ -21,6 +23,47 @@ Git repo on GitHub, GitLab, or wherever your chosen host integrates with.
 If you deploy to a path other than `/` (e.g. `https://example.com/blog/`),
 set `[build] base_path = "/blog/"` in `nectar.toml` and update `[site] url`
 accordingly.
+
+---
+
+## Docker / nginx container
+
+**Recommended for:** hosts that require a container image, or local smoke
+tests of the built static output.
+
+For the focused Docker guide, including the current no-Dockerfile/no-compose
+status and nginx config caveats, see
+[`docs/deploy/docker.md`](../deploy/docker.md).
+
+Nectar does not build inside a container by default. Build first, then mount
+`dist/` into an external nginx container:
+
+```bash
+bunx nectar build
+docker run --rm \
+  --name nectar-static \
+  -p 8080:80 \
+  -v "$PWD/dist:/usr/share/nginx/html:ro" \
+  nginx:alpine
+```
+
+Open `http://localhost:8080/`. This minimal command uses nginx's stock config,
+so it does not apply Nectar-generated redirects, cache headers, or security
+headers.
+
+For a closer self-hosted nginx setup, enable the existing nginx emitter:
+
+```toml
+[deploy.nginx]
+enabled = true
+root = "/var/www/nectar"
+server_name = "_"
+```
+
+Then rebuild and use `dist/.nectar/nginx.conf` with an nginx image compatible
+with the generated directives. The generated config includes `brotli_static`;
+the stock `nginx:alpine` image may not include that module, so treat the
+default-config command above as the portable smoke test.
 
 ---
 

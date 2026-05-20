@@ -25,8 +25,9 @@ collects the operator-facing pieces of that contract in one place:
   Actions deploys, and `nectar deploy vercel`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages,
-  nginx), without the stricter security header baseline wired in. Pair with
-  `security/hosting.md` for the full set.
+  S3 + CloudFront, nginx, and a minimal Docker/nginx container), without the
+  stricter security header baseline wired in. Pair with `security/hosting.md`
+  for the full set.
 - [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
   quickstart with the recommended Actions artifact workflow, project-site
   `base_path`, `.nojekyll`, and `CNAME` notes.
@@ -40,6 +41,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
   for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
   the generated server block from the main nginx config.
+- [`docs/deploy/docker.md`](./deploy/docker.md) — Docker quickstart for
+  serving a pre-built `dist/` directory with an external nginx container.
+  Nectar does not currently ship a Dockerfile or Docker-specific package
+  script.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 
