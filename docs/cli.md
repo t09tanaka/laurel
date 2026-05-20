@@ -29,7 +29,15 @@ treated as a positional argument, even when it looks like a flag.
 | `--no-color` | `NECTAR_NO_COLOR` | Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides. |
 | `--debug` | `NECTAR_DEBUG` | Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env. |
 | `-h, --help` | — | Show help for the top-level CLI or any subcommand |
-| `-v, --version` | — | Print the Nectar version and exit |
+| `-v, --version` | — | Print the Nectar version and exit. Use `nectar version --json` for machine-readable version metadata. |
+
+## Built-in version output
+
+`nectar --version` prints the plain package version for scripts that expect
+a single semver line. `nectar version --json` and `nectar --json version`
+print machine-readable metadata with `name`, `version`, `bun`, `node`, and
+`commit`; `commit` is `null` when it cannot be resolved from the environment
+or local Git checkout.
 
 ## Environment variables
 

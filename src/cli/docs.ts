@@ -45,7 +45,11 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     envVar: globalEnvVarName('debug'),
   },
   { flag: '-h, --help', description: 'Show help for the top-level CLI or any subcommand' },
-  { flag: '-v, --version', description: 'Print the Nectar version and exit' },
+  {
+    flag: '-v, --version',
+    description:
+      'Print the Nectar version and exit. Use `nectar version --json` for machine-readable version metadata.',
+  },
 ];
 
 const AUTOGEN_BANNER =
@@ -97,6 +101,17 @@ export function renderCliReference(
       ['Flag', 'Env var', 'Description'],
       globals.map((g) => [code(g.flag), g.envVar ? code(g.envVar) : '—', g.description]),
     ),
+  );
+  lines.push('');
+
+  lines.push('## Built-in version output');
+  lines.push('');
+  lines.push(
+    '`nectar --version` prints the plain package version for scripts that expect',
+    'a single semver line. `nectar version --json` and `nectar --json version`',
+    'print machine-readable metadata with `name`, `version`, `bun`, `node`, and',
+    '`commit`; `commit` is `null` when it cannot be resolved from the environment',
+    'or local Git checkout.',
   );
   lines.push('');
 

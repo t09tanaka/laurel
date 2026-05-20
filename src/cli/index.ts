@@ -9,6 +9,7 @@ import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
+import { buildVersionJson } from './version.ts';
 
 const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
 
@@ -45,7 +46,9 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     if (!spec) continue;
     lines.push(`  ${name.padEnd(width)}${spec.summary}`);
   }
-  lines.push(`  ${'version'.padEnd(width)}Print the version and optionally check for updates`);
+  lines.push(
+    `  ${'version'.padEnd(width)}Print the version, optionally as JSON, or check for updates`,
+  );
   lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
   lines.push('');
   lines.push('Global options:');
@@ -111,9 +114,11 @@ async function printCommandHelp(
 function printVersionUsage(stream: NodeJS.WriteStream = process.stdout): void {
   const lines: string[] = [];
   lines.push('Usage:');
-  lines.push('  nectar version [--check]');
+  lines.push('  nectar version [--json]');
+  lines.push('  nectar version --check');
   lines.push('');
   lines.push('Options:');
+  lines.push('  --json      Print machine-readable version metadata');
   lines.push('  --check     Check npm/GitHub for the latest release');
   lines.push('  -h, --help  Show help for this command');
   lines.push('');
@@ -283,7 +288,11 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === 'version' || command === '--version' || command === '-v') {
     if (rest.length === 0) {
-      process.stdout.write(`${version}\n`);
+      if (globalJson) {
+        process.stdout.write(`${JSON.stringify(buildVersionJson(version), null, 2)}\n`);
+      } else {
+        process.stdout.write(`${version}\n`);
+      }
       return 0;
     }
     if (command === 'version' && rest.length === 1 && (rest[0] === '--help' || rest[0] === '-h')) {

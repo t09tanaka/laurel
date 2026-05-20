@@ -64,6 +64,36 @@ describe('cli dispatch', () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test('version --json prints machine-readable version metadata', async () => {
+    const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
+    const { stdout, stderr, exitCode } = await runCli(['version', '--json']);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+
+    const parsed = JSON.parse(stdout) as {
+      name: string;
+      version: string;
+      bun: string | null;
+      node: string;
+      commit: string | null;
+    };
+    expect(parsed.name).toBe('nectar');
+    expect(parsed.version).toBe(pkg.version);
+    expect(typeof parsed.bun === 'string' || parsed.bun === null).toBe(true);
+    expect(parsed.node).toBe(process.version);
+    expect(typeof parsed.commit === 'string' || parsed.commit === null).toBe(true);
+  });
+
+  test('--json version uses the same machine-readable version output', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['--json', 'version']);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+
+    const parsed = JSON.parse(stdout) as { name: string; version: string };
+    expect(parsed.name).toBe('nectar');
+    expect(parsed.version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
   test('top-level --help renders the package.json version', async () => {
     const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
     const { stdout, exitCode } = await runCli(['--help']);
@@ -84,7 +114,9 @@ describe('cli dispatch', () => {
     const { stdout, stderr, exitCode } = await runCli(['version', '--help']);
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
-    expect(stdout).toContain('nectar version [--check]');
+    expect(stdout).toContain('nectar version [--json]');
+    expect(stdout).toContain('nectar version --check');
+    expect(stdout).toContain('--json');
     expect(stdout).toContain('--check');
   });
 

@@ -26,7 +26,7 @@ Commands:
   export            Dump the loaded content as JSON or regenerate the RSS feed without running a full build
   import-ghost      Convert a Ghost JSON export into Markdown content
   import-wordpress  Convert a WordPress WXR XML export into Markdown content
-  version           Print the version and optionally check for updates
+  version           Print the version, optionally as JSON, or check for updates
   help              Show this help or help for a command
 
 Global options:
