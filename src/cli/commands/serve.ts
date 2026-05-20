@@ -1,6 +1,6 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, normalize } from 'node:path';
+import { basename, extname, isAbsolute, join, normalize, relative } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -174,7 +174,7 @@ export async function runServe(args: string[]): Promise<number> {
   }
 
   const clients = new Set<ServerWebSocket<unknown>>();
-  let server: Server;
+  let server: Server<unknown>;
   try {
     server = Bun.serve({
       port,
@@ -191,7 +191,7 @@ export async function runServe(args: string[]): Promise<number> {
       async fetch(request, srv) {
         const url = new URL(request.url);
         if (watchMode && url.pathname === LIVERELOAD_PATH) {
-          if (srv.upgrade(request)) return undefined;
+          if (srv.upgrade(request, { data: undefined })) return undefined;
           return new Response('upgrade failed', { status: 426 });
         }
         // External livereload script (mirrors `nectar dev`). Same client logic
@@ -222,8 +222,14 @@ export async function runServe(args: string[]): Promise<number> {
         const target = effectivePathname.endsWith('/')
           ? `${effectivePathname}index.html`
           : effectivePathname;
-        const filePath = normalize(join(distDir, target));
-        if (!filePath.startsWith(distDir)) {
+        let decodedTarget: string;
+        try {
+          decodedTarget = decodeURIComponent(target);
+        } catch {
+          return new Response('Bad Request', { status: 400 });
+        }
+        const filePath = normalize(join(distDir, decodedTarget));
+        if (!isInsideServeRoot(distDir, filePath)) {
           return new Response('Forbidden', { status: 403 });
         }
         const file = Bun.file(filePath);
@@ -400,6 +406,11 @@ export function inferServeContentType(filePath: string): string | undefined {
     SERVE_CONTENT_TYPES_BY_FILENAME.get(filename) ??
     SERVE_CONTENT_TYPES_BY_EXTENSION.get(extname(filename))
   );
+}
+
+export function isInsideServeRoot(rootDir: string, candidatePath: string): boolean {
+  const relativePath = relative(rootDir, candidatePath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
 }
 
 export function parseServeSimulationTarget(value: string): ServeSimulationTarget | undefined {

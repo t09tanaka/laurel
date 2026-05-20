@@ -220,6 +220,21 @@ to inline-only payloads; HSTS prevents downgrades; `Referrer-Policy`
 narrows what trackers can correlate. All of this is the host's job, but
 the operator has to configure it.
 
+## Local preview server path confinement
+
+`nectar serve` is a local preview server for the generated `dist/` directory.
+It must not be treated as a production edge, but it does enforce one important
+request-time guarantee: requested paths are decoded, normalized, and checked
+with `path.relative` before any file is opened. A request that would escape
+the configured build output directory, including encoded traversal such as
+`/..%2f..%2fetc%2fpasswd`, is rejected with `403 Forbidden` instead of falling
+through to the host filesystem.
+
+That confinement applies to files served by `nectar serve` itself. It does
+not replace the normal static-hosting controls for production deploys, and it
+does not grant any special protection to files that you intentionally copy
+into `dist/`.
+
 ## Quick PR-review checklist
 
 When reviewing a PR against a Nectar repo, scan for:

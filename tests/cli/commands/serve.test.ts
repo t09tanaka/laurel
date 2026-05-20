@@ -123,6 +123,40 @@ describe('cli serve — host binding', () => {
   });
 });
 
+describe('cli serve — request path confinement', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('rejects encoded traversal outside dist with 403', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`http://127.0.0.1:${port}/..%2f..%2fetc%2fpasswd`);
+      expect(response.status).toBe(403);
+      expect(await response.text()).toBe('Forbidden');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited.catch(() => undefined);
+    }
+  }, 15_000);
+});
+
 describe('cli serve — watch mode', () => {
   let dir: string;
 
@@ -557,14 +591,16 @@ describe('cli serve — port collision', () => {
         return new Response('blocker');
       },
     });
+    const blockerPort = blocker.port;
+    if (blockerPort === undefined) throw new Error('Bun did not allocate a port');
     try {
       const { stderr, exitCode } = await runCli(
-        ['serve', '--port', String(blocker.port), '--host', '127.0.0.1', '--no-watch'],
+        ['serve', '--port', String(blockerPort), '--host', '127.0.0.1', '--no-watch'],
         dir,
       );
       expect(exitCode).toBe(2);
-      expect(stderr).toContain(`Port ${blocker.port} is in use`);
-      expect(stderr).toContain(`--port ${blocker.port + 1}`);
+      expect(stderr).toContain(`Port ${blockerPort} is in use`);
+      expect(stderr).toContain(`--port ${blockerPort + 1}`);
     } finally {
       blocker.stop(true);
     }
