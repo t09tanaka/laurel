@@ -26,6 +26,10 @@ async function runCli(args: string[], cwd: string): Promise<RunResult> {
   return { stdout, stderr, exitCode };
 }
 
+function expectLfOnly(bytes: Uint8Array): void {
+  expect(bytes.includes(13)).toBe(false);
+}
+
 describe('cli new — slug collision handling', () => {
   let dir: string;
 
@@ -44,6 +48,18 @@ describe('cli new — slug collision handling', () => {
     const body = await readFile(dest, 'utf8');
     expect(body).toContain('title: "Hello World"');
     expect(body).toContain('slug: hello-world');
+  });
+
+  test('writes LF-only markdown when Windows CRLF text reaches the scaffold input', async () => {
+    const { exitCode } = await runCli(['new', 'post', 'Windows\r\nLine Ending'], dir);
+    expect(exitCode).toBe(0);
+
+    const dest = join(dir, 'content/posts/windows-line-ending.md');
+    const bytes = await readFile(dest);
+    expectLfOnly(bytes);
+
+    const body = new TextDecoder().decode(bytes);
+    expect(body).toContain('# Windows\nLine Ending');
   });
 
   test('creates a post from a Japanese title without deriving an empty slug', async () => {

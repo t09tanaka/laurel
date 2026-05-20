@@ -36,6 +36,10 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+function expectLfOnly(bytes: Uint8Array): void {
+  expect(bytes.includes(13)).toBe(false);
+}
+
 describe('cli init', () => {
   let dir: string;
 
@@ -78,6 +82,22 @@ describe('cli init', () => {
 
     const author = await readFile(join(dir, 'content/authors/default.md'), 'utf8');
     expect(author).toContain('slug: default');
+  });
+
+  test('--yes writes generated text files with LF-only line endings', async () => {
+    const { exitCode } = await runCli(['init', '--yes'], dir);
+    expect(exitCode).toBe(0);
+
+    for (const path of [
+      'nectar.toml',
+      '.gitignore',
+      'README.md',
+      'content/posts/welcome.md',
+      'content/pages/about.md',
+      'content/authors/default.md',
+    ]) {
+      expectLfOnly(await readFile(join(dir, path)));
+    }
   });
 
   test('refuses to overwrite existing files without --force', async () => {

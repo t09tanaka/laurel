@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { INIT_SPEC } from '../specs.ts';
 
@@ -81,7 +81,7 @@ export async function runInit(args: string[]): Promise<number> {
   for (const file of files) {
     const dest = join(targetDir, file.path);
     await ensureDir(dirnameOf(dest));
-    await writeFile(dest, file.contents, 'utf8');
+    await writeGeneratedTextFile(dest, file.contents);
   }
 
   logger.info(`Initialised Nectar project in ${targetDir}`);

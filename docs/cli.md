@@ -82,6 +82,14 @@ The programmatic build API mirrors the loader behaviour through
 `NECTAR_<COMMAND>_CONFIG` env vars for you. Pass `configPath` as one path,
 a comma-separated list, or an ordered array if you want explicit-file mode.
 
+## Generated text file line endings
+
+CLI scaffolders write generated text files with LF (`\n`) line endings on
+every OS, including Windows. This applies to `nectar init`, `nectar new`,
+and the Markdown/YAML frontmatter files they create. If scaffold input
+contains CRLF or bare CR characters, Nectar normalizes those characters
+before writing so generated files do not mix CRLF and LF endings.
+
 ## Commands
 
 | Command | Summary |
@@ -171,7 +179,7 @@ Options:
 | `-w, --watch` | boolean | `NECTAR_BUILD_WATCH` | After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop |
 | `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used |
 | `--no-emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API=0` | Force Ghost Content API JSON shadows off for this build without editing the config |
-| `-j, --json` | boolean | `NECTAR_BUILD_JSON` | Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
+| `-j, --json` | boolean | `NECTAR_BUILD_JSON` | Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
 
 Examples:
 

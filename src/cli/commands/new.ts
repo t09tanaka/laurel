@@ -1,9 +1,10 @@
-import { access, writeFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import slugify from 'slugify';
 import { loadConfig } from '~/config/loader.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { NEW_SPEC } from '../specs.ts';
@@ -122,7 +123,7 @@ export async function runNew(args: string[]): Promise<number> {
     author: authorRaw,
   });
 
-  await writeFile(dest, body, 'utf8');
+  await writeGeneratedTextFile(dest, body);
 
   const asJson = parsed.values.json === true;
   if (asJson) {

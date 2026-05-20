@@ -166,6 +166,17 @@ export function renderCliReference(
   );
   lines.push('');
 
+  lines.push('## Generated text file line endings');
+  lines.push('');
+  lines.push(
+    'CLI scaffolders write generated text files with LF (`\\n`) line endings on',
+    'every OS, including Windows. This applies to `nectar init`, `nectar new`,',
+    'and the Markdown/YAML frontmatter files they create. If scaffold input',
+    'contains CRLF or bare CR characters, Nectar normalizes those characters',
+    'before writing so generated files do not mix CRLF and LF endings.',
+  );
+  lines.push('');
+
   lines.push('## Commands');
   lines.push('');
   lines.push(...renderCommandIndex(specs, order));

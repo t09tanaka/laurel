@@ -59,6 +59,13 @@ describe('renderCliReference', () => {
     expect(md).toContain('List-style string flags accumulate');
   });
 
+  test('documents generated text file line ending policy', () => {
+    const md = renderCliReference();
+    expect(md).toContain('## Generated text file line endings');
+    expect(md).toContain('LF (`\\n`) line endings');
+    expect(md).toContain('do not mix CRLF and LF endings');
+  });
+
   test('escapes pipe characters inside option descriptions', () => {
     const spec: CommandSpec = {
       name: 'demo',
