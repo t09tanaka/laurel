@@ -37,6 +37,9 @@ describe('card fixture corpus', () => {
     expect(html).toContain('<div class="kg-gallery-container">');
     expect(html).toContain('<div class="kg-gallery-row">');
     expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
+    expect(html).toMatch(
+      /<div class="kg-gallery-image"><img\b[^>]*\bsrc="https:\/\/cdn\.test\/g1\.jpg"[^>]*\bwidth="600"[^>]*\bheight="400"[^>]*><\/div>/,
+    );
     expect(html).toContain('src="https://cdn.test/g1.jpg"');
     expect(html).toContain('src="https://cdn.test/g3.jpg"');
     expect(html).toContain('<figcaption>A three-image gallery.</figcaption>');

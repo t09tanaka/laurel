@@ -392,6 +392,9 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     expect(html).toContain('<div class="kg-gallery-container">');
     expect((html.match(/kg-gallery-row/g) ?? []).length).toBe(2);
     expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
+    expect(html).toMatch(
+      /<div class="kg-gallery-image"><img\b[^>]*\bsrc="https:\/\/cdn\.test\/a\.jpg"[^>]*\bwidth="800"[^>]*\bheight="600"[^>]*><\/div>/,
+    );
     expect(html).toContain('src="https://cdn.test/a.jpg"');
     expect(html).toContain('alt="C"');
     expect(html).toContain('<figcaption>Trio</figcaption>');

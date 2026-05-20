@@ -117,6 +117,34 @@ part of the `.hbs` helper surface. Real Ghost serves this through its
 `shared-theme-assets` bundle, while Nectar only renders static files and
 copies assets that are present in the theme directory.
 
+### Gallery cards
+
+Nectar does not inject the legacy Editorial theme's inline gallery bootstrap
+script into post bodies. That script walks `.kg-gallery-image` elements at
+runtime and depends on Ghost's Koenig gallery DOM shape.
+
+Instead, Markdown-derived gallery cards must render the Ghost-compatible static
+markup up front:
+
+```html
+<figure class="kg-card kg-gallery-card">
+  <div class="kg-gallery-container">
+    <div class="kg-gallery-row">
+      <div class="kg-gallery-image">
+        <img src="/content/images/example.jpg" alt="" width="1200" height="800" />
+      </div>
+    </div>
+  </div>
+</figure>
+```
+
+The compatibility contract is the direct descendant shape
+`.kg-gallery-image > img[width][height]`. Source imports, Koenig shortcode
+rendering, and hand-authored Markdown should preserve intrinsic dimensions on
+each gallery image so Ghost themes can size rows without per-post JavaScript.
+Themes that still ship a post-body gallery bootstrap should remove it for
+Nectar builds and rely on the static markup instead.
+
 The Ease theme is the current compatibility example: its `index.hbs` and
 `tag.hbs` templates emit a `<button class="gh-loadmore">` load-more control.
 That button is intentionally just markup unless the theme also vendors the
