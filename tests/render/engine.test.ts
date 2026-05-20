@@ -750,6 +750,22 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('signin||name:|upsell');
   });
 
+  test('Journal-style {{^if @member.paid}} renders inverse branch when @member is undefined', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'index',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const hb = Handlebars.create();
+    const tpl = hb.compile('{{^if @member.paid}}upsell{{/if}}');
+    expect(tpl({}, { data })).toBe('upsell');
+  });
+
   // Issue #1300: `[components.preview].member.paid = true` opts into a designer
   // preview of the Casper / Edition signed-in CTA. The synthetic @member must
   // make `{{#if @member}}` truthy and `{{@member.paid}}` carry through, while
