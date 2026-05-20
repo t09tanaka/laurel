@@ -1188,6 +1188,26 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     // Second render must not see the first render's "head" content.
     expect(second).toBe('<html>|Q</html>');
   });
+
+  // Biron uses `{{{error.message}}}` for a runtime subscribe POST error
+  // display. Nectar does not seed that context on normal static routes, and
+  // Handlebars should resolve the missing path to an empty string rather than
+  // crashing the render.
+  test('missing runtime error context renders empty on normal routes (issue #1704)', () => {
+    const theme = makeTheme({
+      index: '<main>before{{{error.message}}}after</main>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const html = engine.render({
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    });
+    expect(html).toBe('<main>beforeafter</main>');
+  });
 });
 
 // Issue #552: template-as-partial registration must not clobber a theme

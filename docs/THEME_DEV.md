@@ -64,10 +64,16 @@ reachable if a top-level template renders it explicitly.
 | `/tag/<tag-slug>/` + pagination        | `tag`            | `tag.hbs`, falls back to `index.hbs`  |
 | `/author/<author-slug>/` + pagination  | `author`         | `author.hbs`, falls back to `index.hbs` |
 
-The `error.hbs` / `error-404.hbs` templates are accepted by the theme loader
-but Nectar's build pipeline does not currently emit a dedicated error route or
-`404.html`. If you ship one, host it yourself or use the dev server's built-in
-fallback.
+The `error.hbs` / `error-404.hbs` templates are accepted by the theme loader.
+When a theme ships one of them, Nectar emits `/404.html` with a static
+`error` context (`statusCode: 404`, `message: "Page not found"`). Otherwise
+Nectar emits its built-in `404.html`.
+
+Nectar does not seed a root `error` object on normal static routes. Some Ghost
+themes, including Biron, reference `{{{error.message}}}` inside runtime
+subscribe / Portal UI states that Ghost populates after a failed POST. In
+Nectar those runtime errors are out of scope, so the expression resolves to an
+empty string during static rendering and does not fail the build.
 
 ## 2. Layout inheritance
 
@@ -778,6 +784,9 @@ theme uses them, you'll either get an empty render or a no-op:
 - **Ghost Admin / edit URLs** — not rendered.
 - **`{{#get}}` against remote Ghost endpoints** — resolved against the local
   content graph only (see §5.5).
+- **Runtime form error context** — Ghost may populate `error.message` after a
+  failed subscribe / Portal POST. Nectar's static renderer normally leaves
+  `error` unset outside `/404.html`, so `{{{error.message}}}` renders empty.
 - **Live drafts / preview** — `status: draft` posts are dropped at build time.
 
 ## 11. Accessibility requirements

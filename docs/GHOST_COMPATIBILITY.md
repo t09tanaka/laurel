@@ -54,6 +54,17 @@ overrides applied from `nectar.toml [theme.custom]`.
 The exposed fields are exactly the keys on `Post`/`Page`/`Tag`/`Author` model
 types defined in `src/content/model.ts`. Keep that as the source of truth.
 
+### `error`
+
+The root `error` context is only populated for Nectar's static `/404.html`
+route when a theme-provided `error-404.hbs` or `error.hbs` template is rendered.
+Normal post, page, index, tag, and author routes do not seed `error`.
+
+That means runtime-only Ghost snippets such as Biron's subscribe error display
+(`{{{error.message}}}`) are safe in Nectar: with no failed POST happening at
+static render time, the path resolves to an empty string and does not throw.
+Nectar does not implement a runtime subscribe POST error lifecycle.
+
 ## Migration: Ghost HTML card sanitisation
 
 Ghost's "HTML card" (`<!--kg-card-begin: html-->…<!--kg-card-end: html-->`,
@@ -103,6 +114,9 @@ allowlist, which would silently apply to every future re-import.
 
 - Members context (`@member.*`) — undefined; templates that read it get
   empty values via the proxy default.
+- Runtime subscribe / Portal error context (`error.message`) — only Ghost's
+  live runtime populates this after failed POSTs. Nectar leaves `error` unset
+  on normal static routes, so those snippets render empty.
 - The Ghost Content API (`{{#get}}` against remote endpoints) — we resolve
   against the local content graph only.
 - Mobiledoc / Lexical card-level customization — content comes pre-rendered
