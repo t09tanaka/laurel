@@ -809,6 +809,67 @@ describe('buildRootData', () => {
     expect(out).toBe('p0,p1,p2,p3,');
   });
 
+  test('Headline-style index get limit reads theme package posts_per_page (issue #714)', () => {
+    const themePkg: ThemePackage = {
+      name: 'headline',
+      version: '0.0.0',
+      posts_per_page: 3,
+      image_sizes: {},
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+    };
+    const posts = Array.from({ length: 8 }, (_, i) =>
+      makePost({
+        id: `p${i}`,
+        title: `Headline ${i}`,
+        published_at: `2026-05-${String(20 - i).padStart(2, '0')}T00:00:00.000Z`,
+      }),
+    );
+    const hb = Handlebars.create();
+    const engine = {
+      hb,
+      config: {
+        theme: { custom: {} },
+        build: { posts_per_page: 99 },
+      } as unknown as NectarEngine['config'],
+      content: {
+        site: { locale: 'en' },
+        posts,
+        pages: [],
+        tags: [],
+        authors: [],
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+      templates: {},
+      layouts: {},
+      sortedCache: new Map<string, readonly unknown[]>(),
+      render: () => '',
+    } as NectarEngine;
+    registerBlockHelpers(engine);
+    const route: RouteContext = {
+      kind: 'index',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const config = data.config as Record<string, unknown>;
+    expect(config.posts_per_page).toBe(3);
+    expect(config.build).toBeUndefined();
+
+    const tpl = hb.compile(
+      [
+        '{{#get "posts" limit=@config.posts_per_page as |headline_posts|}}',
+        '{{#foreach headline_posts}}{{id}},{{/foreach}}',
+        '{{/get}}',
+      ].join(''),
+    );
+    expect(tpl({}, { data })).toBe('p0,p1,p2,');
+  });
+
   // Issue #122: Source theme reads `@member` in header / footer / CTA / nav /
   // post-list. Nectar has no logged-in viewer, so `@member` must be undefined
   // on every route. The data frame must still ship the key so themes don't see
