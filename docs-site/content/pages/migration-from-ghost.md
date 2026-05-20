@@ -47,4 +47,7 @@ nectar build
   for how to wire Buttondown / Beehiiv / Substack as a client-only newsletter
   drop-in.
 - Live preview, drafts via API, admin/edit links.
+- Ghost Admin integrations (`/ghost/api/integrations`, Zapier, Slack, etc.).
+  Keep those workflows in build hooks, CI, or your deploy provider's
+  integration / webhook settings.
 - Routes.yaml overrides — these need manual review.

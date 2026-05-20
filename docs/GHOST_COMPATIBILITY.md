@@ -205,3 +205,8 @@ pipeline may minify surrounding HTML, but it must preserve explicit `src` and
   controls such as Ease's `<button class="gh-loadmore">` require the theme to
   vendor and load the matching infinite-scroll JavaScript; otherwise they
   remain static markup.
+- Ghost Admin's integrations directory (`/ghost/api/integrations`, including
+  Zapier, Slack, and similar app listings) — out of scope. Nectar has no Admin
+  UI, no Admin API, and no server runtime to own integration installation or
+  webhook delivery. External automation should live in build hooks, CI, or the
+  deploy provider's integration/webhook settings around `nectar build`.

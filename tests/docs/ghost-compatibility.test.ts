@@ -33,4 +33,16 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toMatch(/theme limitation,\s+leave untouched/);
     expect(doc).toMatch(/must preserve explicit `src` and\s+`integrity` attributes/);
   });
+
+  test('documents Ghost Admin integrations as static build scope', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain("Ghost Admin's integrations directory");
+    expect(doc).toContain('/ghost/api/integrations');
+    expect(doc).toContain('Zapier');
+    expect(doc).toContain('Slack');
+    expect(doc).toMatch(
+      /External automation should live in build hooks, CI, or the\s+deploy provider/,
+    );
+  });
 });

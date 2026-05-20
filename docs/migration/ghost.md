@@ -260,6 +260,11 @@ These are explicitly out of scope and the importer drops them silently:
 - **The Ghost Content API.** Themes that call `{{#get}}` against a remote
   endpoint resolve against the local content graph instead — see the Ghost
   compatibility doc.
+- **Ghost Admin integrations.** The integrations directory exposed through
+  `/ghost/api/integrations` (Zapier, Slack, and similar app listings) is a
+  Ghost Admin concept, not a static-site feature. Nectar does not import or
+  model those records; trigger external services from build hooks, CI, or the
+  deploy provider's integration / webhook settings around `nectar build`.
 - **Drafts in Mobiledoc/Lexical-only form.** If a post has only a
   `mobiledoc` or `lexical` body and no rendered `html`, the importer logs a
   warning and skips the body. Publish or re-save the post in Ghost first so
