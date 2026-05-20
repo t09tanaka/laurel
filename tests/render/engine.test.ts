@@ -383,6 +383,57 @@ describe('buildContext', () => {
     expect(tokens).toContain('tag-news');
   });
 
+  test('post post_class adds `access` for public visibility (issue #984)', () => {
+    const post = makePost({ feature_image: '/img.jpg', html: '<p>hi</p>', visibility: 'public' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).post_class).split(' ');
+    expect(tokens).toContain('access');
+    expect(tokens).not.toContain('members-only');
+    expect(tokens).not.toContain('paid-only');
+  });
+
+  test('post post_class adds `members-only` for members visibility (issue #984)', () => {
+    const post = makePost({ html: '<p>hi</p>', visibility: 'members' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).post_class).split(' ');
+    expect(tokens).toContain('members-only');
+    expect(tokens).toContain('no-image');
+    expect(tokens).not.toContain('access');
+    expect(tokens).not.toContain('paid-only');
+  });
+
+  test('post post_class adds `paid-only` for paid and tier-filtered visibility (issue #984)', () => {
+    for (const visibility of ['paid', 'tiers', 'filter'] as const) {
+      const post = makePost({ feature_image: '/img.jpg', html: '<p>hi</p>', visibility });
+      const route: RouteContext = {
+        kind: 'post',
+        url: `/${visibility}/`,
+        outputPath: `${visibility}/index.html`,
+        template: 'post',
+        data: { post },
+        meta: baseMeta,
+      };
+      const tokens = String(buildContext(engine, route).post_class).split(' ');
+      expect(tokens).toContain('paid-only');
+      expect(tokens).not.toContain('access');
+      expect(tokens).not.toContain('members-only');
+    }
+  });
+
   test('page post_class includes the `page` token (issue #1119)', () => {
     const page = makePage({ feature_image: '/img.jpg', html: '<p>hi</p>' });
     const route: RouteContext = {

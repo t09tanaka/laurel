@@ -1340,6 +1340,21 @@ describe('post_class helper', () => {
     expect(tokens).toContain('featured');
     expect(tokens).toContain('image');
   });
+
+  test('emits visibility access tokens for iterated posts', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const tpl = engine.hb.compile('{{post_class}}');
+    expect(tpl({ tags: [], visibility: 'public', html: '<p>x</p>' }).split(' ')).toContain(
+      'access',
+    );
+    expect(tpl({ tags: [], visibility: 'members', html: '<p>x</p>' }).split(' ')).toContain(
+      'members-only',
+    );
+    expect(tpl({ tags: [], visibility: 'paid', html: '<p>x</p>' }).split(' ')).toContain(
+      'paid-only',
+    );
+  });
 });
 
 describe('body_class helper', () => {

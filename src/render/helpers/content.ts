@@ -320,6 +320,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       feature_image?: string | undefined;
       html?: string;
       page?: boolean;
+      visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
     };
     return computePostClass(ctx);
   });

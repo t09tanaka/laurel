@@ -636,10 +636,24 @@ export function computePostClass(post: {
   feature_image?: string | undefined;
   html?: string;
   page?: boolean;
+  visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
 }): string {
   const tokens = ['post'];
   for (const t of post.tags ?? []) tokens.push(`tag-${t.slug}`);
   if (post.featured) tokens.push('featured');
+  switch (post.visibility) {
+    case 'members':
+      tokens.push('members-only');
+      break;
+    case 'paid':
+    case 'tiers':
+    case 'filter':
+      tokens.push('paid-only');
+      break;
+    default:
+      tokens.push('access');
+      break;
+  }
   // Both `image` (Ghost legacy) and `feature-image` (Casper / Source variant)
   // markers are emitted together so theme CSS that hooks either selector
   // keeps working. `image-cover` is the Source-specific layout hook for
