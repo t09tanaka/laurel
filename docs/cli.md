@@ -61,7 +61,7 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
 | [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
-| [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive |
+| [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
@@ -396,19 +396,19 @@ Options:
 
 ### `nectar theme`
 
-Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive
+Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
 
 Usage:
 
 ```
-nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] <subcommand...>
+nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `new <name>` (scaffold themes/<name>/) or `zip` (archive the active theme into a gscan-compatible .zip) |
+| `<subcommand...>` | required (variadic) | `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory) |
 
 Options:
 
@@ -418,6 +418,7 @@ Options:
 | `--from <theme-name>` | string | `NECTAR_THEME_FROM` | `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold |
 | `-o, --output <path>` | string | `NECTAR_THEME_OUTPUT` | `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory) |
 | `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
+| `--json` | boolean | `NECTAR_THEME_JSON` | `lint` only: emit findings as JSON instead of the default table |
 
 ### `nectar migrate`
 

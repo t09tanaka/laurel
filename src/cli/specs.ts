@@ -613,7 +613,7 @@ export const MIGRATE_SPEC: CommandSpec = {
 export const THEME_SPEC: CommandSpec = {
   name: 'theme',
   summary:
-    'Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive',
+    'Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials',
   options: {
     config: {
       type: 'string',
@@ -638,12 +638,16 @@ export const THEME_SPEC: CommandSpec = {
       description:
         'Overwrite the destination directory (`new`) or archive (`zip`) if it already exists',
     },
+    json: {
+      type: 'boolean',
+      description: '`lint` only: emit findings as JSON instead of the default table',
+    },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`new <name>` (scaffold themes/<name>/) or `zip` (archive the active theme into a gscan-compatible .zip)',
+        '`new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)',
       required: true,
       variadic: true,
     },

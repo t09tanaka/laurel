@@ -7,6 +7,7 @@ import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { THEME_SPEC } from '../specs.ts';
+import { runThemeLint } from './theme-lint.ts';
 
 const NAME_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
@@ -37,8 +38,11 @@ export async function runTheme(args: string[]): Promise<number> {
   if (sub === 'zip') {
     return runZip({ parsed, cwd, configPath });
   }
+  if (sub === 'lint') {
+    return runLint({ parsed, cwd });
+  }
   process.stderr.write(
-    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`new <name>\` or \`zip\`.\n`,
+    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`new <name>\`, \`zip\`, or \`lint <path>\`.\n`,
   );
   return 2;
 }
@@ -47,6 +51,17 @@ interface SubOpts {
   parsed: ParsedCommand;
   cwd: string;
   configPath: string | undefined;
+}
+
+async function runLint({ parsed, cwd }: Omit<SubOpts, 'configPath'>): Promise<number> {
+  const target = parsed.positionals[1];
+  if (!target) {
+    process.stderr.write('`theme lint` requires a <path> argument.\n');
+    return 2;
+  }
+  const themePath = target.startsWith('/') ? target : join(cwd, target);
+  const asJson = parsed.values.json === true;
+  return runThemeLint({ themePath, asJson });
 }
 
 async function runNew({ parsed, cwd, configPath }: SubOpts): Promise<number> {

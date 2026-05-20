@@ -151,7 +151,8 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const [command, ...rest] = filtered;
+  const [command, ...restInitial] = filtered;
+  const rest = [...restInitial];
 
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     printTopUsage(version);
@@ -166,8 +167,19 @@ async function main(argv: string[]): Promise<number> {
   // `env` is an alias for `info` so the second-nature `nectar env` lands on
   // the same renderer without duplicating the spec in COMMAND_SPECS (which
   // would re-render the help block twice in `docs/cli.md`).
+  //
+  // `theme:lint` is a convenience alias for `theme lint` matching the colon-
+  // style most theme-author docs reach for. It rewrites the leading token
+  // before dispatch so the rest of the argv is left untouched (path, flags).
   const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
-  const canonical = COMMAND_ALIASES[command] ?? command;
+  let canonical = COMMAND_ALIASES[command] ?? command;
+  if (command.startsWith('theme:')) {
+    const sub = command.slice('theme:'.length);
+    if (sub) {
+      canonical = 'theme';
+      rest.unshift(sub);
+    }
+  }
 
   if (!(canonical in COMMAND_SPECS)) {
     process.stderr.write(`Unknown command: ${command}\n`);
