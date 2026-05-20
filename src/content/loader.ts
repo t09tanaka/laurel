@@ -1975,10 +1975,9 @@ function joinRoutePath(basePath: string, path: string, trailingSlash: TrailingSl
   return joinPathWithBase(basePath, canonicalRouteUrl(path, trailingSlash));
 }
 
-// `plaintext.slice(0, 200)` cut by code-unit count, which means 200 Japanese
-// characters (a much denser unit than 200 English characters) for CJK posts and
-// inconsistent excerpt length across scripts. Take the first 50 word-like
-// segments instead so excerpts are roughly comparable regardless of language.
+// Ghost generates default excerpts from the first 50 plaintext words rather
+// than from a fixed character count. Slice at the end of the 50th word-like
+// segment so cards and API shadows do not inherit trailing whitespace.
 const DEFAULT_EXCERPT_WORDS = 50;
 function buildDefaultExcerpt(plaintext: string, locale: string | undefined): string {
   return truncateByWords(plaintext, DEFAULT_EXCERPT_WORDS, locale);

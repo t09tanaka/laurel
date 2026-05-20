@@ -186,6 +186,8 @@ ${longPlaintext}
     expect(generated?.plaintext).toBe(numberedWords(55).join(' '));
     expect(generated?.plaintext).not.toContain('<strong>');
     expect(generated?.excerpt).toBe(first50Words);
+    expect(/\s$/.test(generated?.excerpt ?? '')).toBe(false);
+    expect(generated?.excerpt).not.toContain('w51');
 
     const nullCustom = graph.bySlug.posts.get('null-custom');
     expect(nullCustom?.custom_excerpt).toBeUndefined();

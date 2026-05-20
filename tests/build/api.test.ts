@@ -370,7 +370,7 @@ describe('emitContentApiShadows', () => {
     });
   });
 
-  test('serializes generated post excerpts as Ghost-style 50 plaintext words (#771)', async () => {
+  test('serializes generated post excerpts as Ghost-style 50 plaintext words (#983)', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-'));
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-out-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
@@ -401,6 +401,8 @@ ${numberedWords(53, 3).join(' ')}
     expect(body.posts[0].custom_excerpt).toBeNull();
     expect(body.posts[0].excerpt).toBe(numberedWords(50).join(' '));
     expect(body.posts[0].excerpt).not.toContain('<strong>');
+    expect(body.posts[0].excerpt).not.toContain('w51');
+    expect(/\s$/.test(body.posts[0].excerpt)).toBe(false);
     expect(body.posts[0].excerpt.split(/\s+/)).toHaveLength(50);
   });
 
