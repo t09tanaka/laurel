@@ -605,6 +605,34 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     expect(html).toContain('<figcaption>Trio</figcaption>');
   });
 
+  test('preserves gallery image responsive attributes', async () => {
+    const md = [
+      '{{< gallery >}}',
+      '{{< gallery-row >}}',
+      '{{< gallery-image src="/content/images/gallery/one.jpg" alt="One" width="1200" height="800" srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w" sizes="(min-width: 720px) 720px, 100vw" />}}',
+      '{{< /gallery-row >}}',
+      '{{< /gallery >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain(
+      'srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w"',
+    );
+    expect(html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
+  test('adds default gallery sizes when gallery image srcset lacks sizes', async () => {
+    const md = [
+      '{{< gallery >}}',
+      '{{< gallery-row >}}',
+      '{{< gallery-image src="/content/images/gallery/one.jpg" alt="One" srcset="/content/images/size/w600/gallery/one.jpg 600w" />}}',
+      '{{< /gallery-row >}}',
+      '{{< /gallery >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('srcset="/content/images/size/w600/gallery/one.jpg 600w"');
+    expect(html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
   test('preserves explicit Koenig width modifiers on gallery cards', async () => {
     const md = [
       '{{< gallery size="full" caption="Wide roll" >}}',

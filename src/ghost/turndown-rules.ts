@@ -476,6 +476,8 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           alt: attr(img, 'alt'),
           width: attr(img, 'width'),
           height: attr(img, 'height'),
+          srcset: attr(img, 'srcset'),
+          sizes: attr(img, 'sizes'),
         });
       };
       const renderRow = (rowImgs: DomNode[]): string => {

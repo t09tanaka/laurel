@@ -223,6 +223,30 @@ describe('renderLexicalToHtml', () => {
     expect(out).not.toContain('loading="eager"');
   });
 
+  test('preserves responsive attrs on gallery images', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'gallery',
+          images: [
+            {
+              src: '/content/images/gallery/one.jpg',
+              alt: 'One',
+              srcset:
+                '/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w',
+              sizes: '(min-width: 720px) 720px, 100vw',
+            },
+          ],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain(
+      'srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w"',
+    );
+    expect(out).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
   test('drops invalid Koenig cardWidth tokens', () => {
     const out = renderLexicalToHtml(
       lex([

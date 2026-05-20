@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
+import { GALLERY_IMAGE_SIZES } from '~/content/gallery-images.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
 import { scanGlob } from '~/util/fs.ts';
@@ -127,6 +128,7 @@ export const DEFAULT_RESPONSIVE_WIDTHS: readonly number[] = [600, 1000, 1600, 24
 // (max 720px content column). Themes can override per-image via existing
 // sizes attributes; we only inject when none is present.
 export const DEFAULT_IMAGE_SIZES = '(min-width: 720px) 720px';
+export { GALLERY_IMAGE_SIZES };
 
 // Only formats that sharp can resize. SVG is intrinsically scalable so a
 // variant pass would be busy-work; GIF can be animated and sharp drops frames
@@ -275,24 +277,62 @@ export function injectImageSrcset(html: string, opts: InjectImageSrcsetOptions):
   if (!html.includes('<img') || opts.plan.size === 0) return html;
   const marker = opts.marker ?? '/content/images/';
   const sizesAttr = opts.sizesAttr ?? DEFAULT_IMAGE_SIZES;
-  return html.replace(/<img\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string, selfClose: string) => {
-    const attrs = parseImgAttrs(attrsRaw);
-    if (attrs.has('srcset')) return match;
-    const src = attrs.get('src');
-    if (typeof src !== 'string' || src === '') return match;
-    const cleaned = src.split(/[?#]/)[0] ?? '';
-    const idx = cleaned.indexOf(marker);
-    if (idx < 0) return match;
-    const after = cleaned.slice(idx + marker.length);
-    if (after === '' || after.startsWith('size/') || after.includes('..')) return match;
-    const widths = opts.plan.get(after);
-    if (!widths || widths.length === 0) return match;
-    const before = cleaned.slice(0, idx + marker.length);
-    const entries = widths.map((w) => `${before}size/w${w}/${after} ${w}w`).join(', ');
-    const spacer = attrsRaw.length === 0 || /\s$/.test(attrsRaw) ? '' : ' ';
-    const sizesPart = attrs.has('sizes') ? '' : ` sizes="${sizesAttr}"`;
-    return `<img${attrsRaw}${spacer}srcset="${entries}"${sizesPart}${selfClose}>`;
-  });
+  const withGallerySizes = html.replace(
+    /(<div\b[^>]*class=(["'])[^"']*\bkg-gallery-image\b[^"']*\2[^>]*>\s*)<img\b([^>]*?)(\/?)>/gi,
+    (match, prefix: string, _quote: string, attrsRaw: string, selfClose: string) =>
+      `${prefix}${injectImageSrcsetTag(match.slice(prefix.length), attrsRaw, selfClose, {
+        marker,
+        plan: opts.plan,
+        sizesAttr: GALLERY_IMAGE_SIZES,
+        addSizesWhenSrcsetExists: true,
+      })}`,
+  );
+  return withGallerySizes.replace(
+    /<img\b([^>]*?)(\/?)>/gi,
+    (match, attrsRaw: string, selfClose: string) =>
+      injectImageSrcsetTag(match, attrsRaw, selfClose, {
+        marker,
+        plan: opts.plan,
+        sizesAttr,
+        addSizesWhenSrcsetExists: false,
+      }),
+  );
+}
+
+function injectImageSrcsetTag(
+  match: string,
+  attrsRaw: string,
+  selfClose: string,
+  opts: {
+    plan: ImageVariantPlan;
+    marker: string;
+    sizesAttr: string;
+    addSizesWhenSrcsetExists: boolean;
+  },
+): string {
+  const attrs = parseImgAttrs(attrsRaw);
+  if (attrs.has('srcset')) {
+    if (!opts.addSizesWhenSrcsetExists || attrs.has('sizes')) return match;
+    return appendImgAttrs(attrsRaw, `sizes="${opts.sizesAttr}"`, selfClose);
+  }
+  const src = attrs.get('src');
+  if (typeof src !== 'string' || src === '') return match;
+  const cleaned = src.split(/[?#]/)[0] ?? '';
+  const idx = cleaned.indexOf(opts.marker);
+  if (idx < 0) return match;
+  const after = cleaned.slice(idx + opts.marker.length);
+  if (after === '' || after.startsWith('size/') || after.includes('..')) return match;
+  const widths = opts.plan.get(after);
+  if (!widths || widths.length === 0) return match;
+  const before = cleaned.slice(0, idx + opts.marker.length);
+  const entries = widths.map((w) => `${before}size/w${w}/${after} ${w}w`).join(', ');
+  const sizesPart = attrs.has('sizes') ? '' : ` sizes="${opts.sizesAttr}"`;
+  return appendImgAttrs(attrsRaw, `srcset="${entries}"${sizesPart}`, selfClose);
+}
+
+function appendImgAttrs(attrsRaw: string, attrs: string, selfClose: string): string {
+  const spacer = attrsRaw.length === 0 || /\s$/.test(attrsRaw) ? '' : ' ';
+  return `<img${attrsRaw}${spacer}${attrs}${selfClose}>`;
 }
 
 export interface InjectImageSrcsetIntoContentOptions {

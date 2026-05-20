@@ -8,6 +8,7 @@ import { codeToHtml } from 'shiki';
 import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
 import { NectarError, suggestClosest } from '~/util/errors.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
+import { GALLERY_IMAGE_SIZES } from './gallery-images.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
 marked.use(gfmHeadingId());
@@ -1531,8 +1532,11 @@ function renderGalleryHtml(attrs: Record<string, string>, body: string): string 
       if (!ia.src) continue;
       const widthAttr = ia.width ? ` width="${escapeHtmlAttr(ia.width)}"` : '';
       const heightAttr = ia.height ? ` height="${escapeHtmlAttr(ia.height)}"` : '';
+      const srcsetAttr = ia.srcset ? ` srcset="${escapeHtmlAttr(ia.srcset)}"` : '';
+      const sizes = ia.sizes ?? (ia.srcset ? GALLERY_IMAGE_SIZES : '');
+      const sizesAttr = sizes ? ` sizes="${escapeHtmlAttr(sizes)}"` : '';
       images.push(
-        `<div class="kg-gallery-image"><img src="${escapeHtmlAttr(ia.src)}" alt="${escapeHtmlAttr(ia.alt ?? '')}"${widthAttr}${heightAttr} loading="lazy" /></div>`,
+        `<div class="kg-gallery-image"><img src="${escapeHtmlAttr(ia.src)}" alt="${escapeHtmlAttr(ia.alt ?? '')}"${widthAttr}${heightAttr}${srcsetAttr}${sizesAttr} loading="lazy" /></div>`,
       );
     }
     if (images.length > 0) {

@@ -296,6 +296,33 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
     expect(md.indexOf('/img/c.jpg')).toBeLessThan(md.indexOf('/img/d.jpg'));
   });
 
+  test('preserves gallery image srcset and sizes attrs', () => {
+    const html = `
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-container">
+          <div class="kg-gallery-row">
+            <div class="kg-gallery-image">
+              <img
+                src="/content/images/gallery/one.jpg"
+                srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w"
+                sizes="(min-width: 720px) 720px, 100vw"
+                alt="One"
+                width="1200"
+                height="800"
+              />
+            </div>
+          </div>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('src="/content/images/gallery/one.jpg"');
+    expect(md).toContain(
+      'srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/gallery/one.jpg 1200w"',
+    );
+    expect(md).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
   test('omits width/height attributes that are missing on the source img', () => {
     const html = `
       <figure class="kg-card kg-gallery-card">

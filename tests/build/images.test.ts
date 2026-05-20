@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_IMAGE_SIZES,
   DEFAULT_RESPONSIVE_WIDTHS,
+  GALLERY_IMAGE_SIZES,
   type ImageVariantPlan,
   buildThemeImageSizeSegment,
   collapseDegenerateSrcset,
@@ -347,6 +348,36 @@ describe('injectImageSrcset', () => {
     const html = '<img src="/content/images/cover.jpg">';
     const out = injectImageSrcset(html, { plan, sizesAttr: '50vw' });
     expect(out).toContain('sizes="50vw"');
+  });
+
+  test('uses the gallery sizes contract for in-gallery images', () => {
+    const plan = planFor({ 'gallery/one.jpg': [600, 1000] });
+    const html =
+      '<figure class="kg-card kg-gallery-card"><div class="kg-gallery-image"><img src="/content/images/gallery/one.jpg" alt="One"></div></figure>';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toContain(
+      'srcset="/content/images/size/w600/gallery/one.jpg 600w, /content/images/size/w1000/gallery/one.jpg 1000w"',
+    );
+    expect(out).toContain(`sizes="${GALLERY_IMAGE_SIZES}"`);
+    expect(out).not.toContain(`sizes="${DEFAULT_IMAGE_SIZES}"`);
+  });
+
+  test('adds missing gallery sizes when a gallery image already has srcset', () => {
+    const plan = planFor({ 'gallery/one.jpg': [600] });
+    const html =
+      '<div class="kg-gallery-image"><img src="/content/images/gallery/one.jpg" srcset="/content/images/size/w600/gallery/one.jpg 600w" alt="One"></div>';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toContain('srcset="/content/images/size/w600/gallery/one.jpg 600w"');
+    expect(out).toContain(`sizes="${GALLERY_IMAGE_SIZES}"`);
+  });
+
+  test('preserves explicit gallery sizes when present', () => {
+    const plan = planFor({ 'gallery/one.jpg': [600] });
+    const html =
+      '<div class="kg-gallery-image"><img src="/content/images/gallery/one.jpg" srcset="/content/images/size/w600/gallery/one.jpg 600w" sizes="50vw" alt="One"></div>';
+    const out = injectImageSrcset(html, { plan });
+    expect(out).toContain('sizes="50vw"');
+    expect(out).not.toContain(GALLERY_IMAGE_SIZES);
   });
 
   test('returns input unchanged when the plan is empty', () => {

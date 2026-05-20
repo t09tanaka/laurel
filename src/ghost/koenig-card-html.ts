@@ -329,11 +329,15 @@ export function renderGalleryCardHtml(payload: unknown): string {
         const alt = strProp(img, 'alt');
         const w = strProp(img, 'width');
         const h = strProp(img, 'height');
+        const srcset = strProp(img, 'srcset');
+        const sizes = strProp(img, 'sizes');
         const attrs = [
           `src="${escapeAttr(src)}"`,
           `alt="${escapeAttr(alt)}"`,
           w ? `width="${escapeAttr(w)}"` : '',
           h ? `height="${escapeAttr(h)}"` : '',
+          srcset ? `srcset="${escapeAttr(srcset)}"` : '',
+          sizes ? `sizes="${escapeAttr(sizes)}"` : '',
         ]
           .filter((s) => s !== '')
           .join(' ');
