@@ -19,7 +19,8 @@ let threshold = envLevel ? order[envLevel] : order.info;
 let warningCount = 0;
 
 // Output mode controls how `logger.<level>(...)` is serialised. `text` (the
-// default) keeps the human-readable `[level] message` format on stderr.
+// default) keeps human-readable info/debug/trace output on stdout and
+// warning/error output on stderr.
 // `json` switches to one JSON object per line ({ts,level,msg,fields?}) so CI
 // pipelines and log aggregators can consume nectar output without parsing
 // the surface text. Toggled by `--json` (global) or env `NECTAR_JSON=1`.
@@ -150,12 +151,17 @@ function emit(level: Level, parts: unknown[]): void {
       msg: message,
     };
     if (fields) record.fields = sanitizeFields(fields);
-    process.stderr.write(`${safeJsonStringify(record)}\n`);
+    writeToLevelStream(level, `${safeJsonStringify(record)}\n`);
     return;
   }
   const tag = level === 'info' ? '' : `${colorize(`[${level}]`, levelColor(level))} `;
   const trailing = fields ? ` ${formatFieldsForText(fields)}` : '';
-  process.stderr.write(`${tag}${message}${trailing}\n`);
+  writeToLevelStream(level, `${tag}${message}${trailing}\n`);
+}
+
+function writeToLevelStream(level: Level, chunk: string): void {
+  const stream = order[level] >= order.warn ? process.stderr : process.stdout;
+  stream.write(chunk);
 }
 
 function levelColor(level: Level): keyof typeof ANSI {

@@ -76,7 +76,7 @@ export function createBuildProgressDisplay(
   if (options.enabled === false) return undefined;
   const mode = options.mode ?? getCliProgressMode();
   if (mode === 'interactive') {
-    return createInteractiveBuildProgressDisplay(options.stream ?? process.stderr, options.now);
+    return createInteractiveBuildProgressDisplay(options.stream ?? process.stdout, options.now);
   }
   return createPlainBuildProgressDisplay(options.now);
 }

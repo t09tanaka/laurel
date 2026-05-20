@@ -172,14 +172,14 @@ Options:
 | `--force` | boolean | `NECTAR_BUILD_FORCE` | Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted |
 | `--cache` | boolean | `NECTAR_BUILD_CACHE` | Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache |
 | `--no-cache` | boolean | `NECTAR_BUILD_CACHE=0` | Force every route to render without consulting the incremental cache |
-| `--progress` | boolean | `NECTAR_BUILD_PROGRESS` | Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output |
-| `--no-progress` | boolean | `NECTAR_BUILD_PROGRESS=0` | Suppress human-readable build progress and summary lines |
+| `--progress` | boolean | `NECTAR_BUILD_PROGRESS` | Print human-readable build progress and summary lines to stdout. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log` |
+| `--no-progress` | boolean | `NECTAR_BUILD_PROGRESS=0` | Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr |
 | `--copy-content-assets` | boolean | `NECTAR_BUILD_COPY_CONTENT_ASSETS` | Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build |
 | `--no-copy-content-assets` | boolean | `NECTAR_BUILD_COPY_CONTENT_ASSETS=0` | Skip copying files from content.assets_dir into the output |
 | `-w, --watch` | boolean | `NECTAR_BUILD_WATCH` | After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop |
 | `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used |
 | `--no-emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API=0` | Force Ghost Content API JSON shadows off for this build without editing the config |
-| `-j, --json` | boolean | `NECTAR_BUILD_JSON` | Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
+| `-j, --json` | boolean | `NECTAR_BUILD_JSON` | Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `nectar build --json > build.jsonl` does not hide failures |
 
 Examples:
 

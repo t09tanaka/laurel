@@ -33,6 +33,11 @@ async function runCli(
   return { stdout, stderr, exitCode };
 }
 
+function parseLastJsonLine<T>(stdout: string): T {
+  const line = stdout.trim().split('\n').filter(Boolean).at(-1) ?? '';
+  return JSON.parse(line) as T;
+}
+
 async function makeFixture(files: Record<string, string>): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-')));
   for (const [path, body] of Object.entries(files)) {
@@ -148,7 +153,7 @@ describe('nectar build --dry-run (#252)', () => {
     cleanups.push(dir);
     const result = await runCli(['build', '--dry-run'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain('Dry run: would build');
+    expect(result.stdout).toContain('Dry run: would build');
     expect(existsSync(join(dir, 'dist'))).toBe(false);
   });
 
@@ -157,8 +162,8 @@ describe('nectar build --dry-run (#252)', () => {
     cleanups.push(dir);
     const result = await runCli(['build', '--dry-run'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).not.toContain('Routes:');
-    expect(result.stderr).not.toContain('TEMPLATE');
+    expect(result.stdout).not.toContain('Routes:');
+    expect(result.stdout).not.toContain('TEMPLATE');
   });
 
   test('--dry-run --verbose prints the per-route table', async () => {
@@ -166,23 +171,25 @@ describe('nectar build --dry-run (#252)', () => {
     cleanups.push(dir);
     const result = await runCli(['--verbose', 'build', '--dry-run'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain('Routes:');
-    expect(result.stderr).toContain('TEMPLATE');
-    expect(result.stderr).toContain('URL');
-    expect(result.stderr).toContain('/hello/');
+    expect(result.stdout).toContain('Routes:');
+    expect(result.stdout).toContain('TEMPLATE');
+    expect(result.stdout).toContain('URL');
+    expect(result.stdout).toContain('/hello/');
   });
 
-  test('prints plain build phase and route progress when stderr is piped', async () => {
+  test('prints plain build phase and route progress to stdout when streams are piped', async () => {
     const dir = await makeDryRunFixture();
     cleanups.push(dir);
     const result = await runCli(['build', '--dry-run'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain('Build: Loading config...');
-    expect(result.stderr).toContain('Build: Loading content and theme...');
-    expect(result.stderr).toContain('Build: planned ');
-    expect(result.stderr).toContain('Build: rendered [1/');
-    expect(result.stderr).toContain('Build: finished rendering ');
-    expect(result.stderr).toContain('Dry run: would build');
+    expect(result.stdout).toContain('Build: Loading config...');
+    expect(result.stdout).toContain('Build: Loading content and theme...');
+    expect(result.stdout).toContain('Build: planned ');
+    expect(result.stdout).toContain('Build: rendered [1/');
+    expect(result.stdout).toContain('Build: finished rendering ');
+    expect(result.stdout).toContain('Dry run: would build');
+    expect(result.stderr).not.toContain('Build:');
+    expect(result.stderr).not.toContain('Dry run: would build');
   });
 
   test('--no-progress suppresses build progress and summary lines', async () => {
@@ -190,8 +197,8 @@ describe('nectar build --dry-run (#252)', () => {
     cleanups.push(dir);
     const result = await runCli(['build', '--dry-run', '--no-progress'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).not.toContain('Build:');
-    expect(result.stderr).not.toContain('Dry run: would build');
+    expect(result.stdout).not.toContain('Build:');
+    expect(result.stdout).not.toContain('Dry run: would build');
   });
 
   test('--json suppresses human progress while keeping JSON summary on stdout', async () => {
@@ -201,7 +208,7 @@ describe('nectar build --dry-run (#252)', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).not.toContain('Build:');
     expect(result.stderr).not.toContain('Dry run: would build');
-    const payload = JSON.parse(result.stdout) as {
+    const payload = parseLastJsonLine<{
       event: string;
       ok: boolean;
       routeCount: number;
@@ -211,7 +218,7 @@ describe('nectar build --dry-run (#252)', () => {
       renderedCount: number;
       skippedCount: number;
       dryRun: boolean;
-    };
+    }>(result.stdout);
     expect(payload.event).toBe('build.done');
     expect(payload.ok).toBe(true);
     expect(payload.routeCount).toBeGreaterThan(0);
@@ -228,8 +235,8 @@ describe('nectar build --dry-run (#252)', () => {
     cleanups.push(dir);
     const result = await runCli(['--quiet', 'build', '--dry-run'], dir);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).not.toContain('Build:');
-    expect(result.stderr).not.toContain('Dry run: would build');
+    expect(result.stdout).not.toContain('Build:');
+    expect(result.stdout).not.toContain('Dry run: would build');
   });
 });
 
@@ -250,7 +257,7 @@ describe('nectar build --profile', () => {
 
     expect(result.exitCode).toBe(0);
     const statsPath = join(dir, 'dist/.nectar-build-stats.json');
-    expect(result.stderr).toContain(`Build stats: ${statsPath}`);
+    expect(result.stdout).toContain(`Build stats: ${statsPath}`);
     expect(existsSync(statsPath)).toBe(true);
     const stats = JSON.parse(readFileSync(statsPath, 'utf8')) as {
       phases: Array<{ name: string }>;
@@ -275,7 +282,7 @@ describe('nectar build --profile', () => {
     const result = await runCli(['build', '--profile', '--json'], dir);
 
     expect(result.exitCode).toBe(0);
-    const payload = JSON.parse(result.stdout) as { profilePath?: string };
+    const payload = parseLastJsonLine<{ profilePath?: string }>(result.stdout);
     expect(payload.profilePath).toBe(join(dir, 'dist/.nectar-build-stats.json'));
   });
 });
@@ -706,6 +713,7 @@ Not ready.
     cleanups.push(dir);
     const result = await runCli(['build', '--include-drafts'], dir);
     expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Built ');
     expect(result.stderr).toContain('Building with drafts');
   });
 
@@ -792,18 +800,18 @@ describe('nectar build --watch (#254)', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
+      const reader = proc.stdout.getReader();
       const decoder = new TextDecoder();
-      let stderr = '';
+      let stdout = '';
       const deadline = Date.now() + 15000;
       while (Date.now() < deadline) {
         const { value, done } = await reader.read();
         if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Watch mode enabled')) break;
+        stdout += decoder.decode(value, { stream: true });
+        if (stdout.includes('Watch mode enabled')) break;
       }
-      expect(stderr).toContain('Built');
-      expect(stderr).toContain('Watch mode enabled');
+      expect(stdout).toContain('Built');
+      expect(stdout).toContain('Watch mode enabled');
       expect(proc.killed).toBe(false);
       reader.releaseLock();
     } finally {
@@ -821,22 +829,22 @@ describe('nectar build --watch (#254)', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
+      const reader = proc.stdout.getReader();
       const decoder = new TextDecoder();
-      let stderr = '';
+      let stdout = '';
       const readUntil = async (needle: string, timeoutMs: number): Promise<boolean> => {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-          if (stderr.includes(needle)) return true;
+          if (stdout.includes(needle)) return true;
           const { value, done } = await reader.read();
-          if (done) return stderr.includes(needle);
-          stderr += decoder.decode(value, { stream: true });
+          if (done) return stdout.includes(needle);
+          stdout += decoder.decode(value, { stream: true });
         }
-        return stderr.includes(needle);
+        return stdout.includes(needle);
       };
       const ready = await readUntil('Watch mode enabled', 15000);
       expect(ready).toBe(true);
-      const before = stderr.length;
+      const before = stdout.length;
       await writeFile(
         join(dir, 'content/posts/hello.md'),
         '---\ntitle: "Hello v2"\ndate: 2026-01-01T00:00:00Z\n---\n\nUpdated\n',
@@ -844,7 +852,7 @@ describe('nectar build --watch (#254)', () => {
       );
       const rebuilt = await readUntil('Rebuilt', 15000);
       expect(rebuilt).toBe(true);
-      expect(stderr.slice(before)).toContain('Rebuilt');
+      expect(stdout.slice(before)).toContain('Rebuilt');
       reader.releaseLock();
     } finally {
       proc.kill('SIGTERM');

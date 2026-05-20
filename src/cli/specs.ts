@@ -77,8 +77,9 @@ export const BUILD_SPEC: CommandSpec = {
       type: 'boolean',
       default: true,
       description:
-        'Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output',
-      negatedDescription: 'Suppress human-readable build progress and summary lines',
+        'Print human-readable build progress and summary lines to stdout. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`',
+      negatedDescription:
+        'Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr',
     },
     'copy-content-assets': {
       type: 'boolean',
@@ -103,7 +104,7 @@ export const BUILD_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them',
+        'Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `nectar build --json > build.jsonl` does not hide failures',
     },
   },
   positionals: [],
