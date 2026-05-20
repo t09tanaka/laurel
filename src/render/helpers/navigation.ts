@@ -3,6 +3,18 @@ import { sanitizeHref } from '~/util/safe-href.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerNavigationHelpers(engine: NectarEngine): void {
+  // Resolve a translator lazily from the engine state. Tests register
+  // navigation helpers against a partial engine where `content.site` and
+  // `theme.locales` are `{}` placeholders, so we always fall through to the
+  // English key when nothing matches (`{}[k] || {}[k] || key === key`).
+  const translate = (key: string): string => {
+    const locale = engine.content?.site?.locale ?? '';
+    const locales = engine.theme?.locales ?? {};
+    const active = locales[locale] ?? {};
+    const fallback = locales.en ?? {};
+    return active[key] || fallback[key] || key;
+  };
+
   engine.hb.registerHelper(
     'navigation',
     function navigationHelper(this: unknown, options: Handlebars.HelperOptions) {
@@ -50,14 +62,28 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const parts: string[] = [
         '<nav class="pagination" role="navigation" aria-label="Pagination">',
       ];
+      // Translate the visible labels through the theme's locale files so a
+      // Japanese / French / etc. theme renders pagination in its own language.
+      // English remains the fallback when the active locale has no entry,
+      // matching the {{t}} helper's lookup order (active -> en -> key).
+      const newerLabel = escapeHtml(translate('Newer Posts'));
+      const olderLabel = escapeHtml(translate('Older Posts'));
+      const pageLabel = escapeHtml(translate('Page'));
+      const ofLabel = escapeHtml(translate('of'));
       if (pagination.prev_url) {
         const safePrev = sanitizeHref(pagination.prev_url, '{{pagination}} helper (prev_url)');
-        parts.push(`<a class="newer-posts" href="${escapeAttr(safePrev)}">&larr; Newer Posts</a>`);
+        parts.push(
+          `<a class="newer-posts" href="${escapeAttr(safePrev)}">&larr; ${newerLabel}</a>`,
+        );
       }
-      parts.push(`<span class="page-number">Page ${pagination.page} of ${pagination.pages}</span>`);
+      parts.push(
+        `<span class="page-number">${pageLabel} ${pagination.page} ${ofLabel} ${pagination.pages}</span>`,
+      );
       if (pagination.next_url) {
         const safeNext = sanitizeHref(pagination.next_url, '{{pagination}} helper (next_url)');
-        parts.push(`<a class="older-posts" href="${escapeAttr(safeNext)}">Older Posts &rarr;</a>`);
+        parts.push(
+          `<a class="older-posts" href="${escapeAttr(safeNext)}">${olderLabel} &rarr;</a>`,
+        );
       }
       parts.push('</nav>');
       return new engine.hb.SafeString(parts.join(''));
@@ -87,11 +113,20 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const route = options.data?.route as { url?: string } | undefined;
       const target = String(options.hash.for ?? '');
       const active = String(options.hash.activeClass ?? 'nav-current');
-      if (
-        route?.url &&
-        (route.url === target || normaliseUrl(route.url) === normaliseUrl(target))
-      ) {
+      if (!route?.url || !target) return '';
+      if (route.url === target || normaliseUrl(route.url) === normaliseUrl(target)) {
         return active;
+      }
+      // Treat a directory-style target (trailing slash) as a section root so
+      // sub-routes like `/tag/news/page/2/` still highlight the parent
+      // `/tag/news/` link. The trailing slash is the opt-in: a bare
+      // `/tag/news` target keeps the strict equality semantics above.
+      // Compare against the route's normalised form with a trailing slash
+      // appended so `/tag/news` (no slash) and `/tag/news/` both qualify as
+      // descendants of `/tag/news/`.
+      if (target.endsWith('/')) {
+        const routeWithSlash = route.url.endsWith('/') ? route.url : `${route.url}/`;
+        if (routeWithSlash.startsWith(target)) return active;
       }
       return '';
     },

@@ -8,13 +8,19 @@ interface NavItem {
   url: string;
 }
 
-function makeEngine(): NectarEngine {
+function makeEngine(
+  overrides: {
+    locale?: string;
+    locales?: Record<string, Record<string, string>>;
+  } = {},
+): NectarEngine {
   const hb = Handlebars.create();
+  const site = overrides.locale ? { locale: overrides.locale } : {};
   return {
     hb,
     config: {} as NectarEngine['config'],
-    content: {} as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    content: { site } as unknown as NectarEngine['content'],
+    theme: { locales: overrides.locales ?? {} } as unknown as NectarEngine['theme'],
     templates: {},
     layouts: {},
     render() {
@@ -324,5 +330,143 @@ describe('link helper target/rel handling', () => {
     const html = renderLink('href="https://example.com/" target="_self"');
     expect(html).toContain('target="_self"');
     expect(html).not.toContain(' rel=');
+  });
+});
+
+function renderLinkClass(routeUrl: string | undefined, hash: string): string {
+  const engine = makeEngine();
+  registerNavigationHelpers(engine);
+  const template = engine.hb.compile(`{{link_class ${hash}}}`);
+  return template(
+    {},
+    {
+      data: {
+        route: routeUrl === undefined ? undefined : { url: routeUrl },
+      },
+    },
+  );
+}
+
+// Issue #779: parent-route highlighting. A trailing-slash target like
+// `/tag/news/` represents a section root; sub-routes (`/tag/news/page/2/`,
+// `/tag/news/something/`) should still receive the active class so a
+// "current tag" link doesn't lose its highlight on paginated sub-pages.
+describe('link_class helper parent-route matching', () => {
+  test('returns the active class on an exact match', () => {
+    expect(renderLinkClass('/tag/news/', 'for="/tag/news/"')).toBe('nav-current');
+  });
+
+  test('returns the active class for a paginated sub-route of a trailing-slash target', () => {
+    expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/news/"')).toBe('nav-current');
+  });
+
+  test('returns the active class for a deeper sub-route of a trailing-slash target', () => {
+    expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/"')).toBe('nav-current');
+  });
+
+  test('still treats a missing-slash route as a descendant of a trailing-slash target', () => {
+    expect(renderLinkClass('/tag/news', 'for="/tag/news/"')).toBe('nav-current');
+  });
+
+  test('does not match a sibling route that shares a prefix without a slash boundary', () => {
+    // `/tag/news-flash/` is NOT a descendant of `/tag/news/` even though the
+    // prefix matches lexically. The trailing slash on the target enforces
+    // the boundary.
+    expect(renderLinkClass('/tag/news-flash/', 'for="/tag/news/"')).toBe('');
+  });
+
+  test('returns empty when target has no trailing slash and route is a sub-path', () => {
+    // Without the trailing-slash opt-in, the helper keeps the strict
+    // equality behaviour it had pre-#779.
+    expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/news"')).toBe('');
+  });
+
+  test('honours custom activeClass', () => {
+    expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/news/" activeClass="is-active"')).toBe(
+      'is-active',
+    );
+  });
+
+  test('returns empty when route is unset', () => {
+    expect(renderLinkClass(undefined, 'for="/tag/news/"')).toBe('');
+  });
+
+  test('returns empty when target is unset', () => {
+    expect(renderLinkClass('/tag/news/', 'activeClass="nav-current"')).toBe('');
+  });
+});
+
+function renderPaginationWithLocale(
+  pagination: {
+    page: number;
+    pages: number;
+    prev_url: string | undefined;
+    next_url: string | undefined;
+  },
+  locale: string,
+  locales: Record<string, Record<string, string>>,
+): string {
+  const engine = makeEngine({ locale, locales });
+  registerNavigationHelpers(engine);
+  const template = engine.hb.compile('{{pagination}}');
+  return template(
+    {},
+    {
+      data: {
+        route: { data: { pagination } },
+      },
+    },
+  );
+}
+
+// Issue #780: pagination labels go through the {{t}} translation table so
+// non-English themes render "前の記事" / "次の記事" instead of forced English.
+describe('pagination helper i18n', () => {
+  const pagination = {
+    page: 2,
+    pages: 3,
+    prev_url: '/page/1/',
+    next_url: '/page/3/',
+  };
+
+  test('falls back to English when no locales are configured', () => {
+    const html = renderPagination(pagination);
+    expect(html).toContain('Newer Posts');
+    expect(html).toContain('Older Posts');
+    expect(html).toContain('Page 2 of 3');
+  });
+
+  test('uses the active locale entries when present', () => {
+    const html = renderPaginationWithLocale(pagination, 'ja', {
+      en: {},
+      ja: {
+        'Newer Posts': '新しい記事',
+        'Older Posts': '古い記事',
+        Page: 'ページ',
+        of: '/',
+      },
+    });
+    expect(html).toContain('新しい記事');
+    expect(html).toContain('古い記事');
+    expect(html).toContain('ページ 2 / 3');
+  });
+
+  test('falls back to the English entry when the active locale lacks the key', () => {
+    const html = renderPaginationWithLocale(pagination, 'ja', {
+      en: { 'Newer Posts': 'EN Newer', 'Older Posts': 'EN Older' },
+      ja: {},
+    });
+    expect(html).toContain('EN Newer');
+    expect(html).toContain('EN Older');
+  });
+
+  test('escapes translated labels so a malicious locale cannot inject HTML', () => {
+    const html = renderPaginationWithLocale(pagination, 'evil', {
+      en: {},
+      evil: { 'Newer Posts': '<script>1</script>', 'Older Posts': '<img src=x>' },
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<img src=x>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });
