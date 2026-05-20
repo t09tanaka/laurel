@@ -602,6 +602,17 @@ describe('buildRootData', () => {
     } as NectarEngine;
   }
 
+  function makeRoute(kind: RouteContext['kind'] = 'home'): RouteContext {
+    return {
+      kind,
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+  }
+
   test('@config exposes the Ghost-shaped fields from the theme package (issue #102)', () => {
     const engine = makeEngine();
     const route: RouteContext = {
@@ -622,18 +633,35 @@ describe('buildRootData', () => {
 
   test('@config does not leak the raw NectarConfig shape (no nested build/theme keys)', () => {
     const engine = makeEngine();
-    const route: RouteContext = {
-      kind: 'home',
-      url: '/',
-      outputPath: 'index.html',
-      template: 'home',
-      data: {},
-      meta: baseMeta,
-    };
+    const route = makeRoute();
     const data = buildRootData(engine, route);
     const config = data.config as Record<string, unknown>;
     expect(config.build).toBeUndefined();
     expect(config.theme).toBeUndefined();
+  });
+
+  test('body_class carries the precomputed text color class from theme background', () => {
+    const engine = makeEngine({
+      custom: { site_background_color: { type: 'color' } },
+      customDefaults: { site_background_color: '#111111' },
+    });
+    const route = makeRoute();
+    const context = buildContext(engine, route);
+    const data = buildRootData(engine, route);
+
+    expect(data.text_color_class).toBe('has-light-text');
+    expect(String(context.body_class).split(' ')).toContain('has-light-text');
+  });
+
+  test('text color class falls back to configured accent_color when no background custom exists', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      site: { accent_color: '#111111' },
+    } as unknown as NectarEngine['config'];
+    const data = buildRootData(engine, makeRoute());
+
+    expect(data.text_color_class).toBe('has-light-text');
   });
 
   test('@site.icon falls back to the configured site icon for theme templates (issue #1705)', () => {

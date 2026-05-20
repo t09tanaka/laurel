@@ -4,7 +4,7 @@ import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
-import { textColorClassFor } from '~/util/color.ts';
+import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
@@ -223,7 +223,7 @@ function hasParentPathSegment(name: string): boolean {
   return name.split(/[\\/]+/).includes('..');
 }
 
-export function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+export function buildContext(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const ctx: Record<string, unknown> = {};
   const data = route.data;
   if (route.locale) {
@@ -266,7 +266,7 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
     ctx.message = data.error.message;
     ctx.error = data.error;
   }
-  ctx.body_class = computeBodyClass(route);
+  ctx.body_class = computeBodyClass(route, resolveTextColorClass(engine));
   const postOrPage = data.post ?? data.page;
   ctx.post_class = postOrPage ? computePostClass(postOrPage) : '';
   // Ghost gates locked content with `{{#unless access}}` (and reads `{{access}}`
@@ -291,8 +291,7 @@ function defaultPaginationContext(): { page: number; pages: number } {
 
 export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const custom = buildCustom(engine);
-  const backgroundColor =
-    typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
+  const textColorClass = resolveTextColorClass(engine, custom);
   const routeLocale = route.locale ?? engine.content.site.locale;
   // Per-route enrichment of `@site.navigation` so themes that iterate
   // `{{#foreach @site.navigation}}{{slug}}{{#if current}}…{{/if}}{{/foreach}}`
@@ -332,7 +331,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     // signed-in / paid branches against a static build. Production builds leave
     // it unset and `@member` stays undefined.
     member: buildPreviewMember(engine),
-    text_color_class: textColorClassFor(backgroundColor),
+    text_color_class: textColorClass,
   };
 }
 
@@ -429,14 +428,39 @@ function normaliseNavUrl(url: string): string {
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
   const merged = {
-    ...engine.theme.pkg.customDefaults,
-    ...engine.config.theme.custom,
+    ...(engine.theme?.pkg?.customDefaults ?? {}),
+    ...(engine.config?.theme?.custom ?? {}),
   };
-  return sanitizeThemeCustomValues(merged, engine.theme.pkg.custom);
+  return sanitizeThemeCustomValues(merged, engine.theme?.pkg?.custom ?? {});
 }
 
-function computeBodyClass(route: RouteContext): string {
-  const tokens = [`nectar-route-${route.kind}`];
+function resolveTextColorClass(
+  engine: NectarEngine,
+  custom: Record<string, unknown> = buildCustom(engine),
+): TextColorClass {
+  return textColorClassFor(resolveTextColorSource(engine, custom));
+}
+
+function resolveTextColorSource(
+  engine: NectarEngine,
+  custom: Record<string, unknown>,
+): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(custom, 'site_background_color')) {
+    return typeof custom.site_background_color === 'string'
+      ? custom.site_background_color
+      : undefined;
+  }
+  return (
+    pickString(engine.config?.site?.accent_color) ?? pickString(engine.content?.site?.accent_color)
+  );
+}
+
+function pickString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): string {
+  const tokens = [`nectar-route-${route.kind}`, textColorClass];
   const paginationPage = route.data.pagination?.page ?? 1;
   // Ghost limits `home-template` to the actual home root (page 1 of the home
   // index). Paginated home archives switch to `paged` + `archive-template`
