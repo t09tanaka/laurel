@@ -62,6 +62,13 @@ describe('url helper', () => {
     expect(tpl({})).toBe('');
   });
 
+  test('returns an empty string when there is no root context', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url}}');
+    expect(tpl()).toBe('');
+  });
+
   // Issue #470: Ghost's {{url}} accepts an optional positional argument so a
   // theme can write `{{url "/about/"}}` or `{{url post.url absolute=true}}`
   // without switching context. When supplied, the positional value wins over
