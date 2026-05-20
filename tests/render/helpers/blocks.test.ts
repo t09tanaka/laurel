@@ -660,6 +660,13 @@ describe('match helper', () => {
     expect(tpl({ a: 1, b: 2 })).toBe('MISS');
   });
 
+  test('one-argument block form renders inverse for falsy values', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match foo}}yes{{else}}no{{/match}}');
+    expect(tpl({ foo: '' })).toBe('no');
+  });
+
   test('numeric comparators handle string operands lexicographically', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
