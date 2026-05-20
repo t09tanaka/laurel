@@ -1,0 +1,125 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Nectar Config",
+  "scopeName": "source.nectar-config",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#table"
+    },
+    {
+      "include": "#keyValue"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#boolean"
+    },
+    {
+      "include": "#date"
+    }
+  ],
+  "repository": {
+    "boolean": {
+      "patterns": [
+        {
+          "match": "\\b(true|false)\\b",
+          "name": "constant.language.boolean.nectar-config"
+        }
+      ]
+    },
+    "comment": {
+      "patterns": [
+        {
+          "match": "#.*$",
+          "name": "comment.line.number-sign.nectar-config"
+        }
+      ]
+    },
+    "date": {
+      "patterns": [
+        {
+          "match": "\\b\\d{4}-\\d{2}-\\d{2}(?:[Tt ][0-9:.+-Zz]+)?\\b",
+          "name": "constant.other.datetime.nectar-config"
+        }
+      ]
+    },
+    "keyValue": {
+      "patterns": [
+        {
+          "captures": {
+            "1": {
+              "name": "variable.other.member.nectar-config"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.nectar-config"
+            }
+          },
+          "match": "^\\s*([A-Za-z0-9_.-]+)\\s*(=)"
+        }
+      ]
+    },
+    "number": {
+      "patterns": [
+        {
+          "match": "(?<![\\w.-])[+-]?(?:\\d+\\.\\d+|\\d+)(?![\\w.-])",
+          "name": "constant.numeric.nectar-config"
+        }
+      ]
+    },
+    "string": {
+      "patterns": [
+        {
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "name": "string.quoted.triple.double.nectar-config"
+        },
+        {
+          "begin": "'''",
+          "end": "'''",
+          "name": "string.quoted.triple.single.nectar-config"
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.nectar-config",
+          "patterns": [
+            {
+              "match": "\\\\(?:[btnfr\"\\\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+              "name": "constant.character.escape.nectar-config"
+            }
+          ]
+        },
+        {
+          "begin": "'",
+          "end": "'",
+          "name": "string.quoted.single.nectar-config"
+        }
+      ]
+    },
+    "table": {
+      "patterns": [
+        {
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.table.begin.nectar-config"
+            },
+            "2": {
+              "name": "entity.name.section.table.nectar-config"
+            },
+            "3": {
+              "name": "punctuation.definition.table.end.nectar-config"
+            }
+          },
+          "match": "^\\s*(\\[\\[?)\\s*([A-Za-z0-9_.-]+)\\s*(\\]\\]?)"
+        }
+      ]
+    }
+  }
+}

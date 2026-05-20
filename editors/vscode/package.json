@@ -1,0 +1,104 @@
+{
+  "name": "vscode-nectar",
+  "displayName": "Nectar",
+  "description": "VS Code language support and tasks for Nectar sites.",
+  "version": "0.1.0",
+  "publisher": "nectar",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "nectar",
+    "ghost",
+    "static-site-generator",
+    "toml",
+    "markdown"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/t09tanaka/nectar.git",
+    "directory": "editors/vscode"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:nectar-config",
+    "onTaskType:nectar",
+    "onCommand:workbench.action.tasks.runTask",
+    "workspaceContains:nectar.toml",
+    "workspaceContains:nectar.config.toml"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "nectar-config",
+        "aliases": [
+          "Nectar Config",
+          "nectar.config.toml"
+        ],
+        "filenames": [
+          "nectar.config.toml",
+          "nectar.toml"
+        ],
+        "configuration": "./language-configuration/nectar-config.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nectar-config",
+        "scopeName": "source.nectar-config",
+        "path": "./grammars/nectar-config.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "markdown",
+        "path": "./snippets/frontmatter.code-snippets"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "nectar",
+        "owner": "nectar",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^----\\s+(.+?)(?::(\\d+)(?::(\\d+))?)?\\s+-\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "nectar",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "Nectar task to run.",
+            "enum": [
+              "build",
+              "dev",
+              "check"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

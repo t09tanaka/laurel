@@ -1,0 +1,70 @@
+{
+  "Nectar post frontmatter": {
+    "scope": "markdown",
+    "prefix": "nectar-post",
+    "description": "Insert Nectar post frontmatter.",
+    "body": [
+      "---",
+      "title: ${1:Post title}",
+      "slug: ${2:post-slug}",
+      "published_at: ${CURRENT_YEAR}-${CURRENT_MONTH}-${CURRENT_DATE}T${CURRENT_HOUR}:${CURRENT_MINUTE}:00Z",
+      "status: ${3|published,draft,scheduled|}",
+      "visibility: ${4|public,members,paid,tiers,filter|}",
+      "tags:",
+      "  - ${5:tag-slug}",
+      "author: ${6:author-slug}",
+      "excerpt: ${7:Short excerpt}",
+      "---",
+      "",
+      "$0"
+    ]
+  },
+  "Nectar page frontmatter": {
+    "scope": "markdown",
+    "prefix": "nectar-page",
+    "description": "Insert Nectar page frontmatter.",
+    "body": [
+      "---",
+      "title: ${1:Page title}",
+      "slug: ${2:page-slug}",
+      "status: ${3|published,draft|}",
+      "show_title_and_feature_image: ${4|true,false|}",
+      "meta_title: ${5:SEO title}",
+      "meta_description: ${6:SEO description}",
+      "---",
+      "",
+      "$0"
+    ]
+  },
+  "Nectar tag frontmatter": {
+    "scope": "markdown",
+    "prefix": "nectar-tag",
+    "description": "Insert Nectar tag frontmatter.",
+    "body": [
+      "---",
+      "name: ${1:Tag name}",
+      "slug: ${2:tag-slug}",
+      "description: ${3:Tag description}",
+      "accent_color: \"${4:#222222}\"",
+      "---",
+      "",
+      "$0"
+    ]
+  },
+  "Nectar author frontmatter": {
+    "scope": "markdown",
+    "prefix": "nectar-author",
+    "description": "Insert Nectar author frontmatter.",
+    "body": [
+      "---",
+      "name: ${1:Author name}",
+      "slug: ${2:author-slug}",
+      "bio: ${3:Author bio}",
+      "profile_image: ${4:/content/images/author.jpg}",
+      "website: ${5:https://example.com}",
+      "---",
+      "",
+      "$0"
+    ]
+  }
+}
