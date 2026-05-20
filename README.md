@@ -54,6 +54,12 @@ from the latest [GitHub Release](https://github.com/t09tanaka/nectar/releases),
 verify the checksum, and drop it on your `$PATH`.
 
 ```bash
+# Homebrew tap (macOS/Linux)
+brew tap t09tanaka/nectar
+brew install nectar
+```
+
+```bash
 # macOS (Apple Silicon) — substitute the triple that matches your machine
 curl -L -o nectar \
   https://github.com/t09tanaka/nectar/releases/latest/download/nectar-darwin-arm64

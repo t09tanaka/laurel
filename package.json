@@ -72,6 +72,7 @@
     "build:binary": "bun run scripts/compile.ts",
     "build:binary:all": "bun run scripts/compile.ts --all",
     "build:binary:shasums": "bun run scripts/compile.ts --all --shasums",
+    "homebrew:formula": "bun run scripts/generate-homebrew-formula.ts",
     "docs:cli": "bun run src/cli/docs.ts",
     "docs:config": "bun run src/config/docs.ts",
     "docs:theme-reference": "bun run scripts/docs-theme-reference.ts",

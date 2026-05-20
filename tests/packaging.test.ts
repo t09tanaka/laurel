@@ -3,6 +3,11 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pkg from '../package.json' with { type: 'json' };
+import {
+  generateHomebrewFormula,
+  normalizeHomebrewVersion,
+  parseHomebrewShasums,
+} from '../scripts/generate-homebrew-formula.ts';
 
 // Guards the npm publish surface: without a strict `files` whitelist, npm
 // publishes everything not in .npmignore — which would balloon the tarball
@@ -300,6 +305,100 @@ describe('packaging', () => {
       expect(deployDocs).toContain('DOCKERHUB_TOKEN');
       expect(deployDocs).toContain('nectar build');
       expect(recipeDocs).toContain('ghcr.io/t09tanaka/nectar:latest');
+    });
+  });
+
+  describe('Homebrew tap formula', () => {
+    const hashes = {
+      darwinArm64: 'a'.repeat(64),
+      darwinX64: 'b'.repeat(64),
+      linuxArm64: 'c'.repeat(64),
+      linuxX64: 'd'.repeat(64),
+      windowsX64: 'e'.repeat(64),
+    };
+
+    const shasums = [
+      `${hashes.darwinArm64}  nectar-darwin-arm64`,
+      `${hashes.darwinX64}  nectar-darwin-x64`,
+      `${hashes.linuxArm64}  nectar-linux-arm64`,
+      `${hashes.linuxX64}  nectar-linux-x64`,
+      `${hashes.windowsX64}  nectar-windows-x64.exe`,
+    ].join('\n');
+
+    test('normalizes release tags for formula versions', () => {
+      expect(normalizeHomebrewVersion('v1.2.3')).toBe('1.2.3');
+      expect(normalizeHomebrewVersion('1.2.3')).toBe('1.2.3');
+      expect(() => normalizeHomebrewVersion('latest')).toThrow('Invalid release version');
+    });
+
+    test('parses release SHASUMS256.txt entries', () => {
+      const parsed = parseHomebrewShasums(shasums);
+
+      expect(parsed.get('nectar-darwin-arm64')).toBe(hashes.darwinArm64);
+      expect(parsed.get('nectar-linux-x64')).toBe(hashes.linuxX64);
+      expect(parsed.get('nectar-windows-x64.exe')).toBe(hashes.windowsX64);
+    });
+
+    test('generates an installable formula from the release template', async () => {
+      const template = await readFile(
+        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'nectar.rb.template'),
+        'utf8',
+      );
+      const formula = generateHomebrewFormula({
+        version: 'v1.2.3',
+        shasumsText: shasums,
+        templateText: template,
+      });
+
+      expect(formula).toContain('class Nectar < Formula');
+      expect(formula).toContain('version "1.2.3"');
+      expect(formula).toContain(
+        'url "https://github.com/t09tanaka/nectar/releases/download/v#{version}/nectar-darwin-arm64"',
+      );
+      expect(formula).toContain(`sha256 "${hashes.darwinArm64}"`);
+      expect(formula).toContain(`sha256 "${hashes.linuxX64}"`);
+      expect(formula).toContain('bin.install artifact => "nectar"');
+      expect(formula).toContain('system "#{bin}/nectar", "--help"');
+      expect(formula).not.toContain('{{');
+    });
+
+    test('refuses to generate a formula without all Homebrew platform hashes', async () => {
+      const template = await readFile(
+        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'nectar.rb.template'),
+        'utf8',
+      );
+
+      expect(() =>
+        generateHomebrewFormula({
+          version: 'v1.2.3',
+          shasumsText: `${hashes.darwinArm64}  nectar-darwin-arm64\n`,
+          templateText: template,
+        }),
+      ).toThrow('Missing Homebrew artifact checksums');
+    });
+
+    test('release workflow publishes the generated formula as a release asset', async () => {
+      const workflow = await readFile(
+        join(REPO_ROOT, '.github', 'workflows', 'release.yml'),
+        'utf8',
+      );
+
+      expect(workflow).toContain('Generate Homebrew formula');
+      expect(workflow).toContain('scripts/generate-homebrew-formula.ts');
+      expect(workflow).toContain('--output release/nectar.rb');
+      expect(workflow).toContain('ruby -c release/nectar.rb');
+      expect(workflow).toContain('gh release create "$TAG_NAME"');
+      expect(workflow).toContain('release/*');
+    });
+
+    test('docs show the tap command that enables brew install nectar', async () => {
+      const readme = await readFile(join(REPO_ROOT, 'README.md'), 'utf8');
+      const releaseDocs = await readFile(join(REPO_ROOT, 'docs', 'release.md'), 'utf8');
+
+      expect(readme).toContain('brew tap t09tanaka/nectar');
+      expect(readme).toContain('brew install nectar');
+      expect(releaseDocs).toContain('t09tanaka/homebrew-nectar');
+      expect(releaseDocs).toContain('bun run homebrew:formula');
     });
   });
 });

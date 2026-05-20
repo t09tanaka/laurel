@@ -70,3 +70,30 @@ gh attestation verify <binary> --repo t09tanaka/nectar
 On macOS, `codesign --verify --strict --verbose=2 <binary>` checks the Developer
 ID signature. On Windows, `Get-AuthenticodeSignature .\nectar-windows-x64.exe`
 checks the Authenticode signature.
+
+## Homebrew tap formula
+
+The release workflow generates a `nectar.rb` Homebrew formula from
+`packaging/homebrew/Formula/nectar.rb.template` and uploads it next to the
+release binaries. The generated formula embeds the release tag and the
+platform-specific SHA-256 values from `SHASUMS256.txt`.
+
+The public tap should live in a separate `t09tanaka/homebrew-nectar` repository
+with the generated file copied to `Formula/nectar.rb`. After that tap exists,
+users can install the CLI with:
+
+```bash
+brew tap t09tanaka/nectar
+brew install nectar
+```
+
+To regenerate the formula locally before updating the tap:
+
+```bash
+bun run homebrew:formula -- \
+  --version v0.1.0 \
+  --shasums dist-bin/SHASUMS256.txt \
+  --output ../homebrew-nectar/Formula/nectar.rb
+ruby -c ../homebrew-nectar/Formula/nectar.rb
+brew audit --new --strict ../homebrew-nectar/Formula/nectar.rb
+```
