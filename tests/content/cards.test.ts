@@ -276,11 +276,13 @@ describe('card fixture corpus', () => {
     expect(html).toContain('Raw HTML wrapped in an html card fence.');
   });
 
-  test('code fence renders a <pre><code> block with language hint', async () => {
+  test('code fence renders a highlighted <pre><code> block with language hint', async () => {
     const html = await renderFixture('code');
-    expect(html).toContain('<pre><code class="language-ts">');
-    expect(html).toContain('export function hello');
-    expect(html).toContain('return `Hello, ${name}!`;');
+    expect(html).toContain('<pre class="shiki');
+    expect(html).toContain('<code class="language-ts">');
+    expect(html).toContain('<span style="color:');
+    expect(html).toContain('export');
+    expect(html).toContain('Hello, ${');
     expect(html).toContain('</code></pre>');
   });
 

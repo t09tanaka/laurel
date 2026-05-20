@@ -47,6 +47,14 @@ describe('renderMarkdown (default sanitisation)', () => {
     expect(html).toContain('<code>code</code>');
   });
 
+  test('syntax-highlights fenced code blocks while keeping the language hint', async () => {
+    const { html } = await renderMarkdown('```ts\nexport const answer = 42;\n```');
+    expect(html).toContain('<pre class="shiki');
+    expect(html).toContain('<code class="language-ts">');
+    expect(html).toContain('<span style="color:');
+    expect(html).toContain('export');
+  });
+
   test('keeps http/https image and link sources', async () => {
     const { html } = await renderMarkdown(
       '![alt](https://cdn.test/img.png)\n\n[ok](https://ok.test)',

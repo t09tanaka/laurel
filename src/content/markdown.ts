@@ -4,6 +4,7 @@ import { parseDocument } from 'htmlparser2';
 import { Marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
+import { codeToHtml } from 'shiki';
 import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 
@@ -74,11 +75,29 @@ const sanitizeOptions: IOptions = {
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
+    pre: ['class', 'style', 'tabindex'],
+    code: ['class', 'style'],
+    span: ['class', 'style'],
     div: ['style', 'data-rating'],
     th: ['scope', 'colspan', 'rowspan'],
     td: ['colspan', 'rowspan'],
   },
   allowedStyles: {
+    pre: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+      'background-color': [/^#[0-9a-f]{3,8}$/i],
+    },
+    code: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+      'background-color': [/^#[0-9a-f]{3,8}$/i],
+    },
+    span: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+      'background-color': [/^#[0-9a-f]{3,8}$/i],
+      'font-style': [/^italic$/],
+      'font-weight': [/^(?:bold|[1-9]00)$/],
+      'text-decoration': [/^underline$/],
+    },
     div: {
       '--aspect-ratio': [/^\d+(?:\.\d+)?$/],
     },
@@ -135,7 +154,8 @@ export async function renderMarkdown(
 ): Promise<RenderedMarkdown> {
   const expanded = expandKoenigShortcodes(stripGhostUrlPlaceholder(body));
   const raw = await marked.parse(expanded);
-  const promoted = promoteImagesToFigures(raw);
+  const highlighted = await highlightCodeBlocks(raw);
+  const promoted = promoteImagesToFigures(highlighted);
   const newsletterStripped = stripEmailCtaCards(promoted);
   const sanitized = options.unsafe ? newsletterStripped : sanitizeRenderedHtml(newsletterStripped);
   const html = enforceKoenigCardSpacingContract(sanitized);
@@ -143,6 +163,91 @@ export async function renderMarkdown(
   const word_count = countWords(plaintext, options.locale);
   const reading_time = computeReadingTime(plaintext, options.locale, word_count);
   return { html, plaintext, word_count, reading_time };
+}
+
+const CODE_HIGHLIGHT_THEME = 'github-dark';
+const LANGUAGE_CLASS_RE = /\blanguage-([^\s]+)/;
+
+async function highlightCodeBlocks(html: string): Promise<string> {
+  if (!html.includes('<pre')) return html;
+
+  const doc = parseDocument(html, {
+    decodeEntities: true,
+    lowerCaseAttributeNames: false,
+  });
+  const changed = await highlightCodeBlocksInNodes(doc.children);
+  if (!changed) return html;
+  return renderHtml(doc.children, { decodeEntities: false });
+}
+
+async function highlightCodeBlocksInNodes(nodes: ChildNode[]): Promise<boolean> {
+  let changed = false;
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (!node) continue;
+    if (!isElement(node)) continue;
+
+    const code = directCodeChild(node);
+    if (code) {
+      const highlighted = await renderHighlightedCodeBlock(
+        codeTextContent(code),
+        code.attribs.class,
+      );
+      if (highlighted) {
+        highlighted.parent = node.parent;
+        nodes[i] = highlighted;
+        changed = true;
+      }
+      continue;
+    }
+
+    changed = (await highlightCodeBlocksInNodes(node.children)) || changed;
+  }
+  if (changed) relinkSiblings(nodes);
+  return changed;
+}
+
+function directCodeChild(node: Element): Element | null {
+  if (node.name !== 'pre') return null;
+  const significant = node.children.filter((child) => !isBlankTextOrComment(child));
+  if (significant.length !== 1) return null;
+  const child = significant[0];
+  return child && isElement(child) && child.name === 'code' ? child : null;
+}
+
+async function renderHighlightedCodeBlock(
+  code: string,
+  languageClass: string | undefined,
+): Promise<Element | null> {
+  const lang = languageClass?.match(LANGUAGE_CLASS_RE)?.[1] ?? 'plaintext';
+  const highlighted = await codeToHighlightedHtml(code, lang);
+  const doc = parseDocument(highlighted, {
+    decodeEntities: false,
+    lowerCaseAttributeNames: false,
+  });
+  const pre = doc.children.find((node): node is Element => isElement(node) && node.name === 'pre');
+  if (!pre) return null;
+
+  const highlightedCode = pre.children.find(
+    (node): node is Element => isElement(node) && node.name === 'code',
+  );
+  if (highlightedCode && languageClass) highlightedCode.attribs.class = languageClass;
+  return pre;
+}
+
+async function codeToHighlightedHtml(code: string, lang: string): Promise<string> {
+  try {
+    return await codeToHtml(code, { lang, theme: CODE_HIGHLIGHT_THEME });
+  } catch (error) {
+    if (lang === 'plaintext') throw error;
+    return codeToHtml(code, { lang: 'plaintext', theme: CODE_HIGHLIGHT_THEME });
+  }
+}
+
+function codeTextContent(node: ChildNode): string {
+  if ('data' in node) return node.data;
+  if (!isElement(node)) return '';
+  return node.children.map((child) => codeTextContent(child)).join('');
 }
 
 export function enforceKoenigCardSpacingContract(html: string): string {
