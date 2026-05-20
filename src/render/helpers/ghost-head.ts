@@ -543,7 +543,7 @@ function buildJsonLd(
   const entities: Record<string, unknown>[] = [];
   const kind = route?.kind;
 
-  if (meta.ogType === 'article' && ctx.id) {
+  if (isStructuredContentRoute(route) && ctx.id) {
     // Schema.org Article requires ISO 8601 for Date / DateTime fields.
     // Normalise through `toIso8601` so frontmatter values that landed as
     // `Date` objects, RFC-2822 strings, or any other parseable shape still
@@ -559,6 +559,8 @@ function buildJsonLd(
     // surface that directly. Fall back to undefined (field omitted) when
     // the value is missing or non-numeric.
     const wordCount = numericField(ctx.word_count);
+    const keywords = tagKeywords(ctx.tags);
+    const commentCount = knownNonNegativeInteger(ctx.comment_count);
     // `sameAs` is the Schema.org pointer to authoritative profiles. We
     // collect social URLs for the author (Person) from the post's
     // `primary_author` so consumer crawlers can disambiguate by linking
@@ -603,6 +605,8 @@ function buildJsonLd(
       // so suppress it unless the post was genuinely revised.
       dateModified: dateModifiedIso,
       wordCount,
+      keywords,
+      commentCount,
       author: authors,
       publisher,
     });
@@ -623,6 +627,25 @@ function buildJsonLd(
   if (breadcrumb) entities.push(breadcrumb);
 
   return entities;
+}
+
+function isStructuredContentRoute(
+  route:
+    | {
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+): boolean {
+  return !!(route?.data?.post || route?.data?.page);
+}
+
+function tagKeywords(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const names = value
+    .map((tag) => (tag && typeof tag === 'object' ? (tag as { name?: unknown }).name : undefined))
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+    .map((name) => name.trim());
+  return names.length > 0 ? names.join(', ') : undefined;
 }
 
 // CollectionPage with an ItemList of posts is the Schema.org-recommended shape for
@@ -779,6 +802,13 @@ function buildPublisherLogo(
 
 function numericField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function knownNonNegativeInteger(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const numeric = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof numeric !== 'number' || !Number.isFinite(numeric) || numeric < 0) return undefined;
+  return Math.floor(numeric);
 }
 
 function firstNonEmptyString(...values: unknown[]): string | undefined {

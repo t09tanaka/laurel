@@ -689,6 +689,69 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
     expect(parsed.wordCount).toBeUndefined();
   });
 
+  test('emits keywords from post tag names (issue #1035)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      tags: [{ name: 'News' }, { name: 'Tech' }, { name: '' }, { name: 42 }],
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { keywords?: string };
+    expect(parsed.keywords).toBe('News, Tech');
+  });
+
+  test('emits commentCount when the post comment count is known (issue #1035)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      comment_count: '7',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { commentCount?: number };
+    expect(parsed.commentCount).toBe(7);
+  });
+
+  test('omits commentCount when the post comment count is unknown (issue #1035)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { commentCount?: number };
+    expect(parsed.commentCount).toBeUndefined();
+  });
+
+  test('enriches page JSON-LD with structured content fields (issue #1035)', () => {
+    const ctx = {
+      id: 'page1',
+      title: 'About',
+      tags: [{ name: 'Company' }, { name: 'Docs' }],
+      word_count: 321,
+      comment_count: 0,
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    };
+    const html = renderGhostHead(ctx, '/about/', {
+      routeKind: 'page',
+      routeData: { page: ctx },
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      '@type': string;
+      mainEntityOfPage?: { '@id': string };
+      keywords?: string;
+      wordCount?: number;
+      commentCount?: number;
+    };
+    expect(parsed['@type']).toBe('Article');
+    expect(parsed.mainEntityOfPage?.['@id']).toBe('https://example.com/about/');
+    expect(parsed.keywords).toBe('Company, Docs');
+    expect(parsed.wordCount).toBe(321);
+    expect(parsed.commentCount).toBe(0);
+  });
+
   test('emits publisher.sameAs from site-level social fields (issue #867)', () => {
     const html = renderGhostHead(
       {
