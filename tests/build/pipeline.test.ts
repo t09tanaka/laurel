@@ -174,14 +174,15 @@ describe('build pipeline strict mode wiring', () => {
     const summary = await build({ cwd });
     const manifest = JSON.parse(
       readFileSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'), 'utf8'),
-    ) as Record<string, string>;
+    ) as Record<string, { path: string; integrity: string }>;
 
-    expect(manifest['assets/built/screen.css']).toMatch(
+    expect(manifest['assets/built/screen.css']?.path).toMatch(
       /^assets\/built\/screen\.[0-9a-f]{10}\.css$/,
     );
-    expect(existsSync(join(summary.outputDir, manifest['assets/built/screen.css'] as string))).toBe(
-      true,
-    );
+    expect(manifest['assets/built/screen.css']?.integrity).toMatch(/^sha384-[A-Za-z0-9+/]+=*$/);
+    expect(
+      existsSync(join(summary.outputDir, manifest['assets/built/screen.css']?.path ?? '')),
+    ).toBe(true);
     expect(manifest['built/screen.css']).toBeUndefined();
   });
 

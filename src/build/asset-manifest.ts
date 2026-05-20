@@ -5,7 +5,12 @@ import { ensureDir } from '~/util/fs.ts';
 export const ASSET_MANIFEST_FILENAME = 'asset-manifest.json';
 export const ASSET_MANIFEST_DIR = '.nectar';
 
-export type AssetManifestJson = Record<string, string>;
+export interface AssetManifestEntry {
+  path: string;
+  integrity: string;
+}
+
+export type AssetManifestJson = Record<string, AssetManifestEntry>;
 
 export function assetManifestRelPath(): string {
   return `${ASSET_MANIFEST_DIR}/${ASSET_MANIFEST_FILENAME}`;
@@ -16,9 +21,12 @@ export function assetManifestAbsPath(outputDir: string): string {
 }
 
 export function buildAssetManifest(theme: ThemeBundle): AssetManifestJson {
-  const entries = new Map<string, string>();
+  const entries = new Map<string, AssetManifestEntry>();
   for (const asset of theme.assets.values()) {
-    entries.set(asset.logicalPath, asset.fingerprintedPath);
+    entries.set(asset.logicalPath, {
+      path: asset.fingerprintedPath,
+      integrity: asset.integrity,
+    });
   }
 
   return Object.fromEntries([...entries.entries()].sort(([a], [b]) => a.localeCompare(b)));

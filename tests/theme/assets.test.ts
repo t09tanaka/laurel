@@ -26,6 +26,21 @@ describe('loadThemeAssets symlink protection', () => {
 });
 
 describe('loadThemeAssets fingerprint cache', () => {
+  test('computes sha384 SRI alongside the fingerprint hash', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-sri-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(assetsDir, 'screen.css'), 'body{color:red}');
+
+    const map = await loadThemeAssets(themeDir);
+    const asset = map.get('assets/built/screen.css');
+
+    expect(asset?.integrity).toMatch(/^sha384-[A-Za-z0-9+/]+=*$/);
+    expect(asset?.integrity).toBe(
+      'sha384-8U9HYzsHbf55cFZyiWIE29+QPYQ9WO+U5uT/ViFw0TOwM2Fbbb74ZegzRV/nvwrD',
+    );
+  });
+
   test('reuses cached hash when mtime + size are unchanged and rehashes when changed', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-cache-'));
     const cacheDir = await mkdtemp(join(tmpdir(), 'nectar-cache-'));

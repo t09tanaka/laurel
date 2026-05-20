@@ -17,6 +17,7 @@ interface AssetCacheEntry {
   mtimeMs: number;
   size: number;
   hash: string;
+  integrity: string;
 }
 
 interface AssetCacheFile {
@@ -63,6 +64,7 @@ export async function loadThemeAssets(
     mtimeMs: number;
     size: number;
     hash: string;
+    integrity: string;
   }
 
   const limit = pLimit(HASH_CONCURRENCY);
@@ -75,12 +77,16 @@ export async function loadThemeAssets(
         const size = stat.size;
         const cached = cache[file];
         let hash: string;
-        if (cached && cached.mtimeMs === mtimeMs && cached.size === size) {
+        let integrity: string;
+        if (cached && cached.mtimeMs === mtimeMs && cached.size === size && cached.integrity) {
           hash = cached.hash;
+          integrity = cached.integrity;
         } else {
-          hash = await sha1ShortStream(file);
+          const digests = await assetDigestsStream(file);
+          hash = digests.sha1Short;
+          integrity = digests.integrity;
         }
-        return { rel, file, mtimeMs, size, hash };
+        return { rel, file, mtimeMs, size, hash, integrity };
       }),
     ),
   );
@@ -88,7 +94,7 @@ export async function loadThemeAssets(
   // Apply results in glob order so the Map iteration order stays deterministic
   // across runs regardless of which task finished first.
   for (const p of processed) {
-    next[p.file] = { mtimeMs: p.mtimeMs, size: p.size, hash: p.hash };
+    next[p.file] = { mtimeMs: p.mtimeMs, size: p.size, hash: p.hash, integrity: p.integrity };
     const logical = `assets/${p.rel.replaceAll('\\', '/')}`;
     const ext = extname(p.rel);
     const base = logical.slice(0, logical.length - ext.length);
@@ -98,6 +104,7 @@ export async function loadThemeAssets(
       fingerprintedPath: fingerprinted,
       sourcePath: p.file,
       hash: p.hash,
+      integrity: p.integrity,
       size: p.size,
     };
     out.set(logical, entry);
@@ -143,7 +150,8 @@ async function readCache(cacheFile: string): Promise<Record<string, AssetCacheEn
       !Array.isArray(v) &&
       typeof (v as AssetCacheEntry).mtimeMs === 'number' &&
       typeof (v as AssetCacheEntry).size === 'number' &&
-      typeof (v as AssetCacheEntry).hash === 'string'
+      typeof (v as AssetCacheEntry).hash === 'string' &&
+      typeof (v as AssetCacheEntry).integrity === 'string'
     ) {
       out[k] = v as AssetCacheEntry;
     }
@@ -175,14 +183,19 @@ function shouldFingerprint(ext: string): boolean {
 // Stream the file through Bun.CryptoHasher instead of buffering the whole
 // payload into a Buffer first. For a 40MB asset this keeps memory at the
 // stream's chunk size (tens of KB) instead of 40MB resident per file.
-async function sha1ShortStream(file: string): Promise<string> {
-  const hash = new Bun.CryptoHasher('sha1');
+async function assetDigestsStream(file: string): Promise<{ sha1Short: string; integrity: string }> {
+  const sha1 = new Bun.CryptoHasher('sha1');
+  const sha384 = new Bun.CryptoHasher('sha384');
   const stream = Bun.file(file).stream();
   for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
-    hash.update(chunk);
+    sha1.update(chunk);
+    sha384.update(chunk);
   }
-  const digest = hash.digest('hex');
-  return digest.slice(0, 10);
+  const digest = sha1.digest('hex');
+  return {
+    sha1Short: digest.slice(0, 10),
+    integrity: `sha384-${sha384.digest('base64')}`,
+  };
 }
 
 export function assetPublicUrl(asset: ThemeAsset, basePath: string): string {

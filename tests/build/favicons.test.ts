@@ -49,6 +49,7 @@ function makeTheme(assets: Record<string, string> = {}): ThemeBundle {
       fingerprintedPath: logical,
       sourcePath,
       hash: 'deadbeef',
+      integrity: 'sha384-deadbeef',
       size: 1,
     });
   }

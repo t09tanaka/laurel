@@ -14,6 +14,7 @@ function makeThemeAsset(
     logicalPath: 'assets/built/screen.css',
     fingerprintedPath: 'assets/built/screen.abc123.css',
     hash: 'abc123',
+    integrity: 'sha384-test',
     size: 0,
     ...overrides,
   };

@@ -1,3 +1,6 @@
+import { assetPublicUrl } from '~/theme/assets.ts';
+import type { ThemeAsset } from '~/theme/types.ts';
+
 // Resource-hint and HTML post-process helpers covering tasks #527 (stylesheet
 // preload) and #528 (deduplicate script preload). The ghost_head helper covers
 // the per-route LCP preload (#147) and image-origin preconnect (#530), so the
@@ -59,6 +62,28 @@ export function injectStylesheetPreload(html: string): string {
   if (!touched) return html;
   out += html.slice(cursor);
   return out;
+}
+
+export function injectSubresourceIntegrity(
+  html: string,
+  assets: Iterable<ThemeAsset>,
+  basePath: string,
+): string {
+  const tags = scanLinkAndScriptTags(html);
+  if (tags.length === 0) return html;
+  const integrityByUrl = buildIntegrityUrlMap(assets, basePath);
+  if (integrityByUrl.size === 0) return html;
+
+  return rewriteTags(html, tags, (tag) => {
+    const attrName = tag.kind === 'script' ? 'src' : 'href';
+    if (tag.kind === 'link' && !isSriLink(tag)) return null;
+    const value = extractAttrValue(tag.openTag, attrName);
+    if (!value) return null;
+    const integrity = integrityByUrl.get(normaliseHref(value));
+    if (!integrity) return null;
+    if (extractAttrValue(tag.openTag, 'integrity')) return null;
+    return appendSriAttrs(tag.openTag, integrity);
+  });
 }
 
 interface ScriptOrLink {
@@ -247,6 +272,33 @@ function isStylesheet(tag: ScriptOrLink): boolean {
   return !!rel && rel.split(/\s+/).includes('stylesheet');
 }
 
+function isSriLink(tag: ScriptOrLink): boolean {
+  if (isStylesheet(tag)) return true;
+  const rel = extractAttrValue(tag.openTag, 'rel');
+  if (!rel || !rel.split(/\s+/).includes('preload')) return false;
+  const asAttr = extractAttrValue(tag.openTag, 'as');
+  return asAttr === 'style' || asAttr === 'script';
+}
+
+function buildIntegrityUrlMap(assets: Iterable<ThemeAsset>, basePath: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const asset of assets) {
+    if (!asset.integrity) continue;
+    if (asset.fingerprintedPath === asset.logicalPath) continue;
+    const url = assetPublicUrl(asset, basePath);
+    out.set(url, asset.integrity);
+    out.set(encodeUrlPath(url), asset.integrity);
+  }
+  return out;
+}
+
+function appendSriAttrs(tag: string, integrity: string): string {
+  const crossorigin = extractAttrValue(tag, 'crossorigin') ? '' : ' crossorigin="anonymous"';
+  const attrs = ` integrity="${escapeAttr(integrity)}"${crossorigin}`;
+  if (tag.endsWith('/>')) return `${tag.slice(0, -2)}${attrs}>`;
+  return `${tag.slice(0, -1)}${attrs}>`;
+}
+
 function collectScriptSrcs(tags: readonly ScriptOrLink[]): Set<string> {
   const out = new Set<string>();
   for (const tag of tags) {
@@ -289,6 +341,24 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+function encodeUrlPath(path: string): string {
+  return path.split('/').map(encodeUrlPathSegment).join('/');
+}
+
+function encodeUrlPathSegment(segment: string): string {
+  let out = '';
+  let cursor = 0;
+  for (const match of segment.matchAll(PERCENT_ESCAPE_RE)) {
+    out += encodeURIComponent(segment.slice(cursor, match.index));
+    out += match[0];
+    cursor = match.index + match[0].length;
+  }
+  out += encodeURIComponent(segment.slice(cursor));
+  return out;
+}
+
+const PERCENT_ESCAPE_RE = /%[0-9A-Fa-f]{2}/g;
 
 // Rewrite the input string by visiting each scanned tag in source order and
 // asking the caller for a replacement (empty string to drop, null to keep).

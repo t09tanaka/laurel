@@ -422,6 +422,7 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
       fingerprintedPath: 'assets/built/source.abc123def0.js',
       sourcePath: '/theme/assets/built/source.js',
       hash: 'abc123def0',
+      integrity: 'sha384-source',
       size: 42,
     });
     registerAssetHelpers(engine);
@@ -436,6 +437,7 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
       fingerprintedPath: 'assets/css/screen.abc123.css',
       sourcePath: '/theme/assets/css/screen.css',
       hash: 'abc123',
+      integrity: 'sha384-screen',
       size: 42,
     });
     registerAssetHelpers(engine);
@@ -457,6 +459,7 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
       fingerprintedPath: 'assets/images/100% legit%20image.abc123.css',
       sourcePath: '/theme/assets/images/100% legit%20image.css',
       hash: 'abc123',
+      integrity: 'sha384-image',
       size: 42,
     });
     registerAssetHelpers(engine);

@@ -78,7 +78,11 @@ import {
   prepareStagingDir,
   resolveOutputDir,
 } from './output-dir.ts';
-import { injectStylesheetPreload, removeRedundantScriptPreload } from './perf-hints.ts';
+import {
+  injectStylesheetPreload,
+  injectSubresourceIntegrity,
+  removeRedundantScriptPreload,
+} from './perf-hints.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
@@ -574,6 +578,7 @@ async function runBuild({
           if (config.performance.preload_stylesheet) {
             html = injectStylesheetPreload(html);
           }
+          html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
           // afterRender chain: each plugin sees the previous transform's
           // output (including the Pagefind shim above when enabled). Returning
           // anything other than a string is treated as a pass-through so a

@@ -3,6 +3,7 @@ export interface ThemeAsset {
   fingerprintedPath: string;
   sourcePath: string;
   hash: string;
+  integrity: string;
   size: number;
 }
 

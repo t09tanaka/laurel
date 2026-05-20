@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { injectStylesheetPreload, removeRedundantScriptPreload } from '~/build/perf-hints.ts';
+import {
+  injectStylesheetPreload,
+  injectSubresourceIntegrity,
+  removeRedundantScriptPreload,
+} from '~/build/perf-hints.ts';
+import type { ThemeAsset } from '~/theme/types.ts';
 
 describe('removeRedundantScriptPreload', () => {
   test('drops a script preload that has a matching <script src>', () => {
@@ -87,5 +92,64 @@ describe('injectStylesheetPreload', () => {
     const html = '<link rel="stylesheet" href="/a.css?x=1&y=2">';
     const out = injectStylesheetPreload(html);
     expect(out).toContain('rel="preload" as="style" href="/a.css?x=1&amp;y=2"');
+  });
+});
+
+describe('injectSubresourceIntegrity', () => {
+  const screenAsset: ThemeAsset = {
+    logicalPath: 'assets/built/screen.css',
+    fingerprintedPath: 'assets/built/screen.abc123def0.css',
+    sourcePath: '/theme/assets/built/screen.css',
+    hash: 'abc123def0',
+    integrity: 'sha384-screen',
+    size: 12,
+  };
+
+  const sourceAsset: ThemeAsset = {
+    logicalPath: 'assets/built/source.js',
+    fingerprintedPath: 'assets/built/source.0123456789.js',
+    sourcePath: '/theme/assets/built/source.js',
+    hash: '0123456789',
+    integrity: 'sha384-source',
+    size: 10,
+  };
+
+  test('adds integrity and anonymous CORS to fingerprinted style and script assets', () => {
+    const html = [
+      '<link rel="preload" as="style" href="/assets/built/screen.abc123def0.css">',
+      '<link rel="stylesheet" href="/assets/built/screen.abc123def0.css">',
+      '<script src="/assets/built/source.0123456789.js"></script>',
+    ].join('\n');
+
+    const out = injectSubresourceIntegrity(html, [screenAsset, sourceAsset], '/');
+
+    expect(out).toContain(
+      '<link rel="preload" as="style" href="/assets/built/screen.abc123def0.css" integrity="sha384-screen" crossorigin="anonymous">',
+    );
+    expect(out).toContain(
+      '<link rel="stylesheet" href="/assets/built/screen.abc123def0.css" integrity="sha384-screen" crossorigin="anonymous">',
+    );
+    expect(out).toContain(
+      '<script src="/assets/built/source.0123456789.js" integrity="sha384-source" crossorigin="anonymous"></script>',
+    );
+  });
+
+  test('ignores non-fingerprinted and external asset URLs', () => {
+    const fontAsset: ThemeAsset = {
+      logicalPath: 'assets/fonts/inter.woff2',
+      fingerprintedPath: 'assets/fonts/inter.woff2',
+      sourcePath: '/theme/assets/fonts/inter.woff2',
+      hash: 'ffffffffff',
+      integrity: 'sha384-font',
+      size: 10,
+    };
+    const html = [
+      '<link rel="preload" as="font" href="/assets/fonts/inter.woff2" crossorigin="anonymous">',
+      '<link rel="stylesheet" href="https://cdn.example.com/screen.abc123def0.css">',
+    ].join('\n');
+
+    const out = injectSubresourceIntegrity(html, [screenAsset, fontAsset], '/');
+
+    expect(out).toBe(html);
   });
 });
