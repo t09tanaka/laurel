@@ -240,6 +240,22 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('<figcaption>Example</figcaption>');
   });
 
+  test('reads node.language for captionless code cards', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'code',
+          code: 'const answer: number = 42;',
+          language: 'typescript',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe(
+      '<pre><code class="language-typescript">const answer: number = 42;</code></pre>',
+    );
+  });
+
   test('renders an html card inside a kg-card fence', () => {
     const out = renderLexicalToHtml(lex([{ type: 'html', html: '<div>raw</div>', version: 1 }]));
     expect(out).toBe('<!--kg-card-begin: html--><div>raw</div><!--kg-card-end: html-->');

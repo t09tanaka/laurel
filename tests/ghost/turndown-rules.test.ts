@@ -455,6 +455,30 @@ describe('Ghost Turndown rules — kg-code-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — plain code blocks', () => {
+  test('preserves language from pre data-language in raw HTML fallback', () => {
+    const html = '<pre data-language="typescript"><code>const answer: number = 42;</code></pre>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('```typescript\nconst answer: number = 42;\n```');
+  });
+
+  test('preserves language from code data-language before pre class', () => {
+    const html =
+      '<pre class="language-javascript"><code data-language="ruby">puts "hi"</code></pre>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('```ruby\nputs "hi"\n```');
+  });
+
+  test('preserves language class from pre or code in raw HTML fallback', () => {
+    expect(td.turndown('<pre class="language-ts"><code>const x = 1;</code></pre>').trim()).toBe(
+      '```ts\nconst x = 1;\n```',
+    );
+    expect(
+      td.turndown('<pre><code class="language-css">body { color: red; }</code></pre>').trim(),
+    ).toBe('```css\nbody { color: red; }\n```');
+  });
+});
+
 describe('Ghost Turndown rules — kg-video-card', () => {
   test('preserves source, poster, and caption', () => {
     const html = `

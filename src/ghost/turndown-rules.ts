@@ -541,6 +541,20 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
+  // Raw HTML fallback for older/partial exports that contain only
+  // `<pre><code>` without the `kg-code-card` wrapper. Turndown's built-in
+  // fenced-code rule reads `language-*` from `<code>` only, so preserve Ghost's
+  // historical `data-language` and `<pre class="language-*">` variants too.
+  turndown.addRule('plain-pre-code-language', {
+    filter: (node) => node.nodeName === 'PRE' && node.querySelector('code') !== null,
+    replacement: (_content, node) => {
+      const code = node.querySelector('code');
+      const body = code?.textContent ?? node.textContent ?? '';
+      const language = codeCardLanguage(node, node, code);
+      return wrap(fencedCodeBlock(body, language));
+    },
+  });
+
   // Video card: <figure class="kg-card kg-video-card">...<video>...<track>...
   //
   // Koenig stores three distinct asset types on a video card and Ghost's export
