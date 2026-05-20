@@ -48,6 +48,10 @@ collects the operator-facing pieces of that contract in one place:
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and
   `nectar deploy s3`.
+- [`docs/deploy/bunny.md`](./deploy/bunny.md) — Bunny.net quickstart for
+  uploading `dist/` to a Bunny Storage Zone and serving it through a connected
+  Pull Zone. Nectar does not currently emit Bunny-specific deploy artifacts or
+  provide `nectar deploy bunny`.
 - [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
   for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
   the generated server block from the main nginx config.

@@ -1,14 +1,14 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, nginx, or Docker
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, Bunny.net, nginx, or Docker
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
-AWS-native S3 + CloudFront, and self-hosted nginx quickstarts. Docker is
-covered as a runtime wrapper around a pre-built `dist/` directory; Nectar does
-not currently ship a Dockerfile, compose file, or Docker-specific package
-script.
+AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and self-hosted nginx
+quickstarts. Docker is covered as a runtime wrapper around a pre-built
+`dist/` directory; Nectar does not currently ship a Dockerfile, compose file,
+or Docker-specific package script.
 
 **Universal pre-flight:**
 
@@ -491,6 +491,46 @@ The CLI wraps `aws s3 sync dist s3://<bucket>` and forwards `--region` when
 configured. It does not create CloudFront invalidations or apply the
 workflow's split cache-control metadata; keep using the workflow for the full
 production S3 + CloudFront path.
+
+---
+
+## Bunny.net
+
+**Recommended for:** Bunny CDN users who want to host the complete static
+`dist/` output in Bunny Storage and deliver it through a Pull Zone.
+
+For the focused Bunny.net guide, including the current no-emitter/no
+`nectar deploy bunny` status, see [`docs/deploy/bunny.md`](../deploy/bunny.md).
+
+The minimal flow is:
+
+1. Build locally:
+
+   ```bash
+   bunx nectar build
+   test -f dist/.nectar-manifest.json
+   ```
+
+2. In Bunny, create a Storage Zone, then create or connect a Pull Zone with
+   **Origin Type = Storage Zone**.
+3. Upload the contents of `dist/` to the root of the Storage Zone using the
+   dashboard, Bunny's HTTP Storage API, FTP, or a storage-sync tool that
+   matches your CI policy.
+4. Serve and verify the site through the Pull Zone hostname, not the Storage
+   API endpoint:
+
+   ```bash
+   curl -sI https://my-blog.b-cdn.net/ | sort
+   curl -sI https://my-blog.b-cdn.net/about/ | sort
+   curl -sI https://my-blog.b-cdn.net/404.html | sort
+   ```
+
+Bunny does not consume Nectar's `_headers`, `_redirects`, `vercel.json`, or
+`dist/.nectar/nginx.conf` files. Configure cache headers, security headers,
+redirects, custom hostnames, SSL, stale-file cleanup, and CDN purges in Bunny
+or your deploy pipeline. If you need redirect fallbacks without Bunny Edge
+Rules, `[components.redirects].emit_html = true` can emit browser-level
+fallback pages, but those responses are still `200`.
 
 ---
 
