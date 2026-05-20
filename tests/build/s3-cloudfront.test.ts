@@ -11,6 +11,7 @@ const terraformSample = join(
   's3-cloudfront',
   'cloudfront-custom-errors.tf.example',
 );
+const terraformDir = join(root, 'examples', 'deploy', 's3-cloudfront', 'terraform');
 
 describe('S3 + CloudFront deploy docs', () => {
   test('document 403 and 404 custom error responses for Nectar 404 pages', async () => {
@@ -36,8 +37,13 @@ describe('S3 + CloudFront deploy docs', () => {
     expect(guide).toContain('ErrorCode: 403');
     expect(guide).toContain('ErrorCode: 404');
     expect(guide).toContain('ResponseCode: 404');
+    expect(guide).toContain('Terraform OAC sample');
+    expect(guide).toContain('examples/deploy/s3-cloudfront/terraform/');
+    expect(guide).toContain('Origin Access Control (OAC), not legacy');
+    expect(guide).toContain('AWS:SourceArn');
     expect(tutorial).toContain('keep the viewer response code as\n`404`');
     expect(examples).toContain('cloudfront-custom-errors.tf.example');
+    expect(examples).toContain('deploy/s3-cloudfront/terraform/');
   });
 
   test('documents the build-emitted CloudFront invalidation path list', async () => {
@@ -65,5 +71,34 @@ describe('S3 + CloudFront deploy samples', () => {
     expect(body).toContain('response_code         = 404');
     expect(body).toContain('response_page_path    = "/404.html"');
     expect(body).not.toContain('response_code         = 200');
+  });
+
+  test('include a complete Terraform OAC starter for a private S3 origin', async () => {
+    const main = await readFile(join(terraformDir, 'main.tf'), 'utf8');
+    const variables = await readFile(join(terraformDir, 'variables.tf'), 'utf8');
+    const outputs = await readFile(join(terraformDir, 'outputs.tf'), 'utf8');
+    const readme = await readFile(join(terraformDir, 'README.md'), 'utf8');
+
+    expect(main).toContain('resource "aws_s3_bucket" "site"');
+    expect(main).toContain('resource "aws_s3_bucket_public_access_block" "site"');
+    expect(main).toContain('resource "aws_cloudfront_distribution" "site"');
+    expect(main).toContain('resource "aws_cloudfront_origin_access_control" "site"');
+    expect(main).toContain(
+      'origin_access_control_id = aws_cloudfront_origin_access_control.site.id',
+    );
+    expect(main).toContain('signing_behavior                  = "always"');
+    expect(main).toContain('signing_protocol                  = "sigv4"');
+    expect(main).toContain('resource "aws_s3_bucket_policy" "allow_cloudfront_oac_read"');
+    expect(main).toContain('identifiers = ["cloudfront.amazonaws.com"]');
+    expect(main).toContain('variable = "AWS:SourceArn"');
+    expect(main).toContain('values   = [aws_cloudfront_distribution.site.arn]');
+    expect(main).toContain('response_page_path    = "/404.html"');
+    expect(main).not.toContain('origin_access_identity');
+    expect(main).not.toContain('aws_cloudfront_origin_access_identity');
+
+    expect(variables).toContain('variable "bucket_name"');
+    expect(outputs).toContain('output "cloudfront_distribution_id"');
+    expect(readme).toContain('OAC, not the legacy Origin Access Identity (OAI)');
+    expect(readme).toContain('../cloudfront-custom-errors.tf.example');
   });
 });

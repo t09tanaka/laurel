@@ -21,6 +21,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 | `examples/r2/worker.ts`      | Cloudflare Worker sample for serving a full `dist/` tree from a private R2 bucket, including directory `index.html` lookup plus Nectar `_routes-manifest.json` redirects and headers. Pairs with `docs/deploy/cloudflare-pages-r2-images.md`. |
 | `render/render.yaml`       | Render Blueprint sample for a Static Site that runs `bun install && bun run build` and publishes `./dist`. Pairs with `docs/deploy/render.md`. |
 | `s3-cloudfront/append-index.js` | CloudFront Function (viewer-request) that rewrites `/about/` to `/about/index.html` so a private S3 origin behind CloudFront serves directory-style URLs. |
+| `deploy/s3-cloudfront/terraform/` | Terraform starter for a private S3 bucket, CloudFront distribution, Origin Access Control (OAC), and bucket policy. Includes Nectar's `403` / `404` custom error responses. |
 | `deploy/s3-cloudfront/cloudfront-custom-errors.tf.example` | Terraform fragment for CloudFront custom error responses that map S3-origin `403` / `404` misses to Nectar's `/404.html` while preserving viewer status `404`. |
 
 These are deliberately tiny: a single file each, with the deploy-platform's

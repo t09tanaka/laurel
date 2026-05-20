@@ -16,6 +16,10 @@ GitHub Pages have more managed defaults.
    Control (OAC). Avoid legacy S3 website hosting unless you intentionally
    need a public HTTP website endpoint.
 
+   If you want Terraform to create the private bucket, CloudFront distribution,
+   OAC, and bucket policy together, start from
+   [`examples/deploy/s3-cloudfront/terraform/`](../../examples/deploy/s3-cloudfront/terraform/).
+
 2. Create a CloudFront distribution with the S3 bucket as the origin. Set:
 
    | Setting | Value |
@@ -82,6 +86,31 @@ GitHub Pages have more managed defaults.
    immutable caching, syncs HTML / XML / TXT with revalidation, then
    invalidates the paths listed in `dist/.nectar/changed-paths.txt` in
    CloudFront.
+
+## Terraform OAC sample
+
+Nectar includes a complete Terraform starter in
+[`examples/deploy/s3-cloudfront/terraform/`](../../examples/deploy/s3-cloudfront/terraform/).
+It creates:
+
+- a private S3 bucket with public access blocked
+- a CloudFront distribution that uses Origin Access Control (OAC), not legacy
+  Origin Access Identity (OAI)
+- a bucket policy that allows `cloudfront.amazonaws.com` to read objects only
+  when `AWS:SourceArn` matches the distribution ARN
+- the same custom error responses described below, mapping both S3-origin
+  `403` and `404` misses to `/404.html` with viewer status `404`
+
+The sample manages the AWS infrastructure only. It does not run `nectar build`,
+upload `dist/`, or create invalidations; use the GitHub Actions workflow above
+or your existing CI for that deploy step.
+
+The older
+[`examples/deploy/s3-cloudfront/cloudfront-custom-errors.tf.example`](../../examples/deploy/s3-cloudfront/cloudfront-custom-errors.tf.example)
+file is a small fragment for teams that already have a CloudFront distribution
+and only need Nectar's custom 404 mapping. Do not copy the fragment into the
+Terraform starter unless you remove the duplicate `custom_error_response`
+blocks already present there.
 
 ## Custom 404 responses
 
