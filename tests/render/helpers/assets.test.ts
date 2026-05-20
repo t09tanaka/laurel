@@ -405,6 +405,20 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/assets/built/screen.css');
   });
 
+  test('resolves a bare logical path when only the assets-prefixed key is registered', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/source.js', {
+      logicalPath: 'assets/built/source.js',
+      fingerprintedPath: 'assets/built/source.abc123def0.js',
+      sourcePath: '/theme/assets/built/source.js',
+      hash: 'abc123def0',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "built/source.js"}}');
+    expect(tpl({})).toBe('/assets/built/source.abc123def0.js');
+  });
+
   test('triple-stash {{{asset}}} returns the raw URL (user explicitly opts out of escape)', () => {
     const engine = makeEngine({ basePath: '/' });
     registerAssetHelpers(engine);
