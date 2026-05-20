@@ -153,6 +153,94 @@ describe('packaging', () => {
         await rm(outdir, { recursive: true, force: true });
       }
     });
+
+    test('build:cli emits source maps and maps debug stacks back to TypeScript sources', async () => {
+      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      await mkdir(outRoot, { recursive: true });
+      const outdir = await mkdtemp(join(outRoot, 'test-cli-sourcemaps-'));
+
+      try {
+        const buildProc = Bun.spawn(['bun', 'run', 'scripts/build-cli.ts'], {
+          cwd: REPO_ROOT,
+          env: { ...process.env, NECTAR_BUILD_OUTDIR: outdir },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const [buildStdout, buildStderr, buildExitCode] = await Promise.all([
+          new Response(buildProc.stdout).text(),
+          new Response(buildProc.stderr).text(),
+          buildProc.exited,
+        ]);
+
+        expect(buildStderr).toBe('');
+        expect(buildExitCode).toBe(0);
+        expect(buildStdout).toContain(`Built ${join(outdir, 'cli.mjs')}`);
+
+        const bundledCli = join(outdir, 'cli.mjs');
+        const cliMap = await readFile(`${bundledCli}.map`, 'utf8');
+        expect(cliMap).toContain('src/cli/index.ts');
+        expect(cliMap).toContain('src/config/loader.ts');
+
+        const missingConfig = join(outdir, 'missing.toml');
+        const outputDir = join(outdir, 'site');
+        const defaultProc = Bun.spawn(
+          [
+            'bun',
+            bundledCli,
+            'build',
+            '--config',
+            missingConfig,
+            '--output',
+            outputDir,
+            '--no-progress',
+          ],
+          {
+            cwd: REPO_ROOT,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const [defaultStderr, defaultExitCode] = await Promise.all([
+          new Response(defaultProc.stderr).text(),
+          defaultProc.exited,
+        ]);
+
+        expect(defaultExitCode).toBe(1);
+        expect(defaultStderr).toContain('missing.toml');
+        expect(defaultStderr).not.toContain('\n    at ');
+        expect(defaultStderr).not.toContain('dist/cli.mjs');
+
+        const debugProc = Bun.spawn(
+          [
+            'bun',
+            bundledCli,
+            '--debug',
+            'build',
+            '--config',
+            missingConfig,
+            '--output',
+            outputDir,
+            '--no-progress',
+          ],
+          {
+            cwd: REPO_ROOT,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const [debugStderr, debugExitCode] = await Promise.all([
+          new Response(debugProc.stderr).text(),
+          debugProc.exited,
+        ]);
+
+        expect(debugExitCode).toBe(1);
+        expect(debugStderr).toContain('missing.toml');
+        expect(debugStderr).toContain('src/config/loader.ts');
+        expect(debugStderr).not.toContain(`${bundledCli}:`);
+      } finally {
+        await rm(outdir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('Docker image release', () => {

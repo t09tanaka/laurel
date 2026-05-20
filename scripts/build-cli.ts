@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { chmod, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 type PackageJson = {
   dependencies?: Record<string, string>;
@@ -13,6 +14,7 @@ const external = [
   ...Object.keys(pkg.peerDependencies ?? {}),
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
+const outdir = process.env.NECTAR_BUILD_OUTDIR?.trim() || 'dist';
 
 const entries: Array<{ entrypoint: string; outName: string; bin?: true }> = [
   { entrypoint: 'src/cli/index.ts', outName: 'cli.mjs', bin: true },
@@ -24,11 +26,12 @@ const entries: Array<{ entrypoint: string; outName: string; bin?: true }> = [
 for (const { entrypoint, outName, bin } of entries) {
   const result = await Bun.build({
     entrypoints: [entrypoint],
-    outdir: 'dist',
+    outdir,
     target: 'bun',
     format: 'esm',
     naming: { entry: outName },
     external,
+    sourcemap: 'external',
   });
 
   if (!result.success) {
@@ -41,8 +44,10 @@ for (const { entrypoint, outName, bin } of entries) {
   if (bin) {
     // npm sets the mode during `npm install`, but we want `node dist/cli.mjs`
     // / `./dist/cli.mjs` to work right after a local `bun run build:cli`.
-    await chmod(`dist/${outName}`, 0o755);
+    await chmod(join(outdir, outName), 0o755);
   }
 
-  console.log(`Built dist/${outName} (${result.outputs.length} output${result.outputs.length === 1 ? '' : 's'})`);
+  console.log(
+    `Built ${join(outdir, outName)} (${result.outputs.length} output${result.outputs.length === 1 ? '' : 's'})`,
+  );
 }
