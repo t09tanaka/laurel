@@ -746,13 +746,14 @@ function renderGalleryHtml(attrs: Record<string, string>, body: string): string 
 }
 
 function renderFileHtml(attrs: Record<string, string>): string {
-  const src = attrs.src ?? '';
+  const src = attrs.href ?? attrs.src ?? '';
   if (!src) return '';
   const titleHtml = attrs.title
     ? `<div class="kg-file-card-title">${escapeHtmlAttr(attrs.title)}</div>`
     : '';
-  const captionHtml = attrs.caption
-    ? `<div class="kg-file-card-caption">${escapeHtmlAttr(attrs.caption)}</div>`
+  const description = attrs.description ?? attrs.caption ?? '';
+  const captionHtml = description
+    ? `<div class="kg-file-card-caption">${escapeHtmlAttr(description)}</div>`
     : '';
   const filenameHtml = attrs.name
     ? `<div class="kg-file-card-filename">${escapeHtmlAttr(attrs.name)}</div>`

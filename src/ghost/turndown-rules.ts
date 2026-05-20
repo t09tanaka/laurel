@@ -578,9 +578,9 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const anchor = node.querySelector('a.kg-file-card-container') ?? node.querySelector('a');
       return wrap(
         shortcode('file', {
-          src: attr(anchor, 'href'),
+          href: attr(anchor, 'href'),
           title: text(node.querySelector('.kg-file-card-title')),
-          caption: text(node.querySelector('.kg-file-card-caption')),
+          description: text(node.querySelector('.kg-file-card-caption')),
           name: text(node.querySelector('.kg-file-card-filename')),
           size: text(node.querySelector('.kg-file-card-filesize')),
         }),

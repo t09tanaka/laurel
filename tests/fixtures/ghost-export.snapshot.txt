@@ -121,7 +121,7 @@ visibility: "public"
 status: "published"
 ---
 
-{{< file src="https://cdn.test/files/resume.pdf" title="Resume" caption="Short PDF download." name="resume.pdf" size="123 KB" />}}
+{{< file href="https://cdn.test/files/resume.pdf" title="Resume" description="Short PDF download." name="resume.pdf" size="123 KB" />}}
 
 === content/posts/card-gallery.md ===
 ---

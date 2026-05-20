@@ -578,6 +578,18 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).not.toContain('{{< file');
   });
 
+  test('expands migrated file shortcode href and description aliases', async () => {
+    const md =
+      '{{< file href="https://cdn.test/files/resume.pdf" title="Resume" description="Short PDF download." name="resume.pdf" size="123 KB" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-file-card kg-width-regular"');
+    expect(html).toContain('href="https://cdn.test/files/resume.pdf"');
+    expect(html).toContain('<div class="kg-file-card-title">Resume</div>');
+    expect(html).toContain('<div class="kg-file-card-caption">Short PDF download.</div>');
+    expect(html).toContain('<div class="kg-file-card-filename">resume.pdf</div>');
+    expect(html).toContain('<div class="kg-file-card-filesize">123 KB</div>');
+  });
+
   test('expands audio shortcode into a kg-audio-card with player metadata', async () => {
     const md =
       '{{< audio src="https://cdn.test/audio/episode-1.mp3" title="Episode 1: pilot" duration="00:42:13" thumbnail="https://cdn.test/audio-thumb.jpg" />}}';

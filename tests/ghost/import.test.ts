@@ -1140,7 +1140,7 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
     expect(postMd).toContain('src="/content/media/2024/01/demo.mp4"');
     expect(postMd).toContain('src="/content/media/2024/01/podcast.mp3"');
     expect(postMd).toContain('thumbnail="/content/images/2024/01/audio-cover.jpg"');
-    expect(postMd).toContain('src="/content/files/2024/01/handout.pdf"');
+    expect(postMd).toContain('href="/content/files/2024/01/handout.pdf"');
     expect(postMd).toContain(
       'style="background-image:url(&quot;/content/images/2024/01/html-bg.jpg&quot;)"',
     );

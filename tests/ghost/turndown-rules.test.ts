@@ -581,8 +581,8 @@ describe('Ghost Turndown rules — kg-audio-card', () => {
 describe('Ghost Turndown rules — kg-file-card', () => {
   test('preserves href, title, caption, filename, filesize', () => {
     const html = `
-      <div class="kg-card kg-file-card">
-        <a class="kg-file-card-container" href="/content/files/spec.pdf">
+      <div class="kg-card kg-file-card ">
+        <a class="kg-file-card-container" href="/content/files/spec.pdf" title="Download">
           <div class="kg-file-card-contents">
             <div class="kg-file-card-title">Spec</div>
             <div class="kg-file-card-caption">Latest draft</div>
@@ -596,11 +596,12 @@ describe('Ghost Turndown rules — kg-file-card', () => {
     `;
     const md = td.turndown(html);
     expect(md).toContain('{{< file');
-    expect(md).toContain('src="/content/files/spec.pdf"');
+    expect(md).toContain('href="/content/files/spec.pdf"');
     expect(md).toContain('title="Spec"');
-    expect(md).toContain('caption="Latest draft"');
+    expect(md).toContain('description="Latest draft"');
     expect(md).toContain('name="spec.pdf"');
     expect(md).toContain('size="2.4 MB"');
+    expect(md).not.toContain('[Spec](/content/files/spec.pdf)');
   });
 });
 

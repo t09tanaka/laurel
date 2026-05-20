@@ -145,12 +145,15 @@ export function renderEmbedCardHtml(payload: unknown): string {
 }
 
 export function renderFileCardHtml(payload: unknown): string {
-  const src = strProp(payload, 'src') || strProp(payload, 'fileSrc');
+  const src = strProp(payload, 'href') || strProp(payload, 'src') || strProp(payload, 'fileSrc');
   if (!src) return '';
   const title = strProp(payload, 'fileTitle') || strProp(payload, 'title');
-  const caption = strProp(payload, 'fileCaption') || strProp(payload, 'caption');
-  const name = strProp(payload, 'fileName');
-  const size = strProp(payload, 'fileSize');
+  const caption =
+    strProp(payload, 'description') ||
+    strProp(payload, 'fileCaption') ||
+    strProp(payload, 'caption');
+  const name = strProp(payload, 'name') || strProp(payload, 'fileName');
+  const size = strProp(payload, 'size') || strProp(payload, 'fileSize');
   return `<div class="kg-card kg-file-card"><a class="kg-file-card-container" href="${escapeAttr(src)}">${title ? `<div class="kg-file-card-title">${escapeHtml(title)}</div>` : ''}${caption ? `<div class="kg-file-card-caption">${escapeHtml(caption)}</div>` : ''}${name ? `<div class="kg-file-card-filename">${escapeHtml(name)}</div>` : ''}${size ? `<div class="kg-file-card-filesize">${escapeHtml(size)}</div>` : ''}</a></div>`;
 }
 
