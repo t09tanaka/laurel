@@ -30,12 +30,16 @@ export interface ThemePackage {
   customDefaults: Record<string, unknown>;
 }
 
+export type ThemeLocaleValue = string | number | boolean;
+export type ThemeLocale = Record<string, ThemeLocaleValue>;
+export type ThemeLocaleMap = Record<string, ThemeLocale>;
+
 export interface ThemeBundle {
   name: string;
   rootDir: string;
   templates: Record<string, string>;
   partials: Record<string, string>;
   pkg: ThemePackage;
-  locales: Record<string, Record<string, string>>;
+  locales: ThemeLocaleMap;
   assets: Map<string, ThemeAsset>;
 }

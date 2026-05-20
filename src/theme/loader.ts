@@ -7,7 +7,7 @@ import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
-import type { ThemeBundle } from './types.ts';
+import type { ThemeBundle, ThemeLocale, ThemeLocaleMap } from './types.ts';
 
 export interface LoadThemeOptions {
   cwd: string;
@@ -130,7 +130,7 @@ function stripExt(p: string): string {
   return p.slice(0, p.length - extname(p).length);
 }
 
-async function loadLocales(rootDir: string): Promise<Record<string, Record<string, string>>> {
+async function loadLocales(rootDir: string): Promise<ThemeLocaleMap> {
   const dir = join(rootDir, 'locales');
   if (!existsSync(dir)) return {};
   const allRels = await scanGlob('*.json', { cwd: dir });
@@ -145,7 +145,7 @@ async function loadLocales(rootDir: string): Promise<Record<string, Record<strin
   // tiny files, so the readFile fan-out keeps the load phase a single tick of
   // I/O instead of one round-trip per locale.
   const raws = await Promise.all(rels.map((rel) => readFile(join(dir, rel), 'utf8')));
-  const out: Record<string, Record<string, string>> = {};
+  const out: ThemeLocaleMap = {};
   for (let i = 0; i < rels.length; i += 1) {
     const rel = rels[i];
     const raw = raws[i];
@@ -163,14 +163,14 @@ async function loadLocales(rootDir: string): Promise<Record<string, Record<strin
   return out;
 }
 
-// Locale strings are rendered by themes through `{{t}}` and frequently through
+// Locale values are rendered by themes through `{{t}}` and frequently through
 // `{{{t}}}` (triple-stash) so that translations may contain link markup. That
 // makes the locale JSON file an HTML-injection surface: a malicious or
 // compromised translation can ship `<script>` or `onerror=` payloads into every
-// rendered page. We validate the shape (string keys -> string values), cap the
-// length, and reject entries that contain obvious script-injection tokens. We
-// still allow benign markup like `<a>` and `<strong>` because real-world Ghost
-// locale files rely on it.
+// rendered page. We validate the shape (string keys -> string/number/boolean
+// values), cap the rendered length, and reject entries that contain obvious
+// script-injection tokens. We still allow benign markup like `<a>` and
+// `<strong>` because real-world Ghost locale files rely on it.
 const MAX_LOCALE_KEY_LEN = 256;
 const MAX_LOCALE_VALUE_LEN = 4096;
 const DANGEROUS_LOCALE_PATTERNS: ReadonlyArray<RegExp> = [
@@ -187,37 +187,44 @@ const DANGEROUS_LOCALE_PATTERNS: ReadonlyArray<RegExp> = [
   /\son[a-z]+\s*=/i,
 ];
 
-export function sanitizeLocale(parsed: unknown, fileLabel: string): Record<string, string> {
+export function sanitizeLocale(parsed: unknown, fileLabel: string): ThemeLocale {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     logger.warn(`Locale file ${fileLabel} must be a JSON object; ignoring.`);
     return {};
   }
-  const strings: Record<string, string> = {};
+  const entries: ThemeLocale = {};
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (typeof value !== 'string') {
-      logger.warn(`Locale ${fileLabel}: key ${truncate(key, 64)} has non-string value; skipping.`);
+    if (!isLocaleValue(value)) {
+      logger.warn(
+        `Locale ${fileLabel}: key ${truncate(key, 64)} has unsupported value type; skipping.`,
+      );
       continue;
     }
     if (key.length > MAX_LOCALE_KEY_LEN) {
       logger.warn(`Locale ${fileLabel}: key exceeds ${MAX_LOCALE_KEY_LEN} chars; skipping.`);
       continue;
     }
-    if (value.length > MAX_LOCALE_VALUE_LEN) {
+    const renderedValue = String(value);
+    if (renderedValue.length > MAX_LOCALE_VALUE_LEN) {
       logger.warn(
         `Locale ${fileLabel}: value for key ${truncate(key, 64)} exceeds ${MAX_LOCALE_VALUE_LEN} chars; skipping.`,
       );
       continue;
     }
-    const matched = DANGEROUS_LOCALE_PATTERNS.find((rx) => rx.test(value));
+    const matched = DANGEROUS_LOCALE_PATTERNS.find((rx) => rx.test(renderedValue));
     if (matched) {
       logger.warn(
         `Locale ${fileLabel}: value for key ${truncate(key, 64)} contains dangerous token (${matched.source}); skipping.`,
       );
       continue;
     }
-    strings[key] = value;
+    entries[key] = value;
   }
-  return strings;
+  return entries;
+}
+
+function isLocaleValue(value: unknown): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
 function truncate(value: string, max: number): string {

@@ -92,4 +92,35 @@ describe('loadTheme', () => {
       expect(theme.templates.default).toBe('LOCAL');
     });
   });
+
+  test('preserves numeric and boolean locale values', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'mini');
+      await mkdir(join(themeRoot, 'locales'), { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), 'hi', 'utf8');
+      await writeFile(
+        join(themeRoot, 'locales', 'en.json'),
+        JSON.stringify({
+          Title: 'Title',
+          Count: 3,
+          Enabled: true,
+          Disabled: false,
+        }),
+        'utf8',
+      );
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'mini', dir: 'themes' },
+      });
+
+      const theme = await loadTheme({ cwd, config });
+
+      expect(theme.locales.en).toEqual({
+        Title: 'Title',
+        Count: 3,
+        Enabled: true,
+        Disabled: false,
+      });
+    });
+  });
 });

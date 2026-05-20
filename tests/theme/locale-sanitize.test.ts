@@ -61,12 +61,12 @@ describe('sanitizeLocale', () => {
     expect(out).toEqual({ ok: 'normal text' });
   });
 
-  test('drops non-string values', () => {
+  test('keeps numeric and boolean values and drops unsupported values', () => {
     const out = sanitizeLocale(
-      { ok: 'yes', num: 5, obj: { nested: 'x' }, arr: ['x'], nul: null },
+      { ok: 'yes', num: 5, yes: true, no: false, obj: { nested: 'x' }, arr: ['x'], nul: null },
       'en.json',
     );
-    expect(out).toEqual({ ok: 'yes' });
+    expect(out).toEqual({ ok: 'yes', num: 5, yes: true, no: false });
   });
 
   test('caps value length', () => {

@@ -12,7 +12,13 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     const locales = engine.theme?.locales ?? {};
     const active = locales[locale] ?? {};
     const fallback = locales.en ?? {};
-    return active[key] || fallback[key] || key;
+    if (Object.prototype.hasOwnProperty.call(active, key)) {
+      return String(active[key] ?? '');
+    }
+    if (Object.prototype.hasOwnProperty.call(fallback, key)) {
+      return String(fallback[key] ?? '');
+    }
+    return key;
   };
 
   engine.hb.registerHelper(

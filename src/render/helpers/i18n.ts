@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import type { ThemeLocale, ThemeLocaleValue } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerI18nHelpers(engine: NectarEngine): void {
@@ -11,7 +12,7 @@ export function registerI18nHelpers(engine: NectarEngine): void {
     const key = String(args[0] ?? '');
     // Ghost treats an existing locale entry as authoritative even when its
     // value is ""; only an absent key falls through to en.json and then the key.
-    let lookup = key;
+    let lookup: ThemeLocaleValue = key;
     if (hasLocaleEntry(active, key)) {
       lookup = active[key] ?? '';
     } else if (hasLocaleEntry(fallback, key)) {
@@ -23,7 +24,7 @@ export function registerI18nHelpers(engine: NectarEngine): void {
     // after the key, excluding the Handlebars options object at the tail)
     // feed `%` substitution so we don't ship a "%" literal to readers.
     const positional = args.slice(1, -1);
-    return interpolate(lookup, options.hash as Record<string, unknown>, positional);
+    return interpolate(String(lookup), options.hash as Record<string, unknown>, positional);
   });
 
   engine.hb.registerHelper('lang', function langHelper() {
@@ -31,7 +32,7 @@ export function registerI18nHelpers(engine: NectarEngine): void {
   });
 }
 
-function hasLocaleEntry(locale: Record<string, string>, key: string): boolean {
+function hasLocaleEntry(locale: ThemeLocale, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(locale, key);
 }
 

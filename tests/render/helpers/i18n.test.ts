@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerI18nHelpers } from '~/render/helpers/i18n.ts';
+import type { ThemeLocaleMap } from '~/theme/types.ts';
 
-function makeEngine(locales: Record<string, Record<string, string>>, locale = 'en'): NectarEngine {
+function makeEngine(locales: ThemeLocaleMap, locale = 'en'): NectarEngine {
   const hb = Handlebars.create();
   return {
     hb,
@@ -101,5 +102,20 @@ describe('t helper', () => {
     );
     registerI18nHelpers(engine);
     expect(engine.hb.compile('{{t "Powered by %" "Casper"}}')({})).toBe('Betrieben durch Casper');
+  });
+
+  test('stringifies numeric and boolean locale values', () => {
+    const engine = makeEngine({
+      en: {
+        Count: 3,
+        Enabled: true,
+        Disabled: false,
+      },
+    });
+    registerI18nHelpers(engine);
+
+    expect(engine.hb.compile('{{t "Count"}}')({})).toBe('3');
+    expect(engine.hb.compile('{{t "Enabled"}}')({})).toBe('true');
+    expect(engine.hb.compile('{{t "Disabled"}}')({})).toBe('false');
   });
 });

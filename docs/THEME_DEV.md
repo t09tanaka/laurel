@@ -701,9 +701,10 @@ themes/<name>/locales/
 └── ja.json
 ```
 
-Each file is a flat `{ "key": "translation" }` map. Keys are the English source
-strings by convention (as Ghost does), and translations may use `%` or
-`{name}` placeholders (see `{{t}}` §5.7).
+Each file is a flat `{ "key": value }` map. Keys are the English source strings
+by convention (as Ghost does). Values may be strings, numbers, or booleans;
+`{{t}}` stringifies numbers and booleans at render time. String translations may
+use `%` or `{name}` placeholders (see `{{t}}` §5.7).
 
 The active locale is `[site].locale`. Nectar falls back through:
 
