@@ -107,6 +107,20 @@ const buildMetadataSchema = z
   })
   .strict();
 
+const contentKindSchema = z
+  .object({
+    dir: z
+      .string()
+      .min(1)
+      .describe('Directory where `nectar new <kind> <title>` writes Markdown files.'),
+    title_field: z
+      .string()
+      .min(1)
+      .default('name')
+      .describe('Frontmatter field that receives the scaffold title. Defaults to `name`.'),
+  })
+  .strict();
+
 const referrerPolicySchema = z.enum([
   'no-referrer',
   'no-referrer-when-downgrade',
@@ -350,6 +364,12 @@ export const configSchema = z
           .string()
           .default('content/tags')
           .describe('Directory of tag profile Markdown files, relative to the project root.'),
+        kinds: z
+          .record(contentKindSchema)
+          .default({})
+          .describe(
+            'Additional Markdown content kinds accepted by `nectar new <kind> <title>`. Each entry declares the destination directory and optional title frontmatter field.',
+          ),
         assets_dir: z
           .string()
           .default('content/images')
@@ -1631,6 +1651,7 @@ export const configSchema = z
   .strict();
 
 export type NectarConfig = z.infer<typeof configSchema>;
+export type ContentKindConfig = z.infer<typeof contentKindSchema>;
 // Input shape from `nectar.toml`. Strict, only `label` + `url`.
 export type NavigationItemConfig = z.infer<typeof navigationItemSchema>;
 

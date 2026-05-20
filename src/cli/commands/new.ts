@@ -1,6 +1,10 @@
+import { existsSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
+import type { NectarConfig } from '~/config/schema.ts';
+import { resolveThemeRoot } from '~/theme/loader.ts';
+import { loadThemePackage } from '~/theme/pkg.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { t } from '../i18n/index.ts';
@@ -10,8 +14,15 @@ import { reportError } from '../report.ts';
 import { isValidCliSlug, slugifyCliValue } from '../slug.ts';
 import { NEW_SPEC } from '../specs.ts';
 
-type Kind = 'post' | 'page' | 'tag' | 'author';
-const VALID_KINDS: readonly Kind[] = ['post', 'page', 'tag', 'author'];
+type BuiltInKind = 'post' | 'page' | 'tag' | 'author';
+type KindModel = BuiltInKind | 'custom';
+
+interface NewKindDefinition {
+  kind: string;
+  dir: string;
+  model: KindModel;
+  titleField: string;
+}
 
 export async function runNew(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -31,29 +42,14 @@ export async function runNew(args: string[]): Promise<number> {
   }
 
   const [kindArg, ...rest] = parsed.positionals;
-  if (!kindArg || !VALID_KINDS.includes(kindArg as Kind)) {
+  if (!kindArg) {
     process.stderr.write(
-      `${t('new.invalidKind', { kind: kindArg ?? '<missing>', kinds: VALID_KINDS.join(', ') })}\n\n`,
+      `${t('new.invalidKind', { kind: '<missing>', kinds: 'post, page, tag, author' })}\n\n`,
     );
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
-  const kind = kindArg as Kind;
-  const remainder = rest.join(' ').trim();
-  if (!remainder) {
-    if (kind === 'post' || kind === 'page') {
-      process.stderr.write(`${t('new.emptyTitle')}\n\n`);
-      process.stderr.write(formatCommandHelp(NEW_SPEC));
-      return 2;
-    }
-    const label = kind === 'post' || kind === 'page' ? 'title' : 'slug';
-    process.stderr.write(`${t('new.requiredValue', { label })}\n\n`);
-    process.stderr.write(formatCommandHelp(NEW_SPEC));
-    return 2;
-  }
 
-  const isPost = kind === 'post';
-  const isPostOrPage = isPost || kind === 'page';
   const draft = parsed.values.draft === true;
   const dateRaw = typeof parsed.values.date === 'string' ? parsed.values.date.trim() : '';
   const tagsRaw = typeof parsed.values.tags === 'string' ? parsed.values.tags : '';
@@ -61,6 +57,42 @@ export async function runNew(args: string[]): Promise<number> {
   const openEditor = parsed.values.open === true;
   const force = parsed.values.force === true;
   const slugOverrideRaw = typeof parsed.values.slug === 'string' ? parsed.values.slug.trim() : '';
+
+  const cwd = process.cwd();
+  const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  let config: Awaited<ReturnType<typeof loadConfig>>;
+  try {
+    config = await loadConfig({ cwd, configPath });
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+
+  const kinds = await resolveNewKinds(cwd, config);
+  const kindDef = kinds.get(kindArg);
+  if (!kindDef) {
+    process.stderr.write(
+      `${t('new.invalidKind', { kind: kindArg, kinds: Array.from(kinds.keys()).join(', ') })}\n\n`,
+    );
+    process.stderr.write(formatCommandHelp(NEW_SPEC));
+    return 2;
+  }
+
+  const kind = kindDef.kind;
+  const remainder = rest.join(' ').trim();
+  if (!remainder) {
+    if (usesTitle(kindDef)) {
+      process.stderr.write(`${t('new.emptyTitle')}\n\n`);
+    } else {
+      process.stderr.write(`${t('new.requiredValue', { label: 'slug' })}\n\n`);
+    }
+    process.stderr.write(formatCommandHelp(NEW_SPEC));
+    return 2;
+  }
+
+  const isPost = kindDef.model === 'post';
+  const isPostOrPage = isPost || kindDef.model === 'page';
+  const isPostPageOrCustom = isPostOrPage || kindDef.model === 'custom';
 
   if (!isPost && (dateRaw || tagsRaw || authorRaw)) {
     process.stderr.write(`${t('new.optionPostOnly')}\n\n`);
@@ -72,7 +104,7 @@ export async function runNew(args: string[]): Promise<number> {
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
-  if (!isPostOrPage && slugOverrideRaw) {
+  if (!isPostPageOrCustom && slugOverrideRaw) {
     process.stderr.write(`${t('new.optionSlugKind')}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
@@ -95,23 +127,13 @@ export async function runNew(args: string[]): Promise<number> {
     return 2;
   }
 
-  const slug = isPostOrPage && slugOverrideRaw ? slugOverrideRaw : slugifyCliValue(remainder);
+  const slug = isPostPageOrCustom && slugOverrideRaw ? slugOverrideRaw : slugifyCliValue(remainder);
   if (!isValidCliSlug(slug)) {
     process.stderr.write(`${t('new.invalidSlug')}\n`);
     return 2;
   }
 
-  const cwd = process.cwd();
-  const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
-  let config: Awaited<ReturnType<typeof loadConfig>>;
-  try {
-    config = await loadConfig({ cwd, configPath });
-  } catch (err) {
-    reportError(err, cwd);
-    return 1;
-  }
-
-  const baseDir = baseDirForKind(kind, config);
+  const baseDir = kindDef.dir;
   const dest = isAbsolute(baseDir) ? join(baseDir, `${slug}.md`) : join(cwd, baseDir, `${slug}.md`);
   await ensureDir(dirname(dest));
 
@@ -122,8 +144,8 @@ export async function runNew(args: string[]): Promise<number> {
 
   const tagList = parseCsvList(tagsRaw);
   const body = renderFrontmatter({
-    kind,
-    title: isPostOrPage ? remainder : titleFromSlug(slug),
+    kind: kindDef,
+    title: usesTitle(kindDef) ? remainder : titleFromSlug(slug),
     slug,
     date: isPost ? (isoDate ?? new Date().toISOString()) : undefined,
     draft: isPostOrPage ? draft : false,
@@ -148,21 +170,67 @@ export async function runNew(args: string[]): Promise<number> {
   return 0;
 }
 
-function baseDirForKind(kind: Kind, config: Awaited<ReturnType<typeof loadConfig>>): string {
-  switch (kind) {
-    case 'post':
-      return config.content.posts_dir;
-    case 'page':
-      return config.content.pages_dir;
-    case 'tag':
-      return config.content.tags_dir;
-    case 'author':
-      return config.content.authors_dir;
+async function resolveNewKinds(
+  cwd: string,
+  config: NectarConfig,
+): Promise<Map<string, NewKindDefinition>> {
+  const kinds = new Map<string, NewKindDefinition>();
+  addKind(kinds, {
+    kind: 'post',
+    dir: config.content.posts_dir,
+    model: 'post',
+    titleField: 'title',
+  });
+  addKind(kinds, {
+    kind: 'page',
+    dir: config.content.pages_dir,
+    model: 'page',
+    titleField: 'title',
+  });
+  addKind(kinds, { kind: 'tag', dir: config.content.tags_dir, model: 'tag', titleField: 'name' });
+  addKind(kinds, {
+    kind: 'author',
+    dir: config.content.authors_dir,
+    model: 'author',
+    titleField: 'name',
+  });
+
+  const themeKinds = await loadThemeNewKinds(cwd, config);
+  for (const [kind, def] of Object.entries(themeKinds)) {
+    addKind(kinds, { kind, dir: def.dir, model: 'custom', titleField: def.title_field });
   }
+  for (const [kind, def] of Object.entries(config.content.kinds)) {
+    addKind(kinds, { kind, dir: def.dir, model: 'custom', titleField: def.title_field });
+  }
+  return kinds;
+}
+
+async function loadThemeNewKinds(
+  cwd: string,
+  config: NectarConfig,
+): Promise<Record<string, { dir: string; title_field: string }>> {
+  const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
+  if (!existsSync(rootDir)) return {};
+  const pkg = await loadThemePackage(rootDir);
+  return pkg.content_kinds ?? {};
+}
+
+function addKind(kinds: Map<string, NewKindDefinition>, def: NewKindDefinition): void {
+  const normalized = def.kind.trim().toLowerCase();
+  if (!isContentKindName(normalized)) return;
+  kinds.set(normalized, { ...def, kind: normalized });
+}
+
+function isContentKindName(value: string): boolean {
+  return /^[a-z][a-z0-9_-]*$/.test(value);
+}
+
+function usesTitle(kind: NewKindDefinition): boolean {
+  return kind.model === 'post' || kind.model === 'page' || kind.model === 'custom';
 }
 
 interface FrontmatterInput {
-  kind: Kind;
+  kind: NewKindDefinition;
   title: string;
   slug: string;
   date?: string | undefined;
@@ -175,30 +243,33 @@ function renderFrontmatter(input: FrontmatterInput): string {
   const { kind, title, slug, date, draft, tags, author } = input;
   const lines: string[] = ['---'];
 
-  if (kind === 'post' || kind === 'page') {
+  if (kind.model === 'post' || kind.model === 'page') {
     lines.push(`title: ${JSON.stringify(title)}`);
     lines.push(`slug: ${slug}`);
     if (date) lines.push(`date: ${date}`);
     if (draft) lines.push('status: draft');
-    if (kind === 'post') {
+    if (kind.model === 'post') {
       lines.push(`tags: ${formatYamlSlugList(tags)}`);
       lines.push(`authors: ${formatYamlSlugList(author ? [author] : [])}`);
     }
-  } else {
+  } else if (kind.model === 'tag' || kind.model === 'author') {
     lines.push(`slug: ${slug}`);
     lines.push(`name: ${JSON.stringify(title)}`);
-    if (kind === 'tag') {
+    if (kind.model === 'tag') {
       lines.push('description: ""');
     } else {
       lines.push('bio: ""');
     }
+  } else {
+    lines.push(`slug: ${slug}`);
+    lines.push(`${kind.titleField}: ${JSON.stringify(title)}`);
   }
 
   lines.push('---', '');
-  if (kind === 'post' || kind === 'page') {
+  if (kind.model === 'post' || kind.model === 'page') {
     lines.push(`# ${title}`, '', 'Write your content here.', '');
   } else {
-    const noun = kind === 'tag' ? 'tag' : 'author';
+    const noun = kind.kind;
     lines.push(`Describe this ${noun} here.`, '');
   }
   return lines.join('\n');

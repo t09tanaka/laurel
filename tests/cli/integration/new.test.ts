@@ -41,10 +41,11 @@ describe('cli integration — new (#663/#692)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('new --help exits 0 and lists all four kinds', async () => {
+  test('new --help exits 0 and documents built-in and custom kinds', async () => {
     const { stdout, exitCode } = await runCli(['new', '--help']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('post, page, tag, or author');
+    expect(stdout).toContain('Built-ins are post, page, tag, and author');
+    expect(stdout).toContain('config.content_kinds');
     expect(stdout).toContain('--draft');
     expect(stdout).toContain('--slug');
     expect(stdout).toContain('--tags');

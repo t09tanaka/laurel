@@ -185,6 +185,7 @@ function resolveParsedProjectPaths(parsed: unknown, cwd: string, configDir: stri
     if (typeof current !== 'string' || current.length === 0 || isAbsolute(current)) continue;
     parent[key] = resolve(configDir, current);
   }
+  resolveParsedContentKindDirs(cloned, configDir);
   return cloned;
 }
 
@@ -226,7 +227,23 @@ function resolveProjectPaths(config: NectarConfig, configDir: string): NectarCon
     if (typeof current !== 'string' || current.length === 0) continue;
     parent[key] = isAbsolute(current) ? current : resolve(configDir, current);
   }
+  for (const kind of Object.values(config.content.kinds)) {
+    kind.dir = isAbsolute(kind.dir) ? kind.dir : resolve(configDir, kind.dir);
+  }
   return config;
+}
+
+function resolveParsedContentKindDirs(root: Record<string, unknown>, configDir: string): void {
+  const content = root.content;
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return;
+  const kinds = (content as Record<string, unknown>).kinds;
+  if (!kinds || typeof kinds !== 'object' || Array.isArray(kinds)) return;
+  for (const value of Object.values(kinds)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const def = value as Record<string, unknown>;
+    if (typeof def.dir !== 'string' || def.dir.length === 0 || isAbsolute(def.dir)) continue;
+    def.dir = resolve(configDir, def.dir);
+  }
 }
 
 function walkParent(

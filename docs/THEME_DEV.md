@@ -25,7 +25,7 @@ A theme is a directory under `<site>/themes/<name>/` referenced by
 
 ```
 themes/<name>/
-├── package.json              # config block: posts_per_page, image_sizes, custom
+├── package.json              # config block: posts_per_page, image_sizes, content_kinds, custom
 ├── default.hbs               # top-level layout; other templates extend it
 ├── index.hbs                 # / (also paginated home)
 ├── post.hbs                  # /<post-slug>/
@@ -682,6 +682,12 @@ undeclared key currently warns rather than hard-fails.
       "xl": { "width": 1200 }
     },
     "card_assets": true,
+    "content_kinds": {
+      "event": {
+        "dir": "content/events",
+        "title_field": "title"
+      }
+    },
     "custom": {
       "navigation_layout": {
         "type": "select",
@@ -715,6 +721,10 @@ undeclared key currently warns rather than hard-fails.
   `false` disables the shared assets. Nectar does not fetch Ghost's upstream
   vendor bundle or a CDN at build time; the bundled files are a static
   compatibility layer for common Koenig card class names.
+- **`content_kinds`** — additional Markdown kinds that `nectar new <kind>
+  <title>` may scaffold for this theme. Each key is the CLI kind name; `dir`
+  is the destination directory, and `title_field` defaults to `name` when
+  omitted. Project config `[content.kinds.<kind>]` can override the same kind.
 - **`custom`** — settings exposed on `@custom`. Supported `type` values mirror
   Ghost: `text`, `boolean`, `select` (with `options`), `color`, `image`. Types
   beyond `select` and `boolean` currently round-trip as strings — the user is

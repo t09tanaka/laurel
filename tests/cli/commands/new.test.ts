@@ -416,3 +416,106 @@ describe('cli new — tag and author kinds', () => {
     expect(stderr).toContain('post, page, tag, author');
   });
 });
+
+describe('cli new — extensible kinds', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-kinds-')));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('accepts custom kinds declared in the loaded config', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "T"',
+        '',
+        '[content.kinds.event]',
+        'dir = "content/events"',
+        'title_field = "title"',
+        '',
+      ].join('\n'),
+    );
+
+    const { exitCode } = await runCli(['new', 'event', 'Launch Party'], dir);
+    expect(exitCode).toBe(0);
+
+    const body = await readFile(join(dir, 'content/events/launch-party.md'), 'utf8');
+    expect(body).toContain('slug: launch-party');
+    expect(body).toContain('title: "Launch Party"');
+    expect(body).toContain('Describe this event here.');
+  });
+
+  test('accepts custom kinds declared in the active theme package manifest', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      ['[site]', 'title = "T"', '', '[theme]', 'name = "custom"', 'dir = "themes"', ''].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'themes/custom/package.json'),
+      JSON.stringify({
+        name: 'custom',
+        config: {
+          content_kinds: {
+            issue: {
+              dir: 'content/issues',
+              title_field: 'headline',
+            },
+          },
+        },
+      }),
+    );
+
+    const { exitCode } = await runCli(['new', 'issue', 'First Edition'], dir);
+    expect(exitCode).toBe(0);
+
+    const body = await readFile(join(dir, 'content/issues/first-edition.md'), 'utf8');
+    expect(body).toContain('slug: first-edition');
+    expect(body).toContain('headline: "First Edition"');
+  });
+
+  test('config kind definitions override theme manifest kind definitions', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "T"',
+        '',
+        '[theme]',
+        'name = "custom"',
+        'dir = "themes"',
+        '',
+        '[content.kinds.issue]',
+        'dir = "configured/issues"',
+        'title_field = "name"',
+        '',
+      ].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'themes/custom/package.json'),
+      JSON.stringify({
+        name: 'custom',
+        config: {
+          content_kinds: {
+            issue: {
+              dir: 'content/issues',
+              title_field: 'headline',
+            },
+          },
+        },
+      }),
+    );
+
+    const { exitCode } = await runCli(['new', 'issue', 'Configured Edition'], dir);
+    expect(exitCode).toBe(0);
+
+    const body = await readFile(join(dir, 'configured/issues/configured-edition.md'), 'utf8');
+    expect(body).toContain('name: "Configured Edition"');
+    expect(body).not.toContain('headline:');
+  });
+});

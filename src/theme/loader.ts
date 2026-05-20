@@ -82,7 +82,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
 //      local-directory resolution didn't find anything on disk, so the
 //      pre-existing `theme.dir = "themes"` default keeps working even though
 //      a bare `themes` string also matches the npm package regex (#855).
-function resolveThemeRoot(cwd: string, themeDir: string, themeName: string): string {
+export function resolveThemeRoot(cwd: string, themeDir: string, themeName: string): string {
   if (isAbsolute(themeDir)) {
     return join(themeDir, themeName);
   }

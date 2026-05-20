@@ -27,12 +27,18 @@ export interface ThemeCardAssetsConfig {
 
 export type ThemeCardAssets = boolean | ThemeCardAssetsConfig;
 
+export interface ThemeContentKindDefinition {
+  dir: string;
+  title_field: string;
+}
+
 export interface ThemePackage {
   name: string;
   version: string;
   posts_per_page: number;
   image_sizes: Record<string, ThemeImageSize>;
   card_assets: ThemeCardAssets;
+  content_kinds?: Record<string, ThemeContentKindDefinition>;
   custom: Record<string, ThemeCustomSettingDefinition>;
   customDefaults: Record<string, unknown>;
 }

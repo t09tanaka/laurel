@@ -6,6 +6,7 @@ import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import type {
   ThemeCardAssets,
+  ThemeContentKindDefinition,
   ThemeCustomSettingDefinition,
   ThemeImageSize,
   ThemePackage,
@@ -41,6 +42,13 @@ const cardAssetsSchema = z.union([
 // brittle for real-world themes that we don't control.
 const customDefSchema = z.unknown();
 
+const contentKindSchema = z
+  .object({
+    dir: z.string().min(1),
+    title_field: z.string().min(1).default('name'),
+  })
+  .strict();
+
 export const themePackageJsonSchema = z
   .object({
     name: z.string().optional(),
@@ -50,6 +58,7 @@ export const themePackageJsonSchema = z
         posts_per_page: z.number().optional(),
         image_sizes: z.record(imageSizeSchema).optional(),
         card_assets: cardAssetsSchema.optional(),
+        content_kinds: z.record(contentKindSchema).optional(),
         custom: z.record(customDefSchema).optional(),
       })
       .passthrough()
@@ -90,6 +99,7 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
     posts_per_page: cfg.posts_per_page ?? 5,
     image_sizes: cfg.image_sizes ?? {},
     card_assets: normalizeCardAssets(cfg.card_assets),
+    content_kinds: normalizeContentKinds(cfg.content_kinds ?? {}),
     custom,
     customDefaults,
   };
@@ -111,6 +121,28 @@ function uniqueStrings(values: readonly string[]): string[] {
     out.push(normalized);
   }
   return out;
+}
+
+function normalizeContentKinds(
+  raw: Record<string, z.infer<typeof contentKindSchema>>,
+): Record<string, ThemeContentKindDefinition> {
+  const out: Record<string, ThemeContentKindDefinition> = {};
+  for (const [kind, def] of Object.entries(raw)) {
+    const normalizedKind = kind.trim().toLowerCase();
+    if (!isContentKindName(normalizedKind)) {
+      logger.warn(`theme content kind \`${kind}\` has an invalid name; skipping`);
+      continue;
+    }
+    out[normalizedKind] = {
+      dir: def.dir,
+      title_field: def.title_field,
+    };
+  }
+  return out;
+}
+
+function isContentKindName(value: string): boolean {
+  return /^[a-z][a-z0-9_-]*$/.test(value);
 }
 
 // Trust nothing from package.json: an attacker (or careless theme author) can
@@ -219,6 +251,7 @@ function defaultPackage(): ThemePackage {
     posts_per_page: 5,
     image_sizes: {},
     card_assets: false,
+    content_kinds: {},
     custom: {},
     customDefaults: {},
   };

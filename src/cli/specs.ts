@@ -120,7 +120,7 @@ export const BUILD_SPEC: CommandSpec = {
 
 export const NEW_SPEC: CommandSpec = {
   name: 'new',
-  summary: 'Scaffold a new post, page, tag, or author',
+  summary: 'Scaffold a new Markdown content file',
   options: {
     config: {
       type: 'string',
@@ -134,7 +134,7 @@ export const NEW_SPEC: CommandSpec = {
     slug: {
       type: 'string',
       description:
-        'Use this lowercase ASCII slug instead of one derived from the title (post/page only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug)',
+        'Use this lowercase ASCII slug instead of one derived from the title (post/page/custom kinds only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug)',
       placeholder: '<slug>',
     },
     draft: {
@@ -171,11 +171,16 @@ export const NEW_SPEC: CommandSpec = {
     },
   },
   positionals: [
-    { name: 'kind', description: 'post, page, tag, or author', required: true },
+    {
+      name: 'kind',
+      description:
+        'Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest.',
+      required: true,
+    },
     {
       name: 'title',
       description:
-        'Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles',
+        'Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles',
       required: true,
       variadic: true,
     },
@@ -187,6 +192,7 @@ export const NEW_SPEC: CommandSpec = {
     'nectar new post "Tagged" --tags news,tech --author jane',
     'nectar new tag releases                      # content/tags/releases.md',
     'nectar new author jane                       # content/authors/jane.md',
+    'nectar new event "Launch Party"              # custom kind from config/theme manifest',
   ],
 };
 

@@ -106,7 +106,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | --- | --- |
 | [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
 | [`nectar build`](#nectar-build) | Build the site into the configured output directory |
-| [`nectar new`](#nectar-new) | Scaffold a new post, page, tag, or author |
+| [`nectar new`](#nectar-new) | Scaffold a new Markdown content file |
 | [`nectar open`](#nectar-open) | Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
@@ -208,7 +208,7 @@ nectar build --json                          # emit the summary as JSON for CI
 
 ### `nectar new`
 
-Scaffold a new post, page, tag, or author
+Scaffold a new Markdown content file
 
 Usage:
 
@@ -220,8 +220,8 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<kind>` | required | post, page, tag, or author |
-| `<title...>` | required (variadic) | Title (post/page) or slug (tag/author); variadic so quoting is optional for multi-word titles |
+| `<kind>` | required | Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest. |
+| `<title...>` | required (variadic) | Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles |
 
 Options:
 
@@ -229,7 +229,7 @@ Options:
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_NEW_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--force` | boolean | `NECTAR_NEW_FORCE` | Overwrite the destination file if it already exists |
-| `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this lowercase ASCII slug instead of one derived from the title (post/page only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug) |
+| `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this lowercase ASCII slug instead of one derived from the title (post/page/custom kinds only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug) |
 | `--draft` | boolean | `NECTAR_NEW_DRAFT` | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
 | `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
@@ -246,6 +246,7 @@ nectar new post "Draft Idea" --draft        # status: draft so the build skips i
 nectar new post "Tagged" --tags news,tech --author jane
 nectar new tag releases                      # content/tags/releases.md
 nectar new author jane                       # content/authors/jane.md
+nectar new event "Launch Party"              # custom kind from config/theme manifest
 ```
 
 ### `nectar open`
