@@ -1,0 +1,10 @@
+{{#if feature_image_caption}}
+    <figure class="gh-card-image">
+        {{> "card-image-img"}}
+        <figcaption>{{feature_image_caption}}</figcaption>
+    </figure>
+{{else}}
+    <div class="gh-card-image">
+        {{> "card-image-img"}}
+    </div>
+{{/if}}
