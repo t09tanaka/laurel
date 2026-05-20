@@ -1,6 +1,7 @@
 import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
+import TOML from '@iarna/toml';
 import type { ChildNode, Element } from 'domhandler';
 import { parseDocument } from 'htmlparser2';
 import slugify from 'slugify';
@@ -47,6 +48,7 @@ interface GhostExportDbEntry {
     tags?: GhostTag[];
     users?: GhostUser[];
     tiers?: GhostTier[];
+    settings?: GhostSetting[];
     posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
     posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
     posts_tiers?: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
@@ -62,6 +64,7 @@ interface MergedGhostData {
   tags: GhostTag[];
   users: GhostUser[];
   tiers: GhostTier[];
+  settings: GhostSetting[];
   postsTags: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
   postsAuthors: Array<{ post_id: string; user_id: string; sort_order?: number }>;
   postsTiers: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
@@ -106,6 +109,12 @@ interface GhostTier {
   name?: string | null;
   monthly_price?: number | null;
   yearly_price?: number | null;
+}
+
+interface GhostSetting {
+  key?: string | null;
+  value?: string | number | boolean | null;
+  group?: string | null;
 }
 
 interface GhostTag {
@@ -353,6 +362,7 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     tags: [],
     users: [],
     tiers: [],
+    settings: [],
     postsTags: [],
     postsAuthors: [],
     postsTiers: [],
@@ -367,6 +377,7 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     if (d.tags) merged.tags.push(...d.tags);
     if (d.users) merged.users.push(...d.users);
     if (d.tiers) merged.tiers.push(...d.tiers);
+    if (d.settings) merged.settings.push(...d.settings);
     if (d.posts_tags) merged.postsTags.push(...d.posts_tags);
     if (d.posts_authors) merged.postsAuthors.push(...d.posts_authors);
     if (d.posts_tiers) merged.postsTiers.push(...d.posts_tiers);
@@ -518,9 +529,8 @@ async function importFromResolvedInput(
     const reason = err instanceof Error ? `: ${err.message}` : '';
     throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
   }
-  const { posts, tags, users, tiers, postsTags, postsAuthors, postsTiers } = mergeGhostDbEntries(
-    parsed.db,
-  );
+  const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers } =
+    mergeGhostDbEntries(parsed.db);
   const filters = resolveImportFilters(opts);
 
   // Image download requires network and writes to content/images. In dry-run
@@ -905,6 +915,14 @@ async function importFromResolvedInput(
       plannedPaths,
     );
   }
+  await writeGhostSettingsConfig({
+    settings,
+    targetRoot: opts.outputDir ? outputRoot : opts.cwd,
+    onConflict,
+    counters,
+    dryRun,
+    plannedPaths,
+  });
 
   // Ghost stores custom redirects at content/data/redirects.json. The resolved
   // assetsDir points at the Ghost `content/` folder when the user passed a
@@ -1234,6 +1252,190 @@ async function findFirstProjectFile(
     if (await isFile(join(assetsRoot, rel))) return rel;
   }
   return undefined;
+}
+
+interface ImportedGhostSettings {
+  site: Record<string, string>;
+  navigation?: NavigationItem[];
+  secondary_navigation?: NavigationItem[];
+}
+
+interface NavigationItem {
+  label: string;
+  url: string;
+}
+
+async function writeGhostSettingsConfig(args: {
+  settings: readonly GhostSetting[];
+  targetRoot: string;
+  onConflict: OnConflict;
+  counters: { skipped: number; overwritten: number; renamed: number; slugCollisions: number };
+  dryRun: boolean;
+  plannedPaths: string[];
+}): Promise<void> {
+  const imported = collectGhostSettings(args.settings);
+  if (!hasImportedSettings(imported)) return;
+
+  const dest = join(args.targetRoot, 'nectar.toml');
+  assertWithin(args.targetRoot, dest);
+  const exists = await pathExists(dest);
+  let writePath = dest;
+  let existingRaw: string | undefined;
+
+  if (exists) {
+    switch (args.onConflict) {
+      case 'skip':
+        process.stderr.write(`Skipped (already exists): ${dest}\n`);
+        args.counters.skipped += 1;
+        return;
+      case 'overwrite':
+        process.stderr.write(`Overwrote: ${dest}\n`);
+        args.counters.overwritten += 1;
+        existingRaw = await readFile(dest, 'utf8');
+        break;
+      case 'rename':
+        writePath = await nextAvailablePath(dest);
+        process.stderr.write(`Renamed (conflict with ${dest}): ${writePath}\n`);
+        args.counters.renamed += 1;
+        break;
+    }
+  }
+
+  const contents = renderImportedSettingsConfig(imported, existingRaw);
+  if (!args.dryRun) {
+    await ensureDir(dirname(writePath));
+    await writeFile(writePath, contents, 'utf8');
+  }
+  args.plannedPaths.push(writePath);
+}
+
+const SITE_SETTING_KEYS = new Set([
+  'title',
+  'description',
+  'url',
+  'locale',
+  'timezone',
+  'cover_image',
+  'logo',
+  'icon',
+  'accent_color',
+  'twitter',
+  'facebook',
+  'meta_title',
+  'meta_description',
+  'og_image',
+  'og_title',
+  'og_description',
+  'twitter_image',
+  'twitter_title',
+  'twitter_description',
+]);
+
+function collectGhostSettings(settings: readonly GhostSetting[]): ImportedGhostSettings {
+  const imported: ImportedGhostSettings = { site: {} };
+  for (const setting of settings) {
+    const key = normalizeSettingKey(setting.key);
+    if (!key) continue;
+    const value = setting.value;
+    if (key === 'navigation' || key === 'secondary_navigation') {
+      const navigation = parseGhostNavigation(value);
+      if (navigation.length > 0) imported[key] = navigation;
+      continue;
+    }
+    if (!SITE_SETTING_KEYS.has(key)) continue;
+    const scalar = normalizeSettingScalar(value);
+    if (scalar !== undefined) imported.site[key] = scalar;
+  }
+  return imported;
+}
+
+function normalizeSettingKey(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const key = value.trim().toLowerCase();
+  return key.length > 0 ? key : undefined;
+}
+
+function normalizeSettingScalar(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return String(value);
+  return undefined;
+}
+
+function parseGhostNavigation(value: unknown): NavigationItem[] {
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      logger.warn(`Skipping invalid Ghost navigation setting: ${JSON.stringify(value)}`);
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  const items: NavigationItem[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const label = normalizeSettingScalar(record.label);
+    const url = normalizeSettingScalar(record.url);
+    if (!label || !url) continue;
+    items.push({ label, url });
+  }
+  return items;
+}
+
+function hasImportedSettings(settings: ImportedGhostSettings): boolean {
+  return (
+    Object.keys(settings.site).length > 0 ||
+    (settings.navigation?.length ?? 0) > 0 ||
+    (settings.secondary_navigation?.length ?? 0) > 0
+  );
+}
+
+function renderImportedSettingsConfig(
+  imported: ImportedGhostSettings,
+  existingRaw: string | undefined,
+): string {
+  const root = parseExistingTomlRoot(existingRaw);
+  if (Object.keys(imported.site).length > 0) {
+    const site = isPlainRecord(root.site) ? root.site : {};
+    for (const [key, value] of Object.entries(imported.site)) site[key] = value;
+    if (typeof site.title !== 'string' || site.title.trim() === '') site.title = 'Nectar Site';
+    root.site = site;
+  }
+  if (imported.navigation) root.navigation = imported.navigation;
+  if (imported.secondary_navigation) root.secondary_navigation = imported.secondary_navigation;
+  return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
+}
+
+function parseExistingTomlRoot(raw: string | undefined): Record<string, unknown> {
+  if (!raw || raw.trim() === '') return {};
+  const parsed = TOML.parse(raw);
+  return isPlainRecord(parsed) ? deepCloneRecord(parsed) : {};
+}
+
+function deepCloneRecord(value: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (Array.isArray(child)) {
+      out[key] = child.map((item) => (isPlainRecord(item) ? deepCloneRecord(item) : item));
+    } else if (isPlainRecord(child)) {
+      out[key] = deepCloneRecord(child);
+    } else {
+      out[key] = child;
+    }
+  }
+  return out;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 // Decide what to do for a given (dest, content) pair, then dispatch the

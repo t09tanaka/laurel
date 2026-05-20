@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { access, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import TOML from '@iarna/toml';
 import { importGhostExport } from '~/ghost/import.ts';
 import { ensureDir } from '~/util/fs.ts';
 
@@ -3724,6 +3725,143 @@ describe('importGhostExport — Ghost project YAML files (#1010)', () => {
     expect(await readFile(join(outputDir, 'redirects.yaml'), 'utf8')).toContain('/review-old/');
     await expect(access(join(cwd, 'routes.yaml'))).rejects.toThrow();
     await expect(access(join(cwd, 'redirects.yaml'))).rejects.toThrow();
+  });
+});
+
+describe('importGhostExport — Ghost settings config import (#1042)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-settings-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function writeSettingsExport(): Promise<void> {
+    return writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [],
+              settings: [
+                { key: 'title', value: 'Ghost Publication', group: 'site' },
+                { key: 'description', value: 'Imported from Ghost', group: 'site' },
+                { key: 'url', value: 'https://ghost.example', group: 'site' },
+                {
+                  key: 'navigation',
+                  value: JSON.stringify([
+                    { label: 'Home', url: '/' },
+                    { label: 'About', url: '/about/' },
+                  ]),
+                  group: 'site',
+                },
+                {
+                  key: 'secondary_navigation',
+                  value: JSON.stringify([{ label: 'RSS', url: '/rss/' }]),
+                  group: 'site',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      'utf8',
+    );
+  }
+
+  test('writes site metadata and navigation into nectar.toml when no config exists', async () => {
+    await writeSettingsExport();
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    const configPath = join(cwd, 'nectar.toml');
+    const parsed = TOML.parse(await readFile(configPath, 'utf8')) as {
+      site?: { title?: string; description?: string; url?: string };
+      navigation?: Array<{ label: string; url: string }>;
+      secondary_navigation?: Array<{ label: string; url: string }>;
+    };
+
+    expect(summary.plannedPaths).toContain(configPath);
+    expect(parsed.site?.title).toBe('Ghost Publication');
+    expect(parsed.site?.description).toBe('Imported from Ghost');
+    expect(parsed.site?.url).toBe('https://ghost.example');
+    expect(parsed.navigation).toEqual([
+      { label: 'Home', url: '/' },
+      { label: 'About', url: '/about/' },
+    ]);
+    expect(parsed.secondary_navigation).toEqual([{ label: 'RSS', url: '/rss/' }]);
+  });
+
+  test('preserves an existing nectar.toml by default', async () => {
+    await writeSettingsExport();
+    const configPath = join(cwd, 'nectar.toml');
+    await writeFile(
+      configPath,
+      [
+        '[site]',
+        'title = "Existing Site"',
+        'description = "Keep me"',
+        '',
+        '[[navigation]]',
+        'label = "Existing"',
+        'url = "/existing/"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    const body = await readFile(configPath, 'utf8');
+
+    expect(summary.skipped).toBe(1);
+    expect(summary.plannedPaths).not.toContain(configPath);
+    expect(captured.data).toContain(`Skipped (already exists): ${configPath}`);
+    expect(body).toContain('title = "Existing Site"');
+    expect(body).toContain('url = "/existing/"');
+    expect(body).not.toContain('Ghost Publication');
+  });
+
+  test('--on-conflict overwrite updates imported settings while preserving other config', async () => {
+    await writeSettingsExport();
+    const configPath = join(cwd, 'nectar.toml');
+    await writeFile(
+      configPath,
+      [
+        '[site]',
+        'title = "Existing Site"',
+        'description = "Keep me"',
+        '',
+        '[build]',
+        'posts_per_page = 7',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    const parsed = TOML.parse(await readFile(configPath, 'utf8')) as {
+      site?: { title?: string; description?: string };
+      build?: { posts_per_page?: number };
+      navigation?: Array<{ label: string; url: string }>;
+    };
+
+    expect(summary.overwritten).toBe(1);
+    expect(summary.plannedPaths).toContain(configPath);
+    expect(parsed.site?.title).toBe('Ghost Publication');
+    expect(parsed.site?.description).toBe('Imported from Ghost');
+    expect(parsed.build?.posts_per_page).toBe(7);
+    expect(parsed.navigation).toEqual([
+      { label: 'Home', url: '/' },
+      { label: 'About', url: '/about/' },
+    ]);
   });
 });
 
