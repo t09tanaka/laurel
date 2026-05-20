@@ -370,12 +370,14 @@ describe('renderMarkdown — callout shortcode expansion', () => {
 
 describe('renderMarkdown — button shortcode expansion', () => {
   test('expands into a kg-button-card div with kg-btn anchor', async () => {
-    const md = '{{< button href="https://example.com/buy" align="center" >}}Buy now{{< /button >}}';
+    const md =
+      '{% button href="https://example.com/buy" text="Buy now" align="center" style="accent" %}';
     const { html } = await renderMarkdown(md);
     expect(html).toContain('class="kg-card kg-button-card kg-align-center"');
     expect(html).toContain('href="https://example.com/buy"');
     expect(html).toContain('class="kg-btn kg-btn-accent"');
     expect(html).toContain('>Buy now</a>');
+    expect(html).not.toContain('{% button');
   });
 
   test('drops the shortcode silently when href is missing', async () => {

@@ -111,6 +111,10 @@ function shortcode(name: string, attrs: Record<string, string>): string {
   return `{{< ${name}${formatAttrs(attrs)} />}}`;
 }
 
+function liquidShortcode(name: string, attrs: Record<string, string>): string {
+  return `{% ${name}${formatAttrs(attrs)} %}`;
+}
+
 function shortcodeBlock(name: string, attrs: Record<string, string>, inner: string): string {
   return `{{< ${name}${formatAttrs(attrs)} >}}\n${inner}\n{{< /${name} >}}`;
 }
@@ -569,15 +573,12 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const anchor = node.querySelector('a.kg-btn') ?? node.querySelector('a');
       if (!anchor) return '';
       return wrap(
-        shortcodeBlock(
-          'button',
-          {
-            href: attr(anchor, 'href'),
-            align: classByPrefix(node, 'kg-align-'),
-            style: classByPrefix(anchor, 'kg-btn-'),
-          },
-          text(anchor),
-        ),
+        liquidShortcode('button', {
+          href: attr(anchor, 'href'),
+          text: text(anchor),
+          align: classByPrefix(node, 'kg-align-'),
+          style: classByPrefix(anchor, 'kg-btn-'),
+        }),
       );
     },
   });

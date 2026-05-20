@@ -630,12 +630,13 @@ describe('Ghost Turndown rules — kg-button-card', () => {
       </div>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< button');
+    expect(md).toContain('{% button');
     expect(md).toContain('href="https://example.com/buy"');
+    expect(md).toContain('text="Buy now"');
     expect(md).toContain('align="center"');
     expect(md).toContain('style="accent"');
-    expect(md).toContain('Buy now');
-    expect(md).toContain('{{< /button >}}');
+    expect(md).toContain('%}');
+    expect(md).not.toContain('[Buy now](https://example.com/buy)');
   });
 });
 

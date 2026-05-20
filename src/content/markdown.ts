@@ -321,6 +321,7 @@ const CALLOUT_SHORTCODE_RE =
 // and `kg-btn-{style}` on the anchor itself.
 const BUTTON_SHORTCODE_RE =
   /\{\{<\s+button((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/button\s*>\}\}/g;
+const BUTTON_STATEMENT_RE = /\{%\s+button((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 
 // Block-form `{{< gallery caption="…" >}}{{< gallery-row >}}{{< gallery-image src=… />}}…{{< /gallery-row >}}…{{< /gallery >}}`.
 // We unwrap the gallery to a single `kg-gallery-card` figure containing one
@@ -367,6 +368,10 @@ export function expandKoenigShortcodes(markdown: string): string {
     .replace(CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderCalloutHtml(parseShortcodeAttrs(attrsStr), body),
     )
+    .replace(BUTTON_STATEMENT_RE, (_match, attrsStr: string) => {
+      const attrs = parseShortcodeAttrs(attrsStr);
+      return renderButtonHtml(attrs, attrs.text ?? '');
+    })
     .replace(BUTTON_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderButtonHtml(parseShortcodeAttrs(attrsStr), body),
     )
@@ -679,7 +684,7 @@ function renderButtonHtml(attrs: Record<string, string>, body: string): string {
   const style = attrs.style ?? '';
   const alignClass = KOENIG_TOKEN_RE.test(align) ? ` kg-align-${align}` : '';
   const styleClass = KOENIG_TOKEN_RE.test(style) ? ` kg-btn-${style}` : 'kg-btn-accent';
-  const label = body.trim();
+  const label = (attrs.text ?? body).trim();
   // Ghost's button card uses an explicit double-class on the anchor: `kg-btn`
   // (layout / hover) + `kg-btn-{style}` (color). When style is missing the
   // theme defaults to the accent variant, so keep that fallback inline.
