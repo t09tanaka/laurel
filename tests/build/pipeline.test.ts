@@ -602,6 +602,104 @@ date: 2026-01-01T00:00:00Z
     expect(postHtml).not.toContain('src="/content/images/ghost-upload.jpg"');
   });
 
+  test('passes base_path-prefixed images into Image CDN without rebasing the CDN endpoint', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[build]',
+        'base_path = "/blog/"',
+        '',
+        '[image_cdn]',
+        'enabled = true',
+        'adapter = "netlify"',
+        'quality = 75',
+        '',
+        '[components.opengraph]',
+        'rasterize_svg = false',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/ghost-upload.jpg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+<p><img src="/content/images/ghost-upload.jpg" width="640" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(postHtml).toContain(
+      'src="/.netlify/images?url=%2Fblog%2Fcontent%2Fimages%2Fghost-upload.jpg&amp;w=640&amp;q=75"',
+    );
+    expect(postHtml).not.toContain('src="/blog/.netlify/images');
+    expect(postHtml).not.toContain('src="/content/images/ghost-upload.jpg"');
+  });
+
+  test('rewrites emitted root-relative theme and content URLs for base_path deploys', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[build]',
+        'base_path = "/blog/"',
+        '',
+        '[components.opengraph]',
+        'rasterize_svg = false',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    for (const name of ['cover.svg', 'inline.svg', 'inline-small.svg', 'inline-large.svg']) {
+      await writeFile(
+        join(cwd, 'content/images', name),
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>',
+        'utf8',
+      );
+    }
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/cover.svg
+feature_image_alt: "Cover"
+---
+
+<p><img src="/content/images/inline.svg" srcset="/content/images/inline-small.svg 320w, /content/images/inline-large.svg 1200w" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(postHtml).toContain('src="/blog/content/images/cover.svg"');
+    expect(postHtml).toContain('src="/blog/content/images/inline.svg"');
+    expect(postHtml).toContain(
+      'srcset="/blog/content/images/inline-small.svg 320w, /blog/content/images/inline-large.svg 1200w"',
+    );
+    expect(postHtml).not.toContain('src="/content/images/');
+    expect(postHtml).not.toContain('srcset="/content/images/');
+    expect(postHtml).not.toContain('<base ');
+  });
+
   test('keeps feature images eager while leaving body images lazy', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

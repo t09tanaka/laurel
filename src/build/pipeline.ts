@@ -25,6 +25,7 @@ import { emitContentApiShadows } from './api.ts';
 import { emitAssetManifest } from './asset-manifest.ts';
 import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
+import { rewriteBasePathUrls } from './base-path-urls.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
@@ -802,6 +803,7 @@ async function runBuild({
           html = injectStylesheetPreload(html);
         }
         html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+        html = rewriteBasePathUrls(html, config.build.base_path);
         html = rewriteImageCdnUrls(html, { config });
         // afterRender chain: each plugin sees the previous transform's output
         // (including the Pagefind shim above when enabled). Returning anything
@@ -812,6 +814,7 @@ async function runBuild({
           const next = await plugin.afterRender(pluginCtx, route, html);
           if (typeof next === 'string') html = next;
         }
+        html = rewriteBasePathUrls(html, config.build.base_path);
         const bytes = Buffer.byteLength(html, 'utf8');
         stop?.({ bytes, reused: false });
         completedRoutes += 1;

@@ -11,7 +11,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 // unchanged. The manifest is keyed on `MANIFEST_VERSION` rather than the
 // nectar package version so that ordinary patch releases (e.g. asset emitter
 // tweaks that do not affect HTML) keep their incremental cache.
-export const MANIFEST_VERSION = 1 as const;
+export const MANIFEST_VERSION = 2 as const;
 
 export const MANIFEST_FILENAME = '.nectar-manifest.json';
 
