@@ -92,6 +92,38 @@ describe('t helper', () => {
     );
   });
 
+  test('substitutes numbered positional `%` placeholders by index', () => {
+    const engine = makeEngine({ en: { '%1 has %2 posts': '%1 has %2 posts' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "%1 has %2 posts" "Alice" 3}}')({})).toBe('Alice has 3 posts');
+  });
+
+  test('leaves missing numbered `%` placeholders unchanged', () => {
+    const engine = makeEngine({ en: { '%1 has %2 posts': '%1 has %2 posts' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "%1 has %2 posts" "Alice"}}')({})).toBe('Alice has %2 posts');
+  });
+
+  test('does not substitute bare `%` from an arbitrary hash value', () => {
+    const engine = makeEngine({ en: { 'By % about {topic}': 'By % about {topic}' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "By % about {topic}" topic="cats" author="Alice"}}')({})).toBe(
+      'By % about cats',
+    );
+  });
+
+  test('substitutes bare `%` from explicit count-like hash values', () => {
+    const engine = makeEngine({ en: { 'Page % of {total}': 'Page % of {total}' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Page % of {total}" total=10 page=2}}')({})).toBe('Page 2 of 10');
+  });
+
+  test('substitutes bare `%` from a single numeric hash value', () => {
+    const engine = makeEngine({ en: { 'Page %': 'Page %' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Page %" current=2}}')({})).toBe('Page 2');
+  });
+
   test('Casper de.json placeholder is rendered when active locale is de', () => {
     const engine = makeEngine(
       {

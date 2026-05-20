@@ -51,17 +51,46 @@ function interpolate(
     out = out.replaceAll(`{${key}}`, String(value));
   }
   // Ghost's `%` is a positional placeholder. Prefer explicit positional args
-  // (`{{t "Powered by %" "Ghost"}}` → `Powered by Ghost`) since that is how
-  // Casper / Headline / Edition ship; fall back to the first hash value for
-  // older themes that wrote `{{t "Powered by %" name="Ghost"}}` to keep
-  // back-compat with the previous behaviour.
+  // (`{{t "Powered by %" "Ghost"}}` -> `Powered by Ghost`) since that is how
+  // Casper / Headline / Edition ship. Numbered placeholders (`%1`, `%2`) are
+  // resolved before bare `%`; the latter must not fall through to an arbitrary
+  // first hash value because hash ordering is not a meaningful i18n contract.
   if (out.includes('%')) {
+    out = out.replace(/%([1-9]\d*)/g, (match, rawIndex: string) => {
+      const value = positional[Number(rawIndex) - 1];
+      return value === undefined ? match : String(value);
+    });
+
     const firstPositional = positional.find((v) => v !== undefined);
-    const fallbackHash = Object.values(hash)[0];
-    const value = firstPositional ?? fallbackHash;
+    const value = firstPositional ?? barePercentHashValue(hash);
     if (value !== undefined) {
-      out = out.replace(/%/g, String(value));
+      out = out.replace(/%(?!\d)/g, String(value));
     }
   }
   return out;
+}
+
+function barePercentHashValue(hash: Record<string, unknown>): unknown {
+  for (const key of ['count', 'page', 'index', 'number', 'total']) {
+    if (Object.prototype.hasOwnProperty.call(hash, key) && isPrimitive(hash[key])) {
+      return hash[key];
+    }
+  }
+
+  const entries = Object.entries(hash);
+  if (entries.length === 1) {
+    const value = entries[0]?.[1];
+    return typeof value === 'number' || typeof value === 'bigint' ? value : undefined;
+  }
+
+  return undefined;
+}
+
+function isPrimitive(value: unknown): value is string | number | bigint | boolean {
+  return (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  );
 }
