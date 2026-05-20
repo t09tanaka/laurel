@@ -28,6 +28,7 @@ import {
   asStringArray,
   parseFrontmatter,
 } from './frontmatter.ts';
+import { rewriteRelativeImageUrls } from './image-urls.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import {
   findInvalidKoenigShortcode,
@@ -1202,6 +1203,17 @@ async function normalizePost(
       word_count = reRendered.word_count;
       reading_time = reRendered.reading_time;
     }
+  }
+  if (config) {
+    const rewriteImageUrls = (value: string) =>
+      rewriteRelativeImageUrls(value, {
+        cwd,
+        sourcePath: filePath,
+        assetsDir: config.content.assets_dir,
+      });
+    const originalHtml = html;
+    html = rewriteImageUrls(html);
+    feedHtml = feedHtml === originalHtml ? html : rewriteImageUrls(feedHtml);
   }
 
   const explicitWidth = asPositiveInt(data.feature_image_width);

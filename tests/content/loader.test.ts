@@ -913,6 +913,45 @@ About JA.
     expect(opted.site.stripe_publishable_key).toBe('pk_test_xyz');
   });
 
+  test('rewrites post-relative image URLs to public content image paths (issue #1016)', async () => {
+    const cwd = await fixture();
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/asset.jpg'), 'asset', 'utf8');
+    await writeFile(
+      join(cwd, 'content/posts/relative-images.md'),
+      `---
+title: "Relative Images"
+date: 2026-04-01T00:00:00Z
+---
+
+![Sibling shorthand](./images/sibling.jpg)
+
+![Asset relative](../images/asset.jpg?width=1200#hero)
+
+{{< figure src="./images/card.jpg" srcset="./images/card-600.jpg 600w, ../images/asset.jpg 1200w, https://cdn.test/remote.jpg 1600w" alt="Card" />}}
+`,
+      'utf8',
+    );
+
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        build: { base_path: '/blog/' },
+      }),
+    });
+    const post = graph.posts.find((p) => p.slug === 'relative-images');
+    expect(post?.html).toContain('src="/content/images/sibling.jpg"');
+    expect(post?.html).toContain('src="/content/images/asset.jpg?width=1200#hero"');
+    expect(post?.html).toContain('src="/content/images/card.jpg"');
+    expect(post?.html).toContain(
+      'srcset="/content/images/card-600.jpg 600w, /content/images/asset.jpg 1200w, https://cdn.test/remote.jpg 1600w"',
+    );
+    expect(post?.html).not.toContain('./images/');
+    expect(post?.html).not.toContain('../images/');
+    expect(post?.html).not.toContain('/blog/content/images/');
+  });
+
   // Issue #421: site-level meta / og / twitter knobs surface to themes via
   // @site.* and act as the last fallback inside {{ghost_head}}.
   test('[site].meta_* / og_* / twitter_* round-trip to @site (issue #421)', async () => {
