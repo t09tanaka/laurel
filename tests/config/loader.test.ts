@@ -73,6 +73,29 @@ post_build = "./scripts/notify-discord.sh"
     });
   });
 
+  test('parses subscribe provider config for static signup forms', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.subscribe]
+provider = "convertkit"
+form_id = "12345"
+method = "post"
+email_field_name = "email_address"
+name_field_name = "fields[first_name]"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.components.subscribe.provider).toBe('convertkit');
+      expect(config.components.subscribe.form_id).toBe('12345');
+      expect(config.components.subscribe.method).toBe('post');
+      expect(config.components.subscribe.email_field_name).toBe('email_address');
+      expect(config.components.subscribe.name_field_name).toBe('fields[first_name]');
+    });
+  });
+
   test('parses site.icon from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

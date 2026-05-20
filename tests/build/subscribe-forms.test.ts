@@ -32,7 +32,20 @@ describe('resolveSubscribeForm', () => {
     const r = resolveSubscribeForm({ provider: 'mailchimp', action });
     expect(r.action).toBe(action);
     expect(r.emailFieldName).toBe('EMAIL');
+    expect(r.method).toBe('post');
     expect(r.disabled).toBe(false);
+  });
+
+  test('uses ConvertKit hosted form endpoint and email_address field name', () => {
+    const r = resolveSubscribeForm({ provider: 'convertkit', form_id: '12345' });
+    expect(r.action).toBe('https://app.kit.com/forms/12345/subscriptions');
+    expect(r.emailFieldName).toBe('email_address');
+    expect(r.method).toBe('post');
+    expect(r.disabled).toBe(false);
+  });
+
+  test('throws when convertkit provider is missing form_id', () => {
+    expect(() => resolveSubscribeForm({ provider: 'convertkit' })).toThrow(/form_id/);
   });
 
   test('throws when mailchimp provider is missing action', () => {
@@ -52,6 +65,17 @@ describe('resolveSubscribeForm', () => {
       email_field_name: 'subscriber_email',
     });
     expect(r.emailFieldName).toBe('subscriber_email');
+  });
+
+  test('custom provider can override method and name field name', () => {
+    const r = resolveSubscribeForm({
+      provider: 'custom',
+      action: 'https://example.com/sub',
+      method: 'get',
+      name_field_name: 'full_name',
+    });
+    expect(r.method).toBe('get');
+    expect(r.nameFieldName).toBe('full_name');
   });
 
   test('throws when custom provider is missing action', () => {
@@ -127,8 +151,29 @@ describe('transformSubscribeForms', () => {
     const action = 'https://example.us1.list-manage.com/subscribe/post?u=abc&amp;id=xyz';
     const out = transformSubscribeForms(SAMPLE_FORM, { provider: 'mailchimp', action });
     expect(out).toContain(`action="${action.replace(/&/g, '&amp;')}"`);
+    expect(out).toMatch(/<form[^>]*\bmethod="post"/);
     expect(out).toMatch(/<input[^>]*\bname="EMAIL"/);
     expect(out).not.toMatch(/<input[^>]*\bname="email"/);
+  });
+
+  test('with custom provider, applies method and name field mapping', () => {
+    const html = [
+      '<form class="gh-form" data-members-form>',
+      '<input type="text" data-members-name>',
+      '<input type="email" data-members-email>',
+      '<button type="submit">Subscribe</button>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'custom',
+      action: 'https://hooks.example.com/subscribe',
+      method: 'get',
+      field_map: { email: 'subscriber_email', name: 'full_name' },
+    });
+    expect(out).toMatch(/<form[^>]*\bmethod="get"/);
+    expect(out).toMatch(/<input[^>]*\bdata-members-name[^>]*\bname="full_name"/);
+    expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="subscriber_email"/);
+    expect(out).toMatch(/<button[^>]*\bdata-members-submit/);
   });
 
   test('with custom provider and email_field_name override, rewrites both attributes', () => {
@@ -187,6 +232,24 @@ describe('transformSubscribeForms', () => {
     expect(out).toContain('action="https://api.beehiiv.com/v2/publications/pub_abc/subscriptions"');
     expect(out).toMatch(/<input[^>]*\bname="email"/);
     expect(out).not.toMatch(/onsubmit=/);
+  });
+
+  test('with convertkit provider, rewrites action and email field for signup card markup', () => {
+    const html = [
+      '<div class="kg-card kg-signup-card">',
+      '<form class="kg-signup-card-form" data-members-form="signup">',
+      '<input class="kg-signup-card-input" type="email" placeholder="you@example.com" required>',
+      '<button class="kg-signup-card-button" type="submit">Subscribe</button>',
+      '</form>',
+      '</div>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'convertkit',
+      form_id: '12345',
+    });
+    expect(out).toContain('action="https://app.kit.com/forms/12345/subscriptions"');
+    expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="email_address"/);
+    expect(out).toMatch(/<button[^>]*\bdata-members-submit/);
   });
 
   test('with custom provider and field_map, rewrites input name to mapped value', () => {

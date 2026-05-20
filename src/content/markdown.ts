@@ -46,6 +46,9 @@ const sanitizeOptions: IOptions = {
     'track',
     'details',
     'summary',
+    'form',
+    'input',
+    'button',
     'iframe',
     'svg',
     'path',
@@ -86,6 +89,19 @@ const sanitizeOptions: IOptions = {
     h2: ['style', 'data-text-color'],
     h3: ['style', 'data-text-color'],
     p: ['style', 'data-text-color'],
+    form: ['class', 'data-members-form', 'data-nectar-subscribe', 'method'],
+    input: [
+      'class',
+      'type',
+      'name',
+      'required',
+      'placeholder',
+      'value',
+      'data-members-email',
+      'data-members-name',
+      'data-members-label',
+    ],
+    button: ['class', 'type', 'data-members-submit'],
     div: [
       'style',
       'data-rating',
@@ -202,7 +218,10 @@ export async function renderMarkdown(
   const highlighted = await highlightCodeBlocks(raw);
   const promoted = promoteImagesToFigures(highlighted);
   const newsletterStripped = stripEmailCtaCards(promoted);
-  const sanitized = options.unsafe ? newsletterStripped : sanitizeRenderedHtml(newsletterStripped);
+  const membersFormNormalised = normaliseSignupCardMembersFormHooks(newsletterStripped);
+  const sanitized = options.unsafe
+    ? membersFormNormalised
+    : sanitizeRenderedHtml(membersFormNormalised);
   const html = enforceKoenigCardSpacingContract(sanitized);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
@@ -380,9 +399,9 @@ function relinkSiblings(nodes: ChildNode[]): void {
 //     the newsletter email but should never reach the web (Ghost hides it
 //     server-side; in a static build we strip at render time so anonymous web
 //     readers never see "Get this in your inbox" duplicated below every post).
-//   - `kg-signup-card`: portal signup widget. Already passes through sanitize-
-//     html (see tests/content/cards.test.ts); the theme (or an optional portal
-//     adapter) hydrates the form scaffold. No post-process needed here.
+//   - `kg-signup-card`: portal signup widget. Nectar preserves the form shell
+//     and stamps the Ghost members hooks that imports can omit so the build-time
+//     subscribe adapter can wire it to a configured static provider.
 //   - `kg-paywall-card`: Koenig's drag-in paywall marker. The loader's paywall
 //     pass (`src/content/paywall.ts`) already cuts on the `<!--kg-card-begin:
 //     paywall-->` comment Ghost emits alongside this div, so we leave the div
@@ -392,6 +411,32 @@ function relinkSiblings(nodes: ChildNode[]): void {
 // nested `<div>` inside the CTA card (e.g. a `<div class="kg-button-card">`)
 // doesn't terminate the match prematurely.
 const EMAIL_CTA_OPEN_RE = /<div\b[^>]*\bclass\s*=\s*"([^"]*\bkg-email-cta-card\b[^"]*)"[^>]*>/gi;
+const MEMBERS_FORM_BLOCK_RE = /<form\b[^>]*\bdata-members-form\b[^>]*>[\s\S]*?<\/form>/gi;
+const MEMBERS_FORM_OPEN_RE = /^<form\b[^>]*>/i;
+const MEMBERS_FORM_INPUT_RE = /<input\b[^>]*>/gi;
+const MEMBERS_FORM_BUTTON_RE = /<button\b[^>]*>/gi;
+
+function normaliseSignupCardMembersFormHooks(html: string): string {
+  if (!html.includes('kg-signup-card') || !html.includes('data-members-form')) return html;
+  return html.replace(MEMBERS_FORM_BLOCK_RE, (block) => {
+    const open = block.match(MEMBERS_FORM_OPEN_RE)?.[0];
+    if (!open) return block;
+    const body = block.slice(open.length);
+    const rewrittenBody = body
+      .replace(MEMBERS_FORM_INPUT_RE, (tag) => {
+        if (hasHtmlAttribute(tag, 'data-members-email') || htmlAttribute(tag, 'type') === 'email') {
+          return setHtmlBooleanAttribute(tag, 'data-members-email');
+        }
+        return tag;
+      })
+      .replace(MEMBERS_FORM_BUTTON_RE, (tag) => {
+        const type = htmlAttribute(tag, 'type');
+        if (type && type !== 'submit') return tag;
+        return setHtmlBooleanAttribute(tag, 'data-members-submit');
+      });
+    return `${open}${rewrittenBody}`;
+  });
+}
 
 export function stripEmailCtaCards(html: string): string {
   if (!html.includes('kg-email-cta-card')) return html;
@@ -432,6 +477,28 @@ function findMatchingDivClose(html: string, from: number): number {
     m = DIV_TAG_RE.exec(html);
   }
   return -1;
+}
+
+function setHtmlBooleanAttribute(tag: string, attr: string): string {
+  if (hasHtmlAttribute(tag, attr)) return tag;
+  return tag.replace(/(\s*\/?>)$/, ` ${attr}$1`);
+}
+
+function hasHtmlAttribute(tag: string, attr: string): boolean {
+  const re = new RegExp(`\\s${attr}(?:\\s*=|\\s|/?>)`, 'i');
+  return re.test(tag);
+}
+
+function htmlAttribute(tag: string, attr: string): string | undefined {
+  const re = new RegExp(`\\s${attr}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
+  const match = tag.match(re);
+  const raw = match?.[1];
+  if (!raw) return undefined;
+  const value =
+    (raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))
+      ? raw.slice(1, -1)
+      : raw;
+  return value.toLowerCase();
 }
 
 // `nectar import-ghost` round-trips Ghost's Koenig cards through Turndown by

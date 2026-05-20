@@ -379,19 +379,14 @@ describe('card fixture corpus', () => {
     expect(html).toContain('<p>Members-only paragraph that lives below the paywall fence.</p>');
   });
 
-  test('signup card scaffold survives sanitisation (form fields are stripped)', async () => {
+  test('signup card scaffold preserves Ghost members form hooks', async () => {
     const html = await renderFixture('signup');
-    // The `kg-signup-card` wrapper + heading + subheading reach the output
-    // so a plugin / Portal script can hydrate the form scaffold. The raw
-    // `<form>` / `<input>` / `<button>` elements are dropped by the
-    // default sanitiser allow-list, which is expected; theme/portal code
-    // re-attaches the form at runtime by targeting the kg-signup-card hook.
     expect(html).toContain('class="kg-card kg-signup-card kg-width-regular kg-style-light"');
     expect(html).toContain('<h2 class="kg-signup-card-heading">Join the newsletter</h2>');
     expect(html).toContain('<p class="kg-signup-card-subheading">');
-    expect(html).not.toContain('<form');
-    expect(html).not.toContain('<input');
-    expect(html).not.toContain('<button');
+    expect(html).toMatch(/<form[^>]*\bdata-members-form="signup"/);
+    expect(html).toMatch(/<input[^>]*\bdata-members-email/);
+    expect(html).toMatch(/<button[^>]*\bdata-members-submit/);
   });
 
   test('recommendations card scaffold survives sanitisation', async () => {

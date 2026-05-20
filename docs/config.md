@@ -496,12 +496,15 @@ Newsletter subscribe form component.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.subscribe.provider` | `"none" \| "buttondown" \| "beehiiv" \| "mailchimp" \| "custom"` | no | `"none"` | Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`. |
-| `components.subscribe.action` | `string` | no | — | Form action URL. Required when `provider` is `custom`; inferred for known providers when omitted. |
+| `components.subscribe.provider` | `"none" \| "buttondown" \| "beehiiv" \| "convertkit" \| "mailchimp" \| "custom"` | no | `"none"` | Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`. |
+| `components.subscribe.action` | `string` | no | — | Form action URL. Required when `provider` is `custom` or `mailchimp`; inferred for known providers when omitted. |
+| `components.subscribe.method` | `"get" \| "post"` | no | `"post"` | HTML form method used when rewriting `data-members-form` markup. Defaults to `post`; set to `get` only for custom endpoints that require query-string submission. |
 | `components.subscribe.username` | `string` | no | — | Provider username (e.g. Buttondown username, Mailchimp list u/id segment). |
 | `components.subscribe.publication_id` | `string` | no | — | Beehiiv publication id (UUID). The form action is rewritten to `https://api.beehiiv.com/v2/publications/<publication_id>/subscriptions`. Falls back to `username` when omitted for back-compat with operators who only have a slug. |
+| `components.subscribe.form_id` | `string` | no | — | ConvertKit / Kit form id. The form action is rewritten to `https://app.kit.com/forms/<form_id>/subscriptions`. Falls back to `publication_id` or `username` for compatibility with older config snippets. |
 | `components.subscribe.email_field_name` | `string` | no | — | Name of the email input field. Defaults to a provider-appropriate value. |
-| `components.subscribe.field_map` | `record<string, string>` | no | — | Custom provider only. Map of logical field name -> form field name. Today only the `email` key is consulted (it overrides `email_field_name` when set); reserved for future hidden / honeypot fields without a schema bump. |
+| `components.subscribe.name_field_name` | `string` | no | — | Name of the optional name input field for inputs marked `data-members-name`. Defaults to a provider-appropriate value. |
+| `components.subscribe.field_map` | `record<string, string>` | no | — | `custom` and provider override escape hatch. Map of logical field name -> form field name. Today `email` and `name` are consulted (overriding `email_field_name` / `name_field_name` when set); reserved for future hidden / honeypot fields without a schema bump. |
 | `components.subscribe.strip_selectors` | `array<string>` | no | — | `provider = "none"` only. CSS selectors of wrapping elements to remove from the rendered HTML (e.g. `.gh-footer-signup`, `.gh-cta`). Supports `.class`, `#id`, and `tag` selectors. Use to delete CTA blocks that would otherwise advertise a signup flow that does nothing. |
 
 ## `components.images`

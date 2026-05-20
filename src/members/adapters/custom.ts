@@ -27,6 +27,8 @@ export const customAdapter: PortalAdapter = {
     return {
       action: cfg.action,
       emailFieldName: mappedEmail ?? cfg.email_field_name ?? 'email',
+      nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'name',
+      method: cfg.method ?? 'post',
       disabled: false,
     };
   },

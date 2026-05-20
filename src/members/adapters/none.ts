@@ -22,6 +22,8 @@ export const noneAdapter: PortalAdapter = {
     return {
       action: '#',
       emailFieldName: cfg.email_field_name ?? 'email',
+      nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'name',
+      method: cfg.method ?? 'post',
       disabled: true,
     };
   },

@@ -26,6 +26,8 @@ export const mailchimpAdapter: PortalAdapter = {
     return {
       action: cfg.action,
       emailFieldName: cfg.email_field_name ?? 'EMAIL',
+      nameFieldName: cfg.field_map?.name ?? cfg.name_field_name ?? 'FNAME',
+      method: cfg.method ?? 'post',
       disabled: false,
     };
   },

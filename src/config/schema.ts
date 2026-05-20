@@ -1183,16 +1183,22 @@ export const configSchema = z
         subscribe: z
           .object({
             provider: z
-              .enum(['none', 'buttondown', 'beehiiv', 'mailchimp', 'custom'])
+              .enum(['none', 'buttondown', 'beehiiv', 'convertkit', 'mailchimp', 'custom'])
               .default('none')
               .describe(
-                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`.",
+                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`.",
               ),
             action: z
               .string()
               .optional()
               .describe(
-                'Form action URL. Required when `provider` is `custom`; inferred for known providers when omitted.',
+                'Form action URL. Required when `provider` is `custom` or `mailchimp`; inferred for known providers when omitted.',
+              ),
+            method: z
+              .enum(['get', 'post'])
+              .default('post')
+              .describe(
+                'HTML form method used when rewriting `data-members-form` markup. Defaults to `post`; set to `get` only for custom endpoints that require query-string submission.',
               ),
             username: z
               .string()
@@ -1206,15 +1212,27 @@ export const configSchema = z
               .describe(
                 'Beehiiv publication id (UUID). The form action is rewritten to `https://api.beehiiv.com/v2/publications/<publication_id>/subscriptions`. Falls back to `username` when omitted for back-compat with operators who only have a slug.',
               ),
+            form_id: z
+              .string()
+              .optional()
+              .describe(
+                'ConvertKit / Kit form id. The form action is rewritten to `https://app.kit.com/forms/<form_id>/subscriptions`. Falls back to `publication_id` or `username` for compatibility with older config snippets.',
+              ),
             email_field_name: z
               .string()
               .optional()
               .describe('Name of the email input field. Defaults to a provider-appropriate value.'),
+            name_field_name: z
+              .string()
+              .optional()
+              .describe(
+                'Name of the optional name input field for inputs marked `data-members-name`. Defaults to a provider-appropriate value.',
+              ),
             field_map: z
               .record(z.string())
               .optional()
               .describe(
-                'Custom provider only. Map of logical field name -> form field name. Today only the `email` key is consulted (it overrides `email_field_name` when set); reserved for future hidden / honeypot fields without a schema bump.',
+                '`custom` and provider override escape hatch. Map of logical field name -> form field name. Today `email` and `name` are consulted (overriding `email_field_name` / `name_field_name` when set); reserved for future hidden / honeypot fields without a schema bump.',
               ),
             strip_selectors: z
               .array(z.string())

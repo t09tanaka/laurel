@@ -1,5 +1,6 @@
 import { beehiivAdapter } from './adapters/beehiiv.ts';
 import { buttondownAdapter } from './adapters/buttondown.ts';
+import { convertkitAdapter } from './adapters/convertkit.ts';
 import { customAdapter } from './adapters/custom.ts';
 import { mailchimpAdapter } from './adapters/mailchimp.ts';
 import { noneAdapter } from './adapters/none.ts';
@@ -23,6 +24,7 @@ const ADAPTERS: Readonly<Record<SubscribeProvider, PortalAdapter>> = Object.free
   none: noneAdapter,
   buttondown: buttondownAdapter,
   beehiiv: beehiivAdapter,
+  convertkit: convertkitAdapter,
   mailchimp: mailchimpAdapter,
   custom: customAdapter,
 });

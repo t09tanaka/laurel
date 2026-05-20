@@ -154,6 +154,7 @@ describe('subscribe_form helper', () => {
     // hook onto the form without disturbing the Ghost `data-members-form`
     // contract.
     expect(html).toContain('data-nectar-subscribe');
+    expect(html).toContain('data-members-submit');
   });
 
   test('includes documented data-members-label hidden input so themes can tag subscribers', () => {

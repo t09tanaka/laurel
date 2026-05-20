@@ -14,7 +14,15 @@
 // Custom takes a raw form action plus a field map) isolated from the
 // pipeline-level orchestration.
 
-export type SubscribeProvider = 'none' | 'buttondown' | 'beehiiv' | 'mailchimp' | 'custom';
+export type SubscribeProvider =
+  | 'none'
+  | 'buttondown'
+  | 'beehiiv'
+  | 'convertkit'
+  | 'mailchimp'
+  | 'custom';
+
+export type SubscribeFormMethod = 'get' | 'post';
 
 export interface SubscribeAdapterConfig {
   provider: SubscribeProvider;
@@ -22,13 +30,19 @@ export interface SubscribeAdapterConfig {
   username?: string | undefined;
   // Beehiiv publication id (UUID) used as the API POST path segment.
   publication_id?: string | undefined;
+  // ConvertKit / Kit form id used by the hosted form POST endpoint.
+  form_id?: string | undefined;
   // Explicit form action (custom + mailchimp).
   action?: string | undefined;
+  // HTML form method. Providers default to POST; custom backends may opt into GET.
+  method?: SubscribeFormMethod | undefined;
   // Default email field name override.
   email_field_name?: string | undefined;
+  // Default name field name override for inputs marked `data-members-name`.
+  name_field_name?: string | undefined;
   // Custom provider: map of logical field name -> form field name. Only
-  // `email` is consulted today; future-proofs against name / hidden field
-  // additions without a schema bump.
+  // `email` and `name` are consulted today; future-proofs against hidden field
+  // additions without another top-level schema key.
   field_map?: Record<string, string> | undefined;
   // Provider=none only. CSS selectors of wrapping elements to strip from
   // the rendered HTML entirely (e.g. `.gh-footer-signup`, `.gh-cta`). The
@@ -43,6 +57,8 @@ export interface SubscribeAdapterConfig {
 export interface ResolvedSubscribeForm {
   action: string;
   emailFieldName: string;
+  nameFieldName: string;
+  method: SubscribeFormMethod;
   disabled: boolean;
 }
 

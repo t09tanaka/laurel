@@ -13,9 +13,12 @@ import {
 export interface SubscribeFormConfig {
   provider: SubscribeProvider;
   action?: string | undefined;
+  method?: 'get' | 'post' | undefined;
   username?: string | undefined;
   publication_id?: string | undefined;
+  form_id?: string | undefined;
   email_field_name?: string | undefined;
+  name_field_name?: string | undefined;
   field_map?: Record<string, string> | undefined;
   strip_selectors?: ReadonlyArray<string> | undefined;
 }
@@ -24,8 +27,10 @@ export function resolveSubscribeForm(cfg: SubscribeFormConfig): ResolvedSubscrib
   return resolveSubscribeAdapter(cfg as SubscribeAdapterConfig);
 }
 
-const FORM_RE = /<form\b([^>]*?)\bdata-members-form\b([^>]*)>/gi;
-const EMAIL_INPUT_RE = /<input\b([^>]*?)\bdata-members-email\b([^>]*)>/gi;
+const FORM_BLOCK_RE = /<form\b[^>]*\bdata-members-form\b[^>]*>[\s\S]*?<\/form>/gi;
+const FORM_OPEN_RE = /^<form\b[^>]*>/i;
+const INPUT_RE = /<input\b[^>]*>/gi;
+const BUTTON_RE = /<button\b[^>]*>/gi;
 
 export function transformSubscribeForms(html: string, cfg: SubscribeFormConfig): string {
   // Adapter-specific whole-document rewrites run first so e.g. `none`'s
@@ -38,18 +43,49 @@ export function transformSubscribeForms(html: string, cfg: SubscribeFormConfig):
   }
   const resolved = getAdapter(cfg.provider).resolve(cfg as SubscribeAdapterConfig);
 
-  out = out.replace(FORM_RE, (tag) => {
-    let next = setAttribute(tag, 'action', resolved.action);
-    next = setAttribute(next, 'method', 'post');
-    next = resolved.disabled
-      ? setAttribute(next, 'onsubmit', 'event.preventDefault();return false;')
-      : removeAttribute(next, 'onsubmit');
-    return next;
-  });
-
-  out = out.replace(EMAIL_INPUT_RE, (tag) => setAttribute(tag, 'name', resolved.emailFieldName));
+  out = out.replace(FORM_BLOCK_RE, (block) => rewriteMembersFormBlock(block, resolved));
 
   return out;
+}
+
+function rewriteMembersFormBlock(block: string, resolved: ResolvedSubscribeForm): string {
+  const open = block.match(FORM_OPEN_RE)?.[0];
+  if (!open) return block;
+  const body = block.slice(open.length);
+  let form = setAttribute(open, 'action', resolved.action);
+  form = setAttribute(form, 'method', resolved.method);
+  form = resolved.disabled
+    ? setAttribute(form, 'onsubmit', 'event.preventDefault();return false;')
+    : removeAttribute(form, 'onsubmit');
+
+  const rewrittenBody = body
+    .replace(INPUT_RE, (tag) => rewriteMembersInput(tag, resolved))
+    .replace(BUTTON_RE, (tag) => rewriteMembersButton(tag));
+  return `${form}${rewrittenBody}`;
+}
+
+function rewriteMembersInput(tag: string, resolved: ResolvedSubscribeForm): string {
+  if (hasAttribute(tag, 'data-members-name')) {
+    return setAttribute(tag, 'name', resolved.nameFieldName);
+  }
+  if (
+    hasAttribute(tag, 'data-members-email') ||
+    getAttribute(tag, 'type')?.toLowerCase() === 'email'
+  ) {
+    const hooked = hasAttribute(tag, 'data-members-email')
+      ? tag
+      : setBooleanAttribute(tag, 'data-members-email');
+    return setAttribute(hooked, 'name', resolved.emailFieldName);
+  }
+  return tag;
+}
+
+function rewriteMembersButton(tag: string): string {
+  const type = getAttribute(tag, 'type')?.toLowerCase();
+  if (type && type !== 'submit') return tag;
+  return hasAttribute(tag, 'data-members-submit')
+    ? tag
+    : setBooleanAttribute(tag, 'data-members-submit');
 }
 
 function setAttribute(tag: string, attr: string, value: string): string {
@@ -64,6 +100,27 @@ function setAttribute(tag: string, attr: string, value: string): string {
 function removeAttribute(tag: string, attr: string): string {
   const re = new RegExp(`\\s${attr}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
   return tag.replace(re, '');
+}
+
+function setBooleanAttribute(tag: string, attr: string): string {
+  if (hasAttribute(tag, attr)) return tag;
+  return tag.replace(/(\s*\/?>)$/, ` ${attr}$1`);
+}
+
+function hasAttribute(tag: string, attr: string): boolean {
+  const re = new RegExp(`\\s${attr}(?:\\s*=|\\s|/?>)`, 'i');
+  return re.test(tag);
+}
+
+function getAttribute(tag: string, attr: string): string | undefined {
+  const re = new RegExp(`\\s${attr}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
+  const match = tag.match(re);
+  const raw = match?.[1];
+  if (!raw) return undefined;
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    return raw.slice(1, -1);
+  }
+  return raw;
 }
 
 function escapeAttr(value: string): string {

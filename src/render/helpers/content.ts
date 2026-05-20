@@ -294,7 +294,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       // optional client-side scripts (e.g. an AJAX submitter) hook onto the
       // form without disturbing the Ghost `data-members-form` contract.
       return new engine.hb.SafeString(
-        `<form data-members-form="subscribe" data-nectar-subscribe action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
+        `<form data-members-form="subscribe" data-nectar-subscribe action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button data-members-submit type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
       );
     },
   );
