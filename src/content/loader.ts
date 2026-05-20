@@ -354,7 +354,13 @@ function buildSite(config: NectarConfig): SiteData {
     icon: config.site.icon,
     accent_color: config.site.accent_color,
     navigation: config.navigation,
-    secondary_navigation: config.secondary_navigation,
+    // Coerce an empty `secondary_navigation` array to `undefined` so theme
+    // guards like `{{#unless @site.secondary_navigation}}` (Wave / Alto /
+    // London) treat "no secondary nav configured" as falsy. Handlebars treats
+    // `[]` as truthy because it's an object — keeping the empty array would
+    // make those `unless` blocks silently never render. See issue #324.
+    secondary_navigation:
+      config.secondary_navigation.length > 0 ? config.secondary_navigation : undefined,
     twitter: config.site.twitter,
     facebook: config.site.facebook,
     members_enabled: membersEnabled,

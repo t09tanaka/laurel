@@ -1,6 +1,6 @@
 import Handlebars from 'handlebars';
 import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
@@ -269,10 +269,9 @@ function enrichSiteNavigation(
   route: { url?: string },
 ): ContentGraph['site'] {
   const currentUrl = route.url;
-  const enrich = (items: ContentGraph['site']['navigation'] | undefined) =>
-    // Guard against partial site fixtures (unit tests sometimes hand-build a
-    // ContentGraph with no `navigation` / `secondary_navigation` keys). The
-    // production loader always populates both with arrays.
+  // Primary navigation defaults to `[]` for templates that iterate
+  // `{{#each navigation}}` (the empty list renders nothing, which is correct).
+  const enrichPrimary = (items: ContentGraph['site']['navigation'] | undefined) =>
     Array.isArray(items)
       ? items.map((item) => ({
           ...item,
@@ -282,10 +281,26 @@ function enrichSiteNavigation(
             (currentUrl === item.url || normaliseNavUrl(currentUrl) === normaliseNavUrl(item.url)),
         }))
       : [];
+  // Secondary navigation collapses an empty list to `undefined` so theme
+  // guards like `{{#unless @site.secondary_navigation}}` evaluate as expected.
+  // Handlebars treats `[]` as truthy (it is an object), so keeping the empty
+  // array would silently never render those branches. See issue #324.
+  const enrichSecondary = (
+    items: ContentGraph['site']['secondary_navigation'],
+  ): NavigationItem[] | undefined => {
+    if (!Array.isArray(items) || items.length === 0) return undefined;
+    return items.map((item) => ({
+      ...item,
+      slug: navSlug(item.label),
+      current:
+        currentUrl !== undefined &&
+        (currentUrl === item.url || normaliseNavUrl(currentUrl) === normaliseNavUrl(item.url)),
+    }));
+  };
   return {
     ...site,
-    navigation: enrich(site.navigation),
-    secondary_navigation: enrich(site.secondary_navigation),
+    navigation: enrichPrimary(site.navigation),
+    secondary_navigation: enrichSecondary(site.secondary_navigation),
   };
 }
 

@@ -589,6 +589,168 @@ describe('emitRss', () => {
   });
 });
 
+// Issue #786: per-tag and per-author RSS feeds matching Ghost's
+// `/tag/<slug>/rss/` and `/author/<slug>/rss/` routes.
+describe('emitRss per-tag and per-author feeds (issue #786)', () => {
+  test('emits tag/<slug>/rss/index.xml with only posts tagged with that tag', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-pertag-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const news = makeTag({
+      id: 'tag-news',
+      slug: 'news',
+      name: 'News',
+      url: 'https://example.com/tag/news/',
+    });
+    const tutorials = makeTag({
+      id: 'tag-tut',
+      slug: 'tutorials',
+      name: 'Tutorials',
+      url: 'https://example.com/tag/tutorials/',
+    });
+    const newsPost = makePost({
+      id: 'p-news',
+      slug: 'news-1',
+      title: 'News Post',
+      url: 'https://example.com/news-1/',
+      tags: [news],
+      primary_tag: news,
+    });
+    const tutPost = makePost({
+      id: 'p-tut',
+      slug: 'tut-1',
+      title: 'Tutorial Post',
+      url: 'https://example.com/tut-1/',
+      tags: [tutorials],
+      primary_tag: tutorials,
+    });
+    const content: ContentGraph = {
+      ...makeGraph(),
+      posts: [newsPost, tutPost],
+      tags: [news, tutorials],
+      postsByTag: new Map([
+        [news.slug, [newsPost]],
+        [tutorials.slug, [tutPost]],
+      ]),
+    };
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+
+    const newsXml = readFileSync(join(outputDir, 'tag/news/rss/index.xml'), 'utf8');
+    expect(newsXml).toContain('<title><![CDATA[News Post]]></title>');
+    expect(newsXml).not.toContain('<title><![CDATA[Tutorial Post]]></title>');
+    expect(newsXml).toContain('<title>News - T</title>');
+    expect(newsXml).toContain(
+      '<atom:link href="https://example.com/tag/news/rss/index.xml" rel="self" type="application/rss+xml"/>',
+    );
+
+    const tutXml = readFileSync(join(outputDir, 'tag/tutorials/rss/index.xml'), 'utf8');
+    expect(tutXml).toContain('<title><![CDATA[Tutorial Post]]></title>');
+    expect(tutXml).not.toContain('<title><![CDATA[News Post]]></title>');
+  });
+
+  test('skips internal tags and tags with no posts', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-pertag-skip-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const internalTag = makeTag({
+      id: 'tag-internal',
+      slug: 'hash-internal',
+      name: '#internal',
+      visibility: 'internal',
+    });
+    const emptyTag = makeTag({ id: 'tag-empty', slug: 'empty', name: 'Empty' });
+    const newsTag = makeTag({ slug: 'news', name: 'News' });
+    const post = makePost({ tags: [newsTag], primary_tag: newsTag });
+    const content: ContentGraph = {
+      ...makeGraph(),
+      posts: [post],
+      tags: [internalTag, emptyTag, newsTag],
+      postsByTag: new Map([
+        [internalTag.slug, [post]],
+        [emptyTag.slug, []],
+        [newsTag.slug, [post]],
+      ]),
+    };
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+
+    expect(existsSync(join(outputDir, 'tag/hash-internal/rss/index.xml'))).toBe(false);
+    expect(existsSync(join(outputDir, 'tag/empty/rss/index.xml'))).toBe(false);
+    expect(existsSync(join(outputDir, 'tag/news/rss/index.xml'))).toBe(true);
+  });
+
+  test('emits author/<slug>/rss/index.xml with only posts authored by that author', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-perauthor-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const alice = makeAuthor({
+      id: 'a-alice',
+      slug: 'alice',
+      name: 'Alice',
+      url: 'https://example.com/author/alice/',
+    });
+    const bob = makeAuthor({
+      id: 'a-bob',
+      slug: 'bob',
+      name: 'Bob',
+      url: 'https://example.com/author/bob/',
+    });
+    const alicePost = makePost({
+      id: 'p-a',
+      slug: 'alice-1',
+      title: 'Alice Post',
+      url: 'https://example.com/alice-1/',
+      authors: [alice],
+      primary_author: alice,
+    });
+    const bobPost = makePost({
+      id: 'p-b',
+      slug: 'bob-1',
+      title: 'Bob Post',
+      url: 'https://example.com/bob-1/',
+      authors: [bob],
+      primary_author: bob,
+    });
+    const content: ContentGraph = {
+      ...makeGraph(),
+      posts: [alicePost, bobPost],
+      authors: [alice, bob],
+      postsByAuthor: new Map([
+        [alice.slug, [alicePost]],
+        [bob.slug, [bobPost]],
+      ]),
+    };
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+
+    const aliceXml = readFileSync(join(outputDir, 'author/alice/rss/index.xml'), 'utf8');
+    expect(aliceXml).toContain('<title><![CDATA[Alice Post]]></title>');
+    expect(aliceXml).not.toContain('<title><![CDATA[Bob Post]]></title>');
+    expect(aliceXml).toContain('<title>Alice - T</title>');
+    expect(aliceXml).toContain(
+      '<atom:link href="https://example.com/author/alice/rss/index.xml" rel="self" type="application/rss+xml"/>',
+    );
+
+    const bobXml = readFileSync(join(outputDir, 'author/bob/rss/index.xml'), 'utf8');
+    expect(bobXml).toContain('<title><![CDATA[Bob Post]]></title>');
+  });
+
+  test('per_tag = false suppresses tag feeds; per_author = false suppresses author feeds', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-disabled-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { per_tag: false, per_author: false } },
+    });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+
+    // Site-wide feed is still emitted.
+    expect(existsSync(join(outputDir, 'rss.xml'))).toBe(true);
+    // Per-tag / per-author dirs do not exist.
+    expect(existsSync(join(outputDir, 'tag/news/rss/index.xml'))).toBe(false);
+    expect(existsSync(join(outputDir, 'author/casper/rss/index.xml'))).toBe(false);
+  });
+});
+
 describe('emitSitemap', () => {
   test('sitemap.xml is always a <sitemapindex> referencing all four Ghost sub-sitemaps', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));

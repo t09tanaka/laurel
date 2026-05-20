@@ -626,6 +626,18 @@ export const configSchema = z
               .describe(
                 'Include the full post HTML body in `<content:encoded>`. Default `false` emits only `<description>` with the feed excerpt; flipping to `true` mirrors Ghost behavior but inflates feed size dramatically on large blogs (see backlog #517).',
               ),
+            per_tag: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Emit a per-tag RSS feed at `tag/<slug>/rss/index.xml` for every public tag (matching Ghost\'s `/tag/<slug>/rss/` route). The channel metadata mirrors the site-wide feed; only the item list is filtered to posts tagged with that tag. Internal tags (visibility != "public") are skipped. Set to `false` if the extra URLs are noise for your audience — note that the file count grows linearly with the number of public tags.',
+              ),
+            per_author: z
+              .boolean()
+              .default(true)
+              .describe(
+                "Emit a per-author RSS feed at `author/<slug>/rss/index.xml` for every author with at least one published public post (matching Ghost's `/author/<slug>/rss/` route). The channel metadata mirrors the site-wide feed; only the item list is filtered to posts authored by that author. Set to `false` to suppress.",
+              ),
           })
           .strict()
           .default({})
@@ -706,10 +718,24 @@ export const configSchema = z
                 "Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch). When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*`. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent.",
               ),
             engine: z
-              .enum(['json', 'pagefind', 'json+pagefind', 'lunr', 'json+lunr'])
+              .enum([
+                'json',
+                'pagefind',
+                'json+pagefind',
+                'lunr',
+                'json+lunr',
+                'sodo-search',
+                'json+sodo-search',
+              ])
               .default('json')
               .describe(
-                "Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget.",
+                "Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget. `sodo-search` injects Ghost's `@tryghost/sodo-search` client script into `{{ghost_head}}` so themes that ship a `<button data-ghost-search>` trigger (Source, Casper) light up against the Ghost-style search UI; the script reads from the same `content/search.json` we emit, so combine with `json+sodo-search` if you want both the raw index file and the bundled UI script.",
+              ),
+            sodo_search_src: z
+              .string()
+              .default('https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js')
+              .describe(
+                'URL of the Sodo Search client script injected when `engine` is `sodo-search` or `json+sodo-search`. Defaults to the unpkg-hosted `@tryghost/sodo-search` bundle; override to self-host the file or pin a specific version. The URL is emitted verbatim into a `<script src="…">` attribute, so it must be a value the operator trusts.',
               ),
             excerpt_words: z
               .number()
@@ -1001,6 +1027,18 @@ export const configSchema = z
               .optional()
               .describe(
                 'Override for the URL injected into `data-portal="upgrade"` triggers (Ghost\'s paid-tier Upgrade CTA). Typically a checkout / pricing page.',
+              ),
+            inject_script: z
+              .boolean()
+              .default(false)
+              .describe(
+                'When true, inject Ghost\'s Portal client script into every page via `{{ghost_head}}`. The script attaches `data-portal` click handlers (signup / signin / account / upgrade) and renders the modal UI without any further wiring. Defaults to `false` so plain static blogs ship no extra JS; flip on to wire up Ghost Portal against a real backend (Ghost server, ghost-static-portal, or any self-hosted fork). Independent of `provider`: combining `inject_script = true` with `provider = "ghost"` is the canonical Ghost-compat setup, but the flag also works alongside `provider = "custom"` when the operator wires their own handler script through `script_src`.',
+              ),
+            script_src: z
+              .string()
+              .default('https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js')
+              .describe(
+                'URL of the Portal client script injected when `inject_script = true`. Defaults to the canonical unpkg-hosted `@tryghost/portal` bundle; override to self-host the file (`/assets/portal.min.js`) or pin a specific version (`https://unpkg.com/@tryghost/portal@2.x/...`). The URL is emitted verbatim as the `<script src="…">` attribute and dropped into the rendered HTML, so it must be a value the operator trusts.',
               ),
           })
           .strict()

@@ -603,6 +603,53 @@ describe('buildRootData', () => {
       current: false,
     });
   });
+
+  // Issue #324: Wave / Alto / London guard their secondary nav rendering with
+  // `{{#unless @site.secondary_navigation}}` (or the inverse `{{#if}}`).
+  // Handlebars treats `[]` as truthy because it is an object, so an empty
+  // configured `secondary_navigation` would silently never trigger the
+  // fallback. The render layer coerces an empty list to `undefined` so the
+  // guards behave as expected.
+  test('@site.secondary_navigation is undefined when the configured array is empty', () => {
+    const themePkg: ThemePackage = {
+      name: 'theme',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+    };
+    const engine = {
+      config: { theme: { custom: {} }, build: {} } as unknown as NectarEngine['config'],
+      content: {
+        site: {
+          locale: 'en',
+          navigation: [],
+          secondary_navigation: [],
+        },
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+    } as NectarEngine;
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const site = data.site as { secondary_navigation: unknown };
+    expect(site.secondary_navigation).toBeUndefined();
+
+    // Confirm the {{#unless}} branch actually fires now.
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      '{{#unless @site.secondary_navigation}}fallback{{else}}has-nav{{/unless}}',
+    );
+    expect(tpl({}, { data })).toBe('fallback');
+  });
 });
 
 // Regression coverage for issue #1131: some Ghost themes use `{{> post}}` from

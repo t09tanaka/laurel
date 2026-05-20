@@ -1,5 +1,5 @@
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ContentGraph } from '~/content/model.ts';
+import type { ContentGraph, Post } from '~/content/model.ts';
 import { writeHtml } from './emit.ts';
 
 // Sitemap emission has its own module (./sitemap.ts) so the Ghost 5-file
@@ -28,9 +28,88 @@ export async function emitRss(opts: {
   limit: number;
 }): Promise<void> {
   const { config, content, outputDir, limit } = opts;
+  await emitRssFeed({
+    config,
+    posts: content.posts,
+    outputDir,
+    limit,
+    pageFilename: rssPageFilename,
+    channel: {
+      title: config.site.title,
+      description: config.site.description,
+      link: config.site.url.replace(/\/$/, ''),
+    },
+  });
+
+  // Per-tag and per-author feeds are opt-out via [components.rss].per_tag /
+  // per_author. The feeds match Ghost's `/tag/<slug>/rss/` and
+  // `/author/<slug>/rss/` routes; channel metadata mirrors the site-wide feed,
+  // only the item list is filtered. We always emit a single page per feed (no
+  // multi-page pagination) because the per-tag / per-author counts are tiny
+  // compared to the global feed in practice — anything that overflows the
+  // `RSS_MAX_ITEMS_PER_PAGE` ceiling gets silently truncated to the cap,
+  // matching what Ghost does on its own per-tag feed.
+  if (config.components.rss.per_tag) {
+    for (const tag of content.tags) {
+      if (tag.visibility !== 'public') continue;
+      const tagPosts = content.postsByTag.get(tag.slug) ?? [];
+      if (tagPosts.length === 0) continue;
+      await emitRssFeed({
+        config,
+        posts: tagPosts,
+        outputDir,
+        limit,
+        pageFilename: () => `tag/${tag.slug}/rss/index.xml`,
+        channel: {
+          title: `${tag.name} - ${config.site.title}`,
+          description: tag.description || config.site.description,
+          link: tag.url,
+        },
+      });
+    }
+  }
+  if (config.components.rss.per_author) {
+    for (const author of content.authors) {
+      const authorPosts = content.postsByAuthor.get(author.slug) ?? [];
+      if (authorPosts.length === 0) continue;
+      await emitRssFeed({
+        config,
+        posts: authorPosts,
+        outputDir,
+        limit,
+        pageFilename: () => `author/${author.slug}/rss/index.xml`,
+        channel: {
+          title: `${author.name} - ${config.site.title}`,
+          description: author.bio || config.site.description,
+          link: author.url,
+        },
+      });
+    }
+  }
+}
+
+interface RssChannel {
+  title: string;
+  description: string;
+  link: string;
+}
+
+// Core RSS renderer shared between the global feed and per-tag / per-author
+// feeds. `pageFilename(page)` decides where each page lands on disk so the
+// global feed keeps its `rss.xml` + `rss-N.xml` layout while archive feeds
+// (always single-page in practice) write to `tag/<slug>/rss/index.xml` etc.
+async function emitRssFeed(opts: {
+  config: NectarConfig;
+  posts: Post[];
+  outputDir: string;
+  limit: number;
+  pageFilename: (page: number) => string;
+  channel: RssChannel;
+}): Promise<void> {
+  const { config, posts, outputDir, limit, pageFilename, channel } = opts;
   const base = config.site.url.replace(/\/$/, '');
   const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
-  const totalPages = Math.max(1, Math.ceil(content.posts.length / perPage));
+  const totalPages = Math.max(1, Math.ceil(posts.length / perPage));
   // Ghost's default-on behavior would inline post.html into every <item>,
   // which makes 10k-item feeds reach hundreds of MB. Default `false` keeps
   // the feed lean: only the excerpt ships, and aggregators that need the
@@ -39,26 +118,26 @@ export async function emitRss(opts: {
   // generators, archive crawlers) and bandwidth is not a concern. See #517.
   const fullContent = config.components.rss.full_content;
 
-  const lastBuildDate = computeLastBuildDate(content.posts);
+  const lastBuildDate = computeLastBuildDate(posts);
   const imageBlock = renderChannelImage(config, base);
 
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
-    const pagePosts = content.posts.slice(start, start + perPage);
+    const pagePosts = posts.slice(start, start + perPage);
     const items = pagePosts.map((post) => renderItem(post, base, fullContent)).join('');
-    const filename = rssPageFilename(page);
+    const filename = pageFilename(page);
     const selfHref = `${base}/${filename}`;
     const atomLinks: string[] = [
       `<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>`,
     ];
     if (page > 1) {
-      const prevHref = `${base}/${rssPageFilename(page - 1)}`;
+      const prevHref = `${base}/${pageFilename(page - 1)}`;
       atomLinks.push(
         `<atom:link href="${escapeXml(prevHref)}" rel="prev" type="application/rss+xml"/>`,
       );
     }
     if (page < totalPages) {
-      const nextHref = `${base}/${rssPageFilename(page + 1)}`;
+      const nextHref = `${base}/${pageFilename(page + 1)}`;
       atomLinks.push(
         `<atom:link href="${escapeXml(nextHref)}" rel="next" type="application/rss+xml"/>`,
       );
@@ -66,9 +145,9 @@ export async function emitRss(opts: {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
 <channel>
-<title>${escapeXml(config.site.title)}</title>
-<link>${escapeXml(base)}</link>
-<description>${escapeXml(config.site.description)}</description>
+<title>${escapeXml(channel.title)}</title>
+<link>${escapeXml(channel.link)}</link>
+<description>${escapeXml(channel.description)}</description>
 <language>${escapeXml(config.site.locale)}</language>
 <lastBuildDate>${lastBuildDate}</lastBuildDate>
 <generator>Nectar</generator>

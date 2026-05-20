@@ -14,7 +14,12 @@ export interface SiteData {
   icon: string | undefined;
   accent_color: string;
   navigation: NavigationItem[];
-  secondary_navigation: NavigationItem[];
+  // Optional rather than `NavigationItem[]` so the loader can pass `undefined`
+  // when the operator hasn't configured any secondary items. Themes like Wave
+  // / Alto / London guard with `{{#unless @site.secondary_navigation}}`, which
+  // expects a falsy value when empty — Handlebars treats `[]` as truthy, so an
+  // empty array would silently disable those branches. See issue #324.
+  secondary_navigation: NavigationItem[] | undefined;
   lang: string;
   twitter: string | undefined;
   facebook: string | undefined;

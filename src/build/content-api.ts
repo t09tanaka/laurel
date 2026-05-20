@@ -104,7 +104,11 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
     twitter: site.twitter ?? null,
     facebook: site.facebook ?? null,
     navigation: site.navigation,
-    secondary_navigation: site.secondary_navigation,
+    // SiteData carries `undefined` when no secondary nav is configured (so
+    // theme `{{#unless}}` guards work in templates, see #324). The Ghost
+    // Content API contract is "always an array, possibly empty", so normalise
+    // here to keep API consumers happy.
+    secondary_navigation: site.secondary_navigation ?? [],
     // Members-related fields are intentionally hardcoded false / empty:
     // Nectar is static-only and never authenticates members.
     members_enabled: false,

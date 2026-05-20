@@ -8,12 +8,19 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     function navigationHelper(this: unknown, options: Handlebars.HelperOptions) {
       const site = options.data?.site as {
         navigation: { label: string; url: string; slug?: string; current?: boolean }[];
-        secondary_navigation: { label: string; url: string; slug?: string; current?: boolean }[];
+        secondary_navigation:
+          | { label: string; url: string; slug?: string; current?: boolean }[]
+          | undefined;
       };
       const route = options.data?.route as { url?: string } | undefined;
       const currentUrl = route?.url;
       const type = String(options.hash.type ?? 'primary');
-      const items = type === 'secondary' ? site.secondary_navigation : site.navigation;
+      // `secondary_navigation` is `undefined` when the operator didn't
+      // configure one (see #324 — empty arrays are coerced to undefined so
+      // `{{#unless @site.secondary_navigation}}` works). Falling back to `[]`
+      // here keeps `{{navigation type="secondary"}}` emitting an empty `<ul>`
+      // instead of crashing.
+      const items = type === 'secondary' ? (site.secondary_navigation ?? []) : site.navigation;
       const list = items
         .map((item) => {
           // Prefer the enriched fields that buildRootData attaches (so a

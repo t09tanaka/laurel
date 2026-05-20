@@ -148,6 +148,25 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       const analyticsSnippet = renderAnalyticsSnippet(engine.config?.components?.analytics);
       if (analyticsSnippet) parts.push(analyticsSnippet);
 
+      // Ghost Portal client script. Opt-in via [components.portal].inject_script
+      // so plain blogs ship no extra JS. When enabled, the bundled portal.min.js
+      // attaches `data-portal="signup|signin|account|upgrade"` click handlers
+      // and renders the Ghost-style modal UI. `data-i18n="true"` matches Ghost's
+      // own injection so the bundled translations load; `data-ghost` exposes the
+      // site URL the client uses as its Members API origin. Themes that ship a
+      // `<button data-portal="…">` UI but want offline-safety still render fine
+      // because Nectar always also rewrites those buttons via portal-shim.ts.
+      const portalSnippet = renderPortalSnippet(engine.config?.components?.portal, site.url);
+      if (portalSnippet) parts.push(portalSnippet);
+
+      // Sodo Search client script. Opt-in via [components.search].engine when
+      // set to `sodo-search` or `json+sodo-search`. The script reads from the
+      // `content/search.json` index Nectar already emits, so themes that wire a
+      // `<button data-ghost-search>` trigger (Source / Casper) get a working
+      // search UI without a server. Independent of Pagefind / Lunr emitters.
+      const sodoSnippet = renderSodoSearchSnippet(engine.config?.components?.search, site.url);
+      if (sodoSnippet) parts.push(sodoSnippet);
+
       // Raw HTML exit (1/2): codeinjection_head ships verbatim into <head>.
       // The loader already drops the field unless `build.allow_code_injection`
       // is true, so reaching here means the operator opted in. See
@@ -594,6 +613,55 @@ function escapeJsonForScript(json: string): string {
     .replace(/&/g, '\\u0026')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
+}
+
+// Ghost Portal injection. Returns the `<script defer src="…">` tag that
+// loads the bundled Portal client, or `undefined` when the operator has not
+// opted in via `[components.portal].inject_script = true`. We match Ghost's
+// own emit shape (`data-i18n="true"` + `data-ghost="<site.url>"`) so existing
+// theme markup keeps working. The script URL is validated to be an absolute
+// http(s) or root-relative path — anything else (javascript:, data:, file:)
+// is dropped to avoid turning a config typo into an XSS vector. Operators
+// who genuinely want to self-host can pass an absolute https URL or a
+// site-relative path like `/assets/portal.min.js`.
+function renderPortalSnippet(
+  cfg: { inject_script?: boolean; script_src?: string } | undefined,
+  siteUrl: string,
+): string | undefined {
+  if (!cfg || cfg.inject_script !== true) return undefined;
+  const src = sanitizeScriptSrc(cfg.script_src);
+  if (!src) return undefined;
+  return `<script defer src="${escapeAttr(src)}" data-i18n="true" data-ghost="${escapeAttr(siteUrl)}"></script>`;
+}
+
+// Sodo Search injection. Returns the `<script defer src="…">` tag when the
+// search engine is `sodo-search` or `json+sodo-search`. Mirrors Ghost's own
+// embed: `data-key` and `data-styles` are left blank (themes wire those when
+// they need to), the script reads from the search index Nectar emits.
+function renderSodoSearchSnippet(
+  cfg: { engine?: string; enabled?: boolean; sodo_search_src?: string } | undefined,
+  siteUrl: string,
+): string | undefined {
+  if (!cfg || cfg.enabled === false) return undefined;
+  const engine = cfg.engine;
+  if (engine !== 'sodo-search' && engine !== 'json+sodo-search') return undefined;
+  const src = sanitizeScriptSrc(cfg.sodo_search_src);
+  if (!src) return undefined;
+  return `<script defer src="${escapeAttr(src)}" data-sodo-search="${escapeAttr(siteUrl)}"></script>`;
+}
+
+// Allowlist the URL forms we want to drop straight into `<script src="…">`:
+// absolute http(s) URLs (CDN or self-hosted under a different origin) and
+// root-relative paths (self-hosted under the build's own publish root).
+// Reject anything else — `javascript:`, `data:`, `vbscript:`, file:, missing
+// values — so a typo'd config can't turn into a client-side code execution.
+const ALLOWED_SCRIPT_URL_PATTERN = /^(?:https?:\/\/|\/)[^\s<>"']+$/i;
+function sanitizeScriptSrc(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (!ALLOWED_SCRIPT_URL_PATTERN.test(trimmed)) return undefined;
+  return trimmed;
 }
 
 // Drop-in analytics snippets per provider. Each branch returns the documented

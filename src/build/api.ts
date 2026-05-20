@@ -93,7 +93,10 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     twitter: site.twitter ?? null,
     facebook: site.facebook ?? null,
     navigation: site.navigation,
-    secondary_navigation: site.secondary_navigation,
+    // See content-api.ts: SiteData stores `undefined` for an empty secondary
+    // nav (so Handlebars `{{#unless}}` works), but the API contract is "always
+    // an array". Normalise back here. See #324.
+    secondary_navigation: site.secondary_navigation ?? [],
     members_enabled: site.members_enabled,
     paid_members_enabled: site.paid_members_enabled,
     members_invite_only: site.members_invite_only,

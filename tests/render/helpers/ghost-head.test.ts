@@ -1521,3 +1521,114 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     expect(html).toContain('&quot;');
   });
 });
+
+// Issue #462: [components.portal].inject_script wires Ghost's Portal client
+// script into every page via {{ghost_head}} so themes that ship
+// `data-portal="…"` triggers (Source, Casper) light up against a real
+// Members backend without hand-rolled markup.
+describe('ghost_head Portal script injection (issue #462)', () => {
+  test('omits the portal script when inject_script is false (default)', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { portal: { inject_script: false } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('portal.min.js');
+    expect(html).not.toContain('data-portal');
+  });
+
+  test('emits the unpkg-hosted portal script with data-ghost when inject_script is true', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+      config: {
+        components: {
+          portal: {
+            inject_script: true,
+            script_src: 'https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js',
+          },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer src="https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js" data-i18n="true" data-ghost="https://example.com"></script>',
+    );
+  });
+
+  test('honours a self-hosted script_src override', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+      config: {
+        components: {
+          portal: { inject_script: true, script_src: '/assets/portal.min.js' },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer src="/assets/portal.min.js" data-i18n="true" data-ghost="https://example.com"></script>',
+    );
+  });
+
+  test('drops the snippet when script_src is a dangerous URL scheme', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+      config: {
+        components: {
+          portal: { inject_script: true, script_src: 'javascript:alert(1)' },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('javascript:alert');
+    expect(html).not.toContain('data-portal');
+  });
+});
+
+// Issue #462: [components.search].engine = "sodo-search" / "json+sodo-search"
+// injects Ghost's Sodo Search client into {{ghost_head}} so themes that ship
+// a `<button data-ghost-search>` trigger have a working modal UI.
+describe('ghost_head Sodo Search script injection (issue #462)', () => {
+  test('omits the sodo-search script for default json engine', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { search: { enabled: true, engine: 'json' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('sodo-search');
+  });
+
+  test('emits the sodo-search script when engine is sodo-search', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+      config: {
+        components: {
+          search: {
+            enabled: true,
+            engine: 'sodo-search',
+            sodo_search_src:
+              'https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js',
+          },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer src="https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js" data-sodo-search="https://example.com"></script>',
+    );
+  });
+
+  test('also emits the script when engine combines json with sodo-search', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+      config: {
+        components: {
+          search: {
+            enabled: true,
+            engine: 'json+sodo-search',
+            sodo_search_src: '/assets/sodo-search.min.js',
+          },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer src="/assets/sodo-search.min.js" data-sodo-search="https://example.com"></script>',
+    );
+  });
+});
