@@ -20,6 +20,9 @@ collects the operator-facing pieces of that contract in one place:
   — move image variants to R2 when a Pages deploy approaches the 25,000-file
   limit, including the private-bucket Worker pattern, R2 endpoint/credential
   setup, and the difference between scoped image sync and `nectar deploy r2`.
+- [`docs/deploy/vercel.md`](./deploy/vercel.md) — Vercel quickstart covering
+  Git-connected builds, generated `vercel.json`, redirects, prebuilt GitHub
+  Actions deploys, and `nectar deploy vercel`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages,
   nginx), without the stricter security header baseline wired in. Pair with
@@ -47,7 +50,9 @@ If you just want a defensible default stack on a new deploy:
 1. Pick your host's section in
    [`docs/security/hosting.md`](./security/hosting.md) and drop the
    `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root, or
-   set `[deploy.headers].security` for nginx.
+   set `[deploy.headers].security` for nginx. Also enable the generated
+   platform output where available (`[deploy.cloudflare_pages]`,
+   `[deploy.vercel]`, or `[deploy.netlify]`).
 2. Verify with `curl -sI https://your-site.example/ | sort` after the next
    deploy — you should see `Strict-Transport-Security`,
    `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
@@ -57,10 +62,13 @@ If you just want a defensible default stack on a new deploy:
    [Mozilla Observatory](https://observatory.mozilla.org/) to confirm the
    grade.
 
-For Cloudflare Pages specifically, start with
-[`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) before adding
-the stricter security header baseline. If the build is image-heavy, check the
-file count before wiring the final deploy:
+For Cloudflare Pages and Vercel specifically, start with
+[`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) or
+[`docs/deploy/vercel.md`](./deploy/vercel.md). Those generated outputs already
+carry Nectar's deploy header defaults; use
+[`docs/security/hosting.md`](./security/hosting.md) when you need to tighten
+the baseline. If the Cloudflare Pages build is image-heavy, check the file
+count before wiring the final deploy:
 
 ```sh
 bunx nectar build

@@ -136,6 +136,18 @@ for the full Worker, custom-domain, and CI workflow.
 
 **Recommended for:** the simplest end-to-end Git-to-URL flow.
 
+For the full Vercel-specific guide, including generated `vercel.json`,
+prebuilt GitHub Actions deploys, and `nectar deploy vercel`, see
+[`docs/deploy/vercel.md`](../deploy/vercel.md).
+
+Enable the Vercel emitter in `nectar.toml` so builds include Vercel-formatted
+headers and redirects:
+
+```toml
+[deploy.vercel]
+enabled = true
+```
+
 1. **Import Project** → select your repo.
 2. **Framework Preset → Other**.
 3. Build & Output settings:
@@ -149,22 +161,34 @@ for the full Worker, custom-domain, and CI workflow.
 4. **Deploy**.
 
 Vercel reads `bun.lock` and uses Bun automatically. No environment variable
-required as of 2026-05.
+required for the default Git-connected build.
 
-For non-trivial routing or rewrites add `vercel.json` at the repo root:
+Custom redirects go in `redirects.yaml`; with `[deploy.vercel].enabled = true`,
+Nectar folds them into `dist/vercel.json` alongside cache and security
+headers. Supported status codes are 301, 302, 307, and 308; the first rule per
+`from` wins on overlap. Vercel always applies redirects even when a static file
+exists at the source path, so `force` is only informational on this target.
 
-```json
-{
-  "cleanUrls": true,
-  "trailingSlash": true,
-  "redirects": [
-    { "source": "/feed", "destination": "/rss.xml", "permanent": true }
-  ]
-}
+```yaml
+# redirects.yaml
+- from: /feed
+  to: /rss.xml
+  status: 301
+- from: /old-post/
+  to: /new-post/
+  status: 308
 ```
 
-Trailing slashes matter — Nectar emits `<slug>/index.html`, so URLs end in
-`/`. The setting above keeps Vercel from stripping them.
+For direct deploys outside the Git-connected Vercel build, let Nectar call the
+Vercel CLI:
+
+```bash
+bunx nectar deploy vercel --build
+```
+
+The command runs `nectar build`, checks for `dist/.nectar-manifest.json`, then
+executes `vercel deploy dist --prod`. Set `VERCEL_TOKEN` in CI, and use
+`bunx nectar deploy vercel --dry-run` to audit the command before uploading.
 
 ---
 

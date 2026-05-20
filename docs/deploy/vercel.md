@@ -1,0 +1,185 @@
+# Deploying Nectar to Vercel
+
+Vercel can build a Nectar site from Git or receive a pre-built `dist/`
+directory from CI. Nectar has two Vercel-specific pieces:
+
+- `[deploy.vercel]` controls build output for Vercel: a generated
+  `vercel.json` at the publish root.
+- `nectar deploy vercel` shells out to the Vercel CLI for manual or CI-driven
+  uploads of an already-built `dist/`.
+
+Use the Git-connected Vercel flow for normal production deploys. Use
+`nectar deploy vercel` when CI already built the site and should run the final
+upload explicitly.
+
+## Quickstart: Vercel builds from Git
+
+1. In `nectar.toml`, enable the Vercel output file:
+
+   ```toml
+   [deploy.vercel]
+   enabled = true
+   ```
+
+   This makes `nectar build` write `dist/vercel.json`. The file folds
+   `[deploy.headers]` cache and security headers plus `redirects.yaml` into
+   Vercel's native `headers` and `redirects` arrays.
+
+2. Build locally once before wiring Vercel:
+
+   ```sh
+   bunx nectar build
+   test -f dist/vercel.json
+   ```
+
+3. In Vercel, choose **Add New -> Project**, import the repository, and set:
+
+   | Field | Value |
+   | --- | --- |
+   | Framework Preset | `Other` |
+   | Build Command | `bunx nectar build` |
+   | Output Directory | `dist` |
+   | Install Command | leave blank unless your repo needs a custom install step |
+   | Root Directory | blank, unless Nectar lives in a monorepo subdirectory |
+
+4. Deploy.
+
+Vercel detects Bun from `bun.lock`, so a separate `BUN_VERSION` environment
+variable is not required for the default Git-connected build.
+
+## Redirects
+
+Add redirects to `redirects.yaml` at the project root:
+
+```yaml
+- from: /feed
+  to: /rss.xml
+  status: 301
+- from: /old-post/
+  to: /new-post/
+  status: 308
+  force: true
+```
+
+With `[deploy.vercel].enabled = true`, Nectar writes those rules to
+`dist/vercel.json`:
+
+```json
+{
+  "redirects": [
+    { "source": "/feed", "destination": "/rss.xml", "statusCode": 301 },
+    { "source": "/old-post/", "destination": "/new-post/", "statusCode": 308 }
+  ]
+}
+```
+
+Supported status codes are `301`, `302`, `307`, and `308`; omitted status
+defaults to `301`. If two rules share the same `from`, the first rule wins.
+Vercel always applies redirects even when a static file exists at the source
+path, so `force` is accepted in shared `redirects.yaml` files but does not add
+an extra Vercel field.
+
+## Headers and caching
+
+When `[deploy.vercel].enabled = true`, every build writes `dist/vercel.json`
+with Vercel header rules. The defaults mirror the other generated deploy
+targets:
+
+| Path | Cache-Control |
+| --- | --- |
+| `/assets/*` | `public, max-age=31536000, immutable` |
+| `/content/images/*` | `public, max-age=31536000, immutable` |
+| `/*` | `public, max-age=0, must-revalidate` |
+
+The catch-all route also receives the baseline security headers from
+`[deploy.headers].security`, including `X-Content-Type-Options` and
+`Referrer-Policy` by default. Nectar translates glob `*` patterns to Vercel's
+path-to-regexp shape, so `/*` is emitted as `/(.*)`.
+
+Do not also hand-maintain the same `headers` or `redirects` in a repo-root
+`vercel.json` unless you intentionally want Vercel-owned config to take over.
+If your `static/` passthrough contains `vercel.json`, it can overwrite the
+generated publish-root file during the build.
+
+## CLI deploys with `nectar deploy vercel`
+
+For a manual deploy or a CI job that should call the Vercel CLI directly,
+optionally configure the deploy target:
+
+```toml
+[deploy.vercel]
+enabled = true
+# project = "team-or-scope" # optional; forwarded as --scope
+# prod = true              # default; set false for preview-only deploys
+```
+
+Then run:
+
+```sh
+bunx nectar deploy vercel --build
+```
+
+The command runs `nectar build` first, checks that
+`dist/.nectar-manifest.json` exists, then executes:
+
+```sh
+vercel deploy dist --prod
+```
+
+In CI, set `VERCEL_TOKEN`; otherwise the Vercel CLI falls back to interactive
+login. You can audit the exact command without uploading:
+
+```sh
+bunx nectar deploy vercel --dry-run
+```
+
+Pass `--project-name` or set `[deploy.vercel].project` when the CLI should
+receive `--scope <value>`. If the project has already been linked with
+`vercel link`, leave it unset and let the Vercel CLI use `.vercel/project.json`.
+
+## GitHub Actions prebuilt workflow
+
+If GitHub Actions should be the only deploy driver, disable Vercel's native Git
+integration for the project, then copy
+[`examples/ci/vercel.yml`](../../examples/ci/vercel.yml) to
+`.github/workflows/vercel.yml`.
+
+Add repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `VERCEL_TOKEN` | Personal token from Vercel account settings |
+| `VERCEL_ORG_ID` | From `.vercel/project.json` after `vercel link` |
+| `VERCEL_PROJECT_ID` | From `.vercel/project.json` after `vercel link` |
+
+That workflow builds with Bun, stages `dist/` into Vercel's prebuilt output
+format, publishes `main` with `vercel deploy --prebuilt --prod`, and publishes
+other branches / pull requests as Vercel previews.
+
+## Preview deploys
+
+For PR previews that need canonical URLs to point at the preview hostname,
+build with `--base-url`:
+
+```sh
+bunx nectar build --base-url https://your-preview.vercel.app
+```
+
+If the preview is served from a subpath, pair that with `--base-path` or set
+`[build] base_path = "/preview/"` in `nectar.toml`.
+
+## Troubleshooting
+
+- **No `vercel.json` in the deploy:** confirm `[deploy.vercel].enabled = true`
+  and that no file in the static passthrough directory overwrote
+  `dist/vercel.json`.
+- **`nectar deploy vercel` opens an interactive login:** set `VERCEL_TOKEN` in
+  the environment.
+- **The CLI deploy targets the wrong project:** run `vercel link`, or set
+  `[deploy.vercel].project` / pass `--project-name` so Nectar forwards
+  `--scope`.
+- **Redirects do not work:** confirm `redirects.yaml` is at the project root,
+  rebuild, and inspect the generated `redirects` array in `dist/vercel.json`.
+- **Security headers need to be stricter:** start with
+  [`docs/security/hosting.md`](../security/hosting.md), then adjust
+  `[deploy.headers]` in `nectar.toml`.

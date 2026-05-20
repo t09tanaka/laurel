@@ -146,7 +146,10 @@ negation. Full reference:
 
 ## Vercel
 
-Vercel reads `vercel.json` at the repo root. Headers are declarative:
+Vercel reads `vercel.json` from the project config or static deploy output.
+For Nectar sites, prefer `[deploy.vercel].enabled = true` so `nectar build`
+emits `dist/vercel.json` from `[deploy.headers]`. If you manage Vercel config
+by hand, headers are declarative:
 
 `vercel.json`:
 
@@ -180,8 +183,9 @@ Vercel reads `vercel.json` at the repo root. Headers are declarative:
 }
 ```
 
-If you already have a `vercel.json` (from the deploy tutorial), merge the
-`headers` array into it rather than replacing the file. Vercel reference:
+If you already have a hand-maintained `vercel.json`, merge the `headers` array
+into it rather than replacing the file. Otherwise, set the same policies under
+`[deploy.headers]` and let Nectar generate the Vercel file. Vercel reference:
 <https://vercel.com/docs/projects/project-configuration#headers>.
 
 ---
