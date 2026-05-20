@@ -27,7 +27,7 @@ Commands:
   import-ghost      Convert a Ghost JSON export into Markdown content
   import-wordpress  Convert a WordPress WXR XML export into Markdown content
   version           Print the version
-  help              Show this help (or pass --help to any command)
+  help              Show this help or help for a command
 
 Global options:
   -q, --quiet       Suppress info/debug output (keeps warn/error)
@@ -36,4 +36,4 @@ Global options:
   --no-color        Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)
   --debug           Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)
 
-Run `nectar <command> --help` for more details on a specific command.
+Run `nectar help <command>` or `nectar <command> --help` for more details.

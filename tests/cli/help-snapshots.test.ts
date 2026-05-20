@@ -61,6 +61,13 @@ describe('cli help snapshots', () => {
     expect(result.stdout).toBe(await readSnapshot(command));
   });
 
+  test.each(COMMAND_NAMES)('help %s matches the stable snapshot', async (command) => {
+    const result = await runCli(['help', command]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(result.stdout).toBe(await readSnapshot(command));
+  });
+
   test.each(COMMAND_NAMES)('%s help matches the stable snapshot', async (command) => {
     const result = await runCli([command, 'help']);
     expect(result.exitCode).toBe(0);

@@ -9,6 +9,8 @@ import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
+const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
+
 // Crash hooks: a stray `await` or floating promise that rejects in the build
 // pipeline used to print a stack trace and leave the shell with a misleading
 // exit code (sometimes 0 in older Node builds). We install explicit hooks at
@@ -43,7 +45,7 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     lines.push(`  ${name.padEnd(width)}${spec.summary}`);
   }
   lines.push(`  ${'version'.padEnd(width)}Print the version`);
-  lines.push(`  ${'help'.padEnd(width)}Show this help (or pass --help to any command)`);
+  lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
   lines.push('');
   lines.push('Global options:');
   lines.push(`  ${'-q, --quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
@@ -58,9 +60,51 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     `  ${'--debug'.padEnd(width)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
   );
   lines.push('');
-  lines.push('Run `nectar <command> --help` for more details on a specific command.');
+  lines.push('Run `nectar help <command>` or `nectar <command> --help` for more details.');
   lines.push('');
   stream.write(lines.join('\n'));
+}
+
+function resolveCommand(command: string, rest: string[]): { canonical: string; rest: string[] } {
+  const dispatchRest = [...rest];
+  let canonical = COMMAND_ALIASES[command] ?? command;
+  if (command.startsWith('theme:')) {
+    const sub = command.slice('theme:'.length);
+    if (sub) {
+      canonical = 'theme';
+      dispatchRest.unshift(sub);
+    }
+  }
+  return { canonical, rest: dispatchRest };
+}
+
+function printUnknownCommand(command: string, version: string): void {
+  process.stderr.write(`Unknown command: ${command}\n`);
+  const suggestion = suggestCommand(command, COMMAND_NAMES);
+  if (suggestion) {
+    process.stderr.write(`Did you mean \`nectar ${suggestion}\`?\n`);
+  }
+  process.stderr.write('\n');
+  printTopUsage(version, process.stderr);
+}
+
+async function printCommandHelp(
+  target: string | undefined,
+  rest: string[],
+  version: string,
+): Promise<number> {
+  if (target === undefined || target === 'help' || target === '--help' || target === '-h') {
+    printTopUsage(version);
+    return 0;
+  }
+
+  const resolved = resolveCommand(target, rest);
+  if (!(resolved.canonical in COMMAND_SPECS)) {
+    printUnknownCommand(target, version);
+    return 2;
+  }
+
+  return dispatch(resolved.canonical, [...resolved.rest, '--help']);
 }
 
 async function dispatch(command: string, rest: string[]): Promise<number> {
@@ -210,9 +254,13 @@ async function main(argv: string[]): Promise<number> {
   const [command, ...restInitial] = filtered;
   const rest = [...restInitial];
 
-  if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
+  if (command === undefined || command === '--help' || command === '-h') {
     printTopUsage(version);
     return 0;
+  }
+
+  if (command === 'help') {
+    return printCommandHelp(rest.shift(), rest, version);
   }
 
   if (command === 'version' || command === '--version' || command === '-v') {
@@ -227,24 +275,10 @@ async function main(argv: string[]): Promise<number> {
   // `theme:lint` is a convenience alias for `theme lint` matching the colon-
   // style most theme-author docs reach for. It rewrites the leading token
   // before dispatch so the rest of the argv is left untouched (path, flags).
-  const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
-  let canonical = COMMAND_ALIASES[command] ?? command;
-  if (command.startsWith('theme:')) {
-    const sub = command.slice('theme:'.length);
-    if (sub) {
-      canonical = 'theme';
-      rest.unshift(sub);
-    }
-  }
+  const { canonical, rest: resolvedRest } = resolveCommand(command, rest);
 
   if (!(canonical in COMMAND_SPECS)) {
-    process.stderr.write(`Unknown command: ${command}\n`);
-    const suggestion = suggestCommand(command, COMMAND_NAMES);
-    if (suggestion) {
-      process.stderr.write(`Did you mean \`nectar ${suggestion}\`?\n`);
-    }
-    process.stderr.write('\n');
-    printTopUsage(version, process.stderr);
+    printUnknownCommand(command, version);
     return 2;
   }
 
@@ -254,7 +288,8 @@ async function main(argv: string[]): Promise<number> {
   // extractor stripped it earlier to keep it out of the dispatcher's
   // command-name slot; we add it back here, but only if the user didn't
   // already type `--json` after the subcommand (rest already has it).
-  const argsForDispatch = globalJson && !rest.includes('--json') ? ['--json', ...rest] : rest;
+  const argsForDispatch =
+    globalJson && !resolvedRest.includes('--json') ? ['--json', ...resolvedRest] : resolvedRest;
 
   return dispatch(canonical, argsForDispatch);
 }
