@@ -514,12 +514,21 @@ function visibilityFilter(item: unknown, visibility: string | undefined): boolea
 // theme surfaces. Official themes such as Edition still branch on
 // `{{#has visibility="filter"}}` for tier CTA copy, while current Ghost core
 // templates use `visibility="tiers"`. Treat the filter branch as the
-// tier-specific alias without changing exact matches for public/members/paid.
+// tier-specific alias while preserving Ghost's comma-separated OR syntax, e.g.
+// `{{#has visibility="public,members,paid"}}`.
 function evaluateVisibilityAttr(raw: unknown, value: string): boolean {
-  const visibility = String(raw ?? '').toLowerCase();
-  const expected = value.trim().toLowerCase();
-  if (expected === 'filter') return visibility === 'filter' || visibility === 'tiers';
-  return visibility === expected;
+  const visibility =
+    String(raw ?? 'public')
+      .trim()
+      .toLowerCase() || 'public';
+  const expectedValues = value
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return expectedValues.some((expected) => {
+    if (expected === 'filter') return visibility === 'filter' || visibility === 'tiers';
+    return visibility === expected;
+  });
 }
 
 // `{{#has tag="news, sports"}}` / `{{#has author="jane"}}` match if any listed

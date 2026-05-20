@@ -416,6 +416,27 @@ describe('has helper', () => {
     expect(tpl({ visibility: 'members' })).toBe('gated');
   });
 
+  test('visibility="public" matches public and missing context visibility', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has visibility="public"}}public{{else}}gated{{/has}}');
+    expect(tpl({ visibility: 'public' })).toBe('public');
+    expect(tpl({})).toBe('public');
+    expect(tpl({ visibility: 'members' })).toBe('gated');
+  });
+
+  test('comma-separated visibility values match Ghost-style paywall branches', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#has visibility="public,members,paid"}}snippet{{else}}other{{/has}}',
+    );
+    expect(tpl({ visibility: 'public' })).toBe('snippet');
+    expect(tpl({ visibility: 'members' })).toBe('snippet');
+    expect(tpl({ visibility: 'paid' })).toBe('snippet');
+    expect(tpl({ visibility: 'internal' })).toBe('other');
+  });
+
   test('visibility="filter" matches filter visibility for tier CTA branches', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
