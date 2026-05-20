@@ -21,6 +21,7 @@ import {
   renderEmbedCardHtml,
   renderFileCardHtml,
   renderGalleryCardHtml,
+  renderHeaderCardHtml,
   renderHtmlCardHtml,
   renderImageCardHtml,
   renderMarkdownCardHtml,
@@ -236,6 +237,8 @@ function renderCard(name: unknown, payload: Record<string, unknown>): string {
       return renderToggleCardHtml(payload);
     case 'product':
       return renderProductCardHtml(payload);
+    case 'header':
+      return renderHeaderCardHtml(payload);
     case 'hr':
     case 'horizontalrule':
       return '<hr>';
@@ -244,7 +247,6 @@ function renderCard(name: unknown, payload: Record<string, unknown>): string {
     case 'email':
     case 'email-cta':
     case 'signup':
-    case 'header':
       return '';
     default:
       return '';

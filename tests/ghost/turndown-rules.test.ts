@@ -57,6 +57,74 @@ describe('Ghost Turndown rules — kg-bookmark-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — kg-header-card', () => {
+  test('preserves v1 layout metadata as a header shortcode', () => {
+    const html = `
+      <div class="kg-card kg-header-card kg-style-dark kg-size-large">
+        <h2 class="kg-header-card-heading">A bold header card</h2>
+        <h3 class="kg-header-card-subheading">Subheading text.</h3>
+        <a class="kg-header-card-button" href="https://example.com/cta">Get started</a>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{% header');
+    expect(md).toContain('style="dark"');
+    expect(md).toContain('card-size="large"');
+    expect(md).toContain('title="A bold header card"');
+    expect(md).toContain('subtitle="Subheading text."');
+    expect(md).toContain('cta-href="https://example.com/cta"');
+    expect(md).toContain('cta-text="Get started"');
+  });
+
+  test('preserves v2 alignment, width, background, color, button, and accent metadata', () => {
+    const html = `
+      <div
+        class="kg-card kg-header-card kg-v2 kg-width-full kg-align-center kg-content-wide kg-style-image"
+        style="--bg-image-position: 45% 35%; --bg-image-color: #101820; background-color: #101820;"
+        data-background-color="#101820"
+        data-accent-color="#f6c344"
+      >
+        <picture>
+          <img class="kg-header-card-image" src="https://cdn.test/header.jpg" width="1600" height="900" alt="" />
+        </picture>
+        <div class="kg-header-card-content">
+          <div class="kg-header-card-text kg-align-center">
+            <h2 class="kg-header-card-heading" style="color: #ffffff;" data-text-color="#ffffff">Launch headline</h2>
+            <p class="kg-header-card-subheading" style="color: #f4f4f4;" data-text-color="#f4f4f4">Useful supporting copy.</p>
+            <a
+              class="kg-header-card-button kg-header-card-button-accent"
+              style="background-color: #f6c344; color: #101820;"
+              data-button-color="#f6c344"
+              href="https://example.com/signup"
+            >Join now</a>
+          </div>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< header');
+    expect(md).toContain('version="v2"');
+    expect(md).toContain('align="center"');
+    expect(md).toContain('width="full"');
+    expect(md).toContain('content_width="wide"');
+    expect(md).toContain('style="image"');
+    expect(md).toContain('background_image="https://cdn.test/header.jpg"');
+    expect(md).toContain('background_image_width="1600"');
+    expect(md).toContain('background_image_height="900"');
+    expect(md).toContain('background_image_position="45% 35%"');
+    expect(md).toContain('background_image_color="#101820"');
+    expect(md).toContain('background_color="#101820"');
+    expect(md).toContain('text_color="#ffffff"');
+    expect(md).toContain('button_color="#f6c344"');
+    expect(md).toContain('button_style="accent"');
+    expect(md).toContain('accent="#f6c344"');
+    expect(md).toContain('heading="Launch headline"');
+    expect(md).toContain('subheading="Useful supporting copy."');
+    expect(md).toContain('button_href="https://example.com/signup"');
+    expect(md).toContain('button_text="Join now"');
+  });
+});
+
 describe('Ghost Turndown rules — kg-image-card', () => {
   test('preserves caption, alt, dimensions, and width modifier', () => {
     const html = `
@@ -781,8 +849,8 @@ describe('Ghost Turndown rules — picture element', () => {
   });
 });
 
-describe('Ghost Turndown rules — kg-header-card', () => {
-  test('preserves wrapper classes and background image style as raw HTML', () => {
+describe('Ghost Turndown rules — kg-header-card fallback', () => {
+  test('preserves v2 wrapper metadata as a header shortcode', () => {
     const html = `
       <div class="kg-card kg-header-card kg-v2 kg-style-dark kg-size-large" style="background-image: url(https://cdn.example.com/header.jpg)" data-background-image="https://cdn.example.com/header.jpg">
         <h2 class="kg-header-card-heading">Hero</h2>
@@ -790,10 +858,12 @@ describe('Ghost Turndown rules — kg-header-card', () => {
       </div>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('class="kg-card kg-header-card kg-v2 kg-style-dark kg-size-large"');
-    expect(md).toContain('style="background-image: url(https://cdn.example.com/header.jpg)"');
-    expect(md).toContain('data-background-image="https://cdn.example.com/header.jpg"');
-    expect(md).toContain('<h2 class="kg-header-card-heading">Hero</h2>');
+    expect(md).toContain('{{< header');
+    expect(md).toContain('version="v2"');
+    expect(md).toContain('style="dark"');
+    expect(md).toContain('background_image="https://cdn.example.com/header.jpg"');
+    expect(md).toContain('heading="Hero"');
+    expect(md).toContain('subheading="Subheading"');
   });
 });
 

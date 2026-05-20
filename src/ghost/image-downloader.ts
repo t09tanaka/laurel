@@ -46,9 +46,11 @@ const HEADER_IMAGE_DATA_ATTR_RE =
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const HEADER_SHORTCODE_RE = /\{%\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
+const HEADER_HUGO_SHORTCODE_RE =
+  /\{\{<\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
 const BOOKMARK_IMAGE_ATTRS = new Set(['icon', 'thumbnail']);
-const HEADER_IMAGE_ATTRS = new Set(['background']);
+const HEADER_IMAGE_ATTRS = new Set(['background', 'background_image']);
 
 const KNOWN_IMAGE_EXTS = new Set([
   '.jpg',
@@ -190,6 +192,13 @@ export class GhostImageDownloader {
     for (const url of collectShortcodeImageUrls(text, HEADER_SHORTCODE_RE, HEADER_IMAGE_ATTRS)) {
       urls.add(url);
     }
+    for (const url of collectShortcodeImageUrls(
+      text,
+      HEADER_HUGO_SHORTCODE_RE,
+      HEADER_IMAGE_ATTRS,
+    )) {
+      urls.add(url);
+    }
     const bookmarkUrls = collectBookmarkImageUrls(text);
     if (urls.size === 0 && bookmarkUrls.size === 0) return text;
 
@@ -234,6 +243,9 @@ export class GhostImageDownloader {
         return rep ? `${name}=${quote}${rep}${quote}` : full;
       })
       .replace(HEADER_SHORTCODE_RE, (full, attrs: string) =>
+        rewriteShortcodeImageAttrs(full, attrs, replacements, HEADER_IMAGE_ATTRS),
+      )
+      .replace(HEADER_HUGO_SHORTCODE_RE, (full, attrs: string) =>
         rewriteShortcodeImageAttrs(full, attrs, replacements, HEADER_IMAGE_ATTRS),
       )
       .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>

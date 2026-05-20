@@ -59,6 +59,20 @@ function firstText(node: DomNode, selectors: readonly string[]): string {
   return '';
 }
 
+function styleValue(el: DomNode | null, property: string): string {
+  const style = attr(el, 'style');
+  if (!style) return '';
+  const target = property.toLowerCase();
+  for (const declaration of style.split(';')) {
+    const index = declaration.indexOf(':');
+    if (index === -1) continue;
+    const name = declaration.slice(0, index).trim().toLowerCase();
+    if (name !== target) continue;
+    return declaration.slice(index + 1).trim();
+  }
+  return '';
+}
+
 function classTokens(node: DomNode | null): string[] {
   return (node?.getAttribute('class') ?? '').split(/\s+/).filter((cls) => cls !== '');
 }
@@ -700,30 +714,76 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Header card v1: <div class="kg-card kg-header-card kg-style-dark" ...>
-  // Ghost's older header card predates `kg-v2`; default Turndown flattens it
-  // to bare headings / links and loses the background image plus style
-  // variant. Keep those card-level fields in a statement shortcode.
-  turndown.addRule('kg-header-card-v1', {
-    filter: (node) =>
-      node.nodeName === 'DIV' && hasClass(node, 'kg-header-card') && !hasClass(node, 'kg-v2'),
+  // Header card v1/v2. The default Turndown walk drops the wrapper classes,
+  // image/color metadata, and button styling. v1 keeps the statement shortcode
+  // introduced for legacy header migration; v2 uses the self-closing shortcode
+  // because it carries the larger Ghost 5 metadata surface.
+  turndown.addRule('kg-header-card', {
+    filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-header-card'),
     replacement: (_content, node) => {
-      const cta = node.querySelector('a.kg-header-card-button') ?? node.querySelector('a');
+      const isV2 = hasClass(node, 'kg-v2');
+      const heading =
+        node.querySelector('.kg-header-card-heading') ??
+        node.querySelector('.kg-header-card-header');
+      const subheading =
+        node.querySelector('.kg-header-card-subheading') ??
+        node.querySelector('.kg-header-card-subheader');
+      const button = node.querySelector('a.kg-header-card-button') ?? node.querySelector('a');
+      const image = node.querySelector('.kg-header-card-image') ?? node.querySelector('img');
+      const textWrap = node.querySelector('.kg-header-card-text');
+      const buttonStyle =
+        classByPrefix(button, 'kg-header-card-button-') || classByPrefix(button, 'kg-style-');
+
+      const style = classByPrefix(node, 'kg-style-');
+
+      if (isV2) {
+        const attrs: Record<string, string> = {
+          version: 'v2',
+          heading: text(heading),
+          subheading: text(subheading),
+          style,
+          button_href: attr(button, 'href'),
+          button_text: text(button),
+        };
+        attrs.align = classByPrefix(node, 'kg-align-') || classByPrefix(textWrap, 'kg-align-');
+        attrs.width = classByPrefix(node, 'kg-width-');
+        attrs.content_width = hasClass(node, 'kg-content-wide') ? 'wide' : '';
+        attrs.layout = hasClass(node, 'kg-layout-split') ? 'split' : '';
+        attrs.background_image =
+          attr(image, 'src') ||
+          attr(node, 'data-kg-background-image') ||
+          attr(node, 'data-background-image');
+        attrs.background_image_width = attr(image, 'width');
+        attrs.background_image_height = attr(image, 'height');
+        attrs.background_image_position = styleValue(node, '--bg-image-position');
+        attrs.background_image_color = styleValue(node, '--bg-image-color');
+        attrs.background_color =
+          attr(node, 'data-background-color') || styleValue(node, 'background-color');
+        attrs.text_color =
+          attr(heading, 'data-text-color') ||
+          styleValue(heading, 'color') ||
+          styleValue(node, 'color');
+        attrs.button_color =
+          attr(button, 'data-button-color') || styleValue(button, 'background-color');
+        attrs.button_text_color =
+          attr(button, 'data-button-text-color') || styleValue(button, 'color');
+        attrs.button_style = buttonStyle;
+        attrs.accent = attr(node, 'data-accent-color') || styleValue(node, '--accent-color');
+        return wrap(shortcode('header', attrs));
+      }
+
       return wrap(
         liquidShortcode('header', {
-          style: classByPrefix(node, 'kg-style-'),
+          style,
           background:
+            attr(image, 'src') ||
             attr(node, 'data-kg-background-image') ||
+            attr(node, 'data-background-image') ||
             backgroundImageUrlFromStyle(attr(node, 'style')),
-          title: firstText(node, ['.kg-header-card-heading', '.kg-header-card-header', 'h2', 'h1']),
-          subtitle: firstText(node, [
-            '.kg-header-card-subheading',
-            '.kg-header-card-subheader',
-            'h3',
-            'p',
-          ]),
-          'cta-text': text(cta),
-          'cta-href': attr(cta, 'href'),
+          title: text(heading),
+          subtitle: text(subheading),
+          'cta-text': text(button),
+          'cta-href': attr(button, 'href'),
           'card-size': classByPrefix(node, 'kg-size-'),
         }),
       );
@@ -759,28 +819,6 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           'button-text': text(node.querySelector('.kg-product-card-button')),
         }),
       );
-    },
-  });
-
-  // Header card: <div class="kg-card kg-header-card" style="background-image: …">
-  //
-  // Ghost stores the cover image as a CSS background on the wrapper, not as an
-  // <img>. Turndown's default div walk-through drops that wrapper and leaves
-  // only the heading text, which means the importer's image relocation pass
-  // never sees the background URL. Preserve a constrained raw-HTML wrapper so
-  // downstream renderMarkdown can keep the Ghost DOM contract and the image
-  // downloader can rewrite url(...) references in style / data attributes.
-  turndown.addRule('kg-header-card', {
-    filter: (node) =>
-      node.nodeName === 'DIV' && hasClass(node, 'kg-header-card') && hasClass(node, 'kg-v2'),
-    replacement: (_content, node) => {
-      const attrs = [
-        ['class', attr(node, 'class')],
-        ['style', attr(node, 'style')],
-        ...dataAttrs(node),
-      ] as Array<[string, string]>;
-      const inner = sanitizeImportedHtmlCard(node.innerHTML);
-      return wrap(`<div${formatHtmlAttrs(attrs)}>${inner}</div>`);
     },
   });
 

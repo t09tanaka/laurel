@@ -20,6 +20,7 @@ import {
   renderEmbedCardHtml,
   renderFileCardHtml,
   renderGalleryCardHtml,
+  renderHeaderCardHtml,
   renderHtmlCardHtml,
   renderImageCardHtml,
   renderMarkdownCardHtml,
@@ -129,6 +130,8 @@ function renderNode(node: unknown): string {
       return renderToggleCardHtml(node);
     case 'product':
       return renderProductCardHtml(node);
+    case 'header':
+      return renderHeaderCardHtml(node);
     // Members-only Koenig cards. Nectar has no members surface, so render
     // nothing — preserving them would either leak gated content into a public
     // static site or surface broken sign-up CTAs.
@@ -136,10 +139,6 @@ function renderNode(node: unknown): string {
     case 'email':
     case 'email-cta':
     case 'signup':
-      return '';
-    // Header cards are decorative cover blocks that depend on Ghost's runtime
-    // CSS to look right. Drop them silently rather than emit unstyled markup.
-    case 'header':
       return '';
     default:
       // Unknown node: walk children if any so nested text isn't lost. Common

@@ -300,6 +300,40 @@ describe('renderLexicalToHtml', () => {
     expect(out).not.toContain('--aspect-ratio');
   });
 
+  test('renders header v2 cards so import turndown can preserve metadata', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'header',
+          version: 'v2',
+          header: 'Launch headline',
+          subheader: 'Useful supporting copy.',
+          alignment: 'center',
+          layout: 'full',
+          style: 'image',
+          backgroundImageSrc: 'https://cdn.test/header.jpg',
+          backgroundColor: '#101820',
+          textColor: '#ffffff',
+          buttonUrl: 'https://example.com/signup',
+          buttonText: 'Join now',
+          buttonColor: '#f6c344',
+          buttonTextColor: '#101820',
+          accentColor: '#f6c344',
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-card kg-header-card kg-v2 kg-width-full');
+    expect(out).toContain('kg-content-wide');
+    expect(out).toContain('kg-align-center');
+    expect(out).toContain('kg-style-image');
+    expect(out).toContain('data-background-color="#101820"');
+    expect(out).toContain('data-accent-color="#f6c344"');
+    expect(out).toContain('<picture><img class="kg-header-card-image"');
+    expect(out).toContain('src="https://cdn.test/header.jpg"');
+    expect(out).toContain('data-text-color="#ffffff"');
+    expect(out).toContain('data-button-color="#f6c344"');
+  });
+
   test('omits members-only cards', () => {
     const out = renderLexicalToHtml(
       lex([

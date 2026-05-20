@@ -53,7 +53,6 @@ const sanitizeOptions: IOptions = {
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
     '*': ['id', 'class', 'lang', 'dir', 'title'],
-    a: ['href', 'name', 'target', 'rel', 'hreflang', 'download'],
     iframe: [
       'src',
       'width',
@@ -83,7 +82,27 @@ const sanitizeOptions: IOptions = {
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
     span: ['class', 'style'],
-    div: ['style', 'data-rating', 'data-kg-background-image'],
+    h2: ['style', 'data-text-color'],
+    h3: ['style', 'data-text-color'],
+    p: ['style', 'data-text-color'],
+    div: [
+      'style',
+      'data-rating',
+      'data-kg-background-image',
+      'data-background-color',
+      'data-accent-color',
+    ],
+    a: [
+      'href',
+      'name',
+      'target',
+      'rel',
+      'hreflang',
+      'download',
+      'style',
+      'data-button-color',
+      'data-button-text-color',
+    ],
     svg: ['viewbox', 'aria-hidden', 'focusable'],
     path: ['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'],
     th: ['scope', 'colspan', 'rowspan'],
@@ -108,6 +127,23 @@ const sanitizeOptions: IOptions = {
     div: {
       '--aspect-ratio': [/^\d+(?:\.\d+)?$/],
       'background-image': [/^url\((?:https?:\/\/|\/(?!\/))[^)]+\)$/],
+      '--bg-image-position': [/^\d{1,3}% \d{1,3}%$/],
+      '--bg-image-color': [/^#[0-9a-f]{3,8}$/i],
+      'background-color': [/^#[0-9a-f]{3,8}$/i],
+      color: [/^#[0-9a-f]{3,8}$/i],
+    },
+    h2: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+    },
+    h3: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+    },
+    p: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+    },
+    a: {
+      color: [/^#[0-9a-f]{3,8}$/i],
+      'background-color': [/^#[0-9a-f]{3,8}$/i],
     },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel'],
@@ -840,46 +876,6 @@ function renderButtonHtml(attrs: Record<string, string>, body: string): string {
   return `\n\n<div class="kg-card kg-button-card${koenigWidthClass(attrs)}${alignClass}"><a href="${escapeHtmlAttr(href)}" class="kg-btn ${finalStyle.trim()}">${escapeHtmlAttr(label)}</a></div>\n\n`;
 }
 
-function renderHeaderHtml(attrs: Record<string, string>): string {
-  const title = attrs.title ?? '';
-  const subtitle = attrs.subtitle ?? '';
-  const ctaText = attrs['cta-text'] ?? attrs.cta_text ?? '';
-  const ctaHref = attrs['cta-href'] ?? attrs.cta_href ?? '';
-  const style = attrs.style ?? '';
-  const cardSize = attrs['card-size'] ?? attrs.card_size ?? '';
-  const background = attrs.background ?? '';
-  if (!title && !subtitle && !ctaText && !background) return '';
-
-  const styleClass = KOENIG_TOKEN_RE.test(style) ? ` kg-style-${style}` : '';
-  const cardSizeClass = KOENIG_TOKEN_RE.test(cardSize) ? ` kg-size-${cardSize}` : '';
-  const safeBackground = safeHeaderBackgroundUrl(background) ? background : '';
-  const backgroundAttrs = safeBackground
-    ? ` data-kg-background-image="${escapeHtmlAttr(safeBackground)}" style="background-image:url(${escapeHtmlAttr(safeBackground)})"`
-    : '';
-  const headingHtml = title
-    ? `<h2 class="kg-header-card-heading">${escapeHtmlAttr(title)}</h2>`
-    : '';
-  const subheadingHtml = subtitle
-    ? `<h3 class="kg-header-card-subheading">${escapeHtmlAttr(subtitle)}</h3>`
-    : '';
-  const ctaHtml =
-    ctaHref && ctaText
-      ? `<a class="kg-header-card-button" href="${escapeHtmlAttr(ctaHref)}">${escapeHtmlAttr(ctaText)}</a>`
-      : '';
-  return `\n\n<div class="kg-card kg-header-card${styleClass}${cardSizeClass}"${backgroundAttrs}>${headingHtml}${subheadingHtml}${ctaHtml}</div>\n\n`;
-}
-
-function safeHeaderBackgroundUrl(value: string): boolean {
-  if (!/^(?:https?:\/\/|\/(?!\/))/.test(value)) return false;
-  if (/[\s"'()<>]/.test(value)) return false;
-  try {
-    const url = new URL(value, 'https://example.invalid');
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function renderGalleryHtml(attrs: Record<string, string>, body: string): string {
   const caption = attrs.caption ?? '';
   const rows: string[] = [];
@@ -1026,6 +1022,169 @@ function renderProductHtml(attrs: Record<string, string>): string {
       ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
       : '';
   return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
+}
+
+function renderHeaderHtml(attrs: Record<string, string>): string {
+  return attrs.version === 'v2' ? renderHeaderV2Html(attrs) : renderHeaderV1Html(attrs);
+}
+
+function renderHeaderV1Html(attrs: Record<string, string>): string {
+  const heading = attrs.heading ?? attrs.title ?? '';
+  const subheading = attrs.subheading ?? attrs.subtitle ?? '';
+  const buttonHref =
+    attrs.button_href ?? attrs.buttonHref ?? attrs['cta-href'] ?? attrs.cta_href ?? '';
+  const buttonText =
+    attrs.button_text ?? attrs.buttonText ?? attrs['cta-text'] ?? attrs.cta_text ?? '';
+  const background = attrs.background ?? attrs.background_image ?? '';
+  if (!heading && !subheading && !buttonText && !background) return '';
+
+  const styleClass = tokenClass('kg-style', attrs.style);
+  const sizeClass = tokenClass('kg-size', attrs.size ?? attrs['card-size'] ?? attrs.card_size);
+  const widthClass = attrs.width ? tokenClass('kg-width', attrs.width) : '';
+  const safeBackground = safeHeaderBackgroundUrl(background) ? background : '';
+  const backgroundAttrs = safeBackground
+    ? ` data-kg-background-image="${escapeHtmlAttr(safeBackground)}" style="background-image:url(${escapeHtmlAttr(safeBackground)})"`
+    : '';
+  const headingHtml = heading
+    ? `<h2 class="kg-header-card-heading">${escapeHtmlAttr(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<h3 class="kg-header-card-subheading">${escapeHtmlAttr(subheading)}</h3>`
+    : '';
+  const buttonHtml =
+    buttonHref && buttonText
+      ? `<a class="kg-header-card-button" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
+      : '';
+  return `\n\n<div class="kg-card kg-header-card${widthClass}${styleClass}${sizeClass}"${backgroundAttrs}>${headingHtml}${subheadingHtml}${buttonHtml}</div>\n\n`;
+}
+
+function safeHeaderBackgroundUrl(value: string): boolean {
+  if (!/^(?:https?:\/\/|\/(?!\/))/.test(value)) return false;
+  if (/[\s"'()<>]/.test(value)) return false;
+  try {
+    const url = new URL(value, 'https://example.invalid');
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function renderHeaderV2Html(attrs: Record<string, string>): string {
+  const heading = attrs.heading ?? '';
+  const subheading = attrs.subheading ?? '';
+  const buttonHref = attrs.button_href ?? attrs.buttonHref ?? '';
+  const buttonText = attrs.button_text ?? attrs.buttonText ?? '';
+  if (!heading && !subheading && !buttonText && !attrs.background_image) return '';
+
+  const alignClass = tokenClass('kg-align', attrs.align);
+  const classes = [
+    'kg-card kg-header-card kg-v2',
+    tokenClass('kg-width', attrs.width),
+    attrs.content_width === 'wide' ? ' kg-content-wide' : '',
+    alignClass,
+    tokenClass('kg-style', attrs.style),
+  ].join('');
+  const rootAttrs = [
+    `class="${classes}"`,
+    headerRootStyle(attrs),
+    attrs.background_color
+      ? `data-background-color="${escapeHtmlAttr(attrs.background_color)}"`
+      : '',
+    attrs.accent ? `data-accent-color="${escapeHtmlAttr(attrs.accent)}"` : '',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  const imageHtml = renderHeaderImageHtml(attrs);
+  const textColor = attrs.text_color ?? '';
+  const headingAttrs = headerTextAttrs(textColor);
+  const headingHtml = heading
+    ? `<h2 class="kg-header-card-heading"${headingAttrs}>${escapeHtmlAttr(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<p class="kg-header-card-subheading"${headingAttrs}>${escapeHtmlAttr(subheading)}</p>`
+    : '';
+  const buttonHtml = renderHeaderButtonHtml(attrs, buttonHref, buttonText);
+  const textClass = `kg-header-card-text${alignClass}`;
+  return `\n\n<div ${rootAttrs}>${imageHtml}<div class="kg-header-card-content"><div class="${textClass}">${headingHtml}${subheadingHtml}${buttonHtml}</div></div></div>\n\n`;
+}
+
+function tokenClass(prefix: string, raw: string | undefined): string {
+  const token = (raw ?? '').trim().replace(new RegExp(`^${prefix}-`), '');
+  return KOENIG_TOKEN_RE.test(token) ? ` ${prefix}-${token}` : '';
+}
+
+function headerRootStyle(attrs: Record<string, string>): string {
+  const declarations = [
+    validPosition(attrs.background_image_position)
+      ? `--bg-image-position: ${attrs.background_image_position}`
+      : '',
+    safeHexColor(attrs.background_image_color)
+      ? `--bg-image-color: ${attrs.background_image_color}`
+      : '',
+    safeHexColor(attrs.background_color) ? `background-color: ${attrs.background_color}` : '',
+  ].filter((s) => s !== '');
+  return declarations.length > 0 ? `style="${escapeHtmlAttr(`${declarations.join('; ')};`)}"` : '';
+}
+
+function renderHeaderImageHtml(attrs: Record<string, string>): string {
+  const src = attrs.background_image ?? '';
+  if (!src) return '';
+  const imgAttrs = [
+    'class="kg-header-card-image"',
+    `src="${escapeHtmlAttr(src)}"`,
+    attrs.background_image_width ? `width="${escapeHtmlAttr(attrs.background_image_width)}"` : '',
+    attrs.background_image_height
+      ? `height="${escapeHtmlAttr(attrs.background_image_height)}"`
+      : '',
+    'loading="lazy"',
+    'alt=""',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  return `<picture><img ${imgAttrs}></picture>`;
+}
+
+function headerTextAttrs(textColor: string): string {
+  if (!safeHexColor(textColor)) return '';
+  const escaped = escapeHtmlAttr(textColor);
+  return ` style="color: ${escaped};" data-text-color="${escaped}"`;
+}
+
+function renderHeaderButtonHtml(
+  attrs: Record<string, string>,
+  buttonHref: string,
+  buttonText: string,
+): string {
+  if (!buttonHref || !buttonText) return '';
+  const buttonStyle = tokenClass('kg-header-card-button', attrs.button_style).trim();
+  const classAttr = ['kg-header-card-button', buttonStyle].filter((s) => s !== '').join(' ');
+  const style = headerButtonStyle(attrs);
+  const dataAttrs = [
+    attrs.button_color ? `data-button-color="${escapeHtmlAttr(attrs.button_color)}"` : '',
+    attrs.button_text_color
+      ? `data-button-text-color="${escapeHtmlAttr(attrs.button_text_color)}"`
+      : '',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  const extraAttrs = [style, dataAttrs].filter((s) => s !== '').join(' ');
+  return `<a class="${classAttr}" href="${escapeHtmlAttr(buttonHref)}"${extraAttrs ? ` ${extraAttrs}` : ''}>${escapeHtmlAttr(buttonText)}</a>`;
+}
+
+function headerButtonStyle(attrs: Record<string, string>): string {
+  const declarations = [
+    safeHexColor(attrs.button_color) ? `background-color: ${attrs.button_color}` : '',
+    safeHexColor(attrs.button_text_color) ? `color: ${attrs.button_text_color}` : '',
+  ].filter((s) => s !== '');
+  return declarations.length > 0 ? `style="${escapeHtmlAttr(`${declarations.join('; ')};`)}"` : '';
+}
+
+function safeHexColor(value: string | undefined): boolean {
+  return /^#[0-9a-f]{3,8}$/i.test(value ?? '');
+}
+
+function validPosition(value: string | undefined): boolean {
+  return /^\d{1,3}% \d{1,3}%$/.test(value ?? '');
 }
 
 function truthyShortcodeAttr(value: string | undefined): boolean {

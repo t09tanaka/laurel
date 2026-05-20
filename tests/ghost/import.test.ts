@@ -1584,8 +1584,10 @@ describe('importGhostExport — --download-images (#128)', () => {
                   title: 'Header',
                   slug: 'header',
                   html: [
-                    '<div class="kg-card kg-header-card kg-style-dark kg-size-large" ',
-                    `style="background-image: url(${headerUrl})">`,
+                    '<div class="kg-card kg-header-card kg-v2 kg-style-image kg-width-full">',
+                    '<picture>',
+                    `<img class="kg-header-card-image" src="${headerUrl}" width="1600" height="900" alt="">`,
+                    '</picture>',
                     '<h2 class="kg-header-card-heading">Hero</h2>',
                     '</div>',
                   ].join(''),
@@ -1617,8 +1619,9 @@ describe('importGhostExport — --download-images (#128)', () => {
 
     const md = await readFile(join(cwd, 'content/posts/header.md'), 'utf8');
     expect(md).not.toContain(headerUrl);
-    expect(md).toContain('background="/content/images/2024/01/header.jpg"');
-    expect(md).toContain('title="Hero"');
+    expect(md).toContain('version="v2"');
+    expect(md).toContain('background_image="/content/images/2024/01/header.jpg"');
+    expect(md).toContain('heading="Hero"');
   });
 
   test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {

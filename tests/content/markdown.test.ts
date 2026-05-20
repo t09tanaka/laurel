@@ -699,4 +699,48 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain('href="https://example.com/buy"');
     expect(html).not.toContain('{{< product');
   });
+
+  test('expands migrated v1 header shortcode without breaking the legacy DOM contract', async () => {
+    const md =
+      '{{< header version="v1" heading="A bold header card" subheading="Subheading text." style="dark" size="large" button_href="https://example.com/cta" button_text="Get started" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-header-card kg-style-dark kg-size-large"');
+    expect(html).toContain('<h2 class="kg-header-card-heading">A bold header card</h2>');
+    expect(html).toContain('<h3 class="kg-header-card-subheading">Subheading text.</h3>');
+    expect(html).toContain(
+      '<a class="kg-header-card-button" href="https://example.com/cta">Get started</a>',
+    );
+    expect(html).not.toContain('kg-v2');
+    expect(html).not.toContain('{{< header');
+  });
+
+  test('expands migrated v2 header shortcode with alignment, background, colors, and accent button', async () => {
+    const md =
+      '{{< header version="v2" heading="Launch headline" subheading="Useful supporting copy." align="center" width="full" content_width="wide" style="image" background_image="https://cdn.test/header.jpg" background_image_width="1600" background_image_height="900" background_image_position="45% 35%" background_image_color="#101820" background_color="#101820" text_color="#ffffff" button_href="https://example.com/signup" button_text="Join now" button_color="#f6c344" button_text_color="#101820" button_style="accent" accent="#f6c344" />}}';
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain(
+      'class="kg-card kg-header-card kg-v2 kg-width-full kg-content-wide kg-align-center kg-style-image"',
+    );
+    expect(html).toContain(
+      'style="--bg-image-position:45% 35%;--bg-image-color:#101820;background-color:#101820"',
+    );
+    expect(html).toContain('data-background-color="#101820"');
+    expect(html).toContain('data-accent-color="#f6c344"');
+    expect(html).toContain('<picture><img class="kg-header-card-image"');
+    expect(html).toContain('src="https://cdn.test/header.jpg"');
+    expect(html).toContain('width="1600"');
+    expect(html).toContain('height="900"');
+    expect(html).toContain('<div class="kg-header-card-text kg-align-center">');
+    expect(html).toContain(
+      '<h2 class="kg-header-card-heading" style="color:#ffffff" data-text-color="#ffffff">Launch headline</h2>',
+    );
+    expect(html).toContain(
+      '<p class="kg-header-card-subheading" style="color:#ffffff" data-text-color="#ffffff">Useful supporting copy.</p>',
+    );
+    expect(html).toContain(
+      '<a class="kg-header-card-button kg-header-card-button-accent" href="https://example.com/signup" style="background-color:#f6c344;color:#101820" data-button-color="#f6c344" data-button-text-color="#101820">Join now</a>',
+    );
+    expect(html).not.toContain('{{< header');
+  });
 });

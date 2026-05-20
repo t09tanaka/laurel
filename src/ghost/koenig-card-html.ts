@@ -40,6 +40,11 @@ function widthClass(payload: unknown): string {
     : '';
 }
 
+function tokenClass(prefix: string, raw: string): string {
+  const token = raw.trim().replace(new RegExp(`^${prefix}-`), '');
+  return /^[a-z][a-z0-9-]*$/.test(token) ? ` ${prefix}-${token}` : '';
+}
+
 function hasCaptionClass(caption: string): string {
   return caption ? ' kg-card-hascaption' : '';
 }
@@ -132,6 +137,124 @@ export function renderButtonCardHtml(payload: unknown): string {
   if (!url || !text) return '';
   const alignment = strProp(payload, 'alignment') || 'center';
   return `<div class="kg-card kg-button-card kg-align-${escapeAttr(alignment)}"><a href="${escapeAttr(url)}" class="kg-btn kg-btn-accent">${escapeHtml(text)}</a></div>`;
+}
+
+export function renderHeaderCardHtml(payload: unknown): string {
+  const version = strProp(payload, 'version');
+  const isV2 =
+    version === 'v2' || strProp(payload, 'layout') !== '' || strProp(payload, 'alignment') !== '';
+  return isV2 ? renderHeaderCardV2Html(payload) : renderHeaderCardV1Html(payload);
+}
+
+function renderHeaderCardV1Html(payload: unknown): string {
+  const heading = strProp(payload, 'heading') || strProp(payload, 'header');
+  const subheading = strProp(payload, 'subheading') || strProp(payload, 'subheader');
+  const buttonHref = strProp(payload, 'buttonUrl') || strProp(payload, 'button_href');
+  const buttonText = strProp(payload, 'buttonText') || strProp(payload, 'button_text');
+  if (!heading && !subheading && !buttonText) return '';
+  const classes = [
+    'kg-card kg-header-card',
+    tokenClass('kg-width', strProp(payload, 'width') || strProp(payload, 'cardWidth')),
+    tokenClass('kg-style', strProp(payload, 'style')),
+    tokenClass('kg-size', strProp(payload, 'size')),
+  ].join('');
+  const headingHtml = heading
+    ? `<h2 class="kg-header-card-heading">${escapeHtml(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<h3 class="kg-header-card-subheading">${escapeHtml(subheading)}</h3>`
+    : '';
+  const buttonHtml =
+    buttonHref && buttonText
+      ? `<a class="kg-header-card-button" href="${escapeAttr(buttonHref)}">${escapeHtml(buttonText)}</a>`
+      : '';
+  return `<div class="${classes}">${headingHtml}${subheadingHtml}${buttonHtml}</div>`;
+}
+
+function renderHeaderCardV2Html(payload: unknown): string {
+  const heading = strProp(payload, 'heading') || strProp(payload, 'header');
+  const subheading = strProp(payload, 'subheading') || strProp(payload, 'subheader');
+  const buttonHref = strProp(payload, 'buttonUrl') || strProp(payload, 'button_href');
+  const buttonText = strProp(payload, 'buttonText') || strProp(payload, 'button_text');
+  const backgroundImage =
+    strProp(payload, 'backgroundImageSrc') || strProp(payload, 'background_image');
+  if (!heading && !subheading && !buttonText && !backgroundImage) return '';
+  const layout = strProp(payload, 'layout');
+  const width = strProp(payload, 'width') || (layout && layout !== 'split' ? layout : '');
+  const align = strProp(payload, 'alignment') || strProp(payload, 'align');
+  const backgroundColor =
+    strProp(payload, 'backgroundColor') || strProp(payload, 'background_color');
+  const accent = strProp(payload, 'accentColor') || strProp(payload, 'accent');
+  const textColor = strProp(payload, 'textColor') || strProp(payload, 'text_color');
+  const buttonColor = strProp(payload, 'buttonColor') || strProp(payload, 'button_color');
+  const buttonTextColor =
+    strProp(payload, 'buttonTextColor') || strProp(payload, 'button_text_color');
+  const style = strProp(payload, 'style') || (backgroundColor === 'accent' ? 'accent' : '');
+  const classes = [
+    'kg-card kg-header-card kg-v2',
+    tokenClass('kg-width', width),
+    layout === 'full' || strProp(payload, 'content_width') === 'wide' ? ' kg-content-wide' : '',
+    tokenClass('kg-align', align),
+    tokenClass('kg-style', style),
+  ].join('');
+  const rootStyle =
+    safeHeaderHexColor(backgroundColor) && backgroundColor !== 'accent'
+      ? ` style="background-color: ${escapeAttr(backgroundColor)};"`
+      : '';
+  const dataBackground = backgroundColor
+    ? ` data-background-color="${escapeAttr(backgroundColor)}"`
+    : '';
+  const dataAccent = accent ? ` data-accent-color="${escapeAttr(accent)}"` : '';
+  const imageHtml = backgroundImage
+    ? `<picture><img class="kg-header-card-image" src="${escapeAttr(backgroundImage)}"${headerImageDimensionAttrs(payload)} loading="lazy" alt=""></picture>`
+    : '';
+  const textAttrs = safeHeaderHexColor(textColor)
+    ? ` style="color: ${escapeAttr(textColor)};" data-text-color="${escapeAttr(textColor)}"`
+    : '';
+  const headingHtml = heading
+    ? `<h2 class="kg-header-card-heading"${textAttrs}>${escapeHtml(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<p class="kg-header-card-subheading"${textAttrs}>${escapeHtml(subheading)}</p>`
+    : '';
+  const buttonStyle = [
+    safeHeaderHexColor(buttonColor) && buttonColor !== 'accent'
+      ? `background-color: ${buttonColor}`
+      : '',
+    safeHeaderHexColor(buttonTextColor) ? `color: ${buttonTextColor}` : '',
+  ]
+    .filter((s) => s !== '')
+    .join('; ');
+  const buttonStyleAttr = buttonStyle ? ` style="${escapeAttr(`${buttonStyle};`)}"` : '';
+  const buttonDataColor = buttonColor ? ` data-button-color="${escapeAttr(buttonColor)}"` : '';
+  const buttonDataTextColor = buttonTextColor
+    ? ` data-button-text-color="${escapeAttr(buttonTextColor)}"`
+    : '';
+  const buttonClass =
+    buttonColor === 'accent'
+      ? 'kg-header-card-button kg-header-card-button-accent'
+      : 'kg-header-card-button';
+  const buttonHtml =
+    buttonHref && buttonText
+      ? `<a class="${buttonClass}" href="${escapeAttr(buttonHref)}"${buttonStyleAttr}${buttonDataColor}${buttonDataTextColor}>${escapeHtml(buttonText)}</a>`
+      : '';
+  const textClass = `kg-header-card-text${tokenClass('kg-align', align)}`;
+  return `<div class="${classes}"${rootStyle}${dataBackground}${dataAccent}>${imageHtml}<div class="kg-header-card-content"><div class="${textClass}">${headingHtml}${subheadingHtml}${buttonHtml}</div></div></div>`;
+}
+
+function headerImageDimensionAttrs(payload: unknown): string {
+  const width =
+    strProp(payload, 'backgroundImageWidth') || strProp(payload, 'background_image_width');
+  const height =
+    strProp(payload, 'backgroundImageHeight') || strProp(payload, 'background_image_height');
+  return [
+    width ? ` width="${escapeAttr(width)}"` : '',
+    height ? ` height="${escapeAttr(height)}"` : '',
+  ].join('');
+}
+
+function safeHeaderHexColor(value: string): boolean {
+  return /^#[0-9a-f]{3,8}$/i.test(value);
 }
 
 export function renderEmbedCardHtml(payload: unknown): string {
