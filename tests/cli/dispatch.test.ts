@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
+const PACKAGE_JSON = fileURLToPath(new URL('../../package.json', import.meta.url));
 
 interface RunResult {
   stdout: string;
@@ -43,6 +45,20 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['--version']);
     expect(exitCode).toBe(0);
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  test('--version output matches package.json version', async () => {
+    const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
+    const { stdout, exitCode } = await runCli(['--version']);
+    expect(exitCode).toBe(0);
+    expect(stdout.trim()).toBe(pkg.version);
+  });
+
+  test('top-level --help renders the package.json version', async () => {
+    const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
+    const { stdout, exitCode } = await runCli(['--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain(`nectar ${pkg.version}`);
   });
 
   test('unknown command exits 2 and suggests the closest match', async () => {

@@ -1,15 +1,14 @@
 #!/usr/bin/env bun
 
 import { setLogLevel } from '~/util/logger.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
-const VERSION = '0.0.1';
-
-function printTopUsage(stream: NodeJS.WriteStream = process.stdout): void {
+function printTopUsage(version: string, stream: NodeJS.WriteStream = process.stdout): void {
   const lines: string[] = [];
-  lines.push(`nectar ${VERSION}`);
+  lines.push(`nectar ${version}`);
   lines.push('');
   lines.push('Usage:');
   lines.push('  nectar [global options] <command> [options]');
@@ -87,6 +86,7 @@ function applyGlobalFlags(flags: GlobalFlags): void {
 
 async function main(argv: string[]): Promise<number> {
   const raw = argv.slice(2);
+  const version = await getNectarVersion();
 
   let filtered: string[];
   try {
@@ -95,19 +95,19 @@ async function main(argv: string[]): Promise<number> {
     filtered = result.rest;
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n\n`);
-    printTopUsage(process.stderr);
+    printTopUsage(version, process.stderr);
     return 2;
   }
 
   const [command, ...rest] = filtered;
 
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
-    printTopUsage();
+    printTopUsage(version);
     return 0;
   }
 
   if (command === 'version' || command === '--version' || command === '-v') {
-    process.stdout.write(`${VERSION}\n`);
+    process.stdout.write(`${version}\n`);
     return 0;
   }
 
@@ -118,7 +118,7 @@ async function main(argv: string[]): Promise<number> {
       process.stderr.write(`Did you mean \`nectar ${suggestion}\`?\n`);
     }
     process.stderr.write('\n');
-    printTopUsage(process.stderr);
+    printTopUsage(version, process.stderr);
     return 2;
   }
 
