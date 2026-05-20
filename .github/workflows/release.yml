@@ -90,6 +90,13 @@ jobs:
     needs: [resolve-ref, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # id-token: write is required for SLSA build provenance attestation via
+    # actions/attest-build-provenance. attestations: write is required to
+    # publish the attestation to the repo's attestations registry. See #512.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +149,17 @@ jobs:
             --target=${{ matrix.target }} \
             --outfile=dist-bin/${{ matrix.artifact }} \
             src/cli/index.ts
+
+      # SLSA build provenance attestation (#512).
+      # Produces a signed, Sigstore-backed statement that this exact binary
+      # was built by this workflow run from this commit. Consumers can verify
+      # with `gh attestation verify <binary> --repo t09tanaka/nectar`. The
+      # attestation is stored in the GitHub attestations registry, not the
+      # release assets, so it survives even if the release is edited.
+      - name: Attest binary build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist-bin/${{ matrix.artifact }}
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -219,6 +237,19 @@ jobs:
             echo "shasum -a 256 -c SHASUMS256.txt --ignore-missing"
             echo "\`\`\`"
             echo ""
+            echo "### Build provenance (SLSA / Sigstore)"
+            echo ""
+            echo "Every binary in this release is signed with a Sigstore build provenance"
+            echo "attestation. To verify a binary was built by this workflow run from this"
+            echo "commit, install the GitHub CLI and run:"
+            echo ""
+            echo "\`\`\`sh"
+            echo "gh attestation verify <binary> --repo t09tanaka/nectar"
+            echo "\`\`\`"
+            echo ""
+            echo "The npm package is published with \`--provenance\` and can be verified"
+            echo "with \`npm audit signatures\`."
+            echo ""
             echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
           } >> release_notes.md
 
@@ -259,6 +290,19 @@ jobs:
             echo "\`\`\`sh"
             echo "shasum -a 256 -c SHASUMS256.txt --ignore-missing"
             echo "\`\`\`"
+            echo ""
+            echo "### Build provenance (SLSA / Sigstore)"
+            echo ""
+            echo "Every binary in this release is signed with a Sigstore build provenance"
+            echo "attestation. To verify a binary was built by this workflow run from this"
+            echo "commit, install the GitHub CLI and run:"
+            echo ""
+            echo "\`\`\`sh"
+            echo "gh attestation verify <binary> --repo t09tanaka/nectar"
+            echo "\`\`\`"
+            echo ""
+            echo "The npm package is published with \`--provenance\` and can be verified"
+            echo "with \`npm audit signatures\`."
             echo ""
             echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
           } > combined_notes.md
