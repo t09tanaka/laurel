@@ -82,10 +82,9 @@ describe('member helpers', () => {
       cls: 'x"><script>',
       label: 'Cancel <now>',
     });
-    expect(html).toContain('class="x&quot;&gt;&lt;script&gt;"');
-    expect(html).toContain('data-members-cancel-subscription="sub_1"');
-    expect(html).toContain('>Cancel &lt;now&gt;</a>');
-    expect(html).toContain('<span class="err" data-members-error>');
+    expect(html).toBe(
+      '<a class="x&quot;&gt;&lt;script&gt;" data-members-cancel-subscription="sub_1" href="javascript:">Cancel &lt;now&gt;</a><span class="err" data-members-error><!-- error message will appear here --></span>',
+    );
   });
 
   test('member_count safely falls back to zero and rounds configured counts', () => {
@@ -108,20 +107,18 @@ describe('member helpers', () => {
     });
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{signup buttonText="Join <today>"}}')({});
-    expect(html).toContain('data-members-form="signup"');
-    expect(html).toContain('action="https://buttondown.email/api/emails/embed-subscribe/letters"');
-    expect(html).toContain('name="email"');
-    expect(html).toContain('data-members-email');
-    expect(html).toContain('>Join &lt;today&gt;</button>');
+    expect(html).toBe(
+      '<form class="gh-signup-form" data-members-form="signup" action="https://buttondown.email/api/emails/embed-subscribe/letters" method="post"><input class="gh-signup-input" type="email" name="email" placeholder="Email address" autocomplete="email" required data-members-email><button class="gh-signup-button" type="submit" data-members-submit>Join &lt;today&gt;</button></form>',
+    );
   });
 
   test('signup keeps provider=none forms disabled but present', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{signup name=true}}')({});
-    expect(html).toContain('action="#"');
-    expect(html).toContain('onsubmit="event.preventDefault();return false;"');
-    expect(html).toContain('data-members-name');
+    expect(html).toBe(
+      '<form class="gh-signup-form" data-members-form="signup" action="#" method="post" onsubmit="event.preventDefault();return false;"><input class="gh-signup-input" type="text" name="name" autocomplete="name" data-members-name><input class="gh-signup-input" type="email" name="email" placeholder="Email address" autocomplete="email" required data-members-email><button class="gh-signup-button" type="submit" data-members-submit>Subscribe</button></form>',
+    );
   });
 
   test('tiers formats context tiers with escaped names and separators', () => {

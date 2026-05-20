@@ -1389,6 +1389,68 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     );
   });
 
+  // Issue #680: keep the render-engine helper smoke exact. The helper unit
+  // tests cover branches; this pins the byte-level HTML shape after
+  // createEngine wires the helpers, root data frame, and route context
+  // together.
+  test('render-engine helper smoke output is byte-for-byte stable (issue #680)', () => {
+    const theme = makeTheme({
+      post: [
+        '{{navigation}}',
+        '|{{pagination}}',
+        '|{{#link href="/about/" target="_blank" class="cta"}}About{{/link}}',
+        '|{{asset "css/screen.css"}}',
+        '|{{img_url feature_image size="s" format="webp" absolute=true}}',
+        '|{{url absolute=true}}',
+      ].join(''),
+    });
+    theme.pkg.image_sizes = { s: { width: 320 } };
+    const content = makeContent();
+    content.site.navigation = [
+      { label: 'Home', url: '/' },
+      { label: 'Hello', url: '/hello/' },
+    ];
+    const engine = createEngine({ config: makeConfig(), content, theme });
+    const post = makePost({
+      title: 'Hello',
+      url: '/hello/',
+      feature_image: '/content/images/hero.jpg',
+    });
+
+    const html = engine.render({
+      kind: 'post',
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post',
+      data: {
+        post,
+        pagination: {
+          page: 2,
+          pages: 3,
+          total: 30,
+          limit: 10,
+          prev: 1,
+          next: 3,
+          prev_url: '/page/1/',
+          next_url: '/page/3/',
+          base_url: '/',
+        },
+      },
+      meta: baseMeta,
+    });
+
+    expect(html).toBe(
+      [
+        '<ul class="nav"><li class="nav-home"><a href="/">Home</a></li><li class="nav-hello" aria-current="page"><a href="/hello/" aria-current="page">Hello</a></li></ul>',
+        '<nav class="pagination" role="navigation" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
+        '<a href="/about/" class="cta" target="_blank" rel="noopener noreferrer">About</a>',
+        '/assets/css/screen.css',
+        'https://example.com/content/images/size/w320/format/webp/hero.jpg',
+        'https://example.com/hello/',
+      ].join('|'),
+    );
+  });
+
   // Issue #1305: themes (Edition, Source) use `{{> "content" width="wide"}}`
   // to pass layout flags down to the partial body. Handlebars supports this
   // natively as long as we call `hb.registerPartial` with the partial source
