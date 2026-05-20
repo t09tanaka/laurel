@@ -22,6 +22,26 @@ produced. Reviewers will look here to decide what they need to re-run locally.
 - [ ] `bun test` passes
 - [ ] Manual verification against `example/` (describe what you checked)
 
+## Theme regression check
+
+<!--
+Did this change touch the render layer, the Ghost helper surface, or any
+Markdown-to-HTML pass? If yes, build `example/` against the vendored Source
+theme and confirm the golden HTML snapshot is intact (or update it
+intentionally).
+-->
+
+- [ ] N/A — no render / helper / content-pipeline changes
+- [ ] `cd example && bun ../src/cli/index.ts build` produces the expected `dist/`
+- [ ] Golden HTML snapshots updated and reviewed (`tests/render/golden.test.ts`)
+
+## Screenshots / output samples (if visual)
+
+<!--
+For UI-affecting changes, drop a before/after screenshot or paste a snippet of
+the rendered HTML / RSS / sitemap.
+-->
+
 ## Breaking changes
 
 <!--
