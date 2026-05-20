@@ -653,6 +653,13 @@ describe('match helper', () => {
     expect(tilde({ a: 'hello', b: 'world' })).toBe('false');
   });
 
+  test('"~^" matches strings by prefix in block form', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match "foobar" "~^" "foo"}}yes{{/match}}');
+    expect(tpl({})).toBe('yes');
+  });
+
   test('block form renders inverse when no condition matches', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
