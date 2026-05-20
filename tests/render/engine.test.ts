@@ -728,6 +728,30 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('Alias Site|Alias Site|true|true|members:true');
   });
 
+  test('Journal-style @setting.paid_members_enabled blocks follow @site (issue #719)', () => {
+    const renderPaidMembersBranch = (paid_members_enabled: boolean) => {
+      const engine = makeEngine();
+      engine.content = {
+        ...engine.content,
+        site: {
+          locale: 'en',
+          title: 'Journal Alias Site',
+          paid_members_enabled,
+        },
+      } as unknown as NectarEngine['content'];
+      const data = buildRootData(engine, makeRoute());
+      const hb = Handlebars.create();
+      const tpl = hb.compile(
+        '{{#if @setting.paid_members_enabled}}paid-members{{else}}free-members{{/if}}',
+      );
+
+      return tpl({}, { data });
+    };
+
+    expect(renderPaidMembersBranch(true)).toBe('paid-members');
+    expect(renderPaidMembersBranch(false)).toBe('free-members');
+  });
+
   // Regression coverage for issue #111: the Source theme renders the home grid
   // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
   // `get` helper falls back to 15 when `limit` is undefined, which would mask
