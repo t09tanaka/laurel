@@ -162,4 +162,33 @@ describe('createBuildProgressDisplay', () => {
     expect(output).toContain('Rendering 2/2... / cached');
     expect(output).toContain('done Rendering routes 2/2\n');
   });
+
+  test('renders interactive phase status updates in-place', () => {
+    const chunks: string[] = [];
+    const display = createBuildProgressDisplay({
+      mode: 'interactive',
+      stream: {
+        write(chunk: string) {
+          chunks.push(chunk);
+        },
+      },
+    });
+
+    display?.onProgress({
+      type: 'phase-status',
+      phase: 'content',
+      label: 'Loading theme…',
+    });
+    display?.onProgress({
+      type: 'phase-status',
+      phase: 'content',
+      label: 'Compiling templates…',
+    });
+    display?.finish();
+
+    const output = chunks.join('');
+    expect(output).toContain('Loading theme…');
+    expect(output).toContain('Compiling templates…');
+    expect(output.endsWith('Compiling templates…\n')).toBe(true);
+  });
 });

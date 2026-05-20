@@ -130,6 +130,26 @@ Body
     ]);
   });
 
+  test('reports expensive load substeps through build progress events', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const events: BuildProgressEvent[] = [];
+
+    await build({
+      cwd,
+      progress: (event) => {
+        events.push(event);
+      },
+    });
+
+    const statusEvents = events.filter((event) => event.type === 'phase-status');
+    expect(statusEvents.map((event) => event.label)).toEqual([
+      'Loading theme…',
+      'Indexing content…',
+      'Compiling templates…',
+    ]);
+    expect(statusEvents.every((event) => event.phase === 'content')).toBe(true);
+  });
+
   test('materialises Source theme img_url size variants during build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

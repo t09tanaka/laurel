@@ -116,6 +116,10 @@ function createInteractiveBuildProgressDisplay(
   };
 
   const onProgress = (event: BuildProgressEvent): void => {
+    if (event.type === 'phase-status') {
+      writeLine(`${spinner()} ${event.label}`);
+      return;
+    }
     if (event.type === 'phase-start') {
       if (event.phase === 'render') {
         renderTotal = event.totalRoutes ?? renderTotal;
@@ -165,6 +169,10 @@ function createPlainBuildProgressDisplay(now: () => number = Date.now): BuildPro
   let renderStartedAt: number | undefined;
 
   const onProgress = (event: BuildProgressEvent): void => {
+    if (event.type === 'phase-status') {
+      logger.info(`Build: ${event.label}`);
+      return;
+    }
     if (event.type === 'phase-start') {
       if (event.phase === 'render') renderStartedAt = now();
       logger.info(`Build: ${formatPhaseLabel(event)}...`);

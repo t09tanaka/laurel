@@ -184,6 +184,11 @@ export type BuildProgressEvent =
       totalRoutes?: number | undefined;
     }
   | {
+      type: 'phase-status';
+      phase: BuildProgressPhase;
+      label: string;
+    }
+  | {
       type: 'routes-planned';
       totalRoutes: number;
     }
@@ -256,6 +261,14 @@ function notifyProgress(
     // Progress rendering is auxiliary. A broken terminal or test stub should
     // not change build success.
   }
+}
+
+function notifyProgressStatus(
+  progress: BuildProgressReporter | undefined,
+  phase: BuildProgressPhase,
+  label: string,
+): void {
+  notifyProgress(progress, { type: 'phase-status', phase, label });
 }
 
 async function withProgressPhase<T>(
@@ -429,71 +442,98 @@ async function runBuild({
   if (profiler) keepOutput('.nectar-build-stats.json');
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
-  const { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants } = await timed(
-    profiler,
-    'load',
-    () =>
-      withProgressPhase(progress, 'content', 'Loading content and theme', async () => {
-        const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
-        warnUnappliedSections(routesYaml);
+  const {
+    routesYaml,
+    pluginSet,
+    content,
+    theme,
+    imageVariantPlan,
+    formatVariants,
+    favicons,
+    engine,
+  } = await timed(profiler, 'load', () =>
+    withProgressPhase(progress, 'content', 'Loading content and theme', async () => {
+      const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
+      warnUnappliedSections(routesYaml);
 
-        // Resolve plugin specs before the content loader runs so any
-        // `transformMarkdown` declarations are visible to the loader's markdown
-        // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
-        // `afterContentLoad`, …) are fired later — after `createEngine` returns —
-        // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
-        // load surface a warning via `loadPlugins` and are skipped, never an abort.
-        const pluginSet = await timed(profiler, 'plugins_load', () =>
-          loadPlugins({
-            cwd,
-            specs: config.plugins,
-            autoDetect: config.plugin_auto_detect,
-          }),
-        );
-        const markdownTransforms: MarkdownTransformHook[] = [];
-        for (const p of pluginSet.plugins) {
-          if (typeof p.transformMarkdown === 'function') {
-            const fn = p.transformMarkdown.bind(p);
-            markdownTransforms.push((input, ctx) => fn(input, ctx));
-          }
+      // Resolve plugin specs before the content loader runs so any
+      // `transformMarkdown` declarations are visible to the loader's markdown
+      // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
+      // `afterContentLoad`, …) are fired later — after `createEngine` returns —
+      // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
+      // load surface a warning via `loadPlugins` and are skipped, never an abort.
+      const pluginSet = await timed(profiler, 'plugins_load', () =>
+        loadPlugins({
+          cwd,
+          specs: config.plugins,
+          autoDetect: config.plugin_auto_detect,
+        }),
+      );
+      const markdownTransforms: MarkdownTransformHook[] = [];
+      for (const p of pluginSet.plugins) {
+        if (typeof p.transformMarkdown === 'function') {
+          const fn = p.transformMarkdown.bind(p);
+          markdownTransforms.push((input, ctx) => fn(input, ctx));
         }
+      }
 
-        const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
-          Promise.all([
-            loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
-            loadTheme({ cwd, config }),
-          ]),
-        );
+      const [content, theme] = await timed(profiler, 'load_content_and_theme', () => {
+        notifyProgressStatus(progress, 'content', 'Loading theme…');
+        const themePromise = loadTheme({ cwd, config });
+        notifyProgressStatus(progress, 'content', 'Indexing content…');
+        const contentPromise = loadContent({
+          cwd,
+          config,
+          routesYaml,
+          includeDrafts,
+          markdownTransforms,
+        });
+        return Promise.all([contentPromise, themePromise]);
+      });
 
-        validateThemeCustom({ config, pkg: theme.pkg });
+      validateThemeCustom({ config, pkg: theme.pkg });
 
-        injectImageDimensionsIntoContent({ content, cwd, config });
+      injectImageDimensionsIntoContent({ content, cwd, config });
 
-        const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
-          planImageVariants({ cwd, config }),
-        );
-        injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
-        // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
-        // injected entry resolves to the same URL). The rendered-HTML post-process
-        // below catches the same pattern in theme HBS output. Issue #534.
-        collapseDegenerateSrcsetIntoContent({ content });
-        const imagesCfg = config.components.images;
-        // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
-        // referenced variants — otherwise modern browsers would pick the WebP/AVIF
-        // <source> and 404 instead of falling back to the original <img>.
-        const formatVariants: readonly ImageFormat[] =
-          imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
-            ? imagesCfg.formats
-            : [];
-        if (formatVariants.length > 0) {
-          injectImagePictureSourcesIntoContent({
-            content,
-            plan: imageVariantPlan,
-            formats: formatVariants,
-          });
-        }
-        return { routesYaml, pluginSet, content, theme, imageVariantPlan, formatVariants };
-      }),
+      const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
+        planImageVariants({ cwd, config }),
+      );
+      injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+      // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
+      // injected entry resolves to the same URL). The rendered-HTML post-process
+      // below catches the same pattern in theme HBS output. Issue #534.
+      collapseDegenerateSrcsetIntoContent({ content });
+      const imagesCfg = config.components.images;
+      // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
+      // referenced variants — otherwise modern browsers would pick the WebP/AVIF
+      // <source> and 404 instead of falling back to the original <img>.
+      const formatVariants: readonly ImageFormat[] =
+        imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
+          ? imagesCfg.formats
+          : [];
+      if (formatVariants.length > 0) {
+        injectImagePictureSourcesIntoContent({
+          content,
+          plan: imageVariantPlan,
+          formats: formatVariants,
+        });
+      }
+      const favicons = computeFavicons({ config, theme, cwd });
+      notifyProgressStatus(progress, 'content', 'Compiling templates…');
+      const engine = await timed(profiler, 'compile_templates', () =>
+        createEngine({ config, content, theme, favicons, cwd }),
+      );
+      return {
+        routesYaml,
+        pluginSet,
+        content,
+        theme,
+        imageVariantPlan,
+        formatVariants,
+        favicons,
+        engine,
+      };
+    }),
   );
 
   const imagesCfg = config.components.images;
@@ -516,9 +556,6 @@ async function runBuild({
       await generateOgImages({ cwd, config, content, outputDir });
     });
   }
-
-  const favicons = computeFavicons({ config, theme, cwd });
-  const engine = createEngine({ config, content, theme, favicons, cwd });
 
   // Load Handlebars helpers declared inline via `[components.helpers].paths`.
   // Thin sugar over a plugin that calls `engine.registerHelper`; for anything
