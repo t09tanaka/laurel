@@ -166,6 +166,7 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('href="https://example.com"');
     expect(out).toContain('src="/content/images/2024/01/x.jpg"');
     expect(out).toContain('alt="A picture"');
+    expect(out).toContain('kg-card-hascaption');
     expect(out).toContain('<figcaption>My caption</figcaption>');
   });
 
@@ -182,6 +183,7 @@ describe('renderLexicalToHtml', () => {
       ]),
     );
     expect(out).toContain('<pre><code class="language-javascript">');
+    expect(out).toContain('class="kg-card kg-code-card kg-card-hascaption"');
     expect(out).toContain('console.log("hi");');
     expect(out).toContain('<figcaption>Example</figcaption>');
   });
@@ -231,6 +233,7 @@ describe('renderLexicalToHtml', () => {
       ]),
     );
     expect(out).toContain('kg-video-card');
+    expect(out).toContain('kg-card-hascaption');
     expect(out).toContain('kg-video-container');
     expect(out).toContain(`--aspect-ratio: ${1920 / 1080}`);
     expect(out).toContain('poster="/content/images/poster.jpg"');

@@ -37,6 +37,10 @@ function widthClass(payload: unknown): string {
   return w && w !== 'regular' ? ` kg-width-${w}` : '';
 }
 
+function hasCaptionClass(caption: string): string {
+  return caption ? ' kg-card-hascaption' : '';
+}
+
 export function renderImageCardHtml(payload: unknown): string {
   const src = strProp(payload, 'src');
   if (!src) return '';
@@ -56,7 +60,7 @@ export function renderImageCardHtml(payload: unknown): string {
   const imgEl = `<img ${imgAttrs}>`;
   const wrapped = href ? `<a href="${escapeAttr(href)}">${imgEl}</a>` : imgEl;
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-image-card${widthClass(payload)}">${wrapped}${figcap}</figure>`;
+  return `<figure class="kg-card kg-image-card${widthClass(payload)}${hasCaptionClass(caption)}">${wrapped}${figcap}</figure>`;
 }
 
 export function renderMarkdownCardHtml(payload: unknown): string {
@@ -80,7 +84,7 @@ export function renderCodeCardHtml(payload: unknown): string {
   const langClass = language ? ` class="language-${escapeAttr(language)}"` : '';
   const pre = `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
   if (!caption) return pre;
-  return `<figure class="kg-card kg-code-card">${pre}<figcaption>${caption}</figcaption></figure>`;
+  return `<figure class="kg-card kg-code-card kg-card-hascaption">${pre}<figcaption>${caption}</figcaption></figure>`;
 }
 
 export function renderBookmarkCardHtml(payload: unknown): string {
@@ -107,7 +111,7 @@ export function renderBookmarkCardHtml(payload: unknown): string {
     ? `<div class="kg-bookmark-thumbnail"><img src="${escapeAttr(thumbnail)}" alt=""></div>`
     : '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-bookmark-card"><a class="kg-bookmark-container" href="${escapeAttr(url)}">${content}${thumb}</a>${figcap}</figure>`;
+  return `<figure class="kg-card kg-bookmark-card${hasCaptionClass(caption)}"><a class="kg-bookmark-container" href="${escapeAttr(url)}">${content}${thumb}</a>${figcap}</figure>`;
 }
 
 export function renderCalloutCardHtml(payload: unknown): string {
@@ -134,7 +138,7 @@ export function renderEmbedCardHtml(payload: unknown): string {
   if (!html && !url) return '';
   const inner = html || `<a href="${escapeAttr(url)}">${escapeHtml(url)}</a>`;
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-embed-card">${inner}${figcap}</figure>`;
+  return `<figure class="kg-card kg-embed-card${hasCaptionClass(caption)}">${inner}${figcap}</figure>`;
 }
 
 export function renderFileCardHtml(payload: unknown): string {
@@ -179,7 +183,7 @@ export function renderGalleryCardHtml(payload: unknown): string {
   }
   if (rowsHtml.length === 0) return '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-gallery-card"><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-gallery-card${hasCaptionClass(caption)}"><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcap}</figure>`;
 }
 
 export function renderAudioCardHtml(payload: unknown): string {
@@ -222,7 +226,7 @@ export function renderVideoCardHtml(payload: unknown): string {
       ? ` style="--aspect-ratio: ${wNum / hNum}"`
       : '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-video-card"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-video-card${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
 }
 
 function dimensionProp(obj: unknown, key: string): string {

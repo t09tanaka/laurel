@@ -106,7 +106,7 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://www.youtube.com/watch?v=abc123_DEF-4&t=1m5s" provider="youtube" title="A talk" caption="Talk transcript" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-card-hascaption"');
     expect(html).toContain('src="https://www.youtube-nocookie.com/embed/abc123_DEF-4?start=65"');
     expect(html).toContain('title="A talk"');
     expect(html).toContain('loading="lazy"');
@@ -138,7 +138,7 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-card-hascaption"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
     expect(html).toContain('<figcaption>Open on Twitter</figcaption>');
     expect(html).not.toContain('<iframe');

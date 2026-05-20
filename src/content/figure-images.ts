@@ -45,8 +45,9 @@ export function promoteImagesToFigures(html: string): string {
     const tail = html.slice(match.index + full.length);
     const caption = extractFollowingCaption(tail);
 
+    const hasCaptionClass = caption ? ' kg-card-hascaption' : '';
     const figcaption = caption ? `<figcaption>${caption.text}</figcaption>` : '';
-    result += `<figure class="kg-card kg-image-card kg-width-regular">${inner}${figcaption}</figure>`;
+    result += `<figure class="kg-card kg-image-card kg-width-regular${hasCaptionClass}">${inner}${figcaption}</figure>`;
 
     cursor = match.index + full.length + (caption?.consumed ?? 0);
     SINGLE_IMG_PARAGRAPH_RE.lastIndex = cursor;

@@ -244,6 +244,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
   test('renders optional figcaption when caption attr is present', async () => {
     const md = '{{< bookmark url="https://example.com/" title="T" caption="Source: Example" />}}';
     const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-bookmark-card kg-card-hascaption"');
     expect(html).toContain('<figcaption>Source: Example</figcaption>');
   });
 
@@ -388,7 +389,7 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
       '{{< /gallery >}}',
     ].join('\n');
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<figure class="kg-card kg-gallery-card">');
+    expect(html).toContain('<figure class="kg-card kg-gallery-card kg-card-hascaption">');
     expect(html).toContain('<div class="kg-gallery-container">');
     expect((html.match(/kg-gallery-row/g) ?? []).length).toBe(2);
     expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
@@ -443,7 +444,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
       '{{< /video >}}',
     ].join('\n');
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-video-card"');
+    expect(html).toContain('class="kg-card kg-video-card kg-card-hascaption"');
     expect(html).toContain('class="kg-video-container"');
     expect(html).toContain('style="--aspect-ratio:1.7777777777777777"');
     expect(html).toContain('<video src="https://cdn.test/video/clip.mp4"');

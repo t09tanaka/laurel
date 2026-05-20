@@ -34,6 +34,9 @@ describe('promoteImagesToFigures', () => {
     const input =
       '<p><img src="/a.png" alt="x"></p>\n<blockquote>\n<p>Hello caption</p>\n</blockquote>';
     const out = promoteImagesToFigures(input);
+    expect(out).toContain(
+      '<figure class="kg-card kg-image-card kg-width-regular kg-card-hascaption">',
+    );
     expect(out).toContain('<figcaption>Hello caption</figcaption>');
     expect(out).not.toContain('<blockquote>');
   });
@@ -41,6 +44,9 @@ describe('promoteImagesToFigures', () => {
   test('uses a following italic-only paragraph as <figcaption>', () => {
     const input = '<p><img src="/a.png" alt="x"></p>\n<p><em>The caption</em></p>';
     const out = promoteImagesToFigures(input);
+    expect(out).toContain(
+      '<figure class="kg-card kg-image-card kg-width-regular kg-card-hascaption">',
+    );
     expect(out).toContain('<figcaption>The caption</figcaption>');
     expect(out).not.toMatch(/<p>\s*<em>/);
   });
@@ -102,12 +108,14 @@ describe('renderMarkdown — image figure promotion', () => {
 
   test('attaches a following blockquote as figcaption', async () => {
     const { html } = await renderMarkdown('![alt](https://cdn.test/x.png)\n\n> Caption text');
+    expect(html).toContain('class="kg-card kg-image-card kg-width-regular kg-card-hascaption"');
     expect(html).toContain('<figcaption>Caption text</figcaption>');
     expect(html).not.toContain('<blockquote');
   });
 
   test('attaches a following italic-only paragraph as figcaption', async () => {
     const { html } = await renderMarkdown('![alt](https://cdn.test/x.png)\n\n*The caption*');
+    expect(html).toContain('class="kg-card kg-image-card kg-width-regular kg-card-hascaption"');
     expect(html).toContain('<figcaption>The caption</figcaption>');
   });
 

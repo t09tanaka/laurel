@@ -119,6 +119,7 @@ describe('renderMobiledocToHtml', () => {
       }),
     );
     expect(out).toContain('kg-image-card');
+    expect(out).toContain('kg-card-hascaption');
     expect(out).toContain('src="/x.jpg"');
     expect(out).toContain('alt="A"');
     expect(out).toContain('<figcaption>cap</figcaption>');
