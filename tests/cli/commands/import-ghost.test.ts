@@ -70,6 +70,81 @@ function exportPayloadWithPosts(count: number): string {
   });
 }
 
+function filteredExportPayload(): string {
+  return JSON.stringify({
+    db: [
+      {
+        data: {
+          posts: [
+            {
+              id: 'p-old-news',
+              title: 'Old News',
+              slug: 'old-news',
+              html: '<p>old</p>',
+              status: 'published',
+              type: 'post',
+              published_at: '2023-12-31T12:00:00.000Z',
+            },
+            {
+              id: 'p-new-news',
+              title: 'New News',
+              slug: 'new-news',
+              html: '<p>new</p>',
+              status: 'published',
+              type: 'post',
+              published_at: '2024-02-01T12:00:00.000Z',
+            },
+            {
+              id: 'p-blog-draft',
+              title: 'Blog Draft',
+              slug: 'blog-draft',
+              html: '<p>draft</p>',
+              status: 'draft',
+              type: 'post',
+              created_at: '2024-03-01T12:00:00.000Z',
+            },
+            {
+              id: 'p-other',
+              title: 'Other',
+              slug: 'other',
+              html: '<p>other</p>',
+              status: 'published',
+              type: 'post',
+              published_at: '2024-04-01T12:00:00.000Z',
+            },
+            {
+              id: 'page-about',
+              title: 'About',
+              slug: 'about',
+              html: '<p>about</p>',
+              status: 'published',
+              type: 'page',
+              published_at: '2024-05-01T12:00:00.000Z',
+            },
+          ],
+          tags: [
+            { id: 't-news', slug: 'news', name: 'News', description: 'News posts' },
+            { id: 't-blog', slug: 'blog', name: 'Blog', description: 'Blog posts' },
+            { id: 't-misc', slug: 'misc', name: 'Misc', description: 'Misc posts' },
+          ],
+          users: [{ id: 'u-jane', slug: 'jane', name: 'Jane' }],
+          posts_tags: [
+            { post_id: 'p-old-news', tag_id: 't-news' },
+            { post_id: 'p-new-news', tag_id: 't-news' },
+            { post_id: 'p-blog-draft', tag_id: 't-blog' },
+            { post_id: 'p-other', tag_id: 't-misc' },
+          ],
+          posts_authors: [
+            { post_id: 'p-new-news', user_id: 'u-jane' },
+            { post_id: 'p-blog-draft', user_id: 'u-jane' },
+            { post_id: 'page-about', user_id: 'u-jane' },
+          ],
+        },
+      },
+    ],
+  });
+}
+
 describe('cli import-ghost — --on-conflict', () => {
   let dir: string;
   let exportFile: string;
@@ -163,12 +238,12 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
   });
 
   test('passing a folder ingests JSON and copies image/file assets', async () => {
-    const { stdout, exitCode } = await runCli(
+    const { stdout, stderr, exitCode } = await runCli(
       ['import-ghost', exportFolder, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('Copied 2 asset files');
+    expect(`${stdout}${stderr}`).toContain('Copied 2 asset files');
     expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
     expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
@@ -206,12 +281,12 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     await proc.exited;
     expect(proc.exitCode).toBe(0);
 
-    const { exitCode, stdout } = await runCli(
+    const { exitCode, stdout, stderr } = await runCli(
       ['import-ghost', zipPath, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('Copied 2 asset files');
+    expect(`${stdout}${stderr}`).toContain('Copied 2 asset files');
     expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
     expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
@@ -338,6 +413,99 @@ describe('cli import-ghost — --dry-run (#502)', () => {
 
     await expect(readFile(join(dir, 'content/posts/hello.md'), 'utf8')).rejects.toThrow();
     await expect(readFile(join(dir, 'content/pages/about.md'), 'utf8')).rejects.toThrow();
+  });
+});
+
+describe('cli import-ghost — partial filters (#809)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-filters-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(exportFile, filteredExportPayload());
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises tag/date filters and opt-in draft/page flags', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--include-drafts');
+    expect(stdout).toContain('--include-pages');
+    expect(stdout).toContain('--only-tags');
+    expect(stdout).toContain('--since');
+  });
+
+  test('dry-run summary reflects filtered partial import without writing', async () => {
+    const { stdout, exitCode } = await runCli(
+      [
+        'import-ghost',
+        exportFile,
+        '--only-tags',
+        'news,blog',
+        '--since',
+        '2024-01-01',
+        '--include-drafts',
+        '--include-pages',
+        '--dry-run',
+      ],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Posts to import');
+    expect(stdout).toContain('Pages to import');
+    expect(stdout).toContain('Drafts filtered');
+    expect(stdout).toContain('Tag-filtered');
+    expect(stdout).toContain('Date-filtered');
+    expect(stdout).toContain('content/posts/new-news.md');
+    expect(stdout).toContain('content/posts/blog-draft.md');
+    expect(stdout).toContain('content/pages/about.md');
+    expect(stdout).not.toContain('content/posts/old-news.md');
+    expect(stdout).not.toContain('content/posts/other.md');
+
+    await expect(access(join(dir, 'content/posts/new-news.md'))).rejects.toThrow();
+    await expect(access(join(dir, 'content/posts/blog-draft.md'))).rejects.toThrow();
+    await expect(access(join(dir, 'content/pages/about.md'))).rejects.toThrow();
+  });
+
+  test('real import writes only filtered posts/pages and reports filtered counts', async () => {
+    const { stdout, stderr, exitCode } = await runCli(
+      [
+        'import-ghost',
+        exportFile,
+        '--only-tags',
+        'news,blog',
+        '--since',
+        '2024-01-01',
+        '--include-drafts',
+        '--include-pages',
+      ],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    const output = `${stdout}${stderr}`;
+    expect(output).toContain('Imported 2 posts, 1 pages, 2 tags, 1 authors');
+    expect(output).toContain('Filtered out 2 items');
+    expect(output).toContain('1 tag mismatches');
+    expect(output).toContain('1 before --since');
+    expect(await readFile(join(dir, 'content/posts/new-news.md'), 'utf8')).toContain(
+      'slug: "new-news"',
+    );
+    expect(await readFile(join(dir, 'content/posts/blog-draft.md'), 'utf8')).toContain(
+      'status: "draft"',
+    );
+    expect(await readFile(join(dir, 'content/pages/about.md'), 'utf8')).toContain('slug: "about"');
+    expect(await readFile(join(dir, 'content/tags/news.md'), 'utf8')).toContain('name: "News"');
+    expect(await readFile(join(dir, 'content/tags/blog.md'), 'utf8')).toContain('name: "Blog"');
+    expect(await readFile(join(dir, 'content/authors/jane.md'), 'utf8')).toContain('name: "Jane"');
+    await expect(access(join(dir, 'content/posts/old-news.md'))).rejects.toThrow();
+    await expect(access(join(dir, 'content/posts/other.md'))).rejects.toThrow();
+    await expect(access(join(dir, 'content/tags/misc.md'))).rejects.toThrow();
   });
 });
 
@@ -579,12 +747,12 @@ describe('cli import-ghost — --keep-code-injection (#561)', () => {
   });
 
   test('default drops codeinjection fields and prints an audit summary', async () => {
-    const { stdout, exitCode } = await runCli(
+    const { stdout, stderr, exitCode } = await runCli(
       ['import-ghost', exportFile, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stdout).toContain(
+    expect(`${stdout}${stderr}`).toContain(
       'Skipped code injection in 1 posts. Re-run with --keep-code-injection to import them.',
     );
     const md = await readFile(join(dir, 'content/posts/pwn.md'), 'utf8');

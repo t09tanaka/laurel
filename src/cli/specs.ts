@@ -366,6 +366,28 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images',
     },
+    'include-drafts': {
+      type: 'boolean',
+      description:
+        'When --only-tags or --since is set, include draft posts/pages too. Full imports already include drafts by default for backwards compatibility',
+    },
+    'include-pages': {
+      type: 'boolean',
+      description:
+        'When --only-tags or --since is set, include pages too. Full imports already include pages by default for backwards compatibility',
+    },
+    'only-tags': {
+      type: 'string',
+      description:
+        'Only import posts tagged with one of these comma-separated tag slugs/names (e.g. news,blog). Tags are slug-normalized before matching',
+      placeholder: '<slugs>',
+    },
+    since: {
+      type: 'string',
+      description:
+        'Only import posts/pages whose published_at (or created_at fallback) is on or after this date (e.g. 2024-01-01)',
+      placeholder: '<date>',
+    },
     'max-size': {
       type: 'string',
       description:
@@ -400,6 +422,8 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
     'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
     'nectar import-ghost export.json --output review-import',
+    'nectar import-ghost export.json --only-tags news,blog --since 2024-01-01',
+    'nectar import-ghost export.json --only-tags news --include-drafts --include-pages',
     'nectar import-ghost export.json --download-images --max-image-size 5MB',
     'nectar import-ghost export.json --on-conflict overwrite',
   ],

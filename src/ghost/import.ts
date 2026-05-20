@@ -155,6 +155,19 @@ export interface ImportSummary {
   // Posts/pages whose status is neither 'published' nor 'draft' (e.g.
   // 'scheduled', 'sent'). These are filtered out and not imported.
   statusFiltered: number;
+  // Draft posts/pages excluded by partial-import filters. Legacy full imports
+  // include drafts by default; this only increments when --only-tags / --since
+  // narrow the import and --include-drafts was not passed.
+  draftsFiltered: number;
+  // Pages excluded by partial-import filters. Legacy full imports include pages
+  // by default; this only increments when --only-tags / --since narrow the
+  // import and --include-pages was not passed.
+  pagesFiltered: number;
+  // Posts excluded because none of their public tag slugs matched --only-tags.
+  tagFiltered: number;
+  // Posts/pages excluded because their publish/create date is before --since,
+  // or missing/invalid when a since boundary was requested.
+  dateFiltered: number;
   // Posts whose lexical/mobiledoc body rendered to empty content and so
   // would be written as empty markdown. Surfaced separately so users with
   // large exports can spot silent body loss before importing.
@@ -252,6 +265,30 @@ export interface ImportGhostOptions {
   // JSON and dry-run CLI modes can stay quiet while normal imports still stream
   // coarse progress for large exports.
   onProgress?: (event: ImportProgressEvent) => void;
+  // Include draft posts/pages when a partial import filter (--only-tags or
+  // --since) is active. Full imports keep the historical behavior and include
+  // drafts even when this is unset.
+  includeDrafts?: boolean;
+  // Include pages when a partial import filter (--only-tags or --since) is
+  // active. Full imports keep the historical behavior and include pages even
+  // when this is unset.
+  includePages?: boolean;
+  // Restrict imported posts to these tag slugs/names. Values are normalized
+  // through the same safe slugger used for Ghost tags, so "News, My Blog"
+  // matches `news` and `my-blog`.
+  onlyTags?: readonly string[];
+  // Restrict imported posts/pages to entries whose published_at (or created_at
+  // fallback) is on/after this date. Date-only values are interpreted as UTC
+  // midnight.
+  since?: string;
+}
+
+interface ImportFilterSettings {
+  active: boolean;
+  includeDrafts: boolean;
+  includePages: boolean;
+  onlyTagSlugs: ReadonlySet<string>;
+  sinceTimestamp: number | undefined;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -306,6 +343,10 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     renamed: 0,
     drafts: 0,
     statusFiltered: 0,
+    draftsFiltered: 0,
+    pagesFiltered: 0,
+    tagFiltered: 0,
+    dateFiltered: 0,
     bodiesEmpty: 0,
     codeInjectionSkipped: 0,
     slugCollisions: 0,
@@ -408,6 +449,10 @@ async function importFromResolvedInput(
     renamed: number;
     drafts: number;
     statusFiltered: number;
+    draftsFiltered: number;
+    pagesFiltered: number;
+    tagFiltered: number;
+    dateFiltered: number;
     bodiesEmpty: number;
     codeInjectionSkipped: number;
     slugCollisions: number;
@@ -433,6 +478,7 @@ async function importFromResolvedInput(
   const { posts, tags, users, tiers, postsTags, postsAuthors, postsTiers } = mergeGhostDbEntries(
     parsed.db,
   );
+  const filters = resolveImportFilters(opts);
 
   // Image download requires network and writes to content/images. In dry-run
   // mode we skip the downloader entirely; the dry-run summary should preview
@@ -544,6 +590,7 @@ async function importFromResolvedInput(
         renderPostRecord(post, {
           opts,
           counters,
+          filters,
           keepCodeInjection,
           keepHtml,
           downloader,
@@ -558,6 +605,8 @@ async function importFromResolvedInput(
 
   let postCount = 0;
   let pageCount = 0;
+  const importedTagSlugs = new Set<string>();
+  const importedAuthorSlugs = new Set<string>();
   // Phase B: sequential conflict claim + parallel writes. The
   // `writtenThisRun.has`/`add` cycle has to be sync to give first-occurrence
   // wins (#1138), but once a destination is claimed the actual writeFile is
@@ -601,6 +650,8 @@ async function importFromResolvedInput(
         htmlPreserved += 1;
       }
     }
+    for (const slug of r.tagSlugs) importedTagSlugs.add(slug);
+    for (const slug of r.authorSlugs) importedAuthorSlugs.add(slug);
     if (r.isPage) pageCount += 1;
     else postCount += 1;
   }
@@ -621,6 +672,7 @@ async function importFromResolvedInput(
       continue;
     }
     recordSlugChange('tag', tag.slug, tagSlug);
+    if (filters.active && !importedTagSlugs.has(tagSlug)) continue;
     const baseDir = join(outputRoot, 'tags');
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
@@ -667,6 +719,7 @@ async function importFromResolvedInput(
       continue;
     }
     recordSlugChange('author', user.slug, userSlug);
+    if (filters.active && !importedAuthorSlugs.has(userSlug)) continue;
     const baseDir = join(outputRoot, 'authors');
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
@@ -757,6 +810,10 @@ async function importFromResolvedInput(
     dryRun,
     drafts: counters.drafts,
     statusFiltered: counters.statusFiltered,
+    draftsFiltered: counters.draftsFiltered,
+    pagesFiltered: counters.pagesFiltered,
+    tagFiltered: counters.tagFiltered,
+    dateFiltered: counters.dateFiltered,
     bodiesEmpty: counters.bodiesEmpty,
     redirectsImported: redirectMaps.customCount,
     slugRedirects: redirectMaps.slugCount,
@@ -1073,6 +1130,8 @@ interface RenderedPostRecord {
   dest: string;
   contents: string;
   htmlContents?: string;
+  tagSlugs: string[];
+  authorSlugs: string[];
 }
 
 interface RenderPostContext {
@@ -1083,10 +1142,15 @@ interface RenderPostContext {
     renamed: number;
     drafts: number;
     statusFiltered: number;
+    draftsFiltered: number;
+    pagesFiltered: number;
+    tagFiltered: number;
+    dateFiltered: number;
     bodiesEmpty: number;
     codeInjectionSkipped: number;
     slugCollisions: number;
   };
+  filters: ImportFilterSettings;
   keepCodeInjection: boolean;
   keepHtml: boolean;
   downloader: GhostImageDownloader | undefined;
@@ -1107,12 +1171,33 @@ async function renderPostRecord(
   post: GhostPost,
   ctx: RenderPostContext,
 ): Promise<RenderedPostRecord | undefined> {
-  const { opts, counters, keepCodeInjection, keepHtml, downloader, urlRewriter } = ctx;
+  const { opts, counters, filters, keepCodeInjection, keepHtml, downloader, urlRewriter } = ctx;
   if (post.status && post.status !== 'published' && post.status !== 'draft') {
     counters.statusFiltered += 1;
     return undefined;
   }
   const isPage = post.type === 'page';
+  if (filters.active && isPage && !filters.includePages) {
+    counters.pagesFiltered += 1;
+    return undefined;
+  }
+  if (post.status === 'draft' && filters.active && !filters.includeDrafts) {
+    counters.draftsFiltered += 1;
+    return undefined;
+  }
+  const tagSlugs = ctx.tagSlugsForPost(post.id);
+  if (
+    !isPage &&
+    filters.onlyTagSlugs.size > 0 &&
+    !tagSlugs.some((s) => filters.onlyTagSlugs.has(s))
+  ) {
+    counters.tagFiltered += 1;
+    return undefined;
+  }
+  if (filters.sinceTimestamp !== undefined && !isOnOrAfterSince(post, filters.sinceTimestamp)) {
+    counters.dateFiltered += 1;
+    return undefined;
+  }
   const slug = safeSlug(post.slug) || safeSlug(post.title);
   if (!slug) {
     logger.warn(
@@ -1174,6 +1259,7 @@ async function renderPostRecord(
   const tiers = isPage
     ? undefined
     : uniqueStrings([...ctx.tierSlugsForPost(post.id), ...tierSlugsFromPost(post.tiers)]);
+  const authorSlugs = ctx.authorSlugsForPost(post.id);
   const frontmatter = buildFrontmatter({
     slug,
     title: post.title,
@@ -1186,8 +1272,8 @@ async function renderPostRecord(
     visibility: post.visibility ?? 'public',
     tiers,
     status: post.status ?? 'published',
-    tags: ctx.tagSlugsForPost(post.id),
-    authors: ctx.authorSlugsForPost(post.id),
+    tags: tagSlugs,
+    authors: authorSlugs,
     custom_excerpt: post.custom_excerpt ?? undefined,
     meta_title: post.meta_title ?? undefined,
     meta_description: post.meta_description ?? undefined,
@@ -1212,7 +1298,43 @@ async function renderPostRecord(
     dest,
     contents: `${frontmatter}\n\n${body}\n`,
     htmlContents,
+    tagSlugs,
+    authorSlugs,
   };
+}
+
+function resolveImportFilters(opts: ImportGhostOptions): ImportFilterSettings {
+  const onlyTagSlugs = new Set<string>();
+  for (const tag of opts.onlyTags ?? []) {
+    const slug = safeSlug(tag);
+    if (slug) onlyTagSlugs.add(slug);
+  }
+  const sinceTimestamp = opts.since ? parseImportSinceTimestamp(opts.since) : undefined;
+  const active = onlyTagSlugs.size > 0 || sinceTimestamp !== undefined;
+  return {
+    active,
+    includeDrafts: active ? opts.includeDrafts === true : opts.includeDrafts !== false,
+    includePages: active ? opts.includePages === true : opts.includePages !== false,
+    onlyTagSlugs,
+    sinceTimestamp,
+  };
+}
+
+export function parseImportSinceTimestamp(input: string): number {
+  const trimmed = input.trim();
+  const candidate = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? `${trimmed}T00:00:00.000Z` : trimmed;
+  const timestamp = Date.parse(candidate);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(`Invalid --since value: ${input}. Expected a date like 2024-01-01.`);
+  }
+  return timestamp;
+}
+
+function isOnOrAfterSince(post: GhostPost, sinceTimestamp: number): boolean {
+  const raw = post.published_at ?? post.created_at;
+  if (!raw) return false;
+  const timestamp = Date.parse(raw);
+  return Number.isFinite(timestamp) && timestamp >= sinceTimestamp;
 }
 
 // Image URL fields (feature_image, og_image, twitter_image, profile_image,

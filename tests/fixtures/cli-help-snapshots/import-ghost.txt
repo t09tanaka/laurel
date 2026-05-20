@@ -1,7 +1,7 @@
 Convert a Ghost JSON export into Markdown content
 
 Usage:
-  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
+  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 
 Arguments:
   file                Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
@@ -14,6 +14,10 @@ Options:
   --max-image-size <size>  Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.
   --source-url <url>  Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images
+  --include-drafts    When --only-tags or --since is set, include draft posts/pages too. Full imports already include drafts by default for backwards compatibility
+  --include-pages     When --only-tags or --since is set, include pages too. Full imports already include pages by default for backwards compatibility
+  --only-tags <slugs> Only import posts tagged with one of these comma-separated tag slugs/names (e.g. news,blog). Tags are slug-normalized before matching
+  --since <date>      Only import posts/pages whose published_at (or created_at fallback) is on or after this date (e.g. 2024-01-01)
   --max-size <size>   Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.
   --keep-code-injection  Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.
   --keep-html         Preserve each post/page rendered Ghost HTML body next to its imported Markdown as a sibling <slug>.md.html file.
@@ -35,5 +39,7 @@ Examples:
   nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
   nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
   nectar import-ghost export.json --output review-import
+  nectar import-ghost export.json --only-tags news,blog --since 2024-01-01
+  nectar import-ghost export.json --only-tags news --include-drafts --include-pages
   nectar import-ghost export.json --download-images --max-image-size 5MB
   nectar import-ghost export.json --on-conflict overwrite

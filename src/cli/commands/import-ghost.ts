@@ -1,5 +1,10 @@
 import { relative } from 'node:path';
-import { ON_CONFLICT_VALUES, type OnConflict, importGhostExport } from '~/ghost/import.ts';
+import {
+  ON_CONFLICT_VALUES,
+  type OnConflict,
+  importGhostExport,
+  parseImportSinceTimestamp,
+} from '~/ghost/import.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -85,6 +90,29 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const keepCodeInjection = parsed.values['keep-code-injection'] === true;
   const keepHtml = parsed.values['keep-html'] === true;
+  const includeDrafts = parsed.values['include-drafts'] === true;
+  const includePages = parsed.values['include-pages'] === true;
+  const rawOnlyTags = parsed.values['only-tags'];
+  const onlyTags = typeof rawOnlyTags === 'string' ? parseOnlyTags(rawOnlyTags) : undefined;
+  if (onlyTags && onlyTags.length === 0) {
+    process.stderr.write(
+      `Invalid --only-tags value: ${rawOnlyTags}. Expected one or more comma-separated tag slugs (e.g. news,blog).\n\n`,
+    );
+    process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+    return 2;
+  }
+  const rawSince = parsed.values.since;
+  const since = typeof rawSince === 'string' ? rawSince : undefined;
+  if (since) {
+    try {
+      parseImportSinceTimestamp(since);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : `Invalid --since value: ${since}`;
+      process.stderr.write(`${message}\n\n`);
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
+  }
   const asJson = parsed.values.json === true;
 
   const cwd = process.cwd();
@@ -102,6 +130,10 @@ export async function runImportGhost(args: string[]): Promise<number> {
       keepCodeInjection,
       keepHtml,
       outputDir,
+      includeDrafts,
+      includePages,
+      onlyTags,
+      since,
       onProgress:
         asJson || dryRun
           ? undefined
@@ -136,6 +168,9 @@ export async function runImportGhost(args: string[]): Promise<number> {
       logger.info(
         `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,
       );
+    }
+    if (hasFilteredItems(summary)) {
+      logger.info(formatFilteredItems(summary));
     }
     if (summary.slugCollisions > 0) {
       logger.warn(
@@ -184,6 +219,26 @@ function formatDryRunSummary(
       label: 'Status-filtered',
       value: summary.statusFiltered,
       note: 'status not in {published, draft}; not imported',
+    },
+    {
+      label: 'Drafts filtered',
+      value: summary.draftsFiltered,
+      note: 'partial import without --include-drafts',
+    },
+    {
+      label: 'Pages filtered',
+      value: summary.pagesFiltered,
+      note: 'partial import without --include-pages',
+    },
+    {
+      label: 'Tag-filtered',
+      value: summary.tagFiltered,
+      note: 'post tags did not match --only-tags',
+    },
+    {
+      label: 'Date-filtered',
+      value: summary.dateFiltered,
+      note: 'published_at/created_at before --since or unavailable',
     },
     {
       label: 'Empty bodies',
@@ -269,6 +324,32 @@ function formatDryRunSummary(
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
+}
+
+function parseOnlyTags(input: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of input.split(',')) {
+    const trimmed = token.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function hasFilteredItems(summary: Awaited<ReturnType<typeof importGhostExport>>): boolean {
+  return (
+    summary.statusFiltered > 0 ||
+    summary.draftsFiltered > 0 ||
+    summary.pagesFiltered > 0 ||
+    summary.tagFiltered > 0 ||
+    summary.dateFiltered > 0
+  );
+}
+
+function formatFilteredItems(summary: Awaited<ReturnType<typeof importGhostExport>>): string {
+  return `Filtered out ${summary.statusFiltered + summary.draftsFiltered + summary.pagesFiltered + summary.tagFiltered + summary.dateFiltered} items (${summary.statusFiltered} status, ${summary.draftsFiltered} drafts, ${summary.pagesFiltered} pages, ${summary.tagFiltered} tag mismatches, ${summary.dateFiltered} before --since)`;
 }
 
 // Parse a human-readable size spec (e.g. "256MB", "1GB", "512KB", "1024") into
