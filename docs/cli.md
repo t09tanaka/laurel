@@ -49,6 +49,7 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
 | [`nectar build`](#nectar-build) | Build the site into the configured output directory |
 | [`nectar new`](#nectar-new) | Scaffold a new post, page, tag, or author |
+| [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
@@ -134,6 +135,24 @@ Options:
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Comma-separated list of tag slugs to seed in frontmatter (post only) |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
+
+### `nectar dev`
+
+Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
+
+Usage:
+
+```
+nectar dev [--config <path>] [--port <n>] [--host <host>]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_DEV_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--port <n>` | string | `NECTAR_DEV_PORT` | Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests) |
+| `--host <host>` | string | `NECTAR_DEV_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 
 ### `nectar serve`
 

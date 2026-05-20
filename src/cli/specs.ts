@@ -130,6 +130,31 @@ export const NEW_SPEC: CommandSpec = {
   ],
 };
 
+export const DEV_SPEC: CommandSpec = {
+  name: 'dev',
+  summary:
+    'Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    port: {
+      type: 'string',
+      description:
+        'Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests)',
+      placeholder: '<n>',
+    },
+    host: {
+      type: 'string',
+      description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
+      placeholder: '<host>',
+    },
+  },
+  positionals: [],
+};
+
 export const SERVE_SPEC: CommandSpec = {
   name: 'serve',
   summary: 'Serve the built site locally',
@@ -455,6 +480,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
   new: NEW_SPEC,
+  dev: DEV_SPEC,
   serve: SERVE_SPEC,
   check: CHECK_SPEC,
   doctor: DOCTOR_SPEC,

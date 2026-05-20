@@ -4,6 +4,13 @@ import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import {
+  LIVERELOAD_CLIENT_JS,
+  LIVERELOAD_PATH,
+  LIVERELOAD_SCRIPT_PATH,
+  encodeReloadMessage,
+  injectLiveReload,
+} from '~/dev/livereload.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -11,10 +18,7 @@ import { SERVE_SPEC } from '../specs.ts';
 
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
-const LIVERELOAD_PATH = '/__nectar_livereload';
 const REBUILD_DEBOUNCE_MS = 120;
-
-const CLIENT_SCRIPT = `<script>(function(){if(window.__nectarLiveReload)return;window.__nectarLiveReload=true;var p=location.protocol==='https:'?'wss:':'ws:';function c(){var w=new WebSocket(p+'//'+location.host+'${LIVERELOAD_PATH}');w.onmessage=function(e){if(e.data==='reload')location.reload();};w.onclose=function(){setTimeout(c,1000);};}c();})();</script>`;
 
 export async function runServe(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -116,6 +120,18 @@ export async function runServe(args: string[]): Promise<number> {
           if (srv.upgrade(request)) return undefined;
           return new Response('upgrade failed', { status: 426 });
         }
+        // External livereload script (mirrors `nectar dev`). Same client logic
+        // works whether the inline tag is injected into the HTML or the script
+        // is fetched separately; serving both shapes lets manually-injected
+        // HTML or non-rebuilt fixtures still find a working client.
+        if (watchMode && url.pathname === LIVERELOAD_SCRIPT_PATH) {
+          return new Response(LIVERELOAD_CLIENT_JS, {
+            headers: {
+              'Content-Type': 'application/javascript; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
         const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
         const target = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
         const filePath = normalize(join(distDir, target));
@@ -177,9 +193,13 @@ export async function runServe(args: string[]): Promise<number> {
       logger.info(
         `Rebuilt ${summary.routeCount} routes (${summary.assetCount} assets); pushing reload to ${clients.size} client(s)`,
       );
+      // JSON wire format leaves room for non-reload signals (CSS hot-swap,
+      // error overlays) without breaking the legacy `'reload'` string path:
+      // the client falls back to `location.reload()` on any unknown payload.
+      const payload = encodeReloadMessage({ type: 'reload' });
       for (const ws of clients) {
         try {
-          ws.send('reload');
+          ws.send(payload);
         } catch {
           // client may have disconnected mid-broadcast; ignore
         }
@@ -275,10 +295,11 @@ export function isIgnoredChange(filename: string): boolean {
   return false;
 }
 
+// Re-export the shared injector under the legacy name so call sites and tests
+// don't have to reach into ~/dev/livereload directly. The inline variant
+// matches the historical behavior (one-shot script tag inlined into the body).
 export function injectLiveReloadScript(html: string): string {
-  const idx = html.lastIndexOf('</body>');
-  if (idx === -1) return html + CLIENT_SCRIPT;
-  return html.slice(0, idx) + CLIENT_SCRIPT + html.slice(idx);
+  return injectLiveReload(html, 'inline');
 }
 
 function waitForShutdownSignal(): Promise<'SIGINT' | 'SIGTERM'> {
