@@ -86,12 +86,26 @@ describe('emitCardAssets', () => {
   });
 
   test('uses a stable exclude-specific cache key', () => {
-    expect(cardAssetsVersion(true)).toBe('3');
-    expect(cardAssetsVersion({ exclude: [] })).toBe('3');
+    expect(cardAssetsVersion(true)).toBe('4');
+    expect(cardAssetsVersion({ exclude: [] })).toBe('4');
     expect(cardAssetsVersion({ exclude: ['gallery', 'bookmark'] })).toBe(
       cardAssetsVersion({ exclude: ['bookmark', 'gallery'] }),
     );
     expect(cardAssetsVersion({ exclude: ['bookmark'] })).not.toBe(cardAssetsVersion(true));
+  });
+
+  test('signup card CSS covers image layouts, disclaimer, and form skin', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toContain('.kg-signup-card-image-top');
+    expect(css).toContain('.kg-signup-card-image-bottom');
+    expect(css).toContain('.kg-signup-card-image-left');
+    expect(css).toMatch(/\.kg-signup-card-image-left\{[^}]*flex-direction:row/);
+    expect(css).toMatch(/\.kg-signup-card-image-left \.kg-signup-card-image\{[^}]*width:50%/);
+    expect(css).toMatch(/\.kg-signup-card-disclaimer\{[^}]*font-size:\.85em/);
+    expect(css).toMatch(/\.kg-signup-card-input\{[^}]*border:1px solid/);
+    expect(css).toMatch(/\.kg-signup-card-button\{[^}]*background:var\(--ghost-accent-color/);
+    expect(css).toMatch(/@media \(max-width:640px\)\{[^}]*\.kg-signup-card-image-left/);
   });
 
   test('embed card CSS gives iframes a responsive 16:9 box', () => {

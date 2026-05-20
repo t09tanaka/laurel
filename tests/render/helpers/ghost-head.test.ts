@@ -223,7 +223,7 @@ describe('ghost_head shared card assets', () => {
     });
 
     expect(html).toContain(
-      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=3">',
+      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=4">',
     );
     expect(html).not.toContain('ghost-card-assets.js');
   });
@@ -236,7 +236,7 @@ describe('ghost_head shared card assets', () => {
       theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
     });
 
-    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=3-[a-z0-9]+"/);
+    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=4-[a-z0-9]+"/);
     expect(html).not.toContain('ghost-card-assets.js');
   });
 });
@@ -276,7 +276,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
     );
 
     expect(html).toContain(
-      '<script defer src="/blog/assets/ghost-card-assets.js?v=3" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
+      '<script defer src="/blog/assets/ghost-card-assets.js?v=4" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
     );
   });
 

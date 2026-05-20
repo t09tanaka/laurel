@@ -89,7 +89,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Product | Yes | Yes | Renders the static product-card scaffold, image/title/description/rating/CTA fields that survived import. |
 | Header | Yes | Yes | Ghost v1 `kg-header-card` HTML converts to a `{% header %}` shortcode and renders the static header-card scaffold with style, background, title, subtitle, and CTA fields. |
 | NFT | Partial | Partial | Static link, image, and metadata scaffolds survive; no blockchain wallet, marketplace, or live ownership runtime is provided. |
-| Signup | Partial | Partial | The `kg-signup-card` wrapper can survive for portal/member plugins, but raw form fields are stripped by default and Nectar has no members backend. |
+| Signup | Partial | Partial | The `kg-signup-card` wrapper, layout classes, disclaimer, and form hooks can survive for portal/member plugins; Nectar ships static card CSS but no Ghost members backend. |
 | Recommendations | Partial | Partial | Static `kg-recommendations-card` markup can survive sanitisation for plugin/theme hydration; Ghost's server-side recommendations service is not implemented. |
 | Email / email CTA | No | No | Members/newsletter-only email cards are dropped during import and stripped during rendering so a public static build does not expose email-only content. |
 | Paywall | Partial | Partial | The paywall marker is used by the content loader to cut gated content; visible server-side member access behaviour is out of scope. |
@@ -419,8 +419,37 @@ preserved through sanitisation so theme CSS hooks and optional hydration code
 can still target them. Nectar does not currently build those cards from
 first-class Markdown shortcodes: NFT cards keep their static link/image/metadata
 scaffold without blockchain runtime integration, and signup cards keep the
-`kg-signup-card` wrapper while raw form fields are stripped unless a portal or
-members plugin rehydrates the card.
+`kg-signup-card` wrapper while form fields are normalized for build-time portal
+or members adapters.
+
+When `config.card_assets` is enabled, Nectar also emits a static signup-card
+stylesheet for themes that do not vendor Ghost Source's signup CSS. The CSS
+targets Ghost's public DOM contract:
+
+```html
+<div class="kg-card kg-signup-card kg-width-wide kg-style-light kg-signup-card-image-left">
+  <img class="kg-signup-card-image" src="/content/images/signup.jpg" alt="">
+  <div class="kg-signup-card-content">
+    <h2 class="kg-signup-card-heading">Join the newsletter</h2>
+    <p class="kg-signup-card-subheading">One short digest per week.</p>
+    <form class="kg-signup-card-form" data-members-form="signup">
+      <div class="kg-signup-card-fields">
+        <input class="kg-signup-card-input" type="email" data-members-email>
+      </div>
+      <button class="kg-signup-card-button" type="submit">Subscribe</button>
+    </form>
+    <p class="kg-signup-card-disclaimer">No spam. Unsubscribe anytime.</p>
+  </div>
+</div>
+```
+
+The shared CSS supports `kg-signup-card-image-top`,
+`kg-signup-card-image-bottom`, and `kg-signup-card-image-left`, includes a
+mobile column fallback for the left-image layout, keeps
+`.kg-signup-card-disclaimer` visually secondary, and skins
+`.kg-signup-card-input` / `.kg-signup-card-button` with the Ghost accent color
+contract. It is deliberately static: form submission still depends on the
+configured portal or members adapter, not on a bundled Ghost backend.
 
 `tests/fixtures/cards` pins this contract for the major Casper-family wrapper
 classes: `kg-bookmark-card`, `kg-gallery-card`, `kg-callout-card`,
