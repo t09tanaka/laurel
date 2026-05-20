@@ -34,6 +34,8 @@ export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', '
 export const DEFAULT_MAX_IMPORT_JSON_BYTES = 256 * 1024 * 1024;
 
 const turndown = createGhostTurndown();
+const MARKDOWN_CARD_FENCE_RE =
+  /<!--\s*kg-card-begin:\s*markdown\s*-->([\s\S]*?)<!--\s*kg-card-end:\s*markdown\s*-->/g;
 
 // Fan-out for the per-post render/write phases in importFromResolvedInput.
 // Turndown is CPU-bound and synchronous, so the parallelism doesn't get us
@@ -1245,7 +1247,17 @@ async function nextAvailablePath(dest: string, writtenThisRun?: Set<string>): Pr
 
 function renderPostBody(post: GhostPost): string {
   if (post.html?.trim()) {
-    return turndown.turndown(preprocessKoenigCardFences(stripGhostUrlPlaceholder(post.html)));
+    const html = stripGhostUrlPlaceholder(post.html);
+    const lexicalMarkdownCards = extractLexicalMarkdownCards(post.lexical);
+    const rawMarkdownCards =
+      lexicalMarkdownCards.length > 0
+        ? lexicalMarkdownCards
+        : extractMobiledocMarkdownCards(post.mobiledoc);
+    if (rawMarkdownCards.length > 0) {
+      const body = turndownHtmlPreservingRawMarkdownCards(html, rawMarkdownCards);
+      if (body !== null) return body;
+    }
+    return turndownHtml(html);
   }
   // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
   // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
@@ -1253,19 +1265,121 @@ function renderPostBody(post: GhostPost): string {
   if (post.lexical) {
     const html = stripGhostUrlPlaceholder(renderLexicalToHtml(post.lexical));
     if (html.trim()) {
-      return turndown.turndown(preprocessKoenigCardFences(html));
+      const body = turndownHtmlPreservingRawMarkdownCards(
+        html,
+        extractLexicalMarkdownCards(post.lexical),
+      );
+      if (body !== null) return body;
+      return turndownHtml(html);
     }
   }
   if (post.mobiledoc) {
     const html = stripGhostUrlPlaceholder(renderMobiledocToHtml(post.mobiledoc));
     if (html.trim()) {
-      return turndown.turndown(preprocessKoenigCardFences(html));
+      const body = turndownHtmlPreservingRawMarkdownCards(
+        html,
+        extractMobiledocMarkdownCards(post.mobiledoc),
+      );
+      if (body !== null) return body;
+      return turndownHtml(html);
     }
   }
   if (post.lexical || post.mobiledoc) {
     logger.warn(`Post ${post.slug}: Lexical/Mobiledoc body rendered to empty content, skipping.`);
   }
   return '';
+}
+
+function turndownHtml(html: string): string {
+  return turndown.turndown(preprocessKoenigCardFences(html));
+}
+
+function turndownHtmlPreservingRawMarkdownCards(
+  html: string,
+  rawMarkdownCards: readonly string[],
+): string | null {
+  if (rawMarkdownCards.length === 0) return null;
+
+  const chunks: string[] = [];
+  let lastIndex = 0;
+  let cardIndex = 0;
+
+  for (const match of html.matchAll(MARKDOWN_CARD_FENCE_RE)) {
+    if (match.index === undefined) continue;
+    if (cardIndex >= rawMarkdownCards.length) return null;
+
+    const before = html.slice(lastIndex, match.index);
+    const converted = turndownHtml(before).trim();
+    if (converted) chunks.push(converted);
+
+    chunks.push(formatRawMarkdownCard(rawMarkdownCards[cardIndex]));
+    cardIndex += 1;
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (cardIndex !== rawMarkdownCards.length) return null;
+
+  const after = turndownHtml(html.slice(lastIndex)).trim();
+  if (after) chunks.push(after);
+
+  return chunks.join('\n\n').trim();
+}
+
+function formatRawMarkdownCard(markdown: string): string {
+  const normalized = stripGhostUrlPlaceholder(markdown).replace(/\r\n?/g, '\n');
+  const body = normalized.endsWith('\n') ? normalized : `${normalized}\n`;
+  return `<!--kg-card-begin: markdown-->\n${body}<!--kg-card-end: markdown-->`;
+}
+
+function extractLexicalMarkdownCards(json: string | null | undefined): string[] {
+  if (typeof json !== 'string' || json.trim() === '') return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const cards: string[] = [];
+  collectLexicalMarkdownCards((parsed as { root?: unknown })?.root, cards);
+  return cards;
+}
+
+function collectLexicalMarkdownCards(node: unknown, cards: string[]): void {
+  if (typeof node !== 'object' || node === null) return;
+  const record = node as { type?: unknown; markdown?: unknown; children?: unknown };
+  if (record.type === 'markdown' && typeof record.markdown === 'string') {
+    cards.push(record.markdown);
+  }
+  if (!Array.isArray(record.children)) return;
+  for (const child of record.children) {
+    collectLexicalMarkdownCards(child, cards);
+  }
+}
+
+function extractMobiledocMarkdownCards(json: string | null | undefined): string[] {
+  if (typeof json !== 'string' || json.trim() === '') return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  if (typeof parsed !== 'object' || parsed === null) return [];
+  const doc = parsed as { cards?: unknown; sections?: unknown };
+  if (!Array.isArray(doc.cards) || !Array.isArray(doc.sections)) return [];
+
+  const cards: string[] = [];
+  for (const section of doc.sections) {
+    if (!Array.isArray(section) || section[0] !== 10 || typeof section[1] !== 'number') continue;
+    const card = doc.cards[section[1]];
+    if (!Array.isArray(card) || card[0] !== 'markdown') continue;
+    const payload = card[1];
+    if (typeof payload === 'object' && payload !== null) {
+      const markdown = (payload as { markdown?: unknown }).markdown;
+      if (typeof markdown === 'string') cards.push(markdown);
+    }
+  }
+  return cards;
 }
 
 function buildFrontmatter(data: Record<string, unknown>): string {

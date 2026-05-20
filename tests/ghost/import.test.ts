@@ -1238,6 +1238,71 @@ describe('importGhostExport — Koenig card comment fences', () => {
     expect(md).toContain('## Heading');
     expect(md).toContain('Body paragraph.');
   });
+
+  test('preserves raw lexical markdown card payload when html is also present', async () => {
+    const rawMarkdown = [
+      'Raw heading',
+      '===========',
+      '',
+      'This keeps a [reference link][ref] and author spacing.',
+      '',
+      '[ref]: https://example.com "Reference Title"',
+    ].join('\n');
+    const renderedMarkdownCard = [
+      '<!--kg-card-begin: markdown-->',
+      '<h1 id="raw-heading">Raw heading</h1>',
+      '<p>This keeps a <a href="https://example.com" title="Reference Title">reference link</a> and author spacing.</p>',
+      '<!--kg-card-end: markdown-->',
+    ].join('');
+    const lexical = JSON.stringify({
+      root: {
+        type: 'root',
+        version: 1,
+        children: [
+          {
+            type: 'markdown',
+            version: 1,
+            markdown: rawMarkdown,
+          },
+        ],
+      },
+    });
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'post-raw-markdown',
+                title: 'Raw Markdown',
+                slug: 'raw-markdown',
+                html: ['<p>Public intro.</p>', renderedMarkdownCard, '<p>Public outro.</p>'].join(
+                  '\n',
+                ),
+                lexical,
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/raw-markdown.md'), 'utf8');
+    expect(md).toContain('Public intro.');
+    expect(md).toContain('Public outro.');
+    expect(md).toContain('<!--kg-card-begin: markdown-->');
+    expect(md).toContain(rawMarkdown);
+    expect(md).toContain('<!--kg-card-end: markdown-->');
+    expect(md).not.toContain('# Raw heading');
+    expect(md).not.toContain('[reference link](https://example.com "Reference Title")');
+  });
 });
 
 describe('importGhostExport — --download-images (#128)', () => {
