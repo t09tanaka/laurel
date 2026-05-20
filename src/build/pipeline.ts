@@ -65,6 +65,7 @@ import {
 } from './output-dir.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
+import { precompressOutput } from './precompress.ts';
 import { preserveUserFiles } from './preserve.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
@@ -782,6 +783,16 @@ async function runBuild({
   await timed(profiler, 'static_passthrough', () =>
     copyStaticDir({ cwd, staticDir: config.content.static_dir, outputDir }),
   );
+
+  // Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`,
+  // `.txt`, `.map`) into `.br` + `.gz` siblings. Runs after every emitter so
+  // the static-passthrough overrides land first and get compressed alongside
+  // the generated tree, and *before* `emitBuildManifest` so the companion
+  // files are part of the deploy manifest's hash list. Gated by
+  // `[build].precompress` (default false; flip on for production deploys).
+  if (config.build.precompress) {
+    await timed(profiler, 'precompress', () => precompressOutput({ outputDir, enabled: true }));
+  }
 
   if (profiler) {
     await writeProfile(outputDir, profiler);

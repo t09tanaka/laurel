@@ -373,6 +373,12 @@ export const configSchema = z
           .describe(
             'Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace and strips comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing.',
           ),
+        precompress: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`, `.txt`, `.map`) with Brotli (quality 11) and Gzip (level 9), emitting `<file>.br` and `<file>.gz` siblings. Static hosts that support `brotli_static` / `gzip_static` (Cloudflare Pages, Netlify, nginx) serve the precompressed copy directly when `Accept-Encoding` matches, skipping per-request compression. Off by default because Brotli q=11 adds noticeable build time on large sites; flip on for production builds where transfer size matters more than rebuild latency. Files below 256 bytes are skipped (envelope overhead beats savings) and already-encoded outputs (`.br` / `.gz`) are excluded from a rerun.',
+          ),
         csp_nonce: z
           .string()
           .regex(

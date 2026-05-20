@@ -78,12 +78,19 @@ export interface HtmlOutput {
 }
 
 // Batched companion to writeHtml. Validation happens up front so an escape
-// attempt anywhere in `outputs` rejects before any file is written. The actual
-// disk work is then split into fixed-size chunks: within a chunk parent dirs
-// are deduped and `Bun.write` fans out via `Promise.all`; chunks run
-// sequentially so the per-chunk HTML strings drop out of the live set before
-// the next batch starts. For a 10k-route site this caps peak retained HTML at
-// roughly WRITE_BATCH_SIZE entries instead of the full 10k.
+// attempt anywhere in `outputs` rejects before any file is written.
+//
+// Parent directories are deduped across the **entire** batch and created in a
+// single up-front `ensureDirs` pass. ensureDir is `mkdir -p` and the cost is
+// dominated by the per-call syscall: for a 10k-route site with ~50 unique
+// output directories this collapses what used to be O(routes / chunk_size)
+// ensureDirs calls (one per chunk) into a single mkdir fan-out. See #535.
+//
+// The actual disk work is then split into fixed-size chunks: within a chunk
+// `Bun.write` fans out via `Promise.all`; chunks run sequentially so the
+// per-chunk HTML strings drop out of the live set before the next batch
+// starts. For a 10k-route site this caps peak retained HTML at roughly
+// WRITE_BATCH_SIZE entries instead of the full 10k.
 //
 // `Bun.write` is preferred over `node:fs.writeFile` here: it bypasses libuv's
 // per-call allocations and is materially faster for many small files, which is
@@ -91,22 +98,18 @@ export interface HtmlOutput {
 export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): Promise<void> {
   if (outputs.length === 0) return;
   const dests: string[] = new Array(outputs.length);
+  const allDirs = new Set<string>();
   for (let i = 0; i < outputs.length; i++) {
     const entry = outputs[i];
     if (entry === undefined) throw new Error('writeHtmlBatch: output entry missing');
     const dest = join(outputDir, entry.outputPath);
     assertWithinOutputDir(outputDir, dest);
     dests[i] = dest;
+    allDirs.add(dirname(dest));
   }
+  await ensureDirs(allDirs);
   for (let start = 0; start < outputs.length; start += WRITE_BATCH_SIZE) {
     const end = Math.min(start + WRITE_BATCH_SIZE, outputs.length);
-    const chunkDirs: string[] = new Array(end - start);
-    for (let i = start; i < end; i++) {
-      const dest = dests[i];
-      if (dest === undefined) throw new Error('writeHtmlBatch: dest missing for output');
-      chunkDirs[i - start] = dirname(dest);
-    }
-    await ensureDirs(chunkDirs);
     await Promise.all(
       Array.from({ length: end - start }, (_, j) => {
         const i = start + j;

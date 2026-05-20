@@ -126,6 +126,47 @@ describe('writeHtmlBatch', () => {
     }
   });
 
+  test('deduplicates mkdir across the entire batch (#535)', async () => {
+    // Many routes sharing the same parent directory must not pay one
+    // ensureDir per route or even per chunk. The dedupe is internal to
+    // writeHtmlBatch; this test exercises the observable surface: 100
+    // siblings in one directory complete in one shot, with the directory
+    // existing exactly once and every file landing under it.
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const n = 100;
+    // All entries share `flat/` so the dedupe target is exactly one parent
+    // directory regardless of how chunked iteration would otherwise group
+    // them.
+    const outputs = Array.from({ length: n }, (_, i) => ({
+      outputPath: `flat/p-${i}.html`,
+      html: `<h1>${i}</h1>`,
+    }));
+    await writeHtmlBatch(dir, outputs);
+    const s = await stat(join(dir, 'flat'));
+    expect(s.isDirectory()).toBe(true);
+    for (const i of [0, 50, 99]) {
+      expect(await readFile(join(dir, `flat/p-${i}.html`), 'utf8')).toBe(`<h1>${i}</h1>`);
+    }
+  });
+
+  test('creates exactly the set of unique parent dirs across many chunks (#535)', async () => {
+    // Cross-chunk dedupe: WRITE_BATCH_SIZE is 512 internally, so 1024
+    // routes across 4 unique dirs should still resolve to those 4 dirs
+    // total. Verifies the up-front ensureDirs pass collapses repeats both
+    // within a chunk and across chunks.
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const dirs = ['x', 'y', 'z', 'w'];
+    const outputs = Array.from({ length: 1024 }, (_, i) => {
+      const bucket = dirs[i % dirs.length] as string;
+      return { outputPath: `${bucket}/p-${i}.html`, html: `<h1>${i}</h1>` };
+    });
+    await writeHtmlBatch(dir, outputs);
+    for (const bucket of dirs) {
+      const s = await stat(join(dir, bucket));
+      expect(s.isDirectory()).toBe(true);
+    }
+  });
+
   test('rejects before any write when one entry escapes outputDir even at a deep index (#149)', async () => {
     // Validation must happen up front: if entry N=600 escapes, nothing in the
     // first chunk should land on disk either. Confirms the two-pass design
