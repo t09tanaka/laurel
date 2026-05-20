@@ -3030,3 +3030,123 @@ describe('importGhostExport — code injection opt-in (#561)', () => {
     expect(footMd).toContain('codeinjection_foot: "<script>alert(1)</script>"');
   });
 });
+
+describe('importGhostExport — parallel render and write (#522, #523)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-parallel-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('many distinct posts write to disk and the totals match the input count (#522)', async () => {
+    // Backlog #522: serial writeFile per post was 150s at 50k posts. The
+    // bounded fan-out has to produce exactly the same set of output files
+    // as the serial implementation did — duplicates or drops would surface
+    // as a mismatched count or a missing slug.
+    const total = 200;
+    const posts = Array.from({ length: total }, (_, i) => ({
+      slug: `parallel-${i}`,
+      title: `Parallel ${i}`,
+      html: `<p>Body number ${i}.</p>`,
+    }));
+    await writeFile(exportFile, makeExport(posts));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(total);
+
+    const entries = await readdir(join(cwd, 'content/posts'));
+    expect(entries.length).toBe(total);
+    // Spot-check both ends so a mid-batch drop would surface.
+    expect(await readFile(join(cwd, 'content/posts/parallel-0.md'), 'utf8')).toContain(
+      'title: "Parallel 0"',
+    );
+    expect(await readFile(join(cwd, 'content/posts/parallel-199.md'), 'utf8')).toContain(
+      'Body number 199.',
+    );
+  });
+
+  test('turndown body rendering is consistent under the parallel fan-out (#523)', async () => {
+    // Backlog #523: turndown was called sync in a serial loop. Wrapping
+    // it in pLimit-driven parallelism preserves output bytes — same HTML
+    // in, same Markdown out, regardless of which task happens to resolve
+    // first. Use a body with several inline elements so we'd notice a
+    // regression that drops a rule (e.g. only sometimes applies <strong>).
+    const total = 60;
+    const posts = Array.from({ length: total }, (_, i) => ({
+      slug: `turndown-${i}`,
+      title: `Turndown ${i}`,
+      html: `<p>Para <strong>${i}</strong> with <em>emphasis</em> and a <a href="/x">link</a>.</p>`,
+    }));
+    await writeFile(exportFile, makeExport(posts));
+
+    await importGhostExport({ cwd, file: exportFile });
+
+    for (let i = 0; i < total; i++) {
+      const md = await readFile(join(cwd, `content/posts/turndown-${i}.md`), 'utf8');
+      expect(md).toContain(`Para **${i}** with _emphasis_ and a [link](/x).`);
+    }
+  });
+
+  test('intra-export slug collisions are still detected under the parallel path (#1138, #522)', async () => {
+    // The race window between writtenThisRun.has and the actual write
+    // could let two same-slug posts both pass the gate without the
+    // claimedInRun guard. Verify the original "first occurrence wins"
+    // contract survives.
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'dup', title: 'First' },
+        { slug: 'dup', title: 'Second' },
+        { slug: 'dup', title: 'Third' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.slugCollisions).toBe(2);
+    expect(await readFile(join(cwd, 'content/posts/dup.md'), 'utf8')).toContain('title: "First"');
+  });
+
+  test('rename policy under parallel writes still picks unique numeric suffixes (#522)', async () => {
+    // The rename branch walks nextAvailablePath, which has to see both the
+    // writtenThisRun claims AND the on-disk state. Three same-slug posts
+    // must land on three distinct files.
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'shared', title: 'First' },
+        { slug: 'shared', title: 'Second' },
+        { slug: 'shared', title: 'Third' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'rename',
+    });
+
+    expect(summary.posts).toBe(3);
+    expect(summary.renamed).toBe(2);
+    expect(summary.slugCollisions).toBe(0);
+    const a = await readFile(join(cwd, 'content/posts/shared.md'), 'utf8');
+    const b = await readFile(join(cwd, 'content/posts/shared-2.md'), 'utf8');
+    const c = await readFile(join(cwd, 'content/posts/shared-3.md'), 'utf8');
+    const titles = new Set([a, b, c].map((md) => md.match(/title: "(\w+)"/)?.[1] ?? ''));
+    expect(titles).toEqual(new Set(['First', 'Second', 'Third']));
+  });
+});

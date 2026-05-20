@@ -31,6 +31,13 @@ export async function emitRss(opts: {
   const base = config.site.url.replace(/\/$/, '');
   const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
   const totalPages = Math.max(1, Math.ceil(content.posts.length / perPage));
+  // Ghost's default-on behavior would inline post.html into every <item>,
+  // which makes 10k-item feeds reach hundreds of MB. Default `false` keeps
+  // the feed lean: only the excerpt ships, and aggregators that need the
+  // body re-fetch the post URL (which Ghost-compat readers do already).
+  // Opt back into `true` when the audience is hard-aggregated (Newsletter
+  // generators, archive crawlers) and bandwidth is not a concern. See #517.
+  const fullContent = config.components.rss.full_content;
 
   const lastBuildDate = computeLastBuildDate(content.posts);
   const imageBlock = renderChannelImage(config, base);
@@ -38,7 +45,7 @@ export async function emitRss(opts: {
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = content.posts.slice(start, start + perPage);
-    const items = pagePosts.map((post) => renderItem(post, base)).join('');
+    const items = pagePosts.map((post) => renderItem(post, base, fullContent)).join('');
     const filename = rssPageFilename(page);
     const selfHref = `${base}/${filename}`;
     const atomLinks: string[] = [
@@ -114,9 +121,16 @@ function rssPageFilename(page: number): string {
   return page === 1 ? 'rss.xml' : `rss-${page}.xml`;
 }
 
-function renderItem(post: ContentGraph['posts'][number], base: string): string {
+function renderItem(
+  post: ContentGraph['posts'][number],
+  base: string,
+  fullContent: boolean,
+): string {
   const link = `${base}${new URL(post.url).pathname}`;
-  const html = absolutizeHtmlUrls(post.feed_html, base);
+  // Absolutise only when we plan to ship the HTML body. Skipping the regex
+  // walk when `fullContent=false` is the whole point of #517: at 10k items
+  // the rewrite-then-discard cost was the second-largest slice of feed time.
+  const html = fullContent ? absolutizeHtmlUrls(post.feed_html, base) : '';
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
@@ -148,7 +162,12 @@ function renderItem(post: ContentGraph['posts'][number], base: string): string {
   // HTML/special chars) and content:encoded (full HTML body). Entity-escaping
   // makes Feedly / NetNewsWire show literal <p> tags as text. See issue #427.
   parts.push(`<description><![CDATA[${escapeCdata(post.feed_excerpt)}]]></description>`);
-  parts.push(`<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`);
+  // `<content:encoded>` is opt-in via [components.rss].full_content. Default
+  // off keeps feeds an order of magnitude smaller; subscribers who want the
+  // body see the post link and re-fetch the canonical URL. See backlog #517.
+  if (fullContent) {
+    parts.push(`<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`);
+  }
   parts.push('</item>');
   return parts.join('');
 }

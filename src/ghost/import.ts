@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
+import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
@@ -32,6 +33,16 @@ export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', '
 export const DEFAULT_MAX_IMPORT_JSON_BYTES = 256 * 1024 * 1024;
 
 const turndown = createGhostTurndown();
+
+// Fan-out for the per-post render/write phases in importFromResolvedInput.
+// Turndown is CPU-bound and synchronous, so the parallelism doesn't get us
+// multi-core (JS is single-threaded without worker_threads), but it does
+// interleave the per-post network rewrites (image downloader) with turndown
+// work in the next post. The write phase benefits more concretely: 32 inflight
+// stat/writeFile calls turn a 50k-post serial walk (~150s) into an IO-bounded
+// one. See backlog #522 / #523. Bumping above ~64 risks fd exhaustion when
+// users also run with --download-images (which opens its own fds per fetch).
+const IMPORT_CONCURRENCY = 32;
 
 // Ghost exports replace site URLs with the literal `__GHOST_URL__` placeholder
 // in HTML bodies and image/URL fields. We rewrite to the empty string so the
@@ -394,103 +405,76 @@ async function importFromResolvedInput(
       })
       .filter((slug): slug is string => slug.length > 0);
 
+  // Track which base dirs we've already ensured so we don't pay ensureDir
+  // per-post. We can't pre-create posts/pages/tags/authors upfront because
+  // existing tests expect empty kinds to leave their dir uncreated (e.g.
+  // "post with no recoverable slug or title is skipped" asserts that no
+  // content/posts dir exists when zero posts pass through). Lazy init drops
+  // ensureDir from O(N) to O(kinds-used).
+  const ensuredDirs = new Set<string>();
+  const ensureDirOnce = async (dir: string): Promise<void> => {
+    if (ensuredDirs.has(dir)) return;
+    ensuredDirs.add(dir);
+    await ensureDir(dir);
+  };
+
+  // Phase A: render bodies and frontmatter in parallel. Each per-post task
+  // runs the CPU-bound turndown step plus the per-post downloader rewrites
+  // (each rewrite hits the network when --download-images is set). This is
+  // the slice that #523 / #522 flagged as serial-bottlenecked. Slug-collision
+  // detection still happens sequentially in Phase B so behavior is
+  // deterministic regardless of which task finishes first here.
+  const renderLimit = pLimit(IMPORT_CONCURRENCY);
+  const renderedPosts = await Promise.all(
+    posts.map((post) =>
+      renderLimit(() =>
+        renderPostRecord(post, {
+          opts,
+          counters,
+          keepCodeInjection,
+          downloader,
+          urlRewriter,
+          tagSlugsForPost,
+          authorSlugsForPost,
+        }),
+      ),
+    ),
+  );
+
   let postCount = 0;
   let pageCount = 0;
-  for (const post of posts) {
-    if (post.status && post.status !== 'published' && post.status !== 'draft') {
-      counters.statusFiltered += 1;
-      continue;
-    }
-    const isPage = post.type === 'page';
-    const slug = safeSlug(post.slug) || safeSlug(post.title);
-    if (!slug) {
-      logger.warn(
-        `Skipping post ${post.id ?? '(no id)'}: cannot derive a safe slug from slug=${JSON.stringify(post.slug)} title=${JSON.stringify(post.title)}`,
-      );
-      continue;
-    }
-    recordSlugChange(isPage ? 'page' : 'post', post.slug, slug);
-    if (post.status === 'draft') counters.drafts += 1;
-    const dir = isPage ? 'content/pages' : 'content/posts';
-    const rawBody = renderPostBody(post);
-    if (rawBody === '') counters.bodiesEmpty += 1;
-    const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
-    const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
-    const postLabel = `post ${JSON.stringify(post.slug ?? post.id ?? '')}`;
-    const feature_image = sanitizeImageUrl(
-      downloader
-        ? await downloader.rewriteField(post.feature_image ?? undefined)
-        : (post.feature_image ?? undefined),
-      'feature_image',
-      postLabel,
-    );
-    const og_image = sanitizeImageUrl(
-      downloader
-        ? await downloader.rewriteField(post.og_image ?? undefined)
-        : (post.og_image ?? undefined),
-      'og_image',
-      postLabel,
-    );
-    const twitter_image = sanitizeImageUrl(
-      downloader
-        ? await downloader.rewriteField(post.twitter_image ?? undefined)
-        : (post.twitter_image ?? undefined),
-      'twitter_image',
-      postLabel,
-    );
-    const rawHead = post.codeinjection_head ?? undefined;
-    const rawFoot = post.codeinjection_foot ?? undefined;
-    const hasInjectedCode =
-      (typeof rawHead === 'string' && rawHead.length > 0) ||
-      (typeof rawFoot === 'string' && rawFoot.length > 0);
-    if (hasInjectedCode && !keepCodeInjection) {
-      counters.codeInjectionSkipped += 1;
-    }
-    const codeinjection_head = keepCodeInjection ? rawHead : undefined;
-    const codeinjection_foot = keepCodeInjection ? rawFoot : undefined;
-    const frontmatter = buildFrontmatter({
-      slug,
-      title: post.title,
-      date: post.published_at ?? post.created_at ?? undefined,
-      updated_at: post.updated_at ?? undefined,
-      featured: !!post.featured,
-      feature_image,
-      feature_image_alt: post.feature_image_alt ?? undefined,
-      feature_image_caption: post.feature_image_caption ?? undefined,
-      visibility: post.visibility ?? 'public',
-      status: post.status ?? 'published',
-      tags: tagSlugsForPost(post.id),
-      authors: authorSlugsForPost(post.id),
-      custom_excerpt: post.custom_excerpt ?? undefined,
-      meta_title: post.meta_title ?? undefined,
-      meta_description: post.meta_description ?? undefined,
-      og_title: post.og_title ?? undefined,
-      og_description: post.og_description ?? undefined,
-      og_image,
-      twitter_title: post.twitter_title ?? undefined,
-      twitter_description: post.twitter_description ?? undefined,
-      twitter_image,
-      canonical_url: post.canonical_url ?? undefined,
-      codeinjection_head,
-      codeinjection_foot,
-    });
-    const baseDir = join(opts.cwd, dir);
-    const dest = join(baseDir, `${slug}.md`);
-    assertWithin(baseDir, dest);
-    if (!dryRun) await ensureDir(baseDir);
-    const written = await writeWithConflictPolicy(
-      dest,
-      `${frontmatter}\n\n${body}\n`,
+  // Phase B: sequential conflict claim + parallel writes. The
+  // `writtenThisRun.has`/`add` cycle has to be sync to give first-occurrence
+  // wins (#1138), but once a destination is claimed the actual writeFile is
+  // queued onto the same fan-out as the body renderer. Rename policy stays
+  // serial because nextAvailablePath() needs an accurate view of
+  // writtenThisRun + the live filesystem to pick the next numeric suffix.
+  const writeLimit = pLimit(IMPORT_CONCURRENCY);
+  const writeQueue: Array<Promise<void>> = [];
+  for (const r of renderedPosts) {
+    if (!r) continue;
+    recordSlugChange(r.isPage ? 'page' : 'post', r.originalSlug, r.slug);
+    if (!dryRun) await ensureDirOnce(dirname(r.dest));
+    const written = await dispatchWrite(
+      r.dest,
+      r.contents,
       onConflict,
       counters,
       dryRun,
       writtenThisRun,
+      writeQueue,
+      writeLimit,
     );
     if (!written) continue;
-    if (isPage) pageCount += 1;
+    if (r.isPage) pageCount += 1;
     else postCount += 1;
   }
+  await Promise.all(writeQueue);
 
+  // Tags and authors are much smaller than posts in any real Ghost export
+  // (O(hundreds), not O(tens of thousands)), so we don't bother with a
+  // separate render-fanout phase. We do still parallelize the writes via the
+  // same writeLimit so a 500-tag export doesn't pay 500*roundtrip serially.
   let tagCount = 0;
   for (const tag of tags) {
     if (!tag.description && !tag.feature_image && !tag.meta_title) continue;
@@ -505,7 +489,6 @@ async function importFromResolvedInput(
     const baseDir = join(opts.cwd, 'content/tags');
     const dest = join(baseDir, `${tagSlug}.md`);
     assertWithin(baseDir, dest);
-    if (!dryRun) await ensureDir(baseDir);
     const tagFeatureImage = sanitizeImageUrl(
       downloader
         ? await downloader.rewriteField(tag.feature_image ?? undefined)
@@ -521,13 +504,16 @@ async function importFromResolvedInput(
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
     });
-    const written = await writeWithConflictPolicy(
+    if (!dryRun) await ensureDirOnce(baseDir);
+    const written = await dispatchWrite(
       dest,
       `${frontmatter}\n`,
       onConflict,
       counters,
       dryRun,
       writtenThisRun,
+      writeQueue,
+      writeLimit,
     );
     if (written) tagCount += 1;
   }
@@ -545,7 +531,6 @@ async function importFromResolvedInput(
     const baseDir = join(opts.cwd, 'content/authors');
     const dest = join(baseDir, `${userSlug}.md`);
     assertWithin(baseDir, dest);
-    if (!dryRun) await ensureDir(baseDir);
     const userLabel = `author ${JSON.stringify(user.slug ?? user.id ?? '')}`;
     const profileImage = sanitizeImageUrl(
       downloader
@@ -574,16 +559,23 @@ async function importFromResolvedInput(
       meta_title: user.meta_title ?? undefined,
       meta_description: user.meta_description ?? undefined,
     });
-    const written = await writeWithConflictPolicy(
+    if (!dryRun) await ensureDirOnce(baseDir);
+    const written = await dispatchWrite(
       dest,
       `${frontmatter}\n`,
       onConflict,
       counters,
       dryRun,
       writtenThisRun,
+      writeQueue,
+      writeLimit,
     );
     if (written) authorCount += 1;
   }
+  // Drain queued writes before reading the resulting filesystem (asset copy,
+  // redirect emission). Without this, copyGhostAssets or writeRedirectMaps
+  // could race against still-pending Phase B writes.
+  await Promise.all(writeQueue);
 
   const assetsCopied = resolved.assetsDir
     ? await copyGhostAssets(resolved.assetsDir, opts.cwd, resolved.assetsDirIsExplicit, dryRun)
@@ -833,23 +825,42 @@ async function copyGhostAssets(
   return total;
 }
 
-async function writeWithConflictPolicy(
+// Decide what to do for a given (dest, content) pair, then dispatch the
+// resulting filesystem work to a bounded parallel queue. The caller awaits
+// the *decision*; the actual writeFile resolves later via `writeQueue`. This
+// is the split that lets a 50k-post import go IO-bound instead of being
+// serialized on `await writeFile` round-trips. See backlog #522.
+//
+// Sequencing rules:
+// 1. The `writtenThisRun` claim is performed synchronously (after the
+//    `await pathExists` in the rename branch). Two posts in the same export
+//    that resolve to the same dest will see the first claim before the
+//    second runs its check — JS is single-threaded between awaits — which
+//    preserves the "first occurrence wins" semantics (#1138).
+// 2. Rename policy holds the loop iteration for the `nextAvailablePath`
+//    scan because the next post may need the freshly-bumped suffix. Skip
+//    and overwrite policies dispatch their writes async.
+// 3. Counters and stderr messages are emitted by the caller before
+//    dispatch so summary output stays deterministic.
+async function dispatchWrite(
   dest: string,
   contents: string,
   onConflict: OnConflict,
   counters: { skipped: number; overwritten: number; renamed: number; slugCollisions: number },
   dryRun: boolean,
   writtenThisRun: Set<string>,
+  writeQueue: Array<Promise<void>>,
+  writeLimit: <T>(fn: () => Promise<T>) => Promise<T>,
 ): Promise<boolean> {
   // Intra-export slug collision: another entity in the same import run has
   // already claimed this destination. Ghost rejects duplicate slugs in normal
   // admin flows, so a duplicate inside a single export indicates a malformed
   // or tampered source that should not be allowed to silently substitute one
   // entity for another (#1138). For `skip` and `overwrite` policies we refuse
-  // the second occurrence (first-write wins) regardless of the user's choice;
-  // for `rename` we honor the policy because it preserves both items in
-  // separately-named files. The collision is surfaced via the
-  // `slugCollisions` counter so operators can audit the source export.
+  // the second occurrence regardless of the user's choice; for `rename` we
+  // honor the policy because it preserves both items in separately-named
+  // files. The collision is surfaced via the `slugCollisions` counter so
+  // operators can audit the source export.
   if (writtenThisRun.has(dest) && onConflict !== 'rename') {
     process.stderr.write(
       `Slug collision within Ghost export (refusing to overwrite item already written in this run): ${dest}\n`,
@@ -857,9 +868,18 @@ async function writeWithConflictPolicy(
     counters.slugCollisions += 1;
     return false;
   }
-  if (!(await pathExists(dest))) {
-    if (!dryRun) await writeFile(dest, contents, 'utf8');
+  // Treat "already claimed in this run" as equivalent to "already on disk".
+  // Without this, a second post writing to the same dest can race past the
+  // pathExists check (the queued first write hasn't flushed yet) and we'd
+  // either double-write or skip rename's numeric-suffix branch. See #1138.
+  const claimedInRun = writtenThisRun.has(dest);
+  const existsOnDisk = claimedInRun ? true : await pathExists(dest);
+  if (!existsOnDisk) {
+    // Claim synchronously before dispatching the async write so a second
+    // post with the same slug arriving on the next loop iteration sees the
+    // claim and routes through the collision branch above.
     writtenThisRun.add(dest);
+    if (!dryRun) writeQueue.push(writeLimit(() => writeFile(dest, contents, 'utf8')));
     return true;
   }
   switch (onConflict) {
@@ -869,19 +889,146 @@ async function writeWithConflictPolicy(
       return false;
     case 'overwrite':
       process.stderr.write(`Overwrote: ${dest}\n`);
-      if (!dryRun) await writeFile(dest, contents, 'utf8');
       counters.overwritten += 1;
       writtenThisRun.add(dest);
+      if (!dryRun) writeQueue.push(writeLimit(() => writeFile(dest, contents, 'utf8')));
       return true;
     case 'rename': {
       const renamed = await nextAvailablePath(dest, writtenThisRun);
       process.stderr.write(`Renamed (conflict with ${dest}): ${renamed}\n`);
-      if (!dryRun) await writeFile(renamed, contents, 'utf8');
       counters.renamed += 1;
       writtenThisRun.add(renamed);
+      if (!dryRun) writeQueue.push(writeLimit(() => writeFile(renamed, contents, 'utf8')));
       return true;
     }
   }
+}
+
+interface RenderedPostRecord {
+  isPage: boolean;
+  slug: string;
+  originalSlug: unknown;
+  dest: string;
+  contents: string;
+}
+
+interface RenderPostContext {
+  opts: ImportGhostOptions;
+  counters: {
+    skipped: number;
+    overwritten: number;
+    renamed: number;
+    drafts: number;
+    statusFiltered: number;
+    bodiesEmpty: number;
+    codeInjectionSkipped: number;
+    slugCollisions: number;
+  };
+  keepCodeInjection: boolean;
+  downloader: GhostImageDownloader | undefined;
+  urlRewriter: GhostUrlRewriter | undefined;
+  tagSlugsForPost: (postId: string) => string[];
+  authorSlugsForPost: (postId: string) => string[];
+}
+
+// Render a single Ghost post into a (dest, frontmatter+body) pair, or
+// `undefined` if the post should be skipped (filtered status, missing slug).
+// Designed to run in parallel via pLimit: the turndown call is sync but the
+// downloader.rewrite{Text,Field} calls are async and benefit from interleave.
+// Counters and slug-change records are mutated here; they are commutative
+// across invocations (just integer accumulators / array appends) so parallel
+// execution doesn't change the totals.
+async function renderPostRecord(
+  post: GhostPost,
+  ctx: RenderPostContext,
+): Promise<RenderedPostRecord | undefined> {
+  const { opts, counters, keepCodeInjection, downloader, urlRewriter } = ctx;
+  if (post.status && post.status !== 'published' && post.status !== 'draft') {
+    counters.statusFiltered += 1;
+    return undefined;
+  }
+  const isPage = post.type === 'page';
+  const slug = safeSlug(post.slug) || safeSlug(post.title);
+  if (!slug) {
+    logger.warn(
+      `Skipping post ${post.id ?? '(no id)'}: cannot derive a safe slug from slug=${JSON.stringify(post.slug)} title=${JSON.stringify(post.title)}`,
+    );
+    return undefined;
+  }
+  if (post.status === 'draft') counters.drafts += 1;
+  const dir = isPage ? 'content/pages' : 'content/posts';
+  const rawBody = renderPostBody(post);
+  if (rawBody === '') counters.bodiesEmpty += 1;
+  const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
+  const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
+  const postLabel = `post ${JSON.stringify(post.slug ?? post.id ?? '')}`;
+  const feature_image = sanitizeImageUrl(
+    downloader
+      ? await downloader.rewriteField(post.feature_image ?? undefined)
+      : (post.feature_image ?? undefined),
+    'feature_image',
+    postLabel,
+  );
+  const og_image = sanitizeImageUrl(
+    downloader
+      ? await downloader.rewriteField(post.og_image ?? undefined)
+      : (post.og_image ?? undefined),
+    'og_image',
+    postLabel,
+  );
+  const twitter_image = sanitizeImageUrl(
+    downloader
+      ? await downloader.rewriteField(post.twitter_image ?? undefined)
+      : (post.twitter_image ?? undefined),
+    'twitter_image',
+    postLabel,
+  );
+  const rawHead = post.codeinjection_head ?? undefined;
+  const rawFoot = post.codeinjection_foot ?? undefined;
+  const hasInjectedCode =
+    (typeof rawHead === 'string' && rawHead.length > 0) ||
+    (typeof rawFoot === 'string' && rawFoot.length > 0);
+  if (hasInjectedCode && !keepCodeInjection) {
+    counters.codeInjectionSkipped += 1;
+  }
+  const codeinjection_head = keepCodeInjection ? rawHead : undefined;
+  const codeinjection_foot = keepCodeInjection ? rawFoot : undefined;
+  const frontmatter = buildFrontmatter({
+    slug,
+    title: post.title,
+    date: post.published_at ?? post.created_at ?? undefined,
+    updated_at: post.updated_at ?? undefined,
+    featured: !!post.featured,
+    feature_image,
+    feature_image_alt: post.feature_image_alt ?? undefined,
+    feature_image_caption: post.feature_image_caption ?? undefined,
+    visibility: post.visibility ?? 'public',
+    status: post.status ?? 'published',
+    tags: ctx.tagSlugsForPost(post.id),
+    authors: ctx.authorSlugsForPost(post.id),
+    custom_excerpt: post.custom_excerpt ?? undefined,
+    meta_title: post.meta_title ?? undefined,
+    meta_description: post.meta_description ?? undefined,
+    og_title: post.og_title ?? undefined,
+    og_description: post.og_description ?? undefined,
+    og_image,
+    twitter_title: post.twitter_title ?? undefined,
+    twitter_description: post.twitter_description ?? undefined,
+    twitter_image,
+    canonical_url: post.canonical_url ?? undefined,
+    codeinjection_head,
+    codeinjection_foot,
+  });
+  const baseDir = join(opts.cwd, dir);
+  const dest = join(baseDir, `${slug}.md`);
+  assertWithin(baseDir, dest);
+  return {
+    isPage,
+    slug,
+    originalSlug: post.slug,
+    dest,
+    contents: `${frontmatter}\n\n${body}\n`,
+  };
 }
 
 // Image URL fields (feature_image, og_image, twitter_image, profile_image,

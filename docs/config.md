@@ -243,7 +243,8 @@ RSS feed component.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `components.rss.enabled` | `boolean` | no | `true` | Emit an `rss.xml` feed. |
-| `components.rss.items` | `number` | no | `20` | Maximum number of posts included in the feed. |
+| `components.rss.items` | `number` | no | `20` | Maximum number of posts per RSS page; overflow paginates into rss-N.xml. |
+| `components.rss.full_content` | `boolean` | no | `false` | Include the full post HTML body in `<content:encoded>`. Default `false` emits only `<description>` with the feed excerpt; flipping to `true` mirrors Ghost behavior but inflates feed size dramatically on large blogs (see backlog #517). |
 
 ## `components.sitemap`
 

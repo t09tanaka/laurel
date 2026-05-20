@@ -122,7 +122,10 @@ describe('emitRss', () => {
 
   test('uses post.feed_html instead of post.html so paywalled bodies do not leak', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
-    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { full_content: true } },
+    });
     const content = makeGraph();
     const post = content.posts[0];
     if (!post) throw new Error('expected fixture post');
@@ -254,7 +257,10 @@ describe('emitRss', () => {
 
   test('splits literal "]]>" inside post html so CDATA does not terminate early', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
-    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { full_content: true } },
+    });
     const content = makeGraph();
     const post = content.posts[0];
     if (!post) throw new Error('expected fixture post');
@@ -396,7 +402,10 @@ describe('emitRss', () => {
   test('wraps content:encoded HTML in CDATA, not entity-escaped', async () => {
     // Issue #427: entity-escaping makes Feedly show literal <p> tags as text.
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
-    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { full_content: true } },
+    });
     const content = makeGraph();
     const post = content.posts[0];
     if (!post) throw new Error('expected fixture post');
@@ -535,6 +544,48 @@ describe('emitRss', () => {
     const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
 
     expect(xml).not.toContain('<image>');
+  });
+
+  test('full_content=false (default) emits only <description>, never <content:encoded>', async () => {
+    // Backlog #517: 10k items * 30KB inline body = 300MB feeds.
+    // Default keeps the feed lean; aggregators that need the body re-fetch.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.feed_html = '<p>Body that must NOT ship in the feed when full_content is off.</p>';
+    post.feed_excerpt = 'Lean excerpt only.';
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<description><![CDATA[Lean excerpt only.]]></description>');
+    expect(xml).not.toContain('<content:encoded>');
+    expect(xml).not.toContain('Body that must NOT ship');
+  });
+
+  test('full_content=true emits <content:encoded> with the post HTML body', async () => {
+    // Backlog #517: opt-in for the Ghost-default behavior. Bandwidth-heavy
+    // but useful when aggregators rely on the full body in the feed.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { full_content: true } },
+    });
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.feed_html = '<p>Full body should ship.</p>';
+    post.feed_excerpt = 'short';
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<description><![CDATA[short]]></description>');
+    expect(xml).toContain(
+      '<content:encoded><![CDATA[<p>Full body should ship.</p>]]></content:encoded>',
+    );
   });
 });
 

@@ -616,7 +616,16 @@ export const configSchema = z
         rss: z
           .object({
             enabled: z.boolean().default(true).describe('Emit an `rss.xml` feed.'),
-            items: z.number().default(20).describe('Maximum number of posts included in the feed.'),
+            items: z
+              .number()
+              .default(20)
+              .describe('Maximum number of posts per RSS page; overflow paginates into rss-N.xml.'),
+            full_content: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Include the full post HTML body in `<content:encoded>`. Default `false` emits only `<description>` with the feed excerpt; flipping to `true` mirrors Ghost behavior but inflates feed size dramatically on large blogs (see backlog #517).',
+              ),
           })
           .strict()
           .default({})

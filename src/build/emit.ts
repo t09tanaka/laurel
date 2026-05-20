@@ -1,4 +1,4 @@
-import { copyFile, writeFile } from 'node:fs/promises';
+import { copyFile, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
@@ -185,7 +185,7 @@ interface CopyTreeOptions {
 }
 
 async function copyTree(source: string, target: string, opts: CopyTreeOptions): Promise<number> {
-  const tasks: Array<{ src: string; dst: string }> = [];
+  const tasks: Array<{ src: string; dst: string; size: number; mtimeMs: number }> = [];
   let rels: string[] = [];
   try {
     rels = await scanGlob('**/*', { cwd: source, onlyFiles: true });
@@ -198,22 +198,59 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
       continue;
     }
     const src = join(source, rel);
+    let srcStat: { size: number; mtimeMs: number };
+    try {
+      const s = await stat(src);
+      srcStat = { size: s.size, mtimeMs: s.mtimeMs };
+    } catch {
+      // race: file vanished between scan and stat. Skip silently — the glob
+      // result is a snapshot, the actual fs is the source of truth.
+      continue;
+    }
     if (opts.maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
-      const size = Bun.file(src).size;
-      if (size > opts.maxImageBytes) {
+      if (srcStat.size > opts.maxImageBytes) {
         logger.warn(
-          `Skipping oversized image ${src}: ${formatBytes(size)} exceeds build.max_image_bytes=${formatBytes(opts.maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
+          `Skipping oversized image ${src}: ${formatBytes(srcStat.size)} exceeds build.max_image_bytes=${formatBytes(opts.maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
         );
         continue;
       }
     }
-    tasks.push({ src, dst: join(target, rel) });
+    tasks.push({ src, dst: join(target, rel), size: srcStat.size, mtimeMs: srcStat.mtimeMs });
   }
   if (tasks.length === 0) return 0;
 
   await ensureDirs(tasks.map((t) => dirname(t.dst)));
   const limit = pLimit(EMIT_CONCURRENCY);
-  await Promise.all(tasks.map((t) => limit(() => copyFile(t.src, t.dst))));
+  // Skip-unchanged: when the destination already has a file with matching
+  // size and mtime, content/* asset copies are no-ops. On rebuilds this
+  // turns the 50s tail (5000 images × 10ms serial copyFile) into a stat-only
+  // walk; on first builds every file falls through to the actual copy.
+  // mtime equality is the same heuristic rsync / tar / make use; full
+  // content hashing is left to the optional incremental cache (out of scope
+  // for #520).
+  await Promise.all(
+    tasks.map((t) =>
+      limit(async () => {
+        try {
+          const dstStat = await stat(t.dst);
+          if (dstStat.size === t.size && dstStat.mtimeMs === t.mtimeMs) return;
+        } catch {
+          // missing destination is the normal first-build path
+        }
+        await copyFile(t.src, t.dst);
+        // copyFile does not preserve mtime, so stamp the destination with
+        // the source's mtime. Without this the skip-unchanged check on the
+        // next build would always miss (dst mtime is the copy time).
+        try {
+          const mtime = new Date(t.mtimeMs);
+          await utimes(t.dst, mtime, mtime);
+        } catch {
+          // utimes failing (read-only fs, permission) is non-fatal: the file
+          // is correct, only the rebuild fast-path won't kick in next time.
+        }
+      }),
+    ),
+  );
   return tasks.length;
 }
 

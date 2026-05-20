@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { copyAssets, copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
@@ -295,5 +295,92 @@ describe('copyContentAssets', () => {
     });
     expect(count).toBe(1);
     expect(existsSync(join(outputDir, 'content/images/at-limit.png'))).toBe(true);
+  });
+
+  test('parallel copy: many files end up in the destination tree (#520)', async () => {
+    // Backlog #520: serial copyFile over 5000 images was 50s of latency.
+    // The bounded fan-out keeps file count exact across runs; this test
+    // exercises a count well above the concurrency limit (32) so any
+    // races would surface as missing or duplicated outputs.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-parallel-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-parallel-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    const total = 200;
+    for (let i = 0; i < total; i++) {
+      await writeFile(join(cwd, 'content/images', `img-${i}.png`), `payload-${i}`);
+    }
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+    expect(count).toBe(total);
+    for (let i = 0; i < total; i++) {
+      const path = join(outputDir, 'content/images', `img-${i}.png`);
+      expect(await readFile(path, 'utf8')).toBe(`payload-${i}`);
+    }
+  });
+
+  test('skip-unchanged: a second run does not rewrite files whose mtime+size match (#520)', async () => {
+    // Backlog #520: rebuild cost is dominated by re-copying unchanged
+    // content. After the first copy we stamp the destination's mtime to
+    // the source's mtime, so the second run hits the stat-compare fast
+    // path and the destination's mtime stays exactly as it was — which is
+    // the load-bearing observation: copyFile would bump it again.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-skip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-skip-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/stable.png'), 'STABLE');
+
+    await copyContentAssets(cwd, 'content/images', outputDir);
+    const dst = join(outputDir, 'content/images/stable.png');
+    const first = await stat(dst);
+
+    // Wait long enough that a second copyFile would observe a distinct
+    // mtime (filesystems vary, but 25ms is well above APFS/ext4 granularity).
+    await new Promise((r) => setTimeout(r, 25));
+
+    await copyContentAssets(cwd, 'content/images', outputDir);
+    const second = await stat(dst);
+    expect(second.mtimeMs).toBe(first.mtimeMs);
+    expect(await readFile(dst, 'utf8')).toBe('STABLE');
+  });
+
+  test('skip-unchanged re-copies when the source size differs (#520)', async () => {
+    // Source has been edited (size differs) -> the fast-path must miss
+    // and the new bytes need to land in the destination.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-resize-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-resize-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    const src = join(cwd, 'content/images/edited.png');
+    await writeFile(src, 'OLD');
+    await copyContentAssets(cwd, 'content/images', outputDir);
+
+    await writeFile(src, 'NEW_LARGER_CONTENT');
+    await copyContentAssets(cwd, 'content/images', outputDir);
+
+    const dst = join(outputDir, 'content/images/edited.png');
+    expect(await readFile(dst, 'utf8')).toBe('NEW_LARGER_CONTENT');
+  });
+
+  test('skip-unchanged re-copies when the source mtime differs but size is identical (#520)', async () => {
+    // Same byte count, different mtime: still treat as changed. mtime is
+    // the cheap heuristic; users who want content-hash equivalence can
+    // layer the incremental-build cache on top.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-touch-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-touch-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    const src = join(cwd, 'content/images/touched.png');
+    await writeFile(src, 'AAA');
+    await copyContentAssets(cwd, 'content/images', outputDir);
+    const dst = join(outputDir, 'content/images/touched.png');
+    const firstMtime = (await stat(dst)).mtimeMs;
+
+    // Rewrite with same byte length, bump mtime forward.
+    await writeFile(src, 'BBB');
+    const future = new Date(Date.now() + 60_000);
+    await utimes(src, future, future);
+
+    await copyContentAssets(cwd, 'content/images', outputDir);
+    const second = await stat(dst);
+    expect(await readFile(dst, 'utf8')).toBe('BBB');
+    expect(second.mtimeMs).not.toBe(firstMtime);
   });
 });
