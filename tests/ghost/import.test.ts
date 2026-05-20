@@ -1072,6 +1072,73 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
     expect(authorMd).not.toContain('__GHOST_URL__');
     expect(authorMd).toContain('profile_image: "/content/images/avatar.jpg"');
   });
+
+  test('strips __GHOST_URL__ from Koenig media card URLs, srcset, and inline style URLs', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Media',
+                slug: 'media',
+                html: [
+                  '<figure class="kg-card kg-image-card">',
+                  '<img src="__GHOST_URL__/content/images/2024/01/photo.jpg" srcset="__GHOST_URL__/content/images/size/w600/photo.jpg 600w, __GHOST_URL__/content/images/photo.jpg 1200w" sizes="(min-width: 720px) 720px, 100vw" alt="Photo" />',
+                  '</figure>',
+                  '<figure class="kg-card kg-video-card">',
+                  '<div class="kg-video-container" style="background-image:url(__GHOST_URL__/content/images/2024/01/bg.jpg);--aspect-ratio: 1.777">',
+                  '<video poster="__GHOST_URL__/content/images/2024/01/poster.jpg" preload="metadata">',
+                  '<source src="__GHOST_URL__/content/media/2024/01/demo.mp4" type="video/mp4" />',
+                  '</video>',
+                  '</div>',
+                  '</figure>',
+                  '<div class="kg-card kg-audio-card">',
+                  '<img class="kg-audio-thumbnail" src="__GHOST_URL__/content/images/2024/01/audio-cover.jpg" alt="" />',
+                  '<div class="kg-audio-player-container">',
+                  '<audio src="__GHOST_URL__/content/media/2024/01/podcast.mp3"></audio>',
+                  '<div class="kg-audio-title">Episode 1</div>',
+                  '</div>',
+                  '</div>',
+                  '<div class="kg-card kg-file-card">',
+                  '<a class="kg-file-card-container" href="__GHOST_URL__/content/files/2024/01/handout.pdf">',
+                  '<div class="kg-file-card-title">Handout</div>',
+                  '</a>',
+                  '</div>',
+                  '<!--kg-card-begin: html--><div style="background-image: url(&quot;__GHOST_URL__/content/images/2024/01/html-bg.jpg&quot;)">HTML card</div><!--kg-card-end: html-->',
+                ].join(''),
+                feature_image: '__GHOST_URL__/content/images/2024/01/cover.jpg',
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(1);
+
+    const postMd = await readFile(join(cwd, 'content/posts/media.md'), 'utf8');
+    expect(postMd).not.toContain('__GHOST_URL__');
+    expect(postMd).toContain('feature_image: "/content/images/2024/01/cover.jpg"');
+    expect(postMd).toContain('src="/content/images/2024/01/photo.jpg"');
+    expect(postMd).toContain(
+      'srcset="/content/images/size/w600/photo.jpg 600w, /content/images/photo.jpg 1200w"',
+    );
+    expect(postMd).toContain('poster="/content/images/2024/01/poster.jpg"');
+    expect(postMd).toContain('src="/content/media/2024/01/demo.mp4"');
+    expect(postMd).toContain('src="/content/media/2024/01/podcast.mp3"');
+    expect(postMd).toContain('thumbnail="/content/images/2024/01/audio-cover.jpg"');
+    expect(postMd).toContain('src="/content/files/2024/01/handout.pdf"');
+    expect(postMd).toContain(
+      'style="background-image:url(&quot;/content/images/2024/01/html-bg.jpg&quot;)"',
+    );
+  });
 });
 
 describe('importGhostExport — Koenig card comment fences', () => {

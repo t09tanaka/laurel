@@ -1233,19 +1233,19 @@ async function nextAvailablePath(dest: string, writtenThisRun?: Set<string>): Pr
 
 function renderPostBody(post: GhostPost): string {
   if (post.html?.trim()) {
-    return turndown.turndown(preprocessKoenigCardFences(post.html));
+    return turndown.turndown(preprocessKoenigCardFences(stripGhostUrlPlaceholder(post.html)));
   }
   // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
   // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
   // kg-card-aware turndown pipeline can convert to Markdown (#127).
   if (post.lexical) {
-    const html = renderLexicalToHtml(post.lexical);
+    const html = stripGhostUrlPlaceholder(renderLexicalToHtml(post.lexical));
     if (html.trim()) {
       return turndown.turndown(preprocessKoenigCardFences(html));
     }
   }
   if (post.mobiledoc) {
-    const html = renderMobiledocToHtml(post.mobiledoc);
+    const html = stripGhostUrlPlaceholder(renderMobiledocToHtml(post.mobiledoc));
     if (html.trim()) {
       return turndown.turndown(preprocessKoenigCardFences(html));
     }
