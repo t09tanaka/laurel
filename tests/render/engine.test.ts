@@ -156,6 +156,41 @@ describe('buildContext', () => {
     expect(ctx.post).toBeUndefined();
   });
 
+  test('routes without pagination still expose a page-1 pagination context (issue #1709)', () => {
+    const homeRoute: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    expect(buildContext(engine, homeRoute).pagination).toEqual({ page: 1, pages: 1 });
+
+    const pageRoute: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page: makePage() },
+      meta: baseMeta,
+    };
+    expect(buildContext(engine, pageRoute).pagination).toEqual({ page: 1, pages: 1 });
+  });
+
+  test('routes with pagination preserve the route pagination object (issue #1709)', () => {
+    const pagination = makePagination(2);
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/page/2/',
+      outputPath: 'page/2/index.html',
+      template: 'home',
+      data: { pagination },
+      meta: baseMeta,
+    };
+    expect(buildContext(engine, route).pagination).toBe(pagination);
+  });
+
   // Regression coverage for issue #1111: Ghost's body_class includes a
   // `tag-<slug>` token for every tag on the current post (Source theme styles
   // hook into these). Internal tags carry `hash-<name>` slugs, so they must
@@ -1101,6 +1136,34 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     expect(engine.hb.partials.home).toBe('<section>{{@site.title}}</section>');
+  });
+
+  test('Dawn-style match on pagination.page falls through on non-paginated routes (issue #1709)', () => {
+    const theme = makeTheme({
+      home: '{{#match pagination.page 2}}page2{{else}}not-page2{{/match}}',
+      page: '{{#match pagination.page 2}}page2{{else}}not-page2{{/match}}',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const homeRoute: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    expect(engine.render(homeRoute)).toBe('not-page2');
+
+    const pageRoute: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page: makePage() },
+      meta: baseMeta,
+    };
+    expect(engine.render(pageRoute)).toBe('not-page2');
   });
 
   // Issue #1305: themes (Edition, Source) use `{{> "content" width="wide"}}`

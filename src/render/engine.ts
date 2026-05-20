@@ -249,9 +249,12 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   if (data.posts) {
     ctx.posts = data.posts;
   }
-  if (data.pagination) {
-    ctx.pagination = data.pagination;
-  }
+  // Ghost themes often probe `pagination.page` directly even on non-listing
+  // routes (for example Dawn's `{{#match pagination.page 2}}`). Keep the
+  // template root shaped like page 1 when the route has no real pagination
+  // object, without mutating `route.data.pagination` that helpers use to
+  // decide whether to render paginated navigation.
+  ctx.pagination = data.pagination ?? defaultPaginationContext();
   if (data.error) {
     ctx.statusCode = data.error.statusCode;
     ctx.message = data.error.message;
@@ -269,6 +272,10 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   // inline / block invocations and stays the canonical entry point.
   ctx.access = true;
   return ctx;
+}
+
+function defaultPaginationContext(): { page: number; pages: number } {
+  return { page: 1, pages: 1 };
 }
 
 export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {

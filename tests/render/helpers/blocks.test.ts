@@ -667,6 +667,13 @@ describe('match helper', () => {
     expect(tpl({ a: 1, b: 2 })).toBe('MISS');
   });
 
+  test('block form renders inverse when pagination.page resolves missing (issue #1709)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match pagination.page 2}}page2{{else}}not-page2{{/match}}');
+    expect(tpl({})).toBe('not-page2');
+  });
+
   test('one-argument block form renders inverse for falsy values', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
