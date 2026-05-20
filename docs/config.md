@@ -487,3 +487,18 @@ Drop-in analytics snippet. When `provider` is set, the corresponding script tag 
 | --- | --- | --- | --- | --- |
 | `components.analytics.provider` | `"none" \| "plausible" \| "umami" \| "fathom" \| "simpleanalytics" \| "googleanalytics"` | no | `"none"` | Analytics backend whose tracking snippet is injected into every page via `{{ghost_head}}`. `none` skips injection. For `plausible` / `umami` / `fathom` / `simpleanalytics`, `site` is the domain / website ID / site ID used by the provider. For `googleanalytics`, `site` is the GA4 measurement id (e.g. `G-XXXXXXXX`). DNT and IP anonymisation are handled by the provider itself; consult their docs to opt in. |
 | `components.analytics.site` | `string` | no | — | Provider-specific identifier embedded in the analytics snippet. Plausible: domain (e.g. `example.com`). Umami: data-website-id (UUID). Fathom: data-site (e.g. `ABCDEFGH`). Google Analytics: measurement id (e.g. `G-XXXXXXXX`). Simple Analytics does not require a site id; the field is ignored. Required when `provider` is anything other than `none` / `simpleanalytics`. |
+
+## `components.preview`
+
+Build-time preview overrides that inject otherwise server-only context into renders. Currently only `preview.member` for previewing the `@member.*` branches Casper-family themes use. Has no effect on which files are emitted; only on what each rendered page looks like.
+
+
+## `components.preview.member`
+
+Inject a synthetic `@member` object into every render so themes that branch on `{{#if @member}}` / `{{@member.paid}}` (Casper sign-in dropdown, Source paid-only blocks, Edition CTA) can be visually previewed against the static build. Unset (the default) preserves the canonical static-build behaviour where `@member` is `undefined` and only the unauthenticated branch ever renders. Static builds have no logged-in viewer; this knob exists strictly for visual previewing of authenticated states and never gates content delivery.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.preview.member.paid` | `boolean` | no | `false` | When true the preview member is treated as paid. Drives `{{@member.paid}}` and the `{{#unless @member}}` branch in Source / Casper headers, footers, and locked-card CTAs. |
+| `components.preview.member.name` | `string` | no | — | Optional display name surfaced as `{{@member.name}}` (Source theme falls back to "Account" in the menu otherwise). |
+| `components.preview.member.email` | `string` | no | — | Optional email surfaced as `{{@member.email}}` (rare in themes). |

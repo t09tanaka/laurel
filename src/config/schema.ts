@@ -1329,6 +1329,38 @@ export const configSchema = z
           .describe(
             "Drop-in analytics snippet. When `provider` is set, the corresponding script tag (and any `<noscript>` fallback) is appended to every page's `{{ghost_head}}` output. Privacy concerns (Do-Not-Track honouring, IP anonymisation, cookie banners) are the provider's responsibility — Nectar only emits the documented embed snippet verbatim.",
           ),
+        preview: z
+          .object({
+            member: z
+              .object({
+                paid: z
+                  .boolean()
+                  .default(false)
+                  .describe(
+                    'When true the preview member is treated as paid. Drives `{{@member.paid}}` and the `{{#unless @member}}` branch in Source / Casper headers, footers, and locked-card CTAs.',
+                  ),
+                name: z
+                  .string()
+                  .optional()
+                  .describe(
+                    'Optional display name surfaced as `{{@member.name}}` (Source theme falls back to "Account" in the menu otherwise).',
+                  ),
+                email: z
+                  .string()
+                  .optional()
+                  .describe('Optional email surfaced as `{{@member.email}}` (rare in themes).'),
+              })
+              .strict()
+              .optional()
+              .describe(
+                'Inject a synthetic `@member` object into every render so themes that branch on `{{#if @member}}` / `{{@member.paid}}` (Casper sign-in dropdown, Source paid-only blocks, Edition CTA) can be visually previewed against the static build. Unset (the default) preserves the canonical static-build behaviour where `@member` is `undefined` and only the unauthenticated branch ever renders. Static builds have no logged-in viewer; this knob exists strictly for visual previewing of authenticated states and never gates content delivery.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Build-time preview overrides that inject otherwise server-only context into renders. Currently only `preview.member` for previewing the `@member.*` branches Casper-family themes use. Has no effect on which files are emitted; only on what each rendered page looks like.',
+          ),
       })
       .strict()
       .default({})

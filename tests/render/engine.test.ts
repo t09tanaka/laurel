@@ -528,6 +528,60 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('signin||name:|upsell');
   });
 
+  // Issue #1300: `[components.preview].member.paid = true` opts into a designer
+  // preview of the Casper / Edition signed-in CTA. The synthetic @member must
+  // make `{{#if @member}}` truthy and `{{@member.paid}}` carry through, while
+  // the {{else}} branch of `{{#unless @member}}` renders.
+  test('@member is injected from [components.preview].member when configured', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      components: {
+        preview: { member: { paid: true, name: 'Preview User' } },
+      },
+    } as unknown as NectarEngine['config'];
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    expect(data.member).toEqual({ paid: true, name: 'Preview User' });
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      [
+        '{{#unless @member}}signin{{else}}account{{/unless}}',
+        '|name:{{@member.name}}',
+        '|paid:{{@member.paid}}',
+      ].join(''),
+    );
+    expect(tpl({}, { data })).toBe('account|name:Preview User|paid:true');
+  });
+
+  test('preview member email is only emitted when set (no literal "undefined" string)', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      components: { preview: { member: { paid: false } } },
+    } as unknown as NectarEngine['config'];
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    expect(data.member).toEqual({ paid: false });
+    const member = data.member as Record<string, unknown>;
+    expect('email' in member).toBe(false);
+    expect('name' in member).toBe(false);
+  });
+
   // Issue #418: themes branch on `@labs` to gate features behind a Ghost
   // "Labs" toggle. Nectar has no labs surface, so the data frame must still
   // ship an empty object so `{{#if @labs.foo}}` is deterministically falsy.
@@ -771,6 +825,36 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     expect(engine.hb.partials.home).toBe('<section>{{@site.title}}</section>');
+  });
+
+  // Issue #1305: themes (Edition, Source) use `{{> "content" width="wide"}}`
+  // to pass layout flags down to the partial body. Handlebars supports this
+  // natively as long as we call `hb.registerPartial` with the partial source
+  // (which we do), so this is a regression / contract test: if a future
+  // refactor of `registerPartials` ever pre-compiles partials without the
+  // `noEscape` flag or breaks hash arg pass-through, the test will catch it.
+  test('hash params flow into partial bodies (issue #1305)', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><body>{{{body}}}</body>',
+      post: '{{!< default}}\n{{> "content" width="wide" tone="dark"}}',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    // Theme-shipped partial that reads its hash params via the partial scope.
+    engine.hb.registerPartial(
+      'content',
+      '<article class="kg-width-{{width}} kg-tone-{{tone}}">{{post.title}}</article>',
+    );
+    const post: Post = makePost({ title: 'Hash' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hash/',
+      outputPath: 'hash/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html).toContain('<article class="kg-width-wide kg-tone-dark">Hash</article>');
   });
 
   test('custom layout that includes {{> post}} renders only one layout wrapper, not two', () => {

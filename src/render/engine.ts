@@ -258,9 +258,31 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     // (set to undefined) so the data frame is shaped the same across every
     // route — never absent, never partially populated. Docs: docs/MEMBERS.md
     // §2 "@member.*" and §5 "No per-user state".
-    member: undefined,
+    //
+    // `[components.preview].member` is the documented opt-in override: when set
+    // we inject a synthetic member so designers can preview Casper / Edition
+    // signed-in / paid branches against a static build. Production builds leave
+    // it unset and `@member` stays undefined.
+    member: buildPreviewMember(engine),
     text_color_class: textColorClassFor(backgroundColor),
   };
+}
+
+// `[components.preview].member` lets the operator inject a synthetic `@member`
+// (paid / free / named) so themes that branch on `{{@member.paid}}` or
+// `{{#unless @member}}` can be previewed against the static build. Default is
+// `undefined` everywhere; only set keys land on the emitted object so themes
+// that probe `{{@member.email}}` see "missing" (Handlebars-empty) rather than
+// the literal string "undefined". Static builds never authenticate anyone, so
+// this is a designer-preview affordance, not a delivery gate.
+function buildPreviewMember(engine: NectarEngine): Record<string, unknown> | undefined {
+  const preview = engine.config.components?.preview;
+  const member = preview?.member;
+  if (!member) return undefined;
+  const out: Record<string, unknown> = { paid: member.paid === true };
+  if (typeof member.name === 'string') out.name = member.name;
+  if (typeof member.email === 'string') out.email = member.email;
+  return out;
 }
 
 // Ghost themes read `@config.posts_per_page` (flat keys from the theme's
