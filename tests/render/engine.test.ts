@@ -1452,6 +1452,8 @@ describe('createEngine — default search partial (issue #1135)', () => {
     const partial = engine.hb.partials.search;
     expect(typeof partial).toBe('string');
     const source = partial as string;
+    expect(source).toContain('<search');
+    expect(source).toContain('</search>');
     expect(source).toContain('data-nectar-search');
     expect(source).toContain('data-nectar-search-results');
   });
@@ -1469,6 +1471,27 @@ describe('createEngine — default search partial (issue #1135)', () => {
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     expect(engine.hb.partials.search).toBe('<!-- theme search override -->');
     expect(engine.hb.partials['partials/search']).toBe('<!-- theme search override -->');
+  });
+
+  test('a theme can render {{> search}} without shipping its own partial', () => {
+    const theme = makeTheme({
+      templates: {
+        index: '<main>{{> search}}</main>',
+      },
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html).toContain('<search class="nectar-search" data-nectar-search-root>');
+    expect(html).toContain('data-nectar-search');
+    expect(html).toContain('data-nectar-search-results');
   });
 
   // Issue #207: Nectar also ships a default `{{> paywall}}` partial used in

@@ -13,7 +13,8 @@ export const DEFAULT_PARTIALS: Record<string, string> = {
   // `emitSearchUiCss` at `search/search.css`. Themes that prefer their own
   // markup can drop `partials/search.hbs` in the theme and override this
   // wholesale.
-  search: `<form class="nectar-search" role="search" data-nectar-search-root onsubmit="return false">
+  search: `<search class="nectar-search" data-nectar-search-root>
+  <form onsubmit="return false">
   <label class="nectar-search__label" for="nectar-search-input">{{t "Search"}}</label>
   <input
     class="nectar-search__input"
@@ -27,6 +28,7 @@ export const DEFAULT_PARTIALS: Record<string, string> = {
   />
   <ul class="nectar-search__results" role="listbox" data-nectar-search-results></ul>
 </form>
+</search>
 `,
   // Default paywall CTA used in place of members-only / paid content that has
   // been truncated at a paywall marker. Themes that want their own copy or
