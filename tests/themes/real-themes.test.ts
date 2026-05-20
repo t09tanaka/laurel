@@ -267,7 +267,7 @@ describe('real Ghost theme contract', () => {
     );
     expect(postHtml).toContain('class="gh-content gh-canvas"');
     expect(postHtml).toMatch(
-      /<div class="gh-content gh-canvas">\s*<figure class="kg-card kg-bookmark-card">/,
+      /<div class="gh-content gh-canvas">\s*<figure class="kg-card kg-bookmark-card kg-width-regular">/,
     );
     expect(postHtml).not.toContain('<div class="kg-card-wrapper"><figure class="kg-card');
   });
