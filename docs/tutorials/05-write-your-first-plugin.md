@@ -7,16 +7,17 @@ typed but not yet loaded — and add a concrete extension to your site.
 
 ## How extension works in Nectar today
 
-> **Status note.** Nectar publishes the `NectarPlugin` / `BuildContext` /
-> `NectarHelper` types ahead of the runtime that loads them. The types are
-> stable and you can write plugin-shaped code against them now, but **the
-> build does not yet auto-discover `plugins` in `nectar.toml`**. Until that
-> ships, the working extension points are: custom Handlebars helpers (via a
-> small fork), config-driven optional components, `[theme.custom]` keys, and
-> per-post code injection. This tutorial covers all four, plus the typed
-> plugin shape so what you write today keeps working tomorrow.
+> **Status note.** The plugin runtime is wired: list modules under
+> `plugins = […]` in `nectar.toml` and Nectar will load and invoke them at
+> the start of every build. Hook coverage is the full `Plugin` shape
+> exported from `nectar/plugin` (`beforeBuild`, `afterContentLoad`,
+> `beforeRender`, `afterRender`, `afterEmit`, `routes`, `transformMarkdown`).
+> The legacy `NectarPlugin { setup }` shape still works as an alias so
+> older modules keep loading without changes. Set
+> `plugin_auto_detect = true` to also pick up packages named
+> `nectar-plugin-*` (or `@scope/nectar-plugin-*`) from `node_modules/`.
 
-The four extension surfaces, ranked by how much code you touch:
+The five extension surfaces, ranked by how much code you touch:
 
 | Surface                 | Code change | Use it for                                       |
 | ----------------------- | ----------- | ------------------------------------------------ |
@@ -24,6 +25,7 @@ The four extension surfaces, ranked by how much code you touch:
 | `[components.*]`        | None        | Toggle RSS / sitemap / OG images / Content API  |
 | `codeinjection_*`       | None        | Per-post `<head>` / `<body>` snippets            |
 | Custom helper           | Small fork  | A new `{{my_helper}}` for use in templates       |
+| Plugin module           | Plugin file | Markdown transforms, extra routes, custom hooks  |
 
 ---
 
@@ -249,6 +251,135 @@ already calls both.
 
 ---
 
+## Path D — Markdown transform plugin (shortcodes / directives)
+
+The `transformMarkdown` hook on the `Plugin` interface lets a plugin
+rewrite the raw Markdown body of every post (or page) before
+`renderMarkdown` parses it. This is the right surface for shortcodes,
+custom directives, or any block-level rewrite that has to happen
+*before* sanitisation — anything you'd do with a `marked`-extension or
+remark-style plugin in another SSG.
+
+The hook signature lives in `src/plugin/types.ts`:
+
+```ts
+transformMarkdown?: (
+  input: string,
+  ctx: { kind: 'post' | 'page'; path: string; frontmatter: Readonly<Record<string, unknown>> },
+) => string | Promise<string>;
+```
+
+Hooks compose in registration order; each transform sees the previous
+plugin's output. A throw is logged and the body falls through unchanged
+so one bad plugin can't take the whole build down.
+
+### Example — a `{{<callout type="warn">}}…{{</callout>}}` shortcode
+
+```ts
+// plugins/callout-shortcode.ts
+import type { Plugin } from 'nectar/plugin';
+
+// Match block-form shortcodes like:
+//   {{<callout type="warn">}}
+//   Body markdown here.
+//   {{</callout>}}
+const CALLOUT_RE =
+  /\{\{<\s*callout(?:\s+type="(warn|info|success|danger)")?\s*>\}\}([\s\S]*?)\{\{<\s*\/callout\s*>\}\}/g;
+
+const calloutPlugin: Plugin = {
+  name: 'callout-shortcode',
+  transformMarkdown(body) {
+    return body.replace(CALLOUT_RE, (_match, type: string | undefined, inner: string) => {
+      const variant = type ?? 'info';
+      // Emit the Koenig callout-card HTML shape so existing kg-callout-card
+      // CSS in the theme (Source, Casper, etc.) styles the result.
+      // Blank lines around `inner` keep CommonMark parsing the body as
+      // markdown, not as raw HTML.
+      return [
+        '',
+        `<div class="kg-card kg-callout-card kg-callout-card-${variant}">`,
+        '<div class="kg-callout-text">',
+        '',
+        inner.trim(),
+        '',
+        '</div>',
+        '</div>',
+        '',
+      ].join('\n');
+    });
+  },
+};
+
+export default calloutPlugin;
+```
+
+Wire it from `nectar.toml`:
+
+```toml
+plugins = ["./plugins/callout-shortcode.ts"]
+```
+
+Use it in any post:
+
+```markdown
+---
+title: My post
+---
+
+Intro paragraph.
+
+{{<callout type="warn">}}
+Heads up: this is a warning. **Bold text** still works.
+{{</callout>}}
+
+Outro.
+```
+
+After the next `bunx nectar build`, the rendered HTML contains a
+`kg-callout-card kg-callout-card-warn` block your theme styles.
+
+### Picking the right hook
+
+| Goal                                              | Hook                |
+| ------------------------------------------------- | ------------------- |
+| Rewrite markdown source (shortcodes, directives)  | `transformMarkdown` |
+| Add a Handlebars helper to all templates          | `beforeBuild`       |
+| Inject computed metadata into the content graph   | `afterContentLoad`  |
+| Tweak per-route context just before render        | `beforeRender`      |
+| Post-process the final HTML (e.g. minify / strip) | `afterRender`       |
+| Emit extra files after the site is written        | `afterEmit`         |
+| Add generator-driven routes (custom feeds)        | `routes`            |
+
+`transformMarkdown` is the only hook that runs *during* content load
+— before the render engine exists — so it intentionally receives a
+slimmer context (`kind`, `path`, `frontmatter`) instead of the full
+`BuildContext`. Use `beforeRender` for hooks that need the engine or
+the full content graph.
+
+### Testing a markdown transform plugin
+
+Markdown transforms are pure functions of `(input, ctx)`, so tests
+don't need a full build:
+
+```ts
+import { describe, expect, test } from 'bun:test';
+import calloutPlugin from '../plugins/callout-shortcode.ts';
+
+describe('callout shortcode', () => {
+  test('rewrites the shortcode into a kg-callout-card block', async () => {
+    const out = await calloutPlugin.transformMarkdown?.(
+      'Before\n\n{{<callout type="warn">}}\nbody\n{{</callout>}}\n\nAfter',
+      { kind: 'post', path: 'fake.md', frontmatter: {} },
+    );
+    expect(out).toContain('kg-callout-card kg-callout-card-warn');
+    expect(out).toContain('body');
+    expect(out).not.toContain('{{<callout');
+  });
+});
+```
+
+---
+
 ## Verifying any extension
 
 ```bash
@@ -265,13 +396,20 @@ helper threw — re-run with `-VV` to see the trace.
 
 ## Future-proofing
 
-The plugin runtime is the next big extensibility milestone. When it lands,
-the auto-loader will:
+The plugin runtime is wired and the loader sequence is stable:
 
-1. Read `plugins = […]` from `nectar.toml`.
-2. Resolve each entry as a TypeScript module exporting a `NectarPlugin`.
-3. Call `setup(ctx)` between content load and template rendering.
+1. Read `plugins = […]` (and optionally auto-detect
+   `nectar-plugin-*` packages) from `nectar.toml`.
+2. Resolve each entry as a TypeScript / JavaScript module exporting a
+   `Plugin` (or a `PluginFactory` returning one) via `default` or named
+   `plugin` export.
+3. Collect `transformMarkdown` hooks first, then invoke
+   `beforeBuild` → `afterContentLoad` → `routes` → per-route
+   `beforeRender` / `afterRender` → `afterEmit` in plugin registration
+   order. Hook errors are warned-and-skipped (the build never crashes
+   because of a buggy plugin).
 
-The `BuildContext` snapshot you receive will match what the type already
-describes. Code written against `nectar/types` today should require no
-changes when the loader ships — only the `nectar.toml` entry.
+The published types are stable: `Plugin`, `BuildContext`,
+`MarkdownTransformContext`, `PluginRoute`, and `NectarHelper` live in
+`nectar/plugin`. The legacy `NectarPlugin { setup }` shape stays
+resolvable as an alias for `Plugin { beforeBuild }`.
