@@ -51,6 +51,25 @@ describe('promoteImagesToFigures', () => {
     expect(out).not.toContain('{lazy=false}');
   });
 
+  test('uses a trailing alt width hint for promoted image-card markup', () => {
+    const out = promoteImagesToFigures('<p><img src="/a.png" alt="Hero image|wide"></p>');
+    expect(out).toContain('<figure class="kg-card kg-image-card kg-width-wide">');
+    expect(out).toContain('alt="Hero image"');
+    expect(out).not.toContain('alt="Hero image|wide"');
+  });
+
+  test('supports full-width image-card markup from alt hints', () => {
+    const out = promoteImagesToFigures('<p><img src="/a.png" alt="Hero image|full"></p>');
+    expect(out).toContain('<figure class="kg-card kg-image-card kg-width-full">');
+    expect(out).toContain('alt="Hero image"');
+  });
+
+  test('ignores non-width alt pipes on promoted images', () => {
+    const out = promoteImagesToFigures('<p><img src="/a.png" alt="Hero | detail"></p>');
+    expect(out).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
+    expect(out).toContain('alt="Hero | detail"');
+  });
+
   test('leaves a paragraph with text alongside the image untouched', () => {
     const input = '<p>Hello <img src="/a.png" alt="x"></p>';
     expect(promoteImagesToFigures(input)).toBe(input);
@@ -180,6 +199,19 @@ describe('renderMarkdown — image figure promotion', () => {
     expect(html).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
     expect(html).not.toContain('loading=');
     expect(html).not.toContain('{lazy=false}');
+  });
+
+  test('renders ![alt|wide](src) as a wide Ghost image card', async () => {
+    const { html } = await renderMarkdown('![Alt text|wide](https://cdn.test/x.png)');
+    expect(html).toContain('<figure class="kg-card kg-image-card kg-width-wide">');
+    expect(html).toContain('alt="Alt text"');
+    expect(html).not.toContain('alt="Alt text|wide"');
+  });
+
+  test('renders ![alt|full](src) as a full-width Ghost image card', async () => {
+    const { html } = await renderMarkdown('![Alt text|full](https://cdn.test/x.png)');
+    expect(html).toContain('<figure class="kg-card kg-image-card kg-width-full">');
+    expect(html).toContain('alt="Alt text"');
   });
 
   test('attaches a following blockquote as figcaption', async () => {

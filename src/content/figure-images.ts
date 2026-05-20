@@ -18,6 +18,8 @@ const FOLLOWING_BLOCKQUOTE_CAPTION_RE = /^\s*<blockquote>\s*<p>([\s\S]*?)<\/p>\s
 
 const FOLLOWING_EM_CAPTION_RE = /^\s*<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/i;
 
+const KOENIG_IMAGE_WIDTHS = new Set(['regular', 'wide', 'full']);
+
 export interface PromoteImagesToFiguresOptions {
   prioritizeFirstImage?: boolean;
 }
@@ -48,9 +50,10 @@ export function promoteImagesToFigures(
       continue;
     }
 
+    const { imgTag: imageTag, width } = consumeImageWidthHint(imgTag);
     const isPriorityImage = options.prioritizeFirstImage === true && promotedImageCount === 0;
     const imgWithClass = addDefaultImageLoading(
-      addKgImageClass(imgTag),
+      addKgImageClass(imageTag),
       lazyOverride !== undefined && /\bfalse\b/i.test(lazyOverride),
       isPriorityImage,
     );
@@ -61,7 +64,7 @@ export function promoteImagesToFigures(
 
     const hasCaptionClass = caption ? ' kg-card-hascaption' : '';
     const figcaption = caption ? `<figcaption>${caption.text}</figcaption>` : '';
-    result += `<figure class="kg-card kg-image-card kg-width-regular${hasCaptionClass}">${inner}${figcaption}</figure>`;
+    result += `<figure class="kg-card kg-image-card kg-width-${width}${hasCaptionClass}">${inner}${figcaption}</figure>`;
     promotedImageCount += 1;
 
     cursor = match.index + full.length + (caption?.consumed ?? 0);
@@ -77,6 +80,37 @@ function extractFollowingCaption(tail: string): { text: string; consumed: number
   const em = tail.match(FOLLOWING_EM_CAPTION_RE);
   if (em) return { text: em[1].trim(), consumed: em[0].length };
   return null;
+}
+
+function consumeImageWidthHint(imgTag: string): { imgTag: string; width: string } {
+  const altMatch = imgTag.match(/\salt\s*=\s*("([^"]*)"|'([^']*)')/i);
+  if (!altMatch) return { imgTag, width: 'regular' };
+
+  const attr = altMatch[0];
+  const quoted = altMatch[1] ?? '';
+  const value = altMatch[2] ?? altMatch[3] ?? '';
+  const parsed = parseImageAltWidth(value);
+  if (!parsed) return { imgTag, width: 'regular' };
+
+  const quote = quoted.startsWith("'") ? "'" : '"';
+  const replacement = ` alt=${quote}${parsed.alt}${quote}`;
+  return { imgTag: imgTag.replace(attr, replacement), width: parsed.width };
+}
+
+function parseImageAltWidth(value: string): { alt: string; width: string } | null {
+  const divider = value.lastIndexOf('|');
+  if (divider === -1) return null;
+
+  const candidate = value
+    .slice(divider + 1)
+    .trim()
+    .replace(/^kg-width-/, '');
+  if (!KOENIG_IMAGE_WIDTHS.has(candidate)) return null;
+
+  return {
+    alt: value.slice(0, divider).trimEnd(),
+    width: candidate,
+  };
 }
 
 function addKgImageClass(imgTag: string): string {
