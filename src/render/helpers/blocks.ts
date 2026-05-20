@@ -37,21 +37,29 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const visible = items.filter((entry) => visibilityFilter(entry.value, options.hash.visibility));
     const sliced = visible.slice(from - 1, to);
     const columns = parseColumns(options.hash.columns);
+    const fnAny = options.fn as unknown as { blockParams?: number };
+    const hasBlockParams = (fnAny?.blockParams ?? 0) > 0;
     for (let i = 0; i < sliced.length; i += 1) {
       const entry = sliced[i];
       const data = engine.hb.createFrame(
         (options.data as Record<string, unknown> | undefined) ?? {},
       );
-      data.index = i;
-      data.number = i + 1;
-      data.first = i === 0;
-      data.last = i === sliced.length - 1;
-      data.even = i % 2 === 0;
-      data.odd = i % 2 !== 0;
-      data.rowStart = i % columns === 0;
-      data.rowEnd = (i + 1) % columns === 0;
-      if (entry.key !== undefined) data.key = entry.key;
-      buffer += options.fn(entry.value, { data });
+      const foreachState: Record<string, unknown> = {
+        index: i,
+        number: i + 1,
+        first: i === 0,
+        last: i === sliced.length - 1,
+        even: i % 2 === 0,
+        odd: i % 2 !== 0,
+        rowStart: i % columns === 0,
+        rowEnd: (i + 1) % columns === 0,
+      };
+      if (entry.key !== undefined) foreachState.key = entry.key;
+      Object.assign(data, foreachState);
+      buffer += options.fn(entry.value, {
+        data,
+        ...(hasBlockParams ? { blockParams: [entry.value, foreachState] } : {}),
+      });
       renderedIndex += 1;
     }
     if (renderedIndex === 0 && options.inverse) {

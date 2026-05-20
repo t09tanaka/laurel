@@ -41,6 +41,19 @@ describe('foreach helper', () => {
     expect(out).toBe('1:a*|2:b|3:c!|');
   });
 
+  test('supports block-param item aliases and foreach state', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach posts as |post state|}}{{post.title}}:{{state.number}}:{{#if state.first}}first{{/if}}:{{@number}}|{{/foreach}}',
+    );
+    const out = tpl({
+      post: { title: 'Root Post' },
+      posts: [{ title: 'First Post' }, { title: 'Second Post' }],
+    });
+    expect(out).toBe('First Post:1:first:1|Second Post:2::2|');
+  });
+
   test('renders the inverse block when the input is empty', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
