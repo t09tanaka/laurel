@@ -45,8 +45,6 @@ currently include a Firebase Actions template.
      "hosting": {
        "public": "dist",
        "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-       "cleanUrls": true,
-       "trailingSlash": true,
        "headers": [
          {
            "source": "/assets/**",
@@ -89,8 +87,20 @@ currently include a Firebase Actions template.
    ```
 
    `"public": "dist"` is the important bit: Firebase uploads the already-built
-   Nectar output. `cleanUrls` and `trailingSlash` keep Firebase's URL handling
-   aligned with Nectar's directory-style pages such as `/about/`.
+   Nectar output.
+
+   Do not set `trailingSlash` for a normal Nectar site. Nectar emits route
+   pages as directory indexes such as `about/index.html`, and Firebase
+   Hosting's default behavior already serves those with directory-style URLs
+   such as `/about/`. Setting `"trailingSlash": true` forces trailing slashes
+   onto all static content URLs, while `"trailingSlash": false` strips them
+   from directory pages; both fight Nectar's generated links.
+
+   `cleanUrls` is optional and usually unnecessary for Nectar route pages
+   because they are not emitted as `about.html`. If you enable it for
+   hand-written `.html` files copied into `dist/`, keep `trailingSlash`
+   unset so Firebase still applies its directory-index behavior to Nectar
+   pages.
 
 4. Build and test locally:
 
@@ -153,6 +163,34 @@ without waiting for a browser cache to expire.
 For a fuller security baseline, copy the Firebase example from
 [`docs/security/hosting.md`](../security/hosting.md#firebase-hosting) into the
 same `headers` array.
+
+## Clean URLs and trailing slashes
+
+Nectar's canonical page shape is a trailing-slash URL backed by a directory
+index file:
+
+| Public URL | Generated file |
+| --- | --- |
+| `/` | `dist/index.html` |
+| `/about/` | `dist/about/index.html` |
+| `/tag/news/` | `dist/tag/news/index.html` |
+
+Firebase Hosting has separate switches for `.html` extension cleanup and
+trailing slash redirects:
+
+- `cleanUrls` controls whether uploaded `*.html` files are exposed without
+  the `.html` suffix.
+- `trailingSlash` controls whether static content URLs are globally redirected
+  to add or remove a final slash.
+- When `trailingSlash` is omitted, Firebase uses trailing slashes for
+  directory index files such as `about/index.html`.
+
+Because Nectar already writes directory index files, the recommended Firebase
+configuration is to omit `trailingSlash`. You may also omit `cleanUrls`; it
+does not make Nectar's generated route pages prettier. If your project copies
+extra standalone files such as `public/terms.html` into `dist/` and you want
+`/terms` to work, set `"cleanUrls": true` but still leave `trailingSlash`
+unset.
 
 ## Custom domains and paths
 

@@ -228,6 +228,7 @@ mirror the policy there by hand:
 {
   "hosting": {
     "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
       {
         "source": "**/*.@(html|xml|json)",
@@ -271,6 +272,13 @@ Merge this with the cache-header example in
 [`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md) rather than
 creating a second `hosting` block. Firebase reference:
 <https://firebase.google.com/docs/hosting/full-config>.
+
+Keep `trailingSlash` unset in this Firebase block unless you are intentionally
+changing Nectar's routing shape. Nectar emits pages as directory indexes such
+as `about/index.html`; Firebase's default trailing-slash handling already maps
+those to URLs like `/about/`. `cleanUrls` is only useful for extra standalone
+`.html` files that your project copies into `dist/`, not for Nectar's generated
+route pages.
 
 ---
 

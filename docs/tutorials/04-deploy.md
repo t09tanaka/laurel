@@ -323,9 +323,7 @@ single-page app:
 {
   "hosting": {
     "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "cleanUrls": true,
-    "trailingSlash": true
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   }
 }
 ```
@@ -333,6 +331,12 @@ single-page app:
 Firebase ignores Netlify / Cloudflare-style `dist/_redirects` files. Put
 redirects and custom response headers in `firebase.json` until Nectar grows a
 Firebase-specific emitter.
+
+Leave `trailingSlash` unset for Nectar. Firebase's default behavior already
+serves Nectar's generated directory indexes, such as `dist/about/index.html`,
+at trailing-slash URLs like `/about/`. Use `cleanUrls` only if you also copy
+standalone `.html` files into `dist/` and want Firebase to expose them without
+the extension; it is not required for Nectar's route pages.
 
 ---
 
