@@ -41,6 +41,13 @@ describe('url helper', () => {
     expect(tpl({ url: '/hello/' })).toBe('https://blog.example.com/hello/');
   });
 
+  test('absolute="true" resolves the url against the site origin', () => {
+    const engine = makeEngine('https://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url absolute="true"}}');
+    expect(tpl({ url: '/hello/' })).toBe('https://blog.example.com/hello/');
+  });
+
   test('returns the input unchanged when the site URL is invalid (URL parser throws)', () => {
     const engine = makeEngine('not a url');
     registerUrlHelpers(engine);
