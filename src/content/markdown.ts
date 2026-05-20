@@ -499,6 +499,7 @@ const VIDEO_TRACK_SHORTCODE_RE =
   /\{\{<\s+video-track((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
 const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const NFT_SHORTCODE_RE = /\{\{<\s+nft((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
 export function expandKoenigShortcodes(markdown: string): string {
   return markdown
@@ -550,6 +551,9 @@ export function expandKoenigShortcodes(markdown: string): string {
     )
     .replace(PRODUCT_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderProductHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(NFT_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderNftHtml(parseShortcodeAttrs(attrsStr)),
     );
 }
 
@@ -1024,6 +1028,33 @@ function renderProductHtml(attrs: Record<string, string>): string {
       ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
       : '';
   return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
+}
+
+function renderNftHtml(attrs: Record<string, string>): string {
+  const href = attrs.href ?? attrs.url ?? '';
+  const image = attrs.image ?? attrs.src ?? '';
+  if (!href && !image) return '';
+  const imageHtml = image
+    ? `<div class="kg-nft-image-container"><img class="kg-nft-image" src="${escapeHtmlAttr(image)}" alt="" /></div>`
+    : '';
+  const titleHtml = attrs.title
+    ? `<div class="kg-nft-title">${escapeHtmlAttr(attrs.title)}</div>`
+    : '';
+  const creatorHtml = attrs.creator
+    ? `<div class="kg-nft-creator">${escapeHtmlAttr(attrs.creator)}</div>`
+    : '';
+  const descriptionHtml = attrs.description
+    ? `<div class="kg-nft-description">${escapeHtmlAttr(attrs.description)}</div>`
+    : '';
+  const metadataHtml =
+    titleHtml || creatorHtml || descriptionHtml
+      ? `<div class="kg-nft-metadata">${titleHtml}${creatorHtml}${descriptionHtml}</div>`
+      : '';
+  const body = `${imageHtml}${metadataHtml}`;
+  const cardBody = href
+    ? `<a class="kg-nft-card-container" href="${escapeHtmlAttr(href)}">${body}</a>`
+    : `<div class="kg-nft-card-container">${body}</div>`;
+  return `\n\n<figure class="kg-card kg-nft-card${koenigWidthClass(attrs)}">${cardBody}</figure>\n\n`;
 }
 
 function renderHeaderHtml(attrs: Record<string, string>): string {

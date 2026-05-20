@@ -344,6 +344,7 @@ const FIGURE_CARD_SUBTYPES = [
   'kg-video-card',
   'kg-audio-card',
   'kg-file-card',
+  'kg-nft-card',
 ] as const;
 
 export function registerGhostCardRules(turndown: TurndownService): void {
@@ -877,9 +878,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
-  // Product / NFT / Header cards are less common but worth preserving rather
-  // than dropping. Emit a generic kg-card shortcode that captures the inner
-  // HTML so a later renderer can re-style without re-importing.
+  // Product cards are less common but worth preserving rather than dropping.
   turndown.addRule('kg-product-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-product-card'),
     replacement: (_content, node) => {
@@ -891,6 +890,31 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           rating: attr(node.querySelector('.kg-product-card-rating'), 'data-rating'),
           'button-href': attr(node.querySelector('a.kg-product-card-button'), 'href'),
           'button-text': text(node.querySelector('.kg-product-card-button')),
+        }),
+      );
+    },
+  });
+
+  // NFT card: <figure class="kg-card kg-nft-card"><a><img><metadata>...
+  //
+  // Default turndown sees the figure as a generic image wrapper and collapses
+  // it to `![](image)`, losing the OpenSea link and all kg-nft-* hooks. Keep a
+  // compact shortcode carrier so renderMarkdown can rebuild the static scaffold
+  // that themes and the built-in card CSS target.
+  turndown.addRule('kg-nft-card', {
+    filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-nft-card'),
+    replacement: (_content, node) => {
+      const anchor = node.querySelector('a.kg-nft-card-container') ?? node.querySelector('a');
+      return wrap(
+        shortcode('nft', {
+          href: attr(anchor, 'href'),
+          image:
+            attr(node.querySelector('.kg-nft-image'), 'src') ||
+            attr(node.querySelector('img'), 'src'),
+          title: text(node.querySelector('.kg-nft-title')),
+          creator: text(node.querySelector('.kg-nft-creator')),
+          description: text(node.querySelector('.kg-nft-description')),
+          size: classByPrefix(node, 'kg-width-'),
         }),
       );
     },

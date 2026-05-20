@@ -202,7 +202,7 @@ visibility: "public"
 status: "published"
 ---
 
-![](https://cdn.test/nft.jpg)
+{{< nft href="https://opensea.io/assets/example/1" image="https://cdn.test/nft.jpg" title="Sample NFT" creator="by example" />}}
 
 === content/posts/card-paywall.md ===
 ---

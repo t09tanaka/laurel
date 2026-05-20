@@ -74,6 +74,63 @@ describe('card fixture corpus', () => {
     }
   });
 
+  test('import-emitted Koenig shortcodes expand to kg-card wrappers', async () => {
+    const cases = [
+      [
+        'bookmark',
+        '{{< bookmark url="https://example.com/post" title="Bookmark Title" />}}',
+        'kg-bookmark-card',
+      ],
+      [
+        'callout',
+        '{{< callout emoji="!" color="blue" >}}\nHeads up.\n{{< /callout >}}',
+        'kg-callout-card',
+      ],
+      [
+        'gallery',
+        '{{< gallery size="wide" >}}\n{{< gallery-row >}}\n{{< gallery-image src="https://cdn.test/g1.jpg" alt="One" width="600" height="400" />}}\n{{< /gallery-row >}}\n{{< /gallery >}}',
+        'kg-gallery-card',
+      ],
+      ['audio', '{{< audio src="https://cdn.test/audio.mp3" title="Episode" />}}', 'kg-audio-card'],
+      [
+        'video',
+        '{{< video src="https://cdn.test/video.mp4" width="1280" height="720" controls="true" />}}',
+        'kg-video-card',
+      ],
+      [
+        'button',
+        '{% button href="https://example.com/buy" text="Buy now" align="center" style="accent" %}',
+        'kg-button-card',
+      ],
+      [
+        'product',
+        '{{< product title="Widget" description="Useful." image="https://cdn.test/product.jpg" button-href="https://example.com/buy" button-text="Buy" />}}',
+        'kg-product-card',
+      ],
+      [
+        'header',
+        '{% header style="dark" title="A bold header card" subtitle="Subheading text." cta-text="Get started" cta-href="https://example.com/cta" card-size="large" %}',
+        'kg-header-card',
+      ],
+      [
+        'toggle',
+        '{{< toggle heading="See the details" >}}\nThe body.\n{{< /toggle >}}',
+        'kg-toggle-card',
+      ],
+      [
+        'nft',
+        '{{< nft href="https://opensea.io/assets/example/1" image="https://cdn.test/nft.jpg" title="Sample NFT" creator="by example" />}}',
+        'kg-nft-card',
+      ],
+    ] as const;
+
+    for (const [label, markdown, wrapperClass] of cases) {
+      const { html } = await renderMarkdown(markdown);
+      expect(html, `${label} shortcode should not leak through verbatim`).not.toContain('{{<');
+      expect(html, `${label} should render its Koenig card wrapper`).toContain(wrapperClass);
+    }
+  });
+
   test('image card keeps the kg-image-card wrapper and figure shape', async () => {
     const html = await renderFixture('image');
     expect(html).toContain('class="kg-card kg-image-card kg-width-wide"');
@@ -368,14 +425,15 @@ describe('card fixture corpus', () => {
     expect(html).not.toContain('{{< /toggle');
   });
 
-  test('nft card keeps the kg-nft-card wrapper + image + metadata', async () => {
+  test('nft shortcode expands into the kg-nft-card wrapper + image + metadata', async () => {
     const html = await renderFixture('nft');
-    expect(html).toContain('class="kg-card kg-nft-card"');
+    expect(html).toContain('class="kg-card kg-nft-card kg-width-regular"');
     expect(html).toContain('class="kg-nft-card-container"');
     expect(html).toContain('href="https://opensea.io/assets/example/1"');
     expect(html).toContain('class="kg-nft-image"');
     expect(html).toContain('<div class="kg-nft-title">Sample NFT</div>');
     expect(html).toContain('<div class="kg-nft-creator">by example</div>');
+    expect(html).not.toContain('{{< nft');
   });
 
   // Newsletter card pipeline (#129):

@@ -19,10 +19,9 @@ The corpus exists to:
   raw HTML, dropped to an empty paragraph for `<!--kg-card-begin: X-->`
   comment fences with no inner content).
 
-Cards that **require** a plugin to materialise (signup, recommendations, nft
-beyond their static HTML scaffold) keep their kg-class wrapper so the
-plugin can target it; the regression assertion checks the wrapper survives
-sanitisation.
+Cards that **require** a plugin to materialise (signup, recommendations beyond
+their static HTML scaffold) keep their kg-class wrapper so the plugin can
+target it; the regression assertion checks the wrapper survives sanitisation.
 
 See `src/ghost/koenig-card-html.ts` for the renderers that produce these
 HTML shapes during `nectar import-ghost`, and `docs/THEME_DEV.md` for how
