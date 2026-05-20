@@ -22,6 +22,10 @@ import { joinPath } from '~/theme/assets.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
+import {
+  type EmbedProviderScriptType,
+  getEmbedProviderScripts,
+} from '../embed-provider-scripts.ts';
 import type { NectarEngine } from '../engine.ts';
 import { publicSafeGeneratedExcerpt } from './content.ts';
 
@@ -272,6 +276,8 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
       const koenigRuntime = renderKoenigRuntimeSnippet(engine, options.data);
       if (koenigRuntime) parts.push(koenigRuntime);
+      const embedProviderScripts = renderEmbedProviderScripts(engine, options.data);
+      if (embedProviderScripts) parts.push(embedProviderScripts);
       const portalRuntime = renderStaticPortalRuntime(engine);
       if (portalRuntime) parts.push(portalRuntime);
       if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
@@ -1057,6 +1063,27 @@ function renderKoenigRuntimeSnippet(
   const nonce = nonceAttr(engine.config?.build?.csp_nonce);
   const cards = enabledCards.join(',');
   return `<script defer src="${escapeAttr(jsSrc)}"${nonce} data-nectar-koenig-runtime="${escapeAttr(cards)}"></script>`;
+}
+
+const EMBED_PROVIDER_SCRIPT_SRC: Record<EmbedProviderScriptType, string> = {
+  instagram: 'https://www.instagram.com/embed.js',
+  tiktok: 'https://www.tiktok.com/embed.js',
+  twitter: 'https://platform.twitter.com/widgets.js',
+};
+
+function renderEmbedProviderScripts(
+  engine: NectarEngine,
+  data: Record<string, unknown> | undefined,
+): string | undefined {
+  const providers = [...getEmbedProviderScripts(data)].sort();
+  if (providers.length === 0) return undefined;
+  const nonce = nonceAttr(engine.config?.build?.csp_nonce);
+  return providers
+    .map((provider) => {
+      const src = EMBED_PROVIDER_SCRIPT_SRC[provider];
+      return `<script async defer src="${escapeAttr(src)}"${nonce} data-nectar-embed-script="${provider}"></script>`;
+    })
+    .join('\n');
 }
 
 // Sodo Search injection. Returns the `<script defer src="…">` tag when the

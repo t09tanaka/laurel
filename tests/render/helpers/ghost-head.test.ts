@@ -2,6 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
+import {
+  EMBED_PROVIDER_SCRIPT_DATA_KEY,
+  collectEmbedProviderScripts,
+} from '~/render/embed-provider-scripts.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
 import { KOENIG_RUNTIME_DATA_KEY, collectKoenigRuntimeCardTypes } from '~/render/koenig-runtime.ts';
@@ -219,7 +223,7 @@ describe('ghost_head shared card assets', () => {
     });
 
     expect(html).toContain(
-      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=2">',
+      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=3">',
     );
     expect(html).not.toContain('ghost-card-assets.js');
   });
@@ -232,7 +236,7 @@ describe('ghost_head shared card assets', () => {
       theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
     });
 
-    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=2-[a-z0-9]+"/);
+    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=3-[a-z0-9]+"/);
     expect(html).not.toContain('ghost-card-assets.js');
   });
 });
@@ -272,7 +276,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
     );
 
     expect(html).toContain(
-      '<script defer src="/blog/assets/ghost-card-assets.js?v=2" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
+      '<script defer src="/blog/assets/ghost-card-assets.js?v=3" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
     );
   });
 
@@ -286,6 +290,49 @@ describe('ghost_foot Koenig card runtime injection', () => {
     );
 
     expect(html).not.toContain('ghost-card-assets.js');
+  });
+});
+
+describe('ghost_foot embed provider script injection', () => {
+  test('collects script-bearing embed providers from rendered body HTML', () => {
+    const providers = collectEmbedProviderScripts(`
+      <figure class="kg-card kg-embed-card" data-nectar-embed-provider="twitter"></figure>
+      <figure class="kg-card kg-embed-card" data-nectar-embed-provider="twitter"></figure>
+      <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/abc/"></blockquote>
+      <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@ghost/video/123"></blockquote>
+    `);
+
+    expect([...providers].sort()).toEqual(['instagram', 'tiktok', 'twitter']);
+  });
+
+  test('emits each provider script once in ghost_foot', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        config: { build: { csp_nonce: 'abc123' } } as Partial<NectarEngine['config']>,
+        data: { [EMBED_PROVIDER_SCRIPT_DATA_KEY]: ['twitter', 'instagram', 'twitter', 'tiktok'] },
+      },
+    );
+
+    expect(html.match(/data-nectar-embed-script=/g)?.length).toBe(3);
+    expect(html).toContain(
+      '<script async defer src="https://www.instagram.com/embed.js" nonce="abc123" data-nectar-embed-script="instagram"></script>',
+    );
+    expect(html).toContain(
+      '<script async defer src="https://www.tiktok.com/embed.js" nonce="abc123" data-nectar-embed-script="tiktok"></script>',
+    );
+    expect(html).toContain(
+      '<script async defer src="https://platform.twitter.com/widgets.js" nonce="abc123" data-nectar-embed-script="twitter"></script>',
+    );
+  });
+
+  test('omits provider scripts when the page has no script-bearing embeds', () => {
+    const html = renderGhostFoot({}, { data: { [EMBED_PROVIDER_SCRIPT_DATA_KEY]: [] } });
+
+    expect(html).not.toContain('data-nectar-embed-script');
+    expect(html).not.toContain('platform.twitter.com/widgets.js');
+    expect(html).not.toContain('instagram.com/embed.js');
+    expect(html).not.toContain('tiktok.com/embed.js');
   });
 });
 

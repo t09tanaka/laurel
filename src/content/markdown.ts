@@ -116,6 +116,7 @@ const sanitizeOptions: IOptions = {
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
+    figure: ['class', 'data-nectar-embed-provider'],
     details: ['open'],
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
@@ -1278,11 +1279,14 @@ function renderEmbedFallbackLink(
   const provider = normalizeEmbedProvider(attrs.provider) || providerFromRawUrl(url);
   const href = provider === 'twitter' && truthyShortcodeAttr(attrs.dnt) ? twitterDntUrl(url) : url;
   const providerName = embedProviderLabel(provider);
+  const providerAttr = scriptHydratedEmbedProvider(provider)
+    ? ` data-nectar-embed-provider="${escapeHtmlAttr(provider)}"`
+    : '';
   const title = attrs.title || (providerName ? `${providerName} embed` : 'Embedded link');
   const description = providerName
     ? `Open this ${providerName} embed at its source URL.`
     : 'Open this unsupported embed at its source URL.';
-  return `\n\n<figure class="${cardClass}"><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(href)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="${cardClass}"${providerAttr}><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(href)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
 }
 
 function twitterDntUrl(rawUrl: string): string {
@@ -1293,6 +1297,12 @@ function twitterDntUrl(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
+}
+
+function scriptHydratedEmbedProvider(
+  provider: string,
+): provider is 'instagram' | 'tiktok' | 'twitter' {
+  return provider === 'instagram' || provider === 'tiktok' || provider === 'twitter';
 }
 
 function providerFromRawUrl(rawUrl: string): string {

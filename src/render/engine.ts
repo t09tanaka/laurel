@@ -8,6 +8,7 @@ import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
+import { recordEmbedProviderScripts } from './embed-provider-scripts.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
@@ -210,6 +211,7 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   }
   const innerHtml = renderCompiled(innerCompiled, context, data);
   recordKoenigRuntimeCardTypes(data, innerHtml);
+  recordEmbedProviderScripts(data, innerHtml);
   return renderCompiled(
     layoutCompiled,
     { ...context, body: new engine.hb.SafeString(innerHtml) },

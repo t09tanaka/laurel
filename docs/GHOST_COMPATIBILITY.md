@@ -313,8 +313,11 @@ compatibility bundle and injects `/assets/ghost-card-assets.js` through
 Koenig cards: audio, embed, signup, toggle, or video. That bundle is deliberately
 small: it normalises native audio/video controls, preserves the toggle fallback
 used by imported Ghost HTML, and adds safe static niceties such as lazy iframe
-loading. It does not load Twitter, Instagram, TikTok, CodePen, Ghost Portal, or
-other third-party vendor runtimes; those remain explicit theme/operator choices.
+loading. Separately, pages that contain imported Twitter/X, Instagram, or TikTok
+embed providers get the matching vendor script once in `{{ghost_foot}}`, even
+when multiple cards from the same provider appear on the page. CodePen, Ghost
+Portal, and other third-party vendor runtimes remain explicit theme/operator
+choices.
 
 ### Koenig card class hooks
 

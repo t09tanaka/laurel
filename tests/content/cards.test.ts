@@ -278,6 +278,7 @@ describe('card fixture corpus', () => {
       '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
     );
     expect(html).toContain('class="kg-card kg-embed-card kg-width-regular kg-card-hascaption"');
+    expect(html).toContain('data-nectar-embed-provider="twitter"');
     expect(html).toContain('class="kg-bookmark-container kg-embed-card-fallback"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
     expect(html).toContain('Twitter/X embed');
