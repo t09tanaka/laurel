@@ -14,6 +14,7 @@ import {
   generateThemeImageSizeVariants,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
+  injectImageLqip,
   injectImagePictureSources,
   injectImagePictureSourcesIntoContent,
   injectImageSrcset,
@@ -627,6 +628,45 @@ describe('injectImagePictureSourcesIntoContent', () => {
       formats: [],
     });
     expect(post.html).toBe('<img src="/content/images/cover.jpg">');
+  });
+});
+
+describe('injectImageLqip', () => {
+  test('inlines a tiny JPEG placeholder for local raster images', async () => {
+    const assetsRoot = makeAssetsRoot();
+    await writeRealPng(join(assetsRoot, 'cover.png'), 1200, 800);
+    const html = '<img src="/content/images/cover.png" alt="Cover">';
+
+    const out = await injectImageLqip(html, { assetsRoot });
+
+    expect(out).toContain('src="/content/images/cover.png"');
+    expect(out).toContain('style="background:url(data:image/jpeg;base64,');
+    expect(out).toContain('center / cover no-repeat;"');
+  });
+
+  test('appends to existing style without replacing non-background rules', async () => {
+    const assetsRoot = makeAssetsRoot();
+    await writeRealPng(join(assetsRoot, 'cover.png'), 800, 600);
+    const html = '<img src="/content/images/cover.png" style="object-fit:cover" alt="Cover">';
+
+    const out = await injectImageLqip(html, { assetsRoot });
+
+    expect(out).toContain('style="object-fit:cover;background:url(data:image/jpeg;base64,');
+  });
+
+  test('skips remote images, SVGs, and tags with an existing background', async () => {
+    const assetsRoot = makeAssetsRoot();
+    writeSvg(assetsRoot, 'cover.svg', 1200, 800);
+    await writeRealPng(join(assetsRoot, 'cover.png'), 1200, 800);
+    const html = [
+      '<img src="https://example.com/cover.png">',
+      '<img src="/content/images/cover.svg">',
+      '<img src="/content/images/cover.png" style="background:#eee">',
+    ].join('');
+
+    const out = await injectImageLqip(html, { assetsRoot });
+
+    expect(out).toBe(html);
   });
 });
 

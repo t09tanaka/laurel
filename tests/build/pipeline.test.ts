@@ -560,6 +560,47 @@ Body
     expect(featureImage).toContain('height="567"');
   });
 
+  test('inlines LQIP placeholders into rendered raster images during build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      ['', '[components.images]', 'lqip_width = 12', 'lqip_quality = 35', ''].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    const sharp = (await import('sharp')).default;
+    await sharp({
+      create: {
+        width: 1200,
+        height: 800,
+        channels: 3,
+        background: { r: 64, g: 128, b: 192 },
+      },
+    })
+      .jpeg()
+      .toFile(join(cwd, 'content/images/cover.jpg'));
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+<p><img src="/content/images/cover.jpg" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    const inlineImage = imageTagForSrc(postHtml, '/content/images/cover.jpg');
+
+    expect(inlineImage).toContain('style="background:url(data:image/jpeg;base64,');
+    expect(inlineImage).toContain('center / cover no-repeat;"');
+    expect(inlineImage).toContain('width="1200"');
+    expect(inlineImage).toContain('height="800"');
+  });
+
   test('rewrites emitted HTML image URLs when image_cdn is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

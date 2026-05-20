@@ -139,6 +139,8 @@ interface SharpInstance {
   resize(width: number): SharpInstance;
   resize(opts: { width?: number; height?: number; withoutEnlargement?: boolean }): SharpInstance;
   toFile(path: string): Promise<{ width: number; height: number }>;
+  toBuffer(): Promise<Buffer>;
+  jpeg(opts: { quality: number; mozjpeg?: boolean }): SharpInstance;
   webp(opts: { quality: number }): SharpInstance;
   avif(opts: { quality: number }): SharpInstance;
 }
@@ -354,6 +356,120 @@ export function injectImageSrcsetIntoContent(opts: InjectImageSrcsetIntoContentO
   for (const page of opts.content.pages) {
     page.html = inject(page.html);
   }
+}
+
+export interface InjectImageLqipOptions {
+  assetsRoot: string;
+  marker?: string;
+  cache?: Map<string, string | null>;
+  width?: number;
+  quality?: number;
+}
+
+// Inline a tiny JPEG placeholder as a CSS background so image-heavy pages can
+// render a blur-up shell before the real image finishes loading. The pass is
+// deliberately HTML-only: variants still come from the existing resize
+// pipeline, while this function only adds a data URI to matching local images.
+export async function injectImageLqip(html: string, opts: InjectImageLqipOptions): Promise<string> {
+  if (!html.includes('<img')) return html;
+  const sharpFn = await loadSharp();
+  if (!sharpFn) return html;
+
+  const marker = opts.marker ?? '/content/images/';
+  const cache = opts.cache ?? new Map<string, string | null>();
+  const width = opts.width ?? 16;
+  const quality = opts.quality ?? 40;
+  const re = /<img\b([^>]*?)(\/?)>/gi;
+  let result = '';
+  let lastIdx = 0;
+  let m: RegExpExecArray | null = re.exec(html);
+  while (m !== null) {
+    const match = m[0];
+    const attrsRaw = m[1];
+    const selfClose = m[2];
+    let replacement = match;
+    const attrs = parseImgAttrs(attrsRaw);
+    const style = attrs.get('style');
+    const src = attrs.get('src');
+    if (
+      typeof src === 'string' &&
+      src !== '' &&
+      (typeof style !== 'string' || !/\bbackground(?:-image)?\s*:/i.test(style))
+    ) {
+      const filePath = resolveLocalImagePath(src, marker, opts.assetsRoot);
+      if (filePath && isLqipSource(filePath)) {
+        const dataUri = await generateLqipDataUri(filePath, { sharpFn, cache, width, quality });
+        if (dataUri) {
+          replacement = upsertStyleAttr(
+            attrsRaw,
+            `background:url(${dataUri}) center / cover no-repeat;`,
+            selfClose,
+          );
+        }
+      }
+    }
+    result += html.slice(lastIdx, m.index) + replacement;
+    lastIdx = re.lastIndex;
+    m = re.exec(html);
+  }
+  result += html.slice(lastIdx);
+  return result;
+}
+
+function isLqipSource(filePath: string): boolean {
+  return RASTER_EXTS.has(extname(filePath).toLowerCase());
+}
+
+async function generateLqipDataUri(
+  filePath: string,
+  opts: {
+    sharpFn: SharpFactory;
+    cache: Map<string, string | null>;
+    width: number;
+    quality: number;
+  },
+): Promise<string | undefined> {
+  const cacheKey = `${filePath}\0w${opts.width}\0q${opts.quality}`;
+  const cached = opts.cache.get(cacheKey);
+  if (cached !== undefined) return cached ?? undefined;
+  try {
+    const buf = await opts
+      .sharpFn(filePath)
+      .resize({ width: opts.width, withoutEnlargement: true })
+      .jpeg({ quality: opts.quality, mozjpeg: true })
+      .toBuffer();
+    const uri = `data:image/jpeg;base64,${buf.toString('base64')}`;
+    opts.cache.set(cacheKey, uri);
+    return uri;
+  } catch (err) {
+    logger.warn(
+      `Failed to generate LQIP for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    opts.cache.set(cacheKey, null);
+    return undefined;
+  }
+}
+
+function upsertStyleAttr(attrsRaw: string, styleToAppend: string, selfClose: string): string {
+  const styleRe = /\sstyle\s*=\s*(["'])(.*?)\1/i;
+  const existing = styleRe.exec(attrsRaw);
+  if (!existing) {
+    return appendImgAttrs(attrsRaw, `style="${escapeAttr(styleToAppend)}"`, selfClose);
+  }
+  const quote = existing[1];
+  const current = existing[2];
+  const separator = current.trim() === '' || /;\s*$/.test(current) ? '' : ';';
+  const next = `${current}${separator}${styleToAppend}`;
+  const nextAttrs = attrsRaw.replace(styleRe, ` style=${quote}${next}${quote}`);
+  return `<img${nextAttrs}${selfClose}>`;
+}
+
+function escapeAttr(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 // Ghost themes hard-code per-size srcset entries in their HBS templates (e.g.

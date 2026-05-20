@@ -69,6 +69,7 @@ import {
   generateThemeImageSizeVariants,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
+  injectImageLqip,
   injectImagePictureSourcesIntoContent,
   injectImageSrcsetIntoContent,
   isSharpAvailable,
@@ -706,6 +707,7 @@ async function runBuild({
   let completedRoutes = 0;
   const renderedImageAssetsRoot = resolve(cwd, config.content.assets_dir);
   const renderedImageDimensionCache = new Map();
+  const renderedImageLqipCache = new Map<string, string | null>();
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
     renderLimit(async (): Promise<RenderResult> => {
       const contentFingerprint = computeRouteContentFingerprint(route, content);
@@ -787,6 +789,14 @@ async function runBuild({
           assetsRoot: renderedImageAssetsRoot,
           cache: renderedImageDimensionCache,
         });
+        if (imagesCfg.lqip) {
+          html = await injectImageLqip(html, {
+            assetsRoot: renderedImageAssetsRoot,
+            cache: renderedImageLqipCache,
+            width: imagesCfg.lqip_width,
+            quality: imagesCfg.lqip_quality,
+          });
+        }
         // Search integration: inject the runtime shim script on any page that
         // has a `[data-ghost-search]` trigger. Pagefind engines also tag
         // non-public post HTML with `<meta name="pagefind-skip">` so Pagefind

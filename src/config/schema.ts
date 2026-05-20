@@ -1488,6 +1488,26 @@ export const configSchema = z
               .describe(
                 'Quality factor passed to sharp when encoding AVIF variants. AVIF is much slower than WebP, so default is conservative.',
               ),
+            lqip: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Inline tiny JPEG placeholders as `<img style="background:url(data:...)">` for local raster images so pages can blur up while the full image loads. Requires `sharp`; when sharp is unavailable the pass is skipped.',
+              ),
+            lqip_width: z
+              .number()
+              .int()
+              .min(4)
+              .max(64)
+              .default(16)
+              .describe('Width in pixels used for generated LQIP placeholder JPEGs.'),
+            lqip_quality: z
+              .number()
+              .int()
+              .min(1)
+              .max(100)
+              .default(40)
+              .describe('JPEG quality used for generated LQIP placeholder data URIs.'),
             cache_dir: z
               .string()
               .default('.nectar-cache/images')

@@ -30,6 +30,9 @@ describe('loadConfig', () => {
       const config = await loadConfig({ cwd });
       expect(config.components.images.enabled).toBe(true);
       expect(config.components.images.formats).toEqual(['webp']);
+      expect(config.components.images.lqip).toBe(true);
+      expect(config.components.images.lqip_width).toBe(16);
+      expect(config.components.images.lqip_quality).toBe(40);
     });
   });
 
