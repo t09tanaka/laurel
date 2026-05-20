@@ -80,6 +80,15 @@ describe('date helper', () => {
     expect(out).toBe('2026年5月5日');
   });
 
+  test('accepts a Date object as a positional argument', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date dateObj format="YYYY"}}')({
+      dateObj: new Date('2026-05-05T00:00:00Z'),
+    });
+    expect(out).toBe('2026');
+  });
+
   test('localized "MMMM" month token uses locale-specific month names', () => {
     const engine = makeEngine('ja');
     registerDateHelpers(engine);
