@@ -650,10 +650,37 @@ export const THEME_SPEC: CommandSpec = {
   ],
 };
 
+export const OPEN_SPEC: CommandSpec = {
+  name: 'open',
+  summary:
+    'Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    kind: {
+      type: 'string',
+      description:
+        'Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error',
+      placeholder: '<posts|pages>',
+    },
+  },
+  positionals: [
+    {
+      name: 'slug',
+      description: 'Slug of the post or page to open (e.g. `hello-world`)',
+      required: false,
+    },
+  ],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
   new: NEW_SPEC,
+  open: OPEN_SPEC,
   dev: DEV_SPEC,
   serve: SERVE_SPEC,
   check: CHECK_SPEC,

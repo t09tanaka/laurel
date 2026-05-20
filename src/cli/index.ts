@@ -46,6 +46,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runNew } = await import('./commands/new.ts');
       return runNew(rest);
     }
+    case 'open': {
+      const { runOpen } = await import('./commands/open.ts');
+      return runOpen(rest);
+    }
     case 'check': {
       const { runCheck } = await import('./commands/check.ts');
       return runCheck(rest);

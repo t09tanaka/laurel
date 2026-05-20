@@ -49,6 +49,7 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
 | [`nectar build`](#nectar-build) | Build the site into the configured output directory |
 | [`nectar new`](#nectar-new) | Scaffold a new post, page, tag, or author |
+| [`nectar open`](#nectar-open) | Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
@@ -139,6 +140,29 @@ Options:
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Comma-separated list of tag slugs to seed in frontmatter (post only) |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
+
+### `nectar open`
+
+Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
+
+Usage:
+
+```
+nectar open [--config <path>] [--kind <posts|pages>] [slug]
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `[slug]` | optional | Slug of the post or page to open (e.g. `hello-world`) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_OPEN_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--kind <posts\|pages>` | string | `NECTAR_OPEN_KIND` | Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error |
 
 ### `nectar dev`
 
