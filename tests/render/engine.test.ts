@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
@@ -8,6 +8,7 @@ import { registerFlowHelpers } from '~/render/helpers/flow.ts';
 import { isMemberStubLeaf } from '~/render/member-stub.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle, ThemePackage } from '~/theme/types.ts';
+import { logger } from '~/util/logger.ts';
 
 const engine = {} as NectarEngine;
 
@@ -2270,6 +2271,31 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
 
     expect(typeof engine.hb.partials['components/card']).toBe('function');
     expect(engine.render(route)).toBe('<main><article data-partial="card">Card</article></main>');
+  });
+
+  test('missing theme partials render empty and warn once instead of crashing (issue #990)', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const theme = makeTheme({
+        home: '<span>before</span>{{> "icons/avatar"}}<span>after</span>{{> "icons/avatar"}}',
+      });
+      const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+      const route: RouteContext = {
+        kind: 'home',
+        url: '/',
+        outputPath: 'index.html',
+        template: 'home',
+        data: {},
+        meta: baseMeta,
+      };
+
+      expect(engine.render(route)).toBe('<span>before</span><span>after</span>');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toContain("missing partial 'icons/avatar'");
+      expect(typeof engine.hb.partials['missing-partial']).toBe('function');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('partial parse errors include the theme partial file and source line', () => {

@@ -8,6 +8,7 @@ import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
+import { logger } from '~/util/logger.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import { recordEmbedProviderScripts } from './embed-provider-scripts.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
@@ -31,6 +32,8 @@ import {
   templateSourceInfo,
 } from './source-errors.ts';
 import type { RouteContext } from './types.ts';
+
+const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
 
 export interface NectarEngine {
   hb: typeof Handlebars;
@@ -193,6 +196,82 @@ function registerPartials(
     if (themePartialNames.has(name)) continue;
     registerThemePartial(hb, name, body, templatePartialSourceInfo(theme, name, sourceOffset));
   }
+  installMissingPartialFallback(hb, theme.name);
+}
+
+type InvokePartial = (
+  this: unknown,
+  partial: unknown,
+  context: unknown,
+  options: MissingPartialRuntimeOptions,
+) => unknown;
+
+interface MissingPartialRuntimeOptions {
+  name?: unknown;
+  partials?: Record<string, unknown>;
+}
+
+function installMissingPartialFallback(hb: typeof Handlebars, themeName: string): void {
+  const warned = new Set<string>();
+  hb.registerPartial(MISSING_PARTIAL_FALLBACK_NAME, function missingPartialFallback(
+    _context: unknown,
+    options?: MissingPartialRuntimeOptions,
+  ) {
+    const name = partialNameFromOptions(options);
+    if (name !== undefined && !warned.has(name)) {
+      warned.add(name);
+      logger.warn(
+        `Theme '${themeName}' references missing partial '${name}'; rendering an empty fallback.`,
+      );
+    }
+    return '';
+  } as unknown as Handlebars.TemplateDelegate);
+
+  const vm = hb.VM as unknown as { invokePartial: InvokePartial };
+  const invokePartial = vm.invokePartial;
+  vm.invokePartial = function invokePartialWithMissingFallback(
+    this: unknown,
+    partial: unknown,
+    context: unknown,
+    options: MissingPartialRuntimeOptions,
+  ) {
+    try {
+      return invokePartial.call(this, partial, context, options);
+    } catch (err) {
+      const name = missingPartialName(err);
+      if (name === undefined || hasParentPathSegment(name)) throw err;
+      const fallback = lookupPartial(options?.partials, MISSING_PARTIAL_FALLBACK_NAME);
+      return invokePartial.call(
+        this,
+        fallback ?? hb.partials[MISSING_PARTIAL_FALLBACK_NAME],
+        context,
+        {
+          ...options,
+          name,
+        },
+      );
+    }
+  };
+}
+
+function lookupPartial(
+  partials: Record<string, unknown> | undefined,
+  name: string,
+): unknown | undefined {
+  if (partials === undefined) return undefined;
+  return Object.prototype.hasOwnProperty.call(partials, name) ? partials[name] : undefined;
+}
+
+function partialNameFromOptions(
+  options: MissingPartialRuntimeOptions | undefined,
+): string | undefined {
+  return typeof options?.name === 'string' ? options.name : undefined;
+}
+
+function missingPartialName(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const match = /^The partial (.+) could not be found$/.exec(err.message);
+  return match?.[1];
 }
 
 function normalizePartialName(name: string): string {
