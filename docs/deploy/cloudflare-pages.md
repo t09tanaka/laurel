@@ -56,6 +56,13 @@ same cache defaults as Netlify: immutable caching for `/assets/*` and
 so a pure-static site is not accidentally routed through Pages Functions when
 a `functions/` directory exists.
 
+Every Nectar build includes `dist/404.html`. When the Cloudflare Pages build
+output directory is `dist`, that file sits at the publish root as `404.html`,
+which Pages automatically serves as the custom 404 response body for unmatched
+static routes. Do not add a catch-all `_redirects` rewrite for missing paths to
+`/404.html`, such as `/* /404.html 404`, unless you are intentionally replacing
+Cloudflare Pages' built-in static 404 convention.
+
 ## Redirects
 
 Add redirects to `redirects.yaml` at the project root:

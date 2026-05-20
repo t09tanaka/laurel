@@ -151,6 +151,12 @@ redirects go in a `redirects.yaml` at the project root; the default
 status codes are 301, 302, 307, and 308; the first rule per `from` wins on
 overlap.
 
+Nectar also emits `dist/404.html` on every build. Because the Cloudflare Pages
+build output directory is `dist`, that file is deployed at the publish root as
+`404.html`; Pages automatically uses it as the custom 404 page for unmatched
+static routes. You do not need a catch-all `_redirects` rewrite to route missing
+paths to `/404.html`.
+
 ```toml
 [deploy.cloudflare_pages]
 enabled = true
