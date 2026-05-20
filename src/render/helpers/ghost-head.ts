@@ -23,6 +23,16 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
+      // Surface @site.accent_color to themes as the `--ghost-accent-color`
+      // CSS custom property so partials can reference it with
+      // `var(--ghost-accent-color)`. The config schema already restricts
+      // accent_color to hex triplets, but the value is dropped directly into
+      // a <style> block here, so we re-validate as defense-in-depth before
+      // injecting. Anything that fails the allowlist is silently dropped.
+      const accentColor = sanitizeAccentColor(site.accent_color);
+      if (accentColor) {
+        parts.push(`<style>:root{--ghost-accent-color:${accentColor}}</style>`);
+      }
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
@@ -67,6 +77,39 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         }
         if (meta.imageAlt) {
           parts.push(`<meta property="og:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
+        }
+      }
+      // Open Graph article:* tags. Only emitted on post routes
+      // (og:type=article) so non-post pages remain plain `og:type=website`.
+      // Dates are normalised to ISO 8601 so consumers like Facebook crawlers
+      // can parse them deterministically regardless of the loader's incoming
+      // format. Tag and author values come from the post context (`tags` and
+      // `authors` arrays the loader attaches) and are emitted one tag per
+      // value, matching the OGP spec.
+      if (meta.ogType === 'article') {
+        const published = toIso8601(ctx.published_at);
+        if (published) {
+          parts.push(`<meta property="article:published_time" content="${escapeAttr(published)}">`);
+        }
+        const modified = toIso8601(ctx.updated_at);
+        if (modified) {
+          parts.push(`<meta property="article:modified_time" content="${escapeAttr(modified)}">`);
+        }
+        if (Array.isArray(ctx.tags)) {
+          for (const tag of ctx.tags as { name?: unknown }[]) {
+            const name = typeof tag?.name === 'string' ? tag.name : undefined;
+            if (name) {
+              parts.push(`<meta property="article:tag" content="${escapeAttr(name)}">`);
+            }
+          }
+        }
+        if (Array.isArray(ctx.authors)) {
+          for (const author of ctx.authors as { name?: unknown }[]) {
+            const name = typeof author?.name === 'string' ? author.name : undefined;
+            if (name) {
+              parts.push(`<meta property="article:author" content="${escapeAttr(name)}">`);
+            }
+          }
         }
       }
       parts.push(`<meta name="twitter:card" content="summary_large_image">`);
@@ -450,6 +493,38 @@ function renderFaviconLink(link: FaviconLink, basePath: string): string {
   if (link.sizes) attrs.push(`sizes="${escapeAttr(link.sizes)}"`);
   if (link.color) attrs.push(`color="${escapeAttr(link.color)}"`);
   return `<link ${attrs.join(' ')}>`;
+}
+
+// Defense-in-depth allowlist for accent_color before it lands inside a <style>
+// block. The config schema already restricts the value to hex triplets, but
+// the property is documented as user-controlled and we never want a malformed
+// configuration to be able to terminate the <style> tag or inject CSS rules.
+// We accept the same hex forms the schema accepts plus a conservative set of
+// CSS named colors, and reject everything else by returning undefined (the
+// caller then omits the <style> tag entirely).
+const NAMED_COLOR_PATTERN = /^[a-zA-Z]{3,32}$/;
+const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+function sanitizeAccentColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (HEX_COLOR_PATTERN.test(trimmed)) return trimmed;
+  if (NAMED_COLOR_PATTERN.test(trimmed)) return trimmed.toLowerCase();
+  return undefined;
+}
+
+// Normalise a frontmatter date (string | Date | unknown) into an ISO 8601
+// string. Falls back to undefined when the value is missing, the wrong type,
+// or unparseable so the caller can omit the meta tag rather than emit garbage.
+function toIso8601(value: unknown): string | undefined {
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? value.toISOString() : undefined;
+  }
+  if (typeof value !== 'string' || !value) return undefined;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return undefined;
+  return new Date(ms).toISOString();
 }
 
 function escapeAttr(value: string): string {

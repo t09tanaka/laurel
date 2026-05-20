@@ -1051,3 +1051,195 @@ describe('ghost_head CSP nonce', () => {
     expect(html).not.toContain('nonce=');
   });
 });
+
+describe('ghost_head article:* OG tags on post pages', () => {
+  test('emits article:published_time / article:modified_time as ISO 8601 on post routes', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-02-15T10:30:00.000Z',
+    });
+    expect(html).toContain(
+      '<meta property="article:published_time" content="2026-01-01T00:00:00.000Z">',
+    );
+    expect(html).toContain(
+      '<meta property="article:modified_time" content="2026-02-15T10:30:00.000Z">',
+    );
+  });
+
+  test('normalises non-ISO date strings into ISO 8601 for article:* tags', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-02',
+    });
+    expect(html).toMatch(
+      /<meta property="article:published_time" content="2026-01-01T00:00:00\.000Z">/,
+    );
+    expect(html).toMatch(
+      /<meta property="article:modified_time" content="2026-01-02T00:00:00\.000Z">/,
+    );
+  });
+
+  test('emits one article:tag per tag in ctx.tags', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      tags: [{ name: 'News' }, { name: 'Tech' }, { name: 'Bees' }],
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    expect(html).toContain('<meta property="article:tag" content="News">');
+    expect(html).toContain('<meta property="article:tag" content="Tech">');
+    expect(html).toContain('<meta property="article:tag" content="Bees">');
+  });
+
+  test('emits one article:author per author in ctx.authors', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      authors: [{ name: 'Jane Doe' }, { name: 'John Roe' }],
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    expect(html).toContain('<meta property="article:author" content="Jane Doe">');
+    expect(html).toContain('<meta property="article:author" content="John Roe">');
+  });
+
+  test('escapes attribute-breaking characters in article:tag / article:author', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      tags: [{ name: 'A & "B"' }],
+      authors: [{ name: '<script>alert(1)</script>' }],
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    expect(html).toContain('<meta property="article:tag" content="A &amp; &quot;B&quot;">');
+    expect(html).toContain(
+      '<meta property="article:author" content="&lt;script&gt;alert(1)&lt;/script&gt;">',
+    );
+    expect(html).not.toContain('<script>alert(1)');
+  });
+
+  test('skips article:tag / article:author entries without a usable name', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      tags: [{ name: 'OK' }, {}, { name: '' }, { name: 42 }],
+      authors: [{ name: 'OK' }, { name: null }, {}],
+      published_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    const tagMatches = html.match(/article:tag/g) ?? [];
+    const authorMatches = html.match(/article:author/g) ?? [];
+    expect(tagMatches.length).toBe(1);
+    expect(authorMatches.length).toBe(1);
+  });
+
+  test('omits article:* tags on non-post routes (home, tag archive, author archive)', () => {
+    const homeHtml = renderGhostHead({ title: 'Hi' }, '/', {
+      routeKind: 'home',
+      routeData: {},
+    });
+    expect(homeHtml).not.toContain('article:');
+
+    const tagHtml = renderGhostHead({ meta_title: 'News' }, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: { tag: { name: 'News', url: 'https://example.com/tag/news/' } },
+    });
+    expect(tagHtml).not.toContain('article:');
+
+    const authorHtml = renderGhostHead({ meta_title: 'Jane' }, '/author/jane/', {
+      routeKind: 'author',
+      routeData: { author: { name: 'Jane', url: 'https://example.com/author/jane/' } },
+    });
+    expect(authorHtml).not.toContain('article:');
+  });
+
+  test('omits article:* tags on static pages (page route)', () => {
+    const html = renderGhostHead(
+      { id: 'pg1', title: 'About', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/about/',
+      { routeData: { page: { id: 'pg1', slug: 'about', title: 'About' } } },
+    );
+    expect(html).not.toContain('article:');
+  });
+});
+
+describe('ghost_head accent_color CSS variable', () => {
+  test('emits :root{--ghost-accent-color} style when accent_color is set', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', {
+      site: { accent_color: '#ff8800' },
+    });
+    expect(html).toContain('<style>:root{--ghost-accent-color:#ff8800}</style>');
+  });
+
+  test('accepts 3-digit and 8-digit hex accent colors', () => {
+    const a = renderGhostHead({ title: 'Hi' }, '/', {
+      site: { accent_color: '#abc' },
+    });
+    expect(a).toContain('<style>:root{--ghost-accent-color:#abc}</style>');
+    const b = renderGhostHead({ title: 'Hi' }, '/', {
+      site: { accent_color: '#aabbccdd' },
+    });
+    expect(b).toContain('<style>:root{--ghost-accent-color:#aabbccdd}</style>');
+  });
+
+  test('accepts CSS named colors as accent_color', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', {
+      site: { accent_color: 'rebeccapurple' },
+    });
+    expect(html).toContain('<style>:root{--ghost-accent-color:rebeccapurple}</style>');
+  });
+
+  test('omits the style tag entirely when accent_color is empty', () => {
+    const html = renderGhostHead({ title: 'Hi' }, '/', {
+      site: { accent_color: '' },
+    });
+    expect(html).not.toContain('--ghost-accent-color');
+    expect(html).not.toMatch(/<style>:root\{/);
+  });
+
+  test('rejects accent_color values that try to break out of the style tag', () => {
+    const malicious = [
+      '</style><script>alert(1)</script>',
+      'red; background: url(//evil)',
+      'red }html{background:red',
+      '#abc; }',
+      '#zzzzzz',
+      '"',
+      'expression(alert(1))',
+    ];
+    for (const value of malicious) {
+      const html = renderGhostHead({ title: 'Hi' }, '/', {
+        site: { accent_color: value },
+      });
+      expect(html).not.toContain('--ghost-accent-color');
+      expect(html).not.toContain('<script>alert(1)');
+      expect(html).not.toContain('</style><script>');
+    }
+  });
+});
+
+describe('ghost_head RSS alternate link href shape', () => {
+  test('builds an absolute rss.xml href from a site.url without a trailing slash', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com' },
+    });
+    expect(html).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+    );
+  });
+
+  test('builds an absolute rss.xml href from a site.url with a trailing slash', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { url: 'https://example.com/' },
+    });
+    expect(html).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+    );
+  });
+});
