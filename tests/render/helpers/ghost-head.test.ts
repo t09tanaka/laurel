@@ -1654,6 +1654,36 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     expect(html).toContain('<meta property="og:description" content="Tagline from config">');
   });
 
+  test('non-public post descriptions only expose custom_excerpt', () => {
+    const html = renderGhostHead(
+      {
+        title: 'Members post',
+        visibility: 'paid',
+        custom_excerpt: 'Public teaser',
+        excerpt: 'Paid generated excerpt',
+        plaintext: 'Paid body text.',
+      },
+      '/members-post/',
+      { site: { description: '' } },
+    );
+    expect(html).toContain('<meta name="description" content="Public teaser">');
+    expect(html).toContain('<meta property="og:description" content="Public teaser">');
+    expect(html).not.toContain('Paid generated excerpt');
+
+    const withoutCustom = renderGhostHead(
+      {
+        title: 'Members post',
+        visibility: 'members',
+        excerpt: 'Paid generated excerpt',
+        plaintext: 'Paid body text.',
+      },
+      '/members-post/',
+      { site: { description: '' } },
+    );
+    expect(withoutCustom).not.toContain('Paid generated excerpt');
+    expect(withoutCustom).not.toContain('Paid body text');
+  });
+
   test('ctx title still wins over @site.meta_title', () => {
     const html = renderGhostHead({ title: 'Per-Post Title' }, '/some-post/', {
       site: { meta_title: 'Configured Site Title' },

@@ -30,10 +30,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
     'excerpt',
     function excerptHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as Record<string, unknown>;
-      const source =
-        (typeof ctx.custom_excerpt === 'string' && ctx.custom_excerpt) ||
-        (typeof ctx.excerpt === 'string' ? ctx.excerpt : '') ||
-        (typeof ctx.plaintext === 'string' ? ctx.plaintext : '');
+      const source = publicSafeExcerpt(ctx);
       const words = parseNum(options.hash.words);
       const characters = parseNum(options.hash.characters);
       if (words) return truncateByWords(source, words, siteLocale(options));
@@ -205,9 +202,9 @@ export function registerContentHelpers(engine: NectarEngine): void {
         (ctx.meta_description as string | undefined) ||
         (ctx.custom_excerpt as string | undefined) ||
         (ctx.og_description as string | undefined) ||
-        (ctx.excerpt as string | undefined) ||
+        publicSafeGeneratedExcerpt(ctx) ||
         fallback ||
-        firstSentence(ctx.plaintext) ||
+        publicSafeFirstSentence(ctx) ||
         ''
       );
     },
@@ -435,6 +432,33 @@ export function renderRecommendationListItem(item: RecommendationItem): string {
     ? `<img class="recommendation-favicon" src="${escapeAttr(item.favicon)}" alt="" loading="lazy">`
     : '';
   return `<li class="recommendation"><a href="${href}" rel="noopener" target="_blank">${favicon}<span class="recommendation-title">${title}</span></a>${desc}</li>`;
+}
+
+function isPublicVisibility(ctx: Record<string, unknown>): boolean {
+  return typeof ctx.visibility !== 'string' || ctx.visibility === 'public';
+}
+
+function publicSafeExcerpt(ctx: Record<string, unknown>): string {
+  const customExcerpt =
+    typeof ctx.custom_excerpt === 'string' && ctx.custom_excerpt.length > 0
+      ? ctx.custom_excerpt
+      : '';
+  if (!isPublicVisibility(ctx)) return customExcerpt;
+  return (
+    customExcerpt ||
+    (typeof ctx.excerpt === 'string' ? ctx.excerpt : '') ||
+    (typeof ctx.plaintext === 'string' ? ctx.plaintext : '')
+  );
+}
+
+export function publicSafeGeneratedExcerpt(ctx: Record<string, unknown>): string {
+  if (!isPublicVisibility(ctx)) return '';
+  return typeof ctx.excerpt === 'string' ? ctx.excerpt : '';
+}
+
+function publicSafeFirstSentence(ctx: Record<string, unknown>): string {
+  if (!isPublicVisibility(ctx)) return '';
+  return firstSentence(ctx.plaintext);
 }
 
 // Last-resort meta description fallback: take the first sentence of the

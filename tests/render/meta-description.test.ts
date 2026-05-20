@@ -76,6 +76,36 @@ describe('meta_description helper', () => {
     );
   });
 
+  test('non-public post route does not expose generated excerpt or plaintext fallback', () => {
+    const engine = makeEngine();
+    const route = { kind: 'post' };
+    const site = {};
+
+    expect(
+      render(
+        engine,
+        {
+          visibility: 'members',
+          custom_excerpt: 'Public teaser',
+          excerpt: 'Paid generated excerpt',
+          plaintext: 'Paid body text.',
+        },
+        { route, site },
+      ),
+    ).toBe('Public teaser');
+    expect(
+      render(
+        engine,
+        {
+          visibility: 'paid',
+          excerpt: 'Paid generated excerpt',
+          plaintext: 'Paid body text.',
+        },
+        { route, site },
+      ),
+    ).toBe('');
+  });
+
   test('tag route falls back to tag.description, not site.description', () => {
     const engine = makeEngine();
     const site = { description: 'Site default' };

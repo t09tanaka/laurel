@@ -361,6 +361,28 @@ describe('excerpt helper', () => {
     expect(tpl({ excerpt: 'auto', plaintext: 'plain' })).toBe('auto');
     expect(tpl({ plaintext: 'plain' })).toBe('plain');
   });
+
+  test('non-public posts only expose custom_excerpt', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const tpl = engine.hb.compile('{{excerpt}}');
+
+    expect(
+      tpl({
+        visibility: 'members',
+        custom_excerpt: 'Public teaser',
+        excerpt: 'Paid generated excerpt',
+        plaintext: 'Paid body text',
+      }),
+    ).toBe('Public teaser');
+    expect(
+      tpl({
+        visibility: 'paid',
+        excerpt: 'Paid generated excerpt',
+        plaintext: 'Paid body text',
+      }),
+    ).toBe('');
+  });
 });
 
 describe('reading_time helper', () => {

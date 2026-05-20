@@ -23,6 +23,7 @@ import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
+import { publicSafeGeneratedExcerpt } from './content.ts';
 
 export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
@@ -313,8 +314,9 @@ function computeMeta(
     (ctx.title as string | undefined);
   const descFromCtx =
     (ctx.meta_description as string | undefined) ||
+    (ctx.custom_excerpt as string | undefined) ||
     (ctx.og_description as string | undefined) ||
-    (ctx.excerpt as string | undefined);
+    publicSafeGeneratedExcerpt(ctx);
   const ogImage = ctx.og_image as string | undefined;
   const twitterImage = ctx.twitter_image as string | undefined;
   const featureImage = ctx.feature_image as string | undefined;
