@@ -132,6 +132,10 @@ without it, the build runs Node and `bunx` will fail.
 GitHub Pages does not run Bun, so the build has to happen in GitHub Actions
 and the resulting `dist/` is uploaded as the Pages artifact.
 
+For the focused quickstart, custom-domain notes, and branch-deploy caveats,
+see [`docs/deploy/github-pages.md`](../deploy/github-pages.md). The minimal
+workflow setup is included here so this tutorial stays self-contained.
+
 Copy [`examples/ci/github-pages.yml`](../../examples/ci/github-pages.yml)
 to `.github/workflows/pages.yml` in your repo — it's the workflow below,
 ready to use as-is:
@@ -197,6 +201,11 @@ base_path = "/<repo>/"
 
 `base_path` makes `{{asset}}`, `{{url}}`, and navigation links emit correct
 URLs for the subdirectory.
+
+Nectar also writes `dist/.nojekyll` on every successful build so GitHub Pages
+serves underscore-prefixed assets and directories instead of running them
+through Jekyll. If `[deploy.github_pages].custom_domain` is set, the build
+writes `dist/CNAME` with that hostname for Pages custom-domain binding.
 
 ---
 

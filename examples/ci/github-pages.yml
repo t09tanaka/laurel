@@ -8,7 +8,7 @@
 # also set [build].base_path = "/<repo>/" in nectar.toml so {{asset}} and
 # {{url}} emit correct URLs for the subdirectory.
 #
-# See docs/tutorials/04-deploy.md for the full walkthrough.
+# See docs/deploy/github-pages.md for the focused quickstart.
 
 name: Deploy to GitHub Pages
 

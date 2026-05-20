@@ -17,6 +17,9 @@ collects the operator-facing pieces of that contract in one place:
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages),
   without security headers wired in. Pair with `security/hosting.md` for the
   full set.
+- [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
+  quickstart with the recommended Actions artifact workflow, project-site
+  `base_path`, `.nojekyll`, and `CNAME` notes.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 
