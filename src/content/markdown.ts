@@ -598,6 +598,9 @@ const TOGGLE_SHORTCODE_RE =
 const CALLOUT_SHORTCODE_RE =
   /\{\{<\s+callout((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/callout\s*>\}\}/g;
 
+const CODE_SHORTCODE_RE =
+  /\{\{<\s+code((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/code\s*>\}\}/g;
+
 // Block-form `{{< button href="…" align="center" style="accent" >}}Label{{< /button >}}`.
 // Themes target `kg-button-card` with optional `kg-align-{align}` on the card
 // and `kg-btn-{style}` on the anchor itself.
@@ -643,6 +646,7 @@ const SHORTCODE_SCHEMAS: readonly ShortcodeSchema[] = [
   { name: 'bookmark', requiredAttrGroups: [['url']] },
   { name: 'button', requiredAttrGroups: [['href']] },
   { name: 'callout' },
+  { name: 'code' },
   { name: 'embed', requiredAttrGroups: [['url']] },
   { name: 'figure', requiredAttrGroups: [['src']] },
   { name: 'file', requiredAttrGroups: [['href', 'src']] },
@@ -683,6 +687,7 @@ const SHORTCODE_NAMES = SHORTCODE_SCHEMAS.map((schema) => schema.name);
 const BLOCK_SHORTCODES = new Set([
   'button',
   'callout',
+  'code',
   'gallery',
   'gallery-row',
   'toggle',
@@ -922,6 +927,9 @@ export function expandKoenigShortcodes(markdown: string): string {
     .replace(CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderCalloutHtml(parseShortcodeAttrs(attrsStr), body),
     )
+    .replace(CODE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderCodeHtml(parseShortcodeAttrs(attrsStr), body),
+    )
     .replace(BUTTON_STATEMENT_RE, (_match, attrsStr: string) => {
       const attrs = parseShortcodeAttrs(attrsStr);
       return renderButtonHtml(attrs, attrs.text ?? '');
@@ -1012,6 +1020,14 @@ function koenigWidth(attrs: Record<string, string>): string {
 function normalizeKoenigWidth(raw: string | undefined): string | null {
   const normalized = (raw ?? '').trim().replace(/^kg-width-/, '');
   return KOENIG_WIDTHS.has(normalized) ? normalized : null;
+}
+
+function optionalKoenigWidthClass(attrs: Record<string, string>): string {
+  const width =
+    normalizeKoenigWidth(attrs.width) ??
+    normalizeKoenigWidth(attrs.size) ??
+    normalizeKoenigWidth(attrs.cardWidth);
+  return width ? ` kg-width-${width}` : '';
 }
 
 function mediaWidthAttr(attrs: Record<string, string>): string {
@@ -1117,6 +1133,50 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
   const height = attrs.height || embed.height;
   const iframe = `<iframe src="${escapeHtmlAttr(embed.src)}" title="${escapeHtmlAttr(title)}" width="${escapeHtmlAttr(width)}" height="${escapeHtmlAttr(height)}" loading="lazy" frameborder="0" allow="${escapeHtmlAttr(embed.allow)}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   return `\n\n<figure class="${cardClass}">${iframe}${figcaption}</figure>\n\n`;
+}
+
+function renderCodeHtml(attrs: Record<string, string>, body: string): string {
+  const parsed = parseCodeShortcodeBody(body);
+  const language = normalizeCodeLanguage(attrs.language || attrs.lang || parsed.language);
+  const languageClass = language ? ` class="language-${escapeHtmlAttr(language)}"` : '';
+  const caption = attrs.caption ?? '';
+  const lineNumberClass = classTokenList(attrs['line-number-class'] ?? '');
+  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const cardClass = [
+    'kg-card kg-code-card',
+    optionalKoenigWidthClass(attrs).trim(),
+    hasCaptionClass(caption).trim(),
+    lineNumberClass,
+  ]
+    .filter((part) => part !== '')
+    .join(' ');
+
+  return `\n\n<figure class="${cardClass}"><pre><code${languageClass}>${escapeHtmlAttr(parsed.code)}</code></pre>${figcaption}</figure>\n\n`;
+}
+
+function parseCodeShortcodeBody(body: string): { code: string; language: string } {
+  const trimmed = body.trim();
+  const match = trimmed.match(/^(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n\1[ \t]*$/);
+  if (!match) return { code: body.trim(), language: '' };
+  return {
+    language: (match[2] ?? '').trim().split(/\s+/)[0] ?? '',
+    code: match[3] ?? '',
+  };
+}
+
+function normalizeCodeLanguage(raw: string): string {
+  const normalized = raw
+    .trim()
+    .replace(/^language-/, '')
+    .replace(/^lang-/, '');
+  return /^[a-zA-Z0-9_+.-]+$/.test(normalized) ? normalized : '';
+}
+
+function classTokenList(raw: string): string {
+  return raw
+    .split(/\s+/)
+    .filter((token) => /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)?$/.test(token))
+    .join(' ');
 }
 
 function staticEmbedFromUrl(rawUrl: string, providerHint: string | undefined): StaticEmbed | null {

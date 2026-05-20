@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { renderMarkdown } from '~/content/markdown.ts';
 import {
   createGhostTurndown,
   preprocessKoenigCardFences,
@@ -438,6 +439,18 @@ describe('Ghost Turndown rules — kg-code-card', () => {
     expect(md).toContain('line-number-class="line-numbers"');
     expect(md).toContain('```javascript\nconst msg = "hi";\nconsole.log(msg);\n```');
     expect(md).toContain('{{< /code >}}');
+  });
+
+  test('round-trips figcaption through import markdown and rendering', async () => {
+    const source =
+      '<figure class="kg-card kg-code-card kg-card-hascaption line-numbers"><pre><code class="language-javascript">const msg = "hi";\nconsole.log(msg);</code></pre><figcaption>Runnable example</figcaption></figure>';
+    const md = td.turndown(source);
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers">');
+    expect(html).toContain('<code class="language-javascript">');
+    expect(html).toContain('msg');
+    expect(html).toContain('<figcaption>Runnable example</figcaption>');
   });
 
   test('preserves language from pre class when code has no language class', () => {

@@ -338,6 +338,38 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
   });
 });
 
+describe('renderMarkdown — code shortcode expansion', () => {
+  test('expands imported code shortcode into a captioned Koenig code card', async () => {
+    const md = [
+      '{{< code language="javascript" caption="Runnable example" line-number-class="line-numbers" >}}',
+      '```javascript',
+      'const msg = "hi";',
+      'console.log(msg);',
+      '```',
+      '{{< /code >}}',
+    ].join('\n');
+
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers">');
+    expect(html).toContain('<code class="language-javascript">');
+    expect(html).toContain('msg');
+    expect(html).toContain('<figcaption>Runnable example</figcaption>');
+    expect(html).not.toContain('{{< code');
+    expect(html).not.toContain('```javascript');
+  });
+
+  test('uses the fenced code info string when language attr is absent', async () => {
+    const md = '{{< code >}}\n```ts\nconst answer: number = 42;\n```\n{{< /code >}}';
+
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain('<figure class="kg-card kg-code-card">');
+    expect(html).toContain('<code class="language-ts">');
+    expect(html).not.toContain('<figcaption>');
+  });
+});
+
 describe('renderMarkdown — toggle shortcode expansion', () => {
   test('expands toggle into a <details> element with Koenig class hooks', async () => {
     const md =
