@@ -67,6 +67,16 @@ describe('example build — golden HTML (#172)', () => {
     await build({ cwd: EXAMPLE_CWD });
   });
 
+  test('Source theme defers its external script without touching JSON-LD', async () => {
+    const actual = normalize(await readFile(join(DIST_DIR, 'index.html'), 'utf8'));
+
+    expect(actual).toMatch(
+      /<script src="\/assets\/built\/source\.<HASH>\.js" defer\b[^>]*><\/script>/,
+    );
+    expect(actual).toContain('<script type="application/ld+json">');
+    expect(actual).not.toMatch(/<script type="application\/ld\+json"[^>]*\bdefer\b/);
+  });
+
   for (const file of GOLDEN_FILES) {
     test(file, async () => {
       const actual = normalize(await readFile(join(DIST_DIR, file), 'utf8'));
