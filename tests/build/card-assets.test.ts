@@ -73,4 +73,13 @@ describe('emitCardAssets', () => {
     );
     expect(cardAssetsVersion({ exclude: ['bookmark'] })).not.toBe(cardAssetsVersion(true));
   });
+
+  test('embed card CSS gives iframes a responsive 16:9 box', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toContain('.kg-embed-card iframe');
+    expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*width:100%/);
+    expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*aspect-ratio:16\/9/);
+    expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*border:0/);
+  });
 });

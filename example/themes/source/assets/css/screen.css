@@ -2302,6 +2302,12 @@ unless a heading is the very first element in the post content */
     width: 100%;
 }
 
+.kg-embed-card iframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+}
+
 /* Gallery */
 
 .kg-gallery-container {

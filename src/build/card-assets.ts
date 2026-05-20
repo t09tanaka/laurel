@@ -36,7 +36,7 @@ const CARD_CSS: Record<(typeof CARD_NAMES)[number], string> = {
   callout:
     '.kg-callout-card{display:flex;gap:1rem;padding:1.2rem 1.5rem;border-radius:5px;background:#f5f5f5}.kg-callout-emoji{line-height:1.4}.kg-callout-text{flex:1}',
   embed:
-    '.kg-embed-card{width:100%}.kg-embed-card iframe{display:block;max-width:100%;border:0}.kg-embed-card blockquote{margin:0}',
+    '.kg-embed-card{width:100%}.kg-embed-card iframe{display:block;width:100%;max-width:100%;aspect-ratio:16/9;border:0}.kg-embed-card blockquote{margin:0}',
   file: '.kg-file-card{display:flex}.kg-file-card-container{display:flex;align-items:center;gap:1rem;width:100%;padding:1rem;border:1px solid rgba(0,0,0,.12);border-radius:5px;color:inherit;text-decoration:none}.kg-file-card-contents{flex:1;min-width:0}.kg-file-card-title{font-weight:700}.kg-file-card-caption,.kg-file-card-metadata{color:rgba(0,0,0,.6);font-size:.9em}.kg-file-card-icon{width:32px;height:32px;flex:0 0 auto}',
   gallery:
     '.kg-gallery-card+.kg-gallery-card,.kg-gallery-card+.kg-image-card{margin-top:.75em}.kg-gallery-container{display:flex;flex-direction:column;gap:.75em;width:100%}.kg-gallery-row{display:flex;flex-direction:row;justify-content:center;gap:.75em}.kg-gallery-image{flex:1;min-width:0}.kg-gallery-image img{display:block;width:100%;height:100%;object-fit:cover}',
