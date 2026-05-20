@@ -611,7 +611,7 @@ The contexts available inside templates are documented in
 [`GHOST_COMPATIBILITY.md` §Contexts](./GHOST_COMPATIBILITY.md#contexts). In
 brief:
 
-- `@site` (alias `@blog`) — site-wide values from `nectar.toml [site]`.
+- `@site` (aliases `@blog`, `@setting`) — site-wide values from `nectar.toml [site]`.
 - `@custom` — theme custom-settings, built from `package.json > config.custom`
   defaults, overridden by `nectar.toml [theme.custom]`.
 - `@page` — `route.data` for the current page (rarely accessed directly).

@@ -274,7 +274,7 @@ interface Author {
 }
 ```
 
-### `@site` (a.k.a. `@blog`)
+### `@site` (a.k.a. `@blog` and `@setting`)
 
 ```ts
 interface SiteData {

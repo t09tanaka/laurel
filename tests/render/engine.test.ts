@@ -661,6 +661,42 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('/content/images/site-icon.svg');
   });
 
+  test('@setting is a cross-theme alias for the enriched @site context (issue #315)', () => {
+    const engine = makeEngine();
+    engine.content = {
+      ...engine.content,
+      site: {
+        locale: 'en',
+        title: 'Alias Site',
+        paid_members_enabled: true,
+        navigation: [{ label: 'Members', url: '/members/' }],
+      },
+    } as unknown as NectarEngine['content'];
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/members/',
+      outputPath: 'members/index.html',
+      template: 'page',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    expect(data.setting).toBe(data.site);
+    expect(data.blog).toBe(data.site);
+
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      [
+        '{{@site.title}}',
+        '|{{@setting.title}}',
+        '|{{@site.paid_members_enabled}}',
+        '|{{@setting.paid_members_enabled}}',
+        '|{{#each @setting.navigation}}{{slug}}:{{current}}{{/each}}',
+      ].join(''),
+    );
+    expect(tpl({}, { data })).toBe('Alias Site|Alias Site|true|true|members:true');
+  });
+
   // Regression coverage for issue #111: the Source theme renders the home grid
   // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
   // `get` helper falls back to 15 when `limit` is undefined, which would mask

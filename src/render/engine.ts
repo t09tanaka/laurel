@@ -301,6 +301,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   return {
     site,
     blog: site,
+    setting: site,
     config: buildGhostConfig(engine),
     custom,
     page: route.kind === 'page' ? route.data.page : undefined,
