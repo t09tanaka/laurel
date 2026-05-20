@@ -1,0 +1,21 @@
+Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
+
+Usage:
+  nectar dev [--config <path>] [--port <n>] [--host <host>] [--json]
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --port <n>          Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests)
+  --host <host>       Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
+  --json              Switch logger output (status / rebuild events) to one JSON object per line for CI / log forwarders. Accepted globally; flag here just makes it visible in `--help`
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_DEV_CONFIG
+
+Examples:
+  nectar dev                                   # http://localhost:4321 with live reload
+  nectar dev --port 8080                       # pick a different port
+  nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing)

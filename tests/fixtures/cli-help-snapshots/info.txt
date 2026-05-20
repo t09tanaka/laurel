@@ -1,0 +1,19 @@
+Print Nectar, Bun, and project environment information
+
+Usage:
+  nectar info [--config <path>] [--json]
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --json              Emit the report as JSON for CI consumption
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_INFO_CONFIG
+
+Examples:
+  nectar info                                  # human-readable summary
+  nectar info --json                           # machine-readable; same payload
+  nectar env                                   # alias for `nectar info`

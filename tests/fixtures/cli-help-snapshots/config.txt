@@ -1,0 +1,22 @@
+Inspect the loaded nectar.toml config
+
+Usage:
+  nectar config [--config <path>] [--json] <subcommand...>
+
+Arguments:
+  subcommand          `get <dotted.key>` (print the value at a dotted path, e.g. `site.url` or `build.base_path`) or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --json              Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_CONFIG_CONFIG
+
+Examples:
+  nectar config path                           # absolute path of the loaded toml
+  nectar config get site.url
+  nectar config get build.base_path --json

@@ -1,0 +1,20 @@
+Run health checks on the project (bun, config, theme, content, network)
+
+Usage:
+  nectar doctor [--config <path>] [--json] [--no-network]
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --json              Emit results as JSON (for CI consumption)
+  --no-network        Skip the network reachability check
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_DOCTOR_CONFIG
+
+Examples:
+  nectar doctor                                # full project health check
+  nectar doctor --no-network                   # skip the connectivity probe
+  nectar doctor --json                         # machine-readable for CI

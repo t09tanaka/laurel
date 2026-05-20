@@ -1,0 +1,28 @@
+Inspect or modify content in the project (posts, pages)
+
+Usage:
+  nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] <subcommand...>
+
+Arguments:
+  subcommand          `list` (show posts/pages) or `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter)
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --kind <posts|pages>  For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)
+  --draft             Include draft posts/pages in the listing (default: only published; `list` only)
+  --tag <slug>        Show only entries that have the given tag slug (`list` only)
+  --author <slug>     Show only entries that have the given author slug (`list` only)
+  --json              Emit results as JSON for CI consumption (both `list` and `rename`)
+  --redirect          On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_CONTENT_CONFIG
+
+Examples:
+  nectar content list                          # posts + pages with status/date
+  nectar content list --kind pages
+  nectar content list --tag changelog --json
+  nectar content rename old-slug new-slug --redirect

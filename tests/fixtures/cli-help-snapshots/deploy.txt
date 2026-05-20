@@ -1,0 +1,36 @@
+Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
+
+Usage:
+  nectar deploy [--config <path>] [--build] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] <target>
+
+Arguments:
+  target              Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  -b, --build         Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step
+  --dry-run           Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed
+  --project-name <name>  cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config
+  --branch <name>     cloudflare: branch label forwarded to `wrangler pages deploy --branch=<name>`. github-pages: branch to push the site to (defaults to `[deploy.github_pages].branch` or `gh-pages`)
+  --site-id <id>      netlify only: Netlify site id forwarded to `netlify deploy --site=<id>`. Overrides `[deploy.netlify].site_id`
+  --prod              netlify, vercel: explicitly pass `--prod`. Default `true` for both via config (`[deploy.<target>].prod`); pair with `--prod=false`-equivalent NECTAR_DEPLOY_PROD=0 env var when the CLI flag is unsuitable
+  --bucket <name>     s3 / r2: target bucket name. Forwarded to `aws s3 sync dist s3://<bucket>`. Overrides the matching `[deploy.s3].bucket` or `[deploy.r2].bucket` config entry
+  --region <region>   s3 only: AWS region forwarded as `--region <region>` to `aws s3 sync`. Overrides `[deploy.s3].region`
+  --endpoint <url>    r2 only: R2 S3-compatible endpoint URL forwarded as `--endpoint-url <url>` to `aws s3 sync`. Overrides `[deploy.r2].endpoint`
+  --destination <user@host:path>  rsync only: destination string (e.g. `user@host:/var/www/site/`). Overrides `[deploy.rsync].destination`
+  --remote <name>     github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`)
+  --json              Emit the deploy plan / outcome as JSON on stdout for CI consumption
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_DEPLOY_CONFIG
+
+Examples:
+  nectar deploy cloudflare --project-name my-blog --build
+  nectar deploy netlify --site-id abc123
+  nectar deploy vercel --prod
+  nectar deploy github-pages --branch gh-pages
+  nectar deploy rsync --destination user@host:/var/www/site/
+  nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run

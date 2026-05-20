@@ -1,0 +1,23 @@
+Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
+
+Usage:
+  nectar open [--config <path>] [--kind <posts|pages>] [--json] [slug]
+
+Arguments:
+  slug                Slug of the post or page to open (e.g. `hello-world`)
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --kind <posts|pages>  Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error
+  --json              Emit the resolved file path (and slug/kind) as JSON on stdout instead of spawning $EDITOR. Useful for piping into other tooling
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_OPEN_CONFIG
+
+Examples:
+  nectar open hello-world                      # opens content/posts/hello-world.md
+  nectar open about --kind pages
+  EDITOR=code nectar open hello-world          # respects $EDITOR

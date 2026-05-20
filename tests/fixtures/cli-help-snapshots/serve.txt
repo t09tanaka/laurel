@@ -1,0 +1,23 @@
+Serve the built site locally
+
+Usage:
+  nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--json]
+
+Options:
+  --port <n>          Port to listen on (1..65535 integer; defaults to 4321)
+  --host <host>       Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
+  --no-watch          Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot
+  -b, --build         Run a full build before starting the server, regardless of whether dist/ already exists
+  --json              Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --port → NECTAR_SERVE_PORT
+
+Examples:
+  nectar serve                                 # serve dist/ + rebuild on change
+  nectar serve --no-watch                      # serve dist/ as a static snapshot
+  nectar serve --build                         # build first, then serve
+  nectar serve --port 8080 --host 0.0.0.0

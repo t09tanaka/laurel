@@ -1,0 +1,26 @@
+Inspect or modify tags in the project
+
+Usage:
+  nectar tags [--config <path>] [--orphaned] [--unused] [--json] [--dry-run] <subcommand...>
+
+Arguments:
+  subcommand          `list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically)
+
+Options:
+  --config <path>     Path to a config file; disables discovery when set
+  --orphaned          Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only)
+  --unused            Alias for --orphaned (`list` only)
+  --json              Emit results as JSON for CI consumption (both `list` and `rename`)
+  --dry-run           On `rename`: scan and report the files that would change without writing anything
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_TAGS_CONFIG
+
+Examples:
+  nectar tags list                             # all tags + post counts
+  nectar tags list --orphaned                  # tags defined but unused
+  nectar tags rename old-tag new-tag
+  nectar tags rename old new --dry-run         # preview files that would change

@@ -1,0 +1,31 @@
+Convert a Ghost JSON export into Markdown content
+
+Usage:
+  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
+
+Arguments:
+  file                Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
+
+Options:
+  --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
+  --assets <dir>      Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
+  --download-images   Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths
+  --max-image-size <size>  Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.
+  --source-url <url>  Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths
+  --dry-run           Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images
+  --max-size <size>   Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.
+  --keep-code-injection  Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.
+  --json              Emit the import summary as JSON on stdout for CI consumption
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --on-conflict → NECTAR_IMPORT_GHOST_ON_CONFLICT
+
+Examples:
+  nectar import-ghost ghost-export.json
+  nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
+  nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
+  nectar import-ghost export.json --download-images --max-image-size 5MB
+  nectar import-ghost export.json --on-conflict overwrite

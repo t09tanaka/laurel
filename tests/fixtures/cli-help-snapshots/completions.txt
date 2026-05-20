@@ -1,0 +1,21 @@
+Print a shell completion script for the given shell
+
+Usage:
+  nectar completions [--json] <shell>
+
+Arguments:
+  shell               Target shell: bash, zsh, fish, or powershell
+
+Options:
+  --json              No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --json → NECTAR_COMPLETIONS_JSON
+
+Examples:
+  nectar completions bash >> ~/.bashrc
+  nectar completions zsh > ~/.zsh/_nectar
+  nectar completions fish > ~/.config/fish/completions/nectar.fish

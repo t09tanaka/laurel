@@ -1,0 +1,31 @@
+Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
+
+Usage:
+  nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] [--json] <source-and-args...>
+
+Arguments:
+  source-and-args     `<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy`
+
+Options:
+  --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only)
+  --dry-run           Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan)
+  --assets <dir>      ghost only: path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
+  --download-images   ghost only: download remote image URLs into content/images/ and rewrite references to local paths
+  --max-image-size <size>  ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables)
+  --source-url <url>  ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths
+  --max-size <size>   ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)
+  --keep-code-injection  ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source.
+  --json              Emit the migration summary as JSON on stdout for CI consumption
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --on-conflict → NECTAR_MIGRATE_ON_CONFLICT
+
+Examples:
+  nectar migrate ghost export.json
+  nectar migrate ghost export.zip --on-conflict overwrite
+  nectar migrate wordpress export.xml
+  nectar migrate hugo ./old-hugo-site --dry-run
+  nectar migrate jekyll ./old-jekyll-site
