@@ -17,8 +17,9 @@ This document covers:
 2. [What the Nectar members surface actually exposes](#2-what-the-nectar-members-surface-actually-exposes)
 3. [How the portal adapter rewrites buttons and forms](#3-how-the-portal-adapter-rewrites-buttons-and-forms)
 4. [Wiring examples per provider](#4-wiring-examples-per-provider)
-5. [Known parity gaps](#5-known-parity-gaps)
-6. [Sending newsletters after a build](#6-sending-newsletters-after-a-build)
+5. [Member analytics and dashboards](#5-member-analytics-and-dashboards)
+6. [Known parity gaps](#6-known-parity-gaps)
+7. [Sending newsletters after a build](#7-sending-newsletters-after-a-build)
 
 For the underlying config schema, see
 [`docs/config.md` § `components.portal`](./config.md#componentsportal).
@@ -299,7 +300,32 @@ untouched; Ghost's Portal script binds them at load.
 
 ---
 
-## 5. Known parity gaps
+## 5. Member analytics and dashboards
+
+Ghost ships `/ghost/#/dashboard` with live member growth, MRR, subscription,
+and newsletter engagement charts. Nectar does not provide an equivalent
+built-in member analytics dashboard because Nectar emits static files: there
+is no database, event stream, email sender, checkout system, or authenticated
+admin runtime for it to query after deploy.
+
+Use the dashboard that belongs to your external ESP or hosted newsletter /
+membership provider instead:
+
+| Provider | Analytics source |
+|----------|------------------|
+| Buttondown | Buttondown dashboard for subscribers, paid subscriptions, opens, clicks, and broadcasts. |
+| Beehiiv | Beehiiv dashboard for audience growth, revenue, referrals, newsletter engagement, and paid subscriptions. |
+| Substack | Substack dashboard for subscribers, subscriptions, posts, opens, clicks, and revenue. |
+| Custom / self-hosted | Your own member backend, payment provider, ESP, or product analytics stack. |
+
+Nectar can still emit normal web analytics snippets through
+[`components.analytics`](./config.md#componentsanalytics), but those track page
+views on the public static site. They do not replace ESP-side subscriber
+counts, MRR, open rates, paid-tier churn, or per-email campaign reporting.
+
+---
+
+## 6. Known parity gaps
 
 Nectar matches Ghost's members **shape** but not its **behaviour**. The
 following do not work, and there is no plan to make them work without a
@@ -327,6 +353,9 @@ server:
 - **No comments tied to membership.** `{{comments}}` is an empty stable hook.
   Wire Giscus / Disqus / Utterances client-side; none of them check Ghost
   member identity.
+- **No built-in member analytics dashboard.** Nectar's static output cannot
+  reproduce Ghost's live `/ghost/#/dashboard` member growth, MRR, or open-rate
+  charts. Use your ESP / hosted newsletter provider dashboard instead.
 - **Newsletter sending is out of scope.** Ghost's email newsletter feature
   (cron-driven, per-post) is not implemented. Schedule sends from your
   provider's dashboard, or trigger your own provider-specific sender from
@@ -338,7 +367,7 @@ using Nectar only for the public reading surface.
 
 ---
 
-## 6. Sending newsletters after a build
+## 7. Sending newsletters after a build
 
 Ghost can emit webhooks such as `post.published` from Admin because Ghost owns
 the database and publishing event. Nectar's equivalent lifecycle point is build

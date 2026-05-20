@@ -10,7 +10,8 @@ status and edge cases as we discover them.
 For the members / portal compatibility surface in particular — what
 `@member`, `@site.members_enabled`, `{{#unless access}}`, and the
 `data-portal="…"` rewrites mean in a static build, plus migration
-recipes for Buttondown / Beehiiv / Substack — see
+recipes for Buttondown / Beehiiv / Substack and the member analytics
+dashboard gap — see
 [`MEMBERS.md`](./MEMBERS.md).
 
 ## Helpers
@@ -367,6 +368,10 @@ pipeline may minify surrounding HTML, but it must preserve explicit `src` and
 
 - Members context (`@member.*`) — undefined; templates that read it get
   empty values via the proxy default.
+- Ghost Admin's live member analytics dashboard (`/ghost/#/dashboard`) —
+  not implemented in static output. Use your ESP or hosted newsletter
+  provider dashboard instead; see
+  [`MEMBERS.md` § 5](./MEMBERS.md#5-member-analytics-and-dashboards).
 - Runtime subscribe / Portal error context (`error.message`) — only Ghost's
   live runtime populates this after failed POSTs. Nectar leaves `error` unset
   on normal static routes, so those snippets render empty.
