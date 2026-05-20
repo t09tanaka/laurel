@@ -316,6 +316,83 @@ export function injectImageSrcsetIntoContent(opts: InjectImageSrcsetIntoContentO
   }
 }
 
+// Ghost themes hard-code per-size srcset entries in their HBS templates (e.g.
+// Source's `feature-image.hbs` lists s/m/l/xl/xxl in one srcset). When the
+// source is an SVG (or any other image where `{{img_url ... size="x"}}` falls
+// back to the original URL because no raster variant exists), every srcset
+// entry resolves to the same URL — pointless bytes the browser must parse and
+// then dedupe. This walks the rendered HTML, finds `<img srcset="…">` whose
+// entries all share one URL after stripping descriptors, and removes the
+// redundant `srcset` (plus the matching `sizes`). The single `src` attribute
+// already in the tag is left untouched, which is exactly what we want for SVG.
+// (issue #534)
+export function collapseDegenerateSrcset(html: string): string {
+  if (!html.includes('srcset')) return html;
+  return html.replace(/<img\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string, selfClose: string) => {
+    const attrs = parseImgAttrs(attrsRaw);
+    const srcset = attrs.get('srcset');
+    if (typeof srcset !== 'string' || srcset === '') return match;
+    const urls = parseSrcsetUrls(srcset);
+    if (urls.length < 2) return match;
+    const first = urls[0];
+    for (const u of urls) {
+      if (u !== first) return match;
+    }
+    // Strip srcset and the paired sizes attribute. sizes without srcset is
+    // meaningless and would just confuse downstream linters; the original
+    // `src` attribute (still in attrsRaw, which we have not touched) carries
+    // the URL the browser needs.
+    let next = stripAttr(attrsRaw, 'srcset');
+    next = stripAttr(next, 'sizes');
+    return `<img${next}${selfClose}>`;
+  });
+}
+
+export interface CollapseDegenerateSrcsetIntoContentOptions {
+  content: ContentGraph;
+}
+
+// Same dedupe pass applied to post/page HTML at content-graph time (so the
+// rewrite is visible in feeds and lightbox payloads). The rendered-HTML pass in
+// the build pipeline also calls collapseDegenerateSrcset, which catches srcset
+// strings produced by theme HBS templates that never go through content.html.
+export function collapseDegenerateSrcsetIntoContent(
+  opts: CollapseDegenerateSrcsetIntoContentOptions,
+): void {
+  for (const post of opts.content.posts) {
+    post.html = collapseDegenerateSrcset(post.html);
+    if (post.feed_html && post.feed_html !== post.html) {
+      post.feed_html = collapseDegenerateSrcset(post.feed_html);
+    }
+  }
+  for (const page of opts.content.pages) {
+    page.html = collapseDegenerateSrcset(page.html);
+  }
+}
+
+// Split a srcset value into the raw URL portion of each entry, dropping the
+// width/density descriptor. A descriptor-less entry (`foo.svg`) is treated as
+// the URL itself. Whitespace between entries (including the newlines themes
+// like to use for readability) is collapsed.
+function parseSrcsetUrls(srcset: string): string[] {
+  return srcset
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .map((part) => {
+      const space = part.search(/\s/);
+      return space < 0 ? part : part.slice(0, space);
+    });
+}
+
+// Remove a single attribute (and its value) from a raw attribute string while
+// preserving the surrounding whitespace shape, so the resulting tag still
+// renders cleanly and self-closing forms keep their trailing space.
+function stripAttr(attrsRaw: string, name: string): string {
+  const re = new RegExp(`\\s*${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'=<>\`]+)`, 'gi');
+  return attrsRaw.replace(re, '');
+}
+
 export type ImageFormat = 'webp' | 'avif';
 
 export interface GenerateImageFormatVariantsOptions {

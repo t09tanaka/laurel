@@ -840,6 +840,12 @@ export const configSchema = z
               .describe(
                 'Emit per-format image variants (WebP/AVIF) for jpg/png sources alongside the same-format responsive widths and wrap `<img>` in `<picture>` for browser fallback. Requires `sharp`; when sharp is not installed the `<picture>` wrap is skipped so themes keep working with the original `<img>`.',
               ),
+            resize: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Generate same-format resized variants (`/content/images/size/wXXX[hYYY]/<path>`) for theme `image_sizes` and the default responsive widths. Requires `sharp`; when sharp is not installed the pass is skipped with a warning and `<img>` srcset URLs may 404 (browsers fall back to the original `src`). Set to `false` to opt out of the resize pipeline entirely (e.g. when source images are already pre-resized or the project does not want a sharp dependency).',
+              ),
             formats: z
               .array(z.enum(['webp', 'avif']))
               .default(['webp'])

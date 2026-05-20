@@ -8,6 +8,8 @@ import {
   DEFAULT_RESPONSIVE_WIDTHS,
   type ImageVariantPlan,
   buildThemeImageSizeSegment,
+  collapseDegenerateSrcset,
+  collapseDegenerateSrcsetIntoContent,
   generateThemeImageSizeVariants,
   injectImageDimensions,
   injectImageDimensionsIntoContent,
@@ -916,5 +918,96 @@ describe('generateThemeImageSizeVariants', () => {
       new Bun.Glob('*').scan({ cwd: cacheDir, onlyFiles: true }),
     );
     expect(cacheFilesAfter.length).toBe(2);
+  });
+});
+
+describe('collapseDegenerateSrcset', () => {
+  test('strips srcset+sizes when every entry resolves to the same URL (SVG cover, issue #534)', () => {
+    // What Source's feature-image.hbs produces for an SVG `feature_image`:
+    // every `{{img_url cover size="..."}}` returns the same URL because the
+    // size segment rewrite is skipped for vector sources. The browser would
+    // download the original anyway, so the srcset is just bytes that have to
+    // be parsed and discarded.
+    const html =
+      '<img alt="cover" srcset="/content/images/cover.svg 320w, /content/images/cover.svg 600w, /content/images/cover.svg 960w" sizes="100vw" src="/content/images/cover.svg">';
+    const out = collapseDegenerateSrcset(html);
+    expect(out).not.toContain('srcset=');
+    expect(out).not.toContain('sizes=');
+    expect(out).toContain('alt="cover"');
+    expect(out).toContain('src="/content/images/cover.svg"');
+  });
+
+  test('keeps srcset when entries point at distinct URLs', () => {
+    const html =
+      '<img srcset="/content/images/size/w320/cover.jpg 320w, /content/images/size/w600/cover.jpg 600w" sizes="100vw" src="/content/images/cover.jpg">';
+    expect(collapseDegenerateSrcset(html)).toBe(html);
+  });
+
+  test('leaves single-entry srcset alone', () => {
+    // A solo entry is unusual but legal (e.g. for retina-only fallbacks);
+    // dedupe logic only fires when there are at least two entries to compare.
+    const html = '<img srcset="/content/images/cover.svg 1x" src="/content/images/cover.svg">';
+    expect(collapseDegenerateSrcset(html)).toBe(html);
+  });
+
+  test('handles srcset with newlines and extra whitespace between entries', () => {
+    // Source's HBS template breaks srcset across lines for readability — the
+    // raw HTML the renderer produces preserves that whitespace.
+    const html =
+      '<img\n  srcset="/content/images/c.svg 320w,\n          /content/images/c.svg 600w,\n          /content/images/c.svg 960w"\n  sizes="(max-width: 1200px) 100vw, 1120px"\n  src="/content/images/c.svg">';
+    const out = collapseDegenerateSrcset(html);
+    expect(out).not.toContain('srcset');
+    expect(out).not.toContain('sizes=');
+    expect(out).toContain('src="/content/images/c.svg"');
+  });
+
+  test('is a no-op when html contains no <img srcset>', () => {
+    const html = '<p>just text and <a href="x">a link</a></p>';
+    expect(collapseDegenerateSrcset(html)).toBe(html);
+  });
+
+  test('handles density descriptors (1x/2x) the same way as width descriptors', () => {
+    const html =
+      '<img srcset="/content/images/icon.svg 1x, /content/images/icon.svg 2x" src="/content/images/icon.svg">';
+    const out = collapseDegenerateSrcset(html);
+    expect(out).not.toContain('srcset');
+    expect(out).toContain('src="/content/images/icon.svg"');
+  });
+
+  test('preserves self-closing form when stripping attrs', () => {
+    const html = '<img srcset="/c.svg 320w, /c.svg 600w" sizes="100vw" src="/c.svg" />';
+    const out = collapseDegenerateSrcset(html);
+    expect(out.endsWith('/>')).toBe(true);
+    expect(out).not.toContain('srcset');
+    expect(out).not.toContain('sizes=');
+  });
+});
+
+describe('collapseDegenerateSrcsetIntoContent', () => {
+  test('rewrites post.html, post.feed_html, and page.html', () => {
+    const post = {
+      id: 'p1',
+      slug: 'p1',
+      html: '<img srcset="/content/images/x.svg 320w, /content/images/x.svg 600w" sizes="100vw" src="/content/images/x.svg">',
+      feed_html:
+        '<img srcset="/content/images/y.svg 320w, /content/images/y.svg 600w" sizes="100vw" src="/content/images/y.svg">',
+    } as unknown as Post;
+    const page = {
+      id: 'pg1',
+      slug: 'pg1',
+      html: '<img srcset="/content/images/z.svg 320w, /content/images/z.svg 600w" sizes="100vw" src="/content/images/z.svg">',
+    } as unknown as Page;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [page],
+      authors: [],
+      tags: [],
+    } as unknown as ContentGraph;
+    collapseDegenerateSrcsetIntoContent({ content });
+    expect(post.html).not.toContain('srcset');
+    expect(post.feed_html).not.toContain('srcset');
+    expect(page.html).not.toContain('srcset');
+    expect(post.html).toContain('src="/content/images/x.svg"');
+    expect(page.html).toContain('src="/content/images/z.svg"');
   });
 });

@@ -210,6 +210,60 @@ describe('img_url helper', () => {
     expect(tpl({})).toBe('');
   });
 
+  test('SVG sources skip size segment rewriting (issues #49 / #140 / #534)', () => {
+    // SVG is vector — there is no raster variant to point at, and the resize
+    // pipeline (generateThemeImageSizeVariants) intentionally skips SVG. If
+    // img_url still rewrote the URL we would emit srcsets full of 404s; the
+    // browser would fall back to the original anyway, just after a wasted
+    // round trip and a Lighthouse CLS hit. Easier to just return the original.
+    const engine = makeEngine({
+      imageSizes: {
+        s: { width: 320 },
+        m: { width: 600 },
+        xxl: { width: 2000 },
+      },
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile(
+      [
+        '{{img_url cover size="s"}}',
+        '{{img_url cover size="m"}}',
+        '{{img_url cover size="xxl"}}',
+      ].join('|'),
+    );
+    const result = tpl({ cover: '/content/images/welcome-cover.svg' });
+    expect(result).toBe(
+      '/content/images/welcome-cover.svg|/content/images/welcome-cover.svg|/content/images/welcome-cover.svg',
+    );
+  });
+
+  test('SVG sources skip format segment too', () => {
+    // Re-encoding an SVG to webp/avif would defeat the point of vector. Even
+    // if a theme template asks for `size="m" format="webp"` on an SVG, return
+    // the original — sharp cannot produce the requested variant anyway.
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url cover size="m" format="webp"}}');
+    expect(tpl({ cover: '/content/images/logo.svg' })).toBe('/content/images/logo.svg');
+  });
+
+  test('SVG detection survives query strings and fragments', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    // Use triple-stash to bypass Handlebars HTML escaping when asserting the
+    // raw URL — we are checking the helper's output, not what Handlebars does
+    // to `=` characters in attribute context.
+    const tpl = engine.hb.compile('{{{img_url cover size="m"}}}');
+    expect(tpl({ cover: '/content/images/logo.svg?v=2' })).toBe('/content/images/logo.svg?v=2');
+  });
+
+  test('SVG detection is case-insensitive on extension', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url cover size="m"}}');
+    expect(tpl({ cover: '/content/images/LOGO.SVG' })).toBe('/content/images/LOGO.SVG');
+  });
+
   test('appends format segment after size when format="webp" (issue #112)', () => {
     const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
     registerAssetHelpers(engine);

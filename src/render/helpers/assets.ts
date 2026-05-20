@@ -74,6 +74,16 @@ function normalizeFormat(value: string): string | undefined {
 // produces canonical Ghost image-API URLs (e.g.
 // `/content/images/size/w600/format/webp/cover.jpg`). Actual transcoding is a
 // separate concern; this only emits the canonical URL shape.
+//
+// SVG sources are special: they are vector and scale losslessly in the browser,
+// and the build-time resize pipeline (generateThemeImageSizeVariants) skips SVG
+// because sharp cannot raster-resize them. Rewriting an SVG candidate to a
+// `size/wXXX/...svg` URL would point at a file that never lands on disk, so we
+// short-circuit and return the original URL. This makes hand-written theme
+// srcsets like Source's `{{img_url feature_image size="s"}} 320w, … size="xxl"}} 2000w`
+// degenerate (every entry resolves to the same URL); collapseDegenerateSrcset
+// in the build pipeline strips the redundant srcset/sizes from the final HTML
+// (issues #49 / #140 / #534).
 function applyTransformSegments(
   candidate: string,
   sizeDef: ThemeImageSize | undefined,
@@ -81,6 +91,7 @@ function applyTransformSegments(
 ): string {
   const sizeSegment = sizeDef ? buildSizeSegment(sizeDef) : '';
   if (!sizeSegment && !format) return candidate;
+  if (isSvgSource(candidate)) return candidate;
   const marker = '/content/images/';
   const idx = candidate.indexOf(marker);
   if (idx < 0) return candidate;
@@ -93,6 +104,13 @@ function applyTransformSegments(
   if (format && !hasFormatSegment) prefix += `format/${format}/`;
   if (!prefix) return candidate;
   return `${before}${prefix}${after}`;
+}
+
+// Strip query/fragment before sniffing the extension so a URL like
+// `/content/images/logo.svg?v=2` is still recognised as SVG.
+function isSvgSource(candidate: string): boolean {
+  const clean = candidate.split(/[?#]/)[0] ?? '';
+  return clean.toLowerCase().endsWith('.svg');
 }
 
 function buildSizeSegment(size: ThemeImageSize): string {

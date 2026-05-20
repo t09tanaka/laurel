@@ -31,6 +31,8 @@ import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import {
   type ImageFormat,
+  collapseDegenerateSrcset,
+  collapseDegenerateSrcsetIntoContent,
   generateImageFormatVariants,
   generateImageVariants,
   generateThemeImageSizeVariants,
@@ -329,6 +331,10 @@ async function runBuild({
     planImageVariants({ cwd, config }),
   );
   injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+  // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
+  // injected entry resolves to the same URL). The rendered-HTML post-process
+  // below catches the same pattern in theme HBS output. Issue #534.
+  collapseDegenerateSrcsetIntoContent({ content });
   const imagesCfg = config.components.images;
   // Only rewrite `<img>` to `<picture>` when sharp will actually emit the
   // referenced variants — otherwise modern browsers would pick the WebP/AVIF
@@ -487,19 +493,21 @@ async function runBuild({
           for (const plugin of pluginSet.plugins) {
             if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
           }
-          let html = rewritePortalLinks({
-            html: rewriteRecommendationsButton({
-              html: stripUnusedLightbox(
-                transformSubscribeForms(
-                  injectSkipLink(engine.render(route), config.build.csp_nonce),
-                  subscribeConfig,
+          let html = collapseDegenerateSrcset(
+            rewritePortalLinks({
+              html: rewriteRecommendationsButton({
+                html: stripUnusedLightbox(
+                  transformSubscribeForms(
+                    injectSkipLink(engine.render(route), config.build.csp_nonce),
+                    subscribeConfig,
+                  ),
                 ),
-              ),
-              basePath: config.build.base_path,
-              enabled: recommendationsEnabled,
+                basePath: config.build.base_path,
+                enabled: recommendationsEnabled,
+              }),
+              urls: portalUrls,
             }),
-            urls: portalUrls,
-          });
+          );
           // Pagefind integration: inject the runtime shim script on any page
           // that has a `[data-ghost-search]` trigger, and tag non-public
           // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
@@ -633,32 +641,40 @@ async function runBuild({
         maxImageBytes: config.build.max_image_bytes,
       }),
     );
-    await timed(profiler, 'image_variants', () =>
-      generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-    );
-    if (formatVariants.length > 0) {
-      await timed(profiler, 'image_format_variants', () =>
-        generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+    // `[components.images].resize` (default true) is the kill-switch for the
+    // sharp-backed resize pipeline. When false we still emit srcset URLs
+    // pointing at `/content/images/size/wXXX/...`, but no actual variants
+    // land on disk — the browser falls back to the original `src`. This is
+    // the right choice when the project does not want a sharp dependency or
+    // when image variants are produced by another step in the toolchain.
+    if (imagesCfg.resize) {
+      await timed(profiler, 'image_variants', () =>
+        generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+      );
+      if (formatVariants.length > 0) {
+        await timed(profiler, 'image_format_variants', () =>
+          generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+        );
+      }
+      // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
+      // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
+      // post-card srcsets for `feature_image`). Runs after the responsive-width
+      // pass so an `m: { width: 600 }` and the default 600w variant share one
+      // file. Cache is keyed by source content hash; format variants are emitted
+      // only when sharp is available and at least one format is configured.
+      await timed(profiler, 'theme_image_size_variants', () =>
+        generateThemeImageSizeVariants({
+          cwd,
+          config,
+          outputDir,
+          themeImageSizes: theme.pkg.image_sizes,
+          cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
+          formats: formatVariants,
+          webpQuality: imagesCfg.webp_quality,
+          avifQuality: imagesCfg.avif_quality,
+        }),
       );
     }
-    // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
-    // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
-    // post-card srcsets for `feature_image`). Runs after the responsive-width
-    // pass so an `m: { width: 600 }` and the default 600w variant share one
-    // file. Cache is keyed by source content hash; format variants are emitted
-    // only when sharp is available and at least one format is configured.
-    await timed(profiler, 'theme_image_size_variants', () =>
-      generateThemeImageSizeVariants({
-        cwd,
-        config,
-        outputDir,
-        themeImageSizes: theme.pkg.image_sizes,
-        cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
-        formats: formatVariants,
-        webpQuality: imagesCfg.webp_quality,
-        avifQuality: imagesCfg.avif_quality,
-      }),
-    );
   }
 
   if (config.components.sitemap.enabled) {
