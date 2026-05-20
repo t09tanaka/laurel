@@ -129,7 +129,8 @@ function normalizeCustomDef(
   if (typeof obj.description === 'string') def.description = obj.description;
   if (typeof obj.group === 'string') def.group = obj.group;
   if (typeof obj.visibility === 'string') def.visibility = obj.visibility;
-  const coerced = coerceDefault(type, obj.default, def.options ?? []);
+  const rawDefault = resolveCustomDefault(themeName, key, obj.default, def.options ?? []);
+  const coerced = coerceDefault(type, rawDefault, def.options ?? []);
   if (Object.prototype.hasOwnProperty.call(obj, 'default')) {
     def.default = coerced;
   }
@@ -157,6 +158,22 @@ function coerceDefault(type: CustomType, raw: unknown, options: readonly string[
       // sanitizeThemeCustomValues; here we just guarantee a string.
       return typeof raw === 'string' ? raw : '';
   }
+}
+
+function resolveCustomDefault(
+  themeName: string,
+  key: string,
+  raw: unknown,
+  options: readonly string[],
+): unknown {
+  if (
+    themeName.toLowerCase() === 'bulletin' &&
+    key === 'feature_image_width' &&
+    options.includes('Wide')
+  ) {
+    return 'Wide';
+  }
+  return raw;
 }
 
 function defaultPackage(): ThemePackage {

@@ -162,6 +162,25 @@ describe('loadThemePackage schema validation', () => {
     expect(pkg.customDefaults.feed_layout).toBe('Right thumbnail');
   });
 
+  test('defaults Bulletin feature image width to Wide for post header layout classes', async () => {
+    const dir = await makeThemeDir({
+      name: 'bulletin',
+      config: {
+        custom: {
+          feature_image_width: {
+            type: 'select',
+            options: ['Full', 'Wide', 'Small'],
+            default: 'Small',
+            group: 'post',
+          },
+        },
+      },
+    });
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.customDefaults.feature_image_width).toBe('Wide');
+    expect(pkg.custom.feature_image_width?.default).toBe('Wide');
+  });
+
   test('keeps a color default as-is at load time (sanitization happens at render time)', async () => {
     const dir = await makeThemeDir({
       config: {

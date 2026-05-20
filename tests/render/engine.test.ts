@@ -1683,6 +1683,134 @@ describe('createEngine — default search partial (issue #1135)', () => {
   });
 });
 
+describe('createEngine — Bulletin feature image width custom setting', () => {
+  function makeTheme(customDefaults: Record<string, unknown>): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'bulletin',
+      version: '1.0.0',
+      posts_per_page: 10,
+      image_sizes: {},
+      card_assets: true,
+      custom: {
+        feature_image_width: {
+          type: 'select',
+          options: ['Full', 'Wide', 'Small'],
+          default: 'Wide',
+        },
+      },
+      customDefaults,
+    };
+    return {
+      name: 'bulletin',
+      rootDir: '/tmp/themes/bulletin',
+      templates: {
+        post: [
+          '{{!< default}}',
+          '<article class="gh-article">',
+          '{{> "article"}}',
+          '</article>',
+        ].join('\n'),
+        default: '<!doctype html><body>{{{body}}}</body>',
+      },
+      partials: {
+        article:
+          '<header class="gh-article-header gh-canvas{{#match @custom.feature_image_width "Full"}} image-full{{else match @custom.feature_image_width "=" "Wide"}} image-wide{{/match}}">{{title}}</header>',
+      },
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(custom: Record<string, unknown> = {}): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'bulletin', custom },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        accent_color: '#000000',
+      },
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      byId: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+    };
+  }
+
+  test('default Wide value triggers Bulletin image-wide header class', () => {
+    const engine = createEngine({
+      config: makeConfig(),
+      content: makeContent(),
+      theme: makeTheme({ feature_image_width: 'Wide' }),
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/wide/',
+      outputPath: 'wide/index.html',
+      template: 'post',
+      data: { post: makePost({ title: 'Wide header' }) },
+      meta: baseMeta,
+    };
+
+    const html = engine.render(route);
+    expect(html).toContain('gh-article-header gh-canvas image-wide');
+    expect(html).not.toContain('image-full');
+  });
+
+  test('config override string remains matchable by Bulletin article partial', () => {
+    const engine = createEngine({
+      config: makeConfig({ feature_image_width: 'Wide' }),
+      content: makeContent(),
+      theme: makeTheme({ feature_image_width: 'Small' }),
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/wide/',
+      outputPath: 'wide/index.html',
+      template: 'post',
+      data: { post: makePost({ title: 'Wide override' }) },
+      meta: baseMeta,
+    };
+
+    const html = engine.render(route);
+    expect(html).toContain('gh-article-header gh-canvas image-wide');
+  });
+});
+
 // Issue #150: renderRoute() must reuse the precompiled inner+layout delegates
 // from createEngine() instead of re-running hb.compile per route. On a 10k post
 // blog the regression cost is ~20k extra compile passes plus the AST GC churn.

@@ -75,6 +75,24 @@ icon = "/content/images/site-icon.svg"
     });
   });
 
+  test('preserves theme custom select strings exactly', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Bulletin"
+
+[theme.custom]
+feature_image_width = "Wide"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.theme.custom.feature_image_width).toBe('Wide');
+    });
+  });
+
   test('throws NectarError with file:line:col on malformed TOML', async () => {
     await withTempDir(async (cwd) => {
       const file = join(cwd, 'nectar.toml');
