@@ -16,6 +16,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) —
   Cloudflare Pages quickstart covering the Git-connected build, generated
   `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
+  If you deploy the same `dist/` directory through Cloudflare Workers Static
+  Assets instead of Pages, start from
+  [`examples/cloudflare-workers/wrangler.toml`](../examples/cloudflare-workers/wrangler.toml)
+  and its no-op `index.ts` worker.
 - [`docs/deploy/cloudflare-pages-r2-images.md`](./deploy/cloudflare-pages-r2-images.md)
   — move image variants to R2 when a Pages deploy approaches the 25,000-file
   limit, including the private-bucket Worker pattern, R2 endpoint/credential

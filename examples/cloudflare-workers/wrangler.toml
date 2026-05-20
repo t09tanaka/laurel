@@ -1,0 +1,10 @@
+# Copy this sample to the root of a Nectar site that is deployed with
+# Cloudflare Workers Static Assets.
+name = "nectar-static-assets"
+main = "index.ts"
+compatibility_date = "2025-04-01"
+
+[assets]
+directory = "dist"
+# Optional: exposes the Static Assets handler to the worker as env.ASSETS.
+binding = "ASSETS"

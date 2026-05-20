@@ -12,6 +12,12 @@ Use the Git-connected Pages flow for normal production deploys. Use
 `nectar deploy cloudflare` when CI already built the site and you want an
 explicit deploy command.
 
+If you need a Cloudflare Workers deployment instead of a Pages project, use
+Workers Static Assets with the sample
+[`examples/cloudflare-workers/wrangler.toml`](../../examples/cloudflare-workers/wrangler.toml)
+and its no-op `index.ts` worker. The sample binds `dist/` as `ASSETS` and
+delegates requests to Cloudflare's asset handler.
+
 ## Quickstart: Git-connected Pages
 
 1. In `nectar.toml`, enable the Pages output files:

@@ -14,6 +14,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 | `deploy/apache/.htaccess`  | Apache HTTPD `.htaccess` with Cache-Control, ETag, security headers, and pre-compressed-sidecar serving. Pairs with `docs/deploy/apache.md`. |
 | `deploy/caddy/Caddyfile`   | Caddy v2 server block with HTTPS, header pinning, and `/404.html` fallback. Pairs with `docs/deploy/caddy.md`. |
 | `deploy/netlify/netlify.toml` | Netlify build config with `bunx nectar build`, `dist` publishing, `BUN_VERSION`, and a commented Netlify build-plugin block. Pairs with `docs/deploy/netlify.md`. |
+| `cloudflare-workers/wrangler.toml` | Cloudflare Workers Static Assets config for serving `dist/` through a no-op worker that delegates to the `ASSETS` binding. Pairs with `docs/deploy/cloudflare-pages.md`. |
 | `s3-cloudfront/append-index.js` | CloudFront Function (viewer-request) that rewrites `/about/` to `/about/index.html` so a private S3 origin behind CloudFront serves directory-style URLs. |
 
 These are deliberately tiny: a single file each, with the deploy-platform's
