@@ -229,6 +229,51 @@ describe('nectar build base URL precedence', () => {
     expect(cliHtml).not.toContain('explicit-env.example');
     expect(cliHtml).not.toContain('feature-docs.example.pages.dev');
   });
+
+  test('uses Vercel URL below explicit env and CLI base URL overrides', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const vercel = {
+      VERCEL: '1',
+      VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
+    };
+
+    const automatic = await runCli(['build'], dir, vercel);
+    expect(automatic.exitCode).toBe(0);
+    const automaticHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(automaticHtml).toContain('https://feature-docs-git-main-team.vercel.app/hello/');
+    expect(automaticHtml).not.toContain('https://dryrun.test/hello/');
+
+    const buildEnv = await runCli(['build'], dir, {
+      ...vercel,
+      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
+    });
+    expect(buildEnv.exitCode).toBe(0);
+    const buildEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(buildEnvHtml).toContain('https://build-env.example/hello/');
+    expect(buildEnvHtml).not.toContain('feature-docs-git-main-team.vercel.app');
+
+    const explicitEnv = await runCli(['build'], dir, {
+      ...vercel,
+      NECTAR_SITE_URL: 'https://explicit-env.example',
+    });
+    expect(explicitEnv.exitCode).toBe(0);
+    const explicitEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(explicitEnvHtml).toContain('https://explicit-env.example/hello/');
+    expect(explicitEnvHtml).not.toContain('feature-docs-git-main-team.vercel.app');
+
+    const cli = await runCli(['build', '--base-url', 'https://cli-preview.example'], dir, {
+      ...vercel,
+      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
+      NECTAR_SITE_URL: 'https://explicit-env.example',
+    });
+    expect(cli.exitCode).toBe(0);
+    const cliHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(cliHtml).toContain('https://cli-preview.example/hello/');
+    expect(cliHtml).not.toContain('build-env.example');
+    expect(cliHtml).not.toContain('explicit-env.example');
+    expect(cliHtml).not.toContain('feature-docs-git-main-team.vercel.app');
+  });
 });
 
 describe('formatDryRunRouteTable', () => {

@@ -81,22 +81,22 @@ const tierItemSchema = z
 const buildMetadataSchema = z
   .object({
     provider: z
-      .enum(['cloudflare_pages'])
+      .enum(['cloudflare_pages', 'vercel'])
       .optional()
       .describe(
-        'Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`.',
+        'Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Vercel builds set this to `vercel`.',
       ),
     branch: z
       .string()
       .optional()
       .describe(
-        'Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`.',
+        'Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`.',
       ),
     commit_sha: z
       .string()
       .optional()
       .describe(
-        'Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`.',
+        'Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`.',
       ),
   })
   .strict();
@@ -118,7 +118,7 @@ export const configSchema = z
           .default('http://localhost:4321')
           .transform((value) => value.replace(/\/+$/, ''))
           .describe(
-            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, Netlify deploy URL, configured `site.url`.',
+            'Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; Vercel builds use `VERCEL_URL`; Cloudflare Pages builds use `CF_PAGES_URL`. Explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, provider deploy URL, configured `site.url`.',
           ),
         locale: z
           .string()
@@ -441,7 +441,7 @@ export const configSchema = z
         metadata: buildMetadataSchema
           .default({})
           .describe(
-            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.',
+            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Vercel populates the same fields from `VERCEL`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.',
           ),
       })
       .strict()

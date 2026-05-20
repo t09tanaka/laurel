@@ -470,6 +470,68 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('uses Vercel deployment URL and metadata when present', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          VERCEL: '1',
+          VERCEL_URL: 'feature-docs-git-main-team.vercel.app/',
+          VERCEL_GIT_COMMIT_REF: 'feature/docs',
+          VERCEL_GIT_COMMIT_SHA: 'abc123def456',
+        },
+      });
+      expect(config.site.url).toBe('https://feature-docs-git-main-team.vercel.app');
+      expect(config.build.metadata).toEqual({
+        provider: 'vercel',
+        branch: 'feature/docs',
+        commit_sha: 'abc123def456',
+      });
+    });
+  });
+
+  test('keeps explicit NECTAR_SITE_URL ahead of the Vercel URL fallback', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          VERCEL: '1',
+          VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
+          NECTAR_SITE_URL: 'https://explicit-env.example',
+        },
+      });
+      expect(config.site.url).toBe('https://explicit-env.example');
+    });
+  });
+
+  test('ignores Vercel URL when not running on Vercel', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
+        },
+      });
+      expect(config.site.url).toBe('https://prod.example.com');
+      expect(config.build.metadata).toEqual({});
+    });
+  });
+
   test('ignores Cloudflare Pages URL when not running on Pages', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

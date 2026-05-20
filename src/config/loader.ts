@@ -166,6 +166,7 @@ function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
 
 function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   let target = applyNetlifyDeployUrlFallback(parsed, env);
+  target = applyVercelEnvFallback(target, env);
   target = applyCloudflarePagesEnvFallback(target, env);
   return target;
 }
@@ -178,6 +179,29 @@ function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv):
   const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
   if (deployUrl === undefined) return parsed;
   return setDeep(parsed, ['site', 'url'], deployUrl);
+}
+
+function applyVercelEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (env.VERCEL !== 'true' && env.VERCEL !== '1') return parsed;
+
+  let target = parsed;
+  if (env.NECTAR_SITE_URL === undefined) {
+    const deployUrl = vercelUrlFallback(firstNonEmptyEnv(env.VERCEL_URL));
+    if (deployUrl !== undefined) {
+      target = setDeep(target, ['site', 'url'], deployUrl);
+    }
+  }
+
+  target = setDeep(target, ['build', 'metadata', 'provider'], 'vercel');
+  const branch = firstNonEmptyEnv(env.VERCEL_GIT_COMMIT_REF);
+  if (branch !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'branch'], branch);
+  }
+  const commitSha = firstNonEmptyEnv(env.VERCEL_GIT_COMMIT_SHA);
+  if (commitSha !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
+  }
+  return target;
 }
 
 function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
@@ -201,6 +225,12 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
     target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
   }
   return target;
+}
+
+function vercelUrlFallback(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)) return value;
+  return `https://${value}`;
 }
 
 function firstNonEmptyEnv(...values: (string | undefined)[]): string | undefined {

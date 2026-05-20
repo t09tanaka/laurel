@@ -207,8 +207,21 @@ small manual command or bespoke CI script.
 
 ## Preview deploys
 
-For PR previews that need canonical URLs to point at the preview hostname,
-build with `--base-url`:
+On Git-connected preview and branch builds, Vercel provides `VERCEL_URL`.
+Nectar uses it automatically as the `site.url` fallback when
+`NECTAR_SITE_URL` is unset. Vercel usually provides this value without a
+scheme, so Nectar treats it as HTTPS before building canonical, sitemap, RSS,
+and Open Graph URLs. Vercel's `VERCEL_GIT_COMMIT_REF` and
+`VERCEL_GIT_COMMIT_SHA` are also exposed to themes as `@site.build.branch` and
+`@site.build.commit_sha`.
+
+The URL precedence remains:
+
+```text
+--base-url > NECTAR_BUILD_BASE_URL > NECTAR_SITE_URL > VERCEL_URL > site.url
+```
+
+Use `--base-url` when you need to force a different host:
 
 ```sh
 bunx nectar build --base-url https://your-preview.vercel.app

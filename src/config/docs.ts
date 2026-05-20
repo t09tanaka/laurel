@@ -73,6 +73,13 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   );
   lines.push('');
   lines.push(
+    'On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback',
+    'when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.',
+    '`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` are copied into',
+    '`build.metadata` and surfaced to templates as `@site.build`.',
+  );
+  lines.push('');
+  lines.push(
     'On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`',
     'fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and',
     '`CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to',

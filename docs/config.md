@@ -34,6 +34,11 @@ is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar
 falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and
 `NECTAR_BUILD_BASE_URL` still override that loaded config value.
 
+On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback
+when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.
+`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` are copied into
+`build.metadata` and surfaced to templates as `@site.build`.
+
 On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`
 fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and
 `CF_PAGES_COMMIT_SHA` are also copied into `build.metadata` and surfaced to
@@ -78,7 +83,7 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | --- | --- | --- | --- | --- |
 | `site.title` | `string` | yes | — | Display title of the site, used by themes and feeds. |
 | `site.description` | `string` | no | `""` | Short tagline rendered alongside the title in many themes and in feed metadata. |
-| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, Netlify deploy URL, configured `site.url`. |
+| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; Vercel builds use `VERCEL_URL`; Cloudflare Pages builds use `CF_PAGES_URL`. Explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, provider deploy URL, configured `site.url`. |
 | `site.locale` | `string` | no | `"en"` | BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping. |
 | `site.timezone` | `string` | no | `"UTC"` | IANA timezone used when formatting dates in templates via `{{date}}`. |
 | `site.cover_image` | `string` | no | — | Optional URL or content-relative path to a site-wide cover image. |
@@ -151,13 +156,13 @@ Build pipeline options that shape the emitted site.
 
 ## `build.metadata`
 
-Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.
+Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Vercel populates the same fields from `VERCEL`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `build.metadata.provider` | `"cloudflare_pages"` | no | — | Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`. |
-| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`. |
-| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`. |
+| `build.metadata.provider` | `"cloudflare_pages" \| "vercel"` | no | — | Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Vercel builds set this to `vercel`. |
+| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`. |
+| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`. |
 
 ## `performance`
 
