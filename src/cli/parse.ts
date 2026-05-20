@@ -52,20 +52,31 @@ export function parseCommand(
 ): ParsedCommand {
   const options: NonNullable<ParseArgsConfig['options']> = {};
   options.help = { type: HELP_OPTION.type, short: HELP_OPTION.short };
+  const negativeAliases = new Map<string, string>();
   for (const [name, opt] of Object.entries(spec.options)) {
     if (name === 'help') {
       throw new Error(`Option "help" is reserved and cannot be redefined on "${spec.name}"`);
     }
     options[name] = opt.short ? { type: opt.type, short: opt.short } : { type: opt.type };
+    if (opt.type === 'boolean' && !name.startsWith('no-')) {
+      const negativeName = `no-${name}`;
+      if (!(negativeName in spec.options)) {
+        options[negativeName] = { type: 'boolean' };
+        negativeAliases.set(negativeName, name);
+      }
+    }
   }
 
-  let result: ReturnType<typeof nodeParseArgs>;
+  let result: ReturnType<typeof nodeParseArgs> & {
+    tokens?: { kind: string; name?: string }[];
+  };
   try {
     result = nodeParseArgs({
       args,
       options,
       allowPositionals: true,
       strict: true,
+      tokens: true,
     });
   } catch (err) {
     throw new CliUsageError(formatParseArgsError(err, spec));
@@ -78,6 +89,7 @@ export function parseCommand(
   }
 
   const values = result.values as Record<string, string | boolean | undefined>;
+  applyNegativeAliases(values, result.tokens ?? [], negativeAliases);
   applyEnvFallbacks(spec, values, env);
 
   return {
@@ -85,6 +97,26 @@ export function parseCommand(
     positionals,
     helpRequested,
   };
+}
+
+function applyNegativeAliases(
+  values: Record<string, string | boolean | undefined>,
+  tokens: { kind: string; name?: string }[],
+  negativeAliases: ReadonlyMap<string, string>,
+): void {
+  if (negativeAliases.size === 0) return;
+  for (const alias of negativeAliases.keys()) {
+    delete values[alias];
+  }
+  for (const token of tokens) {
+    if (token.kind !== 'option' || token.name === undefined) continue;
+    const target = negativeAliases.get(token.name);
+    if (target !== undefined) {
+      values[target] = false;
+    } else if (negativeAliases.has(`no-${token.name}`)) {
+      values[token.name] = true;
+    }
+  }
 }
 
 function applyEnvFallbacks(
@@ -241,7 +273,18 @@ function extractUnknownFlag(message: string): string | undefined {
 }
 
 function collectKnownFlagNames(spec: CommandSpec): string[] {
-  return Object.keys(spec.options).filter((name) => name !== 'help');
+  const names: string[] = [];
+  for (const [name, opt] of Object.entries(spec.options)) {
+    if (name === 'help') continue;
+    names.push(name);
+    if (opt.type === 'boolean' && !name.startsWith('no-')) {
+      const negativeName = `no-${name}`;
+      if (!(negativeName in spec.options)) {
+        names.push(negativeName);
+      }
+    }
+  }
+  return names;
 }
 
 export function suggestCommand(unknown: string, known: readonly string[]): string | undefined {

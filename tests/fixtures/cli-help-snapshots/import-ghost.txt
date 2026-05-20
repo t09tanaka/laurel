@@ -1,7 +1,7 @@
 Convert a Ghost JSON export into Markdown content
 
 Usage:
-  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
+  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
 
 Arguments:
   file                Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
@@ -9,6 +9,7 @@ Arguments:
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --assets <dir>      Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
+  --output <dir>      Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories
   --download-images   Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths
   --max-image-size <size>  Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.
   --source-url <url>  Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths
@@ -27,5 +28,6 @@ Examples:
   nectar import-ghost ghost-export.json
   nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
   nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
+  nectar import-ghost export.json --output review-import
   nectar import-ghost export.json --download-images --max-image-size 5MB
   nectar import-ghost export.json --on-conflict overwrite

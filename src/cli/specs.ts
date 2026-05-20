@@ -63,6 +63,21 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted',
     },
+    cache: {
+      type: 'boolean',
+      description:
+        'Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache',
+    },
+    progress: {
+      type: 'boolean',
+      description:
+        'Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output',
+    },
+    'copy-content-assets': {
+      type: 'boolean',
+      description:
+        'Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build',
+    },
     watch: {
       type: 'boolean',
       description:

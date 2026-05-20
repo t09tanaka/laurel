@@ -141,6 +141,10 @@ export interface BuildOptions {
   // operators can preview / disable the SDK surface without editing the
   // config.
   emitContentApi?: boolean | undefined;
+  // Override for `[build].copy_content_assets`. Undefined leaves config alone;
+  // false is exposed through `--no-copy-content-assets` for CI jobs that only
+  // need rendered HTML and theme assets.
+  copyContentAssets?: boolean | undefined;
 }
 
 export interface DryRunRouteSummary {
@@ -215,6 +219,7 @@ export async function build({
   includeDrafts,
   force,
   emitContentApi,
+  copyContentAssets,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler() : null;
@@ -226,6 +231,9 @@ export async function build({
     logger.warn('Building with drafts');
   }
   const config = await timed(profiler, 'config', () => loadConfig({ cwd, configPath }));
+  if (copyContentAssets !== undefined) {
+    config.build.copy_content_assets = copyContentAssets;
+  }
   const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
   if (baseUrlOverride !== undefined) {

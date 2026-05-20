@@ -123,7 +123,7 @@ Build the site into the configured output directory
 Usage:
 
 ```
-nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--watch] [--emit-content-api] [--json]
+nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--cache] [--progress] [--copy-content-assets] [--watch] [--emit-content-api] [--json]
 ```
 
 Options:
@@ -141,6 +141,9 @@ Options:
 | `--dry-run` | boolean | `NECTAR_BUILD_DRY_RUN` | Plan routes, load templates, and render every route into memory without writing anything to disk (no staging dir, no asset copies, no manifest, no sitemap/RSS/etc.). Prints the same summary line as a real build; pair with --verbose to also print a per-route table (URL, template, bytes, output path) |
 | `--include-drafts` | boolean | `NECTAR_BUILD_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the build. Default is to exclude them so a forgotten WIP cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS |
 | `--force` | boolean | `NECTAR_BUILD_FORCE` | Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted |
+| `--cache` | boolean | `NECTAR_BUILD_CACHE` | Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache |
+| `--progress` | boolean | `NECTAR_BUILD_PROGRESS` | Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output |
+| `--copy-content-assets` | boolean | `NECTAR_BUILD_COPY_CONTENT_ASSETS` | Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build |
 | `--watch` | boolean | `NECTAR_BUILD_WATCH` | After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop |
 | `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used |
 | `--json` | boolean | `NECTAR_BUILD_JSON` | Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
@@ -263,7 +266,7 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--json]
+nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--simulate <target>] [--json]
 ```
 
 Options:
@@ -274,6 +277,7 @@ Options:
 | `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 | `--no-watch` | boolean | `NECTAR_SERVE_NO_WATCH` | Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot |
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
+| `--simulate <target>` | string | `NECTAR_SERVE_SIMULATE` | Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel |
 | `--json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
 
 Examples:
@@ -281,6 +285,7 @@ Examples:
 ```
 nectar serve                                 # serve dist/ + rebuild on change
 nectar serve --no-watch                      # serve dist/ as a static snapshot
+nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally
 nectar serve --build                         # build first, then serve
 nectar serve --port 8080 --host 0.0.0.0
 ```
@@ -721,7 +726,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
 ```
 
 Arguments:
@@ -736,6 +741,7 @@ Options:
 | --- | --- | --- | --- |
 | `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_GHOST_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
 | `--assets <dir>` | string | `NECTAR_IMPORT_GHOST_ASSETS` | Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
+| `--output <dir>` | string | `NECTAR_IMPORT_GHOST_OUTPUT` | Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories |
 | `--download-images` | boolean | `NECTAR_IMPORT_GHOST_DOWNLOAD_IMAGES` | Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths |
 | `--max-image-size <size>` | string | `NECTAR_IMPORT_GHOST_MAX_IMAGE_SIZE` | Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable. |
 | `--source-url <url>` | string | `NECTAR_IMPORT_GHOST_SOURCE_URL` | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
@@ -750,6 +756,7 @@ Examples:
 nectar import-ghost ghost-export.json
 nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
 nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
+nectar import-ghost export.json --output review-import
 nectar import-ghost export.json --download-images --max-image-size 5MB
 nectar import-ghost export.json --on-conflict overwrite
 ```

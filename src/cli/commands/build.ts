@@ -47,7 +47,12 @@ export async function runBuild(args: string[]): Promise<number> {
   const noAtomic = parsed.values['no-atomic'] === true;
   const dryRun = parsed.values['dry-run'] === true;
   const watch = parsed.values.watch === true;
-  const force = parsed.values.force === true;
+  const force = parsed.values.force === true || parsed.values.cache === false;
+  const progress = parsed.values.progress !== false;
+  const copyContentAssets =
+    typeof parsed.values['copy-content-assets'] === 'boolean'
+      ? parsed.values['copy-content-assets']
+      : undefined;
   const asJson = parsed.values.json === true;
   // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
   // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
@@ -112,6 +117,7 @@ export async function runBuild(args: string[]): Promise<number> {
     includeDrafts,
     force,
     emitContentApi,
+    copyContentAssets,
   } as const;
 
   const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
@@ -131,6 +137,7 @@ export async function runBuild(args: string[]): Promise<number> {
       process.stdout.write(`${JSON.stringify(payload)}\n`);
       return;
     }
+    if (!progress) return;
     const prefix = opts.prefix ?? (summary.dryRun ? 'Dry run: would build' : 'Built');
     logger.info(
       `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,

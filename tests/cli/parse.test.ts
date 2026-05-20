@@ -11,6 +11,7 @@ import {
   suggestCommand,
   suggestFlag,
 } from '~/cli/parse.ts';
+import { BUILD_SPEC } from '~/cli/specs.ts';
 
 const SAMPLE_SPEC: CommandSpec = {
   name: 'build',
@@ -117,6 +118,50 @@ describe('parseCommand', () => {
   test('repeated boolean flag stays true', () => {
     const result = parseCommand(SAMPLE_SPEC, ['--watch', '--watch']);
     expect(result.values.watch).toBe(true);
+  });
+
+  test('--no-* negates boolean options without requiring an explicit false value', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--no-watch']);
+    expect(result.values.watch).toBe(false);
+  });
+
+  test('the last positive or negated boolean spelling wins', () => {
+    expect(parseCommand(SAMPLE_SPEC, ['--no-watch', '--watch']).values.watch).toBe(true);
+    expect(parseCommand(SAMPLE_SPEC, ['--watch', '--no-watch']).values.watch).toBe(false);
+  });
+
+  test('exact no-* option names keep their legacy positive meaning', () => {
+    const spec: CommandSpec = {
+      name: 'serve',
+      summary: 'Serve',
+      options: {
+        'no-watch': { type: 'boolean', description: 'Disable watching' },
+      },
+      positionals: [],
+    };
+    const result = parseCommand(spec, ['--no-watch']);
+    expect(result.values['no-watch']).toBe(true);
+  });
+
+  test('documented build negations parse as false boolean overrides', () => {
+    const result = parseCommand(BUILD_SPEC, [
+      '--no-progress',
+      '--no-cache',
+      '--no-copy-content-assets',
+      '--no-watch',
+    ]);
+    expect(result.values.progress).toBe(false);
+    expect(result.values.cache).toBe(false);
+    expect(result.values['copy-content-assets']).toBe(false);
+    expect(result.values.watch).toBe(false);
+  });
+
+  test('rejects --no-* for non-boolean options', () => {
+    expect(() => parseCommand(SAMPLE_SPEC, ['--no-config'])).toThrow(CliUsageError);
+  });
+
+  test('rejects unknown --no-* options', () => {
+    expect(() => parseCommand(SAMPLE_SPEC, ['--no-bogus'])).toThrow(CliUsageError);
   });
 
   test('throws CliUsageError when required positional is missing', () => {
