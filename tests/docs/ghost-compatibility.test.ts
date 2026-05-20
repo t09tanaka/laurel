@@ -36,8 +36,9 @@ describe('Ghost compatibility docs', () => {
       '| Header | Yes | Yes | Ghost v1 `kg-header-card` HTML converts to a `{% header %}` shortcode',
     );
     expect(doc).toContain(
-      '| Email / email CTA | No | No | Members/newsletter-only email cards are stripped',
+      '| Email / email CTA | No | No | Members/newsletter-only email cards are dropped during import and stripped during rendering',
     );
+    expect(doc).toContain('`post.html`, `plaintext`, generated excerpts, `feed_html`');
   });
 
   test('documents shared-theme-assets requirements for Ease load-more controls', async () => {

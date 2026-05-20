@@ -193,6 +193,58 @@ ${longPlaintext}
     expect(nullCustom?.excerpt).not.toBe('Legacy excerpt input');
   });
 
+  test('strips email cards before plaintext, excerpt, and feed fields are derived', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-email-card-derived-fields-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/email-cards.md'),
+      `---
+title: Email Cards
+date: 2026-01-01T00:00:00Z
+unsafe_html: true
+---
+
+Public intro.
+
+<div class="kg-card kg-email-card">
+  <p>Newsletter body secret.</p>
+</div>
+
+Middle public copy.
+
+<div class="kg-card kg-email-cta-card">
+  <p>Email CTA secret.</p>
+</div>
+
+Public outro.
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.bySlug.posts.get('email-cards');
+    if (!post) throw new Error('Expected email-cards post to load');
+
+    expect(post.html).toContain('Public intro.');
+    expect(post.html).toContain('Middle public copy.');
+    expect(post.html).toContain('Public outro.');
+    expect(post.html).not.toContain('kg-email-card');
+    expect(post.html).not.toContain('kg-email-cta-card');
+    expect(post.html).not.toContain('Newsletter body secret');
+    expect(post.html).not.toContain('Email CTA secret');
+
+    for (const field of [post.plaintext, post.excerpt, post.feed_html, post.feed_excerpt]) {
+      expect(field).toContain('Public intro');
+      expect(field).toContain('Middle public copy');
+      expect(field).toContain('Public outro');
+      expect(field).not.toContain('Newsletter body secret');
+      expect(field).not.toContain('Email CTA secret');
+      expect(field).not.toContain('kg-email-card');
+      expect(field).not.toContain('kg-email-cta-card');
+    }
+  });
+
   test('derives stable Ghost-compatible ObjectId ids without changing slug URLs', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

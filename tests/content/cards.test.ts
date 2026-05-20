@@ -432,11 +432,35 @@ describe('card fixture corpus', () => {
   });
 
   // Newsletter card pipeline (#129):
-  //   - `kg-email-cta-card`: stripped at render time (web build), never reaches readers.
+  //   - `kg-email-card` / `kg-email-cta-card`: stripped at render time (web build),
+  //     never reaches readers or derived plaintext.
   //   - `kg-signup-card`: passes through to the theme/portal adapter (covered above).
   //   - `kg-paywall-card`: not stripped; the loader's marker pass
   //     (`src/content/paywall.ts`) handles the cut and the div is left in
   //     place for any theme that styles it.
+
+  test('email-card is stripped from rendered HTML and plaintext', async () => {
+    const md = [
+      'Public paragraph before the email-only region.',
+      '',
+      '<div class="kg-card kg-email-card">',
+      '<p>Newsletter body secret.</p>',
+      '<div class="kg-button-card">Email-only nested CTA</div>',
+      '</div>',
+      '',
+      'Public paragraph after the email-only region.',
+    ].join('\n');
+    const { html, plaintext } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-email-card');
+    expect(html).not.toContain('Newsletter body secret');
+    expect(html).not.toContain('Email-only nested CTA');
+    expect(plaintext).not.toContain('Newsletter body secret');
+    expect(plaintext).not.toContain('Email-only nested CTA');
+    expect(html).toContain('Public paragraph before the email-only region.');
+    expect(html).toContain('Public paragraph after the email-only region.');
+    expect(plaintext).toContain('Public paragraph before the email-only region.');
+    expect(plaintext).toContain('Public paragraph after the email-only region.');
+  });
 
   test('email-cta-card is stripped from rendered HTML so web readers never see it', async () => {
     const md = [

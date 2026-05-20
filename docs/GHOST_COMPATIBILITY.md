@@ -91,7 +91,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | NFT | Partial | Partial | Static link, image, and metadata scaffolds survive; no blockchain wallet, marketplace, or live ownership runtime is provided. |
 | Signup | Partial | Partial | The `kg-signup-card` wrapper can survive for portal/member plugins, but raw form fields are stripped by default and Nectar has no members backend. |
 | Recommendations | Partial | Partial | Static `kg-recommendations-card` markup can survive sanitisation for plugin/theme hydration; Ghost's server-side recommendations service is not implemented. |
-| Email / email CTA | No | No | Members/newsletter-only email cards are stripped so a public static build does not expose email-only content. |
+| Email / email CTA | No | No | Members/newsletter-only email cards are dropped during import and stripped during rendering so a public static build does not expose email-only content. |
 | Paywall | Partial | Partial | The paywall marker is used by the content loader to cut gated content; visible server-side member access behaviour is out of scope. |
 
 ## Content API `post.html` serialization
@@ -113,10 +113,14 @@ The current contract is:
   `<!--kg-card-end: markdown-->`, `<!--kg-card-begin: html-->`, and
   `<!--kg-card-begin: paywall-->` are import/render control markers. They are
   consumed or stripped and are not preserved in API `post.html`.
-- Members-only email cards are stripped, and paywall markers are converted into
-  Nectar's static public/preview behaviour (`feed_html` plus configured
-  visibility policy). Nectar does not emit Ghost's full member paywall split
-  markup or server-side member access wrappers in `post.html`.
+- Members-only `email` / `email-cta` cards are dropped during import and
+  stripped again during Markdown rendering. Their bodies are excluded before
+  `post.html`, `plaintext`, generated excerpts, `feed_html`, and `feed_excerpt`
+  are derived, because Nectar has no authenticated newsletter-only renderer.
+  Paywall markers are converted into Nectar's static public/preview behaviour
+  (`feed_html` plus configured visibility policy). Nectar does not emit Ghost's
+  full member paywall split markup or server-side member access wrappers in
+  `post.html`.
 - Raw Ghost-compatible card scaffolds that survive sanitisation, such as
   `kg-signup-card`, `kg-recommendations-card`, or `kg-nft-card`, may pass
   through for theme/plugin hydration, but Nectar does not guarantee every

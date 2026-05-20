@@ -454,8 +454,11 @@ function relinkSiblings(nodes: ChildNode[]): void {
   }
 }
 
-// Ghost's editor emits three newsletter-related card wrappers that need
+// Ghost's editor emits newsletter/member-related card wrappers that need
 // different web-build treatment:
+//   - `kg-email-card`: email-only body content. Static Nectar output has no
+//     authenticated newsletter renderer, so this content must never reach
+//     public HTML, plaintext, excerpts, or feeds.
 //   - `kg-email-cta-card`: email-only CTA. The same content is rendered into
 //     the newsletter email but should never reach the web (Ghost hides it
 //     server-side; in a static build we strip at render time so anonymous web
@@ -469,9 +472,10 @@ function relinkSiblings(nodes: ChildNode[]): void {
 //     alone here and let sanitize-html preserve the class hook for themes that
 //     want to style the boundary.
 // Strip is implemented via a balanced `<div>` walker rather than a regex so a
-// nested `<div>` inside the CTA card (e.g. a `<div class="kg-button-card">`)
+// nested `<div>` inside the email card (e.g. a `<div class="kg-button-card">`)
 // doesn't terminate the match prematurely.
-const EMAIL_CTA_OPEN_RE = /<div\b[^>]*\bclass\s*=\s*"([^"]*\bkg-email-cta-card\b[^"]*)"[^>]*>/gi;
+const EMAIL_CARD_OPEN_RE =
+  /<div\b[^>]*\bclass\s*=\s*"([^"]*(?:\bkg-email-card\b|\bkg-email-cta-card\b)[^"]*)"[^>]*>/gi;
 const MEMBERS_FORM_BLOCK_RE = /<form\b[^>]*\bdata-members-form\b[^>]*>[\s\S]*?<\/form>/gi;
 const MEMBERS_FORM_OPEN_RE = /^<form\b[^>]*>/i;
 const MEMBERS_FORM_INPUT_RE = /<input\b[^>]*>/gi;
@@ -500,11 +504,11 @@ function normaliseSignupCardMembersFormHooks(html: string): string {
 }
 
 export function stripEmailCtaCards(html: string): string {
-  if (!html.includes('kg-email-cta-card')) return html;
+  if (!html.includes('kg-email-card') && !html.includes('kg-email-cta-card')) return html;
   let out = '';
   let cursor = 0;
-  EMAIL_CTA_OPEN_RE.lastIndex = 0;
-  let match: RegExpExecArray | null = EMAIL_CTA_OPEN_RE.exec(html);
+  EMAIL_CARD_OPEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null = EMAIL_CARD_OPEN_RE.exec(html);
   while (match !== null) {
     out += html.slice(cursor, match.index);
     const close = findMatchingDivClose(html, match.index + match[0].length);
@@ -515,8 +519,8 @@ export function stripEmailCtaCards(html: string): string {
       return out;
     }
     cursor = close;
-    EMAIL_CTA_OPEN_RE.lastIndex = close;
-    match = EMAIL_CTA_OPEN_RE.exec(html);
+    EMAIL_CARD_OPEN_RE.lastIndex = close;
+    match = EMAIL_CARD_OPEN_RE.exec(html);
   }
   out += html.slice(cursor);
   return out;
