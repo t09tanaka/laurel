@@ -400,9 +400,8 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('<link href="{{asset "a\\"><script>x</script>.css"}}">');
     const out = tpl({});
-    // URL construction percent-encodes path characters before Handlebars sees
-    // the value; the helper still returns a plain string so attribute escaping
-    // remains the final rendering layer.
+    // URL construction percent-encodes path characters before the helper marks
+    // the URL safe for href usage.
     expect(out).not.toContain('<script>');
     expect(out).not.toContain('"><');
     expect(out).toBe('<link href="/assets/a%22%3E%3Cscript%3Ex%3C/script%3E.css">');
@@ -505,6 +504,23 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{asset "images/100% legit%20image.css"}}');
     expect(tpl({})).toBe('/blog/assets/images/100%25%20legit%20image.abc123.css');
+  });
+
+  test('keeps query ampersands raw inside href attributes (issue #1032)', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/screen.css', {
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.css?v=abc123&mode=dark',
+      sourcePath: '/theme/assets/built/screen.css',
+      hash: 'abc123',
+      integrity: 'sha384-screen',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('<link href="{{asset "built/screen.css"}}">');
+    const out = tpl({});
+    expect(out).toBe('<link href="/assets/built/screen.css?v=abc123&mode=dark">');
+    expect(out).not.toContain('&amp;');
   });
 
   test('triple-stash {{{asset}}} returns the raw URL (user explicitly opts out of escape)', () => {

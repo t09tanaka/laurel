@@ -20,11 +20,7 @@ export function registerAssetHelpers(engine: NectarEngine): void {
         }
       }
       if (!resolved) resolved = `assets/${logical}`;
-      // Return a plain string so Handlebars applies its context-aware HTML
-      // escape (covers &, <, >, ", ', `). Wrapping in SafeString would skip
-      // that and let a filename like `a"><script>x</script>.css` break out
-      // of an `href="…"` attribute.
-      return encodeUrlPath(joinPath(basePath, resolved));
+      return new engine.hb.SafeString(encodeAssetUrl(joinPath(basePath, resolved)));
     },
   );
 
@@ -166,6 +162,14 @@ function isSameOriginAsSite(candidate: string, siteUrl: string): boolean {
 const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 const PERCENT_ESCAPE_RE = /%[0-9A-Fa-f]{2}/g;
 
+function encodeAssetUrl(url: string): string {
+  const suffixIndex = url.search(/[?#]/);
+  if (suffixIndex < 0) return encodeUrlPath(url);
+  const path = url.slice(0, suffixIndex);
+  const suffix = url.slice(suffixIndex);
+  return encodeUrlPath(path) + encodeUrlSuffix(suffix);
+}
+
 function encodeUrlPath(path: string): string {
   return path.split('/').map(encodeUrlPathSegment).join('/');
 }
@@ -180,6 +184,10 @@ function encodeUrlPathSegment(segment: string): string {
   }
   out += encodeURIComponent(segment.slice(cursor));
   return out;
+}
+
+function encodeUrlSuffix(suffix: string): string {
+  return encodeURI(suffix).replace(/['`]/g, (ch) => encodeURIComponent(ch));
 }
 
 function extractImage(value: unknown): string | undefined {
