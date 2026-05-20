@@ -446,20 +446,22 @@ describe('emitContentApiStubs', () => {
 
   test('emits per-post shards by id and by slug (#752)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
-    await emitContentApiStubs({ content: makeGraph(), outputDir });
+    const id = '0123456789abcdefabcdef12';
+    await emitContentApiStubs({ content: makeGraph({ posts: [makePost({ id })] }), outputDir });
 
-    expect(existsSync(join(outputDir, 'content', 'posts', 'post-1.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'posts', `${id}.json`))).toBe(true);
     expect(existsSync(join(outputDir, 'content', 'posts', 'slug', 'hello-world.json'))).toBe(true);
 
     const bySlug = JSON.parse(
       readFileSync(join(outputDir, 'content', 'posts', 'slug', 'hello-world.json'), 'utf8'),
     );
     const byId = JSON.parse(
-      readFileSync(join(outputDir, 'content', 'posts', 'post-1.json'), 'utf8'),
+      readFileSync(join(outputDir, 'content', 'posts', `${id}.json`), 'utf8'),
     );
     expect(bySlug.posts).toHaveLength(1);
     expect(byId.posts).toHaveLength(1);
-    expect(bySlug.posts[0].id).toBe('post-1');
+    expect(bySlug.posts[0].id).toBe(id);
+    expect(bySlug.posts[0].id).toMatch(/^[0-9a-f]{24}$/);
     expect(byId.posts[0].slug).toBe('hello-world');
   });
 

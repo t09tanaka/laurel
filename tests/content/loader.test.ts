@@ -12,6 +12,7 @@ async function fixture(): Promise<string> {
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
+  await mkdir(join(dir, 'content/tags'), { recursive: true });
   await writeFile(
     join(dir, 'content/posts/hello.md'),
     `---
@@ -43,6 +44,7 @@ Body 2
     join(dir, 'content/pages/about.md'),
     `---
 title: "About"
+date: 2026-01-03T00:00:00Z
 ---
 
 About body
@@ -54,6 +56,14 @@ About body
     `---
 name: Casper
 bio: Friendly ghost
+---
+`,
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/tags/news.md'),
+    `---
+name: News
 ---
 `,
     'utf8',
@@ -181,6 +191,54 @@ ${longPlaintext}
     expect(nullCustom?.custom_excerpt).toBeUndefined();
     expect(nullCustom?.excerpt).toBe(first50Words);
     expect(nullCustom?.excerpt).not.toBe('Legacy excerpt input');
+  });
+
+  test('derives stable Ghost-compatible ObjectId ids without changing slug URLs', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+
+    const first = await loadContent({ cwd, config });
+    const second = await loadContent({ cwd, config });
+    const objectId = /^[0-9a-f]{24}$/;
+
+    const post = first.bySlug.posts.get('hello');
+    const page = first.bySlug.pages.get('about');
+    const tag = first.bySlug.tags.get('news');
+    const author = first.bySlug.authors.get('casper');
+
+    expect(post?.id).toMatch(objectId);
+    expect(page?.id).toMatch(objectId);
+    expect(tag?.id).toMatch(objectId);
+    expect(author?.id).toMatch(objectId);
+    expect(post?.id).toBe(second.bySlug.posts.get('hello')?.id);
+    expect(page?.id).toBe(second.bySlug.pages.get('about')?.id);
+    expect(tag?.id).toBe(second.bySlug.tags.get('news')?.id);
+    expect(author?.id).toBe(second.bySlug.authors.get('casper')?.id);
+
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Retitled"
+date: 2026-01-01T00:00:00Z
+tags: [news]
+authors: [casper]
+---
+
+Body changed, but slug and published_at stayed fixed.
+`,
+      'utf8',
+    );
+    const retitled = await loadContent({ cwd, config });
+    expect(retitled.bySlug.posts.get('hello')?.id).toBe(post?.id);
+
+    expect(post?.slug).toBe('hello');
+    expect(post?.url).toBe('/hello/');
+    expect(page?.slug).toBe('about');
+    expect(page?.url).toBe('/about/');
+    expect(first.sources?.posts.has(post?.id ?? '')).toBe(true);
+    expect(first.sources?.pages.has(page?.id ?? '')).toBe(true);
+    expect(first.sources?.tags.has(tag?.id ?? '')).toBe(true);
+    expect(first.sources?.authors.has(author?.id ?? '')).toBe(true);
   });
 
   test('counts primary and secondary author posts from the public post graph', async () => {

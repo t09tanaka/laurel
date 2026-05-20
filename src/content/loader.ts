@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { type Stats, existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
@@ -428,6 +429,10 @@ async function loadContentWithPool({
 
 function localizedKey(locale: string | undefined, slug: string): string {
   return locale ? `${locale}\u0000${slug}` : slug;
+}
+
+function deterministicObjectId(...parts: readonly string[]): string {
+  return createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 24);
 }
 
 function publicBySlugMap<T extends { slug: string }>(items: readonly T[]): Map<string, T> {
@@ -1139,7 +1144,7 @@ async function normalizePost(
       : resolveLocalImageDimensions(featureImage, cwd, config);
 
   return {
-    id: `post-${slug}`,
+    id: deterministicObjectId(kind, contentLocale.locale, slug, published),
     slug,
     locale: contentLocale.locale,
     localeSource: contentLocale.localeSource,
@@ -1320,7 +1325,7 @@ async function normalizeRawAuthor(
   const name = asString(data.name) ?? slug;
   const bio = asString(data.bio) ?? body.trim();
   return {
-    id: `author-${slug}`,
+    id: deterministicObjectId('author', locale.locale, slug),
     slug,
     locale: locale.locale,
     localeSource: locale.localeSource,
@@ -1399,7 +1404,7 @@ async function normalizeRawTag(
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
   const name = asString(data.name) ?? slug;
   return {
-    id: `tag-${slug}`,
+    id: deterministicObjectId('tag', locale.locale, slug),
     slug,
     locale: locale.locale,
     localeSource: locale.localeSource,
@@ -1691,7 +1696,7 @@ function resolveTagSlugs(
       );
     }
     const created: Tag = {
-      id: `tag-${slug}`,
+      id: deterministicObjectId('tag', locale, slug),
       slug,
       locale,
       name: titleCase(slug),
@@ -1734,7 +1739,7 @@ function resolveAuthorSlugs(
       );
     }
     const created: Author = {
-      id: `author-${slug}`,
+      id: deterministicObjectId('author', locale, slug),
       slug,
       locale,
       name: titleCase(slug),
