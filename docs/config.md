@@ -43,6 +43,20 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | `site.accent_color` | `string` | no | `"#222222"` | Brand accent color as a CSS hex color string (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Surfaced to themes as `@site.accent_color` and dropped into theme CSS without escaping, so the schema rejects anything that is not a literal hex triplet to prevent CSS injection. |
 | `site.twitter` | `string` | no | — | Optional Twitter / X handle (e.g. `@nectar`). Used to populate `twitter:site` meta tags. |
 | `site.facebook` | `string` | no | — | Optional Facebook page slug. Used to populate `og:article:publisher` meta tags. |
+| `site.meta_title` | `string` | no | — | Site-wide SEO title used by `{{ghost_head}}` as the last fallback when no post/page/tag/author title is in scope. Themes that read `@site.meta_title` see this value unchanged. Leave unset to fall back to `site.title`. |
+| `site.meta_description` | `string` | no | — | Site-wide SEO description used by `{{ghost_head}}` as the last fallback when no post/page/tag/author description is in scope. Themes that read `@site.meta_description` see this value unchanged. Leave unset to fall back to `site.description`. |
+| `site.og_image` | `string` | no | — | Site-wide Open Graph image URL or content-relative path used by `{{ghost_head}}` when no `og_image` / `twitter_image` / `feature_image` is in scope. Surfaced to themes as `@site.og_image`. |
+| `site.og_title` | `string` | no | — | Site-wide Open Graph title used as the last `og:title` fallback. Surfaced to themes as `@site.og_title`. |
+| `site.og_description` | `string` | no | — | Site-wide Open Graph description used as the last `og:description` fallback. Surfaced to themes as `@site.og_description`. |
+| `site.twitter_image` | `string` | no | — | Site-wide Twitter card image used by `{{ghost_head}}` as a fallback when no per-post `twitter_image` is set. Surfaced to themes as `@site.twitter_image`. |
+| `site.twitter_title` | `string` | no | — | Site-wide Twitter card title used as the last `twitter:title` fallback. Surfaced to themes as `@site.twitter_title`. |
+| `site.twitter_description` | `string` | no | — | Site-wide Twitter card description used as the last `twitter:description` fallback. Surfaced to themes as `@site.twitter_description`. |
+| `site.codeinjection_head` | `string` | no | — | Raw HTML spliced into every page's `{{ghost_head}}` (just before `</head>`). Mirrors Ghost's site-wide "Code injection" head field. Only honored when `build.allow_code_injection` is true; otherwise dropped at config load time. Use for analytics snippets, custom meta tags, or third-party widgets that must load globally. |
+| `site.codeinjection_foot` | `string` | no | — | Raw HTML spliced into every page's `{{ghost_foot}}` (just before `</body>`). Mirrors Ghost's site-wide "Code injection" foot field. Only honored when `build.allow_code_injection` is true; otherwise dropped at config load time. |
+| `site.members_enabled` | `boolean` | no | — | Override for `@site.members_enabled`. Defaults to whatever `[components.portal].provider != "none"` implies; set explicitly to force the Source theme's sign-in / subscribe UI on or off regardless of the Portal provider. |
+| `site.paid_members_enabled` | `boolean` | no | — | Override for `@site.paid_members_enabled`. Defaults to `members_enabled && components.portal.paid`; set explicitly to force the paid CTA state. |
+| `site.members_invite_only` | `boolean` | no | — | Override for `@site.members_invite_only`. Defaults to `members_enabled && components.portal.invite_only`; set explicitly to flip the Source theme's sign-in-only behavior. |
+| `site.comments_enabled` | `boolean` | no | `false` | Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards. |
 
 ## `theme`
 

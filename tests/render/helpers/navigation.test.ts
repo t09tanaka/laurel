@@ -70,6 +70,31 @@ describe('navigation helper', () => {
     const html = renderNavigation([{ label: 'Home', url: '/' }], undefined);
     expect(html).not.toContain('aria-current');
   });
+
+  // Issue #422: when buildRootData pre-enriches each item with `slug` and
+  // `current`, the helper should honour those values directly instead of
+  // recomputing them. This lets a custom site-loader override either field
+  // (e.g. force `current: true` for an "active section") without forking the
+  // helper.
+  test('prefers pre-computed slug / current over locally derived values', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [{ label: 'Whatever', url: '/page-a', slug: 'forced-slug', current: true }],
+            secondary_navigation: [],
+          },
+          route: { url: '/totally-different/' },
+        },
+      },
+    );
+    expect(html).toContain('class="nav-forced-slug"');
+    expect(html).toContain('aria-current="page"');
+  });
 });
 
 describe('navigation helper href sanitisation', () => {

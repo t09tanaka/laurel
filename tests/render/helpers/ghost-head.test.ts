@@ -32,7 +32,18 @@ function makeEngine(
     members_enabled: false,
     paid_members_enabled: false,
     members_invite_only: false,
+    comments_enabled: false,
     recommendations_enabled: false,
+    meta_title: undefined,
+    meta_description: undefined,
+    og_image: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    twitter_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     ...site,
   };
   return {
@@ -1241,5 +1252,102 @@ describe('ghost_head RSS alternate link href shape', () => {
     expect(html).toContain(
       '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
     );
+  });
+});
+
+// Issue #421: site-level meta_title / og_title / twitter_title plus
+// og_image / twitter_image act as the last fallback when nothing on the
+// current ctx supplies a value. Without these, a homepage shows just the
+// raw site.title / site.description with no way to customise the social
+// preview from config alone.
+describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
+  test('falls back to @site.meta_title when no ctx title is in scope', () => {
+    const html = renderGhostHead({}, '/', {
+      site: { meta_title: 'Configured Site Title' },
+      routeData: {},
+    });
+    expect(html).toContain('<meta property="og:title" content="Configured Site Title">');
+    expect(html).toContain('<meta name="twitter:title" content="Configured Site Title">');
+  });
+
+  test('@site.og_image is the last fallback for og:image / twitter:image', () => {
+    const html = renderGhostHead({}, '/', {
+      site: { og_image: 'https://cdn.example.com/share.png' },
+      routeData: {},
+    });
+    expect(html).toContain(
+      '<meta property="og:image" content="https://cdn.example.com/share.png">',
+    );
+    expect(html).toContain(
+      '<meta name="twitter:image" content="https://cdn.example.com/share.png">',
+    );
+  });
+
+  test('@site.meta_description is used when ctx has no description / excerpt', () => {
+    const html = renderGhostHead({}, '/', {
+      site: { meta_description: 'Tagline from config' },
+      routeData: {},
+    });
+    expect(html).toContain('<meta name="description" content="Tagline from config">');
+    expect(html).toContain('<meta property="og:description" content="Tagline from config">');
+  });
+
+  test('ctx title still wins over @site.meta_title', () => {
+    const html = renderGhostHead({ title: 'Per-Post Title' }, '/some-post/', {
+      site: { meta_title: 'Configured Site Title' },
+      routeData: { post: { title: 'Per-Post Title' } },
+    });
+    expect(html).toContain('<meta property="og:title" content="Per-Post Title">');
+    expect(html).not.toContain('Configured Site Title');
+  });
+});
+
+// Issue #419: site-level codeinjection_head / codeinjection_foot are spliced
+// verbatim by {{ghost_head}} / {{ghost_foot}}. Both emit the site value first
+// so per-page overrides can shadow it in document order.
+describe('ghost_head / ghost_foot site-level codeinjection (issue #419)', () => {
+  function renderGhostFoot(
+    ctx: Record<string, unknown>,
+    siteOverrides: Partial<NonNullable<Parameters<typeof renderGhostHead>[2]>['site']> = {},
+  ): string {
+    const engine = makeEngine(siteOverrides);
+    registerGhostHeadFootHelpers(engine);
+    const template = engine.hb.compile('{{{ghost_foot}}}');
+    return template(ctx, { data: { route: { url: '/', data: {} } } });
+  }
+
+  test('site.codeinjection_head ships verbatim into the head', () => {
+    const html = renderGhostHead({}, '/', {
+      site: { codeinjection_head: '<meta name="x-site" content="from-site">' },
+    });
+    expect(html).toContain('<meta name="x-site" content="from-site">');
+  });
+
+  test('site.codeinjection_head appears before per-page codeinjection_head', () => {
+    const html = renderGhostHead(
+      { codeinjection_head: '<meta name="x-page" content="from-page">' },
+      '/',
+      { site: { codeinjection_head: '<meta name="x-site" content="from-site">' } },
+    );
+    const sitePos = html.indexOf('x-site');
+    const pagePos = html.indexOf('x-page');
+    expect(sitePos).toBeGreaterThan(-1);
+    expect(pagePos).toBeGreaterThan(-1);
+    expect(sitePos).toBeLessThan(pagePos);
+  });
+
+  test('site.codeinjection_foot ships verbatim before the page-level foot', () => {
+    const html = renderGhostFoot(
+      { codeinjection_foot: '<!-- page -->' },
+      { codeinjection_foot: '<!-- site -->' },
+    );
+    expect(html).toContain('<!-- site -->');
+    expect(html).toContain('<!-- page -->');
+    expect(html.indexOf('site')).toBeLessThan(html.indexOf('page'));
+  });
+
+  test('empty site.codeinjection_foot does not emit a stray newline', () => {
+    const html = renderGhostFoot({});
+    expect(html).toBe('');
   });
 });

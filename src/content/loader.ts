@@ -277,8 +277,26 @@ function buildSite(config: NectarConfig): SiteData {
   // script. Tying `members_enabled` to `[components.portal].provider != "none"`
   // lets operators opt-in to the UI shell when they wire their own
   // Portal-compatible backend, while keeping the default config quiet for
-  // plain blogs.
+  // plain blogs. The `[site].members_*` overrides win when set explicitly so
+  // operators can decouple the UI surface from the Portal provider knob.
   const portalEnabled = config.components.portal.provider !== 'none';
+  const membersEnabled = config.site.members_enabled ?? portalEnabled;
+  const paidEnabled =
+    config.site.paid_members_enabled ?? (portalEnabled && config.components.portal.paid);
+  const inviteOnly =
+    config.site.members_invite_only ?? (portalEnabled && config.components.portal.invite_only);
+  // Site-wide code injection mirrors Ghost's site setting. Same opt-in gate as
+  // per-post / per-page injection: `build.allow_code_injection` must be true,
+  // otherwise we silently drop the value so a copied-in `[site]` block from an
+  // untrusted source cannot ship arbitrary script tags through {{ghost_head}}.
+  const allowInjection = config.build.allow_code_injection === true;
+  const siteCodeHead = allowInjection ? config.site.codeinjection_head : undefined;
+  const siteCodeFoot = allowInjection ? config.site.codeinjection_foot : undefined;
+  if (!allowInjection && (config.site.codeinjection_head || config.site.codeinjection_foot)) {
+    logger.warn(
+      'Ignoring [site].codeinjection_head / [site].codeinjection_foot: set build.allow_code_injection = true in nectar.toml to enable site-wide raw HTML/JS injection.',
+    );
+  }
   return {
     title: config.site.title,
     description: config.site.description,
@@ -297,17 +315,25 @@ function buildSite(config: NectarConfig): SiteData {
     secondary_navigation: config.secondary_navigation,
     twitter: config.site.twitter,
     facebook: config.site.facebook,
-    members_enabled: portalEnabled,
-    // Paid / invite-only flags are only meaningful when Portal itself is on;
-    // collapsing them otherwise prevents a misconfigured paid=true from
-    // silently flipping `@site.paid_members_enabled` while members is off.
-    paid_members_enabled: portalEnabled && config.components.portal.paid,
-    members_invite_only: portalEnabled && config.components.portal.invite_only,
+    members_enabled: membersEnabled,
+    paid_members_enabled: paidEnabled,
+    members_invite_only: inviteOnly,
+    comments_enabled: config.site.comments_enabled,
     // Drives the Source theme's `{{#if @site.recommendations_enabled}}` block
     // that renders the sidebar list and the "See all" portal button. Only flip
     // it on once the user has populated `[[recommendations]]` so empty configs
     // don't ship a dead `/recommendations/` link.
     recommendations_enabled: config.recommendations.length > 0,
+    meta_title: config.site.meta_title,
+    meta_description: config.site.meta_description,
+    og_image: config.site.og_image,
+    og_title: config.site.og_title,
+    og_description: config.site.og_description,
+    twitter_image: config.site.twitter_image,
+    twitter_title: config.site.twitter_title,
+    twitter_description: config.site.twitter_description,
+    codeinjection_head: siteCodeHead,
+    codeinjection_foot: siteCodeFoot,
   };
 }
 

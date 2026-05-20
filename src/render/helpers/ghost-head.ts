@@ -144,7 +144,11 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // The loader already drops the field unless `build.allow_code_injection`
       // is true, so reaching here means the operator opted in. See
       // docs/security/threat-model.md §"Render-side raw-HTML exits" for the
-      // CSP / review posture this requires.
+      // CSP / review posture this requires. The site-wide block is emitted
+      // first so per-post / per-page overrides can shadow earlier `<meta>` or
+      // `<script>` tags by appearing later in document order.
+      const siteHead = (site as { codeinjection_head?: string }).codeinjection_head;
+      if (typeof siteHead === 'string' && siteHead) parts.push(siteHead);
       const head = ctx.codeinjection_head;
       if (typeof head === 'string' && head) parts.push(head);
 
@@ -158,7 +162,15 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
   // for analytics, comments bootstrap, and similar trailing snippets.
   engine.hb.registerHelper('ghost_foot', function ghostFootHelper(this: unknown) {
     const ctx = this as { codeinjection_foot?: string };
-    return new engine.hb.SafeString(ctx.codeinjection_foot ?? '');
+    const site = engine.content.site as { codeinjection_foot?: string };
+    const parts: string[] = [];
+    if (typeof site.codeinjection_foot === 'string' && site.codeinjection_foot) {
+      parts.push(site.codeinjection_foot);
+    }
+    if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
+      parts.push(ctx.codeinjection_foot);
+    }
+    return new engine.hb.SafeString(parts.join('\n'));
   });
 }
 
@@ -179,7 +191,19 @@ function computeMeta(
   route:
     | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
     | undefined,
-  site: { title: string; description: string; url: string },
+  site: {
+    title: string;
+    description: string;
+    url: string;
+    meta_title?: string;
+    meta_description?: string;
+    og_image?: string;
+    og_title?: string;
+    og_description?: string;
+    twitter_image?: string;
+    twitter_title?: string;
+    twitter_description?: string;
+  },
 ): ComputedMeta {
   const titleFromCtx =
     (ctx.meta_title as string | undefined) ||
@@ -192,7 +216,10 @@ function computeMeta(
   const ogImage = ctx.og_image as string | undefined;
   const twitterImage = ctx.twitter_image as string | undefined;
   const featureImage = ctx.feature_image as string | undefined;
-  const rawImage = ogImage || twitterImage || featureImage;
+  // Fall back through site-wide og_image / twitter_image so a config-only
+  // [site].og_image still drives every page's social preview when no per-route
+  // image is present.
+  const rawImage = ogImage || twitterImage || featureImage || site.og_image || site.twitter_image;
   const image = rawImage ? absoluteUrl(site.url, rawImage) : undefined;
   const imageType = image ? mimeTypeForImage(image) : undefined;
   // Width/height come from feature_image probing at load time, so only attach
@@ -210,9 +237,22 @@ function computeMeta(
   let ogType = 'website';
   if (route?.data?.post) ogType = 'article';
 
+  // Final fallback chain: per-route ctx -> [site].meta_* / og_* / twitter_*
+  // -> site.title / site.description. The site-level meta_title / og_title /
+  // twitter_title knobs let an operator override the default social preview
+  // title without touching every Markdown file.
+  const title =
+    titleFromCtx || site.og_title || site.twitter_title || site.meta_title || site.title;
+  const description =
+    descFromCtx ||
+    site.og_description ||
+    site.twitter_description ||
+    site.meta_description ||
+    site.description;
+
   return {
-    title: titleFromCtx || site.title,
-    description: descFromCtx || site.description,
+    title,
+    description,
     canonical,
     image,
     imageType,

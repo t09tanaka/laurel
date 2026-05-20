@@ -35,7 +35,18 @@ const site: SiteData = {
   members_enabled: false,
   paid_members_enabled: false,
   members_invite_only: false,
+  comments_enabled: false,
   recommendations_enabled: false,
+  meta_title: undefined,
+  meta_description: undefined,
+  og_image: undefined,
+  og_title: undefined,
+  og_description: undefined,
+  twitter_image: undefined,
+  twitter_title: undefined,
+  twitter_description: undefined,
+  codeinjection_head: undefined,
+  codeinjection_foot: undefined,
 };
 
 function makeAuthor(overrides: Partial<Author> = {}): Author {

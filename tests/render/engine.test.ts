@@ -527,6 +527,82 @@ describe('buildRootData', () => {
     );
     expect(tpl({}, { data })).toBe('signin||name:|upsell');
   });
+
+  // Issue #418: themes branch on `@labs` to gate features behind a Ghost
+  // "Labs" toggle. Nectar has no labs surface, so the data frame must still
+  // ship an empty object so `{{#if @labs.foo}}` is deterministically falsy.
+  test('@labs is exposed as an empty object so {{#if @labs.*}} is always falsy', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    expect(data.labs).toEqual({});
+    const hb = Handlebars.create();
+    const tpl = hb.compile('{{#if @labs.activitypub}}yes{{else}}no{{/if}}');
+    expect(tpl({}, { data })).toBe('no');
+  });
+
+  // Issue #422: per-route enrichment computes `slug` from the label and
+  // `current` against `route.url`, with trailing-slash normalisation so that
+  // a config-side `/about` matches a route URL of `/about/`.
+  test('@site.navigation items carry computed slug / current per-route', () => {
+    const themePkg: ThemePackage = {
+      name: 'theme',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: true,
+      custom: {},
+      customDefaults: {},
+    };
+    const engine = {
+      config: {
+        theme: { custom: {} },
+        build: {},
+      } as unknown as NectarEngine['config'],
+      content: {
+        site: {
+          locale: 'en',
+          navigation: [
+            { label: 'Home', url: '/' },
+            { label: 'Tag Archive', url: '/tag/news/' },
+            { label: 'About Us', url: '/about' },
+          ],
+          secondary_navigation: [{ label: 'RSS Feed', url: '/rss.xml' }],
+        },
+      } as unknown as NectarEngine['content'],
+      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+    } as NectarEngine;
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/about/',
+      outputPath: 'about/index.html',
+      template: 'page',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const site = data.site as {
+      navigation: { label: string; url: string; slug: string; current: boolean }[];
+      secondary_navigation: { label: string; url: string; slug: string; current: boolean }[];
+    };
+    expect(site.navigation).toEqual([
+      { label: 'Home', url: '/', slug: 'home', current: false },
+      { label: 'Tag Archive', url: '/tag/news/', slug: 'tag-archive', current: false },
+      { label: 'About Us', url: '/about', slug: 'about-us', current: true },
+    ]);
+    expect(site.secondary_navigation[0]).toMatchObject({
+      label: 'RSS Feed',
+      slug: 'rss-feed',
+      current: false,
+    });
+  });
 });
 
 // Regression coverage for issue #1131: some Ghost themes use `{{> post}}` from
@@ -613,7 +689,18 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
         members_enabled: false,
         paid_members_enabled: false,
         members_invite_only: false,
+        comments_enabled: false,
         recommendations_enabled: false,
+        meta_title: undefined,
+        meta_description: undefined,
+        og_image: undefined,
+        og_title: undefined,
+        og_description: undefined,
+        twitter_image: undefined,
+        twitter_title: undefined,
+        twitter_description: undefined,
+        codeinjection_head: undefined,
+        codeinjection_foot: undefined,
       },
     } as unknown as ContentGraph;
   }
@@ -746,7 +833,18 @@ describe('createEngine — default search partial (issue #1135)', () => {
         members_enabled: false,
         paid_members_enabled: false,
         members_invite_only: false,
+        comments_enabled: false,
         recommendations_enabled: false,
+        meta_title: undefined,
+        meta_description: undefined,
+        og_image: undefined,
+        og_title: undefined,
+        og_description: undefined,
+        twitter_image: undefined,
+        twitter_title: undefined,
+        twitter_description: undefined,
+        codeinjection_head: undefined,
+        codeinjection_foot: undefined,
       },
     } as unknown as ContentGraph;
   }
@@ -859,7 +957,18 @@ describe('createEngine — precompiled template+layout cache (issue #150)', () =
         members_enabled: false,
         paid_members_enabled: false,
         members_invite_only: false,
+        comments_enabled: false,
         recommendations_enabled: false,
+        meta_title: undefined,
+        meta_description: undefined,
+        og_image: undefined,
+        og_title: undefined,
+        og_description: undefined,
+        twitter_image: undefined,
+        twitter_title: undefined,
+        twitter_description: undefined,
+        codeinjection_head: undefined,
+        codeinjection_foot: undefined,
       },
     } as unknown as ContentGraph;
   }

@@ -7,8 +7,8 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     'navigation',
     function navigationHelper(this: unknown, options: Handlebars.HelperOptions) {
       const site = options.data?.site as {
-        navigation: { label: string; url: string }[];
-        secondary_navigation: { label: string; url: string }[];
+        navigation: { label: string; url: string; slug?: string; current?: boolean }[];
+        secondary_navigation: { label: string; url: string; slug?: string; current?: boolean }[];
       };
       const route = options.data?.route as { url?: string } | undefined;
       const currentUrl = route?.url;
@@ -16,12 +16,18 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const items = type === 'secondary' ? site.secondary_navigation : site.navigation;
       const list = items
         .map((item) => {
+          // Prefer the enriched fields that buildRootData attaches (so a
+          // template-side override or a custom NavigationItem extension is
+          // honoured). Fall back to local computation for callers that build
+          // engine state by hand (unit tests, partial mocks).
+          const slug = item.slug ?? slugify(item.label);
           const isCurrent =
-            currentUrl !== undefined &&
-            (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url));
+            item.current ??
+            (currentUrl !== undefined &&
+              (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url)));
           const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
           const safeUrl = sanitizeHref(String(item.url ?? ''), '{{navigation}} helper');
-          return `<li class="nav-${slugify(item.label)}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
+          return `<li class="nav-${slug}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
         })
         .join('');
       return new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);

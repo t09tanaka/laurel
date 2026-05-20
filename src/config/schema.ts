@@ -158,6 +158,91 @@ export const configSchema = z
           .describe(
             'Optional Facebook page slug. Used to populate `og:article:publisher` meta tags.',
           ),
+        meta_title: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide SEO title used by `{{ghost_head}}` as the last fallback when no post/page/tag/author title is in scope. Themes that read `@site.meta_title` see this value unchanged. Leave unset to fall back to `site.title`.',
+          ),
+        meta_description: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide SEO description used by `{{ghost_head}}` as the last fallback when no post/page/tag/author description is in scope. Themes that read `@site.meta_description` see this value unchanged. Leave unset to fall back to `site.description`.',
+          ),
+        og_image: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Open Graph image URL or content-relative path used by `{{ghost_head}}` when no `og_image` / `twitter_image` / `feature_image` is in scope. Surfaced to themes as `@site.og_image`.',
+          ),
+        og_title: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Open Graph title used as the last `og:title` fallback. Surfaced to themes as `@site.og_title`.',
+          ),
+        og_description: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Open Graph description used as the last `og:description` fallback. Surfaced to themes as `@site.og_description`.',
+          ),
+        twitter_image: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Twitter card image used by `{{ghost_head}}` as a fallback when no per-post `twitter_image` is set. Surfaced to themes as `@site.twitter_image`.',
+          ),
+        twitter_title: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Twitter card title used as the last `twitter:title` fallback. Surfaced to themes as `@site.twitter_title`.',
+          ),
+        twitter_description: z
+          .string()
+          .optional()
+          .describe(
+            'Site-wide Twitter card description used as the last `twitter:description` fallback. Surfaced to themes as `@site.twitter_description`.',
+          ),
+        codeinjection_head: z
+          .string()
+          .optional()
+          .describe(
+            'Raw HTML spliced into every page\'s `{{ghost_head}}` (just before `</head>`). Mirrors Ghost\'s site-wide "Code injection" head field. Only honored when `build.allow_code_injection` is true; otherwise dropped at config load time. Use for analytics snippets, custom meta tags, or third-party widgets that must load globally.',
+          ),
+        codeinjection_foot: z
+          .string()
+          .optional()
+          .describe(
+            'Raw HTML spliced into every page\'s `{{ghost_foot}}` (just before `</body>`). Mirrors Ghost\'s site-wide "Code injection" foot field. Only honored when `build.allow_code_injection` is true; otherwise dropped at config load time.',
+          ),
+        members_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            'Override for `@site.members_enabled`. Defaults to whatever `[components.portal].provider != "none"` implies; set explicitly to force the Source theme\'s sign-in / subscribe UI on or off regardless of the Portal provider.',
+          ),
+        paid_members_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            'Override for `@site.paid_members_enabled`. Defaults to `members_enabled && components.portal.paid`; set explicitly to force the paid CTA state.',
+          ),
+        members_invite_only: z
+          .boolean()
+          .optional()
+          .describe(
+            "Override for `@site.members_invite_only`. Defaults to `members_enabled && components.portal.invite_only`; set explicitly to flip the Source theme's sign-in-only behavior.",
+          ),
+        comments_enabled: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards.",
+          ),
       })
       .strict()
       .default({ title: 'Nectar Site' })
@@ -910,6 +995,18 @@ export const configSchema = z
   .strict();
 
 export type NectarConfig = z.infer<typeof configSchema>;
-export type NavigationItem = z.infer<typeof navigationItemSchema>;
+// Input shape from `nectar.toml`. Strict, only `label` + `url`.
+export type NavigationItemConfig = z.infer<typeof navigationItemSchema>;
+
+// Runtime shape exposed to themes via `@site.navigation`. The render layer
+// enriches each item with `slug` (derived from `label` so themes can emit
+// `class="nav-{{slug}}"`) and `current` (whether the item's `url` matches the
+// route being rendered, with trailing-slash normalisation). Both are optional
+// from a type standpoint so unit tests and direct config consumers can keep
+// passing the bare `{label, url}` shape.
+export interface NavigationItem extends NavigationItemConfig {
+  slug?: string;
+  current?: boolean;
+}
 export type RecommendationItem = z.infer<typeof recommendationItemSchema>;
 export type TierItem = z.infer<typeof tierItemSchema>;

@@ -21,7 +21,25 @@ export interface SiteData {
   members_enabled: boolean;
   paid_members_enabled: boolean;
   members_invite_only: boolean;
+  comments_enabled: boolean;
   recommendations_enabled: boolean;
+  // Site-wide SEO defaults. Themes that read `@site.meta_title` /
+  // `@site.meta_description` fall back to these when a post/page does not
+  // override; `{{ghost_head}}` uses them as the last fallback before
+  // `@site.title` / `@site.description`.
+  meta_title: string | undefined;
+  meta_description: string | undefined;
+  og_image: string | undefined;
+  og_title: string | undefined;
+  og_description: string | undefined;
+  twitter_image: string | undefined;
+  twitter_title: string | undefined;
+  twitter_description: string | undefined;
+  // Raw HTML spliced into every page's `{{ghost_head}}` / `{{ghost_foot}}`.
+  // Already gated behind the `build.allow_code_injection` flag at config
+  // load time (see loader.ts) so reaching here means the operator opted in.
+  codeinjection_head: string | undefined;
+  codeinjection_foot: string | undefined;
 }
 
 export interface Author {

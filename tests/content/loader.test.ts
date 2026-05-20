@@ -180,6 +180,100 @@ describe('loadContent', () => {
     expect(disabled.site.members_invite_only).toBe(false);
   });
 
+  // Issue #420: the `[site]` block accepts explicit `members_enabled` /
+  // `paid_members_enabled` / `members_invite_only` / `comments_enabled`
+  // overrides. They win over the derived Portal-provider defaults so an
+  // operator can decouple the theme UI from the Portal wiring.
+  test('[site].members_* explicit overrides win over Portal-derived defaults (issue #420)', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: {
+          title: 'X',
+          url: 'https://x.test',
+          members_enabled: true,
+          paid_members_enabled: true,
+          members_invite_only: true,
+          comments_enabled: true,
+        },
+        // Portal off — would normally force every flag to false.
+        components: { portal: { provider: 'none' } },
+      }),
+    });
+    expect(graph.site.members_enabled).toBe(true);
+    expect(graph.site.paid_members_enabled).toBe(true);
+    expect(graph.site.members_invite_only).toBe(true);
+    expect(graph.site.comments_enabled).toBe(true);
+  });
+
+  // Issue #421: site-level meta / og / twitter knobs surface to themes via
+  // @site.* and act as the last fallback inside {{ghost_head}}.
+  test('[site].meta_* / og_* / twitter_* round-trip to @site (issue #421)', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: {
+          title: 'X',
+          url: 'https://x.test',
+          meta_title: 'Meta T',
+          meta_description: 'Meta D',
+          og_image: 'https://x.test/og.png',
+          og_title: 'OG T',
+          og_description: 'OG D',
+          twitter_image: 'https://x.test/tw.png',
+          twitter_title: 'TW T',
+          twitter_description: 'TW D',
+        },
+      }),
+    });
+    expect(graph.site.meta_title).toBe('Meta T');
+    expect(graph.site.meta_description).toBe('Meta D');
+    expect(graph.site.og_image).toBe('https://x.test/og.png');
+    expect(graph.site.og_title).toBe('OG T');
+    expect(graph.site.og_description).toBe('OG D');
+    expect(graph.site.twitter_image).toBe('https://x.test/tw.png');
+    expect(graph.site.twitter_title).toBe('TW T');
+    expect(graph.site.twitter_description).toBe('TW D');
+  });
+
+  // Issue #419: site-level codeinjection_head / codeinjection_foot are
+  // gated on `build.allow_code_injection`. Without the opt-in, the values
+  // are silently dropped so a copied-in [site] block from an untrusted
+  // source cannot smuggle scripts via {{ghost_head}} / {{ghost_foot}}.
+  test('[site].codeinjection_* is dropped unless build.allow_code_injection = true (issue #419)', async () => {
+    const cwd = await fixture();
+    const gated = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: {
+          title: 'X',
+          url: 'https://x.test',
+          codeinjection_head: '<script>1</script>',
+          codeinjection_foot: '<script>2</script>',
+        },
+      }),
+    });
+    expect(gated.site.codeinjection_head).toBeUndefined();
+    expect(gated.site.codeinjection_foot).toBeUndefined();
+
+    const allowed = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: {
+          title: 'X',
+          url: 'https://x.test',
+          codeinjection_head: '<script>1</script>',
+          codeinjection_foot: '<script>2</script>',
+        },
+        build: { allow_code_injection: true },
+      }),
+    });
+    expect(allowed.site.codeinjection_head).toBe('<script>1</script>');
+    expect(allowed.site.codeinjection_foot).toBe('<script>2</script>');
+  });
+
   test('site.recommendations_enabled flips to true once `[[recommendations]]` is populated', async () => {
     const cwd = await fixture();
     const graph = await loadContent({

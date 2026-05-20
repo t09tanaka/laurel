@@ -210,9 +210,14 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   const custom = buildCustom(engine);
   const backgroundColor =
     typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
+  // Per-route enrichment of `@site.navigation` so themes that iterate
+  // `{{#foreach @site.navigation}}{{slug}}{{#if current}}…{{/if}}{{/foreach}}`
+  // see `slug` (derived from `label`) and `current` (URL match vs. route.url,
+  // trailing-slash normalised) without each theme having to recompute them.
+  const site = enrichSiteNavigation(engine.content.site, route);
   return {
-    site: engine.content.site,
-    blog: engine.content.site,
+    site,
+    blog: site,
     config: buildGhostConfig(engine),
     custom,
     page: route.kind === 'page' ? route.data.page : undefined,
@@ -242,6 +247,47 @@ function buildGhostConfig(engine: NectarEngine): Record<string, unknown> {
     image_sizes: engine.theme.pkg.image_sizes,
     card_assets: engine.theme.pkg.card_assets,
   };
+}
+
+// Compute slug + current per nav item without mutating the shared ContentGraph
+// site object. Returns a shallow-cloned site whose `navigation` /
+// `secondary_navigation` arrays are new objects with `slug` / `current`
+// attached. Slug is derived from `label` so themes can emit `nav-{{slug}}`;
+// current uses trailing-slash-normalised URL comparison against `route.url`.
+function enrichSiteNavigation(
+  site: ContentGraph['site'],
+  route: { url?: string },
+): ContentGraph['site'] {
+  const currentUrl = route.url;
+  const enrich = (items: ContentGraph['site']['navigation'] | undefined) =>
+    // Guard against partial site fixtures (unit tests sometimes hand-build a
+    // ContentGraph with no `navigation` / `secondary_navigation` keys). The
+    // production loader always populates both with arrays.
+    Array.isArray(items)
+      ? items.map((item) => ({
+          ...item,
+          slug: navSlug(item.label),
+          current:
+            currentUrl !== undefined &&
+            (currentUrl === item.url || normaliseNavUrl(currentUrl) === normaliseNavUrl(item.url)),
+        }))
+      : [];
+  return {
+    ...site,
+    navigation: enrich(site.navigation),
+    secondary_navigation: enrich(site.secondary_navigation),
+  };
+}
+
+function navSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^\w]+/g, '-')
+    .replace(/(^-+|-+$)/g, '');
+}
+
+function normaliseNavUrl(url: string): string {
+  return url.replace(/\/+$/, '') || '/';
 }
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
