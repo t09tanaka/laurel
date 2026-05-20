@@ -88,7 +88,7 @@ self-contained and ends with something running locally.
 1. [Start a blog from scratch](./docs/tutorials/01-start-a-blog.md)
 2. [Migrate from Ghost in 10 minutes](./docs/tutorials/02-migrate-from-ghost.md)
 3. [Customise the Source theme](./docs/tutorials/03-customise-source-theme.md)
-4. [Deploy to Cloudflare / Vercel / Netlify / GitHub Pages](./docs/tutorials/04-deploy.md)
+4. [Deploy to Cloudflare / Vercel / Netlify / Firebase Hosting / GitHub Pages](./docs/tutorials/04-deploy.md)
 5. [Write your first plugin](./docs/tutorials/05-write-your-first-plugin.md)
 
 Index: [`docs/tutorials/`](./docs/tutorials/README.md).

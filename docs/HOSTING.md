@@ -7,8 +7,8 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/security/hosting.md`](./security/hosting.md) — copy-pasteable
   **security header** snippets (HSTS, CSP, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`) for
-  Cloudflare Pages, Vercel, Netlify, GitHub Pages, and self-hosted nginx.
-  Start here for any new deploy.
+  Cloudflare Pages, Vercel, Netlify, Firebase Hosting, GitHub Pages, and
+  self-hosted nginx. Start here for any new deploy.
 - [`docs/security/threat-model.md`](./security/threat-model.md) —
   build-time security model. Covers `build.allow_code_injection`,
   `codeinjection_head` / `codeinjection_foot`, `unsafe_html`, and other
@@ -24,10 +24,10 @@ collects the operator-facing pieces of that contract in one place:
   Git-connected builds, generated `vercel.json`, redirects, prebuilt GitHub
   Actions deploys, and `nectar deploy vercel`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
-  deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages,
-  S3 + CloudFront, nginx, and a minimal Docker/nginx container), without the
-  stricter security header baseline wired in. Pair with `security/hosting.md`
-  for the full set.
+  deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, Firebase Hosting,
+  GitHub Pages, S3 + CloudFront, nginx, and a minimal Docker/nginx container),
+  without the stricter security header baseline wired in. Pair with
+  `security/hosting.md` for the full set.
 - [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
   quickstart with the recommended Actions artifact workflow, project-site
   `base_path`, `.nojekyll`, `CNAME` notes, and the platform limitation that
@@ -44,6 +44,10 @@ collects the operator-facing pieces of that contract in one place:
   quickstart for Git-connected builds, `dist/` publish settings, the optional
   deploy-hook workflow, and the current lack of Render-specific generated
   headers / redirects.
+- [`docs/deploy/firebase-hosting.md`](./deploy/firebase-hosting.md) —
+  Firebase Hosting quickstart for serving the static `dist/` directory with a
+  hand-maintained `firebase.json`. Nectar does not currently emit
+  Firebase-specific config or expose `nectar deploy firebase`.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and

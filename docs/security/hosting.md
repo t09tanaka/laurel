@@ -7,9 +7,9 @@ header at request time, because there is no Nectar process at request time.
 
 This page collects copy-pasteable header snippets for the hosted platforms
 the [deploy tutorial](../tutorials/04-deploy.md) covers (Cloudflare Pages,
-Vercel, Netlify, GitHub Pages), plus the matching `nectar.toml` settings for
-self-hosted nginx. Pick the one that matches your host and add it to the
-place that host actually reads.
+Vercel, Netlify, Firebase Hosting, GitHub Pages), plus the matching
+`nectar.toml` settings for self-hosted nginx. Pick the one that matches your
+host and add it to the place that host actually reads.
 
 > If you skip this step, your site ships with the defaults the host gives you.
 > On most free tiers that means **no CSP, no HSTS, no Referrer-Policy** — fine
@@ -213,6 +213,64 @@ form is preferred because it lives next to the rest of the build config:
 
 Netlify reference:
 <https://docs.netlify.com/routing/headers/>.
+
+---
+
+## Firebase Hosting
+
+Firebase Hosting reads response headers from the `headers` array in
+`firebase.json`. Nectar does not currently emit Firebase-specific config, so
+mirror the policy there by hand:
+
+`firebase.json`:
+
+```json
+{
+  "hosting": {
+    "public": "dist",
+    "headers": [
+      {
+        "source": "**/*.@(html|xml|json)",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "interest-cohort=(), browsing-topics=(), geolocation=(), camera=(), microphone=(), payment=()"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Merge this with the cache-header example in
+[`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md) rather than
+creating a second `hosting` block. Firebase reference:
+<https://firebase.google.com/docs/hosting/full-config>.
 
 ---
 

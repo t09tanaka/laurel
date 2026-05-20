@@ -1,15 +1,15 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, Bunny.net, nginx, Docker, or Fly.io
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Firebase Hosting, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, Bunny.net, nginx, Docker, or Fly.io
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
-AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and self-hosted nginx
-quickstarts. Docker is covered as a runtime wrapper around a pre-built
-`dist/` directory; Nectar does not currently ship a Dockerfile, compose file,
-`fly.toml`, or Docker-specific package script. Fly.io is covered as a
-container runtime around that pre-built output.
+Firebase Hosting, AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and
+self-hosted nginx quickstarts. Docker is covered as a runtime wrapper around a
+pre-built `dist/` directory; Nectar does not currently ship a Dockerfile,
+compose file, `fly.toml`, or Docker-specific package script. Fly.io is
+covered as a container runtime around that pre-built output.
 
 **Universal pre-flight:**
 
@@ -286,6 +286,43 @@ bunx nectar deploy vercel --build
 The command runs `nectar build`, checks for `dist/.nectar-manifest.json`, then
 executes `vercel deploy dist --prod`. Set `VERCEL_TOKEN` in CI, and use
 `bunx nectar deploy vercel --dry-run` to audit the command before uploading.
+
+---
+
+## Firebase Hosting
+
+**Recommended for:** teams already using Firebase projects and custom domains.
+
+For the full Firebase-specific guide, including a minimal `firebase.json`,
+redirect notes, and header caveats, see
+[`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md).
+
+Nectar does not currently have a Firebase emitter or `nectar deploy firebase`
+command. Build the static site first, then let the Firebase CLI upload
+`dist/`:
+
+```bash
+bunx nectar build
+firebase deploy --only hosting
+```
+
+Use `dist` as the Hosting public directory and do not configure the site as a
+single-page app:
+
+```json
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
+    "trailingSlash": true
+  }
+}
+```
+
+Firebase ignores Netlify / Cloudflare-style `dist/_redirects` files. Put
+redirects and custom response headers in `firebase.json` until Nectar grows a
+Firebase-specific emitter.
 
 ---
 
