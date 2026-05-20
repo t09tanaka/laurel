@@ -143,3 +143,62 @@ describe('cli content list', () => {
     expect(stderr).toContain('Unknown subcommand');
   });
 });
+
+describe('cli content rename', () => {
+  test('moves the file and rewrites the slug frontmatter', async () => {
+    const dir = await makeFixture();
+    try {
+      const { exitCode } = await runCli(['content', 'rename', 'hello', 'hi-there', '--json'], dir);
+      expect(exitCode).toBe(0);
+      const { readFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      expect(existsSync(join(dir, 'content/posts/hello.md'))).toBe(false);
+      expect(existsSync(join(dir, 'content/posts/hi-there.md'))).toBe(true);
+      const body = await readFile(join(dir, 'content/posts/hi-there.md'), 'utf8');
+      expect(body).toMatch(/^---\n[\s\S]*\bslug:\s*hi-there\b/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--redirect appends a 301 entry to redirects.yaml', async () => {
+    const dir = await makeFixture();
+    try {
+      const { exitCode } = await runCli(['content', 'rename', 'hello', 'hi', '--redirect'], dir);
+      expect(exitCode).toBe(0);
+      const { readFile } = await import('node:fs/promises');
+      const yaml = await readFile(join(dir, 'redirects.yaml'), 'utf8');
+      expect(yaml).toContain('from: "/hello/"');
+      expect(yaml).toContain('to: "/hi/"');
+      expect(yaml).toContain('status: 301');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('refuses when destination already exists', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/taken.md'),
+        '---\ntitle: Taken\ndate: 2026-01-04T00:00:00Z\n---\n',
+      );
+      const { stderr, exitCode } = await runCli(['content', 'rename', 'hello', 'taken'], dir);
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain('Destination already exists');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects invalid slug with exit 2', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stderr, exitCode } = await runCli(['content', 'rename', 'hello', 'Bad Slug'], dir);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('Invalid new slug');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

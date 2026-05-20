@@ -115,3 +115,52 @@ describe('cli tags list', () => {
     expect(stderr).toContain('Unknown subcommand');
   });
 });
+
+describe('cli tags rename', () => {
+  test('rewrites inline `tags:` references in posts and moves the tag file', async () => {
+    const dir = await makeFixture();
+    try {
+      const { exitCode } = await runCli(['tags', 'rename', 'news', 'updates', '--json'], dir);
+      expect(exitCode).toBe(0);
+      const { readFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const hello = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(hello).toMatch(/tags:\s*\[updates\]/);
+      const world = await readFile(join(dir, 'content/posts/world.md'), 'utf8');
+      expect(world).toMatch(/tags:\s*\[updates\]/);
+      expect(existsSync(join(dir, 'content/tags/news.md'))).toBe(false);
+      expect(existsSync(join(dir, 'content/tags/updates.md'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--dry-run does not mutate files but reports the changed list', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(
+        ['tags', 'rename', 'news', 'updates', '--dry-run', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const result = JSON.parse(stdout) as {
+        changed_files: string[];
+        tag_file_moved: boolean;
+        dry_run: boolean;
+      };
+      expect(result.dry_run).toBe(true);
+      expect(result.changed_files.length).toBeGreaterThan(0);
+      const { readFile } = await import('node:fs/promises');
+      const hello = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(hello).toMatch(/tags:\s*\[news\]/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects identical old/new slug', async () => {
+    const { stderr, exitCode } = await runCli(['tags', 'rename', 'a', 'a']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('identical');
+  });
+});

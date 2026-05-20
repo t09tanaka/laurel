@@ -55,9 +55,13 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
 | [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
-| [`nectar content`](#nectar-content) | Inspect content in the project (posts, pages) |
+| [`nectar config`](#nectar-config) | Inspect the loaded nectar.toml config |
+| [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
-| [`nectar tags`](#nectar-tags) | Inspect tags in the project |
+| [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
+| [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
+| [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive |
+| [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
@@ -251,32 +255,56 @@ Options:
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 
-### `nectar content`
+### `nectar config`
 
-Inspect content in the project (posts, pages)
+Inspect the loaded nectar.toml config
 
 Usage:
 
 ```
-nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] <subcommand>
+nectar config [--config <path>] [--json] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand>` | required | Currently only `list` is supported |
+| `<subcommand...>` | required (variadic) | `get <dotted.key>` (print the value at a dotted path, e.g. `site.url` or `build.base_path`) or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_CONFIG_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+
+### `nectar content`
+
+Inspect or modify content in the project (posts, pages)
+
+Usage:
+
+```
+nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] <subcommand...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand...>` | required (variadic) | `list` (show posts/pages) or `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_CONTENT_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
-| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | Filter by content kind: posts (default) or pages |
-| `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published) |
-| `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have the given tag slug |
-| `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have the given author slug |
-| `--json` | boolean | `NECTAR_CONTENT_JSON` | Emit the listing as JSON (one array of objects) for CI consumption |
+| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
+| `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published; `list` only) |
+| `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have the given tag slug (`list` only) |
+| `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have the given author slug (`list` only) |
+| `--json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
+| `--redirect` | boolean | `NECTAR_CONTENT_REDIRECT` | On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component |
 
 ### `nectar info`
 
@@ -295,30 +323,104 @@ Options:
 | `--config <path>` | string | `NECTAR_INFO_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--json` | boolean | `NECTAR_INFO_JSON` | Emit the report as JSON for CI consumption |
 
-### `nectar tags`
+### `nectar lint`
 
-Inspect tags in the project
+Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
 
 Usage:
 
 ```
-nectar tags [--config <path>] [--orphaned] [--unused] [--json] <subcommand>
+nectar lint [--config <path>] [--json] [--strict] [--max-title-length <n>]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_LINT_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--json` | boolean | `NECTAR_LINT_JSON` | Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption |
+| `--strict` | boolean | `NECTAR_LINT_STRICT` | Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero) |
+| `--max-title-length <n>` | string | `NECTAR_LINT_MAX_TITLE_LENGTH` | Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb) |
+
+### `nectar tags`
+
+Inspect or modify tags in the project
+
+Usage:
+
+```
+nectar tags [--config <path>] [--orphaned] [--unused] [--json] [--dry-run] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand>` | required | Currently only `list` is supported |
+| `<subcommand...>` | required (variadic) | `list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_TAGS_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
-| `--orphaned` | boolean | `NECTAR_TAGS_ORPHANED` | Show only tags that are defined under content/tags/ but referenced by zero posts |
-| `--unused` | boolean | `NECTAR_TAGS_UNUSED` | Alias for --orphaned |
-| `--json` | boolean | `NECTAR_TAGS_JSON` | Emit the listing as JSON (slug, name, post_count) for CI consumption |
+| `--orphaned` | boolean | `NECTAR_TAGS_ORPHANED` | Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only) |
+| `--unused` | boolean | `NECTAR_TAGS_UNUSED` | Alias for --orphaned (`list` only) |
+| `--json` | boolean | `NECTAR_TAGS_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
+| `--dry-run` | boolean | `NECTAR_TAGS_DRY_RUN` | On `rename`: scan and report the files that would change without writing anything |
+
+### `nectar theme`
+
+Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive
+
+Usage:
+
+```
+nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] <subcommand...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand...>` | required (variadic) | `new <name>` (scaffold themes/<name>/) or `zip` (archive the active theme into a gscan-compatible .zip) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_THEME_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--from <theme-name>` | string | `NECTAR_THEME_FROM` | `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold |
+| `-o, --output <path>` | string | `NECTAR_THEME_OUTPUT` | `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory) |
+| `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
+
+### `nectar migrate`
+
+Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
+
+Usage:
+
+```
+nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] <source-and-args...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<source-and-args...>` | required (variadic) | `<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy` |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_MIGRATE_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only) |
+| `--dry-run` | boolean | `NECTAR_MIGRATE_DRY_RUN` | Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan) |
+| `--assets <dir>` | string | `NECTAR_MIGRATE_ASSETS` | ghost only: path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
+| `--download-images` | boolean | `NECTAR_MIGRATE_DOWNLOAD_IMAGES` | ghost only: download remote image URLs into content/images/ and rewrite references to local paths |
+| `--max-image-size <size>` | string | `NECTAR_MIGRATE_MAX_IMAGE_SIZE` | ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables) |
+| `--source-url <url>` | string | `NECTAR_MIGRATE_SOURCE_URL` | ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths |
+| `--max-size <size>` | string | `NECTAR_MIGRATE_MAX_SIZE` | ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables) |
+| `--keep-code-injection` | boolean | `NECTAR_MIGRATE_KEEP_CODE_INJECTION` | ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source. |
 
 ### `nectar import-ghost`
 

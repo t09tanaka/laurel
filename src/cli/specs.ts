@@ -387,7 +387,7 @@ export const COMPLETIONS_SPEC: CommandSpec = {
 
 export const CONTENT_SPEC: CommandSpec = {
   name: 'content',
-  summary: 'Inspect content in the project (posts, pages)',
+  summary: 'Inspect or modify content in the project (posts, pages)',
   options: {
     config: {
       type: 'string',
@@ -396,33 +396,42 @@ export const CONTENT_SPEC: CommandSpec = {
     },
     kind: {
       type: 'string',
-      description: 'Filter by content kind: posts (default) or pages',
+      description:
+        'For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)',
       placeholder: '<posts|pages>',
     },
     draft: {
       type: 'boolean',
-      description: 'Include draft posts/pages in the listing (default: only published)',
+      description:
+        'Include draft posts/pages in the listing (default: only published; `list` only)',
     },
     tag: {
       type: 'string',
-      description: 'Show only entries that have the given tag slug',
+      description: 'Show only entries that have the given tag slug (`list` only)',
       placeholder: '<slug>',
     },
     author: {
       type: 'string',
-      description: 'Show only entries that have the given author slug',
+      description: 'Show only entries that have the given author slug (`list` only)',
       placeholder: '<slug>',
     },
     json: {
       type: 'boolean',
-      description: 'Emit the listing as JSON (one array of objects) for CI consumption',
+      description: 'Emit results as JSON for CI consumption (both `list` and `rename`)',
+    },
+    redirect: {
+      type: 'boolean',
+      description:
+        'On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component',
     },
   },
   positionals: [
     {
       name: 'subcommand',
-      description: 'Currently only `list` is supported',
+      description:
+        '`list` (show posts/pages) or `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter)',
       required: true,
+      variadic: true,
     },
   ],
 };
@@ -446,7 +455,7 @@ export const INFO_SPEC: CommandSpec = {
 
 export const TAGS_SPEC: CommandSpec = {
   name: 'tags',
-  summary: 'Inspect tags in the project',
+  summary: 'Inspect or modify tags in the project',
   options: {
     config: {
       type: 'string',
@@ -456,22 +465,187 @@ export const TAGS_SPEC: CommandSpec = {
     orphaned: {
       type: 'boolean',
       description:
-        'Show only tags that are defined under content/tags/ but referenced by zero posts',
+        'Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only)',
     },
     unused: {
       type: 'boolean',
-      description: 'Alias for --orphaned',
+      description: 'Alias for --orphaned (`list` only)',
     },
     json: {
       type: 'boolean',
-      description: 'Emit the listing as JSON (slug, name, post_count) for CI consumption',
+      description: 'Emit results as JSON for CI consumption (both `list` and `rename`)',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'On `rename`: scan and report the files that would change without writing anything',
     },
   },
   positionals: [
     {
       name: 'subcommand',
-      description: 'Currently only `list` is supported',
+      description:
+        '`list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically)',
       required: true,
+      variadic: true,
+    },
+  ],
+};
+
+export const CONFIG_SPEC: CommandSpec = {
+  name: 'config',
+  summary: 'Inspect the loaded nectar.toml config',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description:
+        '`get <dotted.key>` (print the value at a dotted path, e.g. `site.url` or `build.base_path`) or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)',
+      required: true,
+      variadic: true,
+    },
+  ],
+};
+
+export const LINT_SPEC: CommandSpec = {
+  name: 'lint',
+  summary:
+    'Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption',
+    },
+    strict: {
+      type: 'boolean',
+      description:
+        'Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero)',
+    },
+    'max-title-length': {
+      type: 'string',
+      description:
+        'Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb)',
+      placeholder: '<n>',
+    },
+  },
+  positionals: [],
+};
+
+export const MIGRATE_SPEC: CommandSpec = {
+  name: 'migrate',
+  summary:
+    'Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`',
+  options: {
+    'on-conflict': {
+      type: 'string',
+      description:
+        'How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only)',
+      placeholder: '<skip|overwrite|rename>',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan)',
+    },
+    assets: {
+      type: 'string',
+      description:
+        "ghost only: path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/",
+      placeholder: '<dir>',
+    },
+    'download-images': {
+      type: 'boolean',
+      description:
+        'ghost only: download remote image URLs into content/images/ and rewrite references to local paths',
+    },
+    'max-image-size': {
+      type: 'string',
+      description:
+        'ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables)',
+      placeholder: '<size>',
+    },
+    'source-url': {
+      type: 'string',
+      description:
+        'ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths',
+      placeholder: '<url>',
+    },
+    'max-size': {
+      type: 'string',
+      description:
+        'ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)',
+      placeholder: '<size>',
+    },
+    'keep-code-injection': {
+      type: 'boolean',
+      description:
+        'ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source.',
+    },
+  },
+  positionals: [
+    {
+      name: 'source-and-args',
+      description:
+        '`<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy`',
+      required: true,
+      variadic: true,
+    },
+  ],
+};
+
+export const THEME_SPEC: CommandSpec = {
+  name: 'theme',
+  summary:
+    'Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    from: {
+      type: 'string',
+      description:
+        '`new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold',
+      placeholder: '<theme-name>',
+    },
+    output: {
+      type: 'string',
+      short: 'o',
+      description:
+        '`zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory)',
+      placeholder: '<path>',
+    },
+    force: {
+      type: 'boolean',
+      description:
+        'Overwrite the destination directory (`new`) or archive (`zip`) if it already exists',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description:
+        '`new <name>` (scaffold themes/<name>/) or `zip` (archive the active theme into a gscan-compatible .zip)',
+      required: true,
+      variadic: true,
     },
   ],
 };
@@ -486,9 +660,13 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   doctor: DOCTOR_SPEC,
   clean: CLEAN_SPEC,
   completions: COMPLETIONS_SPEC,
+  config: CONFIG_SPEC,
   content: CONTENT_SPEC,
   info: INFO_SPEC,
+  lint: LINT_SPEC,
   tags: TAGS_SPEC,
+  theme: THEME_SPEC,
+  migrate: MIGRATE_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };

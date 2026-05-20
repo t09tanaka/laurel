@@ -90,6 +90,22 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runTags } = await import('./commands/tags.ts');
       return runTags(rest);
     }
+    case 'config': {
+      const { runConfig } = await import('./commands/config.ts');
+      return runConfig(rest);
+    }
+    case 'lint': {
+      const { runLint } = await import('./commands/lint.ts');
+      return runLint(rest);
+    }
+    case 'migrate': {
+      const { runMigrate } = await import('./commands/migrate.ts');
+      return runMigrate(rest);
+    }
+    case 'theme': {
+      const { runTheme } = await import('./commands/theme.ts');
+      return runTheme(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }
