@@ -382,6 +382,13 @@ describe('has helper', () => {
     expect(tpl(ctx)).toBe('yes');
   });
 
+  test('visibility="members" matches the current context visibility', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has visibility="members"}}gated{{/has}}');
+    expect(tpl({ visibility: 'members' })).toBe('gated');
+  });
+
   test('falls through to inverse when the requested tag is absent', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
