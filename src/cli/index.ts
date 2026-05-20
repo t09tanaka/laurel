@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
 import { EXIT_CODES } from '~/util/errors.ts';
-import { setColorEnabled, setLogLevel, setOutputMode } from '~/util/logger.ts';
+import { logger, setColorEnabled, setLogLevel, setOutputMode } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
+import { warnIfBunEngineMismatch } from './bun-engine.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
@@ -193,6 +194,7 @@ async function main(argv: string[]): Promise<number> {
   try {
     const result = extractGlobalFlags(raw, process.env);
     applyGlobalFlags(result.flags);
+    warnIfBunEngineMismatch(logger.warn);
     filtered = result.rest;
     globalJson = result.flags.json;
   } catch (err) {
