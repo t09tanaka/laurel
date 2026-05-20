@@ -127,6 +127,23 @@ describe('build pipeline strict mode wiring', () => {
     });
   });
 
+  test('emits dist/.nectar/asset-manifest.json for fingerprinted theme assets', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+
+    const summary = await build({ cwd });
+    const manifest = JSON.parse(
+      readFileSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'), 'utf8'),
+    ) as Record<string, string>;
+
+    expect(manifest['assets/built/screen.css']).toMatch(
+      /^assets\/built\/screen\.[0-9a-f]{10}\.css$/,
+    );
+    expect(existsSync(join(summary.outputDir, manifest['assets/built/screen.css'] as string))).toBe(
+      true,
+    );
+    expect(manifest['built/screen.css']).toBeUndefined();
+  });
+
   test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

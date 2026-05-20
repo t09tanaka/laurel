@@ -19,6 +19,7 @@ import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitApacheHtaccess } from './apache.ts';
 import { emitContentApiShadows } from './api.ts';
+import { emitAssetManifest } from './asset-manifest.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
@@ -906,6 +907,7 @@ async function runBuild({
   await timed(profiler, 'static_passthrough', () =>
     copyStaticDir({ cwd, staticDir: config.content.static_dir, outputDir }),
   );
+  await timed(profiler, 'asset_manifest', () => emitAssetManifest({ outputDir, theme }));
 
   // Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`,
   // `.txt`, `.map`) into `.br` + `.gz` siblings. Runs after every emitter so
