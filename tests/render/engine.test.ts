@@ -1883,6 +1883,39 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<script src="a.js"></script></body>');
   });
 
+  test('contentFor in theme partial flows through to {{{block}}} in layout head (issue #724)', () => {
+    const theme = makeTheme(
+      {
+        default: '<html><head>{{{block "herobackground"}}}</head><body>{{{body}}}</body></html>',
+        post: '{{!< default}}\n{{> "hero"}}\n<article>{{post.title}}</article>',
+      },
+      {
+        hero: [
+          '{{#contentFor "herobackground"}}',
+          '<style>.hero{background-image:url({{feature_image}})}</style>',
+          '{{/contentFor}}',
+          '<header>{{title}}</header>',
+        ].join(''),
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const post: Post = makePost({ title: 'Hi', feature_image: '/content/images/hero.jpg' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hi/',
+      outputPath: 'hi/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html).toContain(
+      '<head><style>.hero{background-image:url(/content/images/hero.jpg)}</style></head>',
+    );
+    expect(html).toContain('<header>Hi</header>');
+    expect(html).toContain('<article>Hi</article>');
+  });
+
   test('contentFor blocks do not leak across routes', () => {
     const theme = makeTheme({
       default: '<html>{{{block "head"}}}|{{{body}}}</html>',
