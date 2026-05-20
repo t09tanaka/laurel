@@ -413,6 +413,20 @@ function renderLinkClass(routeUrl: string | undefined, hash: string): string {
   );
 }
 
+function renderIsActive(routeUrl: string | undefined, hash: string): string {
+  const engine = makeEngine();
+  registerNavigationHelpers(engine);
+  const template = engine.hb.compile(`{{is_active ${hash}}}`);
+  return template(
+    {},
+    {
+      data: {
+        route: routeUrl === undefined ? undefined : { url: routeUrl },
+      },
+    },
+  );
+}
+
 // Issue #779: parent-route highlighting. A trailing-slash target like
 // `/tag/news/` represents a section root; sub-routes (`/tag/news/page/2/`,
 // `/tag/news/something/`) should still receive the active class so a
@@ -463,6 +477,26 @@ describe('link_class helper parent-route matching', () => {
 
   test('returns empty when target is unset', () => {
     expect(renderLinkClass('/tag/news/', 'activeClass="nav-current"')).toBe('');
+  });
+});
+
+describe('is_active helper', () => {
+  test('returns the default active class on an exact match', () => {
+    expect(renderIsActive('/x/', 'for="/x/"')).toBe('nav-current');
+  });
+
+  test('respects custom activeClass hash on an exact match', () => {
+    expect(renderIsActive('/x/', 'for="/x/" activeClass="is-active"')).toBe('is-active');
+  });
+
+  test('uses link_class parent-route matching semantics', () => {
+    expect(renderIsActive('/tag/news/page/2/', 'for="/tag/news/"')).toBe('nav-current');
+    expect(renderIsActive('/tag/news/page/2/', 'for="/tag/news"')).toBe('');
+  });
+
+  test('returns empty when route or target is unset', () => {
+    expect(renderIsActive(undefined, 'for="/tag/news/"')).toBe('');
+    expect(renderIsActive('/tag/news/', 'activeClass="nav-current"')).toBe('');
   });
 });
 

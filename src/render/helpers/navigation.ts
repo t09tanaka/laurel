@@ -162,25 +162,14 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'link_class',
     function linkClassHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const route = options.data?.route as { url?: string } | undefined;
-      const target = String(options.hash.for ?? '');
-      const active = String(options.hash.activeClass ?? 'nav-current');
-      if (!route?.url || !target) return '';
-      if (route.url === target || normaliseUrl(route.url) === normaliseUrl(target)) {
-        return active;
-      }
-      // Treat a directory-style target (trailing slash) as a section root so
-      // sub-routes like `/tag/news/page/2/` still highlight the parent
-      // `/tag/news/` link. The trailing slash is the opt-in: a bare
-      // `/tag/news` target keeps the strict equality semantics above.
-      // Compare against the route's normalised form with a trailing slash
-      // appended so `/tag/news` (no slash) and `/tag/news/` both qualify as
-      // descendants of `/tag/news/`.
-      if (target.endsWith('/')) {
-        const routeWithSlash = route.url.endsWith('/') ? route.url : `${route.url}/`;
-        if (routeWithSlash.startsWith(target)) return active;
-      }
-      return '';
+      return currentRouteClass(options);
+    },
+  );
+
+  engine.hb.registerHelper(
+    'is_active',
+    function isActiveHelper(this: unknown, options: Handlebars.HelperOptions) {
+      return currentRouteClass(options);
     },
   );
 }
@@ -223,6 +212,28 @@ function escapeAttr(value: string): string {
 
 function normaliseUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
+}
+
+function currentRouteClass(options: Handlebars.HelperOptions): string {
+  const route = options.data?.route as { url?: string } | undefined;
+  const target = String(options.hash.for ?? '');
+  const active = String(options.hash.activeClass ?? 'nav-current');
+  if (!route?.url || !target) return '';
+  if (route.url === target || normaliseUrl(route.url) === normaliseUrl(target)) {
+    return active;
+  }
+  // Treat a directory-style target (trailing slash) as a section root so
+  // sub-routes like `/tag/news/page/2/` still highlight the parent
+  // `/tag/news/` link. The trailing slash is the opt-in: a bare `/tag/news`
+  // target keeps the strict equality semantics above.
+  // Compare against the route's normalised form with a trailing slash appended
+  // so `/tag/news` (no slash) and `/tag/news/` both qualify as descendants of
+  // `/tag/news/`.
+  if (target.endsWith('/')) {
+    const routeWithSlash = route.url.endsWith('/') ? route.url : `${route.url}/`;
+    if (routeWithSlash.startsWith(target)) return active;
+  }
+  return '';
 }
 
 // target="_blank" leaks window.opener to the destination page, letting it
