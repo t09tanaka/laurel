@@ -16,6 +16,7 @@ import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
+import { handleCrashReportPrompt, versionsForCrashReport } from './telemetry.ts';
 import { buildVersionJson } from './version.ts';
 
 const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
@@ -31,14 +32,34 @@ const SUGGESTABLE_COMMAND_NAMES = [...COMMAND_NAMES, 'version', 'help'];
 //   - The process exits with status 1 deterministically.
 // Listeners are installed at module load time so they cover dynamic imports
 // in `dispatch()`, not just synchronous code paths in `main()`.
+let fatalExitStarted = false;
+
 process.on('unhandledRejection', (reason: unknown) => {
-  reportError(reason);
-  process.exit(EXIT_CODES.generic);
+  void handleFatalCrash(reason);
 });
 process.on('uncaughtException', (err: unknown) => {
-  reportError(err);
-  process.exit(EXIT_CODES.generic);
+  void handleFatalCrash(err);
 });
+
+async function handleFatalCrash(err: unknown): Promise<void> {
+  if (fatalExitStarted) {
+    process.exit(EXIT_CODES.generic);
+  }
+  fatalExitStarted = true;
+  let version = 'unknown';
+  try {
+    version = await getNectarVersion();
+  } catch {
+    // Keep crash handling best-effort: version lookup must not mask the crash.
+  }
+  reportError(err);
+  await handleCrashReportPrompt(err, {
+    argv: process.argv,
+    versions: versionsForCrashReport(buildVersionJson(version)),
+    isTty: process.stdin.isTTY === true && process.stderr.isTTY === true,
+  });
+  process.exit(EXIT_CODES.generic);
+}
 
 function printTopUsage(version: string, stream: NodeJS.WriteStream = process.stdout): void {
   const lines: string[] = [];
