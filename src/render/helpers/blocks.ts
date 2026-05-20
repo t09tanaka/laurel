@@ -12,11 +12,16 @@ interface HelperOptions extends Handlebars.HelperOptions {
   };
 }
 
+interface IterationEntry {
+  key?: string;
+  value: unknown;
+}
+
 export function registerBlockHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('foreach', function foreachHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as HelperOptions;
     const raw = args[0];
-    const items = toArray(raw);
+    const items = toEntries(raw);
     const limit = parseNum(options.hash.limit) ?? items.length;
     const from = parseNum(options.hash.from) ?? 1;
     const to = parseNum(options.hash.to) ?? Math.min(items.length, from + limit - 1);
@@ -28,11 +33,11 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     // `core/frontend/helpers/foreach.js`). The order matters when public and
     // members posts are interleaved: `visibility="public" limit=3` must yield
     // the first three *public* items, not three positions from the raw input.
-    const visible = items.filter((item) => visibilityFilter(item, options.hash.visibility));
+    const visible = items.filter((entry) => visibilityFilter(entry.value, options.hash.visibility));
     const sliced = visible.slice(from - 1, to);
     const columns = parseColumns(options.hash.columns);
     for (let i = 0; i < sliced.length; i += 1) {
-      const item = sliced[i];
+      const entry = sliced[i];
       const data = engine.hb.createFrame(
         (options.data as Record<string, unknown> | undefined) ?? {},
       );
@@ -44,7 +49,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       data.odd = i % 2 !== 0;
       data.rowStart = i % columns === 0;
       data.rowEnd = (i + 1) % columns === 0;
-      buffer += options.fn(item, { data });
+      if (entry.key !== undefined) data.key = entry.key;
+      buffer += options.fn(entry.value, { data });
       renderedIndex += 1;
     }
     if (renderedIndex === 0 && options.inverse) {
@@ -377,9 +383,14 @@ function registerAdjacentPostBlock(
   );
 }
 
-function toArray(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>);
+function toEntries(value: unknown): IterationEntry[] {
+  if (Array.isArray(value)) return value.map((item) => ({ value: item }));
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).map(([key, item]) => ({
+      key,
+      value: item,
+    }));
+  }
   return [];
 }
 

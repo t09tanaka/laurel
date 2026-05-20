@@ -55,6 +55,15 @@ describe('foreach helper', () => {
     expect(tpl({ items: ['a', 'b', 'c', 'd', 'e'] })).toBe('b|c|');
   });
 
+  test('object iteration exposes @key for each map entry', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach obj}}{{@key}}:{{this}};{{/foreach}}');
+    const out = tpl({ obj: { a: 1, b: 2 } });
+    expect(out).toContain('a:1;');
+    expect(out).toContain('b:2;');
+  });
+
   test('visibility filter drops items whose visibility does not match', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
