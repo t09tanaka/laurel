@@ -619,7 +619,7 @@ About JA.
     expect(graph.postsByTag.get('ja\u0000news')?.[0]?.locale).toBe('ja');
   });
 
-  test('site.members_* / recommendations_enabled default to false when no portal is configured', async () => {
+  test('site.members_* / comments / recommendations defaults are stable booleans/strings', async () => {
     // Ghost Source theme branches sidebar/footer/CTA/navigation on these.
     // Default config has no Portal backend, so they must be stable booleans
     // (false), not undefined — otherwise Handlebars `#if` reads as falsy but a
@@ -632,6 +632,8 @@ About JA.
     expect(graph.site.members_enabled).toBe(false);
     expect(graph.site.paid_members_enabled).toBe(false);
     expect(graph.site.members_invite_only).toBe(false);
+    expect(graph.site.comments_enabled).toBe(false);
+    expect(graph.site.comments_access).toBe('all');
     expect(graph.site.recommendations_enabled).toBe(false);
   });
 
@@ -678,8 +680,8 @@ About JA.
     expect(disabled.site.members_invite_only).toBe(false);
   });
 
-  // Issue #420: the `[site]` block accepts explicit `members_enabled` /
-  // `paid_members_enabled` / `members_invite_only` / `comments_enabled`
+  // Issue #420 / #962: the `[site]` block accepts explicit `members_enabled` /
+  // `paid_members_enabled` / `members_invite_only` / `comments_*`
   // overrides. They win over the derived Portal-provider defaults so an
   // operator can decouple the theme UI from the Portal wiring.
   test('[site].members_* explicit overrides win over Portal-derived defaults (issue #420)', async () => {
@@ -694,6 +696,7 @@ About JA.
           paid_members_enabled: true,
           members_invite_only: true,
           comments_enabled: true,
+          comments_access: 'paid',
         },
         // Portal off — would normally force every flag to false.
         components: { portal: { provider: 'none' } },
@@ -703,6 +706,7 @@ About JA.
     expect(graph.site.paid_members_enabled).toBe(true);
     expect(graph.site.members_invite_only).toBe(true);
     expect(graph.site.comments_enabled).toBe(true);
+    expect(graph.site.comments_access).toBe('paid');
   });
 
   // Issue #491: themes that probe `{{@site.stripe_publishable_key}}` to

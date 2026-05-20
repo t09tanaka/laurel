@@ -363,6 +363,8 @@ function renderFixtureConfig(sourceConfig: NectarConfig, themeRoot: string): str
       members_enabled: sourceConfig.site.members_enabled,
       paid_members_enabled: sourceConfig.site.paid_members_enabled,
       members_invite_only: sourceConfig.site.members_invite_only,
+      comments_enabled: sourceConfig.site.comments_enabled,
+      comments_access: sourceConfig.site.comments_access,
     },
     theme: {
       name: sourceConfig.theme.name,

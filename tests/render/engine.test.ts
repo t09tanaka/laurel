@@ -863,6 +863,26 @@ describe('buildRootData', () => {
     expect(renderPaidMembersBranch(false)).toBe('free-members');
   });
 
+  test('@site exposes comments settings to Ghost theme guards (issue #962)', () => {
+    const engine = makeEngine();
+    engine.content = {
+      ...engine.content,
+      site: {
+        locale: 'en',
+        title: 'Comments Site',
+        comments_enabled: false,
+        comments_access: 'members',
+      },
+    } as unknown as NectarEngine['content'];
+    const data = buildRootData(engine, makeRoute());
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      '{{#unless @site.comments_enabled}}comments-off{{/unless}}|{{@site.comments_access}}|{{@setting.comments_access}}',
+    );
+
+    expect(tpl({}, { data })).toBe('comments-off|members|members');
+  });
+
   // Regression coverage for issue #111: the Source theme renders the home grid
   // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
   // `get` helper falls back to 15 when `limit` is undefined, which would mask
@@ -1472,6 +1492,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
         paid_members_enabled: false,
         members_invite_only: false,
         comments_enabled: false,
+        comments_access: 'all',
         recommendations_enabled: false,
         meta_title: undefined,
         meta_description: undefined,
@@ -2231,6 +2252,7 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
         paid_members_enabled: false,
         members_invite_only: false,
         comments_enabled: false,
+        comments_access: 'all',
         recommendations_enabled: false,
         meta_title: undefined,
         meta_description: undefined,
@@ -2394,6 +2416,7 @@ describe('createEngine — default search partial (issue #1135)', () => {
         paid_members_enabled: false,
         members_invite_only: false,
         comments_enabled: false,
+        comments_access: 'all',
         recommendations_enabled: false,
         meta_title: undefined,
         meta_description: undefined,
@@ -2812,6 +2835,7 @@ describe('createEngine — precompiled template+layout cache (issue #150)', () =
         paid_members_enabled: false,
         members_invite_only: false,
         comments_enabled: false,
+        comments_access: 'all',
         recommendations_enabled: false,
         meta_title: undefined,
         meta_description: undefined,

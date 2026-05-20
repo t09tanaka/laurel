@@ -379,6 +379,12 @@ export const configSchema = z
           .describe(
             "Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards.",
           ),
+        comments_access: z
+          .enum(['all', 'members', 'paid'])
+          .default('all')
+          .describe(
+            'Ghost comments access mode surfaced as `@site.comments_access` so themes can branch on public, members-only, or paid-only comment UI. Static Nectar still does not render a comments backend; this is a theme-compatibility field.',
+          ),
         // Issue #491: Source / Casper-style themes occasionally probe
         // `{{@site.stripe_publishable_key}}` to decide whether to render a
         // Stripe-backed checkout widget. Nectar settles no payments (members

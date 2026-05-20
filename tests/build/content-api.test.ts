@@ -195,6 +195,8 @@ function makeGraph(over: Partial<ContentGraph> = {}): ContentGraph {
       members_enabled: false,
       paid_members_enabled: false,
       members_invite_only: false,
+      comments_enabled: false,
+      comments_access: 'all',
       recommendations_enabled: false,
     },
     ...over,
@@ -416,6 +418,8 @@ name: News
     expect(body.settings.timezone).toBe('UTC');
     expect(body.settings.accent_color).toBe('#222');
     expect(body.settings.navigation).toEqual([{ label: 'Home', url: '/' }]);
+    expect(body.settings.comments_enabled).toBe(false);
+    expect(body.settings.comments_access).toBe('all');
   });
 
   test('settings.json hardcodes members fields to false / empty', async () => {

@@ -44,6 +44,7 @@ export interface SiteData {
   paid_members_enabled: boolean;
   members_invite_only: boolean;
   comments_enabled: boolean;
+  comments_access: 'all' | 'members' | 'paid';
   recommendations_enabled: boolean;
   // Optional Stripe publishable key surfaced through `@site` for themes that
   // probe `{{@site.stripe_publishable_key}}` to decide whether to render a

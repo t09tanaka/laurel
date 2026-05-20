@@ -199,6 +199,7 @@ function makeGraph(): ContentGraph {
       paid_members_enabled: false,
       members_invite_only: false,
       comments_enabled: false,
+      comments_access: 'all',
       recommendations_enabled: false,
       meta_title: undefined,
       meta_description: undefined,
@@ -249,6 +250,8 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.members_enabled).toBe(false);
     expect(settings.settings.paid_members_enabled).toBe(false);
     expect(settings.settings.members_invite_only).toBe(false);
+    expect(settings.settings.comments_enabled).toBe(false);
+    expect(settings.settings.comments_access).toBe('all');
     expect(settings.settings.recommendations_enabled).toBe(false);
 
     const notFound = JSON.parse(

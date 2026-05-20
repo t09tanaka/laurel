@@ -1395,6 +1395,7 @@ function makeGraph(): ContentGraph {
       paid_members_enabled: false,
       members_invite_only: false,
       comments_enabled: false,
+      comments_access: 'all',
       recommendations_enabled: false,
       meta_title: undefined,
       meta_description: undefined,

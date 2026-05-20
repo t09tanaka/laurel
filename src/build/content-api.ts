@@ -369,6 +369,8 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
     paid_members_enabled: false,
     members_invite_only: false,
     members_signup_access: 'none',
+    comments_enabled: site.comments_enabled,
+    comments_access: site.comments_access,
     recommendations_enabled: site.recommendations_enabled,
     portal_button: false,
     portal_name: false,

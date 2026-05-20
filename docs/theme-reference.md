@@ -314,6 +314,7 @@ interface SiteData {
   paid_members_enabled: boolean;
   members_invite_only: boolean;
   comments_enabled: boolean;
+  comments_access: 'all' | 'members' | 'paid';
   recommendations_enabled: boolean;
   meta_title: string | undefined;
   meta_description: string | undefined;

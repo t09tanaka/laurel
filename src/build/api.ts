@@ -194,6 +194,8 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
     members_enabled: site.members_enabled,
     paid_members_enabled: site.paid_members_enabled,
     members_invite_only: site.members_invite_only,
+    comments_enabled: site.comments_enabled,
+    comments_access: site.comments_access,
     recommendations_enabled: site.recommendations_enabled,
   };
   const body = { settings };

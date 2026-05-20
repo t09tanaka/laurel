@@ -615,6 +615,7 @@ function buildSite(config: NectarConfig): SiteData {
     paid_members_enabled: paidEnabled,
     members_invite_only: inviteOnly,
     comments_enabled: config.site.comments_enabled,
+    comments_access: config.site.comments_access,
     stripe_publishable_key: config.site.stripe_publishable_key,
     // Drives the Source theme's `{{#if @site.recommendations_enabled}}` block
     // that renders the sidebar list and the "See all" portal button. Only flip

@@ -186,6 +186,8 @@ function makeSite(): SiteData {
     members_enabled: false,
     paid_members_enabled: false,
     members_invite_only: false,
+    comments_enabled: false,
+    comments_access: 'all',
     recommendations_enabled: false,
   } as unknown as SiteData;
 }
