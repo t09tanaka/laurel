@@ -47,6 +47,20 @@ GitHub Pages runs Jekyll by default, and Jekyll ignores files or directories
 that start with `_`; `.nojekyll` disables that behavior so Nectar's generated
 assets are served verbatim.
 
+GitHub Pages does **not** support arbitrary response headers. Nectar therefore
+does not emit a Pages-specific `_headers`, `vercel.json`, or equivalent header
+configuration for this target: Pages ignores those files and serves a
+platform-controlled header set. In particular, you cannot set
+`Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`,
+`Cross-Origin-Opener-Policy`, or custom cache headers directly on GitHub
+Pages.
+
+If you need those headers, use a host or fronting layer that can set them:
+Cloudflare Pages, Vercel, Netlify, self-hosted nginx, or a CDN / reverse proxy
+in front of the GitHub Pages origin. See
+[`docs/security/hosting.md`](../security/hosting.md#github-pages) for the
+tradeoffs and examples.
+
 If `[deploy.github_pages].custom_domain` is set, the build also writes a
 `CNAME` file at the output root:
 

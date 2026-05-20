@@ -258,25 +258,34 @@ for the full deploy flow.
 **GitHub Pages does not let you set custom response headers.** It always
 sends a fixed set (`Strict-Transport-Security`, `X-Frame-Options: DENY`,
 some others) and ignores `_headers` / `vercel.json` / `netlify.toml`. There
-is no public API to override this.
+is no public API to override this, and GitHub Actions cannot change it by
+uploading extra files in the Pages artifact. Nectar's GitHub Pages target only
+emits files Pages actually consumes, such as `.nojekyll` and optional `CNAME`;
+it intentionally does not promise a headers artifact for Pages.
 
-Three workable options if you need a custom CSP on a GitHub-Pages-style
-deploy:
+Use one of these options if you need a custom CSP, stricter cache headers, or
+headers such as `Referrer-Policy`, `Permissions-Policy`, and
+`Cross-Origin-Opener-Policy`:
 
 1. **Front GitHub Pages with Cloudflare.** Point your domain at Cloudflare,
    set Cloudflare as a proxy to `<user>.github.io`, and apply the headers
-   from a Cloudflare Worker or Transform Rule. This is the simplest path
-   and uses Cloudflare's free tier.
-2. **Move the deploy to Cloudflare Pages or Netlify.** Both pull from the
-   same GitHub repo, build via Actions or their own builder, and let you
-   ship a `_headers` file.
-3. **Use a `<meta http-equiv="Content-Security-Policy">` tag in
+   from a Cloudflare Worker, Transform Rule, or other CDN rule. This keeps
+   GitHub Pages as the origin while moving header control to the fronting
+   layer.
+2. **Move the deploy to a host with first-class header config.** Cloudflare
+   Pages and Netlify both pull from the same GitHub repo and accept a
+   `_headers` file. Vercel accepts `vercel.json`. Self-hosted nginx can use
+   the `dist/.nectar/nginx.conf` generated from `[deploy.headers]`.
+3. **Put another reverse proxy or CDN in front of Pages.** Any layer that
+   terminates HTTPS and controls the response can add the headers before the
+   browser sees the page.
+4. **Use a `<meta http-equiv="Content-Security-Policy">` tag in
    `default.hbs`.** This works for CSP only (HSTS, COOP, Permissions-Policy
    cannot be set this way), and it is weaker than an HTTP header because it
    does not apply to the document until the meta tag is parsed. Useful as a
    defence-in-depth measure, not a substitute.
 
-For option 3, add this near the top of `<head>` in your theme:
+For option 4, add this near the top of `<head>` in your theme:
 
 ```handlebars
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">

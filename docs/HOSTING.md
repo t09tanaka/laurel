@@ -30,7 +30,8 @@ collects the operator-facing pieces of that contract in one place:
   for the full set.
 - [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
   quickstart with the recommended Actions artifact workflow, project-site
-  `base_path`, `.nojekyll`, and `CNAME` notes.
+  `base_path`, `.nojekyll`, `CNAME` notes, and the platform limitation that
+  Pages cannot set arbitrary response headers.
 - [`docs/deploy/netlify.md`](./deploy/netlify.md) — Netlify-specific
   quickstart for Git builds and CI uploads, including Nectar's generated
   `_headers` / `_redirects` behavior.
@@ -57,7 +58,10 @@ If you just want a defensible default stack on a new deploy:
    `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root, or
    set `[deploy.headers].security` for nginx. Also enable the generated
    platform output where available (`[deploy.cloudflare_pages]`,
-   `[deploy.vercel]`, or `[deploy.netlify]`).
+   `[deploy.vercel]`, or `[deploy.netlify]`). GitHub Pages is the exception:
+   it ignores arbitrary header files, so use a fronting CDN / reverse proxy or
+   move to Cloudflare Pages, Vercel, Netlify, or nginx when custom headers are
+   required.
 2. Verify with `curl -sI https://your-site.example/ | sort` after the next
    deploy — you should see `Strict-Transport-Security`,
    `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
