@@ -651,8 +651,17 @@ export const CONTENT_SPEC: CommandSpec = {
     kind: {
       type: 'string',
       description:
-        'For `list`: filter by content kind (posts or pages). For `rename` and `delete`: which kind to look up the slug under (defaults to posts; pass `pages` for page slugs)',
+        'For `list`: filter by content kind (posts or pages). For `show` and `delete`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)',
       placeholder: '<posts|pages>',
+    },
+    lines: {
+      type: 'string',
+      description: 'For `show`: number of body lines to print after the frontmatter (default: 20)',
+      placeholder: '<n>',
+    },
+    frontmatter: {
+      type: 'boolean',
+      description: 'For `show`: print only the YAML frontmatter block, without body preview lines',
     },
     draft: {
       type: 'boolean',
@@ -675,7 +684,8 @@ export const CONTENT_SPEC: CommandSpec = {
     },
     json: {
       type: 'boolean',
-      description: 'Emit results as JSON for CI consumption (`list`, `rename`, and `delete`)',
+      description:
+        'Emit results as JSON for CI consumption (`list`, `show`, `rename`, and `delete`)',
     },
     redirect: {
       type: 'boolean',
@@ -692,7 +702,7 @@ export const CONTENT_SPEC: CommandSpec = {
     {
       name: 'subcommand',
       description:
-        '`list` (show posts/pages), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)',
+        '`list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)',
       required: true,
       variadic: true,
     },
@@ -701,6 +711,8 @@ export const CONTENT_SPEC: CommandSpec = {
     'nectar content list                          # posts + pages with status/date',
     'nectar content list --kind pages',
     'nectar content list --tag changelog --json',
+    'nectar content show hello-world --lines 12',
+    'nectar content show about --kind pages --frontmatter',
     'nectar content rename old-slug new-slug --redirect',
     'nectar content delete old-slug',
     'nectar content delete --purge old-slug',

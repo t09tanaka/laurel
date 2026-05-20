@@ -165,13 +165,106 @@ describe('cli content list', () => {
   });
 });
 
+describe('cli content show', () => {
+  test('prints frontmatter and the requested number of body lines', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        [
+          '---',
+          'title: Hello',
+          'date: 2026-01-01T00:00:00Z',
+          'tags: [news]',
+          '---',
+          '',
+          'Line one',
+          'Line two',
+          'Line three',
+          '',
+        ].join('\n'),
+      );
+      const { stdout, exitCode } = await runCli(['content', 'show', 'hello', '--lines', '2'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('---\ntitle: Hello');
+      expect(stdout).toContain('Line one\nLine two');
+      expect(stdout).not.toContain('Line three');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--frontmatter prints only the YAML frontmatter block', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['content', 'show', 'hello', '--frontmatter'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe('---\ntitle: Hello\ndate: 2026-01-01T00:00:00Z\ntags: [news]\n---\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--json returns path, parsed frontmatter, and body preview', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(
+        ['content', 'show', 'about', '--kind', 'pages', '--lines', '1', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as {
+        kind: string;
+        path: string;
+        frontmatter: { title?: string };
+        body_preview: string;
+      };
+      expect(parsed.kind).toBe('pages');
+      expect(parsed.path).toBe(join(dir, 'content/pages/about.md'));
+      expect(parsed.frontmatter.title).toBe('About');
+      expect(parsed.body_preview).toBe('About');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('falls back to explicit slug frontmatter when the filename differs', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/pages/custom-name.md'),
+        '---\ntitle: Slugged\nslug: visible-page\n---\n\nBody\n',
+      );
+      const { stdout, exitCode } = await runCli(
+        ['content', 'show', 'visible-page', '--kind', 'pages', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { path: string };
+      expect(parsed.path).toBe(join(dir, 'content/pages/custom-name.md'));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects invalid --lines with exit 2', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stderr, exitCode } = await runCli(['content', 'show', 'hello', '--lines', '0'], dir);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('Invalid --lines value');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('cli content rename', () => {
   test('moves the file and rewrites the slug frontmatter', async () => {
     const dir = await makeFixture();
     try {
       const { exitCode } = await runCli(['content', 'rename', 'hello', 'hi-there', '--json'], dir);
       expect(exitCode).toBe(0);
-      const { readFile } = await import('node:fs/promises');
       const { existsSync } = await import('node:fs');
       expect(existsSync(join(dir, 'content/posts/hello.md'))).toBe(false);
       expect(existsSync(join(dir, 'content/posts/hi-there.md'))).toBe(true);
@@ -187,7 +280,6 @@ describe('cli content rename', () => {
     try {
       const { exitCode } = await runCli(['content', 'rename', 'hello', 'hi', '--redirect'], dir);
       expect(exitCode).toBe(0);
-      const { readFile } = await import('node:fs/promises');
       const yaml = await readFile(join(dir, 'redirects.yaml'), 'utf8');
       expect(yaml).toContain('from: "/hello/"');
       expect(yaml).toContain('to: "/hi/"');

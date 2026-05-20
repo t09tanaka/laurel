@@ -2,13 +2,14 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
+import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadContent } from '~/content/loader.ts';
 import type { Page, Post } from '~/content/model.ts';
 import { logger } from '~/util/logger.ts';
 import {
-  CONTENT_KINDS,
   type ContentKind,
   absolutise,
+  contentSearchKinds,
   resolveContentSlugPath,
 } from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -50,6 +51,9 @@ export async function runContent(args: string[]): Promise<number> {
   const sub = parsed.positionals[0];
   const cwd = process.cwd();
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  if (sub === 'show') {
+    return runShow({ parsed, cwd, configPath });
+  }
   if (sub === 'rename') {
     return runRename({ parsed, cwd, configPath });
   }
@@ -58,7 +62,7 @@ export async function runContent(args: string[]): Promise<number> {
   }
   if (sub !== 'list') {
     process.stderr.write(
-      `Unknown subcommand: ${sub ?? ''}. Expected \`list\`, \`rename <old-slug> <new-slug>\`, or \`delete <slug>\`.\n`,
+      `Unknown subcommand: ${sub ?? ''}. Expected \`list\`, \`show <slug>\`, \`rename <old-slug> <new-slug>\`, or \`delete <slug>\`.\n`,
     );
     return 2;
   }
@@ -144,14 +148,13 @@ async function runDelete({ parsed, cwd, configPath, now }: DeleteOpts): Promise<
       posts: absolutise(cwd, config.content.posts_dir),
       pages: absolutise(cwd, config.content.pages_dir),
     };
-    const search: Kind[] = kindHint ? [kindHint] : [...CONTENT_KINDS];
-    const sourcePath = await resolveContentSlugPath(slug, search, dirs);
-    if (!sourcePath) {
+    const resolved = await resolveContentSlugPath(slug, contentSearchKinds(kindHint), dirs);
+    if (!resolved) {
       process.stderr.write(`No post or page found with slug "${slug}".\n`);
       return 1;
     }
 
-    const kind = detectKind(sourcePath, dirs);
+    const { kind, path: sourcePath } = resolved;
     const trashedAt = now.toISOString();
     const purgeAfter = new Date(now.getTime() + TRASH_RETENTION_MS).toISOString();
     const trashDir = resolveUniqueTrashDir(cwd, now);
@@ -197,21 +200,14 @@ async function runDelete({ parsed, cwd, configPath, now }: DeleteOpts): Promise<
 }
 
 function parseKindHint(parsed: ParsedCommand): Kind | undefined | false {
-  const kindRaw = typeof parsed.values.kind === 'string' ? parsed.values.kind : '';
+  const kindRaw =
+    typeof parsed.values.kind === 'string' ? parsed.values.kind.trim().toLowerCase() : '';
   if (!kindRaw) return undefined;
   if (kindRaw !== 'posts' && kindRaw !== 'pages') {
     process.stderr.write(`Invalid --kind value: ${kindRaw} (expected "posts" or "pages")\n`);
     return false;
   }
   return kindRaw;
-}
-
-function detectKind(filePath: string, dirs: Record<Kind, string>): Kind | null {
-  for (const kind of CONTENT_KINDS) {
-    const rel = relative(dirs[kind], filePath);
-    if (rel && !rel.startsWith('..')) return kind;
-  }
-  return null;
 }
 
 function timestampForPath(now: Date): string {
@@ -366,13 +362,125 @@ function pad(text: string, width: number): string {
   return text + ' '.repeat(width - text.length);
 }
 
-interface RenameOpts {
+interface ContentCommandOpts {
   parsed: ParsedCommand;
   cwd: string;
   configPath: string | undefined;
 }
 
-async function runRename({ parsed, cwd, configPath }: RenameOpts): Promise<number> {
+async function runShow({ parsed, cwd, configPath }: ContentCommandOpts): Promise<number> {
+  const slug = parsed.positionals[1];
+  if (!slug) {
+    process.stderr.write('`content show` requires <slug>.\n');
+    return 2;
+  }
+  if (parsed.positionals.length > 2) {
+    process.stderr.write('`content show` takes exactly <slug>.\n');
+    return 2;
+  }
+
+  const kindHint = parseKindHintValue(parsed.values.kind);
+  if (kindHint === false) return 2;
+  const lines = parseLineCount(parsed.values.lines);
+  if (lines === undefined) return 2;
+
+  const asJson = parsed.values.json === true;
+  const frontmatterOnly = parsed.values.frontmatter === true;
+
+  try {
+    const config = await loadConfig({ cwd, configPath });
+    const dirs: Record<Kind, string> = {
+      posts: absolutise(cwd, config.content.posts_dir),
+      pages: absolutise(cwd, config.content.pages_dir),
+    };
+    const resolved = await resolveContentSlugPath(slug, contentSearchKinds(kindHint), dirs);
+    if (!resolved) {
+      process.stderr.write(`No post or page found with slug "${slug}".\n`);
+      return 1;
+    }
+
+    const raw = await readFile(resolved.path, 'utf8');
+    const parsedFrontmatter = parseFrontmatter(raw, { filePath: resolved.path });
+    const frontmatterBlock = extractFrontmatterBlock(raw);
+    const bodyPreview = previewBody(parsedFrontmatter.body, lines);
+
+    if (asJson) {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            kind: resolved.kind,
+            slug,
+            path: resolved.path,
+            frontmatter: parsedFrontmatter.data,
+            body_preview: frontmatterOnly ? '' : bodyPreview,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else if (frontmatterOnly) {
+      process.stdout.write(frontmatterBlock ? ensureTrailingNewline(frontmatterBlock) : '');
+    } else {
+      process.stdout.write(renderShowOutput(frontmatterBlock, bodyPreview));
+    }
+    return 0;
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+}
+
+function parseKindHintValue(value: string | boolean | undefined): Kind | undefined | false {
+  const kindRaw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!kindRaw) return undefined;
+  if (kindRaw !== 'posts' && kindRaw !== 'pages') {
+    process.stderr.write(`Invalid --kind value: ${kindRaw} (expected "posts" or "pages")\n`);
+    return false;
+  }
+  return kindRaw;
+}
+
+function parseLineCount(value: string | boolean | undefined): number | undefined {
+  if (value === undefined) return 20;
+  if (typeof value !== 'string') {
+    process.stderr.write('Invalid --lines value: expected a positive integer.\n');
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    process.stderr.write(`Invalid --lines value: ${value} (expected a positive integer)\n`);
+    return undefined;
+  }
+  return Number.parseInt(trimmed, 10);
+}
+
+function extractFrontmatterBlock(raw: string): string {
+  const normalized = raw.replaceAll('\r\n', '\n');
+  const lines = normalized.split('\n');
+  if (lines[0]?.trim() !== '---') return '';
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i]?.trim() === '---') {
+      return lines.slice(0, i + 1).join('\n');
+    }
+  }
+  return '';
+}
+
+function previewBody(body: string, lines: number): string {
+  const trimmed = body.replace(/^\r?\n/, '').replaceAll('\r\n', '\n');
+  return trimmed.split('\n').slice(0, lines).join('\n');
+}
+
+function renderShowOutput(frontmatterBlock: string, bodyPreview: string): string {
+  const parts = [frontmatterBlock, bodyPreview].filter((part) => part.length > 0);
+  return ensureTrailingNewline(parts.join('\n\n'));
+}
+
+function ensureTrailingNewline(value: string): string {
+  return value.endsWith('\n') ? value : `${value}\n`;
+}
+
+async function runRename({ parsed, cwd, configPath }: ContentCommandOpts): Promise<number> {
   const oldSlug = parsed.positionals[1];
   const newSlug = parsed.positionals[2];
   if (!oldSlug || !newSlug) {

@@ -1,18 +1,20 @@
 Inspect or modify content in the project (posts, pages)
 
 Usage:
-  nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] <subcommand...>
+  nectar content [--config <path>] [--kind <posts|pages>] [--lines <n>] [--frontmatter] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] <subcommand...>
 
 Arguments:
-  subcommand          `list` (show posts/pages), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)
+  subcommand          `list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
-  --kind <posts|pages>  For `list`: filter by content kind (posts or pages). For `rename` and `delete`: which kind to look up the slug under (defaults to posts; pass `pages` for page slugs)
+  --kind <posts|pages>  For `list`: filter by content kind (posts or pages). For `show` and `delete`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)
+  --lines <n>         For `show`: number of body lines to print after the frontmatter (default: 20)
+  --frontmatter       For `show`: print only the YAML frontmatter block, without body preview lines
   --draft             Include draft posts/pages in the listing (default: only published; `list` only)
   --tag <slug>        Show only entries that have any given tag slug (`list` only); repeat or comma-separate
   --author <slug>     Show only entries that have any given author slug (`list` only); repeat or comma-separate
-  -j, --json          Emit results as JSON for CI consumption (`list`, `rename`, and `delete`)
+  -j, --json          Emit results as JSON for CI consumption (`list`, `show`, `rename`, and `delete`)
   --redirect          On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component
   --purge             On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files
   -h, --help          Show help for this command
@@ -31,6 +33,8 @@ Examples:
   nectar content list                          # posts + pages with status/date
   nectar content list --kind pages
   nectar content list --tag changelog --json
+  nectar content show hello-world --lines 12
+  nectar content show about --kind pages --frontmatter
   nectar content rename old-slug new-slug --redirect
   nectar content delete old-slug
   nectar content delete --purge old-slug

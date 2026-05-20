@@ -1,9 +1,9 @@
 import { loadConfig } from '~/config/loader.ts';
 import { logger } from '~/util/logger.ts';
 import {
-  CONTENT_KINDS,
   type ContentKind,
   absolutise,
+  contentSearchKinds,
   resolveContentSlugPath,
 } from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -60,10 +60,10 @@ export async function runOpen(args: string[]): Promise<number> {
     pages: absolutise(cwd, config.content.pages_dir),
   };
 
-  const search: ContentKind[] = kindHint ? [kindHint] : [...CONTENT_KINDS];
+  const search = contentSearchKinds(kindHint);
   let resolvedPath: string | undefined;
   try {
-    resolvedPath = await resolveContentSlugPath(slug, search, dirs);
+    resolvedPath = (await resolveContentSlugPath(slug, search, dirs))?.path;
   } catch (err) {
     reportError(err, cwd);
     return 1;
