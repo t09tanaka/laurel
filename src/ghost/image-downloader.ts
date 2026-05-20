@@ -40,6 +40,9 @@ const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s"']+)(\s+"[^"]*")?\)/g;
 // `src` only appearing once per tag (Turndown's output and Koenig HTML cards
 // honor this).
 const HTML_IMG_RE = /<img\b([^>]*?)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)>/gi;
+const CSS_URL_RE = /url\(\s*(?:(["'])(.*?)\1|(&quot;|&#34;|&#x22;)(.*?)\3|([^'")\s][^)]*?))\s*\)/gi;
+const HEADER_IMAGE_DATA_ATTR_RE =
+  /\b(data-[a-zA-Z0-9:_-]*(?:background|image)[a-zA-Z0-9:_-]*)\s*=\s*(["'])([^"']+)\2/gi;
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
@@ -177,6 +180,11 @@ export class GhostImageDownloader {
     const urls = new Set<string>();
     for (const m of text.matchAll(MARKDOWN_IMAGE_RE)) urls.add(m[2]);
     for (const m of text.matchAll(HTML_IMG_RE)) urls.add(m[3]);
+    for (const m of text.matchAll(CSS_URL_RE)) {
+      const url = cssUrlMatchValue(m);
+      if (url) urls.add(url);
+    }
+    for (const m of text.matchAll(HEADER_IMAGE_DATA_ATTR_RE)) urls.add(m[3]);
     const bookmarkUrls = collectBookmarkImageUrls(text);
     if (urls.size === 0 && bookmarkUrls.size === 0) return text;
 
@@ -200,6 +208,25 @@ export class GhostImageDownloader {
       .replace(HTML_IMG_RE, (full, before: string, quote: string, url: string, after: string) => {
         const rep = replacements.get(url);
         return rep ? `<img${before}src=${quote}${rep}${quote}${after}>` : full;
+      })
+      .replace(
+        CSS_URL_RE,
+        (
+          full,
+          quote: string,
+          quoted: string,
+          entityQuote: string,
+          entityQuoted: string,
+          bare: string,
+        ) => {
+          const url = quoted ?? entityQuoted ?? bare?.trim();
+          const rep = replacements.get(url);
+          return rep ? full.replace(url, rep) : full;
+        },
+      )
+      .replace(HEADER_IMAGE_DATA_ATTR_RE, (full, name: string, quote: string, value: string) => {
+        const rep = replacements.get(value);
+        return rep ? `${name}=${quote}${rep}${quote}` : full;
       })
       .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>
         rewriteBookmarkImageAttrs(full, attrs, bookmarkReplacements),
@@ -259,6 +286,10 @@ function derivePaths(
     localPath: join('content', 'images', externalDir, file),
     rewrittenUrl: `/content/images/${externalDir}/${file}`,
   };
+}
+
+function cssUrlMatchValue(match: RegExpMatchArray): string {
+  return match[2] ?? match[4] ?? match[5]?.trim() ?? '';
 }
 
 function collectBookmarkImageUrls(text: string): Set<string> {

@@ -748,6 +748,22 @@ describe('Ghost Turndown rules — picture element', () => {
   });
 });
 
+describe('Ghost Turndown rules — kg-header-card', () => {
+  test('preserves wrapper classes and background image style as raw HTML', () => {
+    const html = `
+      <div class="kg-card kg-header-card kg-style-dark kg-size-large" style="background-image: url(https://cdn.example.com/header.jpg)" data-background-image="https://cdn.example.com/header.jpg">
+        <h2 class="kg-header-card-heading">Hero</h2>
+        <h3 class="kg-header-card-subheading">Subheading</h3>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('class="kg-card kg-header-card kg-style-dark kg-size-large"');
+    expect(md).toContain('style="background-image: url(https://cdn.example.com/header.jpg)"');
+    expect(md).toContain('data-background-image="https://cdn.example.com/header.jpg"');
+    expect(md).toContain('<h2 class="kg-header-card-heading">Hero</h2>');
+  });
+});
+
 describe('Ghost Turndown rules — inline semantic tags', () => {
   test('keeps mark, sub, sup, kbd, abbr, details, summary as HTML', () => {
     const html = `

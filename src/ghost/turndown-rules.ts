@@ -26,6 +26,7 @@ interface DomNode {
   readonly nodeName: string;
   readonly innerHTML: string;
   readonly textContent: string | null;
+  readonly attributes?: ArrayLike<{ readonly name: string; readonly value: string }>;
   getAttribute(name: string): string | null;
   querySelector(selector: string): DomNode | null;
   querySelectorAll(selector: string): ArrayLike<DomNode>;
@@ -145,6 +146,14 @@ function escapeAttr(v: string): string {
   return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+function escapeHtmlAttr(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function formatAttrs(attrs: Record<string, string>): string {
   const pairs = Object.entries(attrs)
     .filter(([, v]) => v !== '')
@@ -166,6 +175,20 @@ function shortcodeBlock(name: string, attrs: Record<string, string>, inner: stri
 
 function wrap(s: string): string {
   return `\n\n${s}\n\n`;
+}
+
+function formatHtmlAttrs(attrs: Array<[string, string]>): string {
+  const pairs = attrs
+    .filter(([name, value]) => /^[a-zA-Z_:][\w:.-]*$/.test(name) && value !== '')
+    .map(([name, value]) => `${name}="${escapeHtmlAttr(value)}"`);
+  return pairs.length ? ` ${pairs.join(' ')}` : '';
+}
+
+function dataAttrs(node: DomNode): Array<[string, string]> {
+  const attrs = Array.from(node.attributes ?? []);
+  return attrs
+    .filter(({ name }) => name.toLowerCase().startsWith('data-'))
+    .map(({ name, value }) => [name, value] as [string, string]);
 }
 
 function isDataKgCard(node: FilterNode, ...types: readonly string[]): boolean {
@@ -691,6 +714,27 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           'button-text': text(node.querySelector('.kg-product-card-button')),
         }),
       );
+    },
+  });
+
+  // Header card: <div class="kg-card kg-header-card" style="background-image: …">
+  //
+  // Ghost stores the cover image as a CSS background on the wrapper, not as an
+  // <img>. Turndown's default div walk-through drops that wrapper and leaves
+  // only the heading text, which means the importer's image relocation pass
+  // never sees the background URL. Preserve a constrained raw-HTML wrapper so
+  // downstream renderMarkdown can keep the Ghost DOM contract and the image
+  // downloader can rewrite url(...) references in style / data attributes.
+  turndown.addRule('kg-header-card', {
+    filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-header-card'),
+    replacement: (_content, node) => {
+      const attrs = [
+        ['class', attr(node, 'class')],
+        ['style', attr(node, 'style')],
+        ...dataAttrs(node),
+      ] as Array<[string, string]>;
+      const inner = sanitizeImportedHtmlCard(node.innerHTML);
+      return wrap(`<div${formatHtmlAttrs(attrs)}>${inner}</div>`);
     },
   });
 

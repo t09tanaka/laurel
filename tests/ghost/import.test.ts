@@ -844,6 +844,55 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+
+  test('header card background image placeholders are stripped and copied from Ghost content assets', async () => {
+    await writeFile(
+      join(exportDir, 'export.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Header',
+                  slug: 'header',
+                  html: [
+                    '<div class="kg-card kg-header-card kg-style-dark kg-size-large" ',
+                    'style="background-image: url(&quot;__GHOST_URL__/content/images/2024/01/header.jpg&quot;)" ',
+                    'data-background-image="__GHOST_URL__/content/images/2024/01/header.jpg">',
+                    '<h2 class="kg-header-card-heading">Hero</h2>',
+                    '</div>',
+                  ].join(''),
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    await ensureDir(join(exportDir, 'content/images/2024/01'));
+    await writeFile(join(exportDir, 'content/images/2024/01/header.jpg'), 'HEADER');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(1);
+      expect(await readFile(join(cwd, 'content/images/2024/01/header.jpg'), 'utf8')).toBe('HEADER');
+
+      const postMd = await readFile(join(cwd, 'content/posts/header.md'), 'utf8');
+      expect(postMd).not.toContain('__GHOST_URL__');
+      expect(postMd).toContain(
+        'style="background-image: url(&quot;/content/images/2024/01/header.jpg&quot;)"',
+      );
+      expect(postMd).toContain('data-background-image="/content/images/2024/01/header.jpg"');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('importGhostExport — ZIP archive input (#88)', () => {
@@ -1521,6 +1570,57 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).toContain('/content/images/bookmarks/');
     expect(md).toContain('icon="/content/images/bookmarks/');
     expect(md).toContain('thumbnail="/content/images/bookmarks/');
+  });
+
+  test('downloads header card background-image URLs and rewrites the inline style', async () => {
+    const headerUrl = 'https://my-ghost-site.com/content/images/2024/01/header.jpg';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Header',
+                  slug: 'header',
+                  html: [
+                    '<div class="kg-card kg-header-card kg-style-dark kg-size-large" ',
+                    `style="background-image: url(${headerUrl})">`,
+                    '<h2 class="kg-header-card-heading">Hero</h2>',
+                    '</div>',
+                  ].join(''),
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher, calls } = fakeFetch({
+      ok: { [headerUrl]: { body: 'HEADER', contentType: 'image/jpeg' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls).toEqual([headerUrl]);
+    expect(await readFile(join(cwd, 'content/images/2024/01/header.jpg'), 'utf8')).toBe('HEADER');
+
+    const md = await readFile(join(cwd, 'content/posts/header.md'), 'utf8');
+    expect(md).not.toContain(headerUrl);
+    expect(md).toContain('class="kg-card kg-header-card kg-style-dark kg-size-large"');
+    expect(md).toContain('style="background-image: url(/content/images/2024/01/header.jpg)"');
   });
 
   test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {
