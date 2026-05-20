@@ -94,22 +94,12 @@ export function registerBlockHelpers(engine: NectarEngine): void {
           matched = evaluateCountAttr(ctx, key.slice('count:'.length), value);
         } else {
           switch (key) {
-            case 'tag': {
-              const tags = (ctx.tags as { slug: string; name: string }[]) ?? [];
-              matched = value
-                .split(',')
-                .map((s) => s.trim())
-                .some((needle) => tags.some((t) => t.slug === needle || t.name === needle));
+            case 'tag':
+              matched = evaluateTagOrAuthorAttr(ctx.tags, value);
               break;
-            }
-            case 'author': {
-              const authors = (ctx.authors as { slug: string; name: string }[]) ?? [];
-              matched = value
-                .split(',')
-                .map((s) => s.trim())
-                .some((needle) => authors.some((a) => a.slug === needle || a.name === needle));
+            case 'author':
+              matched = evaluateTagOrAuthorAttr(ctx.authors, value);
               break;
-            }
             case 'visibility': {
               matched = String(ctx.visibility ?? '') === value;
               break;
@@ -119,13 +109,24 @@ export function registerBlockHelpers(engine: NectarEngine): void {
               break;
             }
             case 'number': {
-              const n = Number(value);
               const route = options.data?.route as
                 | { data?: { pagination?: { page?: number } } }
                 | undefined;
-              matched = (route?.data?.pagination?.page ?? 1) === n;
+              const page = route?.data?.pagination?.page ?? 1;
+              matched = evaluateNumberAttr(page, value);
               break;
             }
+            case 'index': {
+              const idx = (options.data as { index?: number } | undefined)?.index ?? 0;
+              matched = evaluateNumberAttr(idx, value);
+              break;
+            }
+            case 'any':
+              matched = evaluateAnyAll(ctx, options.data, value, 'any');
+              break;
+            case 'all':
+              matched = evaluateAnyAll(ctx, options.data, value, 'all');
+              break;
             default:
               matched = String((ctx as Record<string, unknown>)[key] ?? '') === value;
           }
@@ -423,6 +424,90 @@ function visibilityFilter(item: unknown, visibility: string | undefined): boolea
   if (!obj || typeof obj !== 'object') return true;
   if (visibility === 'public') return (obj.visibility ?? 'public') === 'public';
   return (obj.visibility ?? 'public') === visibility;
+}
+
+// `{{#has tag="news, sports"}}` matches if any listed slug/name appears on the
+// context's tags array. Ghost also accepts a `count:` prefix on the value side
+// — `{{#has tag="count:>1"}}` — meaning "tags collection size matches the
+// inner comparison", which themes use to branch on "has multiple tags". We
+// route that form back through `evaluateCountAttr` so both syntaxes share the
+// same numeric comparator implementation.
+function evaluateTagOrAuthorAttr(raw: unknown, value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('count:')) {
+    const tail = trimmed.slice('count:'.length);
+    const length = Array.isArray(raw) ? raw.length : 0;
+    return evaluateCountAttr({ __nectar_collection: length }, '__nectar_collection', tail);
+  }
+  const list = (raw as { slug?: string; name?: string }[] | undefined) ?? [];
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .some((needle) => list.some((entry) => entry.slug === needle || entry.name === needle));
+}
+
+// `{{#has number="3"}}` and `{{#has index="0"}}` compare a single integer
+// position (pagination page, foreach @index, …) against a literal or modulus
+// expression. `nth:N` is Ghost's modulus form: matches every Nth iteration
+// (`number === 0 mod N` after 1-indexing). Plain integers fall back to
+// equality. Range comparators (`>`, `<=`, …) are forwarded so themes can write
+// `index=">2"` for "after the third item".
+function evaluateNumberAttr(actual: number, value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('nth:')) {
+    const n = Number(trimmed.slice('nth:'.length));
+    if (!Number.isFinite(n) || n <= 0) return false;
+    // Ghost's nth uses 1-indexed positions; `nth:3` fires on the 3rd, 6th, … item.
+    // Pagination pages are 1-indexed too, so the same modulus works.
+    return actual > 0 && actual % n === 0;
+  }
+  const m = trimmed.match(/^(<=|>=|<|>)?\s*(-?\d+)$/);
+  if (!m) return false;
+  const op = m[1] ?? '=';
+  const expected = Number(m[2]);
+  switch (op) {
+    case '>':
+      return actual > expected;
+    case '<':
+      return actual < expected;
+    case '>=':
+      return actual >= expected;
+    case '<=':
+      return actual <= expected;
+    default:
+      return actual === expected;
+  }
+}
+
+// `{{#has any="twitter, facebook"}}` / `all="..."` check the truthiness of a
+// list of property paths. Paths starting with `@` resolve against the data
+// frame (`@labs.foo` → `options.data.labs.foo`); bare paths walk the current
+// context. This matches Ghost's helper, which themes use to gate flag-driven
+// blocks (`@labs.x`) and presence checks (`twitter`, `facebook`).
+function evaluateAnyAll(
+  ctx: Record<string, unknown>,
+  data: Record<string, unknown> | undefined,
+  value: string,
+  mode: 'any' | 'all',
+): boolean {
+  const paths = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (paths.length === 0) return false;
+  const check = (path: string): boolean => {
+    const useData = path.startsWith('@');
+    const segs = (useData ? path.slice(1) : path).split('.');
+    const root: unknown = useData ? data : ctx;
+    let cursor: unknown = root;
+    for (const seg of segs) {
+      if (cursor == null || typeof cursor !== 'object') return false;
+      cursor = (cursor as Record<string, unknown>)[seg];
+    }
+    return Boolean(cursor);
+  };
+  return mode === 'any' ? paths.some(check) : paths.every(check);
 }
 
 // Ghost themes write `{{#has count:tags=">2"}}` to branch on collection size.

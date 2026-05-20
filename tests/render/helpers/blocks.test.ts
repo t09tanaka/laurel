@@ -362,6 +362,100 @@ describe('has helper', () => {
     const tpl = engine.hb.compile('{{#has count:tags="garbage"}}HIT{{else}}MISS{{/has}}');
     expect(tpl({ tags: [{ slug: 'a' }] })).toBe('MISS');
   });
+
+  // #455 — `tag="count:>1"` is the inverse hash-key form of `count:tags=">1"`.
+  // Themes prefer the shorter form when checking "post has multiple tags" so
+  // the helper has to recognize the `count:` prefix on the value side too.
+  test('tag="count:>1" matches when the tag collection has more than one entry', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has tag="count:>1"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('HIT');
+    expect(tpl({ tags: [{ slug: 'a' }] })).toBe('MISS');
+  });
+
+  test('tag="count:1" with no operator defaults to equality on collection size', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has tag="count:1"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ tags: [{ slug: 'a' }] })).toBe('HIT');
+    expect(tpl({ tags: [] })).toBe('MISS');
+    expect(tpl({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('MISS');
+  });
+
+  // #455 — `any=` / `all=` check the truthiness of a list of property paths on
+  // the current context. Plain identifiers walk `this`; `@`-prefixed paths
+  // resolve against the data frame (`@labs.foo`, `@site.x`).
+  test('any="twitter, facebook" matches when at least one property is truthy on ctx', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has any="twitter, facebook"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ facebook: 'https://example.com/' })).toBe('HIT');
+    expect(tpl({ twitter: '@me' })).toBe('HIT');
+    expect(tpl({})).toBe('MISS');
+    expect(tpl({ twitter: '', facebook: null })).toBe('MISS');
+  });
+
+  test('all="twitter, facebook" requires every listed property to be truthy', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has all="twitter, facebook"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ twitter: '@me', facebook: 'https://example.com/' })).toBe('HIT');
+    expect(tpl({ twitter: '@me' })).toBe('MISS');
+  });
+
+  test('any="@labs.x" reads from the data frame instead of the context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has any="@labs.searchEnabled"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({}, { data: { labs: { searchEnabled: true } } })).toBe('HIT');
+    expect(tpl({}, { data: { labs: { searchEnabled: false } } })).toBe('MISS');
+  });
+
+  // #455 — `number="nth:3"` is Ghost's modulus form on pagination.page. Every
+  // page whose 1-indexed position is divisible by N matches. Page 1 must not
+  // accidentally satisfy any nth (zero is not the first hit).
+  test('number="nth:3" matches every third pagination page', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has number="nth:3"}}HIT{{else}}MISS{{/has}}');
+    const pageN = (n: number) => ({ data: { route: { data: { pagination: { page: n } } } } });
+    expect(tpl({}, pageN(1))).toBe('MISS');
+    expect(tpl({}, pageN(2))).toBe('MISS');
+    expect(tpl({}, pageN(3))).toBe('HIT');
+    expect(tpl({}, pageN(4))).toBe('MISS');
+    expect(tpl({}, pageN(5))).toBe('MISS');
+    expect(tpl({}, pageN(6))).toBe('HIT');
+  });
+
+  test('number="3" without nth falls back to strict equality on pagination page', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has number="3"}}HIT{{else}}MISS{{/has}}');
+    const pageN = (n: number) => ({ data: { route: { data: { pagination: { page: n } } } } });
+    expect(tpl({}, pageN(3))).toBe('HIT');
+    expect(tpl({}, pageN(2))).toBe('MISS');
+  });
+
+  // #455 — `index="0"` compares against the `@index` exposed by `{{#foreach}}`.
+  // Themes use it inside an iteration to single out the first / nth element.
+  test('index="0" matches when the foreach @index is 0 (first item)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{#has index="0"}}[FIRST:{{slug}}]{{else}}({{slug}}){{/has}}{{/foreach}}',
+    );
+    expect(tpl({ items: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] })).toBe('[FIRST:a](b)(c)');
+  });
+
+  test('index=">1" can be used with a range comparator', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{#has index=">1"}}[{{slug}}]{{else}}-{{slug}}-{{/has}}{{/foreach}}',
+    );
+    expect(tpl({ items: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] })).toBe('-a--b-[c]');
+  });
 });
 
 describe('match helper', () => {
