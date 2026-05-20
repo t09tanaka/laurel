@@ -673,13 +673,17 @@ describe('comments helper', () => {
   test('emits an empty placeholder when no config is wired', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
-    expect(engine.hb.compile('{{comments}}')({})).toBe('<div data-nectar-comments></div>');
+    expect(engine.hb.compile('{{comments}}')({})).toBe(
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
+    );
   });
 
   test('off provider still emits the empty placeholder so theme markup is stable', () => {
     const engine = makeEngineWithComments({ provider: 'off' });
     registerContentHelpers(engine);
-    expect(engine.hb.compile('{{comments}}')({})).toBe('<div data-nectar-comments></div>');
+    expect(engine.hb.compile('{{comments}}')({})).toBe(
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
+    );
   });
 
   test('hash params are exposed on the default comments container for client hooks', () => {
@@ -687,8 +691,19 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments title="" count=false}}')({});
     expect(out).toBe(
-      '<div data-nectar-comments data-comments-title="" data-comments-count="false"></div>',
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments data-comments-title="" data-comments-count="false"></div>',
     );
+  });
+
+  test('default stub uses Ghost comments hooks without loading a comments backend', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')({ id: 'post-42' });
+    expect(out).toBe(
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
+    );
+    expect(out).not.toContain('<script');
+    expect(out).not.toContain('data-nectar-comments');
   });
 
   test('hash params are HTML-escaped when rendered as comments data attributes', () => {
@@ -707,7 +722,9 @@ describe('comments helper', () => {
     const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({});
-    expect(out).toContain('<div data-nectar-comments></div>');
+    expect(out).toContain(
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
+    );
     expect(out).toContain('src="https://giscus.app/client.js"');
     expect(out).toContain('data-repo="acme/site"');
     expect(out).toContain('data-mapping="pathname"');
@@ -722,7 +739,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments title="Discussion" count=false}}')({});
     expect(out).toContain(
-      '<div data-nectar-comments data-comments-title="Discussion" data-comments-count="false"></div>',
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments data-comments-title="Discussion" data-comments-count="false"></div>',
     );
     expect(out).toContain('src="https://giscus.app/client.js"');
   });
@@ -800,7 +817,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const tmpl = engine.hb.compile('{{comments}}');
     const out = tmpl({ id: 'post-42' }, { data: { route: { url: '/hello-world/' } } });
-    expect(out).toContain('<div id="disqus_thread" data-nectar-comments></div>');
+    expect(out).toContain('<div id="disqus_thread" class="gh-comments" data-ghost-comments></div>');
     expect(out).toContain('https://mysite.disqus.com/embed.js');
     expect(out).toContain('"https://example.com/hello-world/"');
     expect(out).toContain('"post-42"');
@@ -875,7 +892,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({}, { data: { route: { url: '/post/' } } });
     expect(out).toContain('class="webmentions"');
-    expect(out).toContain('data-nectar-comments');
+    expect(out).toContain('data-ghost-comments');
     expect(out).toContain('data-nectar-webmentions');
     expect(out).toContain('data-target="https://example.com/post/"');
     expect(out).toContain('data-username="me.example.com"');
@@ -921,7 +938,9 @@ describe('comments helper', () => {
   test('post.comments undefined keeps the default placeholder so existing themes are unaffected', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
-    expect(engine.hb.compile('{{comments}}')({})).toBe('<div data-nectar-comments></div>');
+    expect(engine.hb.compile('{{comments}}')({})).toBe(
+      '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
+    );
   });
 });
 

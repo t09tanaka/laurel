@@ -587,8 +587,13 @@ function commentsHashAttrs(hash: Record<string, unknown>): [string, string][] {
 }
 
 function renderCommentsContainer(attrs: [string, string][] = []): string {
-  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
-  return `<div data-nectar-comments${rendered ? ` ${rendered}` : ''}></div>`;
+  const rendered = renderAttrList([
+    ['id', 'ghost-comments-root'],
+    ['class', 'gh-comments'],
+    ['data-ghost-comments', null],
+    ...attrs,
+  ]);
+  return `<div ${rendered}></div>`;
 }
 
 function renderGiscusComments(
@@ -672,8 +677,13 @@ function renderDisqusComments(
 }
 
 function renderCommentsContainerWithId(id: string, attrs: [string, string][] = []): string {
-  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
-  return `<div id="${escapeAttr(id)}" data-nectar-comments${rendered ? ` ${rendered}` : ''}></div>`;
+  const rendered = renderAttrList([
+    ['id', id],
+    ['class', 'gh-comments'],
+    ['data-ghost-comments', null],
+    ...attrs,
+  ]);
+  return `<div ${rendered}></div>`;
 }
 
 function renderWebmentionComments(
@@ -683,13 +693,17 @@ function renderWebmentionComments(
 ): string {
   const parts = [
     'class="webmentions"',
-    'data-nectar-comments',
+    'data-ghost-comments',
     ...containerAttrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`),
     'data-nectar-webmentions',
     `data-target="${escapeAttr(canonical)}"`,
   ];
   if (cfg.username) parts.push(`data-username="${escapeAttr(cfg.username)}"`);
   return `<div ${parts.join(' ')}></div>`;
+}
+
+function renderAttrList(attrs: [string, string | null][]): string {
+  return attrs.map(([k, v]) => (v === null ? k : `${k}="${escapeAttr(v)}"`)).join(' ');
 }
 
 function buildCanonicalUrl(base: string | undefined, path: string): string {
