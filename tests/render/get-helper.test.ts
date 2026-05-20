@@ -397,6 +397,21 @@ describe('get helper include= parameter', () => {
     expect(tpl({})).toBe('news=4,opinion=2,');
   });
 
+  test('orders tags by count.posts before applying limit', () => {
+    const tags = [
+      { id: 't1', slug: 'quiet', name: 'Quiet', count: { posts: 1 } },
+      { id: 't2', slug: 'popular', name: 'Popular', count: { posts: 9 } },
+      { id: 't3', slug: 'middle', name: 'Middle', count: { posts: 4 } },
+      { id: 't4', slug: 'runner-up', name: 'Runner Up', count: { posts: 7 } },
+    ];
+    const engine = buildEngine({ tags });
+    const tpl = engine.hb.compile(
+      `{{#get "tags" include="count.posts" order="count.posts desc" limit="3" as |items|}}{{#each items}}{{slug}}={{count.posts}},{{/each}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('popular=9,runner-up=7,middle=4,');
+  });
+
   test('include="count.posts" resolves author counts from postsByAuthor', () => {
     const authors = [
       { id: 'a1', slug: 'alice', name: 'Alice' },

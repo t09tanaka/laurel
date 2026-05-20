@@ -727,13 +727,27 @@ function applyOrder(items: unknown[], order: string): unknown[] {
   return items.slice().sort((a, b) => {
     for (const clause of clauses) {
       const [field, dir = 'asc'] = clause.split(/\s+/);
-      const av = (a as Record<string, unknown>)[field ?? ''];
-      const bv = (b as Record<string, unknown>)[field ?? ''];
+      const av = resolveOrderValue(a, field ?? '');
+      const bv = resolveOrderValue(b, field ?? '');
       const cmp = compareValues(av, bv);
       if (cmp !== 0) return dir.toLowerCase() === 'desc' ? -cmp : cmp;
     }
     return 0;
   });
+}
+
+function resolveOrderValue(item: unknown, field: string): unknown {
+  if (!item || typeof item !== 'object' || field === '') return undefined;
+  const record = item as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(record, field)) return record[field];
+  if (!field.includes('.')) return record[field];
+
+  let cursor: unknown = item;
+  for (const segment of field.split('.')) {
+    if (!cursor || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+  return cursor;
 }
 
 function compareValues(a: unknown, b: unknown): number {
