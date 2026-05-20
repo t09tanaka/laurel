@@ -260,6 +260,11 @@ enabled = true
 Vercel reads `bun.lock` and uses Bun automatically. No environment variable
 required for the default Git-connected build.
 
+Nectar is not a Next.js project; it builds static files into `dist/` directly.
+Do not add Next.js `output: 'export'`, `next.config.js`, or Vercel adapter
+settings for this deploy path. Use Vercel's `Other` preset with the `dist`
+output directory instead.
+
 Every Nectar build includes `dist/404.html`. On Vercel, that root-level file
 is served as the custom not-found page for unmatched static routes, with a 404
 status, so the standard setup above does not need a catch-all rewrite for

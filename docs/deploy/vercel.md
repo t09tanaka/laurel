@@ -48,6 +48,12 @@ vercel` for manual or custom CI uploads of an already-built `dist/`.
 Vercel detects Bun from `bun.lock`, so a separate `BUN_VERSION` environment
 variable is not required for the default Git-connected build.
 
+Nectar is not a Next.js app. It emits a static `dist/` directory directly, so
+Next.js-only settings such as `output: 'export'`, `next.config.js`, or a Vercel
+adapter are unnecessary and do not apply. Keep the Vercel Framework Preset set
+to `Other`, the Build Command set to `bunx nectar build`, and the Output
+Directory set to `dist`.
+
 ## 404 pages
 
 Nectar always emits `dist/404.html`. If the active theme provides
@@ -172,6 +178,10 @@ quickstart:
 | Build Command | `bunx nectar build` |
 | Output Directory | `dist` |
 | Install Command | leave blank unless your repo needs a custom install step |
+
+Do not add Next.js export or adapter settings for this workflow. The Vercel CLI
+packages Nectar's static `dist/` output during `vercel build`; there is no
+Next.js `output: 'export'` phase to configure.
 
 Add repository secrets:
 
