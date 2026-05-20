@@ -359,6 +359,34 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — kg-code-card', () => {
+  test('preserves language from code class, figcaption, and line-number class', () => {
+    const html =
+      '<figure class="kg-card kg-code-card kg-card-hascaption line-numbers"><pre><code class="language-javascript">const msg = "hi";\nconsole.log(msg);</code></pre><figcaption>Runnable example</figcaption></figure>';
+    const md = td.turndown(html);
+    expect(md).toContain('{{< code');
+    expect(md).toContain('language="javascript"');
+    expect(md).toContain('caption="Runnable example"');
+    expect(md).toContain('line-number-class="line-numbers"');
+    expect(md).toContain('```javascript\nconst msg = "hi";\nconsole.log(msg);\n```');
+    expect(md).toContain('{{< /code >}}');
+  });
+
+  test('preserves language from pre class when code has no language class', () => {
+    const html =
+      '<figure class="kg-card kg-code-card"><pre class="language-ts"><code>const answer: number = 42;</code></pre></figure>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('```ts\nconst answer: number = 42;\n```');
+  });
+
+  test('preserves language from data-language attributes', () => {
+    const html =
+      '<figure class="kg-card kg-code-card" data-language="ruby"><pre><code>puts "hi"</code></pre></figure>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('```ruby\nputs "hi"\n```');
+  });
+});
+
 describe('Ghost Turndown rules — kg-video-card', () => {
   test('preserves source, poster, and caption', () => {
     const html = `

@@ -50,6 +50,51 @@ function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
 }
 
+function classTokens(node: DomNode | null): string[] {
+  return (node?.getAttribute('class') ?? '').split(/\s+/).filter((cls) => cls !== '');
+}
+
+function normalizeCodeLanguage(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^language-/, '')
+    .replace(/^lang-/, '');
+}
+
+function codeCardLanguage(card: DomNode, pre: DomNode | null, code: DomNode | null): string {
+  for (const node of [code, pre, card]) {
+    const fromAttr =
+      attr(node, 'data-language') || attr(node, 'data-lang') || attr(node, 'language');
+    if (fromAttr) return normalizeCodeLanguage(fromAttr);
+
+    const fromClass = classTokens(node).find(
+      (cls) => cls.startsWith('language-') || cls.startsWith('lang-'),
+    );
+    if (fromClass) return normalizeCodeLanguage(fromClass);
+  }
+  return '';
+}
+
+function codeCardLineNumberClass(card: DomNode, pre: DomNode | null, code: DomNode | null): string {
+  for (const node of [card, pre, code]) {
+    const found = classTokens(node).find(
+      (cls) => cls === 'linenums' || cls.startsWith('linenums:') || cls.includes('line-number'),
+    );
+    if (found) return found;
+  }
+  return '';
+}
+
+function fencedCodeBlock(code: string, language: string): string {
+  const longestFence = Math.max(
+    2,
+    ...Array.from(code.matchAll(/`+/g), (match) => match[0]?.length ?? 0),
+  );
+  const fence = '`'.repeat(Math.max(3, longestFence + 1));
+  const info = language.replace(/`/g, '').trim();
+  return `${fence}${info}\n${code.replace(/\n$/, '')}\n${fence}`;
+}
+
 // Map an embed URL's host to an oEmbed provider key the renderer can use to
 // look up cached metadata. Ghost's export strips the original oEmbed `provider`
 // field, so we recover it from the iframe src / blockquote anchor at import
@@ -236,6 +281,7 @@ const FIGURE_CARD_SUBTYPES = [
   'kg-bookmark-card',
   'kg-gallery-card',
   'kg-embed-card',
+  'kg-code-card',
   'kg-video-card',
   'kg-audio-card',
   'kg-file-card',
@@ -395,6 +441,39 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       }
 
       return '';
+    },
+  });
+
+  // Code card: <figure class="kg-card kg-code-card"><pre><code>...</code></pre>
+  //
+  // Ghost has emitted the selected language in a few places over time:
+  // `data-language` on the figure/pre/code wrapper, `language-*` on `<pre>`,
+  // or `language-*` on `<code>`. Turndown only reads the `<code>` class, so a
+  // card-level rule is needed to keep pre/data-language variants, figcaption,
+  // and line-number classes from disappearing during import.
+  turndown.addRule('kg-code-card', {
+    filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-code-card'),
+    replacement: (_content, node) => {
+      const pre = node.querySelector('pre');
+      const code = node.querySelector('code');
+      const body = code?.textContent ?? pre?.textContent ?? '';
+      const language = codeCardLanguage(node, pre, code);
+      const caption = text(node.querySelector('figcaption'));
+      const lineNumberClass = codeCardLineNumberClass(node, pre, code);
+      const fenced = fencedCodeBlock(body, language);
+
+      if (!caption && !lineNumberClass) return wrap(fenced);
+      return wrap(
+        shortcodeBlock(
+          'code',
+          {
+            language,
+            caption,
+            'line-number-class': lineNumberClass,
+          },
+          fenced,
+        ),
+      );
     },
   });
 
