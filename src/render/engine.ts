@@ -10,6 +10,7 @@ import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { splitLayout } from './layouts.ts';
+import { wrapMemberStub } from './member-stub.ts';
 import type { RouteContext } from './types.ts';
 
 export interface NectarEngine {
@@ -282,7 +283,13 @@ function buildPreviewMember(engine: NectarEngine): Record<string, unknown> | und
   const out: Record<string, unknown> = { paid: member.paid === true };
   if (typeof member.name === 'string') out.name = member.name;
   if (typeof member.email === 'string') out.email = member.email;
-  return out;
+  // Wrap in a Proxy so themes that probe richer Ghost shape (`@member.tier.name`,
+  // `@member.subscriptions.0.status`) get a safe falsy chain instead of an
+  // `undefined` that crashes any JS-side helper that does non-null-safe access.
+  // Handlebars chains on undefined are already safe; this wrapper extends that
+  // safety to plugin helpers written in plain TS. See `member-stub.ts` for the
+  // full design rationale.
+  return wrapMemberStub(out);
 }
 
 // Ghost themes read `@config.posts_per_page` (flat keys from the theme's

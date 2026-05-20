@@ -207,6 +207,27 @@ describe('loadContent', () => {
     expect(graph.site.comments_enabled).toBe(true);
   });
 
+  // Issue #491: themes that probe `{{@site.stripe_publishable_key}}` to
+  // decide whether to render a client-only checkout widget need a defined
+  // surface. Default `undefined` (members out-of-scope), but operators
+  // wiring their own checkout can opt in and the value round-trips verbatim.
+  test('[site].stripe_publishable_key round-trips to @site (issue #491)', async () => {
+    const cwd = await fixture();
+    const defaulted = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+    expect(defaulted.site.stripe_publishable_key).toBeUndefined();
+
+    const opted = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test', stripe_publishable_key: 'pk_test_xyz' },
+      }),
+    });
+    expect(opted.site.stripe_publishable_key).toBe('pk_test_xyz');
+  });
+
   // Issue #421: site-level meta / og / twitter knobs surface to themes via
   // @site.* and act as the last fallback inside {{ghost_head}}.
   test('[site].meta_* / og_* / twitter_* round-trip to @site (issue #421)', async () => {

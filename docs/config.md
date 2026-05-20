@@ -67,6 +67,7 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | `site.paid_members_enabled` | `boolean` | no | — | Override for `@site.paid_members_enabled`. Defaults to `members_enabled && components.portal.paid`; set explicitly to force the paid CTA state. |
 | `site.members_invite_only` | `boolean` | no | — | Override for `@site.members_invite_only`. Defaults to `members_enabled && components.portal.invite_only`; set explicitly to flip the Source theme's sign-in-only behavior. |
 | `site.comments_enabled` | `boolean` | no | `false` | Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards. |
+| `site.stripe_publishable_key` | `string` | no | — | Optional Stripe publishable key surfaced as `@site.stripe_publishable_key`. Static-only: Nectar settles no payments — exposing this is a theme-compatibility stub for embedders wiring their own client-only checkout widget. Never put a secret key here; this value is rendered into HTML. |
 
 ## `theme`
 

@@ -4,6 +4,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '~/config/loader.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
+import { validatePortalConfig } from '~/members/portal-validation.ts';
 import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import { createEngine } from '~/render/engine.ts';
@@ -445,6 +446,14 @@ async function runBuild({
 
   const subscribeConfig = config.components.subscribe;
   const recommendationsEnabled = config.recommendations.length > 0;
+  // Diagnose malformed portal configs (e.g. `provider = "custom"` with no
+  // `*_url` overrides) before the build silently emits dead Ghost-default
+  // `#/portal/*` hrefs. Findings are surfaced through the shared warning
+  // channel so they appear in the build summary alongside other config
+  // misconfigurations. See `members/portal-validation.ts` for the policy.
+  for (const finding of validatePortalConfig(config.components.portal)) {
+    logger.warn(finding.message);
+  }
   const portalUrls = resolvePortalUrls(config.components.portal);
   const htmlOutputs: HtmlOutput[] = [];
   let renderedBytes = 0;

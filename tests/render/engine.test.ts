@@ -744,6 +744,53 @@ describe('buildRootData', () => {
     expect('name' in member).toBe(false);
   });
 
+  // Issues #489 / #490: themes that probe richer Ghost shape (`@member.tier.name`,
+  // `@member.subscriptions.0.status`) would otherwise pull `undefined` out of
+  // `tier` and trip up any JS-side helper that does non-null-safe chaining.
+  // The preview member is wrapped in a Proxy so missing-key access returns a
+  // recursive falsy stub; the documented `paid` / `name` / `email` fields the
+  // operator opted into pass through untouched.
+  test('preview member chained access on missing keys never crashes and renders empty', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      components: { preview: { member: { paid: true, name: 'Preview User' } } },
+    } as unknown as NectarEngine['config'];
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const member = data.member as unknown as Record<string, unknown> & {
+      tier: { name: string; nested: { deeper: string } };
+    };
+
+    // Operator-set fields pass through verbatim.
+    expect(member.paid).toBe(true);
+    expect(member.name).toBe('Preview User');
+
+    // Missing-key chained access does not crash, returns a safe stub.
+    const tier = member.tier;
+    expect(tier).toBeDefined();
+    expect(() => tier.name).not.toThrow();
+    expect(() => tier.nested.deeper).not.toThrow();
+
+    // `in` operator reports false for missing keys so `{{#if (lookup
+    // @member "tier")}}` branches as unset.
+    expect('tier' in member).toBe(false);
+
+    // Handlebars renders missing chained access as empty.
+    const hb = Handlebars.create();
+    const tpl = hb.compile(
+      '[{{@member.tier.name}}][{{@member.subscriptions.0.status}}][{{@member.anything}}]',
+    );
+    expect(tpl({}, { data })).toBe('[][][]');
+  });
+
   // Issue #418: themes branch on `@labs` to gate features behind a Ghost
   // "Labs" toggle. Nectar has no labs surface, so the data frame must still
   // ship an empty object so `{{#if @labs.foo}}` is deterministically falsy.

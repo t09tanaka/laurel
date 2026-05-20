@@ -28,6 +28,13 @@ export interface SiteData {
   members_invite_only: boolean;
   comments_enabled: boolean;
   recommendations_enabled: boolean;
+  // Optional Stripe publishable key surfaced through `@site` for themes that
+  // probe `{{@site.stripe_publishable_key}}` to decide whether to render a
+  // client-only checkout widget. Default `undefined` (members out-of-scope);
+  // see schema.ts for the safety rationale and `[site].stripe_publishable_key`
+  // for the config-side description. Declared optional so test fixtures and
+  // synthetic SiteData literals that pre-date this field don't break. Issue #491.
+  stripe_publishable_key?: string | undefined;
   // Site-wide SEO defaults. Themes that read `@site.meta_title` /
   // `@site.meta_description` fall back to these when a post/page does not
   // override; `{{ghost_head}}` uses them as the last fallback before

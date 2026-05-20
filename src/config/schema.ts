@@ -244,6 +244,25 @@ export const configSchema = z
           .describe(
             "Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards.",
           ),
+        // Issue #491: Source / Casper-style themes occasionally probe
+        // `{{@site.stripe_publishable_key}}` to decide whether to render a
+        // Stripe-backed checkout widget. Nectar settles no payments (members
+        // are out-of-scope; see CLAUDE.md), but exposing an explicit empty
+        // default avoids surprises:
+        // - themes that read the key see Handlebars-empty (and skip the
+        //   widget) rather than an "undefined" string,
+        // - operators wiring their own client-only checkout can opt in by
+        //   setting the field, and Nectar will surface it verbatim through
+        //   `@site` without touching the value (it ships in the HTML, so the
+        //   operator is on the hook for keeping it publishable-only).
+        // No corresponding `stripe_secret_key` field on purpose: a secret has
+        // no business in a static-site config that gets rendered into HTML.
+        stripe_publishable_key: z
+          .string()
+          .optional()
+          .describe(
+            'Optional Stripe publishable key surfaced as `@site.stripe_publishable_key`. Static-only: Nectar settles no payments — exposing this is a theme-compatibility stub for embedders wiring their own client-only checkout widget. Never put a secret key here; this value is rendered into HTML.',
+          ),
       })
       .strict()
       .default({ title: 'Nectar Site' })
