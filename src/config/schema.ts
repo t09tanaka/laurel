@@ -393,6 +393,47 @@ export const configSchema = z
       .strict()
       .default({})
       .describe('Build pipeline options that shape the emitted site.'),
+    performance: z
+      .object({
+        preload_lcp_image: z
+          .boolean()
+          .default(true)
+          .describe(
+            'Inject `<link rel="preload" as="image" fetchpriority="high" href="…">` into `{{ghost_head}}` for the current route\'s `feature_image`. Mirrors the `<img fetchpriority="high">` the Source theme already emits on the feature image so the LCP image starts downloading from the HTML preload scan, not from after CSS / theme JS lands. Only fires on post / page routes that actually have a `feature_image`; disable when a custom theme already emits its own LCP preload to avoid double-fetching.',
+          ),
+        preconnect_image_origins: z
+          .boolean()
+          .default(true)
+          .describe(
+            'Emit `<link rel="preconnect" crossorigin href="<origin>">` into `{{ghost_head}}` for up to three unique third-party origins referenced by `feature_image` / cover-image URLs on the current route. Skips the site\'s own origin and `data:` / blob URLs. Caps at three to avoid bloating the document head with low-value hints when content references many external CDNs; bumping that cap is intentionally not a knob so naive configs cannot regress page weight.',
+          ),
+        max_preconnect_origins: z
+          .number()
+          .int()
+          .min(0)
+          .max(8)
+          .default(3)
+          .describe(
+            'Maximum number of `<link rel="preconnect">` hints emitted by `preconnect_image_origins`. Default 3 follows the same heuristic Lighthouse uses (`Preconnect to required origins`): a small handful is the sweet spot before browser connection pressure outweighs the benefit. Set to `0` to disable preconnect emission entirely without flipping `preconnect_image_origins`.',
+          ),
+        dedupe_script_preload: z
+          .boolean()
+          .default(true)
+          .describe(
+            'Remove `<link rel="preload" as="script" href="X">` when an equivalent `<script src="X">` already appears in the document, so the browser issues exactly one request for the asset. The Source theme ships both a preload and a `<script>` for `built/source.js`; preloading a deferred script does not start execution any earlier and only doubles the request line in DevTools. Disable when a custom theme relies on the preload landing first (e.g. inline-modulepreload speculative compile).',
+          ),
+        preload_stylesheet: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Emit a sibling `<link rel="preload" as="style" href="X">` for every `<link rel="stylesheet" href="X">` that does not already have one. Helps themes that did not opt into the manual preload pattern (which the Source theme already ships) by letting the browser start the CSS fetch from the preload scan rather than from CSS parsing. Default off because most themes either already include the preload or do not benefit (single tiny stylesheet); flip on for themes with deep critical-CSS where the head is large.',
+          ),
+      })
+      .strict()
+      .default({})
+      .describe(
+        'Resource-hint and HTML post-process knobs that shape network-time performance without touching theme markup. All toggles operate on already-rendered HTML so they compose with arbitrary `.hbs` templates. The defaults bias toward the LCP / Lighthouse-friendly behaviour modern Ghost themes already expect.',
+      ),
     navigation: z
       .array(navigationItemSchema)
       .default([])

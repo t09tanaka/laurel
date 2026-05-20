@@ -65,6 +65,7 @@ import {
   prepareStagingDir,
   resolveOutputDir,
 } from './output-dir.ts';
+import { injectStylesheetPreload, removeRedundantScriptPreload } from './perf-hints.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
@@ -523,6 +524,19 @@ async function runBuild({
             if (post && post.visibility !== 'public') {
               html = injectPagefindSkipMeta(html);
             }
+          }
+          // Resource-hint post-processing. Runs after every theme-side or
+          // injected script/link has landed so we see the final document
+          // shape, but before plugin afterRender so plugins can still react
+          // to the rewritten head. dedupe_script_preload deletes the
+          // `<link rel="preload" as="script">` that the Source theme ships
+          // alongside its `<script>` (#528); preload_stylesheet adds a sibling
+          // preload to bare `<link rel="stylesheet">` (#527, opt-in).
+          if (config.performance.dedupe_script_preload) {
+            html = removeRedundantScriptPreload(html);
+          }
+          if (config.performance.preload_stylesheet) {
+            html = injectStylesheetPreload(html);
           }
           // afterRender chain: each plugin sees the previous transform's
           // output (including the Pagefind shim above when enabled). Returning

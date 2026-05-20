@@ -21,9 +21,32 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       const ctx = this as Record<string, unknown>;
       const basePath = engine.config?.build?.base_path ?? '/';
       const meta = computeMeta(ctx, route, site, basePath);
+      const performance = engine.config?.performance;
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
+      // Preconnect to external image origins referenced on this route. Emitted
+      // early in the head so the TCP/TLS handshake overlaps the rest of the
+      // critical-CSS parse. Capped at performance.max_preconnect_origins
+      // (default 3) to avoid swamping the connection pool with low-value
+      // hints — Lighthouse's `uses-rel-preconnect` audit caps its own advice
+      // at the same order of magnitude.
+      if (performance?.preconnect_image_origins !== false) {
+        const limit = performance?.max_preconnect_origins ?? 3;
+        if (limit > 0) {
+          for (const origin of collectImageOrigins(ctx, route, site.url, limit)) {
+            parts.push(`<link rel="preconnect" href="${escapeAttr(origin)}" crossorigin>`);
+          }
+        }
+      }
+      // LCP preload for the post/page feature image. Pairs with the theme-side
+      // `<img fetchpriority="high">` so the preload scan starts the LCP fetch
+      // before CSS / JS reaches the parser. Only fires when the route actually
+      // carries a feature_image — page-without-cover routes get nothing.
+      if (performance?.preload_lcp_image !== false) {
+        const preloadTag = renderLcpPreload(ctx, route, site.url, basePath);
+        if (preloadTag) parts.push(preloadTag);
+      }
       // Surface @site.accent_color to themes as the `--ghost-accent-color`
       // CSS custom property so partials can reference it with
       // `var(--ghost-accent-color)`. The config schema already restricts
@@ -678,6 +701,106 @@ function sanitizeScriptSrc(value: unknown): string | undefined {
   if (!trimmed) return undefined;
   if (!ALLOWED_SCRIPT_URL_PATTERN.test(trimmed)) return undefined;
   return trimmed;
+}
+
+// LCP preload: emit `<link rel="preload" as="image" fetchpriority="high">`
+// for the route's feature image so the browser's preload scan starts the
+// fetch before CSS/JS hits the parser. Returns undefined when the route
+// has no feature_image (e.g. an archive index) or when the source is a
+// data: / blob: URL (preload makes no sense for inlined bytes). The
+// `imagesrcset` / `imagesizes` hints are deliberately omitted: without a
+// concrete sizes string from the theme they can hurt more than help, and
+// the responsive `srcset` already lives on the `<img>` tag itself.
+function renderLcpPreload(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+  siteUrl: string,
+  basePath: string,
+): string | undefined {
+  if (!route || (route.kind !== 'post' && route.kind !== 'page')) return undefined;
+  const featureImage = ctx.feature_image;
+  if (typeof featureImage !== 'string' || !featureImage) return undefined;
+  if (/^(?:data|blob):/i.test(featureImage)) return undefined;
+  const href = absoluteUrlWithBasePath(siteUrl, basePath, featureImage);
+  const mime = mimeTypeForImage(featureImage);
+  const attrs: string[] = [
+    `rel="preload"`,
+    `as="image"`,
+    `href="${escapeAttr(href)}"`,
+    `fetchpriority="high"`,
+  ];
+  if (mime) attrs.push(`type="${escapeAttr(mime)}"`);
+  return `<link ${attrs.join(' ')}>`;
+}
+
+// Collect unique third-party origins referenced by feature_image / og_image
+// / twitter_image / authors[0].profile_image on the current route, capped at
+// `limit`. The site's own origin is excluded (no value preconnecting to the
+// origin already serving the HTML). data: / blob: URLs are skipped because
+// they have no host to connect to. Origins are returned in first-seen order
+// to keep the emitted hint order stable across builds.
+function collectImageOrigins(
+  ctx: Record<string, unknown>,
+  route: { data?: Record<string, unknown> } | undefined,
+  siteUrl: string,
+  limit: number,
+): string[] {
+  const ownHost = safeUrl(siteUrl)?.host;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const candidates: unknown[] = [
+    ctx.feature_image,
+    ctx.og_image,
+    ctx.twitter_image,
+    ctx.cover_image,
+  ];
+  const post = route?.data?.post as { feature_image?: unknown } | undefined;
+  if (post) candidates.push(post.feature_image);
+  const tag = route?.data?.tag as { feature_image?: unknown } | undefined;
+  if (tag) candidates.push(tag.feature_image);
+  const author = route?.data?.author as
+    | { cover_image?: unknown; profile_image?: unknown }
+    | undefined;
+  if (author) {
+    candidates.push(author.cover_image);
+    candidates.push(author.profile_image);
+  }
+  // Also walk the first few cards-on-archive so an index page preconnects to
+  // the CDN of its hero posts. Cap at the same limit to keep work bounded.
+  const posts = route?.data?.posts as { feature_image?: unknown }[] | undefined;
+  if (Array.isArray(posts)) {
+    for (let i = 0; i < posts.length && out.length < limit; i++) {
+      candidates.push(posts[i]?.feature_image);
+    }
+  }
+  for (const value of candidates) {
+    if (out.length >= limit) break;
+    if (typeof value !== 'string' || !value) continue;
+    // Skip protocol-relative, site-relative, and inline payloads — preconnect
+    // is meaningful only for absolute http(s) URLs on a different host.
+    if (!/^https?:\/\//i.test(value)) continue;
+    const url = safeUrl(value);
+    if (!url) continue;
+    if (ownHost && url.host === ownHost) continue;
+    const origin = `${url.protocol}//${url.host}`;
+    if (seen.has(origin)) continue;
+    seen.add(origin);
+    out.push(origin);
+  }
+  return out;
+}
+
+function safeUrl(value: string): URL | undefined {
+  try {
+    return new URL(value);
+  } catch {
+    return undefined;
+  }
 }
 
 // Drop-in analytics snippets per provider. Each branch returns the documented

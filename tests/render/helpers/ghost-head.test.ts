@@ -1632,3 +1632,136 @@ describe('ghost_head Sodo Search script injection (issue #462)', () => {
     );
   });
 });
+
+describe('ghost_head LCP preload (#147)', () => {
+  test('emits a preload tag with fetchpriority=high for post.feature_image', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 'Hi', feature_image: 'https://cdn.example.com/cover.jpg' },
+      '/some-post/',
+      { routeKind: 'post' },
+    );
+    expect(html).toContain(
+      '<link rel="preload" as="image" href="https://cdn.example.com/cover.jpg" fetchpriority="high" type="image/jpeg">',
+    );
+  });
+
+  test('skips preload when route has no feature_image', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/some-post/', { routeKind: 'post' });
+    expect(html).not.toContain('rel="preload" as="image"');
+  });
+
+  test('skips preload on archive routes (tag/author/home)', () => {
+    const html = renderGhostHead(
+      { feature_image: 'https://cdn.example.com/cover.jpg' },
+      '/tag/foo/',
+      {
+        routeKind: 'tag',
+        routeData: { tag: { feature_image: 'https://cdn.example.com/cover.jpg' } },
+      },
+    );
+    expect(html).not.toContain('rel="preload" as="image"');
+  });
+
+  test('respects performance.preload_lcp_image=false', () => {
+    const html = renderGhostHead(
+      { id: 'p1', feature_image: 'https://cdn.example.com/cover.jpg' },
+      '/some-post/',
+      {
+        routeKind: 'post',
+        config: { performance: { preload_lcp_image: false } } as unknown as Partial<
+          NectarEngine['config']
+        >,
+      },
+    );
+    expect(html).not.toContain('rel="preload" as="image"');
+  });
+
+  test('skips data: and blob: feature_image values', () => {
+    const html = renderGhostHead(
+      { id: 'p1', feature_image: 'data:image/png;base64,iVBOR...' },
+      '/some-post/',
+      { routeKind: 'post' },
+    );
+    expect(html).not.toContain('rel="preload" as="image"');
+  });
+});
+
+describe('ghost_head preconnect to external image origins (#530)', () => {
+  test('emits preconnect for unique third-party image origins', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        feature_image: 'https://cdn.example.com/cover.jpg',
+        og_image: 'https://images.unsplash.com/foo.jpg',
+      },
+      '/some-post/',
+      { routeKind: 'post' },
+    );
+    expect(html).toContain('<link rel="preconnect" href="https://cdn.example.com" crossorigin>');
+    expect(html).toContain(
+      '<link rel="preconnect" href="https://images.unsplash.com" crossorigin>',
+    );
+  });
+
+  test("skips the site's own origin", () => {
+    const html = renderGhostHead(
+      { id: 'p1', feature_image: 'https://example.com/local.jpg' },
+      '/some-post/',
+      { routeKind: 'post', site: { url: 'https://example.com' } },
+    );
+    expect(html).not.toContain('rel="preconnect"');
+  });
+
+  test('skips relative and data: URLs', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        feature_image: '/content/images/local.jpg',
+        og_image: 'data:image/png;base64,xxx',
+      },
+      '/some-post/',
+      { routeKind: 'post' },
+    );
+    expect(html).not.toContain('rel="preconnect"');
+  });
+
+  test('caps at max_preconnect_origins (default 3)', () => {
+    const posts = Array.from({ length: 6 }, (_, i) => ({
+      feature_image: `https://cdn${i}.example.net/x.jpg`,
+    }));
+    const html = renderGhostHead({}, '/', {
+      routeKind: 'index',
+      routeData: { posts },
+    });
+    const matches = html.match(/<link rel="preconnect"/g) ?? [];
+    expect(matches.length).toBe(3);
+  });
+
+  test('honours max_preconnect_origins override', () => {
+    const html = renderGhostHead(
+      { id: 'p1', feature_image: 'https://cdn.example.com/c.jpg' },
+      '/some-post/',
+      {
+        routeKind: 'post',
+        config: { performance: { max_preconnect_origins: 0 } } as unknown as Partial<
+          NectarEngine['config']
+        >,
+      },
+    );
+    expect(html).not.toContain('rel="preconnect"');
+  });
+
+  test('respects performance.preconnect_image_origins=false', () => {
+    const html = renderGhostHead(
+      { id: 'p1', feature_image: 'https://cdn.example.com/c.jpg' },
+      '/some-post/',
+      {
+        routeKind: 'post',
+        config: { performance: { preconnect_image_origins: false } } as unknown as Partial<
+          NectarEngine['config']
+        >,
+      },
+    );
+    expect(html).not.toContain('rel="preconnect"');
+  });
+});
