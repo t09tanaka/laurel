@@ -73,6 +73,7 @@ describe('checkFrontmatterSchemas', () => {
         'slug: good-post',
         'date: "2026-01-01"',
         'status: published',
+        'visibility: filter',
         '---',
         'body',
       ].join('\n'),

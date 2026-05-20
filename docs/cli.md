@@ -78,6 +78,7 @@ yourself if you want explicit-file mode.
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
 | [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
 | [`nectar config`](#nectar-config) | Inspect the loaded nectar.toml config |
+| [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
 | [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
@@ -436,6 +437,35 @@ Examples:
 nectar config path                           # absolute path of the loaded toml
 nectar config get site.url
 nectar config get build.base_path --json
+```
+
+### `nectar schema`
+
+Print JSON Schema for Nectar config, frontmatter, or theme package.json
+
+Usage:
+
+```
+nectar schema <target>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<target>` | required | `config`, `frontmatter`, or `theme` |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+
+Examples:
+
+```
+nectar schema config > nectar.config.schema.json
+nectar schema frontmatter > nectar.frontmatter.schema.json
+nectar schema theme > nectar.theme.schema.json
 ```
 
 ### `nectar content`

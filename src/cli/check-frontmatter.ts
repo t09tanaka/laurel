@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
+import {
+  frontmatterStatusValues,
+  frontmatterVisibilityValues,
+} from '~/content/frontmatter-schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { scanGlob } from '~/util/fs.ts';
 
@@ -23,8 +27,8 @@ export interface FrontmatterIssue {
 
 const POST_REQUIRED: readonly string[] = ['title'];
 const PAGE_REQUIRED: readonly string[] = ['title'];
-const STATUS_VALUES = new Set(['published', 'draft', 'scheduled']);
-const VISIBILITY_VALUES = new Set(['public', 'members', 'paid', 'tiers']);
+const STATUS_VALUES = new Set(frontmatterStatusValues);
+const VISIBILITY_VALUES = new Set(frontmatterVisibilityValues);
 
 export interface CheckFrontmatterOptions {
   cwd: string;

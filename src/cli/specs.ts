@@ -694,6 +694,24 @@ export const CONFIG_SPEC: CommandSpec = {
   ],
 };
 
+export const SCHEMA_SPEC: CommandSpec = {
+  name: 'schema',
+  summary: 'Print JSON Schema for Nectar config, frontmatter, or theme package.json',
+  options: {},
+  positionals: [
+    {
+      name: 'target',
+      description: '`config`, `frontmatter`, or `theme`',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar schema config > nectar.config.schema.json',
+    'nectar schema frontmatter > nectar.frontmatter.schema.json',
+    'nectar schema theme > nectar.theme.schema.json',
+  ],
+};
+
 export const LINT_SPEC: CommandSpec = {
   name: 'lint',
   summary:
@@ -1048,6 +1066,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   clean: CLEAN_SPEC,
   completions: COMPLETIONS_SPEC,
   config: CONFIG_SPEC,
+  schema: SCHEMA_SPEC,
   content: CONTENT_SPEC,
   info: INFO_SPEC,
   lint: LINT_SPEC,

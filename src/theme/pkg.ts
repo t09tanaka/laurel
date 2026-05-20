@@ -23,7 +23,7 @@ const imageSizeSchema: z.ZodType<ThemeImageSize> = z
 // brittle for real-world themes that we don't control.
 const customDefSchema = z.unknown();
 
-const rawPkgSchema = z
+export const themePackageJsonSchema = z
   .object({
     name: z.string().optional(),
     version: z.string().optional(),
@@ -56,7 +56,7 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
       code: 'theme',
     });
   }
-  const result = rawPkgSchema.safeParse(json);
+  const result = themePackageJsonSchema.safeParse(json);
   if (!result.success) {
     logger.warn(
       `theme package.json at ${path} does not match expected shape; falling back to defaults`,

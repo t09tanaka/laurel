@@ -15,6 +15,7 @@ Commands:
   clean             Remove dist/ and .nectar-cache build artifacts
   completions       Print a shell completion script for the given shell
   config            Inspect the loaded nectar.toml config
+  schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json
   content           Inspect or modify content in the project (posts, pages)
   info              Print Nectar, Bun, and project environment information
   lint              Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)

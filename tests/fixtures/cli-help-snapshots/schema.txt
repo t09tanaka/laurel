@@ -1,0 +1,15 @@
+Print JSON Schema for Nectar config, frontmatter, or theme package.json
+
+Usage:
+  nectar schema <target>
+
+Arguments:
+  target              `config`, `frontmatter`, or `theme`
+
+Options:
+  -h, --help          Show help for this command
+
+Examples:
+  nectar schema config > nectar.config.schema.json
+  nectar schema frontmatter > nectar.frontmatter.schema.json
+  nectar schema theme > nectar.theme.schema.json
