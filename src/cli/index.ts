@@ -16,7 +16,11 @@ import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
-import { handleCrashReportPrompt, versionsForCrashReport } from './telemetry.ts';
+import {
+  handleCrashReportPrompt,
+  sendCommandTelemetry,
+  versionsForCrashReport,
+} from './telemetry.ts';
 import { buildVersionJson } from './version.ts';
 
 const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
@@ -270,6 +274,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runUpgrade } = await import('./commands/upgrade.js');
       return runUpgrade(rest);
     }
+    case 'telemetry': {
+      const { runTelemetry } = await import('./commands/telemetry.js');
+      return runTelemetry(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }
@@ -397,8 +405,34 @@ async function main(argv: string[]): Promise<number> {
   const argsForDispatch =
     globalJson && !resolvedRest.includes('--json') ? ['--json', ...resolvedRest] : resolvedRest;
 
-  const code = await dispatch(canonical, argsForDispatch);
-  return finishWithWarningPolicy(code, warningsAsErrors);
+  const startedAt = performance.now();
+  let code: number;
+  try {
+    code = await dispatch(canonical, argsForDispatch);
+  } catch (err) {
+    await recordCommandTelemetry(canonical, startedAt, EXIT_CODES.generic);
+    throw err;
+  }
+  const finalCode = finishWithWarningPolicy(code, warningsAsErrors);
+  await recordCommandTelemetry(canonical, startedAt, finalCode);
+  return finalCode;
+}
+
+async function recordCommandTelemetry(
+  command: string,
+  startedAt: number,
+  exitCode: number,
+): Promise<void> {
+  if (command === 'telemetry') return;
+  try {
+    await sendCommandTelemetry({
+      command,
+      durationMs: performance.now() - startedAt,
+      exitCode,
+    });
+  } catch {
+    // Telemetry is best-effort and must never affect CLI output or exit status.
+  }
 }
 
 function finishWithWarningPolicy(code: number, warningsAsErrors: boolean): number {

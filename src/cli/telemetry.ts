@@ -1,8 +1,46 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { arch, homedir, platform, release } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import type { VersionJson } from './version.ts';
+
+export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.nectar.dev/v1/usage';
+export const TELEMETRY_SCHEMA_VERSION = 1;
+
+type TelemetryConfigSource = NodeJS.ProcessEnv | string;
+
+export interface TelemetryConfig {
+  enabled: boolean;
+  endpoint?: string;
+  anonymousMachineId?: string;
+  crashReports?: 'never';
+}
+
+export interface TelemetryPayload {
+  schema_version: 1;
+  event: 'cli_command';
+  anonymous_machine_id: string;
+  command: string;
+  duration_ms: number;
+  success: boolean;
+  exit_code: number;
+  nectar_version: string;
+  bun_version: string | null;
+  os: {
+    platform: string;
+    arch: string;
+    release: string;
+  };
+}
+
+export interface TelemetrySendOptions {
+  command: string;
+  durationMs: number;
+  exitCode: number;
+  env?: NodeJS.ProcessEnv;
+  fetchFn?: (input: string, init: RequestInit) => Promise<Response>;
+}
 
 export interface CrashReportPayload {
   kind: 'crash';
@@ -18,10 +56,6 @@ export interface CrashReportPayload {
     node: string;
     commit: string | null;
   };
-}
-
-export interface TelemetryConfig {
-  crashReports?: 'never';
 }
 
 export type CrashPromptResult =
@@ -62,6 +96,133 @@ const VALUE_FLAGS = new Set([
   '-o',
   '-p',
 ]);
+
+export function telemetryConfigPath(source: TelemetryConfigSource = process.env): string {
+  if (typeof source === 'string') return source;
+  const explicit = source.NECTAR_TELEMETRY_CONFIG;
+  if (explicit !== undefined && explicit !== '') return explicit;
+  const xdg = source.XDG_CONFIG_HOME;
+  if (xdg !== undefined && xdg !== '') return join(xdg, 'nectar', 'telemetry.json');
+  return join(homedir(), '.config', 'nectar', 'telemetry.json');
+}
+
+export async function readTelemetryConfig(
+  source: TelemetryConfigSource = process.env,
+): Promise<TelemetryConfig> {
+  const path = telemetryConfigPath(source);
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<TelemetryConfig>;
+    return sanitizeTelemetryConfig(parsed);
+  } catch (err) {
+    if (isNotFoundError(err)) return { enabled: false };
+    throw new Error(`Invalid telemetry config at ${path}: ${errMessage(err)}`);
+  }
+}
+
+export async function writeTelemetryConfig(
+  config: TelemetryConfig,
+  source: TelemetryConfigSource = process.env,
+): Promise<void> {
+  const path = telemetryConfigPath(source);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(sanitizeTelemetryConfig(config), null, 2)}\n`, {
+    mode: 0o600,
+  });
+}
+
+export function resolveTelemetryEndpoint(
+  config: TelemetryConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const envEndpoint = env.NECTAR_TELEMETRY_ENDPOINT;
+  if (envEndpoint !== undefined && envEndpoint !== '') return envEndpoint;
+  return config.endpoint ?? DEFAULT_TELEMETRY_ENDPOINT;
+}
+
+export async function buildTelemetryPayload(options: {
+  command: string;
+  durationMs: number;
+  exitCode: number;
+  anonymousMachineId: string;
+}): Promise<TelemetryPayload> {
+  return {
+    schema_version: TELEMETRY_SCHEMA_VERSION,
+    event: 'cli_command',
+    anonymous_machine_id: options.anonymousMachineId,
+    command: options.command,
+    duration_ms: Math.max(0, Math.round(options.durationMs)),
+    success: options.exitCode === 0,
+    exit_code: options.exitCode,
+    nectar_version: await getNectarVersion(),
+    bun_version: typeof Bun === 'undefined' ? null : Bun.version,
+    os: {
+      platform: platform(),
+      arch: arch(),
+      release: release(),
+    },
+  };
+}
+
+export async function sendCommandTelemetry(options: TelemetrySendOptions): Promise<boolean> {
+  const env = options.env ?? process.env;
+  const config = await readTelemetryConfig(env);
+  if (!config.enabled || config.anonymousMachineId === undefined) return false;
+
+  const endpoint = resolveTelemetryEndpoint(config, env);
+  const payload = await buildTelemetryPayload({
+    command: options.command,
+    durationMs: options.durationMs,
+    exitCode: options.exitCode,
+    anonymousMachineId: config.anonymousMachineId,
+  });
+  const fetchFn = options.fetchFn ?? fetch;
+  const abort = new AbortController();
+  const timeout = setTimeout(
+    () => abort.abort(),
+    parseTelemetryTimeoutMs(env.NECTAR_TELEMETRY_TIMEOUT_MS),
+  );
+  try {
+    const res = await fetchFn(endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': `nectar/${payload.nectar_version}`,
+      },
+      body: JSON.stringify(payload),
+      signal: abort.signal,
+    });
+    return res.ok;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function enableTelemetry(
+  endpoint: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<TelemetryConfig> {
+  const existing = await readTelemetryConfig(env);
+  const next: TelemetryConfig = {
+    ...existing,
+    enabled: true,
+    anonymousMachineId: existing.anonymousMachineId ?? crypto.randomUUID(),
+    endpoint: endpoint ?? existing.endpoint,
+  };
+  await writeTelemetryConfig(next, env);
+  return next;
+}
+
+export async function disableTelemetry(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<TelemetryConfig> {
+  const existing = await readTelemetryConfig(env);
+  const next: TelemetryConfig = {
+    ...existing,
+    enabled: false,
+  };
+  await writeTelemetryConfig(next, env);
+  return next;
+}
 
 export function redactArgv(argv: string[]): string[] {
   const redacted: string[] = [];
@@ -145,15 +306,15 @@ export async function handleCrashReportPrompt(
   opts: CrashPromptOptions,
 ): Promise<CrashPromptResult> {
   if (opts.isTty === false) return 'skipped-non-tty';
-  const configPath = opts.configPath ?? defaultTelemetryConfigPath();
-  const config = await readTelemetryConfig(configPath);
+  const configSource = opts.configPath ?? process.env;
+  const config = await readTelemetryConfig(configSource);
   if (config.crashReports === 'never') return 'skipped-never';
 
   const answer = normalizePromptAnswer(
     await (opts.prompt ?? promptOnStderr)('Send anonymous crash report? (y/N/never) '),
   );
   if (answer === 'never') {
-    await writeTelemetryConfig(configPath, { crashReports: 'never' });
+    await writeTelemetryConfig({ ...config, crashReports: 'never' }, configSource);
     return 'stored-never';
   }
   if (answer !== 'yes') return 'declined';
@@ -167,26 +328,29 @@ export async function handleCrashReportPrompt(
   }
 }
 
-export async function readTelemetryConfig(
-  path = defaultTelemetryConfigPath(),
-): Promise<TelemetryConfig> {
-  try {
-    const raw = await readFile(path, 'utf8');
-    const parsed = JSON.parse(raw) as TelemetryConfig;
-    return parsed.crashReports === 'never' ? { crashReports: 'never' } : {};
-  } catch {
-    return {};
+export function versionsForCrashReport(version: VersionJson): CrashReportPayload['versions'] {
+  return {
+    nectar: version.version,
+    bun: version.bun,
+    node: version.node,
+    commit: version.commit,
+  };
+}
+
+function parseTelemetryTimeoutMs(raw: string | undefined): number {
+  if (raw === undefined || raw === '') return 500;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5000) : 500;
+}
+
+function sanitizeTelemetryConfig(raw: Partial<TelemetryConfig>): TelemetryConfig {
+  const config: TelemetryConfig = { enabled: raw.enabled === true };
+  if (typeof raw.endpoint === 'string' && raw.endpoint !== '') config.endpoint = raw.endpoint;
+  if (typeof raw.anonymousMachineId === 'string' && raw.anonymousMachineId !== '') {
+    config.anonymousMachineId = raw.anonymousMachineId;
   }
-}
-
-async function writeTelemetryConfig(path: string, config: TelemetryConfig): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-}
-
-function defaultTelemetryConfigPath(): string {
-  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config');
-  return join(base, 'nectar', 'telemetry.json');
+  if (raw.crashReports === 'never') config.crashReports = 'never';
+  return config;
 }
 
 function normalizeError(err: unknown): { name: string; message: string; stack?: string } {
@@ -227,11 +391,10 @@ async function sendCrashReport(payload: CrashReportPayload): Promise<boolean> {
   return response.ok;
 }
 
-export function versionsForCrashReport(version: VersionJson): CrashReportPayload['versions'] {
-  return {
-    nectar: version.version,
-    bun: version.bun,
-    node: version.node,
-    commit: version.commit,
-  };
+function isNotFoundError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT';
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

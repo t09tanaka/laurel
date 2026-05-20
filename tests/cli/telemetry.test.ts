@@ -1,14 +1,32 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   buildCrashReportPayload,
+  buildTelemetryPayload,
+  enableTelemetry,
   handleCrashReportPrompt,
   readTelemetryConfig,
   redactArgv,
   sanitizeStack,
+  sendCommandTelemetry,
+  telemetryConfigPath,
 } from '~/cli/telemetry.ts';
+
+let dir: string | undefined;
+
+async function makeEnv(): Promise<NodeJS.ProcessEnv> {
+  dir = await mkdtemp(join(tmpdir(), 'nectar-telemetry-'));
+  return {
+    NECTAR_TELEMETRY_CONFIG: join(dir, 'telemetry.json'),
+  };
+}
+
+afterEach(async () => {
+  if (dir !== undefined) await rm(dir, { recursive: true, force: true });
+  dir = undefined;
+});
 
 describe('cli telemetry crash reports', () => {
   test('redacts option values from argv while keeping command shape', () => {
@@ -113,44 +131,184 @@ describe('cli telemetry crash reports', () => {
   });
 
   test('never answer is stored and suppresses later prompts', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-telemetry-'));
-    const configPath = join(dir, 'telemetry.json');
+    const env = await makeEnv();
+    const configPath = telemetryConfigPath(env);
     let promptCount = 0;
-    try {
-      const first = await handleCrashReportPrompt(new Error('boom'), {
-        argv: ['bun', 'nectar', 'build'],
-        versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
-        configPath,
-        isTty: true,
-        prompt: async () => {
-          promptCount += 1;
-          return 'never';
-        },
-        send: async () => {
-          throw new Error('send should not run');
-        },
-      });
-      const second = await handleCrashReportPrompt(new Error('boom'), {
-        argv: ['bun', 'nectar', 'build'],
-        versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
-        configPath,
-        isTty: true,
-        prompt: async () => {
-          promptCount += 1;
-          return 'y';
-        },
-        send: async () => {
-          throw new Error('send should not run');
-        },
-      });
+    const first = await handleCrashReportPrompt(new Error('boom'), {
+      argv: ['bun', 'nectar', 'build'],
+      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      configPath,
+      isTty: true,
+      prompt: async () => {
+        promptCount += 1;
+        return 'never';
+      },
+      send: async () => {
+        throw new Error('send should not run');
+      },
+    });
+    const second = await handleCrashReportPrompt(new Error('boom'), {
+      argv: ['bun', 'nectar', 'build'],
+      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      configPath,
+      isTty: true,
+      prompt: async () => {
+        promptCount += 1;
+        return 'y';
+      },
+      send: async () => {
+        throw new Error('send should not run');
+      },
+    });
 
-      expect(first).toBe('stored-never');
-      expect(second).toBe('skipped-never');
-      expect(promptCount).toBe(1);
-      expect(await readTelemetryConfig(configPath)).toEqual({ crashReports: 'never' });
-      expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({ crashReports: 'never' });
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(first).toBe('stored-never');
+    expect(second).toBe('skipped-never');
+    expect(promptCount).toBe(1);
+    expect(await readTelemetryConfig(configPath)).toEqual({
+      enabled: false,
+      crashReports: 'never',
+    });
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
+      enabled: false,
+      crashReports: 'never',
+    });
+  });
+});
+
+describe('telemetry config', () => {
+  test('defaults to disabled without creating an anonymous id', async () => {
+    const env = await makeEnv();
+    const config = await readTelemetryConfig(env);
+    expect(config).toEqual({ enabled: false });
+  });
+
+  test('enable creates a stable anonymous machine id and stores endpoint', async () => {
+    const env = await makeEnv();
+    const first = await enableTelemetry('https://example.test/usage', env);
+    const second = await enableTelemetry(undefined, env);
+
+    expect(first.enabled).toBe(true);
+    expect(first.endpoint).toBe('https://example.test/usage');
+    expect(first.anonymousMachineId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(second.anonymousMachineId).toBe(first.anonymousMachineId);
+    expect(telemetryConfigPath(env)).toBe(join(dir ?? '', 'telemetry.json'));
+  });
+
+  test('usage telemetry changes preserve crash report preference', async () => {
+    const env = await makeEnv();
+    await handleCrashReportPrompt(new Error('boom'), {
+      argv: ['bun', 'nectar', 'build'],
+      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      configPath: telemetryConfigPath(env),
+      isTty: true,
+      prompt: async () => 'never',
+      send: async () => {
+        throw new Error('send should not run');
+      },
+    });
+
+    const enabled = await enableTelemetry('https://example.test/usage', env);
+
+    expect(enabled).toMatchObject({
+      enabled: true,
+      endpoint: 'https://example.test/usage',
+      crashReports: 'never',
+    });
+  });
+});
+
+describe('telemetry payload and sending', () => {
+  test('payload contains only anonymous minimal command metadata', async () => {
+    const payload = await buildTelemetryPayload({
+      command: 'build',
+      durationMs: 12.4,
+      exitCode: 1,
+      anonymousMachineId: 'anon-id',
+    });
+
+    expect(payload).toMatchObject({
+      schema_version: 1,
+      event: 'cli_command',
+      anonymous_machine_id: 'anon-id',
+      command: 'build',
+      duration_ms: 12,
+      success: false,
+      exit_code: 1,
+    });
+    expect(payload.nectar_version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(typeof payload.bun_version === 'string' || payload.bun_version === null).toBe(true);
+    expect(payload.os.platform).toBeTruthy();
+    expect(payload.os.arch).toBeTruthy();
+    expect(payload).not.toHaveProperty('cwd');
+    expect(payload).not.toHaveProperty('args');
+    expect(payload).not.toHaveProperty('env');
+  });
+
+  test('does not call fetch when telemetry is disabled', async () => {
+    const env = await makeEnv();
+    let called = false;
+    const ok = await sendCommandTelemetry({
+      command: 'build',
+      durationMs: 1,
+      exitCode: 0,
+      env,
+      fetchFn: async () => {
+        called = true;
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    expect(ok).toBe(false);
+    expect(called).toBe(false);
+  });
+
+  test('posts to configured endpoint with injected fetch when enabled', async () => {
+    const env = await makeEnv();
+    await enableTelemetry('https://example.test/usage', env);
+    const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+
+    const ok = await sendCommandTelemetry({
+      command: 'check',
+      durationMs: 9,
+      exitCode: 0,
+      env,
+      fetchFn: async (url, init) => {
+        requests.push({ url: String(url), init });
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    expect(ok).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://example.test/usage');
+    expect(requests[0]?.init?.method).toBe('POST');
+    const body = JSON.parse(String(requests[0]?.init?.body)) as {
+      command: string;
+      success: boolean;
+    };
+    expect(body.command).toBe('check');
+    expect(body.success).toBe(true);
+  });
+
+  test('environment endpoint overrides stored endpoint', async () => {
+    const env = await makeEnv();
+    env.NECTAR_TELEMETRY_ENDPOINT = 'https://override.test/usage';
+    await enableTelemetry('https://stored.test/usage', env);
+    let observedUrl = '';
+
+    await sendCommandTelemetry({
+      command: 'build',
+      durationMs: 1,
+      exitCode: 0,
+      env,
+      fetchFn: async (url) => {
+        observedUrl = String(url);
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    expect(observedUrl).toBe('https://override.test/usage');
   });
 });

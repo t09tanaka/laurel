@@ -1340,6 +1340,33 @@ export const UPGRADE_SPEC: CommandSpec = {
   ],
 };
 
+export const TELEMETRY_SPEC: CommandSpec = {
+  name: 'telemetry',
+  summary: 'Manage opt-in anonymous usage telemetry',
+  options: {
+    endpoint: {
+      type: 'string',
+      description:
+        'Set the stored telemetry endpoint when enabling. NECTAR_TELEMETRY_ENDPOINT overrides it per run',
+      placeholder: '<url>',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`enable`, `disable`, or `status`',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar telemetry status',
+    'nectar telemetry enable',
+    'nectar telemetry enable --endpoint https://telemetry.example.test/v1/usage',
+    'NECTAR_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage nectar build',
+    'nectar telemetry disable',
+  ],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
@@ -1365,6 +1392,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   deploy: DEPLOY_SPEC,
   export: EXPORT_SPEC,
   upgrade: UPGRADE_SPEC,
+  telemetry: TELEMETRY_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };

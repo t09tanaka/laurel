@@ -1,0 +1,31 @@
+Manage opt-in anonymous usage telemetry
+
+Usage:
+  nectar telemetry [--endpoint <url>] <subcommand>
+
+Arguments:
+  subcommand          `enable`, `disable`, or `status`
+
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
+Options:
+  --endpoint <url>    Set the stored telemetry endpoint when enabling. NECTAR_TELEMETRY_ENDPOINT overrides it per run
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --endpoint → NECTAR_TELEMETRY_ENDPOINT
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar telemetry status
+  nectar telemetry enable
+  nectar telemetry enable --endpoint https://telemetry.example.test/v1/usage
+  NECTAR_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage nectar build
+  nectar telemetry disable

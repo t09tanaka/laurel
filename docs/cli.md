@@ -160,6 +160,7 @@ when prompts are enabled.
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
+| [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
@@ -982,6 +983,38 @@ Examples:
 nectar upgrade
 nectar upgrade --dry-run
 NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions
+```
+
+### `nectar telemetry`
+
+Manage opt-in anonymous usage telemetry
+
+Usage:
+
+```
+nectar telemetry [--endpoint <url>] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | `enable`, `disable`, or `status` |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--endpoint <url>` | string | `NECTAR_TELEMETRY_ENDPOINT` | Set the stored telemetry endpoint when enabling. NECTAR_TELEMETRY_ENDPOINT overrides it per run |
+
+Examples:
+
+```
+nectar telemetry status
+nectar telemetry enable
+nectar telemetry enable --endpoint https://telemetry.example.test/v1/usage
+NECTAR_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage nectar build
+nectar telemetry disable
 ```
 
 ### `nectar import-ghost`
