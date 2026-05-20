@@ -81,6 +81,20 @@ describe('loadContent', () => {
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
   });
 
+  test('copies config site.icon into SiteData', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({
+      site: {
+        title: 'X',
+        url: 'https://x.test',
+        icon: '/content/images/site-icon.svg',
+      },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.site.icon).toBe('/content/images/site-icon.svg');
+  });
+
   test('builds postsByTag and postsByAuthor inverse maps preserving sort order', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

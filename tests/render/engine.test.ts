@@ -587,6 +587,31 @@ describe('buildRootData', () => {
     expect(config.theme).toBeUndefined();
   });
 
+  test('@site.icon falls back to the configured site icon for theme templates (issue #1705)', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      site: {
+        icon: '/content/images/site-icon.svg',
+      },
+    } as unknown as NectarEngine['config'];
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const site = data.site as { icon?: string };
+    expect(site.icon).toBe('/content/images/site-icon.svg');
+
+    const hb = Handlebars.create();
+    const tpl = hb.compile('{{@site.icon}}');
+    expect(tpl({}, { data })).toBe('/content/images/site-icon.svg');
+  });
+
   // Regression coverage for issue #111: the Source theme renders the home grid
   // with `{{#get "posts" include="authors" limit=@config.posts_per_page}}`. The
   // `get` helper falls back to 15 when `limit` is undefined, which would mask

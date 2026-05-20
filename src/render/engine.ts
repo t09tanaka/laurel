@@ -279,7 +279,13 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   // `{{#foreach @site.navigation}}{{slug}}{{#if current}}…{{/if}}{{/foreach}}`
   // see `slug` (derived from `label`) and `current` (URL match vs. route.url,
   // trailing-slash normalised) without each theme having to recompute them.
-  const site = enrichSiteNavigation(engine.content.site, route);
+  const site = enrichSiteNavigation(
+    {
+      ...engine.content.site,
+      icon: engine.content.site.icon ?? engine.config.site?.icon,
+    },
+    route,
+  );
   return {
     site,
     blog: site,

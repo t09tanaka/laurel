@@ -58,6 +58,23 @@ url = "/"
     });
   });
 
+  test('parses site.icon from nectar.toml', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Icon Blog"
+url = "https://example.com"
+icon = "/content/images/site-icon.svg"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.site.icon).toBe('/content/images/site-icon.svg');
+    });
+  });
+
   test('throws NectarError with file:line:col on malformed TOML', async () => {
     await withTempDir(async (cwd) => {
       const file = join(cwd, 'nectar.toml');
