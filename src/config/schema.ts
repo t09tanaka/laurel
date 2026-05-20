@@ -107,6 +107,17 @@ const buildMetadataSchema = z
   })
   .strict();
 
+const referrerPolicySchema = z.enum([
+  'no-referrer',
+  'no-referrer-when-downgrade',
+  'origin',
+  'origin-when-cross-origin',
+  'same-origin',
+  'strict-origin',
+  'strict-origin-when-cross-origin',
+  'unsafe-url',
+]);
+
 export const configSchema = z
   .object({
     site: z
@@ -175,6 +186,11 @@ export const configSchema = z
           .default('#222222')
           .describe(
             'Brand accent color as a CSS hex color string (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Surfaced to themes as `@site.accent_color` and dropped into theme CSS without escaping, so the schema rejects anything that is not a literal hex triplet to prevent CSS injection.',
+          ),
+        referrer_policy: referrerPolicySchema
+          .default('strict-origin-when-cross-origin')
+          .describe(
+            'Referrer policy emitted by `{{ghost_head}}` as `<meta name="referrer">`. Defaults to `strict-origin-when-cross-origin` so cross-site requests keep only the origin while same-site navigation retains full referrers.',
           ),
         twitter: z
           .string()

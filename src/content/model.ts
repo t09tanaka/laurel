@@ -19,6 +19,7 @@ export interface SiteData {
   logo_height: number | undefined;
   icon: string | undefined;
   accent_color: string;
+  referrer_policy?: string | undefined;
   navigation: NavigationItem[];
   // Optional rather than `NavigationItem[]` so the loader can pass `undefined`
   // when the operator hasn't configured any secondary items. Themes like Wave

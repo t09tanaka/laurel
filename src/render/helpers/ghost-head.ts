@@ -28,6 +28,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
+      parts.push(`<meta name="referrer" content="${escapeAttr(resolveReferrerPolicy(site))}">`);
       parts.push(`<meta name="color-scheme" content="${resolveColorSchemeMeta(engine)}">`);
       if (isNonProductionBuild(engine.config)) {
         parts.push(`<meta name="robots" content="noindex">`);
@@ -354,6 +355,12 @@ function resolveColorSchemeMeta(engine: NectarEngine): 'light dark' | 'dark ligh
     typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
   if (isDarkBackground(background)) return 'dark light';
   return 'light dark';
+}
+
+function resolveReferrerPolicy(site: { referrer_policy?: unknown }): string {
+  return typeof site.referrer_policy === 'string' && site.referrer_policy
+    ? site.referrer_policy
+    : 'strict-origin-when-cross-origin';
 }
 
 function resolveExplicitColorScheme(

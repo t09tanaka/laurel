@@ -185,6 +185,22 @@ describe('ghost_head color-scheme meta', () => {
   });
 });
 
+describe('ghost_head referrer policy meta', () => {
+  test('emits strict-origin-when-cross-origin by default', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
+
+    expect(html).toContain('<meta name="referrer" content="strict-origin-when-cross-origin">');
+  });
+
+  test('uses the configured site referrer policy', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { referrer_policy: 'no-referrer' },
+    });
+
+    expect(html).toContain('<meta name="referrer" content="no-referrer">');
+  });
+});
+
 describe('ghost_head JSON-LD escaping', () => {
   test('emits twitter:card summary_large_image for routes', () => {
     const html = renderGhostHead({

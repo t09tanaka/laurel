@@ -90,6 +90,30 @@ icon = "/content/images/site-icon.svg"
     });
   });
 
+  test('defaults site.referrer_policy to strict-origin-when-cross-origin', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({ cwd });
+
+      expect(config.site.referrer_policy).toBe('strict-origin-when-cross-origin');
+    });
+  });
+
+  test('parses site.referrer_policy from nectar.toml', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Private Blog"
+referrer_policy = "no-referrer"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.site.referrer_policy).toBe('no-referrer');
+    });
+  });
+
   test('preserves theme custom select strings exactly', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
