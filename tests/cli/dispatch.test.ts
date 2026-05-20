@@ -127,9 +127,18 @@ describe('cli dispatch', () => {
     expect(stderr).toContain('Did you mean `nectar build`');
   });
 
-  test('unknown command without close match still prints usage', async () => {
-    const { stderr, exitCode } = await runCli(['xyzfoo']);
+  test('unknown command suggests top-level utility commands', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['versoin']);
     expect(exitCode).toBe(2);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('Unknown command: versoin');
+    expect(stderr).toContain('Did you mean `nectar version`');
+  });
+
+  test('unknown command without close match still prints usage', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['xyzfoo']);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe('');
     expect(stderr).toContain('Unknown command: xyzfoo');
     expect(stderr).not.toContain('Did you mean');
   });

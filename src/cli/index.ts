@@ -19,6 +19,7 @@ import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 import { buildVersionJson } from './version.ts';
 
 const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
+const SUGGESTABLE_COMMAND_NAMES = [...COMMAND_NAMES, 'version', 'help'];
 
 // Crash hooks: a stray `await` or floating promise that rejects in the build
 // pipeline used to print a stack trace and leave the shell with a misleading
@@ -101,7 +102,7 @@ function resolveCommand(command: string, rest: string[]): { canonical: string; r
 
 function printUnknownCommand(command: string, version: string): void {
   process.stderr.write(`Unknown command: ${command}\n`);
-  const suggestion = suggestCommand(command, COMMAND_NAMES);
+  const suggestion = suggestCommand(command, SUGGESTABLE_COMMAND_NAMES);
   if (suggestion) {
     process.stderr.write(`Did you mean \`nectar ${suggestion}\`?\n`);
   }
