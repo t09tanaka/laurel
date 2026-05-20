@@ -369,6 +369,27 @@ describe('emitContentApiStubs', () => {
     expect(cloudflare).toBe(netlify);
   });
 
+  test('optionally emits Apache .htaccess under content with the CORS headers', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir, emitHtaccess: true });
+
+    const body = readFileSync(join(outputDir, 'content', '.htaccess'), 'utf8');
+    expect(body).toContain('Header always set Access-Control-Allow-Origin "*"');
+    expect(body).toContain('Header always set Access-Control-Allow-Methods "GET, HEAD, OPTIONS"');
+    expect(body).toContain(
+      'Header always set Access-Control-Allow-Headers "Content-Type, Authorization"',
+    );
+    expect(body).toContain('Header set Cache-Control "public, max-age=300"');
+    expect(body).toContain('Header set Cache-Control "public, max-age=3600"');
+  });
+
+  test('does not emit content .htaccess unless requested', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    expect(existsSync(join(outputDir, 'content', '.htaccess'))).toBe(false);
+  });
+
   test('prepends CORS rule onto an existing _headers without clobbering', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
     const existing = '/*\n  X-Frame-Options: SAMEORIGIN\n';

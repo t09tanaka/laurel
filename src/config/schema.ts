@@ -1073,6 +1073,12 @@ export const configSchema = z
               .describe(
                 "Page size for the paginated posts shards (`content/posts/page/<n>.json` and `ghost/api/content/posts/page/<n>.json`). Matches Ghost's default Content API `limit=15`. Use `meta.pagination.next` / `meta.pagination.prev` (numbers, not URLs) to walk pages from the consumer.",
               ),
+            emit_htaccess: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit `dist/content/.htaccess` with the same Content API CORS and per-resource Cache-Control headers as the generated `_headers` / `_headers.cf` files. Use this only on Apache hosts with `AllowOverride FileInfo`; leave it off for hosts that may serve dotfiles or do not read `.htaccess`.',
+              ),
           })
           .strict()
           .default({})

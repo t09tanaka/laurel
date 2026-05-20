@@ -4,7 +4,7 @@ import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/
 import { ensureDir } from '~/util/fs.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
-import { buildContentApiHeadersBody } from './headers.ts';
+import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './headers.ts';
 
 // Static dump of Ghost Content API-shaped JSON under `dist/content/` so a
 // browser-only consumer can `fetch('/content/posts.json')` and treat the
@@ -47,6 +47,9 @@ export interface EmitContentApiStubsOptions {
   postsPerPage?: number;
   // base_path for absolute URL rewriting. Defaults to '/'.
   basePath?: string;
+  // When true, writes an Apache .htaccess into dist/content/ with the same
+  // CORS and Cache-Control headers as the generated _headers files.
+  emitHtaccess?: boolean;
 }
 
 export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Promise<void> {
@@ -78,6 +81,7 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writeContentApi404(outputDir),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
+    writeContentHtaccess(outputDir, opts.emitHtaccess ?? false),
   ]);
 }
 
@@ -229,6 +233,13 @@ async function writeSettingsDump(outputDir: string, site: SiteData): Promise<voi
 async function writeJson(dest: string, body: unknown): Promise<void> {
   await ensureDir(dirname(dest));
   await writeFile(dest, `${JSON.stringify(body)}\n`, 'utf8');
+}
+
+async function writeContentHtaccess(outputDir: string, enabled: boolean): Promise<void> {
+  if (!enabled) return;
+  const dest = join(outputDir, 'content', '.htaccess');
+  await ensureDir(dirname(dest));
+  await writeFile(dest, buildContentApiHtaccessBody(), 'utf8');
 }
 
 // Append CORS rule to an existing `_headers` (or `_headers.cf`) if the

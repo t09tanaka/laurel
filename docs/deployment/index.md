@@ -37,3 +37,10 @@ For every target:
 For the broader hosting and security checklist, see
 [`docs/HOSTING.md`](../HOSTING.md) and
 [`docs/security/hosting.md`](../security/hosting.md).
+
+If browser clients fetch Nectar's emitted Content API from another origin,
+self-hosted nginx, Apache, and Caddy deployments must also set the `/content/*`
+CORS headers that Netlify and Cloudflare Pages read from `_headers`. Use the
+copy-paste snippets in [`docs/deploy/cors-nginx.md`](../deploy/cors-nginx.md),
+[`docs/deploy/cors-apache.md`](../deploy/cors-apache.md), or
+[`docs/deploy/cors-caddy.md`](../deploy/cors-caddy.md).

@@ -1556,6 +1556,33 @@ describe('build pipeline content_api stubs (#210/#211/#212)', () => {
     expect(existsSync(join(summary.outputDir, '_headers'))).toBe(false);
     expect(existsSync(join(summary.outputDir, '_headers.cf'))).toBe(false);
   });
+
+  test('emits Apache content .htaccess when components.content_api.emit_htaccess is true', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.content_api]',
+        'emit_htaccess = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    const body = readFileSync(join(summary.outputDir, 'content', '.htaccess'), 'utf8');
+    expect(body).toContain('Header always set Access-Control-Allow-Origin "*"');
+    expect(body).toContain('Header set Cache-Control "public, max-age=300"');
+  });
 });
 
 describe('build pipeline pagefind integration (#553/#554/#555/#556)', () => {

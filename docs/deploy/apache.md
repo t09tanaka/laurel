@@ -70,6 +70,11 @@ behaves the same on every host:
 | `/content/images/*` | `public, max-age=31536000, immutable`      |
 | `/*` (HTML)         | `public, max-age=0, must-revalidate`       |
 
+For browser clients that fetch Nectar's emitted `/content/*` JSON from another
+origin, see [`cors-apache.md`](./cors-apache.md). You can either copy the
+virtual-host snippet there or set `[components.content_api].emit_htaccess =
+true` to write `dist/content/.htaccess` with the Content API CORS rules.
+
 ## Pretty URLs
 
 Nectar emits posts and pages as `slug/index.html`. The generated `.htaccess`

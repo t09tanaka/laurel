@@ -112,6 +112,10 @@ Customize those rules, plus security headers such as
 `X-Content-Type-Options`, `Referrer-Policy`, and
 `Content-Security-Policy`, under `[deploy.headers]` in `nectar.toml`.
 
+If a browser client will fetch Nectar's emitted `/content/*` JSON from another
+origin and you are not using the generated nginx server block, copy the
+Content API CORS snippet from [`cors-nginx.md`](./cors-nginx.md).
+
 Put custom redirects in `redirects.yaml` at the project root before building:
 
 ```yaml

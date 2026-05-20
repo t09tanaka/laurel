@@ -51,7 +51,7 @@ shard count; setting it lower spreads payload across more requests.
 ## Per-resource Cache-Control
 
 The emitted `_headers` file (Netlify) and `_headers.cf` (Cloudflare Pages)
-apply per-resource cache TTLs:
+apply CORS headers and per-resource cache TTLs:
 
 | Pattern              | `Cache-Control`              | Why                           |
 | -------------------- | ---------------------------- | ----------------------------- |
@@ -59,6 +59,22 @@ apply per-resource cache TTLs:
 | `/content/tags/*`    | `public, max-age=3600` (1h)  | Tags are stable in practice   |
 | `/content/authors/*` | `public, max-age=3600` (1h)  | Authors are stable in practice|
 | `/content/*`         | `public, max-age=300` (5min) | Safe default for the rest     |
+
+Every rule also sets:
+
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type, Authorization`
+
+Self-hosted deployments that do not consume `_headers` should copy the same
+rules from the nginx, Apache, or Caddy snippets:
+
+- [`docs/deploy/cors-nginx.md`](./deploy/cors-nginx.md)
+- [`docs/deploy/cors-apache.md`](./deploy/cors-apache.md)
+- [`docs/deploy/cors-caddy.md`](./deploy/cors-caddy.md)
+
+Apache operators may also enable `[components.content_api].emit_htaccess = true`
+to write `dist/content/.htaccess` with these Content API headers.
 
 These values are hardcoded. To override, write your own rules into
 `[deploy.headers].cache_rules` — the platform emitter appends those into the

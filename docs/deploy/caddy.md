@@ -94,6 +94,10 @@ Customize those rules, plus security headers such as
 `X-Content-Type-Options`, `Referrer-Policy`, and
 `Content-Security-Policy`, under `[deploy.headers]` in `nectar.toml`.
 
+If a browser client will fetch Nectar's emitted `/content/*` JSON from another
+origin and you are not using the generated Caddyfile, copy the Content API CORS
+snippet from [`cors-caddy.md`](./cors-caddy.md).
+
 Put custom redirects in `redirects.yaml` at the project root before building:
 
 ```yaml

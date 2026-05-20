@@ -380,7 +380,11 @@ pipeline may minify surrounding HTML, but it must preserve explicit `src` and
   live runtime populates this after failed POSTs. Nectar leaves `error` unset
   on normal static routes, so those snippets render empty.
 - The Ghost Content API (`{{#get}}` against remote endpoints) — we resolve
-  against the local content graph only.
+  against the local content graph only. Browser clients can fetch the emitted
+  `/content/*` JSON cross-origin when the host applies Nectar's generated
+  `_headers` or the self-hosted CORS snippets for
+  [`nginx`](./deploy/cors-nginx.md), [`Apache`](./deploy/cors-apache.md), or
+  [`Caddy`](./deploy/cors-caddy.md).
 - Mobiledoc / Lexical card-level customization — content comes pre-rendered
   as HTML by the Markdown pipeline; we don't emit card markup.
 - Ghost-only HTML transforms (responsive image srcsets via Ghost's image

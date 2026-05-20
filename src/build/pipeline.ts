@@ -1152,6 +1152,7 @@ async function runBuild({
         absoluteUrls: config.components.content_api.absolute_urls,
         postsPerPage: config.components.content_api.posts_per_page,
         basePath: config.build.base_path,
+        emitHtaccess: config.components.content_api.emit_htaccess,
       }),
     );
   }
@@ -1547,6 +1548,9 @@ function markPlannedContentApiStubOutputs(opts: {
   }
   opts.keepOutput('_headers');
   opts.keepOutput('_headers.cf');
+  if (opts.config.components.content_api.emit_htaccess) {
+    opts.keepOutput('content/.htaccess');
+  }
 }
 
 function markPlannedSearchOutputs(opts: {
