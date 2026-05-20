@@ -1149,6 +1149,86 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
     expect(parsed.mainEntity.itemListElement).toHaveLength(1);
   });
 
+  test('tag archive description falls back through tag metadata before site defaults', () => {
+    const html = renderGhostHead({}, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: {
+        tag: {
+          name: 'News',
+          meta_description: 'Tag SEO description',
+          description: 'Tag archive description',
+          url: '/tag/news/',
+        },
+      },
+    });
+
+    expect(html).toContain('<meta name="description" content="Tag SEO description">');
+    expect(html).toContain('<meta property="og:description" content="Tag SEO description">');
+    const parsed = JSON.parse(extractJsonLd(html)) as { description: string };
+    expect(parsed.description).toBe('Tag SEO description');
+
+    const withoutMeta = renderGhostHead({}, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: {
+        tag: {
+          name: 'News',
+          description: 'Tag archive description',
+          url: '/tag/news/',
+        },
+      },
+    });
+    expect(withoutMeta).toContain('<meta name="description" content="Tag archive description">');
+    expect(withoutMeta).not.toContain('<meta name="description" content="desc">');
+
+    const withoutTagDescription = renderGhostHead({}, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: { tag: { name: 'News', url: '/tag/news/' } },
+      site: { description: 'Site default description' },
+    });
+    expect(withoutTagDescription).toContain(
+      '<meta name="description" content="Site default description">',
+    );
+  });
+
+  test('author archive description falls back through author metadata before site defaults', () => {
+    const html = renderGhostHead({}, '/author/jane/', {
+      routeKind: 'author',
+      routeData: {
+        author: {
+          name: 'Jane',
+          meta_description: 'Author SEO description',
+          bio: 'Author biography',
+          url: '/author/jane/',
+        },
+      },
+    });
+
+    expect(html).toContain('<meta name="description" content="Author SEO description">');
+    expect(html).toContain('<meta property="og:description" content="Author SEO description">');
+    const parsed = JSON.parse(extractJsonLd(html)) as { description: string };
+    expect(parsed.description).toBe('Author SEO description');
+
+    const withoutMeta = renderGhostHead({}, '/author/jane/', {
+      routeKind: 'author',
+      routeData: {
+        author: {
+          name: 'Jane',
+          bio: 'Author biography',
+          url: '/author/jane/',
+        },
+      },
+    });
+    expect(withoutMeta).toContain('<meta name="description" content="Author biography">');
+    expect(withoutMeta).not.toContain('<meta name="description" content="desc">');
+
+    const withoutBio = renderGhostHead({}, '/author/jane/', {
+      routeKind: 'author',
+      routeData: { author: { name: 'Jane', url: '/author/jane/' } },
+      site: { description: 'Site default description' },
+    });
+    expect(withoutBio).toContain('<meta name="description" content="Site default description">');
+  });
+
   test('paginated home (index kind) emits CollectionPage', () => {
     const html = renderGhostHead({}, '/page/2/', {
       routeKind: 'index',

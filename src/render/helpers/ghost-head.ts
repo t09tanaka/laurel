@@ -291,7 +291,12 @@ interface ComputedMeta {
 function computeMeta(
   ctx: Record<string, unknown>,
   route:
-    | { url?: string; data?: Record<string, unknown>; meta?: { canonical?: string } }
+    | {
+        kind?: string;
+        url?: string;
+        data?: Record<string, unknown>;
+        meta?: { canonical?: string };
+      }
     | undefined,
   site: {
     title: string;
@@ -312,11 +317,6 @@ function computeMeta(
     (ctx.meta_title as string | undefined) ||
     (ctx.og_title as string | undefined) ||
     (ctx.title as string | undefined);
-  const descFromCtx =
-    (ctx.meta_description as string | undefined) ||
-    (ctx.custom_excerpt as string | undefined) ||
-    (ctx.og_description as string | undefined) ||
-    publicSafeGeneratedExcerpt(ctx);
   const ogImage = ctx.og_image as string | undefined;
   const twitterImage = ctx.twitter_image as string | undefined;
   const featureImage = ctx.feature_image as string | undefined;
@@ -351,12 +351,7 @@ function computeMeta(
   // title without touching every Markdown file.
   const title =
     titleFromCtx || site.og_title || site.twitter_title || site.meta_title || site.title;
-  const description =
-    descFromCtx ||
-    site.og_description ||
-    site.twitter_description ||
-    site.meta_description ||
-    site.description;
+  const description = resolveMetaDescription(ctx, route, site);
 
   return {
     title,
@@ -369,6 +364,68 @@ function computeMeta(
     imageAlt,
     ogType,
   };
+}
+
+function resolveMetaDescription(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+  site: {
+    description: string;
+    meta_description?: string;
+    og_description?: string;
+    twitter_description?: string;
+  },
+): string {
+  if (route?.kind === 'tag') {
+    const tag = pickResource(ctx.tag, route.data?.tag);
+    return (
+      pickString(tag?.meta_description) ||
+      pickString(tag?.description) ||
+      siteDescriptionFallback(site)
+    );
+  }
+  if (route?.kind === 'author') {
+    const author = pickResource(ctx.author, route.data?.author);
+    return (
+      pickString(author?.meta_description) ||
+      pickString(author?.bio) ||
+      siteDescriptionFallback(site)
+    );
+  }
+  return (
+    pickString(ctx.meta_description) ||
+    pickString(ctx.custom_excerpt) ||
+    pickString(ctx.og_description) ||
+    publicSafeGeneratedExcerpt(ctx) ||
+    siteDescriptionFallback(site)
+  );
+}
+
+function siteDescriptionFallback(site: {
+  description: string;
+  meta_description?: string;
+  og_description?: string;
+  twitter_description?: string;
+}): string {
+  return (
+    site.og_description || site.twitter_description || site.meta_description || site.description
+  );
+}
+
+function pickResource(...candidates: unknown[]): Record<string, unknown> | undefined {
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function pickString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 function resolveColorSchemeMeta(engine: NectarEngine): 'light dark' | 'dark light' {
