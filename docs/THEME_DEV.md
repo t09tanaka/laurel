@@ -145,6 +145,11 @@ top-level variables (`{{lazyLoad}}`, `{{class}}`).
 Unquoted (`{{> name}}`) works for names without slashes; quoted form is required
 for any partial name containing `/` or `-`.
 
+**Path scope:** Partial names are always rooted at the active theme's
+`partials/` directory. Parent-directory segments such as `../` are not
+supported, so a file at `partials/components/header.hbs` must be included as
+`{{> "components/header"}}`, not `{{> "../components/header"}}`.
+
 ## 4. Asset pipeline
 
 Static files under `themes/<name>/assets/` are discovered, optionally

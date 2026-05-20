@@ -1108,6 +1108,26 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<article class="kg-width-wide kg-tone-dark">Hash</article>');
   });
 
+  test('parent-directory partial includes fail with a policy error', () => {
+    const theme = makeTheme({
+      home: '{{> "../components/header"}}',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(() => engine.render(route)).toThrow(
+      "Unsupported partial include '../components/header'",
+    );
+    expect(() => engine.render(route)).toThrow('cannot use ../ parent segments');
+  });
+
   test('custom layout that includes {{> post}} renders only one layout wrapper, not two', () => {
     const theme = makeTheme({
       default: '<!doctype html><html><body data-layout="default">{{{body}}}</body></html>',

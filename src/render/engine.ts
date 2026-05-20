@@ -169,7 +169,7 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   // object; reset per route so blocks never leak across pages.
   (data as { __blocks?: Record<string, string> }).__blocks = {};
   if (!layout) {
-    return innerCompiled(context, { data });
+    return renderCompiled(innerCompiled, context, data);
   }
   const layoutCompiled = engine.layouts[layout];
   if (!layoutCompiled) {
@@ -178,8 +178,46 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
       code: 'theme',
     });
   }
-  const innerHtml = innerCompiled(context, { data });
-  return layoutCompiled({ ...context, body: new engine.hb.SafeString(innerHtml) }, { data });
+  const innerHtml = renderCompiled(innerCompiled, context, data);
+  return renderCompiled(
+    layoutCompiled,
+    { ...context, body: new engine.hb.SafeString(innerHtml) },
+    data,
+  );
+}
+
+function renderCompiled(
+  template: Handlebars.TemplateDelegate,
+  context: unknown,
+  data: ReturnType<typeof buildRootData>,
+): string {
+  try {
+    return template(context, { data });
+  } catch (err) {
+    const partialName = unsupportedParentPartialName(err);
+    if (partialName !== undefined) {
+      throw new NectarError({
+        message: `Unsupported partial include '${partialName}': partial names are rooted at partials/ and cannot use ../ parent segments`,
+        hint: 'Partial includes are rooted at the active theme partials/ directory and cannot use ../ parent segments. Move shared files under partials/ and include them by name, for example {{> "components/header"}}.',
+        docsUrl: 'docs/THEME_DEV.md#3-partials',
+        code: 'theme',
+        cause: err,
+      });
+    }
+    throw err;
+  }
+}
+
+function unsupportedParentPartialName(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const match = /^The partial (.+) could not be found$/.exec(err.message);
+  const name = match?.[1];
+  if (name === undefined) return undefined;
+  return hasParentPathSegment(name) ? name : undefined;
+}
+
+function hasParentPathSegment(name: string): boolean {
+  return name.split(/[\\/]+/).includes('..');
 }
 
 export function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
