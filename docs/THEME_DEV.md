@@ -8,8 +8,10 @@ differs from upstream Ghost.
 If you're looking for the high-level architecture or the goals of the project,
 read [`DESIGN.md`](./DESIGN.md) first. If you're looking for the per-helper
 status matrix and edge cases as we discover them, see
-[`GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md). This document is the
-practical handbook.
+[`GHOST_COMPATIBILITY.md`](./GHOST_COMPATIBILITY.md). If you want the
+machine-checked helper inventory + content-shape index in one place,
+see [`theme-reference.md`](./theme-reference.md). This document is the
+practical handbook with worked examples and prose explanations.
 
 The reference theme is `example/themes/source/` (a vendored copy of the official
 Ghost Source theme). Whenever you wonder "should I be able to do X in a Nectar
@@ -893,3 +895,103 @@ my theme render at all" in CI.
 When in doubt about a helper's edge case, the test under
 `tests/render/<helper>.test.ts` is authoritative — those are written against
 observed Ghost behaviour.
+
+## 14. Authoring a new helper
+
+Most theme work is done in `.hbs` templates with the existing helper set. When
+you need a helper that Ghost ships but Nectar doesn't yet, the surface is
+small enough to add one in-tree:
+
+1. Pick the right file in `src/render/helpers/`. Group by concern: string
+   helpers in `strings.ts`, URL helpers in `urls.ts`, content helpers in
+   `content.ts`, and so on. If your helper doesn't fit any of them, create a
+   new `src/render/helpers/<name>.ts` exporting a `registerXyzHelpers(engine)`
+   function and call it from `src/render/helpers/index.ts`.
+2. Register on the engine through the wrapper, not the bare Handlebars
+   instance:
+   ```ts
+   export function registerFoo(engine: NectarEngine): void {
+     engine.registerHelper('foo', function fooHelper(value: unknown) {
+       // Implementation. Use SafeString when emitting HTML; return a plain
+       // string otherwise so Handlebars escapes it.
+     });
+   }
+   ```
+   The wrapper threads the active `RouteContext`, `SiteData`, and i18n
+   `locale` through `options.data.root` so the helper can read them via
+   `engine.getRoot(options)` without touching globals.
+3. Mirror Ghost's contract. If you're replicating a helper Ghost ships, read
+   the Ghost source for the exact hash-arg names and falsy-value semantics.
+   `foreach`, `is`, `get`, `has`, `match` already do this — match the same
+   shape for any new block helper.
+4. Surface errors loudly. A helper that silently swallows a missing arg or a
+   bad type masks template bugs. Throw `NectarError` with `code: 'render'`
+   and a `hint:` describing the fix. The build pipeline turns it into a
+   pointed message at the failing route URL.
+5. Test against observed behaviour. Add `tests/render/helpers/<name>.test.ts`
+   with at least: (a) happy path, (b) missing/falsy input, (c) edge cases
+   discovered in real themes. Use the `makeEngine()` helper from
+   `tests/render/helpers/_setup.ts` to spin up a minimal engine without
+   loading the full Source theme.
+6. Document it. Add a `#### {{...}}` subsection under §5 of this guide and
+   note any Nectar-side divergences (e.g. helpers that hit Ghost APIs and
+   return a stub here).
+
+When porting a helper from Ghost's source, look at
+[`/render/helpers/*.ts`](../src/render/helpers/) for the closest match — the
+existing helpers have all the boilerplate needed to read context, parse hash
+args, and emit `SafeString`.
+
+## 15. Golden snapshot tests
+
+`tests/render/golden.test.ts` re-renders the example site against the
+vendored Source theme and diffs each captured route against a committed
+snapshot under `tests/fixtures/golden/`. The snapshots cover representative
+routes (index, posts, tag/author archives, pages, 404, sitemap, RSS,
+robots.txt) so any helper or template change that affects emitted HTML
+shows up in `bun test` even when no per-helper unit test would have caught it.
+
+### Running
+
+```bash
+# Normal mode: build the example and diff each route. Fails on any drift.
+bun test tests/render/golden.test.ts
+
+# Accept the new output as the snapshot. Use this only after deliberately
+# changing template structure, helper output, or sitemap/RSS contents.
+UPDATE_GOLDEN=1 bun test tests/render/golden.test.ts
+
+# Review the diff before committing.
+git diff tests/fixtures/golden/
+```
+
+### What the snapshot ignores
+
+`normalize()` strips two moving parts so unrelated edits don't churn the
+golden output:
+
+- Fingerprinted asset hashes (`/assets/built/screen.<hash>.css` → `.<HASH>.css`).
+  Regenerated on every theme rebuild, but the URL shape itself is preserved.
+- Year stamps in the default 404 footer (`© 2026` → `© <YEAR>`). Advances
+  yearly without any code change.
+
+Anything else — every attribute, every helper output, every route URL — is
+locked. A failing snapshot is a real diff. Read it before accepting.
+
+### When to add a new route to the snapshot set
+
+The current set covers the canonical surface (one post per content kind, one
+tag, one author, one page, error page, all feed/sitemap variants). Add a new
+entry to `GOLDEN_FILES` when you ship a feature that emits a new route
+shape — e.g. a per-tag RSS, a `routes.yaml` custom route, or a paginated
+listing whose layout differs from the home. Don't bloat the set with every
+post in `example/`; the snapshot's job is shape coverage, not corpus
+coverage. Unit tests cover the per-post variations.
+
+### When the diff is intentional
+
+If you intentionally change template structure (e.g. a new helper output, a
+sitemap field rename, a sitemap exclusion rule like #781), regenerate the
+snapshots and review the diff in code review. Reviewers should be able to
+look at the diff and immediately see whether the new output matches the
+spec. If the diff is opaque, the snapshot is too low-level — narrow it.
