@@ -1061,3 +1061,84 @@ For members.
     }
   });
 });
+
+// #781 — pagination tails and the 404 page should never appear in sitemap
+// surfaces. Build a small site with enough posts to trigger /page/2/ plus an
+// error template, and assert the sub-sitemaps stay clean.
+describe('build pipeline — sitemap excludes non-indexable routes (#781)', () => {
+  async function makeSiteWithPagination(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-781-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/pages'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Pagination Test"',
+        'url = "https://pg.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[build]',
+        'posts_per_page = 2',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    // Five posts × 2 per page → /, /page/2/, /page/3/.
+    for (let i = 0; i < 5; i++) {
+      await writeFile(
+        join(dir, `content/posts/post-${i}.md`),
+        `---\ntitle: "Post ${i}"\ndate: 2026-01-0${i + 1}T00:00:00Z\ntags: [news]\n---\n\nBody ${i}\n`,
+        'utf8',
+      );
+    }
+
+    await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    return dir;
+  }
+
+  test('sitemap-posts.xml omits /page/N/ pagination tails', async () => {
+    const cwd = await makeSiteWithPagination();
+    const summary = await build({ cwd });
+
+    // Pagination archive files exist on disk so deep links work.
+    expect(existsSync(join(summary.outputDir, 'page/2/index.html'))).toBe(true);
+
+    // But the sitemap never references them.
+    const sub = readFileSync(join(summary.outputDir, 'sitemap-pages.xml'), 'utf8');
+    expect(sub).not.toContain('/page/2/');
+    expect(sub).not.toContain('/page/3/');
+  });
+
+  test('sitemap-tags.xml omits /tag/<slug>/page/N/ pagination tails', async () => {
+    const cwd = await makeSiteWithPagination();
+    const summary = await build({ cwd });
+
+    // Some tag taxonomy page exists for /tag/news/ (sitemap-tags.xml or sitemap-pages.xml).
+    const tagsXml = readFileSync(join(summary.outputDir, 'sitemap-tags.xml'), 'utf8');
+    // /tag/news/page/N/ duplicates the /tag/news/ landing; never indexed.
+    expect(tagsXml).not.toMatch(/\/tag\/[^/]+\/page\/\d+\//);
+  });
+
+  test('sitemap never lists /404.html even when the theme ships error-404.hbs', async () => {
+    const cwd = await makeSiteWithPagination();
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, '404.html'))).toBe(true);
+
+    // 404 must not be in any sub-sitemap.
+    for (const file of ['sitemap-posts.xml', 'sitemap-pages.xml', 'sitemap-tags.xml']) {
+      const xml = readFileSync(join(summary.outputDir, file), 'utf8');
+      expect(xml).not.toContain('404.html');
+    }
+  });
+});

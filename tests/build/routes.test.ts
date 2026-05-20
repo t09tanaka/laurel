@@ -935,3 +935,90 @@ describe('planRoutes — routes.yaml collections', () => {
     expect(route?.template).toBe('post');
   });
 });
+
+// #781 — `indexable` marks routes that should be excluded from public
+// discovery surfaces (sitemap, RSS, link checkers) even though they exist on
+// disk. Pagination tails and 404 are the current users.
+describe('planRoutes — indexable flag (#781)', () => {
+  test('home (/ first slice) is indexable', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const home = routes.find((r) => r.kind === 'home');
+    expect(home?.indexable).toBe(true);
+  });
+
+  test('paginated /page/N/ tails are marked indexable=false', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const posts = Array.from({ length: 5 }, (_, i) => makePost(`p${i}`));
+    const content = makeGraph({ posts });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tails = routes.filter((r) => r.kind === 'index');
+    expect(tails.length).toBeGreaterThan(0);
+    for (const tail of tails) {
+      expect(tail.indexable).toBe(false);
+      expect(tail.url.startsWith('/page/')).toBe(true);
+    }
+  });
+
+  test('tag archive first slice is indexable, /page/N/ tails are not', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const tag = makeTag('news');
+    const posts = Array.from({ length: 5 }, (_, i) =>
+      makePost(`p${i}`, { tags: [tag], primary_tag: tag }),
+    );
+    const content = makeGraph({ posts, tags: [tag] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tagRoutes = routes.filter((r) => r.kind === 'tag');
+    const head = tagRoutes.find((r) => r.url === '/tag/news/');
+    const tail = tagRoutes.find((r) => r.url.startsWith('/tag/news/page/'));
+    expect(head?.indexable).toBe(true);
+    expect(tail?.indexable).toBe(false);
+  });
+
+  test('author archive first slice is indexable, /page/N/ tails are not', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const author = makeAuthor('alice');
+    const posts = Array.from({ length: 5 }, (_, i) =>
+      makePost(`p${i}`, { authors: [author], primary_author: author }),
+    );
+    const content = makeGraph({ posts, authors: [author] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const authorRoutes = routes.filter((r) => r.kind === 'author');
+    const head = authorRoutes.find((r) => r.url === '/author/alice/');
+    const tail = authorRoutes.find((r) => r.url.startsWith('/author/alice/page/'));
+    expect(head?.indexable).toBe(true);
+    expect(tail?.indexable).toBe(false);
+  });
+
+  test('/404.html error route is indexable=false', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('a')] });
+    const theme = makeTheme();
+    theme.templates['error-404'] = '{{!error-404}}';
+    const routes = planRoutes({ config, content, theme });
+    const errorRoute = routes.find((r) => r.kind === 'error');
+    expect(errorRoute?.indexable).toBe(false);
+  });
+
+  test('post and page routes default to indexable (undefined treated as true)', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('hello')], pages: [makePage('about')] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const post = routes.find((r) => r.kind === 'post');
+    const page = routes.find((r) => r.kind === 'page');
+    // The flag is left absent on regular content (the sitemap filter treats
+    // `r.indexable !== false` as indexable, so omitting it is equivalent to
+    // marking it true — and keeps the route shape minimal). See #781.
+    expect(post?.indexable).toBeUndefined();
+    expect(page?.indexable).toBeUndefined();
+  });
+});

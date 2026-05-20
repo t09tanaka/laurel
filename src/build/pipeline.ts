@@ -683,8 +683,12 @@ async function runBuild({
         config,
         content,
         outputDir,
+        // `indexable: false` excludes pagination tails (`/page/N/`,
+        // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
+        // sitemap discovery surfaces; routes without the flag default to
+        // indexable. See #781.
         urls: routes
-          .filter((r) => r.kind !== 'error')
+          .filter((r) => r.indexable !== false)
           .map((r) => ({ url: r.url, lastmod: r.lastmod, kind: routeKindToSitemapKind(r.kind) })),
       }),
     );

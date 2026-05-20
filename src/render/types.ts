@@ -30,6 +30,13 @@ export interface RouteContext {
   outputPath: string;
   template: string;
   lastmod?: string;
+  // Whether this route should appear in public discovery surfaces (sitemap,
+  // feed indices, link checkers). Defaults to true when omitted. Routes set
+  // this to false when they are reachable but not canonical entry points —
+  // currently `/page/N/` pagination archives (which duplicate `/` with offset
+  // posts) and `/404.html` (which should not be crawled as a real page). See
+  // #781. The build pipeline reads this when populating sitemap URLs.
+  indexable?: boolean;
   data: {
     posts?: Post[];
     pagination?: PaginationInfo;

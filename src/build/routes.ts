@@ -46,6 +46,11 @@ export function planRoutes(opts: {
         outputPath,
         template: idx === 0 ? homeTemplate : 'index',
         lastmod: latestPostTimestamp(slice),
+        // `/page/N/` is a paginated view of the same posts already reachable
+        // from `/`; listing it in the sitemap duplicates the index without
+        // giving crawlers a canonical landing target. Only the first slice
+        // (the home itself) is indexable. See #781.
+        indexable: idx === 0,
         data: {
           posts: slice,
           pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/', basePath),
@@ -120,6 +125,10 @@ export function planRoutes(opts: {
           outputPath,
           template: 'tag',
           lastmod: latestPostTimestamp(slice),
+          // Tag archive pagination tails (`/tag/<slug>/page/N/`) are
+          // duplicates of the canonical tag landing with offset posts; keep
+          // only the first slice in sitemap to avoid crawl-budget churn. See #781.
+          indexable: idx === 0,
           data: {
             tag,
             posts: slice,
@@ -189,6 +198,10 @@ export function planRoutes(opts: {
       url,
       outputPath: '404.html',
       template: errorTemplate,
+      // The 404 page is reachable as a static asset for hosts that serve it
+      // as the not-found target, but it should never appear in discovery
+      // surfaces (sitemap, RSS, link checkers). See #781.
+      indexable: false,
       data: { error: { statusCode: 404, message: 'Page not found' } },
       meta: defaultMeta(config, url, `Page not found — ${config.site.title}`),
     });
@@ -209,6 +222,10 @@ export function planRoutes(opts: {
           outputPath,
           template: 'author',
           lastmod: latestPostTimestamp(slice),
+          // Author archive pagination tails (`/author/<slug>/page/N/`) are
+          // duplicates of the canonical author landing with offset posts;
+          // keep only the first slice in sitemap. See #781.
+          indexable: idx === 0,
           data: {
             author,
             posts: slice,
