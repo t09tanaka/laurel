@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -28,6 +28,144 @@ const DEPLOY_TARGETS: readonly DeployTarget[] = [
   'rsync',
 ];
 
+// Maximum file count Cloudflare Pages will accept on a single deployment.
+// Surfacing this as a build-time warning lets operators redirect oversized
+// trees to R2 / image proxies (see docs/deploy/cloudflare-pages-r2-images.md)
+// before the deploy itself fails with an opaque platform error.
+const CLOUDFLARE_PAGES_FILE_LIMIT = 25_000;
+
+/**
+ * Detect the deploy target from common CI / hosting env vars. Returns
+ * undefined when no signal is found so the caller can surface a usage hint
+ * rather than guessing. The detection order matches "most specific wins":
+ *
+ * - `NETLIFY=true` (set in every Netlify build) -> netlify
+ * - `VERCEL=1` -> vercel
+ * - `CF_PAGES=1` (Cloudflare Pages build env) -> cloudflare
+ * - `GITHUB_ACTIONS=true` + any `GITHUB_PAGES_*` signal -> github-pages
+ *
+ * Plain `GITHUB_ACTIONS=true` is intentionally not enough: GitHub Actions
+ * runs anywhere, only Pages-targeted workflows ship to gh-pages.
+ */
+export function detectDeployTargetFromEnv(
+  env: Record<string, string | undefined>,
+): DeployTarget | undefined {
+  if (truthyEnv(env.NETLIFY)) return 'netlify';
+  if (truthyEnv(env.VERCEL)) return 'vercel';
+  if (truthyEnv(env.CF_PAGES)) return 'cloudflare';
+  if (truthyEnv(env.GITHUB_ACTIONS)) {
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('GITHUB_PAGES_') && env[key] !== undefined && env[key] !== '') {
+        return 'github-pages';
+      }
+    }
+  }
+  return undefined;
+}
+
+function truthyEnv(v: string | undefined): boolean {
+  if (v === undefined) return false;
+  const lower = v.toLowerCase();
+  return lower === '1' || lower === 'true' || lower === 'yes';
+}
+
+/**
+ * Walk the argv looking for the first positional argument. When it is
+ * missing or the literal `auto`, attempt to detect the deploy target from
+ * env and rewrite the args list to inject the detected target so the rest
+ * of the CLI plumbing sees a normal `deploy <target> [...]` invocation.
+ *
+ * Returns the rewritten args, or an exit code when detection fails so the
+ * caller can `return` it directly.
+ */
+function resolveAutoTargetInArgs(
+  args: string[],
+  env: Record<string, string | undefined>,
+): string[] | number {
+  // Help / version short-circuit: leave the original args alone so the
+  // standard parser path handles `--help` / `-h` formatting.
+  if (args.includes('--help') || args.includes('-h')) return args;
+
+  let positionalIdx = -1;
+  let positionalValue: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === undefined) continue;
+    if (tok === '--') break;
+    if (tok.startsWith('-')) {
+      // Skip an attached value when the flag uses `--key value` form rather
+      // than `--key=value`. Only string-typed flags carry a separate value;
+      // boolean flags do not. We approximate by skipping the next token only
+      // when it does not itself look like a flag, which matches every value
+      // shape the deploy spec accepts (`--project-name foo`, `--config x`).
+      if (!tok.includes('=') && i + 1 < args.length) {
+        const next = args[i + 1];
+        if (next !== undefined && !next.startsWith('-')) i += 1;
+      }
+      continue;
+    }
+    positionalIdx = i;
+    positionalValue = tok;
+    break;
+  }
+
+  const needsAuto = positionalValue === undefined || positionalValue === 'auto';
+  if (!needsAuto) return args;
+
+  const detected = detectDeployTargetFromEnv(env);
+  if (detected === undefined) {
+    process.stderr.write(
+      positionalValue === 'auto'
+        ? 'Could not auto-detect deploy target from environment.\n'
+        : 'Missing required argument: <target>\n',
+    );
+    process.stderr.write(
+      'Hint: set NETLIFY=1, VERCEL=1, CF_PAGES=1, or GITHUB_ACTIONS=true + GITHUB_PAGES_*, or pass an explicit target.\n\n',
+    );
+    process.stderr.write(formatCommandHelp(DEPLOY_SPEC));
+    return EXIT_CODES.usage;
+  }
+  logger.info(`Auto-detected deploy target: ${detected}`);
+  if (positionalValue === undefined) {
+    return [...args, detected];
+  }
+  // Replace the 'auto' positional in place so flag order is preserved.
+  const next = args.slice();
+  next[positionalIdx] = detected;
+  return next;
+}
+
+function countFilesRecursive(dir: string, max: number): number {
+  let count = 0;
+  const stack: string[] = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    if (cur === undefined) break;
+    let entries: string[];
+    try {
+      entries = readdirSync(cur);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      const full = join(cur, name);
+      let st: ReturnType<typeof statSync>;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        stack.push(full);
+      } else {
+        count += 1;
+        if (count > max) return count;
+      }
+    }
+  }
+  return count;
+}
+
 export interface DeployPlan {
   target: DeployTarget;
   // The external command + argv that would be spawned. For multi-step targets
@@ -52,9 +190,18 @@ export interface RunDeployOptions {
 }
 
 export async function runDeploy(args: string[], options: RunDeployOptions = {}): Promise<number> {
+  const env = options.env ?? process.env;
+  // The DEPLOY_SPEC marks `<target>` as required, so parseCommand would reject
+  // a bare `nectar deploy` (or `nectar deploy auto`) before we get a chance to
+  // run env-driven detection. Peek at the first non-flag positional and, when
+  // it is missing or the literal 'auto', swap in the detected target before
+  // delegating to parseCommand. Flags can still appear before the positional.
+  const effectiveArgs = resolveAutoTargetInArgs(args, env);
+  if (typeof effectiveArgs === 'number') return effectiveArgs;
+
   let parsed: ParsedCommand;
   try {
-    parsed = parseCommand(DEPLOY_SPEC, args, options.env ?? process.env);
+    parsed = parseCommand(DEPLOY_SPEC, effectiveArgs, env);
   } catch (err) {
     if (err instanceof CliUsageError) {
       process.stderr.write(`${err.message}\n\n`);
@@ -68,6 +215,8 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
     return EXIT_CODES.ok;
   }
 
+  const cwd = options.cwd ?? process.cwd();
+
   const targetRaw = parsed.positionals[0];
   if (targetRaw === undefined) {
     process.stderr.write('Missing required argument: <target>\n\n');
@@ -76,15 +225,12 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   }
   if (!isDeployTarget(targetRaw)) {
     process.stderr.write(
-      `Unknown deploy target: ${targetRaw} (expected one of: ${DEPLOY_TARGETS.join(', ')})\n\n`,
+      `Unknown deploy target: ${targetRaw} (expected one of: auto, ${DEPLOY_TARGETS.join(', ')})\n\n`,
     );
     process.stderr.write(formatCommandHelp(DEPLOY_SPEC));
     return EXIT_CODES.usage;
   }
   const target: DeployTarget = targetRaw;
-
-  const cwd = options.cwd ?? process.cwd();
-  const env = options.env ?? process.env;
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const dryRun = parsed.values['dry-run'] === true;
   const runBuildFirst = parsed.values.build === true;
@@ -127,6 +273,20 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
       `No build manifest at ${manifestPath}. Run \`nectar build\` (or pass --build) before deploying.\n`,
     );
     return EXIT_CODES.generic;
+  }
+
+  // Cloudflare Pages caps deployments at 25,000 files. Surfaced as a warning
+  // here (rather than a hard error) so the operator can still attempt the
+  // deploy — wrangler will reject it with a clearer remediation than a CLI
+  // refusal — but with a heads-up that points at the R2-as-image-origin
+  // recipe in docs/deploy/cloudflare-pages-r2-images.md.
+  if (target === 'cloudflare') {
+    const fileCount = countFilesRecursive(outputDir, CLOUDFLARE_PAGES_FILE_LIMIT);
+    if (fileCount > CLOUDFLARE_PAGES_FILE_LIMIT) {
+      logger.warn(
+        `Cloudflare Pages allows at most ${CLOUDFLARE_PAGES_FILE_LIMIT} files per deployment; ${outputDir} contains more than that. Move generated image variants to R2 or another origin (see docs/deploy/cloudflare-pages-r2-images.md) before deploying.`,
+      );
+    }
   }
 
   let plan: DeployPlan;

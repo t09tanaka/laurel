@@ -76,7 +76,15 @@ describe('cli deploy', () => {
   });
 
   test('missing target prints usage error', async () => {
-    const { stderr, exitCode } = await runCli(['deploy']);
+    const { stderr, exitCode } = await runCli(['deploy'], undefined, {
+      // Explicitly clear auto-detect env vars so the test is hermetic across
+      // CI providers (Actions sets GITHUB_ACTIONS=true; Netlify, Vercel,
+      // Cloudflare each set their own).
+      NETLIFY: '',
+      VERCEL: '',
+      CF_PAGES: '',
+      GITHUB_ACTIONS: '',
+    });
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Missing required argument');
   });
@@ -283,6 +291,59 @@ describe('cli deploy', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('--project-name=from-config');
       expect(stdout).toContain('--branch=preview');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('auto-detects netlify from NETLIFY env when target is "auto"', async () => {
+    const dir = await makeFixtureWithDist();
+    try {
+      const { stdout, exitCode } = await runCli(['deploy', 'auto', '--dry-run'], dir, {
+        NETLIFY: 'true',
+        VERCEL: '',
+        CF_PAGES: '',
+        GITHUB_ACTIONS: '',
+      });
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('netlify deploy');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('auto-detects cloudflare from CF_PAGES env with [deploy.cloudflare] configured', async () => {
+    const dir = await makeFixtureWithDist(['[deploy.cloudflare]', 'project_name = "auto-cf"', '']);
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['deploy', '--dry-run'], dir, {
+        NETLIFY: '',
+        VERCEL: '',
+        CF_PAGES: '1',
+        GITHUB_ACTIONS: '',
+      });
+      if (exitCode !== 0) {
+        throw new Error(`auto-detect cloudflare failed (${exitCode}): ${stderr}\n${stdout}`);
+      }
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('wrangler pages deploy');
+      expect(stdout).toContain('--project-name=auto-cf');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('auto target with no signal exits with a usage hint', async () => {
+    const dir = await makeFixtureWithDist();
+    try {
+      const { stderr, exitCode } = await runCli(['deploy', 'auto', '--dry-run'], dir, {
+        NETLIFY: '',
+        VERCEL: '',
+        CF_PAGES: '',
+        GITHUB_ACTIONS: '',
+      });
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('auto-detect');
+      expect(stderr).toContain('NETLIFY');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
