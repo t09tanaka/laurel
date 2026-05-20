@@ -241,6 +241,52 @@ Body changed, but slug and published_at stayed fixed.
     expect(first.sources?.authors.has(author?.id ?? '')).toBe(true);
   });
 
+  test('derives stable RFC4122 UUIDs separately from ObjectId ids', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { base_path: '/blog/' },
+    });
+
+    const first = await loadContent({ cwd, config });
+    const second = await loadContent({ cwd, config });
+    const post = first.bySlug.posts.get('hello');
+    const page = first.bySlug.pages.get('about');
+    const rfc4122V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+    expect(post?.uuid).toMatch(rfc4122V5);
+    expect(page?.uuid).toMatch(rfc4122V5);
+    expect(post?.uuid).not.toBe(post?.id);
+    expect(page?.uuid).not.toBe(page?.id);
+    expect(post?.uuid).toBe(second.bySlug.posts.get('hello')?.uuid);
+    expect(page?.uuid).toBe(second.bySlug.pages.get('about')?.uuid);
+
+    const retitledConfig = configSchema.parse({
+      site: { title: 'Retitled site', url: 'https://x.test' },
+      build: { base_path: '/blog/' },
+    });
+    const retitled = await loadContent({ cwd, config: retitledConfig });
+    expect(retitled.bySlug.posts.get('hello')?.uuid).toBe(post?.uuid);
+
+    const renamedSite = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://renamed.test' },
+        build: { base_path: '/blog/' },
+      }),
+    });
+    const movedBasePath = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        build: { base_path: '/docs/' },
+      }),
+    });
+
+    expect(renamedSite.bySlug.posts.get('hello')?.uuid).not.toBe(post?.uuid);
+    expect(movedBasePath.bySlug.posts.get('hello')?.uuid).not.toBe(post?.uuid);
+  });
+
   test('counts primary and secondary author posts from the public post graph', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-author-count-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });

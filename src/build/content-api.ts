@@ -391,7 +391,7 @@ function serializePost(
   const isPublic = post.visibility === 'public';
   return {
     id: post.id,
-    uuid: post.id,
+    uuid: post.uuid ?? post.id,
     slug: post.slug,
     title: post.title,
     html: isPublic ? rewriteHtmlAbsolute(post.html, urlBase) : '',
@@ -521,7 +521,7 @@ export { buildContentApiHeadersBody as buildCorsHeadersBody } from './headers.ts
 export function serializePage(page: Page, urlBase?: string): Record<string, unknown> {
   return {
     id: page.id,
-    uuid: page.id,
+    uuid: page.uuid ?? page.id,
     slug: page.slug,
     title: page.title,
     html: rewriteHtmlAbsolute(page.html, urlBase),

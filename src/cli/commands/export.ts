@@ -337,7 +337,7 @@ function serializeAuthor(author: Author): Record<string, unknown> {
 function serializeGhostPost(item: Post | Page, kind: 'post' | 'page'): Record<string, unknown> {
   return {
     id: item.id,
-    uuid: item.id,
+    uuid: item.uuid ?? item.id,
     title: item.title,
     slug: item.slug,
     mobiledoc: null,

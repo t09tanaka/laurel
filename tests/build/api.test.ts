@@ -650,6 +650,42 @@ ${numberedWords(53, 3).join(' ')}
     expect(body.posts[0].access).toBe('public');
   });
 
+  test('emits post and page UUIDs separately from ObjectId ids', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-uuid-'));
+    const post = makePost({
+      id: '64d3f8e1a51f2b7c9d0e1234',
+      uuid: '0b8520bf-f7c5-5b5a-a24f-c97f3e53433c',
+    });
+    const page = makePage({
+      id: '64d3f8e1a51f2b7c9d0e5678',
+      uuid: 'fd0eae19-1931-5a46-83b1-0877c36b6c7b',
+    });
+    const graph = makeGraph();
+    await emitContentApiShadows({
+      config: configSchema.parse({ site: { title: 'T' } }),
+      content: {
+        ...graph,
+        posts: [post],
+        pages: [page],
+        bySlug: {
+          ...graph.bySlug,
+          posts: new Map([[post.slug, post]]),
+          pages: new Map([[page.slug, page]]),
+        },
+      },
+      outputDir,
+    });
+
+    const posts = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    const pages = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/pages.json'), 'utf8'));
+    expect(posts.posts[0].id).toBe(post.id);
+    expect(posts.posts[0].uuid).toBe(post.uuid);
+    expect(posts.posts[0].uuid).not.toBe(posts.posts[0].id);
+    expect(pages.pages[0].id).toBe(page.id);
+    expect(pages.pages[0].uuid).toBe(page.uuid);
+    expect(pages.pages[0].uuid).not.toBe(pages.pages[0].id);
+  });
+
   test('strips members-only body content from non-public posts (#759)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-strip-'));
     const config = configSchema.parse({ site: { title: 'T' } });

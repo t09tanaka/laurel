@@ -115,6 +115,7 @@ export interface Tag {
 
 export interface Post {
   id: string;
+  uuid?: string;
   slug: string;
   locale?: string;
   title: string;
@@ -184,6 +185,7 @@ export interface Post {
 
 export interface Page {
   id: string;
+  uuid?: string;
   slug: string;
   locale?: string;
   title: string;

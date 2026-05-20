@@ -245,6 +245,7 @@ async function loadContentWithPool({
       raw,
       authorMap,
       tagMap,
+      config.site.url,
       basePath,
       localePrefix(raw.locale),
       config.site.locale,
@@ -314,6 +315,7 @@ async function loadContentWithPool({
       raw,
       authorMap,
       tagMap,
+      config.site.url,
       basePath,
       localePrefix(raw.locale),
       config.site.locale,
@@ -433,6 +435,20 @@ function localizedKey(locale: string | undefined, slug: string): string {
 
 function deterministicObjectId(...parts: readonly string[]): string {
   return createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 24);
+}
+
+function deterministicUuidV5(namespace: string, name: string): string {
+  const digest = createHash('sha1').update(`${namespace}\u0000${name}`).digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function deterministicContentUuid(siteUrl: string, kind: 'post' | 'page', path: string): string {
+  const namespace = deterministicUuidV5('nectar:site', siteUrl.replace(/\/+$/, ''));
+  return deterministicUuidV5(namespace, `${kind}:${path}`);
 }
 
 function publicBySlugMap<T extends { slug: string }>(items: readonly T[]): Map<string, T> {
@@ -1485,6 +1501,7 @@ function resolvePostRelations(
   raw: RawPost,
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
+  siteUrl: string,
   basePath: string,
   routePrefix: string,
   siteLocale: string,
@@ -1524,6 +1541,7 @@ function resolvePostRelations(
 
   return {
     id: raw.id,
+    uuid: deterministicContentUuid(siteUrl, 'post', url),
     slug: raw.slug,
     locale: raw.locale,
     title: raw.title,
@@ -1581,6 +1599,7 @@ function resolvePageRelations(
   raw: RawPage,
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
+  siteUrl: string,
   basePath: string,
   routePrefix: string,
   siteLocale: string,
@@ -1619,6 +1638,7 @@ function resolvePageRelations(
 
   return {
     id: raw.id,
+    uuid: deterministicContentUuid(siteUrl, 'page', url),
     slug: raw.slug,
     locale: raw.locale,
     title: raw.title,

@@ -699,6 +699,28 @@ describe('emitContentApiStubs', () => {
     }
   });
 
+  test('emits post and page UUIDs separately from ObjectId ids', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-uuid-'));
+    const post = makePost({
+      id: '64d3f8e1a51f2b7c9d0e1234',
+      uuid: '0b8520bf-f7c5-5b5a-a24f-c97f3e53433c',
+    });
+    const page = makePage({
+      id: '64d3f8e1a51f2b7c9d0e5678',
+      uuid: 'fd0eae19-1931-5a46-83b1-0877c36b6c7b',
+    });
+    await emitContentApiStubs({ content: makeGraph({ posts: [post], pages: [page] }), outputDir });
+
+    const posts = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    const pages = JSON.parse(readFileSync(join(outputDir, 'content', 'pages.json'), 'utf8'));
+    expect(posts.posts[0].id).toBe(post.id);
+    expect(posts.posts[0].uuid).toBe(post.uuid);
+    expect(posts.posts[0].uuid).not.toBe(posts.posts[0].id);
+    expect(pages.pages[0].id).toBe(page.id);
+    expect(pages.pages[0].uuid).toBe(page.uuid);
+    expect(pages.pages[0].uuid).not.toBe(pages.pages[0].id);
+  });
+
   test('pagination next/prev are numbers, not URLs (#760)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-pagination-'));
     const posts = Array.from({ length: 5 }, (_, i) => makePost({ id: `p-${i}`, slug: `p-${i}` }));
