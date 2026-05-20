@@ -17,6 +17,16 @@ const RASTER_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.a
 // big enough to hide ensureDir/writeFile latency on real sites.
 const EMIT_CONCURRENCY = 32;
 
+// Chunk size for the HTML write phase. Render produces every route's HTML into
+// memory before any write starts, so a 10k-route site holds ~10k strings of
+// O(20KB) each — easily hundreds of MB. Writing in chunks lets each batch's
+// strings be released by the GC as soon as the chunk resolves, instead of
+// pinning the full set until the entire `Promise.all` settles. 512 is the
+// middle of the 256-1024 sweet spot the perf note suggested: large enough that
+// scheduler overhead and per-chunk ensureDirs are amortised, small enough that
+// peak retained HTML stays bounded.
+const WRITE_BATCH_SIZE = 512;
+
 function assertWithinOutputDir(outputDir: string, dest: string): void {
   const root = resolve(outputDir);
   const target = resolve(dest);
@@ -53,29 +63,48 @@ export interface HtmlOutput {
   reused?: boolean;
 }
 
-// Batched companion to writeHtml: validate + dedupe parent dirs up front, then
-// fan out the per-file writeFile calls under a concurrency cap. Used by the
-// render loop, which produces hundreds of routes that previously serialised
-// behind `await ensureDir; await writeFile` per route.
+// Batched companion to writeHtml. Validation happens up front so an escape
+// attempt anywhere in `outputs` rejects before any file is written. The actual
+// disk work is then split into fixed-size chunks: within a chunk parent dirs
+// are deduped and `Bun.write` fans out via `Promise.all`; chunks run
+// sequentially so the per-chunk HTML strings drop out of the live set before
+// the next batch starts. For a 10k-route site this caps peak retained HTML at
+// roughly WRITE_BATCH_SIZE entries instead of the full 10k.
+//
+// `Bun.write` is preferred over `node:fs.writeFile` here: it bypasses libuv's
+// per-call allocations and is materially faster for many small files, which is
+// exactly the shape of the route-write phase.
 export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): Promise<void> {
   if (outputs.length === 0) return;
-  const dests: string[] = [];
-  const dirs: string[] = [];
-  for (const { outputPath } of outputs) {
-    const dest = join(outputDir, outputPath);
+  const dests: string[] = new Array(outputs.length);
+  for (let i = 0; i < outputs.length; i++) {
+    const entry = outputs[i];
+    if (entry === undefined) throw new Error('writeHtmlBatch: output entry missing');
+    const dest = join(outputDir, entry.outputPath);
     assertWithinOutputDir(outputDir, dest);
-    dests.push(dest);
-    dirs.push(dirname(dest));
+    dests[i] = dest;
   }
-  await ensureDirs(dirs);
-  const limit = pLimit(EMIT_CONCURRENCY);
-  await Promise.all(
-    outputs.map((out, i) => {
+  for (let start = 0; start < outputs.length; start += WRITE_BATCH_SIZE) {
+    const end = Math.min(start + WRITE_BATCH_SIZE, outputs.length);
+    const chunkDirs: string[] = new Array(end - start);
+    for (let i = start; i < end; i++) {
       const dest = dests[i];
       if (dest === undefined) throw new Error('writeHtmlBatch: dest missing for output');
-      return limit(() => writeFile(dest, out.html, 'utf8'));
-    }),
-  );
+      chunkDirs[i - start] = dirname(dest);
+    }
+    await ensureDirs(chunkDirs);
+    await Promise.all(
+      Array.from({ length: end - start }, (_, j) => {
+        const i = start + j;
+        const dest = dests[i];
+        const entry = outputs[i];
+        if (dest === undefined || entry === undefined) {
+          throw new Error('writeHtmlBatch: chunk entry missing');
+        }
+        return Bun.write(dest, entry.html);
+      }),
+    );
+  }
 }
 
 // Only the fingerprinted copy is emitted. The `{{asset}}` helper always

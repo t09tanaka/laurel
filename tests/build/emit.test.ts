@@ -106,6 +106,44 @@ describe('writeHtmlBatch', () => {
       expect(await readFile(join(dir, `post-${i}/index.html`), 'utf8')).toContain(`<h1>${i}</h1>`);
     }
   });
+
+  test('writes more outputs than the internal chunk size without dropping any (#149)', async () => {
+    // Exercises the chunked write phase: with WRITE_BATCH_SIZE=512 internally,
+    // an n=1300 input forces at least three chunks (512+512+276) and surfaces
+    // any off-by-one in the chunk boundary or any missed entry at the tail.
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-large-'));
+    const n = 1300;
+    const outputs = Array.from({ length: n }, (_, i) => ({
+      outputPath: `p/${i}/index.html`,
+      html: `<h1>${i}</h1>`,
+    }));
+    await writeHtmlBatch(dir, outputs);
+    // Spot-check first, last, and chunk boundaries (positions 511, 512, 1023,
+    // 1024) so a regression that drops a whole chunk or shifts indices is
+    // caught without paying for 1300 reads.
+    for (const i of [0, 1, 511, 512, 513, 1023, 1024, 1299]) {
+      expect(await readFile(join(dir, `p/${i}/index.html`), 'utf8')).toBe(`<h1>${i}</h1>`);
+    }
+  });
+
+  test('rejects before any write when one entry escapes outputDir even at a deep index (#149)', async () => {
+    // Validation must happen up front: if entry N=600 escapes, nothing in the
+    // first chunk should land on disk either. Confirms the two-pass design
+    // (validate everything, then write chunk-by-chunk) and protects against a
+    // future refactor that interleaves validation with disk I/O.
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-reject-'));
+    const n = 700;
+    const outputs = Array.from({ length: n }, (_, i) => ({
+      outputPath: i === 600 ? '../escape.html' : `q/${i}/index.html`,
+      html: `<h1>${i}</h1>`,
+    }));
+    await expect(writeHtmlBatch(dir, outputs)).rejects.toThrow(
+      /Refusing to write outside output directory/,
+    );
+    // First-chunk entries must not have leaked.
+    expect(existsSync(join(dir, 'q/0/index.html'))).toBe(false);
+    expect(existsSync(join(dir, 'q/100/index.html'))).toBe(false);
+  });
 });
 
 describe('copyAssets', () => {
