@@ -121,6 +121,16 @@ function findBreadcrumb(html: string): BreadcrumbList | undefined {
 }
 
 describe('ghost_head JSON-LD escaping', () => {
+  test('emits twitter:card summary_large_image for routes', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Twitter card',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
+  });
+
   test('escapes </script> in post title so it cannot break out of the script tag', () => {
     const html = renderGhostHead({
       id: 'p1',
