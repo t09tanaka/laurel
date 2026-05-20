@@ -121,6 +121,20 @@ describe('cli dispatch', () => {
     expect(stderr).toContain('Usage:');
   });
 
+  test('build with a close-typo flag suggests the intended flag', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--conifg', 'nectar.toml']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Unknown option: --conifg');
+    expect(stderr).toContain('Did you mean --config?');
+  });
+
+  test('serve with a close-typo flag suggests the intended flag', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--prot', '3000']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Unknown option: --prot');
+    expect(stderr).toContain('Did you mean --port?');
+  });
+
   test('new with missing positionals exits 2', async () => {
     const { stderr, exitCode } = await runCli(['new']);
     expect(exitCode).toBe(2);

@@ -63,7 +63,7 @@ export function parseCommand(
       strict: true,
     });
   } catch (err) {
-    throw new CliUsageError(err instanceof Error ? err.message : String(err));
+    throw new CliUsageError(formatParseArgsError(err, spec));
   }
 
   const positionals = result.positionals as string[];
@@ -199,6 +199,38 @@ function pad(text: string, width: number): string {
   return text + ' '.repeat(width - text.length);
 }
 
+// Wrap node:util parseArgs errors so unknown-flag failures include a did-you-mean
+// suggestion (Levenshtein over the spec's known flags). Other strict-mode errors
+// (missing value, unexpected positional outside our reach, …) pass through with
+// their original wording so we don't paper over diagnostics we didn't expect.
+function formatParseArgsError(err: unknown, spec: CommandSpec): string {
+  if (!(err instanceof Error)) return String(err);
+  const code = (err as { code?: unknown }).code;
+  if (code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION') return err.message;
+  const unknownFlag = extractUnknownFlag(err.message);
+  if (!unknownFlag) return err.message;
+  const knownFlags = collectKnownFlagNames(spec);
+  const stripped = unknownFlag.replace(/^-+/, '').replace(/=.*$/, '');
+  const suggestion = suggestFlag(stripped, knownFlags);
+  const lines = [`Unknown option: ${unknownFlag} (on \`nectar ${spec.name}\`)`];
+  if (suggestion) {
+    lines.push(`Did you mean --${suggestion}?`);
+  }
+  if (knownFlags.length > 0) {
+    lines.push(`Known flags: ${knownFlags.map((n) => `--${n}`).join(', ')}, --help`);
+  }
+  return lines.join('\n');
+}
+
+function extractUnknownFlag(message: string): string | undefined {
+  const m = /Unknown option '(-{1,2}[^']+)'/.exec(message);
+  return m?.[1];
+}
+
+function collectKnownFlagNames(spec: CommandSpec): string[] {
+  return Object.keys(spec.options).filter((name) => name !== 'help');
+}
+
 export function suggestCommand(unknown: string, known: readonly string[]): string | undefined {
   if (!unknown) return undefined;
   let best: { name: string; distance: number } | undefined;
@@ -211,6 +243,22 @@ export function suggestCommand(unknown: string, known: readonly string[]): strin
   if (!best) return undefined;
   const threshold = Math.max(1, Math.floor(unknown.length / 2));
   return best.distance <= threshold ? best.name : undefined;
+}
+
+// Tighter threshold than `suggestCommand` because flag names are short and a
+// 6-character flag with distance 3 (half its length) is almost certainly noise.
+// Caps the edit distance at 2 so we only volunteer obvious typo corrections.
+export function suggestFlag(unknown: string, known: readonly string[]): string | undefined {
+  if (!unknown) return undefined;
+  let best: { name: string; distance: number } | undefined;
+  for (const candidate of known) {
+    const distance = levenshtein(unknown, candidate);
+    if (!best || distance < best.distance) {
+      best = { name: candidate, distance };
+    }
+  }
+  if (!best) return undefined;
+  return best.distance <= 2 ? best.name : undefined;
 }
 
 function levenshtein(a: string, b: string): number {

@@ -9,6 +9,7 @@ import {
   parseBooleanEnv,
   parseCommand,
   suggestCommand,
+  suggestFlag,
 } from '~/cli/parse.ts';
 
 const SAMPLE_SPEC: CommandSpec = {
@@ -64,6 +65,58 @@ describe('parseCommand', () => {
 
   test('throws CliUsageError on unknown option', () => {
     expect(() => parseCommand(SAMPLE_SPEC, ['--unknown'])).toThrow(CliUsageError);
+  });
+
+  test('unknown-option error includes did-you-mean for close typos', () => {
+    try {
+      parseCommand(SAMPLE_SPEC, ['--conifg', 'x']);
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliUsageError);
+      const message = err instanceof Error ? err.message : '';
+      expect(message).toContain('Unknown option: --conifg');
+      expect(message).toContain('Did you mean --config?');
+      expect(message).toContain('Known flags:');
+    }
+  });
+
+  test('unknown-option error lists known flags when no close match', () => {
+    try {
+      parseCommand(SAMPLE_SPEC, ['--totally-unrelated']);
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliUsageError);
+      const message = err instanceof Error ? err.message : '';
+      expect(message).toContain('Unknown option: --totally-unrelated');
+      expect(message).not.toContain('Did you mean');
+      expect(message).toContain('--config');
+      expect(message).toContain('--watch');
+    }
+  });
+
+  test('unknown short flag also surfaces a usage error', () => {
+    try {
+      parseCommand(SAMPLE_SPEC, ['-x']);
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliUsageError);
+      expect(err instanceof Error ? err.message : '').toContain('Unknown option');
+    }
+  });
+
+  test('-- ends option parsing; trailing tokens become positionals', () => {
+    const result = parseCommand(POSITIONAL_SPEC, ['post', '--', '--not-a-flag', 'My Title']);
+    expect(result.positionals).toEqual(['post', '--not-a-flag', 'My Title']);
+  });
+
+  test('repeated string flag keeps the last value (node:util semantics)', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--config', 'a.toml', '--config', 'b.toml']);
+    expect(result.values.config).toBe('b.toml');
+  });
+
+  test('repeated boolean flag stays true', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--watch', '--watch']);
+    expect(result.values.watch).toBe(true);
   });
 
   test('throws CliUsageError when required positional is missing', () => {
@@ -247,5 +300,22 @@ describe('suggestCommand', () => {
 
   test('returns undefined on empty input', () => {
     expect(suggestCommand('', ['build'])).toBeUndefined();
+  });
+});
+
+describe('suggestFlag', () => {
+  test('suggests close (<=2 edits) matches', () => {
+    expect(suggestFlag('conifg', ['config', 'watch'])).toBe('config');
+    expect(suggestFlag('hep', ['help', 'config'])).toBe('help');
+    expect(suggestFlag('prot', ['port', 'host'])).toBe('port');
+  });
+
+  test('refuses distant matches even when the flag name is long', () => {
+    expect(suggestFlag('include-foo', ['include-drafts', 'check-links'])).toBeUndefined();
+  });
+
+  test('returns undefined on empty input or empty candidates', () => {
+    expect(suggestFlag('', ['config'])).toBeUndefined();
+    expect(suggestFlag('config', [])).toBeUndefined();
   });
 });
