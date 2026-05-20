@@ -173,6 +173,27 @@ describe('renderMarkdown — word_count and reading_time across scripts', () => 
     expect(reading_time).toBe(3);
   });
 
+  test('English reading_time follows Ghost rounding rather than ceiling partial minutes', async () => {
+    const md = `${'word '.repeat(401)}`;
+    const { reading_time } = await renderMarkdown(md, { locale: 'en' });
+    expect(reading_time).toBe(1);
+  });
+
+  test('body images add Ghost reading-time seconds before minute rounding', async () => {
+    const md = `${'word '.repeat(400)}\n\n![cover](https://cdn.test/cover.jpg)`;
+    const { reading_time } = await renderMarkdown(md, { locale: 'en' });
+    expect(reading_time).toBe(2);
+  });
+
+  test('image adjustment decreases from 12 seconds to a 3 second floor', async () => {
+    const images = Array.from(
+      { length: 23 },
+      (_, i) => `![image ${i}](https://cdn.test/${i}.jpg)`,
+    ).join('\n\n');
+    const { reading_time } = await renderMarkdown(images, { locale: 'en' });
+    expect(reading_time).toBe(2);
+  });
+
   test('short content always reports at least 1 minute', async () => {
     const { reading_time: en } = await renderMarkdown('Hi.', { locale: 'en' });
     const { reading_time: ja } = await renderMarkdown('はい。', { locale: 'ja' });

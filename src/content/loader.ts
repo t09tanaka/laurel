@@ -1065,7 +1065,12 @@ async function normalizePost(
   const locale = config?.site.locale;
   const contentLocale = resolveContentLocale(data, filePath, pathLocale, locale ?? 'en');
   const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
-  const renderOptions = { unsafe: unsafeHtml, locale: contentLocale.locale };
+  const featureImage = asString(data.feature_image);
+  const renderOptions = {
+    unsafe: unsafeHtml,
+    locale: contentLocale.locale,
+    additionalImages: featureImage ? 1 : 0,
+  };
   const rendered = await renderMarkdownWithCache({
     cwd,
     sourcePath: filePath,
@@ -1135,7 +1140,6 @@ async function normalizePost(
     }
   }
 
-  const featureImage = asString(data.feature_image);
   const explicitWidth = asPositiveInt(data.feature_image_width);
   const explicitHeight = asPositiveInt(data.feature_image_height);
   const dims =

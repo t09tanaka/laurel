@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { RenderMarkdownOptions, RenderedMarkdown } from './markdown.ts';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 interface RenderCacheOptions {
   cwd: string;
@@ -25,6 +25,7 @@ interface CacheEntry {
   options: {
     unsafe: boolean;
     locale: string | undefined;
+    additionalImages: number;
   };
   result: RenderedMarkdown;
 }
@@ -74,7 +75,13 @@ function normalizeOptions(options: RenderMarkdownOptions): CacheEntry['options']
   return {
     unsafe: options.unsafe === true,
     locale: options.locale,
+    additionalImages: normalizeAdditionalImages(options.additionalImages),
   };
+}
+
+function normalizeAdditionalImages(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 0;
+  return Math.floor(value);
 }
 
 async function readCacheEntry(

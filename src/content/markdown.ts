@@ -28,6 +28,9 @@ export interface RenderMarkdownOptions {
   // segmenter is the only way to get meaningful counts; ja/zh/ko also switch
   // reading_time from words-per-minute to characters-per-minute.
   locale?: string;
+  // Extra images outside the HTML body. Ghost's reading_time helper counts
+  // feature_image in addition to inline body images.
+  additionalImages?: number;
 }
 
 const sanitizeOptions: IOptions = {
@@ -225,7 +228,12 @@ export async function renderMarkdown(
   const html = enforceKoenigCardSpacingContract(sanitized);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
-  const reading_time = computeReadingTime(plaintext, options.locale, word_count);
+  const reading_time = computeReadingTime(
+    plaintext,
+    options.locale,
+    word_count,
+    countImages(html) + safeImageCount(options.additionalImages),
+  );
   return { html, plaintext, word_count, reading_time };
 }
 
@@ -1328,6 +1336,8 @@ function countWords(text: string, locale: string | undefined): number {
 const CJK_LANGS = new Set(['ja', 'zh', 'ko']);
 const WORDS_PER_MINUTE = 275;
 const CHARS_PER_MINUTE = 500;
+const IMAGE_READING_SECONDS = 12;
+const MIN_IMAGE_READING_SECONDS = 3;
 
 function isCjkLocale(locale: string | undefined): boolean {
   if (!locale) return false;
@@ -1346,16 +1356,52 @@ function countReadingChars(text: string, locale: string | undefined): number {
   return count;
 }
 
+function countImages(html: string): number {
+  if (!html.includes('<img')) return 0;
+  const doc = parseDocument(html, {
+    decodeEntities: true,
+    lowerCaseAttributeNames: true,
+  });
+  return countImageElements(doc.children);
+}
+
+function countImageElements(nodes: ChildNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    if (!isElement(node)) continue;
+    if (node.name === 'img') count += 1;
+    count += countImageElements(node.children);
+  }
+  return count;
+}
+
+function safeImageCount(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 0;
+  return Math.floor(value);
+}
+
+function imageReadingSeconds(imageCount: number): number {
+  let seconds = 0;
+  for (let i = IMAGE_READING_SECONDS; i > IMAGE_READING_SECONDS - imageCount; i -= 1) {
+    seconds += Math.max(i, MIN_IMAGE_READING_SECONDS);
+  }
+  return seconds;
+}
+
 function computeReadingTime(
   plaintext: string,
   locale: string | undefined,
   wordCount: number,
+  imageCount: number,
 ): number {
+  const imageSeconds = imageReadingSeconds(imageCount);
   if (isCjkLocale(locale)) {
     const chars = countReadingChars(plaintext, locale);
-    return Math.max(1, Math.round(chars / CHARS_PER_MINUTE));
+    const textSeconds = chars / (CHARS_PER_MINUTE / 60);
+    return Math.max(1, Math.round((textSeconds + imageSeconds) / 60));
   }
-  return Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
+  const textSeconds = wordCount / (WORDS_PER_MINUTE / 60);
+  return Math.max(1, Math.round((textSeconds + imageSeconds) / 60));
 }
 
 // Take the first `words` word-like segments from `text` and return the

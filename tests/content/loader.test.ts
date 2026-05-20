@@ -891,6 +891,30 @@ body
     expect(post?.feature_image_height).toBe(600);
   });
 
+  test('counts feature_image in Ghost-compatible reading_time', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-feature-reading-time-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/feature.md'),
+      `---
+title: "Feature"
+date: 2026-01-01T00:00:00Z
+feature_image: "https://cdn.example.com/cover.jpg"
+---
+
+${'word '.repeat(400)}
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.posts[0]?.word_count).toBe(400);
+    expect(graph.posts[0]?.reading_time).toBe(2);
+  });
+
   test('honors explicit frontmatter dimensions over file probe', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-explicit-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
