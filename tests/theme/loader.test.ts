@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { configSchema } from '~/config/schema.ts';
 import { loadTheme } from '~/theme/loader.ts';
+
+async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(join(tmpdir(), 'nectar-theme-loader-'));
+  return await fn(dir);
+}
 
 describe('loadTheme', () => {
   test('loads the vendored Source theme', async () => {
@@ -23,5 +31,65 @@ describe('loadTheme', () => {
     expect(theme.pkg.image_sizes.xs?.width).toBe(160);
     expect(theme.pkg.customDefaults.site_background_color).toBe('#ffffff');
     expect(Object.keys(theme.locales).length).toBeGreaterThan(0);
+  });
+
+  // #855: themes shipped as npm packages live under node_modules/<spec>/
+  // rather than `<cwd>/themes/<name>/`. The loader falls back to
+  // `node_modules/<theme.dir>` when nothing exists at the local-directory
+  // location.
+  test('resolves theme.dir as an npm package name when local dir is missing', async () => {
+    await withTempDir(async (cwd) => {
+      const pkgRoot = join(cwd, 'node_modules', 'nectar-theme-mini');
+      await mkdir(pkgRoot, { recursive: true });
+      await writeFile(join(pkgRoot, 'package.json'), JSON.stringify({ name: 'nectar-theme-mini' }));
+      await writeFile(
+        join(pkgRoot, 'default.hbs'),
+        '<!doctype html><html><body>{{{body}}}</body></html>',
+        'utf8',
+      );
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'mini', dir: 'nectar-theme-mini' },
+      });
+      const theme = await loadTheme({ cwd, config });
+      expect(theme.templates.default).toBeDefined();
+    });
+  });
+
+  test('resolves @scope/name npm package specs', async () => {
+    await withTempDir(async (cwd) => {
+      const pkgRoot = join(cwd, 'node_modules', '@nectar', 'theme-scoped');
+      await mkdir(pkgRoot, { recursive: true });
+      await writeFile(
+        join(pkgRoot, 'package.json'),
+        JSON.stringify({ name: '@nectar/theme-scoped' }),
+      );
+      await writeFile(join(pkgRoot, 'default.hbs'), 'hi', 'utf8');
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'scoped', dir: '@nectar/theme-scoped' },
+      });
+      const theme = await loadTheme({ cwd, config });
+      expect(theme.templates.default).toBe('hi');
+    });
+  });
+
+  test('prefers local `themes/<name>` over node_modules when both exist', async () => {
+    await withTempDir(async (cwd) => {
+      const localRoot = join(cwd, 'themes', 'mini');
+      await mkdir(localRoot, { recursive: true });
+      await writeFile(join(localRoot, 'default.hbs'), 'LOCAL', 'utf8');
+      // Plant a node_modules clash to prove the local dir wins.
+      const pkgRoot = join(cwd, 'node_modules', 'themes');
+      await mkdir(pkgRoot, { recursive: true });
+      await writeFile(join(pkgRoot, 'package.json'), JSON.stringify({ name: 'themes' }));
+      await writeFile(join(pkgRoot, 'default.hbs'), 'NPM', 'utf8');
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'mini', dir: 'themes' },
+      });
+      const theme = await loadTheme({ cwd, config });
+      expect(theme.templates.default).toBe('LOCAL');
+    });
   });
 });

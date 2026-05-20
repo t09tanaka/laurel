@@ -1350,4 +1350,129 @@ describe('loadContent parallel markdown loading is deterministic', () => {
       expect(post.html).toContain(`Body for ${post.slug}.`);
     }
   });
+
+  // #857: posts without a `title:` frontmatter fall back to using the slug
+  // as the title (Ghost behaviour), but the loader now warns at build time
+  // so contributors notice the synthesised headline.
+  test('warns when frontmatter title is missing or empty and uses slug as fallback', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-empty-title-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(dir, 'content/posts/no-title.md'),
+      '---\ndate: 2026-01-01\n---\nBody\n',
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/blank-title.md'),
+      `---\ntitle: ""\ndate: 2026-01-02\n---\nBody\n`,
+      'utf8',
+    );
+
+    const warnings: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === 'string' ? chunk : String(chunk);
+      if (s.startsWith('[warn]')) warnings.push(s);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+      const graph = await loadContent({ cwd: dir, config });
+      const missing = graph.posts.find((p) => p.slug === 'no-title');
+      const blank = graph.posts.find((p) => p.slug === 'blank-title');
+      expect(missing?.title).toBe('no-title');
+      expect(blank?.title).toBe('blank-title');
+    } finally {
+      process.stderr.write = origWrite;
+    }
+    expect(warnings.some((w) => w.includes('no-title.md') && w.includes('Missing or empty'))).toBe(
+      true,
+    );
+    expect(warnings.some((w) => w.includes('blank-title.md'))).toBe(true);
+  });
+
+  // #859: filenames whose slug-friendly form would collapse to an empty
+  // string (e.g. `_index.md`) are refused at load time. Better than silently
+  // shipping an unreachable post under an empty URL.
+  test('throws when a filename slugifies to an empty string', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-empty-slug-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(dir, 'content/posts/_.md'),
+      '---\ntitle: Edge\ndate: 2026-01-01\n---\nbody\n',
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    await expect(loadContent({ cwd: dir, config })).rejects.toThrow(NectarError);
+  });
+
+  // #860: a typo'd tag slug in frontmatter (e.g. `tags: [neews]`) used to
+  // produce a phantom archive with no warning. The loader now warns once
+  // per missing tag/author slug so the operator notices the orphan.
+  test('warns once per auto-created tag and author slug missing a backing .md', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-auto-create-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    // Two posts reference the same orphan tag/author — the warn should
+    // emit once per slug, not once per reference.
+    await writeFile(
+      join(dir, 'content/posts/a.md'),
+      '---\ntitle: A\ndate: 2026-01-01\ntags: [orphan-tag]\nauthors: [orphan-author]\n---\nbody\n',
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/b.md'),
+      '---\ntitle: B\ndate: 2026-01-02\ntags: [orphan-tag]\nauthors: [orphan-author]\n---\nbody\n',
+      'utf8',
+    );
+
+    const warnings: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === 'string' ? chunk : String(chunk);
+      if (s.startsWith('[warn]')) warnings.push(s);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+      await loadContent({ cwd: dir, config });
+    } finally {
+      process.stderr.write = origWrite;
+    }
+    const tagWarns = warnings.filter(
+      (w) => w.includes('Auto-creating tag') && w.includes('"orphan-tag"'),
+    );
+    const authorWarns = warnings.filter(
+      (w) => w.includes('Auto-creating author') && w.includes('"orphan-author"'),
+    );
+    expect(tagWarns).toHaveLength(1);
+    expect(authorWarns).toHaveLength(1);
+  });
+
+  test('does not warn for internal hash-prefixed tags (Ghost workflow)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-hash-tag-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(dir, 'content/posts/a.md'),
+      '---\ntitle: A\ndate: 2026-01-01\ntags: [hash-featured]\n---\nbody\n',
+      'utf8',
+    );
+
+    const warnings: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === 'string' ? chunk : String(chunk);
+      if (s.startsWith('[warn]')) warnings.push(s);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+      const graph = await loadContent({ cwd: dir, config });
+      expect(graph.tags.find((t) => t.slug === 'hash-featured')?.visibility).toBe('internal');
+    } finally {
+      process.stderr.write = origWrite;
+    }
+    expect(warnings.some((w) => w.includes('Auto-creating tag') && w.includes('hash-'))).toBe(
+      false,
+    );
+  });
 });

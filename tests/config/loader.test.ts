@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { loadConfig } from '~/config/loader.ts';
+import { isAbsolute, join, resolve } from 'node:path';
+import { findProjectRoot, loadConfig } from '~/config/loader.ts';
 import { NectarError } from '~/util/errors.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -307,6 +307,146 @@ csp_nonce = "rAnd0m+Nonce/=="
         const ne = err as NectarError;
         expect(ne.message).toMatch(/csp_nonce|base64/);
       }
+    });
+  });
+
+  // #854: doubled trailing slashes break URL joins downstream. Strip on load
+  // so `https://example.com/` and `https://example.com//` both normalise to
+  // `https://example.com`.
+  test('strips trailing slashes from site.url', async () => {
+    for (const [input, expected] of [
+      ['https://example.com/', 'https://example.com'],
+      ['https://example.com//', 'https://example.com'],
+      ['https://example.com/blog/', 'https://example.com/blog'],
+    ] as const) {
+      await withTempDir(async (cwd) => {
+        await writeFile(
+          join(cwd, 'nectar.toml'),
+          `[site]\ntitle = "Blog"\nurl = "${input}"\n`,
+          'utf8',
+        );
+        const config = await loadConfig({ cwd });
+        expect(config.site.url).toBe(expected);
+      });
+    }
+  });
+
+  // #852: NECTAR_<SECTION>_<KEY> overrides any scalar config key. Useful for
+  // staging vs prod builds where the same nectar.toml ships everywhere but
+  // a deploy hook flips `[site].url` per environment.
+  test('applies NECTAR_* env overrides on top of parsed TOML', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "From TOML"\nurl = "https://from-toml.example"\n[build]\nposts_per_page = 5\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_SITE_URL: 'https://from-env.example',
+          NECTAR_SITE_TITLE: 'From Env',
+          NECTAR_BUILD_POSTS_PER_PAGE: '20',
+        },
+      });
+      expect(config.site.url).toBe('https://from-env.example');
+      expect(config.site.title).toBe('From Env');
+      expect(config.build.posts_per_page).toBe(20);
+    });
+  });
+
+  test('env overrides coerce boolean strings (true/false/0/1)', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_BUILD_MINIFY_HTML: 'true',
+          NECTAR_BUILD_COPY_CONTENT_ASSETS: '0',
+        },
+      });
+      expect(config.build.minify_html).toBe(true);
+      expect(config.build.copy_content_assets).toBe(false);
+    });
+  });
+
+  test('env overrides reject non-numeric values for number keys', async () => {
+    await withTempDir(async (cwd) => {
+      // Garbled number string falls back to the schema default rather than
+      // crashing the build — the warn output is the operator's signal.
+      const config = await loadConfig({
+        cwd,
+        env: { NECTAR_BUILD_POSTS_PER_PAGE: 'nope' },
+      });
+      expect(config.build.posts_per_page).toBe(12);
+    });
+  });
+
+  test('unknown NECTAR_* env vars are ignored without breaking the load', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_NOT_A_REAL_KEY: 'whatever',
+          NECTAR_LOG_LEVEL: 'debug',
+          NECTAR_DRAFTS: '1',
+        },
+      });
+      expect(config.site.title).toBe('Nectar Site');
+    });
+  });
+
+  // #853: when --config points at a file in a different directory, relative
+  // paths inside it should anchor to that file's directory, not the shell's
+  // cwd. `findProjectRoot` exposes the same logic for callers that need to
+  // resolve other files relative to the project root.
+  test('resolves relative paths against the config file directory when configPath is elsewhere', async () => {
+    await withTempDir(async (cwd) => {
+      const projectRoot = join(cwd, 'project');
+      await mkdir(projectRoot, { recursive: true });
+      await writeFile(
+        join(projectRoot, 'nectar.toml'),
+        `[site]\ntitle = "Cross"\n[content]\nposts_dir = "content/posts"\n[theme]\ndir = "themes"\nname = "src"\n`,
+        'utf8',
+      );
+      const elsewhere = join(cwd, 'elsewhere');
+      await mkdir(elsewhere, { recursive: true });
+      const config = await loadConfig({
+        cwd: elsewhere,
+        configPath: join(projectRoot, 'nectar.toml'),
+      });
+      expect(isAbsolute(config.content.posts_dir)).toBe(true);
+      expect(config.content.posts_dir).toBe(resolve(projectRoot, 'content/posts'));
+      expect(config.theme.dir).toBe(resolve(projectRoot, 'themes'));
+    });
+  });
+
+  test('keeps relative paths intact when configDir equals cwd (default flow)', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'nectar.toml'), `[content]\nposts_dir = "content/posts"\n`, 'utf8');
+      const config = await loadConfig({ cwd });
+      // Default flow stays back-compat with consumers that pre-date #853:
+      // bare relative dirs in -> bare relative dirs out.
+      expect(config.content.posts_dir).toBe('content/posts');
+    });
+  });
+
+  test('findProjectRoot returns the config file directory when one is discoverable', async () => {
+    await withTempDir(async (cwd) => {
+      const projectRoot = join(cwd, 'p');
+      await mkdir(projectRoot, { recursive: true });
+      await writeFile(join(projectRoot, 'nectar.toml'), '', 'utf8');
+      const result = await findProjectRoot({
+        cwd: join(cwd, 'other'),
+        configPath: join(projectRoot, 'nectar.toml'),
+      });
+      expect(resolve(result)).toBe(resolve(projectRoot));
+    });
+  });
+
+  test('findProjectRoot falls back to cwd when no nectar.toml is present', async () => {
+    await withTempDir(async (cwd) => {
+      const result = await findProjectRoot({ cwd });
+      expect(resolve(result)).toBe(resolve(cwd));
     });
   });
 });
