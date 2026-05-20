@@ -54,6 +54,20 @@ describe('get helper memoization', () => {
     expect(engine.sortedCache.size).toBe(0);
   });
 
+  test('defaults posts to the loader-provided published_at desc order', () => {
+    const posts = [
+      { id: 'newest', title: 'Newest', published_at: '2026-05-20T00:00:00.000Z' },
+      { id: 'middle', title: 'Middle', published_at: '2026-05-19T00:00:00.000Z' },
+      { id: 'oldest', title: 'Oldest', published_at: '2026-05-18T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('newest,middle,oldest,');
+  });
+
   test('memoizes non-default orderings across invocations', () => {
     const posts = [
       { id: 'a', title: 'Banana', published_at: '2026-05-19T00:00:00.000Z' },
