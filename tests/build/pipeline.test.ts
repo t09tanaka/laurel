@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { BUILD_MANIFEST_VERSION } from '~/build/build-manifest.ts';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
 import { type BuildProgressEvent, ROUTE_RENDER_BATCH_SIZE } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
@@ -846,6 +847,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
       theme: {
         name: string;
         version: string;
+        fingerprint: string;
         custom_settings: Record<
           string,
           { type: string; group?: string; visibility?: string; default?: unknown }
@@ -855,14 +857,23 @@ describe('build pipeline build-manifest emission (#248)', () => {
       hash_algorithm: string;
       route_count: number;
       asset_count: number;
+      routes: Array<{
+        url: string;
+        output_path: string;
+        route_fingerprint: string;
+        content_fingerprint: string;
+        theme_fingerprint: string;
+        reused: boolean;
+      }>;
       files: Array<{ path: string; size: number; hash: string }>;
     };
 
-    expect(parsed.schema_version).toBe(1);
+    expect(parsed.schema_version).toBe(BUILD_MANIFEST_VERSION);
     expect(parsed.hash_algorithm).toBe('sha256');
     expect(parsed.route_count).toBe(summary.routeCount);
     expect(parsed.asset_count).toBe(summary.assetCount);
     expect(parsed.theme.name).toBe('source');
+    expect(parsed.theme.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     const headerTextSetting = parsed.theme.custom_settings.header_text;
     expect(headerTextSetting).toBeDefined();
     expect(headerTextSetting?.group).toBe('homepage');
@@ -870,6 +881,9 @@ describe('build pipeline build-manifest emission (#248)', () => {
     expect(typeof parsed.nectar.version).toBe('string');
     expect(parsed.config_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(new Date(parsed.generated_at).toString()).not.toBe('Invalid Date');
+    expect(parsed.routes.length).toBe(summary.routeCount);
+    expect(parsed.routes[0]?.route_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(parsed.routes[0]?.theme_fingerprint).toBe(parsed.theme.fingerprint);
 
     // index.html is part of every Ghost-themed build; verify it shows up in
     // the file list with a real sha256 and a positive size.
