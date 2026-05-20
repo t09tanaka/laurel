@@ -44,6 +44,12 @@ emitter exists.
 5. Commit and push to the branch Render watches. Render will install
    dependencies, run `bunx nectar build`, and serve `dist/`.
 
+If you manage Render services through Blueprints, copy
+[`examples/render/render.yaml`](../../examples/render/render.yaml) to
+`render.yaml` at the repository root and adjust the service name before
+creating the Blueprint. The sample uses Render's Static Site service type,
+`bun install && bun run build`, and `./dist` as the published directory.
+
 ## Canonical URLs and preview paths
 
 For a production custom domain, set the final site URL in `nectar.toml`:
@@ -81,7 +87,9 @@ If `components.redirects.enabled` is left at its default, Nectar can still
 write `dist/_redirects` for hosts that understand that file, but Render Static
 Sites do not consume it as a routing contract. Configure redirects and custom
 headers in the Render dashboard, or place a hand-maintained Render config in
-your repository if your Render service is set up to use one.
+your repository if your Render service is set up to use one. For a minimal
+hand-maintained Blueprint, start from
+[`examples/render/render.yaml`](../../examples/render/render.yaml).
 
 For the security header baseline to mirror on Render, start from
 [`docs/security/hosting.md`](../security/hosting.md) and enter the same header

@@ -495,6 +495,11 @@ current header / redirect limitations, see
 4. Environment variables -> add **`BUN_VERSION` = `1.3.0`**.
 5. Save and deploy.
 
+If you prefer Render Blueprints, copy
+[`examples/render/render.yaml`](../../examples/render/render.yaml) to
+`render.yaml` at the repository root. The sample defines a Static Site service
+that runs `bun install && bun run build` and publishes `./dist`.
+
 Render serves the generated `dist/` directory directly. Nectar does not
 currently emit a Render-specific `render.yaml`, nor does it translate
 `[deploy.headers]` or `redirects.yaml` into Render-native dashboard rules.
