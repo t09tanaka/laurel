@@ -301,6 +301,24 @@ describe('is helper', () => {
     expect(out).toBe('HIT');
   });
 
+  test('accepts multiple positional target arguments', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "post" "page"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'page' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('MISS');
+  });
+
+  test('splits comma-separated targets inside positional arguments', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "post, page" "tag"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'page' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'author' } } })).toBe('MISS');
+  });
+
   test('falls through to inverse when the route kind is missing entirely', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
