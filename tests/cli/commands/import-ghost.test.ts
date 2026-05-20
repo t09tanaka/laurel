@@ -263,6 +263,20 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
   });
 
+  test('passing the JSON file directly copies sibling content/images assets', async () => {
+    const exportJson = join(exportFolder, 'my-blog.ghost.2024-01-01.json');
+    const { stdout, stderr, exitCode } = await runCli(
+      ['import-ghost', exportJson, '--on-conflict', 'overwrite'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(`${stdout}${stderr}`).toContain('Copied 2 asset files');
+    expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
+    expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
+  });
+
   test('--assets pointing to an external content/ dir copies from there', async () => {
     const jsonOnly = join(dir, 'export.json');
     await Bun.write(jsonOnly, exportPayload());

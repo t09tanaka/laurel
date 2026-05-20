@@ -1048,6 +1048,13 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
     }
   } else {
     jsonFile = file;
+    const fileDir = dirname(file);
+    const candidateContent = join(fileDir, 'content');
+    if (await isDirectory(candidateContent)) {
+      folderAssetsDir = candidateContent;
+    } else if (await hasAnyAssetSubdir(fileDir)) {
+      folderAssetsDir = fileDir;
+    }
   }
 
   if (explicitAssetsDir) {

@@ -1044,8 +1044,26 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     }
   });
 
-  test('JSON file input without --assets does not copy anything (back-compat)', async () => {
+  test('JSON file input auto-detects sibling content/images assets', async () => {
     const jsonFile = await writeJsonNamed('export.json');
+    await ensureDir(join(exportDir, 'content/images/2024'));
+    await writeFile(join(exportDir, 'content/images/2024/cover.jpg'), 'COVER');
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: jsonFile, onConflict: 'overwrite' });
+      expect(summary.posts).toBe(1);
+      expect(summary.assetsCopied).toBe(1);
+      expect(await readFile(join(cwd, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('JSON file input without sibling assets does not copy anything', async () => {
+    const jsonFile = await writeJsonNamed('export.json');
+    await rm(join(exportDir, 'content'), { recursive: true, force: true });
+
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: jsonFile, onConflict: 'overwrite' });
