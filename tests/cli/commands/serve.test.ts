@@ -17,6 +17,7 @@ import {
   parseServeRedirectsArtifact,
   parseServeSimulationTarget,
 } from '~/cli/commands/serve.ts';
+import { LIVERELOAD_SCRIPT_PATH } from '~/dev/livereload.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -408,6 +409,91 @@ describe('cli serve — deploy artifact simulation', () => {
     expect(assetHeaders.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
     expect(assetHeaders.get('X-Robots-Tag')).toBe('noindex');
     expect(parseServeSimulationTarget('cloudflare')).toBe('cloudflare-pages');
+  });
+});
+
+describe('cli serve — dev cache control', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+    await Bun.write(join(dir, 'dist/404.html'), '<!doctype html><title>missing</title>');
+    await Bun.write(join(dir, 'dist/assets/app.css'), 'body { color: black; }');
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('serves HTML, assets, fallback pages, and livereload with no-store', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+
+      const cases = [
+        ['/', 200],
+        ['/assets/app.css', 200],
+        ['/missing', 404],
+        [LIVERELOAD_SCRIPT_PATH, 200],
+      ] as const;
+
+      for (const [path, status] of cases) {
+        const response = await fetch(`${baseUrl}${path}`);
+        await response.arrayBuffer();
+        expect(response.status, path).toBe(status);
+        expect(response.headers.get('Cache-Control'), path).toBe('no-store');
+      }
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+
+  test('does not overwrite simulated Cache-Control headers', async () => {
+    await Bun.write(
+      join(dir, 'dist/_headers'),
+      ['/assets/*', '  Cache-Control: public, max-age=31536000, immutable'].join('\n'),
+    );
+    const port = pickPort();
+    const proc = Bun.spawn(
+      [
+        'bun',
+        CLI_ENTRY,
+        'serve',
+        '--port',
+        String(port),
+        '--host',
+        '127.0.0.1',
+        '--simulate',
+        'netlify',
+      ],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`${baseUrl}/assets/app.css`);
+      await response.arrayBuffer();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
   });
 });
 

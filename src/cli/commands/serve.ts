@@ -21,6 +21,7 @@ import { SERVE_SPEC } from '../specs.ts';
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 120;
+const DEV_CACHE_CONTROL = 'no-store';
 
 const SERVE_CONTENT_TYPES_BY_FILENAME = new Map<string, string>([
   ['rss.xml', 'application/rss+xml'],
@@ -216,7 +217,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               new Response(LIVERELOAD_CLIENT_JS, {
                 headers: {
                   'Content-Type': 'application/javascript; charset=utf-8',
-                  'Cache-Control': 'no-store',
+                  'Cache-Control': DEV_CACHE_CONTROL,
                 },
               }),
             );
@@ -255,7 +256,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               const html = await file.text();
               return finish(
                 new Response(injectLiveReloadScript(html), {
-                  headers: mergeServeHeaders(simulatedHeaders, {
+                  headers: serveHeaders(simulatedHeaders, {
                     'Content-Type': 'text/html; charset=utf-8',
                   }),
                 }),
@@ -272,7 +273,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               return finish(
                 new Response(injectLiveReloadScript(html), {
                   status: 404,
-                  headers: mergeServeHeaders(simulatedHeaders, {
+                  headers: serveHeaders(simulatedHeaders, {
                     'Content-Type': 'text/html; charset=utf-8',
                   }),
                 }),
@@ -285,7 +286,9 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               }),
             );
           }
-          return finish(new Response('Not Found', { status: 404, headers: simulatedHeaders }));
+          return finish(
+            new Response('Not Found', { status: 404, headers: serveHeaders(simulatedHeaders) }),
+          );
         } finally {
           writeServeAccessLog(request, status, performance.now() - startedAt);
         }
@@ -586,10 +589,16 @@ function mergeServeHeaders(base: Headers, extra: Record<string, string>): Header
   return headers;
 }
 
+function serveHeaders(base: Headers, extra: Record<string, string> = {}): Headers {
+  const headers = mergeServeHeaders(base, extra);
+  if (!headers.has('Cache-Control')) headers.set('Cache-Control', DEV_CACHE_CONTROL);
+  return headers;
+}
+
 function serveFileHeaders(base: Headers, filePath: string): Headers {
   const contentType = inferServeContentType(filePath);
-  if (contentType === undefined) return base;
-  return mergeServeHeaders(base, { 'Content-Type': contentType });
+  if (contentType === undefined) return serveHeaders(base);
+  return serveHeaders(base, { 'Content-Type': contentType });
 }
 
 function writeServeAccessLog(request: Request, status: number, elapsedMs: number): void {
