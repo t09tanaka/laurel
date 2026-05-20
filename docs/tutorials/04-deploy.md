@@ -644,7 +644,8 @@ artifact under `dist/<repo>/`; GitHub Pages serves the root `404.html` at
 CloudFront-managed TLS / caching.
 
 For the focused AWS guide, including OIDC setup, the CloudFront Function for
-directory-style URLs, and `nectar deploy s3`, see
+directory-style URLs, CloudFront custom error responses for `404.html`, and
+`nectar deploy s3`, see
 [`docs/deploy/s3-cloudfront.md`](../deploy/s3-cloudfront.md).
 
 Copy [`examples/ci/s3-cloudfront.yml`](../../examples/ci/s3-cloudfront.yml)
@@ -662,6 +663,12 @@ The workflow builds with Bun, verifies `dist/.nectar-manifest.json`, syncs
 private S3 origin with the CloudFront Function at
 [`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
 so `/about/` resolves to Nectar's generated `/about/index.html` object.
+
+Also configure CloudFront custom error responses for both `403` and `404`
+origin errors. Point them at `/404.html` and keep the viewer response code as
+`404`. Private S3 origins can report a missing key as `403` or `404` depending
+on bucket permissions; mapping both errors gives visitors Nectar's generated
+not-found page without turning real misses into successful `200` responses.
 
 For local uploads after a successful build, configure:
 
@@ -799,10 +806,12 @@ rules into nginx `return` directives.
 - **GitHub Pages ignores your project-site 404 page.** Keep the generated file
   at `dist/404.html`. Do not move it to `dist/<repo>/404.html`; the repo name
   belongs in `[build].base_path`, not in the artifact layout.
-- **S3 + CloudFront returns 403 or 404 for nested pages.** CloudFront's
-  default root object only covers `/`. Attach the CloudFront Function from
-  `examples/s3-cloudfront/append-index.js` so directory-style URLs request
-  each page's generated `index.html`.
+- **S3 + CloudFront returns 403 or 404 for nested pages or missing URLs.**
+  CloudFront's default root object only covers `/`. Attach the CloudFront
+  Function from `examples/s3-cloudfront/append-index.js` so directory-style
+  URLs request each page's generated `index.html`, and configure custom error
+  responses for `403` and `404` so true misses serve `/404.html` with viewer
+  status `404`.
 - **Render deploys but redirects or headers do not apply.** Render Static
   Sites do not consume Nectar's generated `_redirects` / `_headers` as a
   platform contract. Configure those rules in the Render dashboard until

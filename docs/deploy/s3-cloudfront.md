@@ -24,6 +24,14 @@ GitHub Pages have more managed defaults.
    | Viewer protocol policy | Redirect HTTP to HTTPS |
    | Origin access | Origin Access Control for the private S3 bucket |
 
+   Also add CloudFront custom error responses for both `403` and `404` origin
+   errors. Point each response at `/404.html` and set the viewer
+   `response_code` to `404`. Private S3 origins often return `403
+   AccessDenied` for a missing key when CloudFront cannot list the bucket, while
+   other policies can return `404 NoSuchKey`; handling both paths ensures real
+   misses use Nectar's generated not-found page without converting them into a
+   successful `200`.
+
 3. Attach the CloudFront Function in
    [`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
    to the viewer-request event for behaviors that serve HTML.
@@ -73,6 +81,60 @@ GitHub Pages have more managed defaults.
    verifies `dist/.nectar-manifest.json`, syncs fingerprinted assets with long
    immutable caching, syncs HTML / XML / TXT with revalidation, then
    invalidates `/*` in CloudFront.
+
+## Custom 404 responses
+
+Nectar writes `dist/404.html` on every build. S3 does not automatically use
+that file as the error document when it is accessed through a CloudFront REST
+origin, so configure CloudFront custom error responses instead:
+
+| Origin error | Response page path | Viewer response code |
+| --- | --- | --- |
+| `403` | `/404.html` | `404` |
+| `404` | `/404.html` | `404` |
+
+Keep the `response_code` as `404`. Setting it to `200` makes real missing URLs
+look successful to browsers, crawlers, caches, analytics, and uptime checks. The
+custom error response should only replace the body with Nectar's branded
+`404.html`; the HTTP semantics still need to say "not found".
+
+Terraform distributions can copy the fragment in
+[`examples/deploy/s3-cloudfront/cloudfront-custom-errors.tf.example`](../../examples/deploy/s3-cloudfront/cloudfront-custom-errors.tf.example):
+
+```hcl
+custom_error_response {
+  error_code            = 403
+  response_code         = 404
+  response_page_path    = "/404.html"
+  error_caching_min_ttl = 60
+}
+
+custom_error_response {
+  error_code            = 404
+  response_code         = 404
+  response_page_path    = "/404.html"
+  error_caching_min_ttl = 60
+}
+```
+
+CloudFormation uses the same mapping under `CustomErrorResponses`:
+
+```yaml
+CustomErrorResponses:
+  - ErrorCode: 403
+    ResponseCode: 404
+    ResponsePagePath: /404.html
+    ErrorCachingMinTTL: 60
+  - ErrorCode: 404
+    ResponseCode: 404
+    ResponsePagePath: /404.html
+    ErrorCachingMinTTL: 60
+```
+
+Use a short `ErrorCachingMinTTL` while you are still changing routes. A longer
+TTL is fine once the site structure is stable, but stale cached error responses
+can otherwise hide newly uploaded pages until the TTL expires or an invalidation
+runs.
 
 ## Local deploys with `nectar deploy s3`
 
