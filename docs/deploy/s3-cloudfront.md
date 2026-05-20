@@ -235,7 +235,7 @@ default chain.
 Every successful `nectar build` writes `dist/.nectar/changed-paths.txt` for
 CloudFront invalidations. The file contains one invalidation path per line,
 using CloudFront's leading-slash format. It is computed from
-`dist/.nectar/build-manifest.json` when a previous build manifest exists. On
+`dist/.nectar/manifest.json` when a previous build manifest exists. On
 the first build, or when the previous manifest cannot be read, Nectar writes
 the safe fallback `/*`.
 

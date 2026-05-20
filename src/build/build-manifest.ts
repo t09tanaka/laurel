@@ -8,12 +8,13 @@ import { type RouteContentInput, computeThemeFingerprint, stableStringify } from
 
 // Subdirectory inside the build output that holds Nectar-emitted metadata for
 // downstream tooling. Sibling files (e.g. additional deploy descriptors) can
-// land alongside `build-manifest.json` without polluting the site root.
+// land alongside `manifest.json` without polluting the site root.
 export const BUILD_MANIFEST_DIR = '.nectar';
-export const BUILD_MANIFEST_FILENAME = 'build-manifest.json';
+export const BUILD_MANIFEST_FILENAME = 'manifest.json';
+export const LEGACY_BUILD_MANIFEST_FILENAME = 'build-manifest.json';
 export const CHANGED_PATHS_FILENAME = 'changed-paths.txt';
 
-// Schema version for `build-manifest.json`. Bump when the JSON shape changes
+// Schema version for `.nectar/manifest.json`. Bump when the JSON shape changes
 // in a way that downstream consumers (deploy scripts, `nectar deploy`) cannot
 // silently absorb.
 export const BUILD_MANIFEST_VERSION = 2 as const;
@@ -72,12 +73,20 @@ export function buildManifestRelPath(): string {
   return `${BUILD_MANIFEST_DIR}/${BUILD_MANIFEST_FILENAME}`;
 }
 
+export function legacyBuildManifestRelPath(): string {
+  return `${BUILD_MANIFEST_DIR}/${LEGACY_BUILD_MANIFEST_FILENAME}`;
+}
+
 export function changedPathsRelPath(): string {
   return `${BUILD_MANIFEST_DIR}/${CHANGED_PATHS_FILENAME}`;
 }
 
 export function buildManifestAbsPath(outputDir: string): string {
   return join(outputDir, BUILD_MANIFEST_DIR, BUILD_MANIFEST_FILENAME);
+}
+
+export function legacyBuildManifestAbsPath(outputDir: string): string {
+  return join(outputDir, BUILD_MANIFEST_DIR, LEGACY_BUILD_MANIFEST_FILENAME);
 }
 
 export function changedPathsAbsPath(outputDir: string): string {
@@ -115,7 +124,11 @@ export async function emitBuildManifest(
 
   // The deploy manifest feeds the changed-paths companion artifact, so both
   // files are excluded from the hash list to avoid self-referential output.
-  const excludedRelPaths = new Set([buildManifestRelPath(), changedPathsRelPath()]);
+  const excludedRelPaths = new Set([
+    buildManifestRelPath(),
+    legacyBuildManifestRelPath(),
+    changedPathsRelPath(),
+  ]);
 
   const files = await collectOutputFiles(outputDir, excludedRelPaths);
 
@@ -164,8 +177,11 @@ function serializeCustomSettings(
 }
 
 export async function loadBuildManifest(outputDir: string): Promise<BuildManifestJson | undefined> {
-  const file = Bun.file(buildManifestAbsPath(outputDir));
-  if (!(await file.exists())) return undefined;
+  const file = await firstExistingFile([
+    buildManifestAbsPath(outputDir),
+    legacyBuildManifestAbsPath(outputDir),
+  ]);
+  if (!file) return undefined;
   try {
     const parsed = (await file.json()) as Partial<BuildManifestJson>;
     if (parsed.schema_version !== BUILD_MANIFEST_VERSION) return undefined;
@@ -175,6 +191,16 @@ export async function loadBuildManifest(outputDir: string): Promise<BuildManifes
   } catch {
     return undefined;
   }
+}
+
+async function firstExistingFile(
+  paths: readonly string[],
+): Promise<ReturnType<typeof Bun.file> | undefined> {
+  for (const path of paths) {
+    const file = Bun.file(path);
+    if (await file.exists()) return file;
+  }
+  return undefined;
 }
 
 async function collectOutputFiles(

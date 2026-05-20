@@ -10,6 +10,8 @@ import {
   buildManifestRelPath,
   changedPathsAbsPath,
   emitBuildManifest,
+  legacyBuildManifestAbsPath,
+  loadBuildManifest,
 } from '~/build/build-manifest.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
@@ -44,7 +46,7 @@ function sha256(input: string | Buffer): string {
 }
 
 describe('build-manifest', () => {
-  test('emits .nectar/build-manifest.json with the required fields', async () => {
+  test('emits .nectar/manifest.json with the required fields', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nectar-bm-'));
     try {
       await writeFile(join(dir, 'index.html'), '<html></html>', 'utf8');
@@ -81,6 +83,7 @@ describe('build-manifest', () => {
       // The on-disk JSON parses to the same shape we returned.
       const onDisk = (await Bun.file(buildManifestAbsPath(dir)).json()) as BuildManifestJson;
       expect(onDisk).toEqual(manifest);
+      expect(buildManifestRelPath()).toBe('.nectar/manifest.json');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -267,6 +270,7 @@ describe('build-manifest', () => {
           { path: 'index.html', size: 8, hash: sha256('old home') },
           { path: 'assets/app.css', size: 8, hash: sha256('same css') },
           { path: 'old-post/index.html', size: 8, hash: sha256('old post') },
+          { path: '.nectar/manifest.json', size: 2, hash: sha256('{}') },
           { path: '.nectar/build-manifest.json', size: 2, hash: sha256('{}') },
           { path: '.nectar-manifest.json', size: 2, hash: sha256('{}') },
         ],
@@ -292,6 +296,36 @@ describe('build-manifest', () => {
         '/old-post/index.html',
       ].join('\n');
       expect(body).toBe(`${expected}\n`);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('loads legacy .nectar/build-manifest.json when the new manifest path is absent', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-bm-'));
+    try {
+      const legacy: BuildManifestJson = {
+        schema_version: BUILD_MANIFEST_VERSION,
+        generated_at: '2026-05-20T00:00:00.000Z',
+        nectar: { version: '1.0.0' },
+        theme: {
+          name: 'source',
+          version: '1.2.3',
+          fingerprint: 'a'.repeat(64),
+          custom_settings: {},
+        },
+        config_hash: 'b'.repeat(64),
+        hash_algorithm: 'sha256',
+        route_count: 1,
+        asset_count: 0,
+        routes: [],
+        files: [{ path: 'index.html', size: 4, hash: sha256('home') }],
+      };
+      await mkdir(join(dir, '.nectar'), { recursive: true });
+      await writeFile(legacyBuildManifestAbsPath(dir), `${JSON.stringify(legacy, null, 2)}\n`);
+
+      const loaded = await loadBuildManifest(dir);
+      expect(loaded).toEqual(legacy);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

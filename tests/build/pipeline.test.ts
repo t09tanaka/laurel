@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { BUILD_MANIFEST_VERSION } from '~/build/build-manifest.ts';
+import { BUILD_MANIFEST_VERSION, buildManifestRelPath } from '~/build/build-manifest.ts';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
 import { type BuildProgressEvent, ROUTE_RENDER_BATCH_SIZE } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
@@ -1599,10 +1599,10 @@ describe('build pipeline --profile', () => {
 });
 
 describe('build pipeline build-manifest emission (#248)', () => {
-  test('writes dist/.nectar/build-manifest.json with the deploy-facing fields', async () => {
+  test('writes dist/.nectar/manifest.json with the deploy-facing fields', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
-    const file = join(summary.outputDir, '.nectar/build-manifest.json');
+    const file = join(summary.outputDir, buildManifestRelPath());
     const changedPathsFile = join(summary.outputDir, '.nectar/changed-paths.txt');
     expect(existsSync(file)).toBe(true);
     expect(existsSync(changedPathsFile)).toBe(true);
@@ -1662,7 +1662,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
 
     // The manifest must not list itself; otherwise its contents would be
     // self-referential and change every build.
-    expect(parsed.files.find((f) => f.path === '.nectar/build-manifest.json')).toBeUndefined();
+    expect(parsed.files.find((f) => f.path === buildManifestRelPath())).toBeUndefined();
     expect(parsed.files.find((f) => f.path === '.nectar/changed-paths.txt')).toBeUndefined();
 
     // Files must be sorted for deterministic deploy diffs.
@@ -2242,7 +2242,7 @@ export default {
     expect(existsSync(join(distDir, 'robots.txt'))).toBe(false);
     expect(existsSync(join(distDir, 'humans.txt'))).toBe(false);
     expect(existsSync(join(distDir, '.nojekyll'))).toBe(false);
-    expect(existsSync(join(distDir, '.nectar', 'build-manifest.json'))).toBe(false);
+    expect(existsSync(join(distDir, buildManifestRelPath()))).toBe(false);
   });
 });
 

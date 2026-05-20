@@ -60,7 +60,7 @@ async function makeSite(): Promise<string> {
       // search.json carries its own intentional `meta.generated_at` timestamp,
       // which is a separate determinism concern from glob iteration order.
       // Disable it here so the only timestamped file in the build is
-      // build-manifest.json, which the test allow-lists explicitly.
+      // .nectar/manifest.json, which the test allow-lists explicitly.
       '[components.search]',
       'enabled = false',
       '',

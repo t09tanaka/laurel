@@ -447,7 +447,7 @@ post_build = "./scripts/newsletter-send.sh"
 
 The command runs from the project root after a successful non-dry-run build.
 Nectar sets `NECTAR_OUTPUT_DIR` to the final output directory, so the script can
-inspect emitted HTML, feeds, or `.nectar/build-manifest.json` before deciding
+inspect emitted HTML, feeds, or `.nectar/manifest.json` before deciding
 what to send.
 
 For member-facing newsletter delivery, keep the provider-specific logic in your

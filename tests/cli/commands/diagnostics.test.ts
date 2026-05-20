@@ -50,7 +50,7 @@ async function makeFixture(): Promise<string> {
     join(dir, 'content/posts/secret-post.md'),
     ['---', 'title: Secret Post', 'date: 2024-01-01', '---', '', 'PRIVATE BODY TOKEN'].join('\n'),
   );
-  await Bun.write(join(dir, 'dist/.nectar/build-manifest.json'), '{"schema_version":2}\n');
+  await Bun.write(join(dir, 'dist/.nectar/manifest.json'), '{"schema_version":2}\n');
   await Bun.write(join(dir, 'dist/.nectar-manifest.json'), '{"version":1}\n');
   await Bun.write(join(dir, 'nectar.log'), 'first line\ntoken=log-secret\nlast line\n');
   return dir;

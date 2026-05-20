@@ -440,7 +440,7 @@ async function runBuild({
   progress: BuildProgressReporter | undefined;
 }): Promise<BuildSummary> {
   // Resolve Nectar's own version once up front; the build-manifest emitter at
-  // the end of the pipeline embeds it into `build-manifest.json` for deploy
+  // the end of the pipeline embeds it into `.nectar/manifest.json` for deploy
   // tooling to detect generator upgrades.
   const nectarVersion = await getNectarVersion();
   const plannedOutputPaths = new Set<string>();

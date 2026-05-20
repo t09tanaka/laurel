@@ -63,7 +63,7 @@ async function makeFixtureWithDist(extraConfig: string[] = []): Promise<string> 
 async function writeDeployBuildManifest(dir: string): Promise<void> {
   await mkdir(join(dir, 'dist/.nectar'), { recursive: true });
   await writeFile(
-    join(dir, 'dist/.nectar/build-manifest.json'),
+    join(dir, 'dist/.nectar/manifest.json'),
     `${JSON.stringify(
       {
         schema_version: 2,

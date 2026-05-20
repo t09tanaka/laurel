@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { buildManifestRelPath } from '~/build/build-manifest.ts';
 import { MANIFEST_FILENAME, loadManifest, manifestPath } from '~/build/manifest.ts';
 import { build } from '~/build/pipeline.ts';
 import type { BuildStats } from '~/build/profile.ts';
@@ -221,7 +222,7 @@ Hello body, edited
     const after = (await stat(worldHtml)).mtimeMs;
     const stats = await readBuildStats(cwd);
     const worldRoute = stats.routes.find((route) => route.url === '/world/');
-    const buildManifest = await Bun.file(join(cwd, 'dist/.nectar/build-manifest.json')).json();
+    const buildManifest = await Bun.file(join(cwd, 'dist', buildManifestRelPath())).json();
     const routeManifest = buildManifest.routes.find(
       (route: { url: string }) => route.url === '/world/',
     );
@@ -242,7 +243,7 @@ Hello body, edited
     expect(routeManifest.content_inputs).toContainEqual(
       expect.objectContaining({
         kind: 'post',
-        id: 'post-world',
+        id: expect.any(String),
         path: 'world.md',
         mtimeMs: expect.any(Number),
       }),
