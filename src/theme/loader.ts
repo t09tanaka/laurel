@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import { NectarError } from '~/util/errors.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
@@ -15,10 +15,11 @@ export interface LoadThemeOptions {
 }
 
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
-  const rootDir = join(cwd, config.theme.dir, config.theme.name);
+  const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
   if (!existsSync(rootDir)) {
     throw new NectarError({
       message: `Theme directory not found: ${rootDir}`,
+      hint: 'Set [theme].dir to the directory holding the theme (or to an npm package name like `@scope/nectar-theme-foo` resolvable via `node_modules/<spec>`).',
       code: 'theme',
     });
   }
@@ -67,6 +68,54 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     locales,
     assets,
   };
+}
+
+// Resolve where the theme's files live, allowing three input shapes:
+//   1. Local relative directory: `themes` -> `<cwd>/themes/<name>/`. Pre-#853
+//      behaviour; still the default for the example site.
+//   2. Local absolute directory: `/abs/path/themes` -> `/abs/path/themes/<name>/`.
+//      The config loader rewrites relative `theme.dir` values to absolute
+//      paths anchored at the config file's directory, so this branch is hit
+//      whenever the config was loaded via `--config <path>` (#853).
+//   3. npm package spec: `@scope/nectar-theme-foo` or `nectar-theme-foo` ->
+//      `<cwd>/node_modules/<spec>/`. Falls back to this branch only when the
+//      local-directory resolution didn't find anything on disk, so the
+//      pre-existing `theme.dir = "themes"` default keeps working even though
+//      a bare `themes` string also matches the npm package regex (#855).
+function resolveThemeRoot(cwd: string, themeDir: string, themeName: string): string {
+  if (isAbsolute(themeDir)) {
+    return join(themeDir, themeName);
+  }
+  const localRoot = join(cwd, themeDir, themeName);
+  if (existsSync(localRoot)) return localRoot;
+  if (looksLikeNpmPackage(themeDir)) {
+    const pkgRoot = resolve(cwd, 'node_modules', themeDir);
+    // If the package itself ships a `package.json` at the root, treat the
+    // package as the theme directly (single-theme packages); otherwise fall
+    // back to the `<root>/<themeName>/` convention so a package can host
+    // multiple themes under different subdirectories.
+    if (existsSync(pkgRoot)) {
+      if (existsSync(join(pkgRoot, 'package.json'))) return pkgRoot;
+      return join(pkgRoot, themeName);
+    }
+  }
+  // Nothing on disk; return the local-root path so the not-found error
+  // message points at the canonical location the user would expect.
+  return localRoot;
+}
+
+// Cheap heuristic: an npm package spec is either `@scope/name` or `name`
+// where `name` is a valid npm package identifier (lowercase letters, digits,
+// `-`, `_`, `.`). Local paths almost always include `/` or `\`, start with
+// `./` / `../`, or are an empty string, so the regex tolerates a single
+// optional `@scope/` prefix followed by exactly one path segment.
+function looksLikeNpmPackage(themeDir: string): boolean {
+  if (themeDir.length === 0) return false;
+  if (themeDir.startsWith('.') || themeDir.includes('\\')) return false;
+  if (themeDir.includes('/')) {
+    return /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(themeDir);
+  }
+  return /^[a-z0-9][a-z0-9._-]*$/.test(themeDir);
 }
 
 function separator(): string {
