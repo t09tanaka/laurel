@@ -13,6 +13,15 @@ import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { splitLayout } from './layouts.ts';
 import { wrapMemberStub } from './member-stub.ts';
+import {
+  compileThemeSource,
+  installSourceAwareHelperErrors,
+  layoutSourceInfo,
+  partialSourceInfo,
+  registerThemePartial,
+  templatePartialSourceInfo,
+  templateSourceInfo,
+} from './source-errors.ts';
 import type { RouteContext } from './types.ts';
 
 export interface NectarEngine {
@@ -63,20 +72,30 @@ export function createEngine(opts: {
   cwd?: string;
 }): NectarEngine {
   const hb = Handlebars.create();
+  installSourceAwareHelperErrors(hb);
   const templateBodies: Record<string, string> = {};
+  const templateBodyOffsets: Record<string, number> = {};
   const templates: Record<string, Handlebars.TemplateDelegate> = {};
   const layouts: Record<string, Handlebars.TemplateDelegate> = {};
   const templateLayoutNames = new Map<string, string | undefined>();
   for (const [name, source] of Object.entries(opts.theme.templates)) {
     const split = splitLayout(source);
+    const bodyOffset = source.length - split.body.length;
     templateBodies[name] = split.body;
-    templates[name] = hb.compile(split.body, { noEscape: false });
+    templateBodyOffsets[name] = bodyOffset;
+    templates[name] = compileThemeSource(
+      hb,
+      split.body,
+      templateSourceInfo(opts.theme, name, bodyOffset),
+    );
     templateLayoutNames.set(name, split.layout);
     if (split.layout) {
       // mark for later resolution
-      templates[`${name}__layout`] = hb.compile(`{{__layout '${split.layout}'}}`, {
-        noEscape: false,
-      });
+      templates[`${name}__layout`] = compileThemeSource(
+        hb,
+        `{{__layout '${split.layout}'}}`,
+        templateSourceInfo(opts.theme, name, bodyOffset),
+      );
     }
     // Compile every template's full source as a layout candidate too. Themes
     // can reference any template via `{{!< name}}`, not just default/layouts/*,
@@ -84,9 +103,9 @@ export function createEngine(opts: {
     // engine init avoids recompiling the same layout source for every route
     // that extends it (N routes × M layouts otherwise re-runs hb.compile per
     // render).
-    layouts[name] = hb.compile(source, { noEscape: false });
+    layouts[name] = compileThemeSource(hb, source, layoutSourceInfo(opts.theme, name));
   }
-  registerPartials(hb, opts.theme, templateBodies);
+  registerPartials(hb, opts.theme, templateBodies, templateBodyOffsets);
 
   const engine: NectarEngine = {
     hb,
@@ -115,6 +134,7 @@ function registerPartials(
   hb: typeof Handlebars,
   theme: ThemeBundle,
   templateBodies: Record<string, string>,
+  templateBodyOffsets: Record<string, number>,
 ): void {
   // Defaults go in first so a theme's same-named partial overrides cleanly via
   // the subsequent `theme.partials` loop. Without this ordering, a theme that
@@ -127,9 +147,9 @@ function registerPartials(
     }
   }
   for (const [name, source] of Object.entries(theme.partials)) {
-    hb.registerPartial(name, source);
+    registerThemePartial(hb, name, source, partialSourceInfo(theme, name));
     if (!name.includes('/')) {
-      hb.registerPartial(`partials/${name}`, source);
+      registerThemePartial(hb, `partials/${name}`, source, partialSourceInfo(theme, name));
     }
   }
   // Templates are also reachable as partials under their bare name to allow
@@ -148,9 +168,15 @@ function registerPartials(
   // template body (issue #552).
   const themePartialNames = new Set(Object.keys(theme.partials));
   for (const [name, body] of Object.entries(templateBodies)) {
-    hb.registerPartial(`__template__/${name}`, body);
+    const sourceOffset = templateBodyOffsets[name] ?? 0;
+    registerThemePartial(
+      hb,
+      `__template__/${name}`,
+      body,
+      templatePartialSourceInfo(theme, name, sourceOffset),
+    );
     if (themePartialNames.has(name)) continue;
-    hb.registerPartial(name, body);
+    registerThemePartial(hb, name, body, templatePartialSourceInfo(theme, name, sourceOffset));
   }
 }
 

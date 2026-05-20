@@ -62,7 +62,11 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
             url: navigationHref(String(item.url ?? ''), basePath),
           };
         });
-        const compiled = engine.hb.compile(themePartial, { noEscape: false });
+        const registeredPartial = engine.hb.partials.navigation;
+        const compiled =
+          typeof registeredPartial === 'function'
+            ? registeredPartial
+            : engine.hb.compile(themePartial, { noEscape: false });
         const html = compiled({ navigation: enriched, type }, { data: options.data });
         return new engine.hb.SafeString(html);
       }
@@ -110,7 +114,11 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       // below when no theme partial is present (issues #550 / #465).
       const themePartial = engine.theme?.partials?.pagination;
       if (themePartial) {
-        const compiled = engine.hb.compile(themePartial, { noEscape: false });
+        const registeredPartial = engine.hb.partials.pagination;
+        const compiled =
+          typeof registeredPartial === 'function'
+            ? registeredPartial
+            : engine.hb.compile(themePartial, { noEscape: false });
         const html = compiled(pagination, { data: options.data });
         return new engine.hb.SafeString(html);
       }

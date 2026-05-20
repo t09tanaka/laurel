@@ -1221,8 +1221,8 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     const partial = engine.hb.partials.post;
-    expect(typeof partial).toBe('string');
-    const partialSource = partial as string;
+    expect(typeof partial).toBe('function');
+    const partialSource = (partial as { __nectarSource?: string }).__nectarSource ?? '';
     expect(partialSource).not.toContain('{{!< default}}');
     expect(partialSource).toContain('<article>{{post.title}}</article>');
   });
@@ -1232,7 +1232,11 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       home: '<section>{{@site.title}}</section>',
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials.home).toBe('<section>{{@site.title}}</section>');
+    const partial = engine.hb.partials.home as Handlebars.TemplateDelegate;
+    expect(typeof partial).toBe('function');
+    expect((partial as { __nectarSource?: string }).__nectarSource).toBe(
+      '<section>{{@site.title}}</section>',
+    );
   });
 
   test('Dawn-style match on pagination.page falls through on non-paginated routes (issue #1709)', () => {
@@ -1501,6 +1505,73 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(() => engine.render(route)).toThrow('cannot use ../ parent segments');
   });
 
+  test('partial parse errors include the theme partial file and source line', () => {
+    const theme = makeTheme(
+      {
+        home: '{{> "post-card"}}',
+      },
+      {
+        'post-card': ['<article>', '  <h2>{{title}}</h2>', '  {{foo bar=}}', '</article>'].join(
+          '\n',
+        ),
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(() => engine.render(route)).toThrow('Theme partial');
+    expect(() => engine.render(route)).toThrow('{{foo bar=}}');
+
+    try {
+      engine.render(route);
+      throw new Error('expected render to fail');
+    } catch (err) {
+      expect(err).toMatchObject({
+        file: '/tmp/themes/fixture/partials/post-card.hbs',
+        line: 3,
+      });
+    }
+  });
+
+  test('helper render errors include the calling template location', () => {
+    const theme = makeTheme({
+      home: ['<main>', '  {{boom}}', '</main>'].join('\n'),
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    engine.hb.registerHelper('boom', () => {
+      throw new Error('exploded');
+    });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(() => engine.render(route)).toThrow("Handlebars helper 'boom' failed");
+    expect(() => engine.render(route)).toThrow('{{boom}}');
+
+    try {
+      engine.render(route);
+      throw new Error('expected render to fail');
+    } catch (err) {
+      expect(err).toMatchObject({
+        file: '/tmp/themes/fixture/home.hbs',
+        line: 2,
+        col: 3,
+      });
+    }
+  });
+
   test('custom layout that includes {{> post}} renders only one layout wrapper, not two', () => {
     const theme = makeTheme({
       default: '<!doctype html><html><body data-layout="default">{{{body}}}</body></html>',
@@ -1732,9 +1803,7 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
       },
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials.index).toBe(
-      '<section data-source="partial">theme partial body</section>',
-    );
+    expect(typeof engine.hb.partials.index).toBe('function');
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -1758,7 +1827,9 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
       },
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials['__template__/index']).toBe(
+    const partial = engine.hb.partials['__template__/index'] as Handlebars.TemplateDelegate;
+    expect(typeof partial).toBe('function');
+    expect(partial({}, { data: {} })).toBe(
       '<section data-source="template">template body</section>',
     );
   });
@@ -1771,8 +1842,16 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
       partials: {},
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials.post).toBe('<article>{{post.title}}</article>');
-    expect(engine.hb.partials['__template__/post']).toBe('<article>{{post.title}}</article>');
+    const postPartial = engine.hb.partials.post as Handlebars.TemplateDelegate;
+    const templatePartial = engine.hb.partials['__template__/post'] as Handlebars.TemplateDelegate;
+    expect(typeof postPartial).toBe('function');
+    expect(typeof templatePartial).toBe('function');
+    expect(postPartial({ post: { title: 'Hello' } }, { data: {} })).toBe(
+      '<article>Hello</article>',
+    );
+    expect(templatePartial({ post: { title: 'Hello' } }, { data: {} })).toBe(
+      '<article>Hello</article>',
+    );
   });
 });
 
@@ -1899,8 +1978,10 @@ describe('createEngine — default search partial (issue #1135)', () => {
       partials: { search: '<!-- theme search override -->' },
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials.search).toBe('<!-- theme search override -->');
-    expect(engine.hb.partials['partials/search']).toBe('<!-- theme search override -->');
+    const search = engine.hb.partials.search as Handlebars.TemplateDelegate;
+    const qualified = engine.hb.partials['partials/search'] as Handlebars.TemplateDelegate;
+    expect(search({}, { data: {} })).toBe('<!-- theme search override -->');
+    expect(qualified({}, { data: {} })).toBe('<!-- theme search override -->');
   });
 
   test('a theme can render {{> search}} without shipping its own partial', () => {
@@ -1947,8 +2028,10 @@ describe('createEngine — default search partial (issue #1135)', () => {
       partials: { paywall: '<!-- theme paywall override -->' },
     });
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
-    expect(engine.hb.partials.paywall).toBe('<!-- theme paywall override -->');
-    expect(engine.hb.partials['partials/paywall']).toBe('<!-- theme paywall override -->');
+    const paywall = engine.hb.partials.paywall as Handlebars.TemplateDelegate;
+    const qualified = engine.hb.partials['partials/paywall'] as Handlebars.TemplateDelegate;
+    expect(paywall({}, { data: {} })).toBe('<!-- theme paywall override -->');
+    expect(qualified({}, { data: {} })).toBe('<!-- theme paywall override -->');
   });
 });
 
