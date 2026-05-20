@@ -74,6 +74,7 @@ must stay inside that root.
 | `content` | `object` | Where Markdown content lives and how members-only posts are handled. |
 | `build` | `object` | Build pipeline options that shape the emitted site. |
 | `hooks` | `object` | Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery. |
+| `image_cdn` | `object` | Optional HTML post-process that rewrites local content image URLs through a deployment image CDN. It only touches relative or same-site URLs under `path_prefixes` and leaves third-party, protocol-relative, data/blob, and fragment URLs unchanged. |
 | `performance` | `object` | Resource-hint and HTML post-process knobs that shape network-time performance without touching theme markup. All toggles operate on already-rendered HTML so they compose with arbitrary `.hbs` templates. The defaults bias toward the LCP / Lighthouse-friendly behaviour modern Ghost themes already expect. |
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
@@ -192,6 +193,21 @@ Project-local lifecycle commands for integrating Nectar builds with external sys
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `hooks.post_build` | `string` | no | — | Shell command to run after a successful non-dry-run build has been fully written to `build.output_dir` (for example `./scripts/notify-discord.sh`). The command runs from the project root with `NECTAR_OUTPUT_DIR` set to the final output directory, so it is suitable for deployment notifications or a newsletter-send command that should fire only after fresh content has built. |
+
+## `image_cdn`
+
+Optional HTML post-process that rewrites local content image URLs through a deployment image CDN. It only touches relative or same-site URLs under `path_prefixes` and leaves third-party, protocol-relative, data/blob, and fragment URLs unchanged.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `image_cdn.enabled` | `boolean` | no | `false` | Rewrite emitted HTML image URLs through the configured image CDN adapter. Disabled by default so existing static image paths keep working until a deployment target is explicitly configured. |
+| `image_cdn.adapter` | `"cloudflare" \| "netlify" \| "vercel" \| "cloudinary" \| "imgproxy"` | no | `"cloudflare"` | Image CDN URL shape to emit. `cloudflare` uses `/cdn-cgi/image/...`, `netlify` uses `/.netlify/images?...`, `vercel` uses `/_next/image?...`, `cloudinary` uses `/image/fetch/...`, and `imgproxy` uses `/insecure/.../plain/...` unless `signature` overrides that segment. |
+| `image_cdn.base_url` | `string` | no | — | Optional absolute CDN endpoint. For Cloudflare, Netlify, and Vercel this prefixes the path-style adapter endpoint; omit it to emit same-origin paths. Required for `cloudinary` (for example `https://res.cloudinary.com/<cloud>`) and `imgproxy` (for example `https://imgproxy.example.com`). |
+| `image_cdn.quality` | `number` | no | `85` | Image quality passed to adapters that support a quality parameter. |
+| `image_cdn.format` | `"auto" \| "avif" \| "webp" \| "jpg" \| "jpeg" \| "png"` | no | `"auto"` | Preferred output format passed to adapters. `auto` lets the CDN negotiate a modern format when the adapter supports it. |
+| `image_cdn.default_width` | `number` | no | — | Fallback width for single image URLs that do not carry a `width` attribute or `srcset` descriptor. Vercel URLs require a width, so Vercel rewrites only width-bearing URLs unless this is set. |
+| `image_cdn.path_prefixes` | `array<string>` | no | `["/content/images/"]` | Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Nectar content images only. Prefix matching also accepts the same paths under `build.base_path`. |
+| `image_cdn.signature` | `string` | no | `"insecure"` | imgproxy signature segment. Defaults to `insecure` for unsigned development deployments; set this to your signed segment when imgproxy signature validation is enabled. |
 
 ## `performance`
 

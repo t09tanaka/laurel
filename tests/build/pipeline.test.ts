@@ -338,6 +338,53 @@ feature_image_alt: "Cover"
     }
   });
 
+  test('rewrites emitted HTML image URLs when image_cdn is enabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[image_cdn]',
+        'enabled = true',
+        'adapter = "cloudflare"',
+        'base_url = "https://images.strict.test"',
+        'quality = 80',
+        '',
+        '[components.opengraph]',
+        'rasterize_svg = false',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/cover.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/cover.svg
+feature_image_alt: "Cover"
+---
+
+<p><img src="/content/images/cover.svg" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(postHtml).toContain(
+      'https://images.strict.test/cdn-cgi/image/format=auto,quality=80/content/images/cover.svg',
+    );
+    expect(postHtml).not.toContain('src="/content/images/cover.svg"');
+  });
+
   test('throws a NectarError when frontmatter date is unparseable', async () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
     // Unparseable dates used to surface as a warning that fell back to the

@@ -57,6 +57,7 @@ import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
 import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
+import { rewriteImageCdnUrls } from './image-cdn.ts';
 import {
   type ImageFormat,
   collapseDegenerateSrcset,
@@ -790,6 +791,7 @@ async function runBuild({
           html = injectStylesheetPreload(html);
         }
         html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+        html = rewriteImageCdnUrls(html, { config });
         // afterRender chain: each plugin sees the previous transform's output
         // (including the Pagefind shim above when enabled). Returning anything
         // other than a string is treated as a pass-through so a plugin that

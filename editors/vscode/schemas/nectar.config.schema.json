@@ -203,6 +203,31 @@
               "default": "content/tags",
               "description": "Directory of tag profile Markdown files, relative to the project root."
             },
+            "kinds": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "dir": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Directory where `nectar new <kind> <title>` writes Markdown files."
+                  },
+                  "title_field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "default": "name",
+                    "description": "Frontmatter field that receives the scaffold title. Defaults to `name`."
+                  }
+                },
+                "required": [
+                  "dir"
+                ],
+                "additionalProperties": false
+              },
+              "default": {},
+              "description": "Additional Markdown content kinds accepted by `nectar new <kind> <title>`. Each entry declares the destination directory and optional title frontmatter field."
+            },
             "assets_dir": {
               "type": "string",
               "default": "content/images",
@@ -211,7 +236,7 @@
             "static_dir": {
               "type": "string",
               "default": "static",
-              "description": "Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. Set to an empty string to disable the passthrough."
+              "description": "Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `.well-known/acme-challenge/*`, `.well-known/mta-sts.txt`, `.well-known/security.txt`, `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. The default convention reads `static/`; if that directory is absent and top-level `public/` exists, Nectar copies `public/` instead. Set to an empty string to disable the passthrough."
             },
             "visibility_policy": {
               "type": "string",
@@ -333,16 +358,20 @@
                 },
                 "branch": {
                   "type": "string",
-                  "description": "Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`."
+                  "description": "Source branch for the current deploy. Explicit `NECTAR_BRANCH` / `NECTAR_GIT_BRANCH` values win, followed by provider env such as `CF_PAGES_BRANCH` and `VERCEL_GIT_COMMIT_REF`, then generic CI branch env such as `BRANCH`, `HEAD`, `GITHUB_REF_NAME`, and `CI_COMMIT_REF_NAME`."
+                },
+                "build_id": {
+                  "type": "string",
+                  "description": "Deploy/build identifier for the current build. Explicit `NECTAR_BUILD_ID` wins, followed by generic `BUILD_ID` and provider IDs such as `VERCEL_DEPLOYMENT_ID` or `DEPLOY_ID`."
                 },
                 "commit_sha": {
                   "type": "string",
-                  "description": "Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`."
+                  "description": "Source commit SHA for the current deploy. Explicit `NECTAR_COMMIT_SHA` / `NECTAR_GIT_COMMIT_SHA` values win, followed by provider env such as `CF_PAGES_COMMIT_SHA` and `VERCEL_GIT_COMMIT_SHA`, then generic CI commit env such as `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, and `CI_COMMIT_SHA`."
                 }
               },
               "additionalProperties": false,
               "default": {},
-              "description": "Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `environment`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Netlify preview deploys populate `provider` and `environment`; Vercel populates `provider`, `environment`, `branch`, and `commit_sha` from `VERCEL`, `VERCEL_ENV`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed."
+              "description": "Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Provider env populates `provider` / `environment`; branch, `build_id`, and `commit_sha` are read from explicit Nectar aliases (`NECTAR_BRANCH`, `NECTAR_BUILD_ID`, `NECTAR_COMMIT_SHA`), provider env (`CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`, `VERCEL_GIT_COMMIT_SHA`), and generic CI env (`BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, `CI_COMMIT_SHA`). Explicit `NECTAR_BUILD_METADATA_*` env overrides still win last. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed."
             }
           },
           "additionalProperties": false,
@@ -361,6 +390,78 @@
           "additionalProperties": false,
           "default": {},
           "description": "Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery."
+        },
+        "image_cdn": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Rewrite emitted HTML image URLs through the configured image CDN adapter. Disabled by default so existing static image paths keep working until a deployment target is explicitly configured."
+            },
+            "adapter": {
+              "type": "string",
+              "enum": [
+                "cloudflare",
+                "netlify",
+                "vercel",
+                "cloudinary",
+                "imgproxy"
+              ],
+              "default": "cloudflare",
+              "description": "Image CDN URL shape to emit. `cloudflare` uses `/cdn-cgi/image/...`, `netlify` uses `/.netlify/images?...`, `vercel` uses `/_next/image?...`, `cloudinary` uses `/image/fetch/...`, and `imgproxy` uses `/insecure/.../plain/...` unless `signature` overrides that segment."
+            },
+            "base_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Optional absolute CDN endpoint. For Cloudflare, Netlify, and Vercel this prefixes the path-style adapter endpoint; omit it to emit same-origin paths. Required for `cloudinary` (for example `https://res.cloudinary.com/<cloud>`) and `imgproxy` (for example `https://imgproxy.example.com`)."
+            },
+            "quality": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 85,
+              "description": "Image quality passed to adapters that support a quality parameter."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "avif",
+                "webp",
+                "jpg",
+                "jpeg",
+                "png"
+              ],
+              "default": "auto",
+              "description": "Preferred output format passed to adapters. `auto` lets the CDN negotiate a modern format when the adapter supports it."
+            },
+            "default_width": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "Fallback width for single image URLs that do not carry a `width` attribute or `srcset` descriptor. Vercel URLs require a width, so Vercel rewrites only width-bearing URLs unless this is set."
+            },
+            "path_prefixes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "default": [
+                "/content/images/"
+              ],
+              "description": "Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Nectar content images only. Prefix matching also accepts the same paths under `build.base_path`."
+            },
+            "signature": {
+              "type": "string",
+              "minLength": 1,
+              "default": "insecure",
+              "description": "imgproxy signature segment. Defaults to `insecure` for unsigned development deployments; set this to your signed segment when imgproxy signature validation is enabled."
+            }
+          },
+          "additionalProperties": false,
+          "default": {},
+          "description": "Optional HTML post-process that rewrites local content image URLs through a deployment image CDN. It only touches relative or same-site URLs under `path_prefixes` and leaves third-party, protocol-relative, data/blob, and fragment URLs unchanged."
         },
         "performance": {
           "type": "object",
@@ -533,6 +634,11 @@
         "deploy": {
           "type": "object",
           "properties": {
+            "merge": {
+              "type": "boolean",
+              "default": false,
+              "description": "Merge hand-written deploy artifacts from the static passthrough directory with generated `_headers`, `_redirects`, and `vercel.json` instead of failing on conflicts. Text artifacts keep the hand-written rules first so first-match hosts preserve explicit user intent; `vercel.json` keeps hand-written scalar keys and prepends hand-written `headers` / `redirects` arrays. Leave disabled to fail loudly when static files would replace generated deploy metadata; `nectar build --force` remains the explicit overwrite escape hatch."
+            },
             "github_pages": {
               "type": "object",
               "properties": {
@@ -827,7 +933,7 @@
                         "null"
                       ],
                       "default": null,
-                      "description": "Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup."
+                      "description": "Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. When set, Nectar scans rendered HTML and appends build-time `sha256-...` hash sources for inline `<script>` bodies to `script-src` so strict deploy artifacts can allow the exact scripts the build produced without `unsafe-inline`."
                     },
                     "permissions_policy": {
                       "type": [
@@ -1063,7 +1169,7 @@
                 "enabled": {
                   "type": "boolean",
                   "default": true,
-                  "description": "Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch). When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*`. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent."
+                  "description": "Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch) and wires Ghost-style `[data-ghost-search]` buttons to a static modal. When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*` and routes the same buttons to Pagefind UI. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent."
                 },
                 "engine": {
                   "type": "string",
@@ -1077,7 +1183,7 @@
                     "json+sodo-search"
                   ],
                   "default": "json",
-                  "description": "Search backend. `json` emits only the flat index (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget. `sodo-search` injects Ghost's `@tryghost/sodo-search` client script into `{{ghost_head}}` so themes that ship a `<button data-ghost-search>` trigger (Source, Casper) light up against the Ghost-style search UI; the script reads from the same `content/search.json` we emit, so combine with `json+sodo-search` if you want both the raw index file and the bundled UI script."
+                  "description": "Search backend. `json` emits the flat index and Nectar's static `[data-ghost-search]` modal (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime, while Ghost-style buttons use Pagefind UI. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget; Ghost-style buttons use the JSON modal. `sodo-search` injects a configured Ghost `@tryghost/sodo-search` client script into `{{ghost_head}}`; Nectar does not vendor that script, so pin or self-host `sodo_search_src` if you opt in. Combine with `json+sodo-search` if you want both the raw index file and the external Sodo UI script."
                 },
                 "sodo_search_src": {
                   "type": "string",
@@ -1122,7 +1228,7 @@
               },
               "additionalProperties": false,
               "default": {},
-              "description": "Client-side search component. Emits a flat `content/search.json` and/or runs Pagefind. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent and consumers must wire a client-side search library (lunr / Fuse / minisearch) themselves."
+              "description": "Client-side search component. Emits a flat `content/search.json` and/or runs Pagefind. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent. Nectar wires Ghost-style `[data-ghost-search]` buttons to a static modal for JSON search and to Pagefind UI for Pagefind search."
             },
             "robots": {
               "type": "object",

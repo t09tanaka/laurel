@@ -33,6 +33,48 @@ describe('loadConfig', () => {
     });
   });
 
+  test('parses image_cdn adapter config', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[image_cdn]
+enabled = true
+adapter = "cloudflare"
+base_url = "https://images.example.com"
+quality = 80
+format = "webp"
+default_width = 1200
+path_prefixes = ["/content/images/", "/uploads/"]
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.image_cdn.enabled).toBe(true);
+      expect(config.image_cdn.adapter).toBe('cloudflare');
+      expect(config.image_cdn.base_url).toBe('https://images.example.com');
+      expect(config.image_cdn.quality).toBe(80);
+      expect(config.image_cdn.format).toBe('webp');
+      expect(config.image_cdn.default_width).toBe(1200);
+      expect(config.image_cdn.path_prefixes).toEqual(['/content/images/', '/uploads/']);
+    });
+  });
+
+  test('requires image_cdn.base_url for fetch-proxy adapters', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[image_cdn]
+enabled = true
+adapter = "imgproxy"
+`,
+        'utf8',
+      );
+
+      await expect(loadConfig({ cwd })).rejects.toThrow(/image_cdn\.base_url is required/);
+    });
+  });
+
   test('parses nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

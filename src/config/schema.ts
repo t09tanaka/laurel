@@ -138,6 +138,76 @@ const referrerPolicySchema = z.enum([
   'unsafe-url',
 ]);
 
+const imageCdnAdapterSchema = z.enum(['cloudflare', 'netlify', 'vercel', 'cloudinary', 'imgproxy']);
+
+const imageCdnFormatSchema = z.enum(['auto', 'avif', 'webp', 'jpg', 'jpeg', 'png']);
+
+const imageCdnSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Rewrite emitted HTML image URLs through the configured image CDN adapter. Disabled by default so existing static image paths keep working until a deployment target is explicitly configured.',
+      ),
+    adapter: imageCdnAdapterSchema
+      .default('cloudflare')
+      .describe(
+        'Image CDN URL shape to emit. `cloudflare` uses `/cdn-cgi/image/...`, `netlify` uses `/.netlify/images?...`, `vercel` uses `/_next/image?...`, `cloudinary` uses `/image/fetch/...`, and `imgproxy` uses `/insecure/.../plain/...` unless `signature` overrides that segment.',
+      ),
+    base_url: z
+      .string()
+      .url('image_cdn.base_url must be an absolute URL')
+      .optional()
+      .describe(
+        'Optional absolute CDN endpoint. For Cloudflare, Netlify, and Vercel this prefixes the path-style adapter endpoint; omit it to emit same-origin paths. Required for `cloudinary` (for example `https://res.cloudinary.com/<cloud>`) and `imgproxy` (for example `https://imgproxy.example.com`).',
+      ),
+    quality: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(85)
+      .describe('Image quality passed to adapters that support a quality parameter.'),
+    format: imageCdnFormatSchema
+      .default('auto')
+      .describe(
+        'Preferred output format passed to adapters. `auto` lets the CDN negotiate a modern format when the adapter supports it.',
+      ),
+    default_width: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        'Fallback width for single image URLs that do not carry a `width` attribute or `srcset` descriptor. Vercel URLs require a width, so Vercel rewrites only width-bearing URLs unless this is set.',
+      ),
+    path_prefixes: z
+      .array(z.string().min(1))
+      .default(['/content/images/'])
+      .describe(
+        'Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Nectar content images only. Prefix matching also accepts the same paths under `build.base_path`.',
+      ),
+    signature: z
+      .string()
+      .min(1)
+      .default('insecure')
+      .describe(
+        'imgproxy signature segment. Defaults to `insecure` for unsigned development deployments; set this to your signed segment when imgproxy signature validation is enabled.',
+      ),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (!value.enabled) return;
+    if ((value.adapter === 'cloudinary' || value.adapter === 'imgproxy') && !value.base_url) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['base_url'],
+        message: `image_cdn.base_url is required when image_cdn.adapter is "${value.adapter}"`,
+      });
+    }
+  });
+
 export const configSchema = z
   .object({
     site: z
@@ -515,6 +585,11 @@ export const configSchema = z
       .default({})
       .describe(
         'Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery.',
+      ),
+    image_cdn: imageCdnSchema
+      .default({})
+      .describe(
+        'Optional HTML post-process that rewrites local content image URLs through a deployment image CDN. It only touches relative or same-site URLs under `path_prefixes` and leaves third-party, protocol-relative, data/blob, and fragment URLs unchanged.',
       ),
     performance: z
       .object({
