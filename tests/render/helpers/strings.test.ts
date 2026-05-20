@@ -49,6 +49,17 @@ describe('encode helper', () => {
     const tpl = engine.hb.compile('{{encode missing}}');
     expect(tpl({})).toBe('');
   });
+
+  test('safely encodes values embedded in share URL query strings', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const mailto = engine.hb.compile('mailto:?subject={{encode title}}');
+    const twitter = engine.hb.compile('https://twitter.com/intent/tweet?text={{encode title}}');
+    const data = { title: 'Hi & welcome' };
+
+    expect(mailto(data)).toBe('mailto:?subject=Hi%20%26%20welcome');
+    expect(twitter(data)).toBe('https://twitter.com/intent/tweet?text=Hi%20%26%20welcome');
+  });
 });
 
 describe('upper / lower helpers', () => {
