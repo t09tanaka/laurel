@@ -36,8 +36,14 @@ describe('emitCardAssets', () => {
     expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
       '.kg-bookmark-card',
     );
+    expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
+      '.kg-embed-card',
+    );
     expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
       '.kg-toggle-card .kg-toggle-heading',
+    );
+    expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
+      '.kg-video-card video',
     );
   });
 
@@ -49,12 +55,14 @@ describe('emitCardAssets', () => {
     expect(existsSync(join(outputDir, CARD_ASSETS_JS_PATH))).toBe(false);
   });
 
-  test('excludes per-card CSS and toggle runtime sections', () => {
-    const cardAssets = { exclude: ['bookmark', 'toggle'] };
+  test('excludes per-card CSS and runtime sections', () => {
+    const cardAssets = { exclude: ['bookmark', 'toggle', 'video'] };
 
     expect(renderCardAssetsCss(cardAssets)).not.toContain('.kg-bookmark-card');
     expect(renderCardAssetsCss(cardAssets)).toContain('.kg-gallery-card');
     expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-toggle-card .kg-toggle-heading');
+    expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-video-card video');
+    expect(renderCardAssetsJs(cardAssets)).toContain('.kg-audio-card audio');
   });
 
   test('uses a stable exclude-specific cache key', () => {

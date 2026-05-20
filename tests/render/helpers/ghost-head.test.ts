@@ -4,6 +4,7 @@ import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
+import { KOENIG_RUNTIME_DATA_KEY, collectKoenigRuntimeCardTypes } from '~/render/koenig-runtime.ts';
 
 function makeEngine(
   site: Partial<SiteData> = {},
@@ -113,12 +114,14 @@ function renderGhostFoot(
   opts: {
     site?: Partial<SiteData>;
     config?: Partial<NectarEngine['config']>;
+    theme?: Partial<NectarEngine['theme']>;
+    data?: Record<string, unknown>;
   } = {},
 ): string {
-  const engine = makeEngine(opts.site, opts.config);
+  const engine = makeEngine(opts.site, opts.config, undefined, opts.theme);
   registerGhostHeadFootHelpers(engine);
   const template = engine.hb.compile('{{{ghost_foot}}}');
-  return template(ctx, { data: { route: { url: '/', data: ctx } } });
+  return template(ctx, { data: { route: { url: '/', data: ctx }, ...opts.data } });
 }
 
 function extractJsonLd(html: string): string {
@@ -208,7 +211,7 @@ describe('ghost_head shared card assets', () => {
     expect(html).not.toContain('ghost-card-assets.js');
   });
 
-  test('emits local shared card CSS and JS when theme package opts in', () => {
+  test('emits local shared card CSS when theme package opts in', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: { pkg: { card_assets: true } },
     });
@@ -216,10 +219,10 @@ describe('ghost_head shared card assets', () => {
     expect(html).toContain(
       '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=1">',
     );
-    expect(html).toContain('<script defer src="/assets/ghost-card-assets.js?v=1"></script>');
+    expect(html).not.toContain('ghost-card-assets.js');
   });
 
-  test('honours base_path, CSP nonce, and exclude-specific cache key', () => {
+  test('honours base_path and exclude-specific cache key for the head stylesheet', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as Partial<
         NectarEngine['config']
@@ -228,9 +231,59 @@ describe('ghost_head shared card assets', () => {
     });
 
     expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=1-[a-z0-9]+"/);
-    expect(html).toMatch(
-      /<script defer src="\/blog\/assets\/ghost-card-assets\.js\?v=1-[a-z0-9]+" nonce="abc123"><\/script>/,
+    expect(html).not.toContain('ghost-card-assets.js');
+  });
+});
+
+describe('ghost_foot Koenig card runtime injection', () => {
+  test('collects runtime-bearing Koenig card types from rendered body HTML', () => {
+    const cards = collectKoenigRuntimeCardTypes(`
+      <figure class="kg-card kg-video-card"></figure>
+      <div class='kg-card kg-toggle-card'></div>
+      <figure class="kg-card kg-bookmark-card"></figure>
+    `);
+
+    expect([...cards].sort()).toEqual(['toggle', 'video']);
+  });
+
+  test('omits the shared card runtime when no rendered card requested it', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        theme: { pkg: { card_assets: true } },
+      },
     );
+
+    expect(html).not.toContain('ghost-card-assets.js');
+  });
+
+  test('emits the shared card runtime in ghost_foot for detected runtime cards', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as Partial<
+          NectarEngine['config']
+        >,
+        theme: { pkg: { card_assets: true } },
+        data: { [KOENIG_RUNTIME_DATA_KEY]: new Set(['audio', 'toggle']) },
+      },
+    );
+
+    expect(html).toContain(
+      '<script defer src="/blog/assets/ghost-card-assets.js?v=1" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
+    );
+  });
+
+  test('does not duplicate runtime injection when the detected cards are excluded', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        theme: { pkg: { card_assets: { exclude: ['toggle'] } } },
+        data: { [KOENIG_RUNTIME_DATA_KEY]: new Set(['toggle']) },
+      },
+    );
+
+    expect(html).not.toContain('ghost-card-assets.js');
   });
 });
 

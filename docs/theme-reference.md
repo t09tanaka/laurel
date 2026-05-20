@@ -64,8 +64,8 @@ the rest return plain strings and Handlebars escapes them.
 
 ### Ghost head/foot helpers — `src/render/helpers/ghost-head.ts`
 
-- `{{ghost_head}}` — Injected `<head>` block: meta tags, canonical, OG/Twitter, JSON-LD, opt-in shared card assets from theme `package.json` `config.card_assets`, code injection head (SafeString).
-- `{{ghost_foot}}` — Injected end-of-body block: code injection foot, runtime hooks (SafeString).
+- `{{ghost_head}}` — Injected `<head>` block: meta tags, canonical, OG/Twitter, JSON-LD, opt-in shared card stylesheet from theme `package.json` `config.card_assets`, code injection head (SafeString).
+- `{{ghost_foot}}` — Injected end-of-body block: code injection foot, static Portal runtime, and page-scoped Koenig card runtime hooks when the rendered body needs them (SafeString).
 
 ### i18n helpers — `src/render/helpers/i18n.ts`
 

@@ -13,6 +13,7 @@ const CARD_NAMES = [
   'bookmark',
   'button',
   'callout',
+  'embed',
   'file',
   'gallery',
   'header',
@@ -34,6 +35,8 @@ const CARD_CSS: Record<(typeof CARD_NAMES)[number], string> = {
     '.kg-button-card,.kg-button-card *{box-sizing:border-box}.kg-button-card{text-align:center}.kg-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.4em;padding:.65em 1.2em;border-radius:4px;background:var(--ghost-accent-color,#15171a);color:#fff!important;font-weight:700;text-decoration:none}',
   callout:
     '.kg-callout-card{display:flex;gap:1rem;padding:1.2rem 1.5rem;border-radius:5px;background:#f5f5f5}.kg-callout-emoji{line-height:1.4}.kg-callout-text{flex:1}',
+  embed:
+    '.kg-embed-card{width:100%}.kg-embed-card iframe{display:block;max-width:100%;border:0}.kg-embed-card blockquote{margin:0}',
   file: '.kg-file-card{display:flex}.kg-file-card-container{display:flex;align-items:center;gap:1rem;width:100%;padding:1rem;border:1px solid rgba(0,0,0,.12);border-radius:5px;color:inherit;text-decoration:none}.kg-file-card-contents{flex:1;min-width:0}.kg-file-card-title{font-weight:700}.kg-file-card-caption,.kg-file-card-metadata{color:rgba(0,0,0,.6);font-size:.9em}.kg-file-card-icon{width:32px;height:32px;flex:0 0 auto}',
   gallery:
     '.kg-gallery-card+.kg-gallery-card,.kg-gallery-card+.kg-image-card{margin-top:.75em}.kg-gallery-container{display:flex;flex-direction:column;gap:.75em;width:100%}.kg-gallery-row{display:flex;flex-direction:row;justify-content:center;gap:.75em}.kg-gallery-image{flex:1;min-width:0}.kg-gallery-image img{display:block;width:100%;height:100%;object-fit:cover}',
@@ -99,16 +102,9 @@ function hashLabel(value: string): string {
 
 export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
   const exclude = cardAssetsExcludeSet(cardAssets);
-  if (exclude.has('toggle')) {
-    return '/* Nectar Ghost-compatible shared card assets: no runtime sections enabled. */\n';
-  }
-  return `/* Nectar Ghost-compatible shared card assets. */
-(function () {
-  function closest(el, selector) {
-    return el && el.closest ? el.closest(selector) : null;
-  }
-
-  document.addEventListener('click', function (event) {
+  const sections: string[] = [];
+  if (!exclude.has('toggle')) {
+    sections.push(`document.addEventListener('click', function (event) {
     var heading = closest(event.target, '.kg-toggle-card .kg-toggle-heading');
     if (!heading) return;
     var card = closest(heading, '.kg-toggle-card');
@@ -118,7 +114,70 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
     card.setAttribute('data-kg-toggle-state', isOpen ? 'close' : 'open');
     heading.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
     if (content) content.hidden = isOpen;
+  });`);
+  }
+  if (!exclude.has('audio')) {
+    sections.push(`ready(function () {
+    each(document.querySelectorAll('.kg-audio-card audio'), function (audio) {
+      if (!audio.hasAttribute('controls')) audio.setAttribute('controls', 'controls');
+      if (!audio.hasAttribute('preload')) audio.setAttribute('preload', 'metadata');
+    });
+  });`);
+  }
+  if (!exclude.has('video')) {
+    sections.push(`ready(function () {
+    each(document.querySelectorAll('.kg-video-card video'), function (video) {
+      if (!video.hasAttribute('controls')) video.setAttribute('controls', 'controls');
+      if (!video.hasAttribute('preload')) video.setAttribute('preload', 'metadata');
+    });
   });
+
+  document.addEventListener('click', function (event) {
+    var trigger = closest(event.target, '.kg-video-card .kg-video-overlay, .kg-video-card .kg-video-play-icon');
+    if (!trigger) return;
+    var card = closest(trigger, '.kg-video-card');
+    var video = card && card.querySelector('video');
+    if (!video) return;
+    if (video.paused) video.play();
+    else video.pause();
+  });`);
+  }
+  if (!exclude.has('embed')) {
+    sections.push(`ready(function () {
+    each(document.querySelectorAll('.kg-embed-card iframe'), function (iframe) {
+      if (!iframe.hasAttribute('loading')) iframe.setAttribute('loading', 'lazy');
+    });
+  });`);
+  }
+  if (!exclude.has('signup')) {
+    sections.push(`ready(function () {
+    each(document.querySelectorAll('.kg-signup-card form'), function (form) {
+      if (!form.hasAttribute('data-nectar-koenig-signup')) {
+        form.setAttribute('data-nectar-koenig-signup', 'static');
+      }
+    });
+  });`);
+  }
+
+  if (sections.length === 0) {
+    return '/* Nectar Ghost-compatible shared card assets: no runtime sections enabled. */\n';
+  }
+  return `/* Nectar Ghost-compatible shared card assets. */
+(function () {
+  function closest(el, selector) {
+    return el && el.closest ? el.closest(selector) : null;
+  }
+
+  function each(nodes, fn) {
+    Array.prototype.forEach.call(nodes, fn);
+  }
+
+  function ready(fn) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
+    else fn();
+  }
+
+  ${sections.join('\n\n  ')}
 })();
 `;
 }

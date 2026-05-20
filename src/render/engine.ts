@@ -9,6 +9,7 @@ import { NectarError } from '~/util/errors.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
+import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { splitLayout } from './layouts.ts';
 import { wrapMemberStub } from './member-stub.ts';
 import type { RouteContext } from './types.ts';
@@ -179,6 +180,7 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
     });
   }
   const innerHtml = renderCompiled(innerCompiled, context, data);
+  recordKoenigRuntimeCardTypes(data, innerHtml);
   return renderCompiled(
     layoutCompiled,
     { ...context, body: new engine.hb.SafeString(innerHtml) },

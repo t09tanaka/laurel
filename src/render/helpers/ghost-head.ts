@@ -14,6 +14,10 @@ import {
 import { resolvePortalUrls } from '~/build/portal-urls.ts';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { type HeadHint, collectComponentHeadHints } from '~/render/component-head-hints.ts';
+import {
+  enabledKoenigRuntimeCardTypes,
+  getKoenigRuntimeCardTypes,
+} from '~/render/koenig-runtime.ts';
 import { joinPath } from '~/theme/assets.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
@@ -80,7 +84,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (accentColor) {
         parts.push(`<style>:root{--ghost-accent-color:${accentColor}}</style>`);
       }
-      const cardAssetsSnippet = renderCardAssetsSnippet(engine, basePath);
+      const cardAssetsSnippet = renderCardAssetsHeadSnippet(engine, basePath);
       if (cardAssetsSnippet) parts.push(cardAssetsSnippet);
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
@@ -250,20 +254,25 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
   // Same opt-in gate (`build.allow_code_injection`) as ghost_head; the helper
   // itself never escapes because Ghost themes rely on this being a pass-through
   // for analytics, comments bootstrap, and similar trailing snippets.
-  engine.hb.registerHelper('ghost_foot', function ghostFootHelper(this: unknown) {
-    const ctx = this as { codeinjection_foot?: string };
-    const site = engine.content.site as { codeinjection_foot?: string };
-    const parts: string[] = [];
-    if (typeof site.codeinjection_foot === 'string' && site.codeinjection_foot) {
-      parts.push(site.codeinjection_foot);
-    }
-    const portalRuntime = renderStaticPortalRuntime(engine);
-    if (portalRuntime) parts.push(portalRuntime);
-    if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
-      parts.push(ctx.codeinjection_foot);
-    }
-    return new engine.hb.SafeString(parts.join('\n'));
-  });
+  engine.hb.registerHelper(
+    'ghost_foot',
+    function ghostFootHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const ctx = this as { codeinjection_foot?: string };
+      const site = engine.content.site as { codeinjection_foot?: string };
+      const parts: string[] = [];
+      if (typeof site.codeinjection_foot === 'string' && site.codeinjection_foot) {
+        parts.push(site.codeinjection_foot);
+      }
+      const koenigRuntime = renderKoenigRuntimeSnippet(engine, options.data);
+      if (koenigRuntime) parts.push(koenigRuntime);
+      const portalRuntime = renderStaticPortalRuntime(engine);
+      if (portalRuntime) parts.push(portalRuntime);
+      if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
+        parts.push(ctx.codeinjection_foot);
+      }
+      return new engine.hb.SafeString(parts.join('\n'));
+    },
+  );
 }
 
 interface ComputedMeta {
@@ -913,17 +922,28 @@ function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
   ].join('\n');
 }
 
-function renderCardAssetsSnippet(engine: NectarEngine, basePath: string): string | undefined {
+function renderCardAssetsHeadSnippet(engine: NectarEngine, basePath: string): string | undefined {
   const cardAssets = engine.theme.pkg.card_assets;
   if (!isCardAssetsEnabled(cardAssets)) return undefined;
   const version = cardAssetsVersion(cardAssets);
   const cssHref = joinPath(basePath, `${CARD_ASSETS_CSS_PATH}?v=${version}`);
+  return `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}">`;
+}
+
+function renderKoenigRuntimeSnippet(
+  engine: NectarEngine,
+  data: Record<string, unknown> | undefined,
+): string | undefined {
+  const cardAssets = engine.theme.pkg.card_assets;
+  const cardTypes = getKoenigRuntimeCardTypes(data);
+  const enabledCards = enabledKoenigRuntimeCardTypes(cardAssets, cardTypes);
+  if (enabledCards.length === 0) return undefined;
+  const basePath = engine.config?.build?.base_path ?? '/';
+  const version = cardAssetsVersion(cardAssets);
   const jsSrc = joinPath(basePath, `${CARD_ASSETS_JS_PATH}?v=${version}`);
   const nonce = nonceAttr(engine.config?.build?.csp_nonce);
-  return [
-    `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}">`,
-    `<script defer src="${escapeAttr(jsSrc)}"${nonce}></script>`,
-  ].join('\n');
+  const cards = enabledCards.join(',');
+  return `<script defer src="${escapeAttr(jsSrc)}"${nonce} data-nectar-koenig-runtime="${escapeAttr(cards)}"></script>`;
 }
 
 // Sodo Search injection. Returns the `<script defer src="…">` tag when the

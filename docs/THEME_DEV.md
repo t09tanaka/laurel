@@ -706,9 +706,12 @@ undeclared key currently warns rather than hard-fails.
   `[build] posts_per_page` in `nectar.toml`.
 - **`image_sizes`** — drives `{{img_url size="key"}}`. Width / height in pixels.
 - **`card_assets`** — when `true`, Nectar emits local shared Ghost card assets
-  at `/assets/ghost-card-assets.css` and `/assets/ghost-card-assets.js`, then
-  injects them through `{{ghost_head}}`. Use `{ "exclude": ["bookmark",
-  "gallery"] }` to omit per-card CSS/runtime sections that your theme owns.
+  at `/assets/ghost-card-assets.css` and `/assets/ghost-card-assets.js`.
+  The stylesheet is injected through `{{ghost_head}}`; the JavaScript runtime is
+  injected through `{{ghost_foot}}` only on pages whose rendered body contains a
+  runtime-bearing Koenig card such as audio, embed, signup, toggle, or video.
+  Use `{ "exclude": ["bookmark", "gallery"] }` to omit per-card CSS/runtime
+  sections that your theme owns.
   `false` disables the shared assets. Nectar does not fetch Ghost's upstream
   vendor bundle or a CDN at build time; the bundled files are a static
   compatibility layer for common Koenig card class names.

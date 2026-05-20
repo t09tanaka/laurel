@@ -214,7 +214,7 @@ Nectar builds and rely on the static markup instead.
 
 Ghost's Koenig audio card uses `kg-audio-*` markup plus shared runtime
 JavaScript for the custom play button, seek slider, and live timestamps. Nectar
-does not hydrate that runtime in static output.
+does not vendor Ghost's full upstream runtime in static output.
 
 For Source, Nectar vendors stable CSS for the card shell, thumbnail, metadata,
 and player hooks, and it relies on the static `<audio controls>` fallback that
@@ -233,6 +233,15 @@ Themes that preserve Ghost's fully custom audio player DOM should vendor the
 matching Koenig JavaScript or ensure a native `<audio controls>` element remains
 available. CSS alone cannot make an inert custom play button or seek slider
 control playback.
+
+When a theme opts into `config.card_assets`, Nectar emits its own static
+compatibility bundle and injects `/assets/ghost-card-assets.js` through
+`{{ghost_foot}}` only on pages whose rendered body contains runtime-bearing
+Koenig cards: audio, embed, signup, toggle, or video. That bundle is deliberately
+small: it normalises native audio/video controls, preserves the toggle fallback
+used by imported Ghost HTML, and adds safe static niceties such as lazy iframe
+loading. It does not load Twitter, Instagram, TikTok, CodePen, Ghost Portal, or
+other third-party vendor runtimes; those remain explicit theme/operator choices.
 
 ### Koenig card class hooks
 
