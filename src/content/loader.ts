@@ -729,6 +729,7 @@ interface RawTag extends LocaleFields {
   feature_image: string | undefined;
   accent_color: string | undefined;
   visibility: 'public' | 'internal';
+  canonical_url: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;
   og_title: string | undefined;
@@ -1532,6 +1533,7 @@ async function normalizeRawTag(
     feature_image: asString(data.feature_image),
     accent_color: asString(data.accent_color),
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
+    canonical_url: asString(data.canonical_url),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
     og_title: asString(data.og_title),
@@ -1561,6 +1563,7 @@ function normalizeTag(
     feature_image: raw.feature_image,
     accent_color: raw.accent_color,
     visibility: raw.visibility,
+    canonical_url: raw.canonical_url,
     meta_title: raw.meta_title,
     meta_description: raw.meta_description,
     og_title: raw.og_title,

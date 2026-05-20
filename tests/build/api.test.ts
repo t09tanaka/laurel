@@ -287,6 +287,7 @@ describe('emitContentApiShadows', () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-fields-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const tag = makeTag({
+      canonical_url: '/topics/news/',
       og_title: 'News OG',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',
@@ -308,6 +309,7 @@ describe('emitContentApiShadows', () => {
 
     const tags = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8'));
     expect(tags.tags[0]).toMatchObject({
+      canonical_url: '/topics/news/',
       og_title: 'News OG',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',

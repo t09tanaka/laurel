@@ -119,6 +119,7 @@ export interface Tag {
   feature_image: string | undefined;
   accent_color: string | undefined;
   visibility: 'public' | 'internal';
+  canonical_url: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;
   og_title: string | undefined;

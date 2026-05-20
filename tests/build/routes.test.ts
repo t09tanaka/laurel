@@ -186,6 +186,7 @@ function makeTag(slug: string): Tag {
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     visibility: 'public',
+    canonical_url: undefined,
     meta_title: undefined,
     meta_description: undefined,
     url: `/tag/${slug}/`,
@@ -348,6 +349,19 @@ describe('planRoutes — defaultMeta.canonical', () => {
     const routes = planRoutes({ config, content, theme });
     const tagRoute = routes.find((r) => r.kind === 'tag');
     expect(tagRoute?.meta.canonical).toBe('https://example.com/tag/news/');
+  });
+
+  test('tag archive canonical uses tag canonical_url override', () => {
+    const config = makeConfig('https://example.com');
+    const tag = { ...makeTag('news'), canonical_url: '/topics/news/' };
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [tag], primary_tag: tag })],
+      tags: [tag],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tagRoute = routes.find((r) => r.kind === 'tag');
+    expect(tagRoute?.meta.canonical).toBe('https://example.com/topics/news/');
   });
 
   test('author archive canonical points at the author URL', () => {

@@ -350,8 +350,10 @@ function computeMeta(
   // Canonical is precomputed in route.meta (build/routes.ts:defaultMeta). Fall
   // back to deriving from route.url for callers that hand-construct a partial
   // route object (some unit tests do this).
+  const canonicalOverride = routeScopedCanonicalUrl(ctx, route);
   const canonical =
-    route?.meta?.canonical ?? absoluteUrlWithBasePath(site.url, basePath, route?.url ?? '/');
+    route?.meta?.canonical ??
+    absoluteUrlWithBasePath(site.url, basePath, canonicalOverride ?? route?.url ?? '/');
 
   let ogType = 'website';
   if (route?.data?.post) ogType = 'article';
@@ -820,6 +822,24 @@ function routeScopedMetaTitle(
     return firstNonEmptyString(author?.meta_title, author?.name);
   }
   return undefined;
+}
+
+function routeScopedCanonicalUrl(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+): string | undefined {
+  if (route?.kind !== 'tag') return undefined;
+  const tagFromCtx = recordValue(ctx.tag);
+  return firstNonEmptyString(
+    ctx.canonical_url,
+    tagFromCtx?.canonical_url,
+    recordValue(route.data?.tag)?.canonical_url,
+  );
 }
 
 // Normalise a Twitter handle / URL into the `@handle` form expected by the

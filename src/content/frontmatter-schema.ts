@@ -150,6 +150,7 @@ export const tagFrontmatterSchema = z
       .describe('Tag accent color as a CSS hex color string, surfaced as tag.accent_color.'),
     meta_title: z.string().optional().describe('SEO title override.'),
     meta_description: z.string().optional().describe('SEO description override.'),
+    canonical_url: z.string().optional().describe('Canonical URL override for the tag archive.'),
     og_title: z.string().optional().describe('Open Graph title override for the tag archive.'),
     og_description: z
       .string()

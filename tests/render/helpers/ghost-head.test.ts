@@ -1262,6 +1262,7 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
     const tag = {
       name: 'News',
       meta_title: 'News Meta',
+      canonical_url: '/topics/news/',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',
       twitter_image: '/content/images/news-twitter.jpg',
@@ -1282,6 +1283,8 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
       },
     );
 
+    expect(html).toContain('<link rel="canonical" href="https://example.com/topics/news/">');
+    expect(html).toContain('<meta property="og:url" content="https://example.com/topics/news/">');
     expect(html).toContain(
       '<meta property="og:image" content="https://example.com/content/images/news-og.jpg">',
     );

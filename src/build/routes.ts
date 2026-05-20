@@ -217,6 +217,7 @@ export function planRoutes(opts: {
               tag.meta_description ??
               tag.description,
             tag.og_image ?? tag.twitter_image ?? tag.feature_image,
+            tag.canonical_url,
           ),
         });
       });
@@ -735,6 +736,7 @@ function defaultMeta(
   title: string,
   description?: string,
   image?: string,
+  canonicalOverride?: string,
 ) {
   // `route.url` and `outputPath` stay root-relative (no base_path) so the
   // emit path lands at `dist/<slug>/index.html` regardless of where the site
@@ -743,7 +745,11 @@ function defaultMeta(
   return {
     title,
     description: description ?? config.site.description,
-    canonical: absoluteUrlWithBasePath(config.site.url, config.build.base_path, routeUrl),
+    canonical: absoluteUrlWithBasePath(
+      config.site.url,
+      config.build.base_path,
+      canonicalOverride ?? routeUrl,
+    ),
     image,
   };
 }

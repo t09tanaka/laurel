@@ -443,6 +443,7 @@ Body.
       `---
 name: News
 accent_color: "#e91e63"
+canonical_url: "/topics/news/"
 og_title: "News OG"
 og_description: "News OG description"
 og_image: "/content/images/news-og.jpg"
@@ -465,6 +466,7 @@ codeinjection_foot: "<script>window.__tag='news'</script>"
     const tag = graph.bySlug.tags.get('news');
     expect(tag).toMatchObject({
       accent_color: '#e91e63',
+      canonical_url: '/topics/news/',
       og_title: 'News OG',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',
@@ -476,6 +478,7 @@ codeinjection_foot: "<script>window.__tag='news'</script>"
     });
     expect(graph.bySlug.posts.get('hello')?.primary_tag).toMatchObject({
       accent_color: '#e91e63',
+      canonical_url: '/topics/news/',
       og_image: '/content/images/news-og.jpg',
       twitter_image: '/content/images/news-twitter.jpg',
     });

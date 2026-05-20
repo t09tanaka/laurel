@@ -122,6 +122,7 @@ const TAG_KEYS: ReadonlySet<string> = new Set([
   'description',
   'feature_image',
   'accent_color',
+  'canonical_url',
   'meta_title',
   'meta_description',
   'og_title',

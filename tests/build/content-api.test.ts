@@ -371,6 +371,7 @@ name: News
   test('tags.json serializes tag social and code injection fields', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tag-fields-'));
     const tag = makeTag({
+      canonical_url: '/topics/news/',
       og_title: 'News OG',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',
@@ -390,6 +391,7 @@ name: News
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
     expect(body.tags[0]).toMatchObject({
+      canonical_url: '/topics/news/',
       og_title: 'News OG',
       og_description: 'News OG description',
       og_image: '/content/images/news-og.jpg',

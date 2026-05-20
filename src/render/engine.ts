@@ -277,6 +277,7 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.tag = data.tag;
     ctx.meta_title = route.meta.title;
     ctx.meta_description = route.meta.description;
+    ctx.canonical_url = data.tag.canonical_url;
     ctx.feature_image = data.tag.feature_image;
     ctx.accent_color = data.tag.accent_color;
     ctx.og_title = data.tag.og_title;
