@@ -11,6 +11,7 @@ import { stableStringify } from './manifest.ts';
 // land alongside `build-manifest.json` without polluting the site root.
 export const BUILD_MANIFEST_DIR = '.nectar';
 export const BUILD_MANIFEST_FILENAME = 'build-manifest.json';
+export const CHANGED_PATHS_FILENAME = 'changed-paths.txt';
 
 // Schema version for `build-manifest.json`. Bump when the JSON shape changes
 // in a way that downstream consumers (deploy scripts, `nectar deploy`) cannot
@@ -27,6 +28,11 @@ const HASH_ALGORITHM = 'sha256';
 // thousands of files (image variants, locale shards); reading all of them
 // concurrently blows past file-descriptor soft limits on macOS/Linux.
 const HASH_CONCURRENCY = 32;
+
+// CloudFront accepts at most 3,000 invalidation paths per request. When a site
+// changes more than that, a single wildcard is safer than emitting a file that
+// makes the documented AWS CLI command fail.
+const CLOUDFRONT_INVALIDATION_PATH_LIMIT = 3000;
 
 export interface BuildManifestFile {
   path: string;
@@ -50,8 +56,16 @@ export function buildManifestRelPath(): string {
   return `${BUILD_MANIFEST_DIR}/${BUILD_MANIFEST_FILENAME}`;
 }
 
+export function changedPathsRelPath(): string {
+  return `${BUILD_MANIFEST_DIR}/${CHANGED_PATHS_FILENAME}`;
+}
+
 export function buildManifestAbsPath(outputDir: string): string {
   return join(outputDir, BUILD_MANIFEST_DIR, BUILD_MANIFEST_FILENAME);
+}
+
+export function changedPathsAbsPath(outputDir: string): string {
+  return join(outputDir, BUILD_MANIFEST_DIR, CHANGED_PATHS_FILENAME);
 }
 
 export interface EmitBuildManifestOptions {
@@ -61,6 +75,7 @@ export interface EmitBuildManifestOptions {
   routeCount: number;
   assetCount: number;
   nectarVersion: string;
+  previousBuildManifest?: BuildManifestJson | undefined;
   // Visible for tests so the timestamp can be made deterministic.
   now?: Date;
 }
@@ -68,15 +83,22 @@ export interface EmitBuildManifestOptions {
 export async function emitBuildManifest(
   opts: EmitBuildManifestOptions,
 ): Promise<BuildManifestJson> {
-  const { outputDir, config, theme, routeCount, assetCount, nectarVersion, now } = opts;
+  const {
+    outputDir,
+    config,
+    theme,
+    routeCount,
+    assetCount,
+    nectarVersion,
+    previousBuildManifest,
+    now,
+  } = opts;
 
-  // The manifest references every other file we just emitted, so its own
-  // contents depend on the rest of the tree. Excluding the manifest path
-  // (and any sibling under `.nectar/` we may emit in the future) avoids a
-  // chicken-and-egg dependency on its own hash.
-  const selfRelPath = buildManifestRelPath();
+  // The deploy manifest feeds the changed-paths companion artifact, so both
+  // files are excluded from the hash list to avoid self-referential output.
+  const excludedRelPaths = new Set([buildManifestRelPath(), changedPathsRelPath()]);
 
-  const files = await collectOutputFiles(outputDir, selfRelPath);
+  const files = await collectOutputFiles(outputDir, excludedRelPaths);
 
   const manifest: BuildManifestJson = {
     schema_version: BUILD_MANIFEST_VERSION,
@@ -90,23 +112,40 @@ export async function emitBuildManifest(
     files,
   };
 
+  const changedPaths = computeCloudFrontChangedPaths(previousBuildManifest, manifest);
+
   const dest = buildManifestAbsPath(outputDir);
   await ensureDir(dirname(dest));
   // Pretty-print so `git diff` and human inspection stay readable; the file
   // is small relative to a full site build.
   await Bun.write(dest, `${JSON.stringify(manifest, null, 2)}\n`);
+  await Bun.write(changedPathsAbsPath(outputDir), formatChangedPaths(changedPaths));
   return manifest;
+}
+
+export async function loadBuildManifest(outputDir: string): Promise<BuildManifestJson | undefined> {
+  const file = Bun.file(buildManifestAbsPath(outputDir));
+  if (!(await file.exists())) return undefined;
+  try {
+    const parsed = (await file.json()) as Partial<BuildManifestJson>;
+    if (parsed.schema_version !== BUILD_MANIFEST_VERSION) return undefined;
+    if (!Array.isArray(parsed.files)) return undefined;
+    if (parsed.hash_algorithm !== HASH_ALGORITHM) return undefined;
+    return parsed as BuildManifestJson;
+  } catch {
+    return undefined;
+  }
 }
 
 async function collectOutputFiles(
   outputDir: string,
-  excludeRelPath: string,
+  excludeRelPaths: ReadonlySet<string>,
 ): Promise<BuildManifestFile[]> {
   const allRels = await scanGlob('**/*', { cwd: outputDir, onlyFiles: true });
   const relPaths: string[] = [];
   for (const rel of allRels) {
     const normalized = toPosix(rel);
-    if (normalized === excludeRelPath) continue;
+    if (excludeRelPaths.has(normalized)) continue;
     relPaths.push(normalized);
   }
 
@@ -133,6 +172,64 @@ async function collectOutputFiles(
 
 function computeConfigHash(config: NectarConfig): string {
   return sha256Str(stableStringify(config));
+}
+
+function computeCloudFrontChangedPaths(
+  previous: BuildManifestJson | undefined,
+  current: BuildManifestJson,
+): string[] {
+  if (!previous) return ['/*'];
+
+  const previousFiles = publicFileHashMap(previous.files);
+  const currentFiles = publicFileHashMap(current.files);
+  const changedRelPaths = new Set<string>();
+
+  for (const [path, hash] of currentFiles) {
+    if (previousFiles.get(path) !== hash) changedRelPaths.add(path);
+  }
+  for (const path of previousFiles.keys()) {
+    if (!currentFiles.has(path)) changedRelPaths.add(path);
+  }
+
+  const cloudFrontPaths = new Set<string>();
+  for (const relPath of changedRelPaths) {
+    for (const path of toCloudFrontPaths(relPath)) {
+      cloudFrontPaths.add(path);
+    }
+  }
+
+  if (cloudFrontPaths.size > CLOUDFRONT_INVALIDATION_PATH_LIMIT) return ['/*'];
+  return [...cloudFrontPaths].sort();
+}
+
+function publicFileHashMap(files: BuildManifestFile[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const file of files) {
+    if (!isPublicOutputPath(file.path)) continue;
+    map.set(file.path, file.hash);
+  }
+  return map;
+}
+
+function isPublicOutputPath(path: string): boolean {
+  return (
+    path !== '.nectar-manifest.json' &&
+    path !== BUILD_MANIFEST_DIR &&
+    !path.startsWith(`${BUILD_MANIFEST_DIR}/`)
+  );
+}
+
+function toCloudFrontPaths(relPath: string): string[] {
+  if (relPath === 'index.html') return ['/', '/index.html'];
+  if (relPath.endsWith('/index.html')) {
+    const dir = relPath.slice(0, -'index.html'.length);
+    return [`/${dir}`, `/${relPath}`];
+  }
+  return [`/${relPath}`];
+}
+
+function formatChangedPaths(paths: string[]): string {
+  return paths.length === 0 ? '' : `${paths.join('\n')}\n`;
 }
 
 function sha256Str(input: string): string {

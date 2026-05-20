@@ -22,7 +22,7 @@ import { emitContentApiShadows } from './api.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
-import { emitBuildManifest } from './build-manifest.ts';
+import { emitBuildManifest, loadBuildManifest } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCloudflareRoutes } from './cloudflare-routes.ts';
@@ -228,6 +228,7 @@ export async function build({
   // would otherwise have matched; useful as an escape hatch if the cache or
   // on-disk HTML appears stale.
   const previousManifest = force === true ? undefined : await loadManifest(finalOutputDir);
+  const previousBuildManifest = await loadBuildManifest(finalOutputDir);
 
   const isDryRun = dryRun === true;
 
@@ -266,6 +267,7 @@ export async function build({
       finalOutputDir,
       profiler,
       previousManifest,
+      previousBuildManifest,
       noAtomic: noAtomic === true,
       concurrency,
       dryRun: isDryRun,
@@ -287,6 +289,7 @@ async function runBuild({
   finalOutputDir,
   profiler,
   previousManifest,
+  previousBuildManifest,
   noAtomic,
   concurrency,
   dryRun,
@@ -299,6 +302,7 @@ async function runBuild({
   finalOutputDir: string;
   profiler: Profiler | null;
   previousManifest: BuildManifest | undefined;
+  previousBuildManifest: Awaited<ReturnType<typeof loadBuildManifest>>;
   noAtomic: boolean;
   concurrency: number | undefined;
   dryRun: boolean;
@@ -927,10 +931,10 @@ async function runBuild({
 
   // Emit the deploy-facing build manifest last so its file list reflects every
   // artifact in the tree — including incremental cache, preserved user files,
-  // and platform descriptors. Excludes only itself to avoid a self-referential
-  // hash. Runs before commitStagingDir (atomic mode) so the manifest swaps in
-  // atomically with the rest of the site; under --no-atomic it lands directly
-  // in finalOutputDir.
+  // and platform descriptors. Excludes itself and its derived changed-paths
+  // companion to avoid self-referential hashes. Runs before commitStagingDir
+  // (atomic mode) so the manifest swaps in atomically with the rest of the
+  // site; under --no-atomic it lands directly in finalOutputDir.
   await timed(profiler, 'build_manifest', () =>
     emitBuildManifest({
       outputDir,
@@ -939,6 +943,7 @@ async function runBuild({
       routeCount: routes.length,
       assetCount,
       nectarVersion,
+      previousBuildManifest,
     }),
   );
 

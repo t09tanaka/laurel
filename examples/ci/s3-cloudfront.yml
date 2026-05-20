@@ -51,7 +51,9 @@ jobs:
         run: bunx nectar build
 
       - name: Verify build artifact
-        run: test -f dist/.nectar-manifest.json
+        run: |
+          test -f dist/.nectar-manifest.json
+          test -f dist/.nectar/changed-paths.txt
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -78,6 +80,8 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*"
+          if [ -s dist/.nectar/changed-paths.txt ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+              --paths $(cat dist/.nectar/changed-paths.txt)
+          fi

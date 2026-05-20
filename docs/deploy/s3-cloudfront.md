@@ -80,7 +80,8 @@ GitHub Pages have more managed defaults.
 7. Commit and push to `main`. The workflow installs Bun, builds `dist/`,
    verifies `dist/.nectar-manifest.json`, syncs fingerprinted assets with long
    immutable caching, syncs HTML / XML / TXT with revalidation, then
-   invalidates `/*` in CloudFront.
+   invalidates the paths listed in `dist/.nectar/changed-paths.txt` in
+   CloudFront.
 
 ## Custom 404 responses
 
@@ -176,6 +177,39 @@ chain. Set `AWS_PROFILE` for a local named profile, or use CI-provided
 credentials such as GitHub OIDC. If neither `AWS_ACCESS_KEY_ID` nor
 `AWS_PROFILE` is set, Nectar warns and lets the AWS CLI continue with its
 default chain.
+
+## CloudFront invalidations
+
+Every successful `nectar build` writes `dist/.nectar/changed-paths.txt` for
+CloudFront invalidations. The file contains one invalidation path per line,
+using CloudFront's leading-slash format. It is computed from
+`dist/.nectar/build-manifest.json` when a previous build manifest exists. On
+the first build, or when the previous manifest cannot be read, Nectar writes
+the safe fallback `/*`.
+
+After syncing `dist/` to S3, pass the file directly to the AWS CLI:
+
+```sh
+aws cloudfront create-invalidation \
+  --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+  --paths $(cat dist/.nectar/changed-paths.txt)
+```
+
+If you want to skip no-op invalidations when a rebuild produces no changed
+public files, guard the command:
+
+```sh
+if [ -s dist/.nectar/changed-paths.txt ]; then
+  aws cloudfront create-invalidation \
+    --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+    --paths $(cat dist/.nectar/changed-paths.txt)
+fi
+```
+
+For `index.html` routes, Nectar includes both the generated object path and the
+viewer-facing directory path, for example `/about/index.html` and `/about/`.
+Internal build metadata under `dist/.nectar/` is not included in the
+invalidation list.
 
 ## Redirects
 

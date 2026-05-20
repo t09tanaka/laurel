@@ -8,6 +8,7 @@ import {
   type BuildManifestJson,
   buildManifestAbsPath,
   buildManifestRelPath,
+  changedPathsAbsPath,
   emitBuildManifest,
 } from '~/build/build-manifest.ts';
 import type { NectarConfig } from '~/config/schema.ts';
@@ -152,6 +153,79 @@ describe('build-manifest', () => {
         nectarVersion: '0.0.0',
       });
       expect(manifest.files).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('emits a CloudFront changed-paths fallback when no previous build manifest exists', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-bm-'));
+    try {
+      await writeFile(join(dir, 'index.html'), 'home', 'utf8');
+
+      await emitBuildManifest({
+        outputDir: dir,
+        config: fakeConfig(),
+        theme: fakeTheme(),
+        routeCount: 1,
+        assetCount: 0,
+        nectarVersion: '1.0.0',
+      });
+
+      const body = await Bun.file(changedPathsAbsPath(dir)).text();
+      expect(body).toBe('/*\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('emits changed and deleted public paths for CloudFront invalidation', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-bm-'));
+    try {
+      await writeFile(join(dir, 'index.html'), 'new home', 'utf8');
+      await mkdir(join(dir, 'about'), { recursive: true });
+      await writeFile(join(dir, 'about', 'index.html'), 'about', 'utf8');
+      await mkdir(join(dir, 'assets'), { recursive: true });
+      await writeFile(join(dir, 'assets', 'app.css'), 'same css', 'utf8');
+
+      const previousBuildManifest: BuildManifestJson = {
+        schema_version: BUILD_MANIFEST_VERSION,
+        generated_at: '2026-05-19T00:00:00.000Z',
+        nectar: { version: '1.0.0' },
+        theme: { name: 'source', version: '1.2.3' },
+        config_hash: 'a'.repeat(64),
+        hash_algorithm: 'sha256',
+        route_count: 2,
+        asset_count: 1,
+        files: [
+          { path: 'index.html', size: 8, hash: sha256('old home') },
+          { path: 'assets/app.css', size: 8, hash: sha256('same css') },
+          { path: 'old-post/index.html', size: 8, hash: sha256('old post') },
+          { path: '.nectar/build-manifest.json', size: 2, hash: sha256('{}') },
+          { path: '.nectar-manifest.json', size: 2, hash: sha256('{}') },
+        ],
+      };
+
+      await emitBuildManifest({
+        outputDir: dir,
+        config: fakeConfig(),
+        theme: fakeTheme(),
+        routeCount: 2,
+        assetCount: 1,
+        nectarVersion: '1.0.0',
+        previousBuildManifest,
+      });
+
+      const body = await Bun.file(changedPathsAbsPath(dir)).text();
+      const expected = [
+        '/',
+        '/about/',
+        '/about/index.html',
+        '/index.html',
+        '/old-post/',
+        '/old-post/index.html',
+      ].join('\n');
+      expect(body).toBe(`${expected}\n`);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

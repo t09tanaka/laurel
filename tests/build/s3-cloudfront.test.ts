@@ -39,6 +39,18 @@ describe('S3 + CloudFront deploy docs', () => {
     expect(tutorial).toContain('keep the viewer response code as\n`404`');
     expect(examples).toContain('cloudfront-custom-errors.tf.example');
   });
+
+  test('documents the build-emitted CloudFront invalidation path list', async () => {
+    const guide = await readFile(join(root, 'docs', 'deploy', 's3-cloudfront.md'), 'utf8');
+    const workflow = await readFile(join(root, 'examples', 'ci', 's3-cloudfront.yml'), 'utf8');
+
+    expect(guide).toContain('dist/.nectar/changed-paths.txt');
+    expect(guide).toContain('aws cloudfront create-invalidation');
+    expect(guide).toContain('--paths $(cat dist/.nectar/changed-paths.txt)');
+    expect(guide).toContain('/*');
+    expect(workflow).toContain('dist/.nectar/changed-paths.txt');
+    expect(workflow).toContain('--paths $(cat dist/.nectar/changed-paths.txt)');
+  });
 });
 
 describe('S3 + CloudFront deploy samples', () => {

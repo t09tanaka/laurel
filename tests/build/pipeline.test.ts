@@ -593,7 +593,10 @@ describe('build pipeline build-manifest emission (#248)', () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
     const file = join(summary.outputDir, '.nectar/build-manifest.json');
+    const changedPathsFile = join(summary.outputDir, '.nectar/changed-paths.txt');
     expect(existsSync(file)).toBe(true);
+    expect(existsSync(changedPathsFile)).toBe(true);
+    expect(readFileSync(changedPathsFile, 'utf8')).toBe('/*\n');
 
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
       schema_version: number;
@@ -626,6 +629,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
     // The manifest must not list itself; otherwise its contents would be
     // self-referential and change every build.
     expect(parsed.files.find((f) => f.path === '.nectar/build-manifest.json')).toBeUndefined();
+    expect(parsed.files.find((f) => f.path === '.nectar/changed-paths.txt')).toBeUndefined();
 
     // Files must be sorted for deterministic deploy diffs.
     const paths = parsed.files.map((f) => f.path);
