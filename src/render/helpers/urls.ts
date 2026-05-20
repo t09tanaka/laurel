@@ -55,6 +55,13 @@ export function registerUrlHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('facebook_url', function facebookUrlHelper(handle: unknown) {
     return typeof handle === 'string' && handle ? buildSocialUrl('facebook', handle) : '';
   });
+
+  engine.hb.registerHelper('readable_url', function readableUrlHelper(...args: unknown[]) {
+    const positional = args.length > 1 ? args[0] : undefined;
+    const ctx = this as { url?: unknown };
+    const candidate = typeof positional === 'string' ? positional : ctx.url;
+    return typeof candidate === 'string' ? readableUrl(candidate) : '';
+  });
 }
 
 function stripAt(handle: string): string {
@@ -63,6 +70,27 @@ function stripAt(handle: string): string {
 
 function isAbsoluteHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
+}
+
+function readableUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return stripTrailingSlash(trimmed);
+    }
+    const hostname = parsed.hostname.replace(/^www\./i, '');
+    const host = parsed.port ? `${hostname}:${parsed.port}` : hostname;
+    const path = stripTrailingSlash(parsed.pathname);
+    return `${host}${path === '/' ? '' : path}${parsed.search}${parsed.hash}`;
+  } catch {
+    return stripTrailingSlash(trimmed.replace(/^https?:\/\/(?:www\.)?/i, ''));
+  }
+}
+
+function stripTrailingSlash(value: string): string {
+  return value.length > 1 ? value.replace(/\/+$/, '') : value;
 }
 
 function buildSocialUrl(type: string, handle: string): string {

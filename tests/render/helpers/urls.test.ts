@@ -250,3 +250,53 @@ describe('twitter_url / facebook_url helpers', () => {
     expect(tpl({ facebook: 42 })).toBe('|');
   });
 });
+
+describe('readable_url helper', () => {
+  test('strips the scheme, leading www, and trailing slash from a bookmark URL', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{readable_url url}}');
+    expect(tpl({ url: 'https://www.example.com/' })).toBe('example.com');
+  });
+
+  test('preserves meaningful paths while removing only the final slash', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{readable_url url}}');
+    expect(tpl({ url: 'http://www.example.com/articles/hello-world/' })).toBe(
+      'example.com/articles/hello-world',
+    );
+  });
+
+  test('preserves query strings and fragments after normalising the path', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{{readable_url url}}}');
+    expect(tpl({ url: 'https://www.example.com/search/?q=ghost#top' })).toBe(
+      'example.com/search?q=ghost#top',
+    );
+  });
+
+  test('keeps ports and non-www hosts intact', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{readable_url url}}');
+    expect(tpl({ url: 'https://docs.example.com:8443/guides/' })).toBe(
+      'docs.example.com:8443/guides',
+    );
+  });
+
+  test('falls back to this.url when no positional value is supplied', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{readable_url}}');
+    expect(tpl({ url: 'https://www.example.com/from-context/' })).toBe('example.com/from-context');
+  });
+
+  test('returns an empty string for missing or blank values', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{readable_url missing}}|{{readable_url blank}}');
+    expect(tpl({ blank: '   ' })).toBe('|');
+  });
+});
