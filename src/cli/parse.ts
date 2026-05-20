@@ -318,6 +318,11 @@ export function formatCommandHelp(spec: CommandSpec): string {
     for (const pos of spec.positionals) {
       lines.push(`  ${pad(pos.name, 20)}${pos.description}`);
     }
+    lines.push('');
+    lines.push('End of options:');
+    lines.push(
+      '  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.',
+    );
   }
 
   lines.push('');

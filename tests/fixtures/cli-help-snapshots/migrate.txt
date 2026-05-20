@@ -6,6 +6,9 @@ Usage:
 Arguments:
   source-and-args     `<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy`
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only)
   --dry-run           Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan)

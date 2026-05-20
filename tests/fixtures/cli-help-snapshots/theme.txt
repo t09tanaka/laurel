@@ -6,6 +6,9 @@ Usage:
 Arguments:
   subcommand          `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), `lint <path>` (audit a theme directory), or `serve` (fast theme dev server)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --from <theme-name> `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold

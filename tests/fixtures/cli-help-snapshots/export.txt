@@ -6,6 +6,9 @@ Usage:
 Arguments:
   format              Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -o, --output <path> Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten

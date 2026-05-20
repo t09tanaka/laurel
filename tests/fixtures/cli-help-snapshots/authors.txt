@@ -6,6 +6,9 @@ Usage:
 Arguments:
   subcommand          `list` (show authors and post counts)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --orphaned          Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only)

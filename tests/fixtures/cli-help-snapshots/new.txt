@@ -7,6 +7,9 @@ Arguments:
   kind                Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest.
   title               Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles. Optional for post/page/custom when --stdin provides a frontmatter title or first H1.
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --force             Overwrite the destination file if it already exists

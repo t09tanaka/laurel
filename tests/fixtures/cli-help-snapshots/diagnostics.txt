@@ -6,6 +6,9 @@ Usage:
 Arguments:
   subcommand          `bundle` (write a redacted diagnostics .tar.gz)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -o, --output <file> Path for the .tar.gz bundle. Defaults to nectar-diagnostics-<timestamp>.tar.gz in the current directory

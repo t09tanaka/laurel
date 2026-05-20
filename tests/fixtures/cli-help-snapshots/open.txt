@@ -6,6 +6,9 @@ Usage:
 Arguments:
   slug                Slug of the post or page to open (e.g. `hello-world`)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --kind <posts|pages>  Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error

@@ -6,6 +6,9 @@ Usage:
 Arguments:
   subcommand          `list` (show tags), `rename <old-slug> <new-slug>`, or `merge <from> [from...] <into>` (rewrite post/page tag references and safely handle tag files)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --orphaned          Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only)

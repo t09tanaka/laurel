@@ -163,6 +163,12 @@ describe('parseCommand', () => {
     expect(result.positionals).toEqual(['post', '--not-a-flag', 'My Title']);
   });
 
+  test('-- allows literal option-looking positional values', () => {
+    const result = parseCommand(POSITIONAL_SPEC, ['post', '--', '--config', '--draft.md']);
+    expect(result.values).not.toHaveProperty('config');
+    expect(result.positionals).toEqual(['post', '--config', '--draft.md']);
+  });
+
   test('allows flags before required positionals', () => {
     const result = parseCommand(NEW_SPEC, ['--slug', 'foo', 'post', 'Hello']);
     expect(result.values.slug).toBe('foo');
@@ -371,6 +377,7 @@ describe('formatCommandHelp', () => {
     expect(help).toContain('Arguments:');
     expect(help).toContain('kind');
     expect(help).toContain('title');
+    expect(help).toContain('Use `--` before positional values that start with `-`');
   });
 });
 

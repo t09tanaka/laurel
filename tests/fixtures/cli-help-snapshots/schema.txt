@@ -6,6 +6,9 @@ Usage:
 Arguments:
   target              `config`, `frontmatter`, or `theme`
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   -h, --help          Show help for this command
 

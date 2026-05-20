@@ -6,6 +6,9 @@ Usage:
 Arguments:
   file                Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --assets <dir>      Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/

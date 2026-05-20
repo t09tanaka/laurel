@@ -17,7 +17,8 @@ nectar [global options] <command> [options]
 Within a subcommand, flags and positional arguments may be interleaved.
 `nectar new --slug foo post "Hello"` and `nectar new post --slug foo "Hello"`
 parse the same way. `--` still ends option parsing; every following token is
-treated as a positional argument, even when it looks like a flag.
+treated as a positional argument, so literal values such as `--config` or
+filenames beginning with `--` can be passed after it.
 
 ## Global options
 

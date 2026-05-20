@@ -6,6 +6,9 @@ Usage:
 Arguments:
   file                Path to a WordPress WXR XML export (Tools → Export in wp-admin produces this)
 
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files
