@@ -74,6 +74,12 @@ describe('cli integration — new (#663/#692)', () => {
     expect(stderr.toLowerCase()).toContain('title');
   });
 
+  test('new post with a whitespace-only quoted title exits 2 with friendly guidance', async () => {
+    const { stderr, exitCode } = await runCli(['new', 'post', '   '], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Title cannot be empty. Example: nectar new post "My First Post"');
+  });
+
   test('new post creates a markdown file with the slugified title', async () => {
     const { exitCode } = await runCli(['new', 'post', 'Integration Test Post'], dir);
     expect(exitCode).toBe(0);

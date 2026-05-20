@@ -41,6 +41,11 @@ export async function runNew(args: string[]): Promise<number> {
   const kind = kindArg as Kind;
   const remainder = rest.join(' ').trim();
   if (!remainder) {
+    if (kind === 'post' || kind === 'page') {
+      process.stderr.write(`${t('new.emptyTitle')}\n\n`);
+      process.stderr.write(formatCommandHelp(NEW_SPEC));
+      return 2;
+    }
     const label = kind === 'post' || kind === 'page' ? 'title' : 'slug';
     process.stderr.write(`${t('new.requiredValue', { label })}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));

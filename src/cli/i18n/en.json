@@ -66,6 +66,7 @@
   "new.optionDraftKind": "--draft is only valid for \"post\" or \"page\" kind.",
   "new.optionPostOnly": "--date, --tags, and --author are only valid for \"post\" kind.",
   "new.optionSlugKind": "--slug is only valid for \"post\" or \"page\" kind; for \"tag\" / \"author\" the positional is already the slug.",
+  "new.emptyTitle": "Title cannot be empty. Example: nectar new post \"My First Post\"",
   "new.requiredValue": "A {label} is required.",
   "new.refuseOverwrite": "Refusing to overwrite {path}. Pass --force to overwrite or --slug <other>.",
   "new.warnEditorMissing": "Warning: --open was passed but neither $VISUAL nor $EDITOR is set; open {path} manually.",
