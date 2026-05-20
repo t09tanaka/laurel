@@ -314,6 +314,30 @@ interface ImportFilterSettings {
 // <cwd>/content/<name>/ so that imported markdown's /content/<name>/... URLs
 // resolve at build time.
 const GHOST_ASSET_SUBDIRS = ['images', 'files', 'media'] as const;
+const GHOST_PROJECT_FILE_FAMILIES = [
+  {
+    names: ['routes.yaml', 'routes.yml'],
+    candidates: [
+      'routes.yaml',
+      'routes.yml',
+      'settings/routes.yaml',
+      'settings/routes.yml',
+      'data/routes.yaml',
+      'data/routes.yml',
+    ],
+  },
+  {
+    names: ['redirects.yaml', 'redirects.yml'],
+    candidates: [
+      'redirects.yaml',
+      'redirects.yml',
+      'data/redirects.yaml',
+      'data/redirects.yml',
+      'settings/redirects.yaml',
+      'settings/redirects.yml',
+    ],
+  },
+] as const;
 
 // Newer Ghost admin exports split tables across multiple `db[i]` blocks (e.g.
 // posts in db[0], posts_meta/members/snippets in db[1]). Reading only db[0]
@@ -873,6 +897,14 @@ async function importFromResolvedInput(
         plannedPaths,
       )
     : 0;
+  if (resolved.assetsDir) {
+    await copyGhostProjectFiles(
+      resolved.assetsDir,
+      opts.outputDir ? outputRoot : opts.cwd,
+      dryRun,
+      plannedPaths,
+    );
+  }
 
   // Ghost stores custom redirects at content/data/redirects.json. The resolved
   // assetsDir points at the Ghost `content/` folder when the user passed a
@@ -1086,6 +1118,15 @@ async function isDirectory(p: string): Promise<boolean> {
   }
 }
 
+async function isFile(p: string): Promise<boolean> {
+  try {
+    const s = await stat(p);
+    return s.isFile();
+  } catch {
+    return false;
+  }
+}
+
 async function hasAnyAssetSubdir(dir: string): Promise<boolean> {
   for (const name of GHOST_ASSET_SUBDIRS) {
     if (await isDirectory(join(dir, name))) return true;
@@ -1134,6 +1175,58 @@ async function copyGhostAssets(
     }
   }
   return total;
+}
+
+// Ghost exports keep project-level routing files under the content directory
+// (commonly content/settings/routes.yaml and content/data/redirects.yaml).
+// Nectar reads these from the project root, so migrate the first supported
+// variant in each family without clobbering an existing project file.
+async function copyGhostProjectFiles(
+  assetsRoot: string,
+  targetRoot: string,
+  dryRun: boolean,
+  plannedPaths: string[],
+): Promise<number> {
+  let total = 0;
+  for (const family of GHOST_PROJECT_FILE_FAMILIES) {
+    if (await hasAnyTargetProjectFile(targetRoot, family.names)) continue;
+    const rel = await findFirstProjectFile(assetsRoot, family.candidates);
+    if (!rel) continue;
+    if (pathContainsSymlink(assetsRoot, rel)) {
+      logger.warn(`Skipping symlinked Ghost project file: ${join(assetsRoot, rel)}`);
+      continue;
+    }
+    const destName = rel.endsWith('.yml') ? family.names[1] : family.names[0];
+    const dest = join(targetRoot, destName);
+    assertWithin(targetRoot, dest);
+    if (!dryRun) {
+      await ensureDir(targetRoot);
+      await writeFile(dest, await readFile(join(assetsRoot, rel)));
+    }
+    plannedPaths.push(dest);
+    total += 1;
+  }
+  return total;
+}
+
+async function hasAnyTargetProjectFile(
+  targetRoot: string,
+  names: readonly string[],
+): Promise<boolean> {
+  for (const name of names) {
+    if (await pathExists(join(targetRoot, name))) return true;
+  }
+  return false;
+}
+
+async function findFirstProjectFile(
+  assetsRoot: string,
+  candidates: readonly string[],
+): Promise<string | undefined> {
+  for (const rel of candidates) {
+    if (await isFile(join(assetsRoot, rel))) return rel;
+  }
+  return undefined;
 }
 
 // Decide what to do for a given (dest, content) pair, then dispatch the

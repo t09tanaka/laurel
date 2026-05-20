@@ -3515,6 +3515,114 @@ describe('importGhostExport — outputDir (#265)', () => {
   });
 });
 
+describe('importGhostExport — Ghost project YAML files (#1010)', () => {
+  let cwd: string;
+  let exportFolder: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-project-yaml-')));
+    exportFolder = join(cwd, 'ghost-export');
+    await Bun.write(
+      join(exportFolder, 'my-blog.ghost.json'),
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Hello',
+                  slug: 'hello',
+                  html: '<p>hi</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('copies Ghost routes and redirects YAML from content into the project root', async () => {
+    await Bun.write(
+      join(exportFolder, 'content/settings/routes.yaml'),
+      'routes:\n  /featured/:\n    template: featured\n',
+    );
+    await Bun.write(
+      join(exportFolder, 'content/data/redirects.yml'),
+      '- from: /old/\n  to: /new/\n  status: 301\n',
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFolder, onConflict: 'overwrite' });
+
+    expect(summary.plannedPaths).toContain(join(cwd, 'routes.yaml'));
+    expect(summary.plannedPaths).toContain(join(cwd, 'redirects.yml'));
+    expect(await readFile(join(cwd, 'routes.yaml'), 'utf8')).toContain('/featured/');
+    expect(await readFile(join(cwd, 'redirects.yml'), 'utf8')).toContain('from: /old/');
+  });
+
+  test('does not overwrite existing project routes or redirects files', async () => {
+    await Bun.write(join(exportFolder, 'content/routes.yaml'), 'routes:\n  /ghost/: ghost\n');
+    await Bun.write(join(exportFolder, 'content/redirects.yaml'), '- from: /ghost/\n  to: /\n');
+    await Bun.write(join(cwd, 'routes.yml'), 'routes:\n  /existing/: existing\n');
+    await Bun.write(join(cwd, 'redirects.yaml'), '- from: /existing/\n  to: /\n');
+
+    const summary = await importGhostExport({ cwd, file: exportFolder, onConflict: 'overwrite' });
+
+    expect(summary.plannedPaths).not.toContain(join(cwd, 'routes.yaml'));
+    expect(summary.plannedPaths).not.toContain(join(cwd, 'redirects.yaml'));
+    expect(await readFile(join(cwd, 'routes.yml'), 'utf8')).toContain('/existing/');
+    expect(await readFile(join(cwd, 'redirects.yaml'), 'utf8')).toContain('/existing/');
+    await expect(access(join(cwd, 'routes.yaml'))).rejects.toThrow();
+  });
+
+  test('plans project YAML copies in dry-run without writing them', async () => {
+    await Bun.write(join(exportFolder, 'content/routes.yml'), 'routes:\n  /dry/: dry\n');
+    await Bun.write(join(exportFolder, 'content/data/redirects.yaml'), '- from: /dry/\n  to: /\n');
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFolder,
+      dryRun: true,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.plannedPaths).toContain(join(cwd, 'routes.yml'));
+    expect(summary.plannedPaths).toContain(join(cwd, 'redirects.yaml'));
+    await expect(access(join(cwd, 'routes.yml'))).rejects.toThrow();
+    await expect(access(join(cwd, 'redirects.yaml'))).rejects.toThrow();
+  });
+
+  test('copies project YAML files under the review output root when --output is used', async () => {
+    const outputDir = join(cwd, 'review-import');
+    await Bun.write(join(exportFolder, 'content/routes.yaml'), 'routes:\n  /review/: review\n');
+    await Bun.write(
+      join(exportFolder, 'content/redirects.yaml'),
+      '- from: /review-old/\n  to: /\n',
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFolder,
+      outputDir,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.plannedPaths).toContain(join(outputDir, 'routes.yaml'));
+    expect(summary.plannedPaths).toContain(join(outputDir, 'redirects.yaml'));
+    expect(await readFile(join(outputDir, 'routes.yaml'), 'utf8')).toContain('/review/');
+    expect(await readFile(join(outputDir, 'redirects.yaml'), 'utf8')).toContain('/review-old/');
+    await expect(access(join(cwd, 'routes.yaml'))).rejects.toThrow();
+    await expect(access(join(cwd, 'redirects.yaml'))).rejects.toThrow();
+  });
+});
+
 describe('importGhostExport — JSON size cap (#558)', () => {
   let cwd: string;
   let exportFile: string;
