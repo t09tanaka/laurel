@@ -1,7 +1,6 @@
 import { relative } from 'node:path';
 import { type LintIssue, lintContent } from '~/build/lint.ts';
 import { loadRoutesYaml } from '~/build/routes-yaml.ts';
-import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { compileThemeTemplates } from '~/theme/compile-check.ts';
 import { loadTheme } from '~/theme/loader.ts';
@@ -9,6 +8,7 @@ import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { type FrontmatterIssue, checkFrontmatterSchemas } from '../check-frontmatter.ts';
 import { type TemplateIssue, checkThemeTemplates } from '../check-templates.ts';
+import { reportConfigValidationError, validateConfigOnly } from '../config-validation.ts';
 import { ensureContentDirs } from '../ensure-content-dirs.ts';
 import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -69,7 +69,22 @@ export async function runCheck(args: string[]): Promise<number> {
   const warnings: ReportEntry[] = [];
 
   try {
-    const config = await loadConfig({ cwd, configPath });
+    const configResult = await validateConfigOnly({ cwd, configPath });
+    if (!configResult.ok) {
+      if (asJson) {
+        const report: CheckReport = {
+          ok: false,
+          errors: [{ code: 'fatal', message: configResult.entry.message }],
+          warnings,
+          summary: null,
+        };
+        process.stdout.write(`${JSON.stringify(report)}\n`);
+      } else {
+        reportConfigValidationError(configResult, cwd);
+      }
+      return 1;
+    }
+    const config = configResult.config;
     if (!asJson) logger.info(t('check.configOk', { title: config.site.title }));
 
     // Auto-create missing content dirs with a warning so a fresh checkout

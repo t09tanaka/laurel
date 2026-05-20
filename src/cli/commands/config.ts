@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import TOML from '@iarna/toml';
 import { loadConfig } from '~/config/loader.ts';
+import { reportConfigValidationError, validateConfigOnly } from '../config-validation.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { CONFIG_SPEC } from '../specs.ts';
@@ -62,6 +63,37 @@ export async function runConfig(args: string[]): Promise<number> {
       reportError(err, cwd);
       return 1;
     }
+  }
+
+  if (sub === 'validate') {
+    if (parsed.positionals.length > 1) {
+      process.stderr.write('`config validate` takes no further arguments.\n');
+      return 2;
+    }
+    const result = await validateConfigOnly({ cwd, configPath });
+    if (!result.ok) {
+      if (asJson) {
+        process.stdout.write(`${JSON.stringify({ ok: false, errors: [result.entry] })}\n`);
+      } else {
+        reportConfigValidationError(result, cwd);
+      }
+      return 1;
+    }
+    if (asJson) {
+      process.stdout.write(
+        `${JSON.stringify({
+          ok: true,
+          errors: [],
+          site: {
+            title: result.config.site.title,
+            url: result.config.site.url,
+          },
+        })}\n`,
+      );
+    } else {
+      process.stdout.write(`Config OK: ${result.config.site.title}\n`);
+    }
+    return 0;
   }
 
   if (sub === 'path') {
@@ -153,7 +185,7 @@ export async function runConfig(args: string[]): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`print\`, \`get <key>\`, \`set <key> <value>\`, or \`path\`.\n`,
+    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`print\`, \`validate\`, \`get <key>\`, \`set <key> <value>\`, or \`path\`.\n`,
   );
   return 2;
 }

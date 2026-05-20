@@ -505,14 +505,14 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
+| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `validate`: emit `{ ok, errors }`. For `get`: pretty-printed JSON of the value at the dotted path. For `set` and `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
 | `--format <json\|toml>` | string | `NECTAR_CONFIG_FORMAT` | For `print`, choose the resolved config output format: `toml` (default) or `json`. |
 
 Examples:
@@ -520,6 +520,7 @@ Examples:
 ```
 nectar config print                          # resolved config as TOML
 nectar config print --format json            # resolved config as JSON
+nectar config validate                       # config-only validation
 nectar config path                           # absolute path of the loaded toml
 nectar config get site.url
 nectar config set site.title "My Site"

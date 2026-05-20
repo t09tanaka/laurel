@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,7 @@ async function makeFixture(): Promise<string> {
   );
   await Bun.write(join(dir, 'themes/minimal/index.hbs'), '<!doctype html>{{@site.title}}');
   await Bun.write(join(dir, 'content/pages/.keep'), '');
+  await Bun.write(join(dir, 'content/tags/.keep'), '');
   await Bun.write(join(dir, 'content/authors/.keep'), '');
   return dir;
 }
@@ -82,6 +83,26 @@ describe('cli check', () => {
     dir = await makeFixture();
     const { exitCode } = await runCli(['check', '--strict'], dir);
     expect(exitCode).toBe(0);
+  });
+
+  test('keeps check JSON shape for config validation errors', async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-check-invalid-config-')));
+    await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+
+    const { stdout, stderr, exitCode } = await runCli(['check', '--json'], dir);
+    expect(exitCode).toBe(1);
+    expect(stderr).toBe('');
+    const report = JSON.parse(stdout) as {
+      ok: boolean;
+      errors: Array<{ code: string; message: string }>;
+      warnings: unknown[];
+      summary: null;
+    };
+    expect(report.ok).toBe(false);
+    expect(report.errors[0]?.code).toBe('fatal');
+    expect(report.errors[0]?.message).toContain('site.title');
+    expect(report.warnings).toEqual([]);
+    expect(report.summary).toBeNull();
   });
 
   test('reports missing local feature_image assets in the check report', async () => {

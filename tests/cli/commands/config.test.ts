@@ -205,6 +205,73 @@ describe('cli config', () => {
     }
   });
 
+  test('config validate exits 0 for a valid config', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['config', 'validate'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('Config OK: Config Test');
+      expect(stderr).toBe('');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config validate pretty-prints config errors', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-invalid-')));
+    try {
+      await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+      const { stdout, stderr, exitCode } = await runCli(['config', 'validate'], dir);
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe('');
+      expect(stderr).toContain('nectar.toml');
+      expect(stderr).toContain('site.title');
+      expect(stderr).toContain('string');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config validate --json emits a machine-readable result', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-invalid-json-')));
+    try {
+      await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+      const { stdout, stderr, exitCode } = await runCli(['config', 'validate', '--json'], dir);
+      expect(exitCode).toBe(1);
+      expect(stderr).toBe('');
+      const parsed = JSON.parse(stdout) as {
+        ok: boolean;
+        errors: Array<{ code: string; file?: string; message: string }>;
+      };
+      expect(parsed.ok).toBe(false);
+      expect(parsed.errors[0]?.code).toBe('config');
+      expect(parsed.errors[0]?.file).toBe('nectar.toml');
+      expect(parsed.errors[0]?.message).toContain('site.title');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config validate --json reports ok for a valid config', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['config', 'validate', '--json'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      const parsed = JSON.parse(stdout) as {
+        ok: boolean;
+        errors: unknown[];
+        site: { title: string; url: string };
+      };
+      expect(parsed.ok).toBe(true);
+      expect(parsed.errors).toEqual([]);
+      expect(parsed.site.title).toBe('Config Test');
+      expect(parsed.site.url).toBe('https://config.test');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('config print rejects unknown formats', async () => {
     const { stderr, exitCode } = await runCli(['config', 'print', '--format', 'yaml']);
     expect(exitCode).toBe(2);
