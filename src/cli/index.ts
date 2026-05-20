@@ -65,87 +65,87 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
 async function dispatch(command: string, rest: string[]): Promise<number> {
   switch (command) {
     case 'init': {
-      const { runInit } = await import('./commands/init.ts');
+      const { runInit } = await import('./commands/init.js');
       return runInit(rest);
     }
     case 'build': {
-      const { runBuild } = await import('./commands/build.ts');
+      const { runBuild } = await import('./commands/build.js');
       return runBuild(rest);
     }
     case 'new': {
-      const { runNew } = await import('./commands/new.ts');
+      const { runNew } = await import('./commands/new.js');
       return runNew(rest);
     }
     case 'open': {
-      const { runOpen } = await import('./commands/open.ts');
+      const { runOpen } = await import('./commands/open.js');
       return runOpen(rest);
     }
     case 'check': {
-      const { runCheck } = await import('./commands/check.ts');
+      const { runCheck } = await import('./commands/check.js');
       return runCheck(rest);
     }
     case 'import-ghost': {
-      const { runImportGhost } = await import('./commands/import-ghost.ts');
+      const { runImportGhost } = await import('./commands/import-ghost.js');
       return runImportGhost(rest);
     }
     case 'import-wordpress': {
-      const { runImportWordPress } = await import('./commands/import-wordpress.ts');
+      const { runImportWordPress } = await import('./commands/import-wordpress.js');
       return runImportWordPress(rest);
     }
     case 'serve': {
-      const { runServe } = await import('./commands/serve.ts');
+      const { runServe } = await import('./commands/serve.js');
       return runServe(rest);
     }
     case 'dev': {
-      const { runDev } = await import('./commands/dev.ts');
+      const { runDev } = await import('./commands/dev.js');
       return runDev(rest);
     }
     case 'doctor': {
-      const { runDoctor } = await import('./commands/doctor.ts');
+      const { runDoctor } = await import('./commands/doctor.js');
       return runDoctor(rest);
     }
     case 'clean': {
-      const { runClean } = await import('./commands/clean.ts');
+      const { runClean } = await import('./commands/clean.js');
       return runClean(rest);
     }
     case 'completions': {
-      const { runCompletions } = await import('./commands/completions.ts');
+      const { runCompletions } = await import('./commands/completions.js');
       return runCompletions(rest);
     }
     case 'content': {
-      const { runContent } = await import('./commands/content.ts');
+      const { runContent } = await import('./commands/content.js');
       return runContent(rest);
     }
     case 'info': {
-      const { runInfo } = await import('./commands/info.ts');
+      const { runInfo } = await import('./commands/info.js');
       return runInfo(rest);
     }
     case 'tags': {
-      const { runTags } = await import('./commands/tags.ts');
+      const { runTags } = await import('./commands/tags.js');
       return runTags(rest);
     }
     case 'config': {
-      const { runConfig } = await import('./commands/config.ts');
+      const { runConfig } = await import('./commands/config.js');
       return runConfig(rest);
     }
     case 'lint': {
-      const { runLint } = await import('./commands/lint.ts');
+      const { runLint } = await import('./commands/lint.js');
       return runLint(rest);
     }
     case 'migrate': {
-      const { runMigrate } = await import('./commands/migrate.ts');
+      const { runMigrate } = await import('./commands/migrate.js');
       return runMigrate(rest);
     }
     case 'theme': {
-      const { runTheme } = await import('./commands/theme.ts');
+      const { runTheme } = await import('./commands/theme.js');
       return runTheme(rest);
     }
     case 'deploy': {
-      const { runDeploy } = await import('./commands/deploy.ts');
+      const { runDeploy } = await import('./commands/deploy.js');
       return runDeploy(rest);
     }
     case 'export': {
-      const { runExport } = await import('./commands/export.ts');
+      const { runExport } = await import('./commands/export.js');
       return runExport(rest);
     }
     default:

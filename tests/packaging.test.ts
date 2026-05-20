@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pkg from '../package.json' with { type: 'json' };
 
 // Guards the npm publish surface: without a strict `files` whitelist, npm
 // publishes everything not in .npmignore — which would balloon the tarball
 // with example content, tests, and editor configs. See backlog task #132.
+
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 describe('packaging', () => {
   test('package.json has an explicit files whitelist', () => {
@@ -85,6 +90,68 @@ describe('packaging', () => {
 
     test('./package.json is exported so tooling can read metadata', () => {
       expect(exportsMap['./package.json']).toBe('./package.json');
+    });
+  });
+
+  describe('cli bundle', () => {
+    test('command dispatch imports use distributable JS specifiers', async () => {
+      const source = await readFile(join(REPO_ROOT, 'src/cli/index.ts'), 'utf8');
+
+      expect(source).not.toMatch(/import\(['"]\.\/commands\/[^'"]+\.ts['"]\)/);
+      expect(source).toContain("import('./commands/build.js')");
+      expect(source).toContain("import('./commands/import-ghost.js')");
+    });
+
+    test('build:cli output dispatches subcommands under Node without raw .ts command imports', async () => {
+      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      await mkdir(outRoot, { recursive: true });
+      const outdir = await mkdtemp(join(outRoot, 'test-cli-bundle-'));
+
+      try {
+        const packageDeps = pkg as {
+          dependencies?: Record<string, string>;
+          peerDependencies?: Record<string, string>;
+          optionalDependencies?: Record<string, string>;
+        };
+        const external = [
+          ...Object.keys(packageDeps.dependencies ?? {}),
+          ...Object.keys(packageDeps.peerDependencies ?? {}),
+          ...Object.keys(packageDeps.optionalDependencies ?? {}),
+        ];
+        const result = await Bun.build({
+          entrypoints: [join(REPO_ROOT, 'src/cli/index.ts')],
+          outdir,
+          target: 'bun',
+          format: 'esm',
+          naming: { entry: 'cli.mjs' },
+          external,
+        });
+
+        if (!result.success) {
+          throw new Error(result.logs.map((log) => log.message).join('\n'));
+        }
+
+        const bundledCli = join(outdir, 'cli.mjs');
+        const bundledSource = await readFile(bundledCli, 'utf8');
+        expect(bundledSource).not.toMatch(/import\(['"]\.\/commands\/[^'"]+\.ts['"]\)/);
+
+        const proc = Bun.spawn(['node', bundledCli, 'build', '--help'], {
+          cwd: REPO_ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const [stdout, stderr, exitCode] = await Promise.all([
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+          proc.exited,
+        ]);
+
+        expect(stderr).toBe('');
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('Build the site');
+      } finally {
+        await rm(outdir, { recursive: true, force: true });
+      }
     });
   });
 });
