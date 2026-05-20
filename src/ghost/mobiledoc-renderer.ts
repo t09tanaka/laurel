@@ -242,8 +242,9 @@ function renderCard(name: unknown, payload: Record<string, unknown>): string {
     case 'hr':
     case 'horizontalrule':
       return '<hr>';
-    // Members-only — skip so gated content never leaks into a public site.
     case 'paywall':
+      return '<!--members-only-->';
+    // Newsletter-only and signup cards should not render on the public web.
     case 'email':
     case 'email-cta':
     case 'signup':

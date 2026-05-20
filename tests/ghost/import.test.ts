@@ -1286,6 +1286,31 @@ describe('importGhostExport — Koenig card comment fences', () => {
     expect(md).toContain('Body paragraph.');
   });
 
+  test('preserves Ghost members-only paywall comments as markdown split markers', async () => {
+    const postHtml = [
+      '<p>Public intro.</p>',
+      '<!--members-only-->',
+      '<p>Paid paragraph behind the wall.</p>',
+    ].join('\n');
+
+    await writeFile(
+      exportFile,
+      makeExport([{ slug: 'paywall-comment', title: 'Paywall Comment', html: postHtml }]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/paywall-comment.md'), 'utf8');
+    expect(md).toContain('Public intro.');
+    expect(md).toContain('<!-- members-only -->');
+    expect(md).toContain('Paid paragraph behind the wall.');
+    expect(md.indexOf('Public intro.')).toBeLessThan(md.indexOf('<!-- members-only -->'));
+    expect(md.indexOf('<!-- members-only -->')).toBeLessThan(
+      md.indexOf('Paid paragraph behind the wall.'),
+    );
+  });
+
   test('preserves raw lexical markdown card payload when html is also present', async () => {
     const rawMarkdown = [
       'Raw heading',

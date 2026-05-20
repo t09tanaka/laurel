@@ -966,6 +966,20 @@ describe('preprocessKoenigCardFences', () => {
   });
 });
 
+describe('Ghost Turndown rules — members-only paywall marker', () => {
+  test('preserves Ghost paywall comments as markdown split markers', () => {
+    const html = preprocessKoenigCardFences(
+      '<p>Public intro.</p><!--members-only--><p>Paid body.</p>',
+    );
+    const md = td.turndown(html);
+    expect(md).toContain('Public intro.');
+    expect(md).toContain('<!-- members-only -->');
+    expect(md).toContain('Paid body.');
+    expect(md.indexOf('Public intro.')).toBeLessThan(md.indexOf('<!-- members-only -->'));
+    expect(md.indexOf('<!-- members-only -->')).toBeLessThan(md.indexOf('Paid body.'));
+  });
+});
+
 describe('Ghost Turndown rules — email / email-cta cards (comment-fenced)', () => {
   test('strips email card content entirely', () => {
     const html = preprocessKoenigCardFences(

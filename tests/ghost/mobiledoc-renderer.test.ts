@@ -206,7 +206,7 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toBe('<p>a<br>b</p>');
   });
 
-  test('drops members-only cards', () => {
+  test('preserves paywall card boundary and drops other members-only cards', () => {
     const out = renderMobiledocToHtml(
       mobi({
         cards: [
@@ -224,6 +224,6 @@ describe('renderMobiledocToHtml', () => {
         ],
       }),
     );
-    expect(out).toBe('<p>public</p>');
+    expect(out).toBe('<!--members-only--><p>public</p>');
   });
 });

@@ -226,12 +226,12 @@ function isDataKgCard(node: FilterNode, ...types: readonly string[]): boolean {
   return typeof t === 'string' && types.includes(t);
 }
 
-// Ghost emits four Koenig card types as HTML comment fences instead of class
-// wrappers: `markdown`, `html`, `email`, `email-cta`. Turndown drops comments
-// by default, which makes it impossible to detect where each card starts and
-// ends — fatal for `email`/`email-cta` (members-only content that must NOT
-// leak into a public static site) and lossy for `markdown`/`html` (where the
-// raw user payload should survive the round-trip).
+// Ghost emits several Koenig card types as HTML comment fences instead of class
+// wrappers. Turndown drops comments by default, which makes it impossible to
+// detect where each card starts and ends — fatal for `email`/`email-cta`
+// (members-only content that must NOT leak into a public static site), lossy
+// for `markdown`/`html` (where the raw user payload should survive the
+// round-trip), and boundary-breaking for paywall comments.
 //
 // This regex converts each fence pair into a `<div data-kg-card="X">…</div>`
 // wrapper that dedicated Turndown rules can act on. The back-reference (`\1`)
@@ -240,12 +240,15 @@ function isDataKgCard(node: FilterNode, ...types: readonly string[]): boolean {
 // truncation across an unrelated region).
 const KG_CARD_FENCE_RE =
   /<!--\s*kg-card-begin:\s*([a-z-]+)\s*-->([\s\S]*?)<!--\s*kg-card-end:\s*\1\s*-->/g;
+const MEMBERS_ONLY_PAYWALL_RE = /<!--\s*members-only\s*-->/gi;
 
 export function preprocessKoenigCardFences(html: string): string {
-  return html.replace(
-    KG_CARD_FENCE_RE,
-    (_match, type: string, body: string) => `<div data-kg-card="${type}">${body}</div>`,
-  );
+  return html
+    .replace(MEMBERS_ONLY_PAYWALL_RE, '<div data-kg-card="paywall">members-only</div>')
+    .replace(
+      KG_CARD_FENCE_RE,
+      (_match, type: string, body: string) => `<div data-kg-card="${type}">${body}</div>`,
+    );
 }
 
 // Sanitisation policy for Ghost HTML cards. Both the comment-fenced form
@@ -900,6 +903,14 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   turndown.addRule('kg-card-fence-email', {
     filter: (node) => isDataKgCard(node, 'email', 'email-cta'),
     replacement: () => '',
+  });
+
+  // `paywall`: Ghost serialises the split point as `<!--members-only-->`.
+  // Keep it as a Markdown-safe HTML comment so the content loader can split
+  // public preview content from the locked body before rendering.
+  turndown.addRule('kg-card-fence-paywall', {
+    filter: (node) => isDataKgCard(node, 'paywall'),
+    replacement: () => wrap('<!-- members-only -->'),
   });
 
   // `html`: Ghost emits the card without the `kg-html-card` div in `post.html`,

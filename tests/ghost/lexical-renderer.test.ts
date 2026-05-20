@@ -334,7 +334,7 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('data-button-color="#f6c344"');
   });
 
-  test('omits members-only cards', () => {
+  test('preserves paywall card boundary and omits other members-only cards', () => {
     const out = renderLexicalToHtml(
       lex([
         { type: 'paywall', version: 1 },
@@ -344,7 +344,7 @@ describe('renderLexicalToHtml', () => {
         { type: 'paragraph', children: [text('public')], version: 1 },
       ]),
     );
-    expect(out).toBe('<p>public</p>');
+    expect(out).toBe('<!--members-only--><p>public</p>');
   });
 
   test('walks children of unknown node types so nested text survives', () => {

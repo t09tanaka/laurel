@@ -132,10 +132,9 @@ function renderNode(node: unknown): string {
       return renderProductCardHtml(node);
     case 'header':
       return renderHeaderCardHtml(node);
-    // Members-only Koenig cards. Nectar has no members surface, so render
-    // nothing — preserving them would either leak gated content into a public
-    // static site or surface broken sign-up CTAs.
     case 'paywall':
+      return '<!--members-only-->';
+    // Newsletter-only and signup cards should not render on the public web.
     case 'email':
     case 'email-cta':
     case 'signup':
