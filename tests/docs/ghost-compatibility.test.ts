@@ -30,6 +30,9 @@ describe('Ghost compatibility docs', () => {
       '| Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes',
     );
     expect(doc).toContain(
+      '| Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost code-card wrappers use `.kg-code-card`',
+    );
+    expect(doc).toContain(
       '| Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks',
     );
     expect(doc).toContain(
@@ -75,6 +78,14 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('<section class="gh-content gh-canvas">{{content}}</section>');
     expect(doc).toContain('.gh-content.gh-canvas > .kg-card');
     expect(doc).toContain('does not wrap every card in an extra layout container');
+  });
+
+  test('documents the code-card CSS contract', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain('class="kg-card kg-code-card kg-card-hascaption');
+    expect(doc).toContain('.kg-code-card-with-line-numbers pre');
+    expect(doc).toMatch(/Nectar does not\s+generate line-number markers by itself/);
   });
 
   test('documents Content API post.html serialization divergence', async () => {

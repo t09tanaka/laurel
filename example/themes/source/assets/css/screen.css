@@ -2310,6 +2310,42 @@ unless a heading is the very first element in the post content */
     border: 0;
 }
 
+/* Code */
+/* Ghost code cards wrap the highlighted <pre><code> block in
+   figure.kg-code-card when captions or editor metadata are present. Keep the
+   wrapper hooks styled so imported code cards do not fall back to unstyled
+   browser defaults. `.kg-code-card-with-line-numbers pre` is the stable
+   gutter contract for imports or plugins that preserve line-number markup. */
+
+.kg-code-card {
+    width: 100%;
+}
+
+.kg-code-card pre {
+    margin: 0;
+    padding: 1.6rem 2rem;
+    overflow-x: auto;
+    border-radius: 0.25em;
+    background: var(--color-darker-gray);
+    color: var(--color-white);
+    font-size: 1.4rem;
+    line-height: 1.5;
+}
+
+.kg-code-card pre code {
+    font-family: var(--font-mono);
+    font-size: inherit;
+    white-space: pre;
+}
+
+.kg-code-card figcaption {
+    margin-top: 12px;
+}
+
+.kg-code-card-with-line-numbers pre {
+    padding-left: 4.8rem;
+}
+
 /* Gallery */
 
 .kg-gallery-container {

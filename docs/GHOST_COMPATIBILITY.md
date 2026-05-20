@@ -79,7 +79,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes; Twitter/X, Instagram, TikTok, and CodePen stay fallback links unless a site deliberately loads provider scripts. |
 | HTML | Yes | Partial | Imports through the HTML-card sanitizer and renders allowed raw HTML. Script/style loaders and dangerous URL schemes are removed. |
 | Markdown | Yes | Yes | Ghost's rendered Markdown-card HTML is converted back through Turndown and then rendered as normal Markdown/HTML. |
-| Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost-specific code-card wrapper and caption parity is limited. |
+| Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost code-card wrappers use `.kg-code-card`, `pre`, `figcaption`, and the `.kg-code-card-with-line-numbers pre` gutter contract when that metadata survives import. |
 | Callout | Yes | Yes | Renders the static `kg-callout-card` wrapper, color modifier, emoji, and text body. |
 | Button | Yes | Yes | Renders a static `kg-button-card` anchor with alignment and button style classes. |
 | Toggle | Yes | Yes | Renders as native `<details>` / `<summary>` with `kg-toggle-card` hooks; no Ghost toggle JavaScript is required. |
@@ -346,6 +346,21 @@ templates to add `gh-content` / `gh-canvas`.
 | `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card kg-width-*">` with image, title, description, optional rating, and CTA scaffold. |
 | `{% header %}` | `<div class="kg-card kg-header-card ...">` with optional `kg-style-*`, `kg-size-*`, background image metadata, heading/subheading, and CTA anchor. |
+
+Imported Ghost code cards may arrive as a plain fenced code block or as the
+Ghost wrapper when caption/editor metadata needs to survive:
+
+```html
+<figure class="kg-card kg-code-card kg-card-hascaption kg-code-card-with-line-numbers">
+  <pre><code class="language-js">console.log("hello");</code></pre>
+  <figcaption>Runnable example</figcaption>
+</figure>
+```
+
+Source and Nectar's shared card CSS style `.kg-code-card`, the nested `pre`,
+`figcaption`, and `.kg-code-card-with-line-numbers pre`. Nectar does not
+generate line-number markers by itself; the line-number selector is a stable
+gutter contract for imported markup or plugins that preserve those markers.
 
 Bookmark cards intentionally pin Ghost's Source/Casper DOM contract. The outer
 element is always a `figure.kg-card.kg-bookmark-card` plus the resolved

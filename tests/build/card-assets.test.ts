@@ -39,6 +39,9 @@ describe('emitCardAssets', () => {
     expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
       '.kg-embed-card',
     );
+    expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
+      '.kg-code-card',
+    );
     expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
       '.kg-toggle-card .kg-toggle-heading',
     );
@@ -56,9 +59,10 @@ describe('emitCardAssets', () => {
   });
 
   test('excludes per-card CSS and runtime sections', () => {
-    const cardAssets = { exclude: ['bookmark', 'toggle', 'video'] };
+    const cardAssets = { exclude: ['bookmark', 'code', 'toggle', 'video'] };
 
     expect(renderCardAssetsCss(cardAssets)).not.toContain('.kg-bookmark-card');
+    expect(renderCardAssetsCss(cardAssets)).not.toContain('.kg-code-card');
     expect(renderCardAssetsCss(cardAssets)).toContain('.kg-gallery-card');
     expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-toggle-card .kg-toggle-heading');
     expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-video-card video');
@@ -82,8 +86,8 @@ describe('emitCardAssets', () => {
   });
 
   test('uses a stable exclude-specific cache key', () => {
-    expect(cardAssetsVersion(true)).toBe('2');
-    expect(cardAssetsVersion({ exclude: [] })).toBe('2');
+    expect(cardAssetsVersion(true)).toBe('3');
+    expect(cardAssetsVersion({ exclude: [] })).toBe('3');
     expect(cardAssetsVersion({ exclude: ['gallery', 'bookmark'] })).toBe(
       cardAssetsVersion({ exclude: ['bookmark', 'gallery'] }),
     );
@@ -97,5 +101,15 @@ describe('emitCardAssets', () => {
     expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*width:100%/);
     expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*aspect-ratio:16\/9/);
     expect(css).toMatch(/\.kg-embed-card iframe\{[^}]*border:0/);
+  });
+
+  test('code card CSS styles pre blocks, captions, and line-number gutters', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toContain('.kg-code-card');
+    expect(css).toMatch(/\.kg-code-card pre\{[^}]*overflow-x:auto/);
+    expect(css).toMatch(/\.kg-code-card pre code\{[^}]*white-space:pre/);
+    expect(css).toMatch(/\.kg-code-card figcaption\{[^}]*margin-top:\.75rem/);
+    expect(css).toMatch(/\.kg-code-card-with-line-numbers pre\{[^}]*padding-left:3rem/);
   });
 });
