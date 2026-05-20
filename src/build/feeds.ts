@@ -208,13 +208,14 @@ export async function emitRss(opts: {
       );
     }
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
 <channel>
 <title>${escapeXml(config.site.title)}</title>
 <link>${escapeXml(base)}</link>
 <description>${escapeXml(config.site.description)}</description>
 <language>${escapeXml(config.site.locale)}</language>
 <lastBuildDate>${lastBuildDate}</lastBuildDate>
+<generator>Nectar</generator>
 ${atomLinks.join('\n')}${imageBlock}
 ${items}
 </channel>
@@ -267,16 +268,40 @@ function rssPageFilename(page: number): string {
 function renderItem(post: ContentGraph['posts'][number], base: string): string {
   const link = `${base}${new URL(post.url).pathname}`;
   const html = absolutizeHtmlUrls(post.feed_html, base);
-  return [
+  const parts: string[] = [
     '<item>',
-    `<title>${escapeXml(post.title)}</title>`,
+    `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
     `<link>${escapeXml(link)}</link>`,
-    `<guid isPermaLink="false">${escapeXml(post.id)}</guid>`,
+    // Ghost emits guid as the post URL with isPermaLink="true" so feed readers
+    // can dedupe across feed restarts and across site.url renames at the same
+    // canonical path. See issue #426.
+    `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
-    `<description>${escapeXml(post.feed_excerpt)}</description>`,
-    `<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`,
-    '</item>',
-  ].join('');
+  ];
+  // dc:creator per author (Ghost emits one per author, primary first). Authors
+  // already come in primary-first order from the content graph.
+  for (const author of post.authors) {
+    parts.push(`<dc:creator><![CDATA[${escapeCdata(author.name)}]]></dc:creator>`);
+  }
+  // category per tag — feed readers (Feedly, NetNewsWire) surface these as
+  // labels. Skip internal tags (Ghost convention: '#'-prefixed slug).
+  for (const tag of post.tags) {
+    if (tag.visibility !== 'public') continue;
+    parts.push(`<category><![CDATA[${escapeCdata(tag.name)}]]></category>`);
+  }
+  // media:content advertises the feature image to readers that render
+  // thumbnails (Feedly, Inoreader). Ghost always emits this when present.
+  if (post.feature_image) {
+    const mediaUrl = toAbsoluteUrl(base, post.feature_image);
+    parts.push(`<media:content url="${escapeXml(mediaUrl)}" medium="image"/>`);
+  }
+  // CDATA is required for both description (when title/excerpt contains
+  // HTML/special chars) and content:encoded (full HTML body). Entity-escaping
+  // makes Feedly / NetNewsWire show literal <p> tags as text. See issue #427.
+  parts.push(`<description><![CDATA[${escapeCdata(post.feed_excerpt)}]]></description>`);
+  parts.push(`<content:encoded><![CDATA[${escapeCdata(html)}]]></content:encoded>`);
+  parts.push('</item>');
+  return parts.join('');
 }
 
 // A literal `]]>` inside post.html (e.g. a code sample about XML CDATA) would

@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
 <channel>
 <title>Nectar Example</title>
 <link>https://nectar.example.com</link>
 <description>A demo blog built with Nectar against the Ghost Source theme</description>
 <language>en</language>
 <lastBuildDate>Tue, 19 May 2026 09:00:00 GMT</lastBuildDate>
+<generator>Nectar</generator>
 <atom:link href="https://nectar.example.com/rss.xml" rel="self" type="application/rss+xml"/>
 <image><url>https://nectar.example.com/content/images/logo.svg</url><title>Nectar Example</title><link>https://nectar.example.com</link></image>
-<item><title>Hello, Nectar</title><link>https://nectar.example.com/hello-nectar/</link><guid isPermaLink="false">post-hello-nectar</guid><pubDate>Tue, 19 May 2026 09:00:00 GMT</pubDate><description>First post! A quick tour of what&apos;s working and what&apos;s coming next.</description><content:encoded><![CDATA[<p>Welcome to <strong>Nectar</strong> — a static site generator built around Ghost themes and
+<item><title><![CDATA[Hello, Nectar]]></title><link>https://nectar.example.com/hello-nectar/</link><guid isPermaLink="true">https://nectar.example.com/hello-nectar/</guid><pubDate>Tue, 19 May 2026 09:00:00 GMT</pubDate><dc:creator><![CDATA[Casper]]></dc:creator><category><![CDATA[News]]></category><category><![CDATA[Getting Started]]></category><media:content url="https://nectar.example.com/content/images/welcome-cover.svg" medium="image"/><description><![CDATA[First post! A quick tour of what's working and what's coming next.]]></description><content:encoded><![CDATA[<p>Welcome to <strong>Nectar</strong> — a static site generator built around Ghost themes and
 Markdown content.</p>
 <h2 id="what-works-today">What works today</h2>
 <ul>
@@ -26,7 +27,7 @@ Markdown content.</p>
 <p>Nectar is the substance bees turn into honey. We thought it was a fitting
 name for the substrate a Ghost theme turns into a blog.</p>
 </blockquote>
-]]></content:encoded></item><item><title>Migrating from Ghost</title><link>https://nectar.example.com/migrating-from-ghost/</link><guid isPermaLink="false">post-migrating-from-ghost</guid><pubDate>Fri, 15 May 2026 11:30:00 GMT</pubDate><description>How `nectar import-ghost` turns a Ghost JSON export into Markdown.</description><content:encoded><![CDATA[<p>Run <code>nectar import-ghost ghost-export.json</code> from your project root. The
+]]></content:encoded></item><item><title><![CDATA[Migrating from Ghost]]></title><link>https://nectar.example.com/migrating-from-ghost/</link><guid isPermaLink="true">https://nectar.example.com/migrating-from-ghost/</guid><pubDate>Fri, 15 May 2026 11:30:00 GMT</pubDate><dc:creator><![CDATA[Honeybee]]></dc:creator><category><![CDATA[Migration]]></category><category><![CDATA[Getting Started]]></category><media:content url="https://nectar.example.com/content/images/migration-cover.svg" medium="image"/><description><![CDATA[How `nectar import-ghost` turns a Ghost JSON export into Markdown.]]></description><content:encoded><![CDATA[<p>Run <code>nectar import-ghost ghost-export.json</code> from your project root. The
 importer reads your Ghost admin export, converts each post's HTML body to
 Markdown via <a href="https://github.com/mixmark-io/turndown">turndown</a>, and writes:</p>
 <ul>
@@ -69,7 +70,7 @@ backup into your Nectar project, and the URLs will continue to resolve.</p>
 </tbody></table>
 <p>Anything Ghost-specific that doesn't map cleanly (Mobiledoc/Lexical-only
 posts) is logged so you can revisit it after the import.</p>
-]]></content:encoded></item><item><title>Writing with Markdown</title><link>https://nectar.example.com/writing-with-markdown/</link><guid isPermaLink="false">post-writing-with-markdown</guid><pubDate>Sun, 10 May 2026 15:00:00 GMT</pubDate><description>A short primer on the frontmatter conventions Nectar expects.</description><content:encoded><![CDATA[<p>Posts are Markdown files with YAML frontmatter. The frontmatter is the same
+]]></content:encoded></item><item><title><![CDATA[Writing with Markdown]]></title><link>https://nectar.example.com/writing-with-markdown/</link><guid isPermaLink="true">https://nectar.example.com/writing-with-markdown/</guid><pubDate>Sun, 10 May 2026 15:00:00 GMT</pubDate><dc:creator><![CDATA[Honeybee]]></dc:creator><category><![CDATA[Getting Started]]></category><media:content url="https://nectar.example.com/content/images/markdown-cover.svg" medium="image"/><description><![CDATA[A short primer on the frontmatter conventions Nectar expects.]]></description><content:encoded><![CDATA[<p>Posts are Markdown files with YAML frontmatter. The frontmatter is the same
 shape Ghost uses to talk to themes, just expressed in YAML instead of JSON.</p>
 <pre><code class="language-yaml">---
 title: "My Post"
@@ -96,7 +97,7 @@ ordinary lists:</p>
 <li>Drafts (<code>status: draft</code>) are skipped at build time.</li>
 </ol>
 <p>[^1]: Yes, footnotes too.</p>
-]]></content:encoded></item><item><title>Ghost Theme Compatibility</title><link>https://nectar.example.com/ghost-theme-compatibility/</link><guid isPermaLink="false">post-ghost-theme-compatibility</guid><pubDate>Tue, 05 May 2026 08:00:00 GMT</pubDate><description>Which Ghost helpers Nectar implements, and which it deliberately doesn&apos;t.</description><content:encoded><![CDATA[<p>Nectar implements the Ghost theme helper surface needed to render real-world
+]]></content:encoded></item><item><title><![CDATA[Ghost Theme Compatibility]]></title><link>https://nectar.example.com/ghost-theme-compatibility/</link><guid isPermaLink="true">https://nectar.example.com/ghost-theme-compatibility/</guid><pubDate>Tue, 05 May 2026 08:00:00 GMT</pubDate><dc:creator><![CDATA[Casper]]></dc:creator><category><![CDATA[News]]></category><media:content url="https://nectar.example.com/content/images/compat-cover.svg" medium="image"/><description><![CDATA[Which Ghost helpers Nectar implements, and which it deliberately doesn't.]]></description><content:encoded><![CDATA[<p>Nectar implements the Ghost theme helper surface needed to render real-world
 themes against static Markdown content. The full coverage matrix lives in
 <code>docs/GHOST_COMPATIBILITY.md</code> — here are the highlights.</p>
 <h2 id="implemented">Implemented</h2>
@@ -112,7 +113,7 @@ in.</p>
 <p><code>{{img_url size=...}}</code> doesn't transcode images yet — the size parameter is
 recognised, but the same source URL is returned. We'll add real resizing as
 an optional <code>[components.images]</code> component.</p>
-]]></content:encoded></item><item><title>Optional Components</title><link>https://nectar.example.com/optional-components/</link><guid isPermaLink="false">post-optional-components</guid><pubDate>Tue, 28 Apr 2026 12:00:00 GMT</pubDate><description>Search, RSS, sitemap, comments — opt in by config.</description><content:encoded><![CDATA[<p>The Nectar core is intentionally small: load content, load theme, render,
+]]></content:encoded></item><item><title><![CDATA[Optional Components]]></title><link>https://nectar.example.com/optional-components/</link><guid isPermaLink="true">https://nectar.example.com/optional-components/</guid><pubDate>Tue, 28 Apr 2026 12:00:00 GMT</pubDate><dc:creator><![CDATA[Honeybee]]></dc:creator><category><![CDATA[News]]></category><category><![CDATA[Getting Started]]></category><media:content url="https://nectar.example.com/content/images/components-cover.svg" medium="image"/><description><![CDATA[Search, RSS, sitemap, comments — opt in by config.]]></description><content:encoded><![CDATA[<p>The Nectar core is intentionally small: load content, load theme, render,
 emit. Everything else is an <strong>optional component</strong>, configured in <code>nectar.toml</code>.</p>
 <pre><code class="language-toml">[components.search]
 enabled = true
@@ -134,7 +135,7 @@ after route emission. It can add files (a <code>pagefind/</code> directory), rew
 HTML (inject a Giscus snippet under <code>{{comments}}</code>), or both.</p>
 <p>Components ship in the same repo as Nectar but are off by default — if you
 don't enable it, no code runs.</p>
-]]></content:encoded></item><item><title>Static-Only Runtime</title><link>https://nectar.example.com/static-runtime/</link><guid isPermaLink="false">post-static-runtime</guid><pubDate>Mon, 20 Apr 2026 14:00:00 GMT</pubDate><description>Why Nectar emits plain files and nothing else.</description><content:encoded><![CDATA[<p>A Nectar build produces a tree of plain HTML, CSS, JS, and image assets in
+]]></content:encoded></item><item><title><![CDATA[Static-Only Runtime]]></title><link>https://nectar.example.com/static-runtime/</link><guid isPermaLink="true">https://nectar.example.com/static-runtime/</guid><pubDate>Mon, 20 Apr 2026 14:00:00 GMT</pubDate><dc:creator><![CDATA[Casper]]></dc:creator><category><![CDATA[News]]></category><media:content url="https://nectar.example.com/content/images/static-cover.svg" medium="image"/><description><![CDATA[Why Nectar emits plain files and nothing else.]]></description><content:encoded><![CDATA[<p>A Nectar build produces a tree of plain HTML, CSS, JS, and image assets in
 <code>dist/</code>. There is no Node server, no edge function, no database. You can:</p>
 <ul>
 <li>Drop <code>dist/</code> into S3 or R2 behind any CDN.</li>
@@ -145,7 +146,7 @@ don't enable it, no code runs.</p>
 paywalls, server-side search, comment storage) lives at the edges as optional
 client-side components — never in the core renderer. That keeps the security
 surface and the deploy story boring, which is exactly what a blog needs.</p>
-]]></content:encoded></item><item><title>Markdown Meets Git</title><link>https://nectar.example.com/markdown-meets-git/</link><guid isPermaLink="false">post-markdown-meets-git</guid><pubDate>Sun, 12 Apr 2026 07:00:00 GMT</pubDate><description>How treating content as Markdown in Git changes editorial workflow.</description><content:encoded><![CDATA[<p>Treating content as Markdown files in a Git repo unlocks workflow primitives
+]]></content:encoded></item><item><title><![CDATA[Markdown Meets Git]]></title><link>https://nectar.example.com/markdown-meets-git/</link><guid isPermaLink="true">https://nectar.example.com/markdown-meets-git/</guid><pubDate>Sun, 12 Apr 2026 07:00:00 GMT</pubDate><dc:creator><![CDATA[Honeybee]]></dc:creator><category><![CDATA[Getting Started]]></category><media:content url="https://nectar.example.com/content/images/git-cover.svg" medium="image"/><description><![CDATA[How treating content as Markdown in Git changes editorial workflow.]]></description><content:encoded><![CDATA[<p>Treating content as Markdown files in a Git repo unlocks workflow primitives
 that a database-backed CMS struggles to express:</p>
 <ul>
 <li><strong>Branch a draft.</strong> <code>git switch -c drafts/holiday-roundup</code>, write in your

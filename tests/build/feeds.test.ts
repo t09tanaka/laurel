@@ -138,7 +138,7 @@ describe('emitRss', () => {
     expect(xml).not.toContain('Secret members-only paragraph');
     expect(xml).toContain('Public intro.');
     expect(xml).toContain('gh-paywall-stub');
-    expect(xml).toContain('<description>Public intro.</description>');
+    expect(xml).toContain('<description><![CDATA[Public intro.]]></description>');
   });
 
   test('atom:link self honors trailing slash on site.url', async () => {
@@ -193,9 +193,9 @@ describe('emitRss', () => {
       '<atom:link href="https://example.com/rss-2.xml" rel="next" type="application/rss+xml"/>',
     );
     expect(page1).not.toContain('rel="prev"');
-    expect(page1).toContain('<title>Post 1</title>');
-    expect(page1).toContain('<title>Post 2</title>');
-    expect(page1).not.toContain('<title>Post 3</title>');
+    expect(page1).toContain('<title><![CDATA[Post 1]]></title>');
+    expect(page1).toContain('<title><![CDATA[Post 2]]></title>');
+    expect(page1).not.toContain('<title><![CDATA[Post 3]]></title>');
 
     expect(page2).toContain(
       '<atom:link href="https://example.com/rss.xml" rel="prev" type="application/rss+xml"/>',
@@ -203,14 +203,14 @@ describe('emitRss', () => {
     expect(page2).toContain(
       '<atom:link href="https://example.com/rss-3.xml" rel="next" type="application/rss+xml"/>',
     );
-    expect(page2).toContain('<title>Post 3</title>');
-    expect(page2).toContain('<title>Post 4</title>');
+    expect(page2).toContain('<title><![CDATA[Post 3]]></title>');
+    expect(page2).toContain('<title><![CDATA[Post 4]]></title>');
 
     expect(page3).toContain(
       '<atom:link href="https://example.com/rss-2.xml" rel="prev" type="application/rss+xml"/>',
     );
     expect(page3).not.toContain('rel="next"');
-    expect(page3).toContain('<title>Post 5</title>');
+    expect(page3).toContain('<title><![CDATA[Post 5]]></title>');
 
     expect(existsSync(join(outputDir, 'rss-4.xml'))).toBe(false);
   });
@@ -233,10 +233,10 @@ describe('emitRss', () => {
     const page1 = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
     const page2 = readFileSync(join(outputDir, 'rss-2.xml'), 'utf8');
 
-    expect(page1).toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE}</title>`);
-    expect(page1).not.toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE + 1}</title>`);
+    expect(page1).toContain(`<title><![CDATA[Post ${RSS_MAX_ITEMS_PER_PAGE}]]></title>`);
+    expect(page1).not.toContain(`<title><![CDATA[Post ${RSS_MAX_ITEMS_PER_PAGE + 1}]]></title>`);
     expect(page1).toContain('rel="next"');
-    expect(page2).toContain(`<title>Post ${RSS_MAX_ITEMS_PER_PAGE + 5}</title>`);
+    expect(page2).toContain(`<title><![CDATA[Post ${RSS_MAX_ITEMS_PER_PAGE + 5}]]></title>`);
     expect(existsSync(join(outputDir, 'rss-3.xml'))).toBe(false);
   });
 
@@ -248,7 +248,7 @@ describe('emitRss', () => {
     await emitRss({ config, content, outputDir, limit: 0 });
     const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
 
-    expect(xml).toContain('<title>Hello, world</title>');
+    expect(xml).toContain('<title><![CDATA[Hello, world]]></title>');
   });
 
   test('splits literal "]]>" inside post html so CDATA does not terminate early', async () => {
@@ -354,7 +354,9 @@ describe('emitRss', () => {
     expect(xml).toContain('<url>https://cdn.example.org/logo.png</url>');
   });
 
-  test('uses post.id with isPermaLink="false" so guids stay stable across site.url changes', async () => {
+  test('uses the post URL with isPermaLink="true" so feed readers can dedupe', async () => {
+    // Issue #426: Ghost emits guid as the post URL with isPermaLink="true".
+    // Without this, Feedly/NetNewsWire cannot dedupe across feed restarts.
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
@@ -369,8 +371,158 @@ describe('emitRss', () => {
     await emitRss({ config, content, outputDir, limit: 10 });
     const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
 
-    expect(xml).toContain('<guid isPermaLink="false">post-hello-world</guid>');
-    expect(xml).not.toContain('isPermaLink="true"');
+    expect(xml).toContain('<guid isPermaLink="true">https://example.com/hello-world/</guid>');
+    expect(xml).not.toContain('isPermaLink="false"');
+  });
+
+  test('declares dc and media namespaces and emits <generator>', async () => {
+    // Issue #428: Ghost-conformant channel declares dc / atom / media / content
+    // namespaces and a <generator> element.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('xmlns:dc="http://purl.org/dc/elements/1.1/"');
+    expect(xml).toContain('xmlns:media="http://search.yahoo.com/mrss/"');
+    expect(xml).toContain('xmlns:content="http://purl.org/rss/1.0/modules/content/"');
+    expect(xml).toContain('xmlns:atom="http://www.w3.org/2005/Atom"');
+    expect(xml).toContain('<generator>Nectar</generator>');
+  });
+
+  test('wraps content:encoded HTML in CDATA, not entity-escaped', async () => {
+    // Issue #427: entity-escaping makes Feedly show literal <p> tags as text.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.feed_html = '<p>Hello <strong>world</strong> & friends</p>';
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain(
+      '<content:encoded><![CDATA[<p>Hello <strong>world</strong> & friends</p>]]></content:encoded>',
+    );
+    // No entity-escaped HTML tags should leak outside CDATA for content:encoded.
+    expect(xml).not.toContain('&lt;p&gt;Hello');
+  });
+
+  test('wraps title and description in CDATA even with special characters', async () => {
+    // Issue #427: titles with `&`/`<` should not be entity-escaped — Ghost
+    // wraps them in CDATA so readers render them verbatim.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [
+      makePost({
+        title: 'Tips & Tricks: <Code Edition>',
+        feed_excerpt: 'A & B & C',
+      }),
+    ];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<title><![CDATA[Tips & Tricks: <Code Edition>]]></title>');
+    expect(xml).toContain('<description><![CDATA[A & B & C]]></description>');
+  });
+
+  test('emits <category> per public tag, skipping internal tags', async () => {
+    // Issue #428: Ghost emits <category> per tag, with internal tags
+    // ('hash'-prefixed slug, visibility=internal) skipped.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const newsTag = makeTag({ id: 't-news', slug: 'news', name: 'News' });
+    const releaseTag = makeTag({ id: 't-release', slug: 'release', name: 'Release Notes' });
+    const internalTag = makeTag({
+      id: 't-internal',
+      slug: 'hash-internal',
+      name: 'Internal',
+      visibility: 'internal',
+    });
+    content.posts = [
+      makePost({
+        tags: [newsTag, releaseTag, internalTag],
+        primary_tag: newsTag,
+      }),
+    ];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<category><![CDATA[News]]></category>');
+    expect(xml).toContain('<category><![CDATA[Release Notes]]></category>');
+    expect(xml).not.toContain('<category><![CDATA[Internal]]></category>');
+  });
+
+  test('emits <dc:creator> per author', async () => {
+    // Issue #428: Ghost emits <dc:creator> for each author. Authors come in
+    // primary-first order from the content graph.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    const casper = makeAuthor({ id: 'a-1', slug: 'casper', name: 'Casper' });
+    const ghosty = makeAuthor({ id: 'a-2', slug: 'ghosty', name: 'Ghosty McGhostface' });
+    content.posts = [
+      makePost({
+        authors: [casper, ghosty],
+        primary_author: casper,
+      }),
+    ];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<dc:creator><![CDATA[Casper]]></dc:creator>');
+    expect(xml).toContain('<dc:creator><![CDATA[Ghosty McGhostface]]></dc:creator>');
+    // Primary author should come first.
+    const casperIdx = xml.indexOf('<dc:creator><![CDATA[Casper]]></dc:creator>');
+    const ghostyIdx = xml.indexOf('<dc:creator><![CDATA[Ghosty McGhostface]]></dc:creator>');
+    expect(casperIdx).toBeLessThan(ghostyIdx);
+  });
+
+  test('emits <media:content> when post.feature_image is set', async () => {
+    // Issue #428: Feedly/Inoreader surface media:content as the item thumbnail.
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [makePost({ feature_image: '/content/images/cover.jpg' })];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain(
+      '<media:content url="https://example.com/content/images/cover.jpg" medium="image"/>',
+    );
+  });
+
+  test('preserves absolute feature_image URLs without rewriting against site.url', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [makePost({ feature_image: 'https://cdn.example.org/c.jpg' })];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<media:content url="https://cdn.example.org/c.jpg" medium="image"/>');
+  });
+
+  test('omits <media:content> when post.feature_image is not set', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [makePost({ feature_image: undefined })];
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).not.toContain('<media:content');
   });
 
   test('omits <image> when site.logo is not set', async () => {
