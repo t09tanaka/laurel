@@ -717,6 +717,25 @@ describe('Ghost Turndown rules — kg-toggle-card', () => {
     expect(md).toContain('Hidden paragraph.');
     expect(md).toContain('{{< /toggle >}}');
   });
+
+  test('preserves width and open state as shortcode attributes', () => {
+    const html = `
+      <div class="kg-card kg-toggle-card kg-width-wide" data-kg-toggle-state="open">
+        <div class="kg-toggle-heading">
+          <h4 class="kg-toggle-heading-text">Advanced options</h4>
+        </div>
+        <div class="kg-toggle-content">
+          <p>Use <strong>carefully</strong>.</p>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< toggle');
+    expect(md).toContain('heading="Advanced options"');
+    expect(md).toContain('width="wide"');
+    expect(md).toContain('state="open"');
+    expect(md).toContain('Use **carefully**.');
+  });
 });
 
 describe('Ghost Turndown rules — kg-button-card', () => {

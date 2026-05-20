@@ -691,9 +691,12 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-toggle-card'),
     replacement: (_content, node) => {
       const heading = text(node.querySelector('.kg-toggle-heading-text'));
+      const width = classByPrefix(node, 'kg-width-');
+      const rawState = attr(node, 'data-kg-toggle-state');
+      const state = rawState === 'open' || rawState === 'close' ? rawState : '';
       const contentEl = node.querySelector('.kg-toggle-content');
       const inner = contentEl ? turndown.turndown(contentEl.innerHTML).trim() : '';
-      return wrap(shortcodeBlock('toggle', { heading }, inner));
+      return wrap(shortcodeBlock('toggle', { heading, width, state }, inner));
     },
   });
 

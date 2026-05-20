@@ -349,6 +349,15 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html).toContain('Second paragraph.');
     expect(html.match(/<p>/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
+
+  test('restores imported open-state toggles as open details', async () => {
+    const md =
+      '{{< toggle heading="Advanced options" width="wide" state="open" >}}\nUse **carefully**.\n{{< /toggle >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<details class="kg-card kg-toggle-card kg-width-wide" open>');
+    expect(html).toContain('<h4 class="kg-toggle-heading-text">Advanced options</h4>');
+    expect(html).toContain('<strong>carefully</strong>');
+  });
 });
 
 describe('renderMarkdown — callout shortcode expansion', () => {

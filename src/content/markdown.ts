@@ -79,6 +79,7 @@ const sanitizeOptions: IOptions = {
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
+    details: ['open'],
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
     span: ['class', 'style'],
@@ -842,7 +843,8 @@ function renderToggleHtml(attrs: Record<string, string>, body: string): string {
   const summary = `<summary class="kg-toggle-heading">${headingHtml}</summary>`;
   const innerMarkdown = body.trim();
   const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
-  return `\n\n<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}">\n${summary}\n${contentBlock}\n</details>\n\n`;
+  const openAttr = attrs.state === 'open' ? ' open' : '';
+  return `\n\n<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}"${openAttr}>\n${summary}\n${contentBlock}\n</details>\n\n`;
 }
 
 // Restrict callout color tokens to the kebab-case set Ghost ships so attacker-
