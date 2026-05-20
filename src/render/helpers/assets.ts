@@ -6,24 +6,27 @@ import type { NectarEngine } from '../engine.ts';
 export function registerAssetHelpers(engine: NectarEngine): void {
   const basePath = engine.config.build.base_path;
 
-  engine.hb.registerHelper('asset', function assetHelper(path: unknown) {
-    const logical = String(path ?? '').replace(/^\//, '');
-    const candidates = [logical, `assets/${logical}`];
-    let resolved: string | undefined;
-    for (const key of candidates) {
-      const asset = engine.theme.assets.get(key);
-      if (asset) {
-        resolved = asset.fingerprintedPath;
-        break;
+  engine.hb.registerHelper(
+    'asset',
+    function assetHelper(path: unknown, options?: Handlebars.HelperOptions) {
+      const logical = String(path ?? '').replace(/^\//, '');
+      const candidates = buildAssetCandidates(logical, options?.hash?.hasMinFile);
+      let resolved: string | undefined;
+      for (const key of candidates) {
+        const asset = engine.theme.assets.get(key);
+        if (asset) {
+          resolved = asset.fingerprintedPath;
+          break;
+        }
       }
-    }
-    if (!resolved) resolved = `assets/${logical}`;
-    // Return a plain string so Handlebars applies its context-aware HTML
-    // escape (covers &, <, >, ", ', `). Wrapping in SafeString would skip
-    // that and let a filename like `a"><script>x</script>.css` break out
-    // of an `href="…"` attribute.
-    return encodeUrlPath(joinPath(basePath, resolved));
-  });
+      if (!resolved) resolved = `assets/${logical}`;
+      // Return a plain string so Handlebars applies its context-aware HTML
+      // escape (covers &, <, >, ", ', `). Wrapping in SafeString would skip
+      // that and let a filename like `a"><script>x</script>.css` break out
+      // of an `href="…"` attribute.
+      return encodeUrlPath(joinPath(basePath, resolved));
+    },
+  );
 
   engine.hb.registerHelper('img_url', function imgUrlHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -60,6 +63,23 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     }
     return url;
   });
+}
+
+function buildAssetCandidates(logical: string, hasMinFile: unknown): string[] {
+  const candidates: string[] = [];
+  const minLogical = hasMinFile ? withMinFileVariant(logical) : undefined;
+  if (minLogical) candidates.push(minLogical, `assets/${minLogical}`);
+  candidates.push(logical, `assets/${logical}`);
+  return candidates;
+}
+
+function withMinFileVariant(logical: string): string | undefined {
+  const slash = logical.lastIndexOf('/');
+  const filenameStart = slash + 1;
+  const dot = logical.lastIndexOf('.');
+  if (dot <= filenameStart) return undefined;
+  if (logical.slice(filenameStart, dot).endsWith('.min')) return logical;
+  return `${logical.slice(0, dot)}.min${logical.slice(dot)}`;
 }
 
 const SUPPORTED_FORMATS = new Set(['webp', 'avif', 'jpg', 'jpeg', 'png', 'gif']);

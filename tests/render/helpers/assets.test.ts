@@ -430,6 +430,46 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/assets/built/source.abc123def0.js');
   });
 
+  test('prefers a minified asset map entry when hasMinFile is truthy', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/screen.css', {
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+      sourcePath: '/theme/assets/built/screen.css',
+      hash: 'abc123',
+      integrity: 'sha384-screen',
+      size: 42,
+    });
+    engine.theme.assets.set('assets/built/screen.min.css', {
+      logicalPath: 'assets/built/screen.min.css',
+      fingerprintedPath: 'assets/built/screen.min.def456.css',
+      sourcePath: '/theme/assets/built/screen.min.css',
+      hash: 'def456',
+      integrity: 'sha384-screen-min',
+      size: 21,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{asset "built/screen.css"}}|{{asset "built/screen.css" hasMinFile=true}}',
+    );
+    expect(tpl({})).toBe('/assets/built/screen.abc123.css|/assets/built/screen.min.def456.css');
+  });
+
+  test('falls back to the requested asset when hasMinFile has no minified match', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/screen.css', {
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+      sourcePath: '/theme/assets/built/screen.css',
+      hash: 'abc123',
+      integrity: 'sha384-screen',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "built/screen.css" hasMinFile=true}}');
+    expect(tpl({})).toBe('/assets/built/screen.abc123.css');
+  });
+
   test('resolves a fingerprinted path for a known assets-prefixed key with build base_path', () => {
     const engine = makeEngine({ basePath: '/blog' });
     engine.theme.assets.set('assets/css/screen.css', {
