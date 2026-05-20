@@ -287,7 +287,8 @@ export async function renderMarkdown(
   const htmlFencesExpanded = expandHtmlCardFences(stripped);
   const expanded = expandKoenigShortcodes(htmlFencesExpanded);
   const raw = await marked.parse(expanded);
-  const calloutsRestored = restoreKoenigCalloutDirectives(raw);
+  const togglesRestored = restoreKoenigToggleDirectives(raw);
+  const calloutsRestored = restoreKoenigCalloutDirectives(togglesRestored);
   const highlighted = await highlightCodeBlocks(calloutsRestored);
   const promoted = promoteImagesToFigures(highlighted, {
     prioritizeFirstImage: options.prioritizeFirstImage === true,
@@ -609,6 +610,10 @@ const FIGURE_SHORTCODE_RE = /\{\{<\s+figure((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])
 // their own match, and `[\s\S]` lets the body span line breaks.
 const TOGGLE_SHORTCODE_RE =
   /\{\{<\s+toggle((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/toggle\s*>\}\}/g;
+const LIQUID_TOGGLE_SHORTCODE_RE =
+  /\{%\s+toggle((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}([\s\S]*?)\{%\s*\/toggle\s*%\}/g;
+const TOGGLE_DIRECTIVE_COMMENT_RE =
+  /<!--NECTAR-KOENIG-TOGGLE-OPEN:([^>]*)-->|<!--NECTAR-KOENIG-TOGGLE-CLOSE-->/g;
 
 // Block-form `{{< callout emoji="💡" color="blue" >}}body markdown{{< /callout >}}`.
 // Ghost themes (Casper, Source) target `kg-callout-card` + an optional
@@ -947,7 +952,10 @@ export function expandKoenigShortcodes(markdown: string): string {
       renderFigureHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
-      renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
+      renderToggleDirective(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(LIQUID_TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderToggleDirective(parseShortcodeAttrs(attrsStr), body),
     )
     .replace(CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderCalloutDirective(parseShortcodeAttrs(attrsStr), body),
@@ -1448,16 +1456,37 @@ function safeEmbedPathToken(value: string): string {
 // keeping the same Koenig class hooks so Ghost themes' existing CSS still
 // applies. The blank lines around `body` keep CommonMark parsing the inner
 // markdown as block content rather than as raw HTML.
-function renderToggleHtml(attrs: Record<string, string>, body: string): string {
-  const heading = attrs.heading ?? '';
+function renderToggleDirective(attrs: Record<string, string>, body: string): string {
+  const encodedAttrs = encodeURIComponent(JSON.stringify(attrs));
+  const innerMarkdown = expandKoenigShortcodes(body.trim());
+  return `\n\n<!--NECTAR-KOENIG-TOGGLE-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--NECTAR-KOENIG-TOGGLE-CLOSE-->\n\n`;
+}
+
+function renderToggleOpenHtml(attrs: Record<string, string>): string {
+  const heading = attrs.heading ?? attrs.title ?? '';
   const headingHtml = heading
     ? `<h4 class="kg-toggle-heading-text">${escapeHtmlAttr(heading)}</h4>`
     : '';
   const summary = `<summary class="kg-toggle-heading">${headingHtml}</summary>`;
-  const innerMarkdown = expandKoenigShortcodes(body.trim());
-  const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
   const openAttr = attrs.state === 'open' ? ' open' : '';
-  return `\n\n<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}"${openAttr}>\n${summary}\n${contentBlock}\n</details>\n\n`;
+  return `<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}"${openAttr}>\n${summary}\n<div class="kg-toggle-content">`;
+}
+
+function restoreKoenigToggleDirectives(html: string): string {
+  if (!html.includes('NECTAR-KOENIG-TOGGLE')) return html;
+  let openToggles = 0;
+  return html.replace(TOGGLE_DIRECTIVE_COMMENT_RE, (match, encodedAttrs: string | undefined) => {
+    if (encodedAttrs === undefined) {
+      if (openToggles === 0) return match;
+      openToggles -= 1;
+      return '</div>\n</details>';
+    }
+
+    const attrs = decodeKoenigDirectiveAttrs(encodedAttrs);
+    if (!attrs) return match;
+    openToggles += 1;
+    return renderToggleOpenHtml(attrs);
+  });
 }
 
 // Restrict callout color tokens to the kebab-case set Ghost ships so attacker-
@@ -1501,14 +1530,14 @@ function restoreKoenigCalloutDirectives(html: string): string {
       return '</div>\n</div>';
     }
 
-    const attrs = decodeCalloutDirectiveAttrs(encodedAttrs);
+    const attrs = decodeKoenigDirectiveAttrs(encodedAttrs);
     if (!attrs) return match;
     openCallouts += 1;
     return renderCalloutOpenHtml(attrs);
   });
 }
 
-function decodeCalloutDirectiveAttrs(encodedAttrs: string): Record<string, string> | undefined {
+function decodeKoenigDirectiveAttrs(encodedAttrs: string): Record<string, string> | undefined {
   try {
     const parsed = JSON.parse(decodeURIComponent(encodedAttrs)) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;

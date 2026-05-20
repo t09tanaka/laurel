@@ -420,6 +420,28 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html).not.toContain('{{< figure');
   });
 
+  test('expands author-facing liquid toggle directives into Ghost details markup', async () => {
+    const md = [
+      '{% toggle heading="Release notes" state="open" width="wide" %}',
+      'Read the **important** changes:',
+      '',
+      '- API updates',
+      '- Theme fixes',
+      '{% /toggle %}',
+    ].join('\n');
+
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toContain('<details class="kg-card kg-toggle-card kg-width-wide" open>');
+    expect(html).toContain('<summary class="kg-toggle-heading">');
+    expect(html).toContain('<h4 class="kg-toggle-heading-text">Release notes</h4>');
+    expect(html).toContain('<div class="kg-toggle-content">');
+    expect(html).toContain('<strong>important</strong>');
+    expect(html).toContain('<li>API updates</li>');
+    expect(html).not.toContain('{% toggle');
+    expect(html).not.toContain('{% /toggle');
+  });
+
   test('omits the heading element when no heading attribute is provided', async () => {
     const md = '{{< toggle >}}\nBody only.\n{{< /toggle >}}';
     const { html } = await renderMarkdown(md);
