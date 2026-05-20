@@ -35,10 +35,7 @@ import {
 } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH, emitCardAssets } from './card-assets.ts';
-import {
-  CLOUDFLARE_WORKERS_MANIFEST_FILE,
-  emitCloudflareWorkersManifest,
-} from './cloudflare-workers.ts';
+import { CLOUDFLARE_WORKERS_MANIFEST_FILE } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
@@ -47,6 +44,7 @@ import {
   type DeploymentProvider,
   deploymentHeaderTargets,
   deploymentRoutingTargets,
+  emitDeployHeaders,
   emitDeployTargets,
 } from './emitters/registry.ts';
 import { emitDefault404 } from './error-page.ts';
@@ -55,6 +53,7 @@ import { SITEMAP_MAX_URLS_PER_FILE, type SitemapKind, emitRss, emitSitemap } fro
 import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
+import { collectContentApiHeaderRules } from './headers.ts';
 import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
@@ -1206,8 +1205,9 @@ async function runBuild({
     deployRedirects,
     autoNoindexProvider,
   };
+  const contentApiHeaderRules = contentApiEnabled ? collectContentApiHeaderRules() : [];
   markPlannedDeploymentHeaderOutputs({ config, autoNoindexProvider, keepOutput });
-  await emitDeployTargets(deploymentHeaderTargets, deploymentArtifacts);
+  await emitDeployHeaders(deploymentHeaderTargets, deploymentArtifacts, contentApiHeaderRules);
   // Azure Static Web Apps config. Emitted unconditionally — the file is
   // azure-specific and inert on every other host, and a single nectar build
   // should be deployable to Azure without an extra config knob. Users who
@@ -1269,15 +1269,6 @@ async function runBuild({
     enabled: config.deploy.github_pages.redirects,
     basePath: config.build.base_path,
   });
-  if (config.deploy.cloudflare_workers.enabled) {
-    keepOutput(CLOUDFLARE_WORKERS_MANIFEST_FILE);
-  }
-  await emitCloudflareWorkersManifest({
-    outputDir,
-    enabled: config.deploy.cloudflare_workers.enabled,
-    headers: deployHeaders,
-    rules: deployRedirects,
-  });
   markPlannedDeploymentRoutingOutputs({ config, autoNoindexProvider, deployRedirects, keepOutput });
   await emitDeployTargets(deploymentRoutingTargets, deploymentArtifacts);
   if (config.deploy.firebase.enabled) keepOutput('firebase.json');
@@ -1318,11 +1309,14 @@ async function runBuild({
   // drops under `<cwd>/<content.static_dir>/` win over generated output. When
   // the default `static/` directory is absent, `public/` is accepted as the
   // same top-level convention. Deploy metadata files are protected below so
-  // `_headers`, `_redirects`, and `vercel.json` cannot silently replace
-  // generated platform artifacts.
-  const generatedDeployArtifactPaths = ['_headers', '_redirects', 'vercel.json'].filter((path) =>
-    plannedOutputPaths.has(path),
-  );
+  // `_headers`, `_redirects`, `_routes-manifest.json`, and `vercel.json`
+  // cannot silently replace generated platform artifacts.
+  const generatedDeployArtifactPaths = [
+    '_headers',
+    '_redirects',
+    CLOUDFLARE_WORKERS_MANIFEST_FILE,
+    'vercel.json',
+  ].filter((path) => plannedOutputPaths.has(path));
   await timed(profiler, 'static_passthrough', async () => {
     for (const staticDir of resolveStaticPassthroughDirs({
       cwd,
@@ -1699,6 +1693,9 @@ function markPlannedDeploymentHeaderOutputs(opts: {
   }
   if (opts.config.deploy.netlify.enabled || opts.autoNoindexProvider === 'netlify') {
     opts.keepOutput('_headers');
+  }
+  if (opts.config.deploy.cloudflare_workers.enabled) {
+    opts.keepOutput(CLOUDFLARE_WORKERS_MANIFEST_FILE);
   }
 }
 

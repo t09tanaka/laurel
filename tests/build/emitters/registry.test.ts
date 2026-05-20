@@ -8,6 +8,7 @@ import {
   type DeploymentArtifacts,
   deploymentHeaderTargets,
   deploymentRoutingTargets,
+  emitDeployHeaders,
   emitDeployTargets,
 } from '~/build/emitters/registry.ts';
 import { configSchema } from '~/config/schema.ts';
@@ -33,8 +34,18 @@ describe('DeployTargetRegistry', () => {
   test('lists, looks up, and emits targets in registration order', async () => {
     const calls: string[] = [];
     const registry = new DeployTargetRegistry([
-      { name: 'first', emit: () => calls.push('first') },
-      { name: 'second', emit: () => calls.push('second') },
+      {
+        name: 'first',
+        emit: () => {
+          calls.push('first');
+        },
+      },
+      {
+        name: 'second',
+        emit: () => {
+          calls.push('second');
+        },
+      },
     ]);
 
     expect(registry.list().map((target) => target.name)).toEqual(['first', 'second']);
@@ -47,12 +58,49 @@ describe('DeployTargetRegistry', () => {
     expect(calls).toEqual(['first', 'second']);
   });
 
-  test('header targets share the deployment context and honor preview noindex providers', async () => {
+  test('header targets apply the shared rules through each target delivery channel', async () => {
+    const outputDir = await makeOutputDir();
+    const artifacts = makeArtifacts(outputDir, {
+      site: { title: 'x' },
+      deploy: {
+        netlify: { enabled: true },
+        cloudflare_workers: { enabled: true },
+      },
+    });
+
+    await emitDeployHeaders(deploymentHeaderTargets, artifacts);
+
+    const headersBody = await readFile(join(outputDir, '_headers'), 'utf8');
+    expect(headersBody).toContain('X-Content-Type-Options: nosniff');
+    expect(headersBody).toContain('Referrer-Policy: strict-origin-when-cross-origin');
+
+    const workersBody = JSON.parse(
+      await readFile(join(outputDir, '_routes-manifest.json'), 'utf8'),
+    ) as {
+      redirects: Array<{ source: string; destination: string; status: number }>;
+      headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    };
+    expect(workersBody.redirects).toContainEqual({
+      source: '/old',
+      destination: '/new',
+      status: 308,
+    });
+    expect(workersBody.headers).toContainEqual(
+      expect.objectContaining({
+        source: '/*',
+        headers: expect.arrayContaining([
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ]),
+      }),
+    );
+  });
+
+  test('header targets honor preview noindex providers', async () => {
     const outputDir = await makeOutputDir();
     const artifacts = makeArtifacts(outputDir);
     artifacts.autoNoindexProvider = 'netlify';
 
-    await emitDeployTargets(deploymentHeaderTargets, artifacts);
+    await emitDeployHeaders(deploymentHeaderTargets, artifacts);
 
     const body = await readFile(join(outputDir, '_headers'), 'utf8');
     expect(body).toContain('X-Content-Type-Options: nosniff');

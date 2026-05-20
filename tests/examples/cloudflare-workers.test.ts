@@ -47,6 +47,7 @@ describe('examples/cloudflare-workers Static Assets sample', () => {
     expect(body).toContain('directory = "dist"');
     expect(body).toContain('binding = "ASSETS"');
     expect(body).toContain('not_found_handling = "404-page"');
+    expect(body).toContain('run_worker_first = true');
   });
 
   test('loads Nectar routes manifest before delegating to the Static Assets binding', async () => {
@@ -86,5 +87,6 @@ describe('examples/cloudflare-workers Static Assets sample', () => {
     expect(cloudflare).toContain('[deploy.cloudflare_workers]');
     expect(cloudflare).toContain('dist/_routes-manifest.json');
     expect(cloudflare).toContain('Workers Static Assets does not read `_headers` or `_redirects`');
+    expect(cloudflare).toContain('run_worker_first = true');
   });
 });

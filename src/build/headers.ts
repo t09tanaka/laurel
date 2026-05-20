@@ -117,8 +117,15 @@ export interface HeaderRule {
   headers: HeaderEntry[];
 }
 
+export interface HeaderApplication {
+  applyHeaders(file: string, headers: readonly HeaderEntry[]): Promise<void> | void;
+}
+
 export function buildHeadersBody(headers: HeadersConfig): string {
-  const rules = collectHeaderRules(headers);
+  return buildHeadersBodyFromRules(collectHeaderRules(headers));
+}
+
+export function buildHeadersBodyFromRules(rules: readonly HeaderRule[]): string {
   if (rules.length === 0) return '';
   return `${rules
     .map(
@@ -157,6 +164,15 @@ export function collectHeaderRules(headers: HeadersConfig): HeaderRule[] {
   }
 
   return ordered;
+}
+
+export async function applyConfiguredHeaders(
+  headers: HeadersConfig,
+  target: HeaderApplication,
+): Promise<void> {
+  for (const rule of collectHeaderRules(headers)) {
+    await target.applyHeaders(rule.pattern, rule.headers);
+  }
 }
 
 function collectSecurityHeaders(security: HeadersConfig['security']): HeaderEntry[] {
@@ -216,6 +232,24 @@ interface ContentApiCorsRule {
   maxAge: number;
 }
 
+export function collectContentApiHeaderRules(): HeaderRule[] {
+  const rules: ContentApiCorsRule[] = [
+    { pattern: '/content/posts/*', maxAge: CONTENT_API_CACHE_TTL.posts },
+    { pattern: '/content/tags/*', maxAge: CONTENT_API_CACHE_TTL.tags },
+    { pattern: '/content/authors/*', maxAge: CONTENT_API_CACHE_TTL.authors },
+    { pattern: '/content/*', maxAge: CONTENT_API_CACHE_TTL.catchAll },
+  ];
+  return rules.map(({ pattern, maxAge }) => ({
+    pattern,
+    headers: [
+      { key: 'Access-Control-Allow-Origin', value: '*' },
+      { key: 'Access-Control-Allow-Methods', value: 'GET, HEAD, OPTIONS' },
+      { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+      { key: 'Cache-Control', value: `public, max-age=${maxAge}` },
+    ],
+  }));
+}
+
 /**
  * Build the `_headers` body for the Nectar Content API `/content/*` tree.
  *
@@ -229,19 +263,9 @@ interface ContentApiCorsRule {
  * existing rules without dropping a blank-line separator.
  */
 export function buildContentApiHeadersBody(): string {
-  const rules: ContentApiCorsRule[] = [
-    { pattern: '/content/posts/*', maxAge: CONTENT_API_CACHE_TTL.posts },
-    { pattern: '/content/tags/*', maxAge: CONTENT_API_CACHE_TTL.tags },
-    { pattern: '/content/authors/*', maxAge: CONTENT_API_CACHE_TTL.authors },
-    { pattern: '/content/*', maxAge: CONTENT_API_CACHE_TTL.catchAll },
-  ];
-  return `${rules
-    .map(({ pattern, maxAge }) =>
-      [
-        pattern,
-        ...CORS_DIRECTIVE_LINES.map((l) => `  ${l}`),
-        `  Cache-Control: public, max-age=${maxAge}`,
-      ].join('\n'),
+  return `${collectContentApiHeaderRules()
+    .map(({ pattern, headers }) =>
+      [pattern, ...headers.map(({ key, value }) => `  ${key}: ${value}`)].join('\n'),
     )
     .join('\n\n')}\n`;
 }

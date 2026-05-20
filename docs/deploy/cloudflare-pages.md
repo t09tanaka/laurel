@@ -19,7 +19,10 @@ Workers Static Assets with the sample
 [`examples/cloudflare-workers/wrangler.toml`](../../examples/cloudflare-workers/wrangler.toml)
 and its `index.ts` worker. The sample binds `dist/` as `ASSETS`, reads
 `dist/_routes-manifest.json`, applies redirects and headers, then delegates
-requests to Cloudflare's asset handler.
+requests to Cloudflare's asset handler. It also sets
+`assets.run_worker_first = true`; without that opt-in, Cloudflare can serve a
+matching static asset before the Worker has a chance to apply the manifest's
+headers.
 
 ## Quickstart: Git-connected Pages
 
@@ -134,7 +137,9 @@ When `[deploy.cloudflare_workers].enabled = true`, Nectar emits
 redirect rules loaded from `redirects.yaml` and Ghost-style
 `content/data/redirects.*`. Copy
 [`examples/cloudflare-workers/index.ts`](../../examples/cloudflare-workers/index.ts)
-next to `wrangler.toml` to consume that manifest in a small reference Worker.
+next to `wrangler.toml` to consume that manifest in a small reference Worker,
+and keep `run_worker_first = true` in `[assets]` so header application uses the
+Workers delivery channel rather than the Pages `_headers` file.
 
 ## Redirects
 

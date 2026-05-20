@@ -132,6 +132,7 @@ describe('Cloudflare deployment docs', () => {
 
     expect(guide).toContain('Cloudflare Workers Static Assets');
     expect(guide).toContain('not_found_handling = "404-page"');
+    expect(guide).toContain('run_worker_first = true');
     expect(guide).toContain('Nectar emits separate');
     expect(guide).toContain('dist/404.html');
     expect(guide).toContain('not_found_handling = "single-page-application"');

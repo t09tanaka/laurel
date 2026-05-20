@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
-type DeployTarget = 'cloudflare_pages' | 'netlify' | 'vercel' | 'apache' | 'firebase';
+type DeployTarget =
+  | 'cloudflare_pages'
+  | 'cloudflare_workers'
+  | 'netlify'
+  | 'vercel'
+  | 'apache'
+  | 'firebase';
 
 async function makeSiteWithDeployTarget(target: DeployTarget): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), `nectar-emitter-${target}-`));
@@ -65,6 +71,32 @@ describe('deploy emitter integration outputs (#347)', () => {
 
     const redirects = await readFile(join(summary.outputDir, '_redirects'), 'utf8');
     expect(redirects).toContain('/old  /new  308');
+  });
+
+  test('Cloudflare Workers build emits target-aware manifest headers and redirects', async () => {
+    const cwd = await makeSiteWithDeployTarget('cloudflare_workers');
+    const summary = await build({ cwd });
+
+    const body = JSON.parse(
+      await readFile(join(summary.outputDir, '_routes-manifest.json'), 'utf8'),
+    ) as {
+      redirects: Array<{ source: string; destination: string; status: number }>;
+      headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    };
+
+    expect(body.headers).toContainEqual(
+      expect.objectContaining({
+        source: '/assets/*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      }),
+    );
+    expect(body.headers).toContainEqual(
+      expect.objectContaining({
+        source: '/*',
+        headers: expect.arrayContaining([{ key: 'X-Test-Emitter', value: 'integration' }]),
+      }),
+    );
+    expect(body.redirects).toContainEqual({ source: '/old', destination: '/new', status: 308 });
   });
 
   test('Netlify build emits _headers and preserves force redirects syntax', async () => {

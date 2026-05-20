@@ -645,6 +645,15 @@ Hidden detail.
         headers: expect.arrayContaining([{ key: 'X-Test-Header', value: 'worker' }]),
       }),
     );
+    expect(body.headers).toContainEqual(
+      expect.objectContaining({
+        source: '/content/posts/*',
+        headers: expect.arrayContaining([{ key: 'Cache-Control', value: 'public, max-age=300' }]),
+      }),
+    );
+    expect(
+      body.headers.findIndex((rule: { source: string }) => rule.source === '/content/posts/*'),
+    ).toBeLessThan(body.headers.findIndex((rule: { source: string }) => rule.source === '/*'));
   });
 
   test('emits dist/content/search.json with the post in the flat index', async () => {
