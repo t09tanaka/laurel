@@ -384,9 +384,9 @@ to `.github/workflows/s3-cloudfront.yml`, then set:
 | Variable | `AWS_REGION` |
 | Variable | `S3_BUCKET` |
 
-The workflow builds with Bun, syncs `dist/` to S3 with cache-control metadata,
-and invalidates CloudFront. Pair a private S3 origin with the CloudFront
-Function at
+The workflow builds with Bun, verifies `dist/.nectar-manifest.json`, syncs
+`dist/` to S3 with cache-control metadata, and invalidates CloudFront. Pair a
+private S3 origin with the CloudFront Function at
 [`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
 so `/about/` resolves to Nectar's generated `/about/index.html` object.
 

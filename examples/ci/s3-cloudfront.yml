@@ -8,8 +8,9 @@
 #
 # OIDC is preferred over long-lived AWS_ACCESS_KEY_ID/SECRET. The IAM role's
 # trust policy must accept `token.actions.githubusercontent.com` and restrict
-# `sub` to this repo. See the AWS docs for "Configuring OpenID Connect in
-# Amazon Web Services" for the exact policy.
+# `sub` to this repo. Give the role permission to list/sync the destination
+# bucket and create an invalidation for the CloudFront distribution. See
+# docs/deploy/s3-cloudfront.md for the setup checklist.
 #
 # For directory-style URLs (e.g. /about/ -> /about/index.html), pair this with
 # examples/s3-cloudfront/append-index.js as a CloudFront Function.
@@ -48,6 +49,9 @@ jobs:
 
       - name: Build site
         run: bunx nectar build
+
+      - name: Verify build artifact
+        run: test -f dist/.nectar-manifest.json
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4

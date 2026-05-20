@@ -54,6 +54,14 @@ GitHub Pages have more managed defaults.
    The role needs enough access to sync objects into the bucket and create a
    CloudFront invalidation for the distribution.
 
+   Scope the role to the target resources and allow:
+
+   - `s3:ListBucket` on the destination bucket
+   - `s3:GetObject` and `s3:PutObject` on the bucket's objects
+   - `s3:DeleteObject` on the bucket's objects if you keep the workflow's
+     `aws s3 sync --delete`
+   - `cloudfront:CreateInvalidation` on the target distribution
+
 6. Build locally before the first push:
 
    ```sh
@@ -61,9 +69,10 @@ GitHub Pages have more managed defaults.
    test -f dist/.nectar-manifest.json
    ```
 
-7. Commit and push to `main`. The workflow installs Bun, builds `dist/`, syncs
-   fingerprinted assets with long immutable caching, syncs HTML / XML / TXT
-   with revalidation, then invalidates `/*` in CloudFront.
+7. Commit and push to `main`. The workflow installs Bun, builds `dist/`,
+   verifies `dist/.nectar-manifest.json`, syncs fingerprinted assets with long
+   immutable caching, syncs HTML / XML / TXT with revalidation, then
+   invalidates `/*` in CloudFront.
 
 ## Local deploys with `nectar deploy s3`
 

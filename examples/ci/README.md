@@ -50,7 +50,8 @@ line in the workflow you copy.
   or `vercel.yml`. Both also publish PR preview deploys.
 - **You already live in AWS:** `s3-cloudfront.yml`. Pair with the CloudFront
   Function at `examples/s3-cloudfront/append-index.js` to keep directory-style
-  URLs working from an S3 origin.
+  URLs working from an S3 origin. The full setup checklist lives in
+  `docs/deploy/s3-cloudfront.md`.
 - **You need a server next to the site:** `fly.yml` or `render.yml`. Both ship
   the build inside a tiny container alongside whatever app you add later.
 
