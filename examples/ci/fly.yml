@@ -1,14 +1,16 @@
 # Deploy a Nectar site to Fly.io.
 #
 # Fly is not a static host, so this workflow builds the site and ships it
-# inside a tiny static container. Nectar does not ship a Dockerfile or
-# fly.toml; add deploy-specific versions to your project. Minimal Dockerfile:
+# inside a tiny nginx container. Copy examples/fly/fly.toml and
+# examples/fly/Dockerfile to your project, then enable:
 #
-#   FROM nginx:alpine
-#   COPY dist /usr/share/nginx/html
+#   [deploy.nginx]
+#   enabled = true
+#   root = "/usr/share/nginx/html"
 #
-# And a matching fly.toml with `[http_service]` pointing at port 80. See
-# docs/deploy/fly.md for the full quickstart. Then:
+# The Fly Dockerfile copies dist/.nectar/nginx.conf into nginx so
+# redirects.yaml and [deploy.headers] apply at runtime. See docs/deploy/fly.md
+# for the full quickstart. Then:
 #   - run `flyctl launch --no-deploy` once locally to create the app
 #   - add secret FLY_API_TOKEN (`flyctl auth token`) to the repo
 #

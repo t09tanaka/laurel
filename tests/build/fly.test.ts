@@ -25,17 +25,20 @@ describe('Fly.io deploy sample', () => {
     expect(body).toContain('auto_start_machines = true');
   });
 
-  test('copies Nectar dist output and nginx config into the image', async () => {
+  test('copies Nectar dist output and generated nginx config into the image', async () => {
     const body = await readFile(join(sampleDir, 'Dockerfile'), 'utf8');
 
     expect(body).toContain('FROM nginx:');
-    expect(body).toContain('COPY nginx.conf /etc/nginx/conf.d/default.conf');
+    expect(body).toContain('COPY dist/.nectar/nginx.conf /etc/nginx/conf.d/default.conf');
     expect(body).toContain('COPY dist/ /usr/share/nginx/html/');
+    expect(body).toContain('RUN rm -rf /usr/share/nginx/html/.nectar');
   });
 
-  test('serves Nectar pretty URLs and falls back to the generated 404 page', async () => {
+  test('keeps the checked-in nginx.conf as the static-only fallback config', async () => {
     const body = await readFile(join(sampleDir, 'nginx.conf'), 'utf8');
 
+    expect(body).toContain('Static-only fallback');
+    expect(body).toContain('dist/.nectar/nginx.conf');
     expect(body).toContain('root /usr/share/nginx/html;');
     expect(body).toContain('error_page 404 /404.html;');
     expect(body).toContain('try_files $uri $uri/ $uri/index.html =404;');
@@ -50,8 +53,12 @@ describe('Fly.io deploy sample', () => {
     expect(guide).toContain('examples/fly/fly.toml');
     expect(guide).toContain('examples/fly/Dockerfile');
     expect(guide).toContain('examples/fly/nginx.conf');
+    expect(guide).toContain('root = "/usr/share/nginx/html"');
+    expect(guide).toContain('dist/.nectar/nginx.conf');
     expect(tutorial).toContain('examples/fly/fly.toml');
     expect(tutorial).toContain('examples/fly/Dockerfile');
+    expect(tutorial).toContain('root = "/usr/share/nginx/html"');
+    expect(tutorial).toContain('dist/.nectar/nginx.conf');
     expect(examples).toContain('examples/fly/fly.toml');
   });
 });

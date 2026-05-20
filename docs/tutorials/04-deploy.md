@@ -10,8 +10,8 @@ self-hosted nginx quickstarts. Docker is covered as a runtime wrapper around a
 pre-built `dist/` directory; Nectar ships a slim
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile) plus
 [`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). Fly.io is
-covered as a container runtime around that pre-built output, with static-only
-nginx sample files under [`examples/fly/`](../../examples/fly/).
+covered as a container runtime around that pre-built output, using Nectar's
+generated `dist/.nectar/nginx.conf` for redirects and headers.
 
 **Universal pre-flight:**
 
@@ -80,20 +80,31 @@ default-config command above as the portable smoke test.
 **Recommended for:** teams that want Fly's container rollout model, regions,
 and TLS while serving a static Nectar build.
 
-For the focused Fly guide, including the static-only nginx sample, see
+For the focused Fly guide, including the generated nginx config flow, see
 [`docs/deploy/fly.md`](../deploy/fly.md).
+
+Enable the nginx deploy target with the document root used inside the Fly
+container:
+
+```toml
+[deploy.nginx]
+enabled = true
+root = "/usr/share/nginx/html"
+server_name = "_"
+```
 
 Copy the sample runtime files to the project root:
 
 ```bash
 cp examples/fly/fly.toml fly.toml
 cp examples/fly/Dockerfile Dockerfile
-cp examples/fly/nginx.conf nginx.conf
 ```
 
-The sample `Dockerfile` serves the already-built `dist/` directory with nginx,
-and the sample `nginx.conf` keeps Nectar's pretty URLs and generated
-`404.html` fallback working.
+The sample `Dockerfile` serves the already-built `dist/` directory with nginx
+and copies `dist/.nectar/nginx.conf` into `/etc/nginx/conf.d/default.conf`.
+That generated config translates `redirects.yaml` and `[deploy.headers]` into
+nginx rules for Fly. The checked-in `examples/fly/nginx.conf` remains available
+only as a static fallback if you intentionally do not enable `[deploy.nginx]`.
 
 Create the Fly app once:
 
@@ -124,9 +135,10 @@ Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
 to `main`. The workflow builds `dist/` with Bun, then runs
 `flyctl deploy --remote-only`.
 
-This minimal Fly path is static-only. The sample nginx config covers
-directory-style Nectar pages and `404.html`; adapt it if you also need
-generated redirects or custom header rules.
+The sample removes `brotli_static` from the generated config during Docker
+build because stock `nginx:alpine` does not ship the Brotli static module. Use
+a Brotli-enabled nginx image and remove that `sed` line if your Fly runtime
+should serve `.br` sidecars directly.
 
 ---
 

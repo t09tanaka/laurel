@@ -10,11 +10,22 @@ locally, start with [`docs/deploy/docker.md`](./docker.md).
 
 ## Prerequisites
 
-- A working Nectar build:
+- The nginx deploy target enabled with Fly's container document root:
+
+  ```toml
+  # nectar.toml
+  [deploy.nginx]
+  enabled = true
+  root = "/usr/share/nginx/html"
+  server_name = "_"
+  ```
+
+- A working Nectar build that emits the generated nginx config:
 
   ```sh
   bunx nectar build
   test -d dist
+  test -f dist/.nectar/nginx.conf
   ```
 
 - The Fly CLI installed and authenticated:
@@ -32,29 +43,33 @@ locally, start with [`docs/deploy/docker.md`](./docker.md).
   Keep the generated `fly.toml` in the repo, then review it against
   [`examples/fly/fly.toml`](../../examples/fly/fly.toml).
 
-## Static nginx sample
+## Generated nginx sample
 
-Copy the Fly sample files to the project root:
+Copy the Fly sample runtime files to the project root:
 
 ```sh
 cp examples/fly/fly.toml fly.toml
 cp examples/fly/Dockerfile Dockerfile
-cp examples/fly/nginx.conf nginx.conf
 ```
 
 The sample [`Dockerfile`](../../examples/fly/Dockerfile) assumes
-`bunx nectar build` already ran before `flyctl deploy`. The matching GitHub
-Actions template at [`examples/ci/fly.yml`](../../examples/ci/fly.yml) builds
-`dist/` first, then lets Fly build and release this small nginx image.
+`bunx nectar build` already ran before `flyctl deploy`. It copies
+`dist/.nectar/nginx.conf` to `/etc/nginx/conf.d/default.conf`, then copies
+`dist/` to `/usr/share/nginx/html/`. That generated config is the same shared
+nginx emitter used by the self-hosted nginx guide, so `redirects.yaml` and
+`[deploy.headers]` become nginx `location`, `return`, and `add_header` rules
+inside the Fly image.
 
-The sample [`nginx.conf`](../../examples/fly/nginx.conf) is intentionally
-static-only: it serves Nectar's `slug/index.html` output with
-`try_files $uri $uri/ $uri/index.html =404;`, falls back to the generated
-`404.html` page, and pins the default long-lived asset paths. It does not
-translate `redirects.yaml` or every custom `[deploy.headers]` override. For
-those production concerns, either adapt the sample config or use the generated
-nginx config flow described in
-[`docs/deploy/docker.md`](./docker.md#optional-generate-a-nectar-nginx-config).
+The generated config includes `brotli_static on;` for nginx builds that ship
+the Brotli static module. The sample image uses stock `nginx:1.27-alpine`, so
+the Dockerfile removes only that directive during image build. Use a
+Brotli-enabled nginx image and remove that `sed` line if you want `.br`
+sidecars served directly.
+
+The checked-in [`examples/fly/nginx.conf`](../../examples/fly/nginx.conf) is a
+static-only fallback for projects that intentionally do not enable
+`[deploy.nginx]`. Do not use that fallback when you expect generated redirects,
+cache headers, or security headers to apply on Fly.
 
 ## Minimal fly.toml
 
@@ -94,18 +109,20 @@ example:
 
 1. Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
    `.github/workflows/fly.yml`.
-2. Copy [`examples/fly/fly.toml`](../../examples/fly/fly.toml),
-   [`examples/fly/Dockerfile`](../../examples/fly/Dockerfile), and
-   [`examples/fly/nginx.conf`](../../examples/fly/nginx.conf) to the project
-   root.
-3. Create a Fly API token:
+2. Enable `[deploy.nginx]` with `root = "/usr/share/nginx/html"` in
+   `nectar.toml`.
+3. Copy [`examples/fly/fly.toml`](../../examples/fly/fly.toml) and
+   [`examples/fly/Dockerfile`](../../examples/fly/Dockerfile) to the project
+   root. Keep [`examples/fly/nginx.conf`](../../examples/fly/nginx.conf) only
+   as the static-only fallback reference.
+4. Create a Fly API token:
 
    ```sh
    flyctl auth token
    ```
 
-4. Store it as the repository secret `FLY_API_TOKEN`.
-5. Push to `main` or run the workflow manually.
+5. Store it as the repository secret `FLY_API_TOKEN`.
+6. Push to `main` or run the workflow manually.
 
 The workflow installs Bun, runs `bunx nectar build`, uploads `dist/` as a
 debug artifact, installs `flyctl`, and runs:
@@ -115,7 +132,8 @@ flyctl deploy --remote-only
 ```
 
 Remote builders receive the committed Dockerfile plus the freshly built
-`dist/` directory from the Actions workspace.
+`dist/` directory from the Actions workspace, including
+`dist/.nectar/nginx.conf`.
 
 ## Verify the release
 
@@ -133,14 +151,16 @@ the production hostname.
 
 ## Troubleshooting
 
-- **`COPY dist` fails during deploy:** run `bunx nectar build` before
-  `flyctl deploy`, or use the GitHub Actions workflow so the build step always
-  precedes deployment.
-- **Deep pages 404:** confirm the deployed image includes the sample
-  `nginx.conf` and that `dist/<slug>/index.html` exists before deploy.
-- **Redirects or headers are missing:** `_redirects`, `_headers`, and generated
-  nginx config files are host-specific artifacts. Stock nginx ignores them
-  unless you translate or mount a compatible config.
-- **`brotli_static` breaks nginx startup:** the official `nginx:alpine` image
-  may not include the Brotli static module. Use an nginx image with Brotli
-  support, or keep the minimal Dockerfile for a plain static runtime.
+- **`COPY dist/.nectar/nginx.conf` fails during deploy:** enable
+  `[deploy.nginx]`, set `root = "/usr/share/nginx/html"`, and run
+  `bunx nectar build` before `flyctl deploy`. The GitHub Actions workflow keeps
+  that build step before deployment.
+- **Deep pages 404:** confirm the deployed image uses the generated
+  `/etc/nginx/conf.d/default.conf` and that `dist/<slug>/index.html` exists
+  before deploy.
+- **Redirects or headers are missing:** confirm Fly is using
+  `dist/.nectar/nginx.conf`, not the static-only `examples/fly/nginx.conf`
+  fallback. Stock nginx ignores `_redirects` and `_headers`.
+- **`brotli_static` breaks nginx startup:** keep the sample Dockerfile's
+  `sed -i '/brotli_static/d' ...` line when using stock `nginx:alpine`, or
+  switch to an nginx image that loads the Brotli static module.

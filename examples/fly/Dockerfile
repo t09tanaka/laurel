@@ -1,7 +1,16 @@
-# Fly.io static-only runtime for a pre-built Nectar `dist/` directory.
-# Run `bunx nectar build` before `flyctl deploy` so `dist/` exists in the
-# Docker build context.
+# Fly.io runtime for a pre-built Nectar `dist/` directory.
+# Enable [deploy.nginx] with root = "/usr/share/nginx/html", then run
+# `bunx nectar build` before `flyctl deploy` so `dist/` and
+# `dist/.nectar/nginx.conf` exist in the Docker build context.
 FROM nginx:1.27-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/.nectar/nginx.conf /etc/nginx/conf.d/default.conf
+# The generated config includes brotli_static for nginx builds that support it.
+# The stock nginx:alpine image does not ship that module, so keep this sample
+# portable by dropping only that directive. Use a Brotli-enabled nginx image and
+# remove this line if you want .br sidecars served directly.
+RUN sed -i '/brotli_static/d' /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/
+# Keep build metadata out of the public document root; the copied config above
+# is the runtime source of truth.
+RUN rm -rf /usr/share/nginx/html/.nectar

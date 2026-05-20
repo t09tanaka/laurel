@@ -1,5 +1,7 @@
-# Copy this file, Dockerfile, and nginx.conf to your project root, then run:
+# Copy this file and Dockerfile to your project root, enable [deploy.nginx] with
+# root = "/usr/share/nginx/html", then run:
 #   flyctl launch --no-deploy
+#   bunx nectar build
 #   flyctl deploy --remote-only
 
 app = "my-nectar-site"
