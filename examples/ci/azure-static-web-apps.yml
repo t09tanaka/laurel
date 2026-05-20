@@ -1,0 +1,78 @@
+# Deploy a Nectar site to Azure Static Web Apps.
+#
+# Copy this file to .github/workflows/azure-static-web-apps.yml in your repo.
+# In Azure, create a Static Web App resource (preset "Other"), copy its
+# deployment token, and add it to GitHub Actions secrets as:
+#   - AZURE_STATIC_WEB_APPS_API_TOKEN
+#
+# Push to main and the workflow runs `nectar build`, then uploads dist/ via
+# the official Azure/static-web-apps-deploy action. Pull requests deploy to a
+# named preview slot automatically; closing the PR tears the slot down.
+
+name: Deploy to Azure Static Web Apps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: azure-static-web-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_deploy:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build site
+        run: bunx nectar build
+
+      - name: Deploy to Azure Static Web Apps
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          # The site is already built — point the action at dist/ and disable
+          # its built-in build step. `skip_app_build: true` is the supported
+          # flag for "I built it myself, just upload".
+          app_location: dist
+          api_location: ''
+          output_location: ''
+          skip_app_build: true
+
+  close_pull_request:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    name: Close pull request preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close
+        id: close
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: close
