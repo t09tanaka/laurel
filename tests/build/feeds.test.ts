@@ -227,6 +227,29 @@ describe('emitRss', () => {
     );
   });
 
+  test('canonicalizes RSS route URLs with trailing_slash = never', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-canonical-never-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com/' },
+      build: { trailing_slash: 'never' },
+    });
+    const content = makeGraph();
+    const tag = makeTag({ url: '/tag/news/' });
+    content.tags = [tag];
+    content.posts = [makePost({ url: '/hello-world/', tags: [tag], primary_tag: tag })];
+    content.postsByTag = new Map([[tag.slug, content.posts]]);
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+    expect(xml).toContain('<link>https://example.com/hello-world</link>');
+    expect(xml).toContain('<guid isPermaLink="true">https://example.com/hello-world</guid>');
+    expect(xml).not.toContain('https://example.com/hello-world/');
+
+    const tagXml = readFileSync(join(outputDir, 'tag/news/rss/index.xml'), 'utf8');
+    expect(tagXml).toContain('<link>https://example.com/tag/news</link>');
+  });
+
   test('single-page feeds emit only rss.xml without prev/next atom links', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
@@ -941,6 +964,37 @@ describe('emitSitemap', () => {
     );
     expect(posts).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
     expect(posts).toContain('\n  <url>\n');
+  });
+
+  test('canonicalizes sitemap route URLs with trailing_slash = never', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-canonical-never-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com/' },
+      build: { trailing_slash: 'never' },
+    });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [
+        { url: '/hello-world/', kind: 'posts' },
+        { url: '/tag/news/', kind: 'tags' },
+        { url: '/about/', kind: 'pages' },
+      ],
+    });
+
+    const posts = readFileSync(join(outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts).toContain('<loc>https://example.com/hello-world</loc>');
+    expect(posts).not.toContain('https://example.com/hello-world/');
+
+    const tags = readFileSync(join(outputDir, 'sitemap-tags.xml'), 'utf8');
+    expect(tags).toContain('<loc>https://example.com/tag/news</loc>');
+
+    const index = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
+    expect(index).toContain('<loc>https://example.com/sitemap-posts.xml</loc>');
+    expect(index).not.toContain('example.com//sitemap');
   });
 
   test('uses Ghost priorities: posts 0.7, pages 0.6, tags 0.6, authors 0.6', async () => {
