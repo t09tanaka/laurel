@@ -156,9 +156,15 @@ function registerPartials(
     }
   }
   for (const [name, source] of Object.entries(theme.partials)) {
-    registerThemePartial(hb, name, source, partialSourceInfo(theme, name));
-    if (!name.includes('/')) {
-      registerThemePartial(hb, `partials/${name}`, source, partialSourceInfo(theme, name));
+    const normalizedName = normalizePartialName(name);
+    registerThemePartial(hb, normalizedName, source, partialSourceInfo(theme, normalizedName));
+    if (!normalizedName.includes('/')) {
+      registerThemePartial(
+        hb,
+        `partials/${normalizedName}`,
+        source,
+        partialSourceInfo(theme, normalizedName),
+      );
     }
   }
   // Templates are also reachable as partials under their bare name to allow
@@ -175,7 +181,7 @@ function registerPartials(
   // and always expose the template body under the `__template__/<name>`
   // namespace as a stable escape hatch for callers that explicitly want the
   // template body (issue #552).
-  const themePartialNames = new Set(Object.keys(theme.partials));
+  const themePartialNames = new Set(Object.keys(theme.partials).map(normalizePartialName));
   for (const [name, body] of Object.entries(templateBodies)) {
     const sourceOffset = templateBodyOffsets[name] ?? 0;
     registerThemePartial(
@@ -187,6 +193,10 @@ function registerPartials(
     if (themePartialNames.has(name)) continue;
     registerThemePartial(hb, name, body, templatePartialSourceInfo(theme, name, sourceOffset));
   }
+}
+
+function normalizePartialName(name: string): string {
+  return name.replaceAll('\\', '/');
 }
 
 function renderRoute(engine: NectarEngine, route: RouteContext): string {

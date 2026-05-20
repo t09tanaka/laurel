@@ -2249,6 +2249,29 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(() => engine.render(route)).toThrow('cannot use ../ parent segments');
   });
 
+  test('Windows-style partial paths register under POSIX names (issue #991)', () => {
+    const theme = makeTheme(
+      {
+        home: '<main>{{> "components/card"}}</main>',
+      },
+      {
+        'components\\card': '<article data-partial="card">Card</article>',
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(typeof engine.hb.partials['components/card']).toBe('function');
+    expect(engine.render(route)).toBe('<main><article data-partial="card">Card</article></main>');
+  });
+
   test('partial parse errors include the theme partial file and source line', () => {
     const theme = makeTheme(
       {
