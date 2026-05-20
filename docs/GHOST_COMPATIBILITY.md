@@ -18,6 +18,11 @@ recipes for Buttondown / Beehiiv / Substack and the member analytics
 dashboard gap — see
 [`MEMBERS.md`](./MEMBERS.md).
 
+For contributor work that adds a new Ghost / Koenig card, follow
+[`docs/contrib/ADDING_A_CARD.md`](./contrib/ADDING_A_CARD.md). It lists the
+import rule, Markdown shortcode, renderer, shared CSS, fixture, and regression
+test surfaces that must move together.
+
 ## Helpers
 
 See `DESIGN.md` §4 for the master matrix.

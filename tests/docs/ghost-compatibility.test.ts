@@ -5,6 +5,20 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dir, '..', '..');
 
 describe('Ghost compatibility docs', () => {
+  test('links the contributor checklist for adding a Ghost card', async () => {
+    const compatibility = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+    const checklist = await readFile(join(ROOT, 'docs', 'contrib', 'ADDING_A_CARD.md'), 'utf8');
+
+    expect(compatibility).toContain('./contrib/ADDING_A_CARD.md');
+    expect(checklist).toContain('## 1. Add the import/Turndown rule');
+    expect(checklist).toContain('## 2. Add the Markdown shortcode or directive grammar');
+    expect(checklist).toContain('## 3. Add the shortcode handler');
+    expect(checklist).toContain('## 4. Add shared theme CSS and optional runtime hooks');
+    expect(checklist).toContain('## 5. Add the fixture');
+    expect(checklist).toContain('## 6. Add snapshot or contract tests');
+    expect(checklist).toContain('tests/fixtures/cards/bookmark.md');
+  });
+
   test('documents the Ghost card support status matrix', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 
