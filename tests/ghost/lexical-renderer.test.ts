@@ -206,6 +206,23 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('class="kg-card kg-video-card kg-width-wide"');
   });
 
+  test('lazy-loads iframe embed card html', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'embed',
+          html: '<iframe src="https://player.vimeo.com/video/76979871" title="Vimeo" loading="eager"></iframe>',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-card kg-embed-card"');
+    expect(out).toContain(
+      '<iframe src="https://player.vimeo.com/video/76979871" title="Vimeo" loading="lazy"></iframe>',
+    );
+    expect(out).not.toContain('loading="eager"');
+  });
+
   test('drops invalid Koenig cardWidth tokens', () => {
     const out = renderLexicalToHtml(
       lex([

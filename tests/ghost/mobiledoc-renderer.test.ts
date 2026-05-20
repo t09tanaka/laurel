@@ -148,6 +148,26 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toContain('class="kg-card kg-video-card kg-width-wide"');
   });
 
+  test('lazy-loads iframe embed card html', () => {
+    const out = renderMobiledocToHtml(
+      mobi({
+        cards: [
+          [
+            'embed',
+            {
+              html: '<iframe src="https://www.youtube.com/embed/abc123" title="Talk"></iframe>',
+            },
+          ],
+        ],
+        sections: [[10, 0]],
+      }),
+    );
+    expect(out).toContain('class="kg-card kg-embed-card"');
+    expect(out).toContain(
+      '<iframe src="https://www.youtube.com/embed/abc123" title="Talk" loading="lazy"></iframe>',
+    );
+  });
+
   test('renders a code card from a card section', () => {
     const out = renderMobiledocToHtml(
       mobi({

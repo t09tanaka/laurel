@@ -5,6 +5,9 @@
 // rendered in `post.html`", not byte-for-byte parity — small attribute order
 // or whitespace differences are fine.
 
+import renderHtml from 'dom-serializer';
+import type { ChildNode, Element } from 'domhandler';
+import { parseDocument } from 'htmlparser2';
 import { Marked } from 'marked';
 
 const markdownRenderer = new Marked({ gfm: true, breaks: false });
@@ -263,9 +266,38 @@ export function renderEmbedCardHtml(payload: unknown): string {
   const url = strProp(payload, 'url');
   const caption = strProp(payload, 'caption');
   if (!html && !url) return '';
-  const inner = html || `<a href="${escapeAttr(url)}">${escapeHtml(url)}</a>`;
+  const inner = html
+    ? lazyLoadEmbedIframes(html)
+    : `<a href="${escapeAttr(url)}">${escapeHtml(url)}</a>`;
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
   return `<figure class="kg-card kg-embed-card${widthClass(payload)}${hasCaptionClass(caption)}">${inner}${figcap}</figure>`;
+}
+
+function lazyLoadEmbedIframes(html: string): string {
+  if (!/<iframe\b/i.test(html)) return html;
+  const doc = parseDocument(html, {
+    decodeEntities: false,
+    lowerCaseAttributeNames: false,
+  });
+  const changed = lazyLoadIframesInNodes(doc.children);
+  return changed ? renderHtml(doc.children, { decodeEntities: false }) : html;
+}
+
+function lazyLoadIframesInNodes(nodes: ChildNode[]): boolean {
+  let changed = false;
+  for (const node of nodes) {
+    if (!isElement(node)) continue;
+    if (node.name.toLowerCase() === 'iframe' && node.attribs.loading !== 'lazy') {
+      node.attribs.loading = 'lazy';
+      changed = true;
+    }
+    changed = lazyLoadIframesInNodes(node.children) || changed;
+  }
+  return changed;
+}
+
+function isElement(node: ChildNode): node is Element {
+  return node.type === 'tag' || node.type === 'script' || node.type === 'style';
 }
 
 export function renderFileCardHtml(payload: unknown): string {

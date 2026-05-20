@@ -259,6 +259,7 @@ describe('card fixture corpus', () => {
     expect(html).toContain('class="kg-card kg-embed-card kg-width-regular"');
     expect(html).toContain('src="https://player.vimeo.com/video/76979871"');
     expect(html).toContain('title="Vimeo video"');
+    expect(html).toContain('loading="lazy"');
   });
 
   test('embed shortcode renders Spotify URLs as static iframes', async () => {
@@ -269,6 +270,7 @@ describe('card fixture corpus', () => {
     expect(html).toContain('src="https://open.spotify.com/embed/track/11dFghVXANMlKmJXsNCbNl"');
     expect(html).toContain('height="152"');
     expect(html).toContain('title="Spotify embed"');
+    expect(html).toContain('loading="lazy"');
   });
 
   test('embed shortcode leaves script-hydrated providers as fallback links', async () => {
