@@ -148,7 +148,7 @@ before the template ever sees the post.
 ### `{{comments}}`, `{{subscribe_form}}`, `{{input_email}}`
 
 These helpers exist as **stable, neutral HTML hooks** so Ghost themes don't
-break. They emit no-op markup with `data-*` attributes you can target from
+break. They emit static markup with `data-*` attributes you can target from
 your provider's snippet:
 
 | Helper                     | Output                                                                                   |
@@ -159,6 +159,14 @@ your provider's snippet:
 
 Your integration replaces or augments these from `[site].codeinjection_head`
 or a small `assets/js/*.js` shim.
+
+Themes may also ship the same hooks by hand. Dawn's `partials/cover.hbs`, for
+example, includes a hand-written `data-members-form` / `data-members-email`
+subscribe form with `data-members-success` and `data-members-error` message
+elements. Nectar preserves that HTML shape as static markup, but it does not
+ship Ghost's members runtime JavaScript. Without a configured
+`[components.subscribe_form]` provider or your own JS handler, the form remains
+inert.
 
 ---
 
@@ -184,11 +192,20 @@ Anchors using `href="#/portal/signin"`, `href="#/portal/signup"`, etc., are
 also passed through verbatim. They are **inert hash fragments** unless a
 client-side script wires them up.
 
-`{{subscribe_form}}` and `{{input_email}}` emit `data-members-form` /
-`data-members-email` attributes; your provider snippet attaches form handlers
-via those selectors. There is no automatic rewrite — the no-op form will
-submit to `#` if you don't intercept it, so wire something in or hide it via
-CSS.
+`{{subscribe_form}}`, `{{input_email}}`, and hand-written Dawn-style subscribe
+forms emit `data-members-form` / `data-members-email` attributes. Nectar's
+existing subscribe-form transform only targets those explicit hooks:
+
+| `[components.subscribe_form].provider` | Behaviour |
+|----------------------------------------|-----------|
+| `none`                                 | Keep the form shape, set `action="#"`, and add `onsubmit="event.preventDefault();return false;"`. |
+| `buttondown` / `beehiiv` / `mailchimp` | Patch the form `action` and email field name for the provider. |
+| `custom`                               | Patch the form `action` and optional field mapping you configure. |
+
+Nectar does not rewrite arbitrary forms that lack these members-form markers,
+and it does not implement Ghost's runtime success / error state machine.
+`data-members-success` and `data-members-error` are static presentation hooks
+until your JavaScript toggles them.
 
 ### Why the asymmetry?
 

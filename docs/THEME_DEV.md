@@ -331,10 +331,19 @@ Returns the post/page's `body_class` if set, otherwise
 - `{{recommendations}}` → empty `<ul class="recommendations">`.
 - `{{access}}` → block: renders `{{else}}` (visitor is always
   "unauthenticated" in a static build); inline: returns `false`.
-- `{{subscribe_form}}` → a `<form data-nectar-subscribe>` no-op. Replace with
-  your own component or remove from the theme.
+- `{{subscribe_form}}` → a static `<form data-members-form="subscribe">`
+  hook. It is inert unless `[components.subscribe_form]` rewrites it to a
+  provider endpoint or your own client-side members runtime intercepts submit.
 - `{{input_email [placeholder="..."]}}` → a plain email input with
   `data-members-email` so existing themes don't break.
+
+Dawn-style hand-written forms that already contain `data-members-form` and
+`data-members-email` are emitted as static markup. Nectar only applies the
+existing subscribe-form transform to those attributes: `provider = "none"`
+keeps the hooks but disables submission, while configured providers patch the
+form action / email field name. Nectar does not invent a Ghost Members runtime,
+so `data-members-success` / `data-members-error` states remain presentation
+hooks until your JavaScript toggles them.
 
 ### 5.3 Date helper (`src/render/helpers/date.ts`)
 

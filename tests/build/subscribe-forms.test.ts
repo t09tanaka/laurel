@@ -93,6 +93,26 @@ describe('transformSubscribeForms', () => {
     expect(out).toMatch(/<input[^>]*\bname="email"/);
   });
 
+  test('with provider=none, preserves Dawn-style members form hooks as inert markup', () => {
+    const html = [
+      '<form class="gh-form" data-members-form="subscribe">',
+      '<input class="gh-form-input" type="email" required data-members-email>',
+      '<button class="gh-button" type="submit">Subscribe now</button>',
+      '<p class="gh-form-success" data-members-success>Check your inbox.</p>',
+      '<p class="gh-form-error" data-members-error>Could not subscribe.</p>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, { provider: 'none' });
+
+    expect(out).toContain('data-members-form="subscribe"');
+    expect(out).toContain('data-members-email');
+    expect(out).toContain('data-members-success');
+    expect(out).toContain('data-members-error');
+    expect(out).toMatch(/<form[^>]*\baction="#"/);
+    expect(out).toMatch(/<form[^>]*\bonsubmit="event\.preventDefault\(\);return false;"/);
+    expect(out).toMatch(/<input[^>]*\bname="email"/);
+  });
+
   test('with buttondown provider, sets action to embed URL and keeps "email" name', () => {
     const out = transformSubscribeForms(SAMPLE_FORM, {
       provider: 'buttondown',
