@@ -1,9 +1,8 @@
 import { gzipSync } from 'node:zlib';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
-import { absoluteUrlWithBasePath } from '~/util/url.ts';
-import { canonicalAbsoluteRouteUrl } from './canonical-urls.ts';
 import { writeBytes, writeHtml } from './emit.ts';
+import { absoluteUrl } from './url.ts';
 
 export type SitemapKind = 'posts' | 'pages' | 'tags' | 'authors';
 
@@ -60,8 +59,6 @@ export async function emitSitemap(opts: {
   outputDir: string;
   urls: SitemapEntry[];
 }): Promise<void> {
-  const basePath = opts.config.build.base_path || '/';
-
   // Always emit Ghost's 5-file shape: sitemap.xml (sitemapindex) +
   // sitemap-{posts,pages,tags,authors}.xml, with -2.xml / -3.xml ... when
   // any one kind overflows the 50k cap.
@@ -80,10 +77,7 @@ export async function emitSitemap(opts: {
       const xml = renderSitemapUrlset(pageEntries, opts.config);
       await writeXmlWithGzip(opts.outputDir, filename, xml);
       indexEntries.push({
-        // Sub-sitemap `<loc>` entries in the index live under base_path so
-        // crawlers fetch `https://host/blog/sitemap-posts.xml` rather than
-        // the raw host-root URL that would 404 on a subpath deploy.
-        loc: absoluteUrlWithBasePath(opts.config.site.url, basePath, filename),
+        loc: absoluteUrl(filename, opts.config),
         lastmod: latestLastmodIso(pageEntries),
       });
     }
@@ -110,18 +104,7 @@ function renderSitemapUrlset(entries: SitemapEntry[], config: NectarConfig): str
     const defaults = entry.kind ? SITEMAP_KIND_DEFAULTS[entry.kind] : SITEMAP_UNCLASSIFIED_DEFAULT;
     const changefreq = entry.changefreq ?? defaults.changefreq;
     const priority = entry.priority ?? defaults.priority;
-    // `entry.url` is the route-relative path (e.g. `/post-slug/`). Apply
-    // `base_path` here so the emitted `<loc>` is the actual deployed URL
-    // crawlers should follow, not the host-rooted shadow. Canonicalise with
-    // the same trailing-slash policy used by the route emitter before joining.
-    const loc = `<loc>${escapeXml(
-      canonicalAbsoluteRouteUrl(
-        config.site.url,
-        config.build.base_path,
-        entry.url,
-        config.build.trailing_slash,
-      ),
-    )}</loc>`;
+    const loc = `<loc>${escapeXml(absoluteUrl(entry.url, config))}</loc>`;
     const lastmod = entry.lastmod
       ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
       : '';

@@ -1,9 +1,9 @@
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
-import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
-import { canonicalAbsoluteContentUrl } from './canonical-urls.ts';
+import { withBasePath } from '~/util/url.ts';
 import { writeHtml } from './emit.ts';
 import { renderFeedSafeHtml } from './feed-safe-html.ts';
+import { absoluteContentUrl, absoluteUrl } from './url.ts';
 
 // Sitemap emission has its own module (./sitemap.ts) so the Ghost 5-file
 // layout, the 50k-URL split, and the gzip companions can evolve without
@@ -43,7 +43,7 @@ export async function emitRss(opts: {
       // Channel `<link>` is the absolute homepage URL. Strip the configured
       // base_path's trailing slash so the value byte-matches the historical
       // `${site.url}` shape on root deploys (no trailing slash).
-      link: `${config.site.url.replace(/\/$/, '')}${trimTrailingSlash(config.build.base_path || '/')}`,
+      link: trimTrailingSlash(absoluteUrl('/', config)),
     },
   });
 
@@ -69,7 +69,7 @@ export async function emitRss(opts: {
         channel: {
           title: `${tag.name} - ${config.site.title}`,
           description: tag.description || config.site.description,
-          link: canonicalAbsoluteContentUrl(config.site.url, tag.url, config.build.trailing_slash),
+          link: absoluteContentUrl(tag.url, config),
         },
       });
     }
@@ -87,11 +87,7 @@ export async function emitRss(opts: {
         channel: {
           title: `${author.name} - ${config.site.title}`,
           description: author.bio || config.site.description,
-          link: canonicalAbsoluteContentUrl(
-            config.site.url,
-            author.url,
-            config.build.trailing_slash,
-          ),
+          link: absoluteContentUrl(author.url, config),
         },
       });
     }
@@ -117,13 +113,11 @@ async function emitRssFeed(opts: {
   channel: RssChannel;
 }): Promise<void> {
   const { config, posts, outputDir, limit, pageFilename, channel } = opts;
-  // `base` is the absolute host root (no path). The feed's atom:link / item
-  // link entries that need the configured `base_path` apply it explicitly via
-  // `withBasePath` so each callsite stays explicit about whether it composes
-  // the host-only origin (e.g. `feature_image`) or the deployed-root URL.
+  // `base` is the configured public site URL with a stable slashless shape.
+  // Route URLs go through `absoluteUrl`; feed body assets still use the lighter
+  // root-relative attribute rewrite because they are not route permalinks.
   const base = config.site.url.replace(/\/$/, '');
   const basePath = config.build.base_path || '/';
-  const trailingSlash = config.build.trailing_slash;
   const perPage = Math.max(1, Math.min(limit, RSS_MAX_ITEMS_PER_PAGE));
   const totalPages = Math.max(1, Math.ceil(posts.length / perPage));
   // Ghost's default-on behavior would inline post.html into every <item>,
@@ -140,13 +134,12 @@ async function emitRssFeed(opts: {
   // Compose the host-relative feed URL once per page. atom:link href entries
   // must be fully-qualified (RSS readers need an absolute origin), and they
   // live under `base_path` on subpath deploys (e.g. `/blog/rss.xml`).
-  const filenameHref = (page: number) =>
-    absoluteUrlWithBasePath(config.site.url, basePath, pageFilename(page));
+  const filenameHref = (page: number) => absoluteUrl(pageFilename(page), config);
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = posts.slice(start, start + perPage);
     const items = pagePosts
-      .map((post) => renderItem(post, base, fullContent, basePath, trailingSlash))
+      .map((post) => renderItem(post, config, base, fullContent, basePath))
       .join('');
     const filename = pageFilename(page);
     const selfHref = filenameHref(page);
@@ -205,7 +198,7 @@ function renderChannelImage(config: NectarConfig, base: string, basePath: string
   // The channel image's `<link>` points at the deployed homepage, not the
   // raw host root, so subpath deploys send users to `https://host/blog/`
   // instead of `https://host/`.
-  const homeLink = `${base}${trimTrailingSlash(basePath || '/')}`;
+  const homeLink = trimTrailingSlash(absoluteUrl('/', config));
   return [
     '\n<image>',
     `<url>${escapeXml(logoUrl)}</url>`,
@@ -243,15 +236,15 @@ function rssPageFilename(page: number): string {
 
 function renderItem(
   post: ContentGraph['posts'][number],
+  config: NectarConfig,
   base: string,
   fullContent: boolean,
   basePath = '/',
-  trailingSlash: NectarConfig['build']['trailing_slash'] = 'always',
 ): string {
   // `post.url` is path-only when it comes from the loader, but older tests and
   // ad-hoc callers may still pass absolute values. Resolve both shapes once,
   // matching the route emitter's trailing-slash canonicalisation.
-  const link = canonicalAbsoluteContentUrl(base, post.url, trailingSlash);
+  const link = absoluteContentUrl(post.url, config);
   // Absolutise only when we plan to ship the HTML body. Skipping the regex
   // walk when `fullContent=false` is the whole point of #517: at 10k items
   // the rewrite-then-discard cost was the second-largest slice of feed time.

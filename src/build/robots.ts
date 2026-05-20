@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import { ensureDir } from '~/util/fs.ts';
-import { withBasePath } from '~/util/url.ts';
+import { absoluteUrl } from './url.ts';
 
 // Operators with site-specific crawler rules (per-bot Disallow, multiple
 // Sitemap entries, AI bot allow/deny lists) drop a hand-authored
@@ -24,12 +24,7 @@ export async function emitRobots(opts: {
     await writeFile(join(outputDir, 'robots.txt'), overrideBody, 'utf8');
     return;
   }
-  const base = config.site.url.replace(/\/$/, '');
-  const basePath = config.build.base_path || '/';
-  // Crawlers fetch the sitemap at the deployed URL, so the Sitemap directive
-  // must point under `base_path` (e.g. `https://host/blog/sitemap.xml`)
-  // rather than the raw host root.
-  const sitemapUrl = `${base}${withBasePath(basePath, 'sitemap.xml')}`;
+  const sitemapUrl = absoluteUrl('sitemap.xml', config);
   const lines = config.components.robots.disallow
     ? ['User-agent: *', 'Disallow: /']
     : ['User-agent: *', 'Allow: /', `Sitemap: ${sitemapUrl}`];
