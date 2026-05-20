@@ -40,6 +40,16 @@ function makeThemeBundle(assets: Map<string, ThemeAsset>): ThemeBundle {
   };
 }
 
+function jpegWithExif(payload = 'SECRET_GPS'): Buffer {
+  const exif = Buffer.from(`Exif\0\0${payload}`, 'binary');
+  return Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    Buffer.from([0xff, 0xe1, (exif.length + 2) >> 8, (exif.length + 2) & 0xff]),
+    exif,
+    Buffer.from([0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x00, 0xff, 0xd9]),
+  ]);
+}
+
 describe('writeHtml', () => {
   test('writes file when path resolves under outputDir', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
@@ -288,6 +298,38 @@ describe('copyContentAssets', () => {
     expect(await readFile(join(outputDir, 'content/images/a.png'), 'utf8')).toBe('A');
     expect(await readFile(join(outputDir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
     expect(await readFile(join(outputDir, 'content/media/clip/intro.mp4'), 'utf8')).toBe('MP4');
+  });
+
+  test('sanitizes SVGs and strips JPEG EXIF metadata while copying content/images', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-sanitize-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-sanitize-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/unsafe.svg'),
+      [
+        '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">',
+        '<script>alert(1)</script>',
+        '<a href="javascript:alert(2)" xlink:href="javascript:alert(3)">x</a>',
+        '<rect onclick="alert(4)" width="10" height="10" />',
+        '</svg>',
+      ].join(''),
+    );
+    await writeFile(join(cwd, 'content/images/photo.jpg'), jpegWithExif());
+
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+
+    expect(count).toBe(2);
+    const svg = await readFile(join(outputDir, 'content/images/unsafe.svg'), 'utf8');
+    expect(svg).toContain('<svg');
+    expect(svg).not.toContain('<script');
+    expect(svg).not.toContain('onload=');
+    expect(svg).not.toContain('onclick=');
+    expect(svg).not.toContain('javascript:');
+
+    const jpg = await readFile(join(outputDir, 'content/images/photo.jpg'));
+    expect(jpg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(false);
+    expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
   });
 
   test('content/files and content/media are optional', async () => {

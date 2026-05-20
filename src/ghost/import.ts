@@ -1,18 +1,10 @@
-import {
-  access,
-  copyFile,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
+import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
 import { renderLexicalToHtml } from './lexical-renderer.ts';
@@ -912,7 +904,8 @@ async function copyGhostAssets(
       if (await pathExists(to)) continue;
       if (!dryRun) {
         await ensureDir(dirname(to));
-        await copyFile(from, to);
+        const bytes = await readFile(from);
+        await writeFile(to, sanitizeImageAssetBytes(bytes, rel));
       }
       plannedPaths.push(to);
       total += 1;

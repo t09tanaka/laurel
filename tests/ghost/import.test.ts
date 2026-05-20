@@ -46,6 +46,38 @@ function makeExport(posts: Array<{ slug: string; title: string; html?: string }>
   });
 }
 
+function jpegWithExif(payload = 'SECRET_GPS'): Buffer {
+  const exif = Buffer.from(`Exif\0\0${payload}`, 'binary');
+  return Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    Buffer.from([0xff, 0xe1, (exif.length + 2) >> 8, (exif.length + 2) & 0xff]),
+    exif,
+    Buffer.from([0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x00, 0xff, 0xd9]),
+  ]);
+}
+
+function singleImagePostExport(url: string): string {
+  return JSON.stringify({
+    db: [
+      {
+        data: {
+          posts: [
+            {
+              id: 'p1',
+              title: 'Image',
+              slug: 'image',
+              html: `<p><img src="${url}" alt="x" /></p>`,
+              feature_image: url,
+              status: 'published',
+              type: 'post',
+            },
+          ],
+        },
+      },
+    ],
+  });
+}
+
 describe('importGhostExport — --on-conflict policy', () => {
   let cwd: string;
   let exportFile: string;
@@ -636,6 +668,43 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
       expect(await readFile(join(cwd, 'content/images/2024/01/pic.jpg'), 'utf8')).toBe('PIC');
       expect(await readFile(join(cwd, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
       expect(await readFile(join(cwd, 'content/media/clip/intro.mp4'), 'utf8')).toBe('MP4');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('folder asset copy sanitizes SVG and strips JPEG EXIF metadata', async () => {
+    await writeJsonNamed('my-blog.ghost.2024-01-01.json');
+
+    await ensureDir(join(exportDir, 'content/images/2024/01'));
+    await writeFile(
+      join(exportDir, 'content/images/2024/01/unsafe.svg'),
+      [
+        '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">',
+        '<script>alert(1)</script>',
+        '<a href="javascript:alert(2)" xlink:href="javascript:alert(3)">x</a>',
+        '<circle onclick="alert(4)" cx="5" cy="5" r="5" />',
+        '</svg>',
+      ].join(''),
+    );
+    await writeFile(join(exportDir, 'content/images/2024/01/photo.jpg'), jpegWithExif());
+
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    try {
+      const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
+      expect(summary.assetsCopied).toBe(2);
+
+      const svg = await readFile(join(cwd, 'content/images/2024/01/unsafe.svg'), 'utf8');
+      expect(svg).toContain('<svg');
+      expect(svg).not.toContain('<script');
+      expect(svg).not.toContain('onload=');
+      expect(svg).not.toContain('onclick=');
+      expect(svg).not.toContain('javascript:');
+
+      const jpg = await readFile(join(cwd, 'content/images/2024/01/photo.jpg'));
+      expect(jpg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+      expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(false);
+      expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1392,7 +1461,7 @@ describe('importGhostExport — --download-images (#128)', () => {
 
   interface FakeFetchOptions {
     // URLs that should respond with the given body bytes + content-type.
-    ok?: Record<string, { body: string; contentType?: string }>;
+    ok?: Record<string, { body: string | Uint8Array; contentType?: string }>;
     // URLs that should respond with an HTTP error status.
     error?: Record<string, number>;
     // URLs that should make fetch throw (simulating a connection failure).
@@ -1522,6 +1591,67 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).not.toContain('images.unsplash.com');
     expect(md).toContain(`/content/images/external/${files[0]}`);
     expect(md).toContain(`feature_image: "/content/images/external/${files[0]}"`);
+  });
+
+  test('sanitizes downloaded SVG payloads before writing them', async () => {
+    const svgUrl = 'https://cdn.example.com/logo.svg';
+    await writeFile(exportFile, singleImagePostExport(svgUrl));
+
+    const { fetcher } = fakeFetch({
+      ok: {
+        [svgUrl]: {
+          contentType: 'image/svg+xml',
+          body: [
+            '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">',
+            '<script>alert(1)</script>',
+            '<image href="javascript:alert(2)" />',
+            '<path onclick="alert(3)" d="M0 0h10v10z" />',
+            '</svg>',
+          ].join(''),
+        },
+      },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    const files = await readdir(join(cwd, 'content/images/external'));
+    expect(files).toEqual([expect.stringMatching(/\.svg$/)]);
+    const svg = await readFile(join(cwd, 'content/images/external', files[0]), 'utf8');
+    expect(svg).toContain('<svg');
+    expect(svg).not.toContain('<script');
+    expect(svg).not.toContain('onload=');
+    expect(svg).not.toContain('onclick=');
+    expect(svg).not.toContain('javascript:');
+  });
+
+  test('strips EXIF metadata from downloaded JPEG payloads before writing them', async () => {
+    const jpgUrl = 'https://cdn.example.com/photo.jpg';
+    await writeFile(exportFile, singleImagePostExport(jpgUrl));
+
+    const { fetcher } = fakeFetch({
+      ok: { [jpgUrl]: { body: jpegWithExif(), contentType: 'image/jpeg' } },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    const files = await readdir(join(cwd, 'content/images/external'));
+    expect(files).toEqual([expect.stringMatching(/\.jpg$/)]);
+    const jpg = await readFile(join(cwd, 'content/images/external', files[0]));
+    expect(jpg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(false);
+    expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
   });
 
   test('downloads bookmark icon and thumbnail URLs under content/images/bookmarks/', async () => {

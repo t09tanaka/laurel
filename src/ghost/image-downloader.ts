@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
+import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
 
 // Default per-image size cap. A 10 MiB ceiling covers typical Ghost feature
@@ -162,7 +163,7 @@ export class GhostImageDownloader {
       // `..`, but assert we stay under the configured content output root.
       assertWithinContent(this.contentRoot, absPath);
       await ensureDir(dirname(absPath));
-      await writeFile(absPath, buf);
+      await writeFile(absPath, sanitizeImageAssetBytes(buf, localPath, contentType));
       const entry: CacheEntry = { rewrittenUrl };
       this.cache.set(cacheKey, entry);
       this._downloaded += 1;

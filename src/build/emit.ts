@@ -1,9 +1,10 @@
-import { copyFile, stat, utimes, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { NectarError } from '~/util/errors.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
+import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
 
 // Raster formats the size cap applies to. SVG is intrinsically scalable so a
@@ -259,7 +260,7 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
         } catch (err) {
           // ENOENT is the normal first-build path (no destination yet). Any
           // other error here means we couldn't tell whether the file already
-          // exists, so we fall through to copyFile anyway and let it surface
+          // exists, so we fall through to the sanitized copy anyway and let it surface
           // a real failure if there is one — but we still warn so the
           // operator notices the unhealthy fs state.
           if (!isFsErrnoCode(err, 'ENOENT')) {
@@ -268,8 +269,9 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
             );
           }
         }
-        await copyFile(t.src, t.dst);
-        // copyFile does not preserve mtime, so stamp the destination with
+        const bytes = await readFile(t.src);
+        await writeFile(t.dst, sanitizeImageAssetBytes(bytes, t.src));
+        // Sanitized writes do not preserve mtime, so stamp the destination with
         // the source's mtime. Without this the skip-unchanged check on the
         // next build would always miss (dst mtime is the copy time).
         try {
