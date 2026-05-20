@@ -6,6 +6,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
+import { directionForLocale } from '~/util/locale.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
@@ -225,6 +226,9 @@ function hasParentPathSegment(name: string): boolean {
 export function buildContext(_engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const ctx: Record<string, unknown> = {};
   const data = route.data;
+  if (route.locale) {
+    ctx.locale = route.locale;
+  }
   if (data.post) {
     Object.assign(ctx, data.post);
     ctx.post = data.post;
@@ -289,6 +293,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   const custom = buildCustom(engine);
   const backgroundColor =
     typeof custom.site_background_color === 'string' ? custom.site_background_color : undefined;
+  const routeLocale = route.locale ?? engine.content.site.locale;
   // Per-route enrichment of `@site.navigation` so themes that iterate
   // `{{#foreach @site.navigation}}{{slug}}{{#if current}}…{{/if}}{{/foreach}}`
   // see `slug` (derived from `label`) and `current` (URL match vs. route.url,
@@ -296,6 +301,9 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   const site = enrichSiteNavigation(
     {
       ...engine.content.site,
+      locale: routeLocale,
+      lang: routeLocale,
+      direction: directionForLocale(routeLocale),
       icon: engine.content.site.icon ?? engine.config.site?.icon,
     },
     route,
@@ -308,7 +316,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     custom,
     page: route.kind === 'page' ? route.data.page : undefined,
     route,
-    locale: engine.content.site.locale,
+    locale: routeLocale,
     labs: {},
     // Static builds have no logged-in viewer, so `@member` is always undefined.
     // Source-style themes branch on `{{#unless @member}}` (header/footer/CTA)

@@ -104,6 +104,19 @@ describe('t helper', () => {
     expect(engine.hb.compile('{{t "Powered by %" "Casper"}}')({})).toBe('Betrieben durch Casper');
   });
 
+  test('uses route.locale for t and lang when rendering a localized route', () => {
+    const engine = makeEngine(
+      {
+        en: { Greeting: 'Hello' },
+        ja: { Greeting: 'こんにちは' },
+      },
+      'en',
+    );
+    registerI18nHelpers(engine);
+    const tpl = engine.hb.compile('{{lang}}:{{t "Greeting"}}');
+    expect(tpl({}, { data: { route: { locale: 'ja' } } })).toBe('ja:こんにちは');
+  });
+
   test('stringifies numeric and boolean locale values', () => {
     const engine = makeEngine({
       en: {

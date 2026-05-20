@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, join, relative, resolve } from 'node:path';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
 import { assignPostUrls } from '~/build/permalinks.ts';
 import {
@@ -46,6 +46,17 @@ export type MarkdownTransformHook = (
   },
 ) => string | Promise<string>;
 
+interface ContentDir {
+  dir: string;
+  locale: string | undefined;
+  localized: boolean;
+}
+
+interface LocaleFields {
+  locale: string;
+  localeSource: 'frontmatter' | 'path' | 'site';
+}
+
 export interface LoadContentOptions {
   cwd: string;
   config: NectarConfig;
@@ -85,10 +96,15 @@ function taxonomyArchiveUrl(
   kind: 'tag' | 'author',
   slug: string,
   trailingSlash: TrailingSlashPolicy,
+  routePrefix = '/',
 ): string {
   const template = taxonomies[kind];
   if (template === undefined) return '';
-  return joinRoutePath(basePath, applyTaxonomyTemplate(template, slug), trailingSlash);
+  return joinRoutePath(
+    basePath,
+    joinRouteSegments(routePrefix, applyTaxonomyTemplate(template, slug)),
+    trailingSlash,
+  );
 }
 
 export async function loadContent({
@@ -106,11 +122,13 @@ export async function loadContent({
   // Pre-count post/page files so the pool can skip spawning Bun Workers on
   // small sites where the spawn cost would exceed the parsing cost. Tags and
   // authors don't push markdown through `renderMarkdown`, so they're excluded.
-  const postsDir = resolve(cwd, config.content.posts_dir);
-  const pagesDir = resolve(cwd, config.content.pages_dir);
+  const [postDirs, pageDirs] = await Promise.all([
+    discoverContentDirs(cwd, config.content.posts_dir),
+    discoverContentDirs(cwd, config.content.pages_dir),
+  ]);
   const [postCount, pageCount] = await Promise.all([
-    countMarkdownFiles(postsDir),
-    countMarkdownFiles(pagesDir),
+    countMarkdownFilesInDirs(postDirs),
+    countMarkdownFilesInDirs(pageDirs),
   ]);
   // Paywalled posts render twice (full + truncated for feed), so each post
   // contributes a worst-case 2 jobs. Estimating at 2x ensures borderline sites
@@ -162,15 +180,30 @@ async function loadContentWithPool({
   // runs; defaulting here keeps unit tests that hand-roll a partial config
   // (and skip the pipeline) from blowing up with `undefined`.
   const basePath = config.build.base_path || '/';
-  const [authors, tags, posts, pages] = await Promise.all([
-    loadAuthors(cwd, config, taxonomies, basePath),
-    loadTags(cwd, config, taxonomies, basePath),
+  const [rawAuthors, rawTags, posts, pages] = await Promise.all([
+    loadAuthors(cwd, config),
+    loadTags(cwd, config),
     loadPosts(cwd, config, pool, markdownTransforms),
     loadPages(cwd, config, pool, markdownTransforms),
   ]);
 
-  const authorMap = new Map(authors.map((a) => [a.slug, a]));
-  const tagMap = new Map(tags.map((t) => [t.slug, t]));
+  const localeInfo = resolveLocaleRouting(config.site.locale, [
+    ...rawAuthors,
+    ...rawTags,
+    ...posts,
+    ...pages,
+  ]);
+  const localePrefix = (locale: string): string =>
+    localeInfo.routing ? canonicalRouteUrl(`/${locale}/`, config.build.trailing_slash) : '/';
+  const authors = rawAuthors.map((raw) =>
+    normalizeAuthor(raw, config, taxonomies, basePath, localePrefix(raw.locale)),
+  );
+  const tags = rawTags.map((raw) =>
+    normalizeTag(raw, config, taxonomies, basePath, localePrefix(raw.locale)),
+  );
+
+  const authorMap = new Map(authors.map((a) => [localizedKey(a.locale, a.slug), a]));
+  const tagMap = new Map(tags.map((t) => [localizedKey(t.locale, t.slug), t]));
 
   // Scheduled posts and posts with a future `published_at` must stay hidden
   // until the wall-clock release time has passed. Two distinct gates fold into
@@ -201,6 +234,8 @@ async function loadContentWithPool({
       authorMap,
       tagMap,
       basePath,
+      localePrefix(raw.locale),
+      config.site.locale,
       taxonomies,
       config.build.trailing_slash,
     );
@@ -216,7 +251,10 @@ async function loadContentWithPool({
     if (resolved.email_only) {
       resolved.url = joinRoutePath(
         basePath,
-        `/email-only/${resolved.slug}/`,
+        joinRouteSegments(
+          localePrefix(resolved.locale ?? config.site.locale),
+          `/email-only/${resolved.slug}/`,
+        ),
         config.build.trailing_slash,
       );
       emailOnlyPosts.push(resolved);
@@ -247,7 +285,12 @@ async function loadContentWithPool({
     for (const post of resolvedPosts) {
       const a = assignments.get(post.id);
       if (!a) continue;
-      post.url = joinRoutePath(basePath, a.urlPath, config.build.trailing_slash);
+      const prefix = localePrefix(post.locale ?? config.site.locale);
+      post.url = joinRoutePath(
+        basePath,
+        localeInfo.routing ? joinRouteSegments(prefix, a.urlPath) : a.urlPath,
+        config.build.trailing_slash,
+      );
     }
   }
 
@@ -259,6 +302,8 @@ async function loadContentWithPool({
       authorMap,
       tagMap,
       basePath,
+      localePrefix(raw.locale),
+      config.site.locale,
       taxonomies,
       config.build.trailing_slash,
     );
@@ -280,22 +325,31 @@ async function loadContentWithPool({
   }
   const postsByTag = new Map<string, Post[]>();
   const postsByAuthor = new Map<string, Post[]>();
-  for (const tag of allTags) postsByTag.set(tag.slug, []);
-  for (const author of allAuthors) postsByAuthor.set(author.slug, []);
+  for (const tag of allTags) {
+    postsByTag.set(localizedKey(localeInfo.routing ? tag.locale : undefined, tag.slug), []);
+  }
+  for (const author of allAuthors) {
+    postsByAuthor.set(
+      localizedKey(localeInfo.routing ? author.locale : undefined, author.slug),
+      [],
+    );
+  }
   for (const post of resolvedPosts) {
     const seenTags = new Set<string>();
     for (const t of post.tags) {
-      if (seenTags.has(t.slug)) continue;
-      seenTags.add(t.slug);
+      const key = localizedKey(localeInfo.routing ? t.locale : undefined, t.slug);
+      if (seenTags.has(key)) continue;
+      seenTags.add(key);
       t.count.posts += 1;
-      const bucket = postsByTag.get(t.slug);
+      const bucket = postsByTag.get(key);
       if (bucket) bucket.push(post);
     }
     const seenAuthors = new Set<string>();
     for (const a of post.authors) {
-      if (seenAuthors.has(a.slug)) continue;
-      seenAuthors.add(a.slug);
-      const bucket = postsByAuthor.get(a.slug);
+      const key = localizedKey(localeInfo.routing ? a.locale : undefined, a.slug);
+      if (seenAuthors.has(key)) continue;
+      seenAuthors.add(key);
+      const bucket = postsByAuthor.get(key);
       if (bucket) bucket.push(post);
     }
   }
@@ -311,14 +365,46 @@ async function loadContentWithPool({
     bySlug: {
       posts: new Map(resolvedPosts.map((p) => [p.slug, p])),
       pages: new Map(resolvedPages.map((p) => [p.slug, p])),
-      tags: tagMap,
-      authors: authorMap,
+      tags: publicBySlugMap(tags),
+      authors: publicBySlugMap(authors),
     },
     postsByTag,
     postsByAuthor,
     emailOnlyPosts,
-    site,
+    site: { ...site, locales: localeInfo.locales, localeRouting: localeInfo.routing },
+    locales: localeInfo.locales,
+    localeRouting: localeInfo.routing,
   };
+}
+
+function localizedKey(locale: string | undefined, slug: string): string {
+  return locale ? `${locale}\u0000${slug}` : slug;
+}
+
+function publicBySlugMap<T extends { slug: string }>(items: readonly T[]): Map<string, T> {
+  return new Map(items.map((item) => [item.slug, item]));
+}
+
+function resolveLocaleRouting(
+  siteLocale: string,
+  items: readonly LocaleFields[],
+): { locales: string[]; routing: boolean } {
+  const seen = new Set<string>();
+  const locales: string[] = [];
+  const add = (locale: string) => {
+    if (seen.has(locale)) return;
+    seen.add(locale);
+    locales.push(locale);
+  };
+  add(siteLocale);
+  let explicitLocale = false;
+  for (const item of items) {
+    add(item.locale);
+    if (item.localeSource !== 'site') explicitLocale = true;
+  }
+  const rest = locales.slice(1).sort((a, b) => a.localeCompare(b));
+  const ordered = [locales[0] ?? siteLocale, ...rest];
+  return { locales: ordered, routing: explicitLocale || ordered.length > 1 };
 }
 
 // Derive Ghost-shaped Tier objects from the flat `[[tiers]]` config so themes
@@ -440,6 +526,8 @@ function buildSite(config: NectarConfig): SiteData {
 interface RawPost {
   id: string;
   slug: string;
+  locale: string;
+  localeSource: 'frontmatter' | 'path' | 'site';
   title: string;
   html: string;
   plaintext: string;
@@ -484,16 +572,50 @@ interface RawPage extends Omit<RawPost, 'featured' | 'visibility' | 'email_only'
   custom_template: string | undefined;
 }
 
+interface RawAuthor extends LocaleFields {
+  id: string;
+  slug: string;
+  name: string;
+  bio: string;
+  profile_image: string | undefined;
+  cover_image: string | undefined;
+  website: string | undefined;
+  location: string | undefined;
+  twitter: string | undefined;
+  facebook: string | undefined;
+  linkedin: string | undefined;
+  bluesky: string | undefined;
+  mastodon: string | undefined;
+  threads: string | undefined;
+  tiktok: string | undefined;
+  youtube: string | undefined;
+  instagram: string | undefined;
+  meta_title: string | undefined;
+  meta_description: string | undefined;
+}
+
+interface RawTag extends LocaleFields {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  feature_image: string | undefined;
+  visibility: 'public' | 'internal';
+  meta_title: string | undefined;
+  meta_description: string | undefined;
+}
+
 async function loadPosts(
   cwd: string,
   config: NectarConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPost[]> {
-  const dir = resolve(cwd, config.content.posts_dir);
-  const posts = await loadMarkdownDir(
-    dir,
-    async (file, raw) => normalizePost(file, raw, cwd, dir, config, pool, transforms),
+  const dirs = await discoverContentDirs(cwd, config.content.posts_dir);
+  const posts = await loadMarkdownDirs(
+    dirs,
+    async (file, raw, dir) =>
+      normalizePost(file, raw, cwd, dir.dir, config, pool, transforms, 'post', dir.locale),
     config.content.max_markdown_bytes,
   );
   if (config.content.visibility_policy === 'skip') {
@@ -508,38 +630,29 @@ async function loadPages(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPage[]> {
-  const dir = resolve(cwd, config.content.pages_dir);
-  return loadMarkdownDir(
-    dir,
-    async (file, raw) => normalizePage(file, raw, cwd, dir, config, pool, transforms),
+  const dirs = await discoverContentDirs(cwd, config.content.pages_dir);
+  return loadMarkdownDirs(
+    dirs,
+    async (file, raw, dir) =>
+      normalizePage(file, raw, cwd, dir.dir, config, pool, transforms, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
 
-async function loadAuthors(
-  cwd: string,
-  config: NectarConfig,
-  taxonomies: ResolvedTaxonomies,
-  basePath: string,
-): Promise<Author[]> {
-  const dir = resolve(cwd, config.content.authors_dir);
-  return loadMarkdownDir(
-    dir,
-    async (file, raw) => normalizeAuthor(file, raw, config, taxonomies, basePath),
+async function loadAuthors(cwd: string, config: NectarConfig): Promise<RawAuthor[]> {
+  const dirs = await discoverContentDirs(cwd, config.content.authors_dir);
+  return loadMarkdownDirs(
+    dirs,
+    async (file, raw, dir) => normalizeRawAuthor(file, raw, config, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
 
-async function loadTags(
-  cwd: string,
-  config: NectarConfig,
-  taxonomies: ResolvedTaxonomies,
-  basePath: string,
-): Promise<Tag[]> {
-  const dir = resolve(cwd, config.content.tags_dir);
-  return loadMarkdownDir(
-    dir,
-    async (file, raw) => normalizeTag(file, raw, config, taxonomies, basePath),
+async function loadTags(cwd: string, config: NectarConfig): Promise<RawTag[]> {
+  const dirs = await discoverContentDirs(cwd, config.content.tags_dir);
+  return loadMarkdownDirs(
+    dirs,
+    async (file, raw, dir) => normalizeRawTag(file, raw, config, dir.locale),
     config.content.max_markdown_bytes,
   );
 }
@@ -567,6 +680,45 @@ async function countMarkdownFiles(dir: string): Promise<number> {
     count += 1;
   }
   return count;
+}
+
+async function countMarkdownFilesInDirs(dirs: readonly ContentDir[]): Promise<number> {
+  const counts = await Promise.all(dirs.map((dir) => countMarkdownFiles(dir.dir)));
+  return counts.reduce((sum, count) => sum + count, 0);
+}
+
+async function discoverContentDirs(cwd: string, configuredDir: string): Promise<ContentDir[]> {
+  const legacyDir = resolve(cwd, configuredDir);
+  const parent = dirname(legacyDir);
+  const leaf = basename(legacyDir);
+  const dirs: ContentDir[] = [{ dir: legacyDir, locale: undefined, localized: false }];
+  const seen = new Set([legacyDir]);
+  let entries: { name: string; isDirectory(): boolean }[];
+  try {
+    entries = await readdir(parent, { withFileTypes: true });
+  } catch {
+    return dirs;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!isLocaleTag(entry.name)) continue;
+    const localizedDir = join(parent, entry.name, leaf);
+    if (seen.has(localizedDir)) continue;
+    seen.add(localizedDir);
+    dirs.push({ dir: localizedDir, locale: entry.name, localized: true });
+  }
+  return dirs;
+}
+
+async function loadMarkdownDirs<T>(
+  dirs: readonly ContentDir[],
+  normalize: (filePath: string, raw: string, dir: ContentDir) => Promise<T>,
+  maxBytes: number,
+): Promise<T[]> {
+  const chunks = await Promise.all(
+    dirs.map((dir) => loadMarkdownDir(dir.dir, (file, raw) => normalize(file, raw, dir), maxBytes)),
+  );
+  return chunks.flat();
 }
 
 async function loadMarkdownDir<T>(
@@ -692,6 +844,35 @@ function sanitizeUserSlugList(values: string[], _context: string): string[] {
   return out;
 }
 
+function isLocaleTag(value: string | undefined): value is string {
+  return /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(value ?? '');
+}
+
+function resolveContentLocale(
+  data: Record<string, unknown>,
+  filePath: string,
+  pathLocale: string | undefined,
+  siteLocale: string,
+): LocaleFields {
+  const frontmatterLocale = asString(data.locale);
+  if (frontmatterLocale !== undefined) {
+    if (!isLocaleTag(frontmatterLocale)) {
+      logger.warn(
+        `Ignoring invalid locale ${JSON.stringify(frontmatterLocale)} in ${filePath}; expected a BCP 47 language tag.`,
+      );
+    } else {
+      if (pathLocale !== undefined && pathLocale !== frontmatterLocale) {
+        logger.warn(
+          `Locale mismatch in ${filePath}: path locale ${JSON.stringify(pathLocale)} differs from frontmatter locale ${JSON.stringify(frontmatterLocale)}; using frontmatter locale.`,
+        );
+      }
+      return { locale: frontmatterLocale, localeSource: 'frontmatter' };
+    }
+  }
+  if (pathLocale !== undefined) return { locale: pathLocale, localeSource: 'path' };
+  return { locale: siteLocale, localeSource: 'site' };
+}
+
 async function applyMarkdownTransforms(
   body: string,
   kind: 'post' | 'page',
@@ -725,12 +906,14 @@ async function normalizePost(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   kind: 'post' | 'page' = 'post',
+  pathLocale?: string,
 ): Promise<RawPost> {
   const { data, body: rawBody } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
   const locale = config?.site.locale;
+  const contentLocale = resolveContentLocale(data, filePath, pathLocale, locale ?? 'en');
   const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
-  const rendered = await pool.render(body, { unsafe: unsafeHtml, locale });
+  const rendered = await pool.render(body, { unsafe: unsafeHtml, locale: contentLocale.locale });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
@@ -768,7 +951,10 @@ async function normalizePost(
   let feedPlaintext = plaintext;
   if (config && isPaywallVisibility(visibility)) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
-    const reRendered = await pool.render(truncated, { unsafe: unsafeHtml, locale });
+    const reRendered = await pool.render(truncated, {
+      unsafe: unsafeHtml,
+      locale: contentLocale.locale,
+    });
     feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
     feedPlaintext = reRendered.plaintext;
     if (config.content.visibility_policy === 'truncate') {
@@ -790,15 +976,17 @@ async function normalizePost(
   return {
     id: `post-${slug}`,
     slug,
+    locale: contentLocale.locale,
+    localeSource: contentLocale.localeSource,
     title,
     html,
     plaintext,
     word_count,
     reading_time,
-    excerpt: customExcerpt ?? buildDefaultExcerpt(plaintext, locale),
+    excerpt: customExcerpt ?? buildDefaultExcerpt(plaintext, contentLocale.locale),
     custom_excerpt: customExcerpt,
     feed_html: feedHtml,
-    feed_excerpt: customExcerpt ?? buildDefaultExcerpt(feedPlaintext, locale),
+    feed_excerpt: customExcerpt ?? buildDefaultExcerpt(feedPlaintext, contentLocale.locale),
     feature_image: featureImage,
     feature_image_alt: asString(data.feature_image_alt),
     feature_image_caption: sanitizeFeatureImageCaption(asString(data.feature_image_caption)),
@@ -897,8 +1085,19 @@ async function normalizePage(
   config: NectarConfig | undefined,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  pathLocale?: string,
 ): Promise<RawPage> {
-  const base = await normalizePost(filePath, raw, cwd, rootDir, config, pool, transforms, 'page');
+  const base = await normalizePost(
+    filePath,
+    raw,
+    cwd,
+    rootDir,
+    config,
+    pool,
+    transforms,
+    'page',
+    pathLocale,
+  );
   const { data } = parseFrontmatter(raw, { filePath });
   return {
     ...base,
@@ -931,14 +1130,14 @@ function sanitizeCustomTemplate(value: string | undefined, filePath: string): st
   return `custom-${base}`;
 }
 
-async function normalizeAuthor(
+async function normalizeRawAuthor(
   filePath: string,
   raw: string,
   config: NectarConfig,
-  taxonomies: ResolvedTaxonomies,
-  basePath: string,
-): Promise<Author> {
+  pathLocale: string | undefined,
+): Promise<RawAuthor> {
   const { data, body } = parseFrontmatter(raw, { filePath });
+  const locale = resolveContentLocale(data, filePath, pathLocale, config.site.locale);
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} author slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
@@ -947,6 +1146,8 @@ async function normalizeAuthor(
   return {
     id: `author-${slug}`,
     slug,
+    locale: locale.locale,
+    localeSource: locale.localeSource,
     name,
     bio,
     profile_image: asString(data.profile_image),
@@ -964,18 +1165,56 @@ async function normalizeAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, config.build.trailing_slash),
   };
 }
 
-async function normalizeTag(
-  filePath: string,
-  raw: string,
+function normalizeAuthor(
+  raw: RawAuthor,
   config: NectarConfig,
   taxonomies: ResolvedTaxonomies,
   basePath: string,
-): Promise<Tag> {
+  routePrefix: string,
+): Author {
+  return {
+    id: raw.id,
+    slug: raw.slug,
+    locale: raw.locale,
+    name: raw.name,
+    bio: raw.bio,
+    profile_image: raw.profile_image,
+    cover_image: raw.cover_image,
+    website: raw.website,
+    location: raw.location,
+    twitter: raw.twitter,
+    facebook: raw.facebook,
+    linkedin: raw.linkedin,
+    bluesky: raw.bluesky,
+    mastodon: raw.mastodon,
+    threads: raw.threads,
+    tiktok: raw.tiktok,
+    youtube: raw.youtube,
+    instagram: raw.instagram,
+    meta_title: raw.meta_title,
+    meta_description: raw.meta_description,
+    url: taxonomyArchiveUrl(
+      basePath,
+      taxonomies,
+      'author',
+      raw.slug,
+      config.build.trailing_slash,
+      routePrefix,
+    ),
+  };
+}
+
+async function normalizeRawTag(
+  filePath: string,
+  raw: string,
+  config: NectarConfig,
+  pathLocale: string | undefined,
+): Promise<RawTag> {
   const { data } = parseFrontmatter(raw, { filePath });
+  const locale = resolveContentLocale(data, filePath, pathLocale, config.site.locale);
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} tag slug`) ??
     slugify(basename(filePath, extname(filePath)), { lower: true, strict: true });
@@ -983,13 +1222,42 @@ async function normalizeTag(
   return {
     id: `tag-${slug}`,
     slug,
+    locale: locale.locale,
+    localeSource: locale.localeSource,
     name,
     description: asString(data.description) ?? '',
     feature_image: asString(data.feature_image),
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, config.build.trailing_slash),
+  };
+}
+
+function normalizeTag(
+  raw: RawTag,
+  config: NectarConfig,
+  taxonomies: ResolvedTaxonomies,
+  basePath: string,
+  routePrefix: string,
+): Tag {
+  return {
+    id: raw.id,
+    slug: raw.slug,
+    locale: raw.locale,
+    name: raw.name,
+    description: raw.description,
+    feature_image: raw.feature_image,
+    visibility: raw.visibility,
+    meta_title: raw.meta_title,
+    meta_description: raw.meta_description,
+    url: taxonomyArchiveUrl(
+      basePath,
+      taxonomies,
+      'tag',
+      raw.slug,
+      config.build.trailing_slash,
+      routePrefix,
+    ),
     count: { posts: 0 },
   };
 }
@@ -1027,14 +1295,28 @@ function resolvePostRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   basePath: string,
+  routePrefix: string,
+  siteLocale: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Post {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, basePath, taxonomies, trailingSlash);
+  const tagList = resolveTagSlugs(
+    raw.tagSlugs,
+    tags,
+    basePath,
+    routePrefix,
+    raw.locale,
+    siteLocale,
+    taxonomies,
+    trailingSlash,
+  );
   const authorList = resolveAuthorSlugs(
     raw.authorSlugs,
     authors,
     basePath,
+    routePrefix,
+    raw.locale,
+    siteLocale,
     taxonomies,
     trailingSlash,
   );
@@ -1042,11 +1324,16 @@ function resolvePostRelations(
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinRoutePath(basePath, `/${raw.slug}/`, trailingSlash);
+  const url = joinRoutePath(
+    basePath,
+    joinRouteSegments(routePrefix, `/${raw.slug}/`),
+    trailingSlash,
+  );
 
   return {
     id: raw.id,
     slug: raw.slug,
+    locale: raw.locale,
     title: raw.title,
     html: raw.html,
     plaintext: raw.plaintext,
@@ -1101,14 +1388,28 @@ function resolvePageRelations(
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
   basePath: string,
+  routePrefix: string,
+  siteLocale: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Page {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, basePath, taxonomies, trailingSlash);
+  const tagList = resolveTagSlugs(
+    raw.tagSlugs,
+    tags,
+    basePath,
+    routePrefix,
+    raw.locale,
+    siteLocale,
+    taxonomies,
+    trailingSlash,
+  );
   const authorList = resolveAuthorSlugs(
     raw.authorSlugs,
     authors,
     basePath,
+    routePrefix,
+    raw.locale,
+    siteLocale,
     taxonomies,
     trailingSlash,
   );
@@ -1116,11 +1417,16 @@ function resolvePageRelations(
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinRoutePath(basePath, `/${raw.slug}/`, trailingSlash);
+  const url = joinRoutePath(
+    basePath,
+    joinRouteSegments(routePrefix, `/${raw.slug}/`),
+    trailingSlash,
+  );
 
   return {
     id: raw.id,
     slug: raw.slug,
+    locale: raw.locale,
     title: raw.title,
     html: raw.html,
     plaintext: raw.plaintext,
@@ -1177,11 +1483,15 @@ function resolveTagSlugs(
   slugs: string[],
   tags: Map<string, Tag>,
   basePath: string,
+  routePrefix: string,
+  locale: string,
+  siteLocale: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Tag[] {
   return slugs.map((slug) => {
-    const existing = tags.get(slug);
+    const key = localizedKey(locale, slug);
+    const existing = tags.get(key) ?? tags.get(localizedKey(siteLocale, slug));
     if (existing) return existing;
     // A post references a tag slug that has no `content/tags/<slug>.md`
     // file. Auto-create a stub so the post still renders, but warn once
@@ -1198,16 +1508,17 @@ function resolveTagSlugs(
     const created: Tag = {
       id: `tag-${slug}`,
       slug,
+      locale,
       name: titleCase(slug),
       description: '',
       feature_image: undefined,
       visibility: slug.startsWith('hash-') ? 'internal' : 'public',
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, trailingSlash),
+      url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, trailingSlash, routePrefix),
       count: { posts: 0 },
     };
-    tags.set(slug, created);
+    tags.set(key, created);
     return created;
   });
 }
@@ -1216,11 +1527,15 @@ function resolveAuthorSlugs(
   slugs: string[],
   authors: Map<string, Author>,
   basePath: string,
+  routePrefix: string,
+  locale: string,
+  siteLocale: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Author[] {
   return slugs.map((slug) => {
-    const existing = authors.get(slug);
+    const key = localizedKey(locale, slug);
+    const existing = authors.get(key) ?? authors.get(localizedKey(siteLocale, slug));
     if (existing) return existing;
     // Mirror of the tag path above: warn once per build when an author
     // slug appears in frontmatter without a backing `content/authors/<slug>.md`.
@@ -1235,6 +1550,7 @@ function resolveAuthorSlugs(
     const created: Author = {
       id: `author-${slug}`,
       slug,
+      locale,
       name: titleCase(slug),
       bio: '',
       profile_image: undefined,
@@ -1252,9 +1568,9 @@ function resolveAuthorSlugs(
       instagram: undefined,
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, trailingSlash),
+      url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, trailingSlash, routePrefix),
     };
-    authors.set(slug, created);
+    authors.set(key, created);
     return created;
   });
 }
@@ -1280,6 +1596,12 @@ function joinPathWithBase(basePath: string, path: string): string {
   const prefix = basePath && basePath !== '/' ? basePath : '/';
   const clean = path.startsWith('/') ? path.slice(1) : path;
   return prefix === '/' ? `/${clean}` : `${prefix}${clean}`;
+}
+
+function joinRouteSegments(prefix: string, path: string): string {
+  const cleanPrefix = prefix === '/' ? '' : prefix.replace(/\/+$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${cleanPrefix}${cleanPath}` || '/';
 }
 
 function joinRoutePath(basePath: string, path: string, trailingSlash: TrailingSlashPolicy): string {

@@ -33,6 +33,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         | {
             kind?: string;
             url?: string;
+            alternates?: { locale: string; href: string }[];
             data?: Record<string, unknown>;
             meta?: { canonical?: string };
           }
@@ -89,6 +90,11 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (cardAssetsSnippet) parts.push(cardAssetsSnippet);
       if (meta.canonical) {
         parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
+      }
+      for (const alternate of route?.alternates ?? []) {
+        parts.push(
+          `<link rel="alternate" hreflang="${escapeAttr(alternate.locale)}" href="${escapeAttr(alternate.href)}">`,
+        );
       }
       for (const link of engine.favicons?.links ?? []) {
         parts.push(renderFaviconLink(link, engine.config?.build?.base_path ?? '/'));

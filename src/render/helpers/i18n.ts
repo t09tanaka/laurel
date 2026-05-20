@@ -3,12 +3,12 @@ import type { ThemeLocale, ThemeLocaleValue } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerI18nHelpers(engine: NectarEngine): void {
-  const locale = engine.content.site.locale;
   const fallback = engine.theme.locales.en ?? {};
-  const active = engine.theme.locales[locale] ?? fallback;
 
   engine.hb.registerHelper('t', function tHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
+    const locale = routeLocale(options, engine.content.site.locale);
+    const active = engine.theme.locales[locale] ?? fallback;
     const key = String(args[0] ?? '');
     // Ghost treats an existing locale entry as authoritative even when its
     // value is ""; only an absent key falls through to en.json and then the key.
@@ -27,9 +27,14 @@ export function registerI18nHelpers(engine: NectarEngine): void {
     return interpolate(String(lookup), options.hash as Record<string, unknown>, positional);
   });
 
-  engine.hb.registerHelper('lang', function langHelper() {
-    return locale;
+  engine.hb.registerHelper('lang', function langHelper(options: Handlebars.HelperOptions) {
+    return routeLocale(options, engine.content.site.locale);
   });
+}
+
+function routeLocale(options: Handlebars.HelperOptions, fallback: string): string {
+  const route = options.data?.route as { locale?: unknown } | undefined;
+  return typeof route?.locale === 'string' ? route.locale : fallback;
 }
 
 function hasLocaleEntry(locale: ThemeLocale, key: string): boolean {

@@ -91,6 +91,7 @@ function renderGhostHead(
     config?: Partial<NectarEngine['config']>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
+    routeAlternates?: { locale: string; href: string }[];
     favicons?: FaviconSet;
     theme?: Partial<NectarEngine['theme']>;
   } = {},
@@ -103,6 +104,7 @@ function renderGhostHead(
       route: {
         kind: opts.routeKind,
         url: routeUrl,
+        alternates: opts.routeAlternates,
         data: opts.routeData ?? { post: ctx },
       },
     },
@@ -437,6 +439,24 @@ describe('ghost_head RSS feed autodiscovery', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
     expect(html).toContain(
       '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+    );
+  });
+});
+
+describe('ghost_head locale alternates', () => {
+  test('emits hreflang alternate links from the route plan', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/ja/hello/', {
+      routeAlternates: [
+        { locale: 'en', href: 'https://example.com/en/hello/' },
+        { locale: 'ja', href: 'https://example.com/ja/hello/' },
+      ],
+    });
+
+    expect(html).toContain(
+      '<link rel="alternate" hreflang="en" href="https://example.com/en/hello/">',
+    );
+    expect(html).toContain(
+      '<link rel="alternate" hreflang="ja" href="https://example.com/ja/hello/">',
     );
   });
 });

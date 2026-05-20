@@ -135,6 +135,72 @@ describe('loadContent', () => {
     expect(rtl.site.direction).toBe('rtl');
   });
 
+  test('loads locale-scoped content trees and frontmatter locale into localized model URLs', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-locales-'));
+    await mkdir(join(cwd, 'content/en/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/ja/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/ja/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/ja/tags'), { recursive: true });
+    await mkdir(join(cwd, 'content/ja/authors'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/en/posts/hello.md'),
+      `---
+title: Hello
+date: 2026-01-01T00:00:00Z
+---
+
+Hello body.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/ja/posts/hello.md'),
+      `---
+title: こんにちは
+locale: ja
+date: 2026-01-02T00:00:00Z
+tags: [news]
+authors: [hana]
+---
+
+本文です。
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/ja/pages/about.md'),
+      `---
+title: About JA
+---
+About JA.
+`,
+      'utf8',
+    );
+    await writeFile(join(cwd, 'content/ja/tags/news.md'), '---\nname: ニュース\n---\n', 'utf8');
+    await writeFile(join(cwd, 'content/ja/authors/hana.md'), '---\nname: Hana\n---\n', 'utf8');
+
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+
+    expect(graph.localeRouting).toBe(true);
+    expect(graph.locales).toEqual(['en', 'ja']);
+    expect(graph.posts.map((p) => [p.locale, p.url])).toEqual([
+      ['ja', '/ja/hello/'],
+      ['en', '/en/hello/'],
+    ]);
+    expect(graph.pages[0]?.locale).toBe('ja');
+    expect(graph.pages[0]?.url).toBe('/ja/about/');
+    expect(graph.tags.find((t) => t.locale === 'ja' && t.slug === 'news')?.url).toBe(
+      '/ja/tag/news/',
+    );
+    expect(graph.authors.find((a) => a.locale === 'ja' && a.slug === 'hana')?.url).toBe(
+      '/ja/author/hana/',
+    );
+    expect(graph.postsByTag.get('ja\u0000news')?.[0]?.locale).toBe('ja');
+  });
+
   test('site.members_* / recommendations_enabled default to false when no portal is configured', async () => {
     // Ghost Source theme branches sidebar/footer/CTA/navigation on these.
     // Default config has no Portal backend, so they must be stable booleans

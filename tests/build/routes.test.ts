@@ -377,6 +377,49 @@ describe('planRoutes — defaultMeta.canonical', () => {
   });
 });
 
+describe('planRoutes — multi-locale route prefixes', () => {
+  test('emits a per-locale route tree and alternate links for matching localized posts', () => {
+    const config = makeConfig();
+    const en = makePost('hello', {
+      id: 'en-hello',
+      locale: 'en',
+      title: 'Hello',
+      url: '/en/hello/',
+    });
+    const ja = makePost('hello', {
+      id: 'ja-hello',
+      locale: 'ja',
+      title: 'こんにちは',
+      url: '/ja/hello/',
+    });
+    const content = {
+      ...makeGraph({ posts: [en, ja] }),
+      locales: ['en', 'ja'],
+      localeRouting: true,
+      site: { ...makeSite(), locales: ['en', 'ja'], localeRouting: true },
+    };
+
+    const routes = planRoutes({ config, content, theme: makeTheme() });
+
+    expect(routes.find((r) => r.kind === 'home' && r.locale === 'en')?.url).toBe('/en/');
+    expect(routes.find((r) => r.kind === 'home' && r.locale === 'ja')?.url).toBe('/ja/');
+    expect(routes.find((r) => r.kind === 'home' && r.locale === 'en')?.data.posts).toEqual([en]);
+    expect(routes.find((r) => r.kind === 'home' && r.locale === 'ja')?.data.posts).toEqual([ja]);
+
+    const enPost = routes.find((r) => r.kind === 'post' && r.locale === 'en');
+    const jaPost = routes.find((r) => r.kind === 'post' && r.locale === 'ja');
+    expect(enPost?.url).toBe('/en/hello/');
+    expect(enPost?.outputPath).toBe('en/hello/index.html');
+    expect(jaPost?.url).toBe('/ja/hello/');
+    expect(jaPost?.outputPath).toBe('ja/hello/index.html');
+    expect(enPost?.alternates).toEqual([
+      { locale: 'en', url: '/en/hello/', href: 'https://example.com/en/hello/' },
+      { locale: 'ja', url: '/ja/hello/', href: 'https://example.com/ja/hello/' },
+    ]);
+    expect(jaPost?.alternates).toEqual(enPost?.alternates);
+  });
+});
+
 describe('planRoutes — home meta title includes site description', () => {
   test('home meta.title combines site.title and site.description with em dash', () => {
     const config = makeConfig('https://example.com');

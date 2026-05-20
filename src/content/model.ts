@@ -11,6 +11,8 @@ export interface SiteData {
   description: string;
   url: string;
   locale: string;
+  locales?: string[];
+  localeRouting?: boolean;
   direction: 'ltr' | 'rtl';
   timezone: string;
   cover_image: string | undefined;
@@ -68,6 +70,7 @@ export interface SiteData {
 export interface Author {
   id: string;
   slug: string;
+  locale?: string;
   name: string;
   bio: string;
   profile_image: string | undefined;
@@ -91,6 +94,7 @@ export interface Author {
 export interface Tag {
   id: string;
   slug: string;
+  locale?: string;
   name: string;
   description: string;
   feature_image: string | undefined;
@@ -104,6 +108,7 @@ export interface Tag {
 export interface Post {
   id: string;
   slug: string;
+  locale?: string;
   title: string;
   html: string;
   plaintext: string;
@@ -170,6 +175,7 @@ export interface Post {
 export interface Page {
   id: string;
   slug: string;
+  locale?: string;
   title: string;
   html: string;
   plaintext: string;
@@ -258,6 +264,8 @@ export interface ContentGraph {
   // placeholder URLs that a delivered newsletter can link to.
   emailOnlyPosts: Post[];
   site: SiteData;
+  locales?: string[];
+  localeRouting?: boolean;
 }
 
 // Subset of `Post` that aggregate routes (home / index / tag archive /

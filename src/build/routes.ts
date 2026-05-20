@@ -41,53 +41,65 @@ export function planRoutes(opts: {
   const basePath = config.build.base_path || '/';
   const paginationPrefix = config.components?.pagination?.prefix ?? 'page';
   const trailingSlash = config.build.trailing_slash ?? 'always';
+  const localeRouting = content.localeRouting === true;
+  const routeLocales = localeRouting ? (content.locales ?? [content.site.locale]) : [undefined];
 
   const homeTemplate = theme.templates.home ? 'home' : 'index';
   const indexTemplate = theme.templates.index ?? theme.templates.home;
   if (indexTemplate) {
-    const pages = paginatePosts(content.posts, perPage);
-    pages.forEach((slice, idx) => {
-      const url = canonicalRouteUrl(
-        idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`,
-        trailingSlash,
-      );
-      const outputPath = routeUrlToOutputPath(url, trailingSlash);
-      routes.push({
-        kind: idx === 0 ? 'home' : 'index',
-        url,
-        outputPath,
-        template: idx === 0 ? homeTemplate : 'index',
-        lastmod: latestPostTimestamp(slice),
-        // `/<prefix>/N/` is a paginated view of the same posts already reachable
-        // from `/`; listing it in the sitemap duplicates the index without
-        // giving crawlers a canonical landing target. Only the first slice
-        // (the home itself) is indexable. See #781.
-        indexable: idx === 0,
-        data: {
-          posts: slice,
-          pagination: paginationInfo(
-            idx,
-            pages,
-            perPage,
-            content.posts.length,
-            '/',
-            basePath,
-            paginationPrefix,
-            trailingSlash,
-          ),
-        },
-        meta: defaultMeta(
-          config,
+    for (const locale of routeLocales) {
+      const localePosts = filterByLocale(content.posts, locale);
+      const pages = paginatePosts(localePosts, perPage);
+      pages.forEach((slice, idx) => {
+        const url = canonicalRouteUrl(
+          withLocaleRoutePrefix(locale, idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`),
+          trailingSlash,
+        );
+        const outputPath = routeUrlToOutputPath(url, trailingSlash);
+        routes.push({
+          kind: idx === 0 ? 'home' : 'index',
           url,
-          idx === 0 ? homeTitle(config) : `${config.site.title} - Page ${idx + 1}`,
-        ),
+          outputPath,
+          template: idx === 0 ? homeTemplate : 'index',
+          locale,
+          lastmod: latestPostTimestamp(slice),
+          // `/<prefix>/N/` is a paginated view of the same posts already reachable
+          // from `/`; listing it in the sitemap duplicates the index without
+          // giving crawlers a canonical landing target. Only the first slice
+          // (the home itself) is indexable. See #781.
+          indexable: idx === 0,
+          data: {
+            posts: slice,
+            pagination: paginationInfo(
+              idx,
+              pages,
+              perPage,
+              localePosts.length,
+              withLocaleRoutePrefix(locale, '/'),
+              basePath,
+              paginationPrefix,
+              trailingSlash,
+            ),
+          },
+          meta: defaultMeta(
+            config,
+            url,
+            idx === 0 ? homeTitle(config) : `${config.site.title} - Page ${idx + 1}`,
+          ),
+        });
       });
-    });
+    }
   }
 
   for (const post of content.posts) {
     const assignment = postAssignments.get(post.id);
-    const url = canonicalRouteUrl(assignment?.urlPath ?? `/${post.slug}/`, trailingSlash);
+    const url = canonicalRouteUrl(
+      withLocaleRoutePrefix(
+        localeRouting ? post.locale : undefined,
+        assignment?.urlPath ?? `/${post.slug}/`,
+      ),
+      trailingSlash,
+    );
     // Per-collection `template:` field opts a bucket of posts into a custom
     // theme template (`{template}.hbs`). Fall back to the warned template if
     // the theme doesn't ship the requested file — same UX as `routes:`
@@ -98,6 +110,7 @@ export function planRoutes(opts: {
       url,
       outputPath: routeUrlToOutputPath(url, trailingSlash),
       template,
+      locale: localeRouting ? post.locale : undefined,
       lastmod: post.updated_at ?? post.published_at,
       data: { post },
       meta: defaultMeta(
@@ -112,17 +125,21 @@ export function planRoutes(opts: {
 
   if (theme.templates.page) {
     for (const page of content.pages) {
-      const url = canonicalRouteUrl(`/${page.slug}/`, trailingSlash);
+      const localizedUrl = canonicalRouteUrl(
+        withLocaleRoutePrefix(localeRouting ? page.locale : undefined, `/${page.slug}/`),
+        trailingSlash,
+      );
       routes.push({
         kind: 'page',
-        url,
-        outputPath: routeUrlToOutputPath(url, trailingSlash),
+        url: localizedUrl,
+        outputPath: routeUrlToOutputPath(localizedUrl, trailingSlash),
         template: resolvePageTemplate(page, theme),
+        locale: localeRouting ? page.locale : undefined,
         lastmod: page.updated_at ?? page.published_at,
         data: { page },
         meta: defaultMeta(
           config,
-          url,
+          localizedUrl,
           page.meta_title ?? page.title,
           page.meta_description ?? page.excerpt,
           page.feature_image,
@@ -144,10 +161,15 @@ export function planRoutes(opts: {
     // see the schema default of 1.
     const minPostsPerTag = config.components.tags?.min_posts_per_tag ?? 1;
     for (const tag of content.tags) {
-      const tagPosts = content.postsByTag.get(tag.slug) ?? [];
+      const tagPosts =
+        content.postsByTag.get(localizedKey(localeRouting ? tag.locale : undefined, tag.slug)) ??
+        [];
       if (tagPosts.length < minPostsPerTag) continue;
       const pages = paginatePosts(tagPosts, perPage);
-      const base = applyTaxonomyTemplate(tagTemplate, tag.slug);
+      const base = withLocaleRoutePrefix(
+        localeRouting ? tag.locale : undefined,
+        applyTaxonomyTemplate(tagTemplate, tag.slug),
+      );
       pages.forEach((slice, idx) => {
         const url = canonicalRouteUrl(
           idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
@@ -159,6 +181,7 @@ export function planRoutes(opts: {
           url,
           outputPath,
           template: 'tag',
+          locale: localeRouting ? tag.locale : undefined,
           lastmod: latestPostTimestamp(slice),
           // Tag archive pagination tails (`/tag/<slug>/<prefix>/N/`) are
           // duplicates of the canonical tag landing with offset posts; keep
@@ -220,14 +243,18 @@ export function planRoutes(opts: {
         `routes.yaml: route '${entry.url}' requests content_type '${entry.content_type}' which is parsed but not yet applied; the route will be emitted as HTML.`,
       );
     }
-    routes.push({
-      kind: 'custom',
-      url: canonicalRouteUrl(entry.url, trailingSlash),
-      outputPath: routeUrlToOutputPath(entry.url, trailingSlash),
-      template: entry.template,
-      data: {},
-      meta: defaultMeta(config, canonicalRouteUrl(entry.url, trailingSlash), config.site.title),
-    });
+    for (const locale of routeLocales) {
+      const url = canonicalRouteUrl(withLocaleRoutePrefix(locale, entry.url), trailingSlash);
+      routes.push({
+        kind: 'custom',
+        url,
+        outputPath: routeUrlToOutputPath(url, trailingSlash),
+        template: entry.template,
+        locale,
+        data: {},
+        meta: defaultMeta(config, url, config.site.title),
+      });
+    }
   }
 
   const errorTemplate = theme.templates['error-404']
@@ -258,10 +285,16 @@ export function planRoutes(opts: {
     // posts. See backlog #152.
     const minPostsPerAuthor = config.components.authors?.min_posts_per_author ?? 1;
     for (const author of content.authors) {
-      const authorPosts = content.postsByAuthor.get(author.slug) ?? [];
+      const authorPosts =
+        content.postsByAuthor.get(
+          localizedKey(localeRouting ? author.locale : undefined, author.slug),
+        ) ?? [];
       if (authorPosts.length < minPostsPerAuthor) continue;
       const pages = paginatePosts(authorPosts, perPage);
-      const base = applyTaxonomyTemplate(authorTemplate, author.slug);
+      const base = withLocaleRoutePrefix(
+        localeRouting ? author.locale : undefined,
+        applyTaxonomyTemplate(authorTemplate, author.slug),
+      );
       pages.forEach((slice, idx) => {
         const url = canonicalRouteUrl(
           idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`,
@@ -273,6 +306,7 @@ export function planRoutes(opts: {
           url,
           outputPath,
           template: 'author',
+          locale: localeRouting ? author.locale : undefined,
           lastmod: latestPostTimestamp(slice),
           // Author archive pagination tails (`/author/<slug>/<prefix>/N/`) are
           // duplicates of the canonical author landing with offset posts;
@@ -316,12 +350,19 @@ export function planRoutes(opts: {
     const stubTemplate = theme.templates.post ? 'post' : indexTemplate ? 'index' : undefined;
     if (stubTemplate !== undefined) {
       for (const post of content.emailOnlyPosts) {
-        const url = canonicalRouteUrl(`/email-only/${post.slug}/`, trailingSlash);
+        const url = canonicalRouteUrl(
+          withLocaleRoutePrefix(
+            localeRouting ? post.locale : undefined,
+            `/email-only/${post.slug}/`,
+          ),
+          trailingSlash,
+        );
         routes.push({
           kind: 'post',
           url,
           outputPath: routeUrlToOutputPath(url, trailingSlash),
           template: stubTemplate,
+          locale: localeRouting ? post.locale : undefined,
           lastmod: post.updated_at ?? post.published_at,
           indexable: false,
           data: { post },
@@ -341,9 +382,78 @@ export function planRoutes(opts: {
     }
   }
 
+  attachLocaleAlternates(routes, config, basePath);
   assertNoRouteCollisions(routes);
 
   return routes;
+}
+
+function filterByLocale<T extends { locale?: string }>(
+  items: readonly T[],
+  locale: string | undefined,
+): T[] {
+  if (locale === undefined) return [...items];
+  return items.filter((item) => item.locale === locale);
+}
+
+function localizedKey(locale: string | undefined, slug: string): string {
+  return locale ? `${locale}\u0000${slug}` : slug;
+}
+
+function withLocaleRoutePrefix(locale: string | undefined, path: string): string {
+  if (locale === undefined) return path;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (cleanPath === '/') return `/${locale}/`;
+  return `/${locale}${cleanPath}`;
+}
+
+function attachLocaleAlternates(
+  routes: RouteContext[],
+  config: NectarConfig,
+  basePath: string,
+): void {
+  const groups = new Map<string, RouteContext[]>();
+  for (const route of routes) {
+    if (!route.locale) continue;
+    const key = alternateGroupKey(route);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(route);
+    else groups.set(key, [route]);
+  }
+  for (const bucket of groups.values()) {
+    if (bucket.length < 2) continue;
+    const alternates = bucket
+      .filter(
+        (route): route is RouteContext & { locale: string } => typeof route.locale === 'string',
+      )
+      .map((route) => ({
+        locale: route.locale,
+        url: route.url,
+        href: absoluteUrlWithBasePath(config.site.url, basePath, route.url),
+      }))
+      .sort((a, b) => a.locale.localeCompare(b.locale));
+    for (const route of bucket) {
+      route.alternates = alternates;
+    }
+  }
+}
+
+function alternateGroupKey(route: RouteContext): string {
+  const locale = route.locale;
+  const unprefixed = locale
+    ? route.url.replace(new RegExp(`^/${escapeRegExp(locale)}(?=/|$)`), '') || '/'
+    : route.url;
+  if (route.kind === 'post' && route.data.post) return `post:${route.data.post.slug}`;
+  if (route.kind === 'page' && route.data.page) return `page:${route.data.page.slug}`;
+  if (route.kind === 'tag' && route.data.tag) return `tag:${route.data.tag.slug}:${unprefixed}`;
+  if (route.kind === 'author' && route.data.author) {
+    return `author:${route.data.author.slug}:${unprefixed}`;
+  }
+  return `${route.kind}:${unprefixed}`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Two routes writing the same file path silently overwrites the loser at the

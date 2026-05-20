@@ -29,6 +29,8 @@ export interface RouteContext {
   url: string;
   outputPath: string;
   template: string;
+  locale?: string;
+  alternates?: RouteAlternate[];
   lastmod?: string;
   // Whether this route should appear in public discovery surfaces (sitemap,
   // feed indices, link checkers). Defaults to true when omitted. Routes set
@@ -59,6 +61,12 @@ export interface RouteContext {
     canonical: string;
     image: string | undefined;
   };
+}
+
+export interface RouteAlternate {
+  locale: string;
+  url: string;
+  href: string;
 }
 
 export interface RenderInputs {
