@@ -47,6 +47,10 @@
       "types": "./dist/types/types.d.ts",
       "default": "./dist/types.mjs"
     },
+    "./plugin": {
+      "types": "./dist/types/plugin/index.d.ts",
+      "default": "./dist/plugin.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [

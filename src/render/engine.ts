@@ -43,6 +43,13 @@ export interface NectarEngine {
   // Built on first filtered `get` against the resource; without this, every
   // call scans the full list per indexable key.
   filterIndexCache?: Map<string, FilterIndex>;
+  // Plugin-facing shortcut for `engine.hb.registerHelper(name, fn)`. Exposed
+  // on the engine surface so plugin authors do not have to reach into the
+  // Handlebars instance directly, and so we keep one canonical extension
+  // point if the engine implementation ever swaps Handlebars out. Optional
+  // for unit tests that construct mock engines without going through
+  // `createEngine`; production builds always populate this.
+  registerHelper?: (name: string, fn: (this: unknown, ...args: unknown[]) => unknown) => void;
 }
 
 export function createEngine(opts: {
@@ -91,6 +98,9 @@ export function createEngine(opts: {
     sortedCache: new Map(),
     render(route) {
       return renderRoute(engine, route);
+    },
+    registerHelper(name, fn) {
+      hb.registerHelper(name, fn as Handlebars.HelperDelegate);
     },
   };
 

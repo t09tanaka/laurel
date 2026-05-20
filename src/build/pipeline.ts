@@ -1,8 +1,11 @@
 import { rm } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadConfig } from '~/config/loader.ts';
-import { loadContent } from '~/content/loader.ts';
+import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
+import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
+import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import { createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
@@ -288,9 +291,31 @@ async function runBuild({
   // archives may be disabled or use custom paths) and the route plan.
   const routesYaml = await timed(profiler, 'routes_yaml', () => loadRoutesYaml(cwd));
   warnUnappliedSections(routesYaml);
+
+  // Resolve plugin specs before the content loader runs so any
+  // `transformMarkdown` declarations are visible to the loader's markdown
+  // pipeline. Hooks that need the engine / content graph (`beforeBuild`,
+  // `afterContentLoad`, …) are fired later — after `createEngine` returns —
+  // so they can call `ctx.engine.registerHelper(...)`. Plugins that fail to
+  // load surface a warning via `loadPlugins` and are skipped, never an abort.
+  const pluginSet = await timed(profiler, 'plugins_load', () =>
+    loadPlugins({
+      cwd,
+      specs: config.plugins,
+      autoDetect: config.plugin_auto_detect,
+    }),
+  );
+  const markdownTransforms: MarkdownTransformHook[] = [];
+  for (const p of pluginSet.plugins) {
+    if (typeof p.transformMarkdown === 'function') {
+      const fn = p.transformMarkdown.bind(p);
+      markdownTransforms.push((input, ctx) => fn(input, ctx));
+    }
+  }
+
   const [content, theme] = await timed(profiler, 'load_content_and_theme', () =>
     Promise.all([
-      loadContent({ cwd, config, routesYaml, includeDrafts }),
+      loadContent({ cwd, config, routesYaml, includeDrafts, markdownTransforms }),
       loadTheme({ cwd, config }),
     ]),
   );
@@ -331,7 +356,71 @@ async function runBuild({
 
   const favicons = computeFavicons({ config, theme, cwd });
   const engine = createEngine({ config, content, theme, favicons, cwd });
-  const routes = planRoutes({ config, content, theme, routesYaml });
+
+  // Load Handlebars helpers declared inline via `[components.helpers].paths`.
+  // Thin sugar over a plugin that calls `engine.registerHelper`; for anything
+  // more involved than registering a couple of pure-function helpers, prefer
+  // a real Plugin (which can also see the BuildContext and add hooks).
+  await loadInlineHelpers(cwd, config.components.helpers.paths, engine);
+
+  // BuildContext exposed to plugin hooks. `outputDir` is the *final* output
+  // dir (where the site will eventually live), not the staging dir, so plugin
+  // authors don't have to learn about Nectar's atomic-swap internals. The
+  // engine, content, and theme references are live — plugins may mutate
+  // helpers/templates during `beforeBuild`, which the render fan-out picks up.
+  const pluginCtx: BuildContext = {
+    cwd,
+    outputDir: finalOutputDir,
+    config,
+    content,
+    theme,
+    engine,
+  };
+
+  // beforeBuild: registration time for custom helpers, content patches that
+  // must precede route planning, etc. Sequential so registration order is
+  // deterministic. A throwing hook aborts the build to fail loudly when a
+  // plugin's assumptions are violated.
+  await invokeHook(pluginSet, 'beforeBuild', async (plugin) => {
+    if (plugin.beforeBuild) await plugin.beforeBuild(pluginCtx);
+  });
+
+  // afterContentLoad: lets plugins mutate the loaded content graph (e.g.
+  // inject synthetic posts, attach derived fields). Fires *after*
+  // beforeBuild so a plugin's helper registrations are visible to anything
+  // it does to the graph here.
+  await invokeHook(pluginSet, 'afterContentLoad', async (plugin) => {
+    if (plugin.afterContentLoad) await plugin.afterContentLoad(pluginCtx, content);
+  });
+
+  const baseRoutes = planRoutes({ config, content, theme, routesYaml });
+  // Collect plugin-supplied extra routes and merge them after the built-in
+  // planner so generators don't accidentally shadow native routes. Plugin
+  // routes are appended in registration order; conflicts on the same
+  // outputPath surface as a warning and the built-in wins.
+  const extraRoutes: RouteContext[] = [];
+  for (const plugin of pluginSet.plugins) {
+    if (!plugin.routes) continue;
+    try {
+      const routes = await plugin.routes(pluginCtx);
+      for (const r of routes) extraRoutes.push(r);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`plugin '${plugin.name}' routes() failed: ${msg}`);
+    }
+  }
+  const seenOutputPaths = new Set(baseRoutes.map((r) => r.outputPath));
+  const routes: RouteContext[] = [...baseRoutes];
+  for (const r of extraRoutes) {
+    if (seenOutputPaths.has(r.outputPath)) {
+      logger.warn(
+        `plugin route '${r.url}' collides with existing outputPath '${r.outputPath}'; skipping`,
+      );
+      continue;
+    }
+    seenOutputPaths.add(r.outputPath);
+    routes.push(r);
+  }
 
   const subscribeConfig = config.components.subscribe;
   const recommendationsEnabled = config.recommendations.length > 0;
@@ -392,6 +481,11 @@ async function runBuild({
 
         const stop = profiler?.start('render', route.url);
         try {
+          // Per-route plugin hook. Sequential per route; routes still render
+          // in parallel because each route's hook chain awaits independently.
+          for (const plugin of pluginSet.plugins) {
+            if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
+          }
           let html = rewritePortalLinks({
             html: rewriteRecommendationsButton({
               html: stripUnusedLightbox(
@@ -420,6 +514,15 @@ async function runBuild({
             if (post && post.visibility !== 'public') {
               html = injectPagefindSkipMeta(html);
             }
+          }
+          // afterRender chain: each plugin sees the previous transform's
+          // output (including the Pagefind shim above when enabled). Returning
+          // anything other than a string is treated as a pass-through so a
+          // plugin that just wants to observe the HTML can omit the return.
+          for (const plugin of pluginSet.plugins) {
+            if (!plugin.afterRender) continue;
+            const next = await plugin.afterRender(pluginCtx, route, html);
+            if (typeof next === 'string') html = next;
           }
           const bytes = Buffer.byteLength(html, 'utf8');
           stop?.({ bytes_emitted: bytes });
@@ -718,6 +821,21 @@ async function runBuild({
     await commitStagingDir(outputDir, finalOutputDir);
   }
 
+  // afterEmit fires once the site is fully on-disk at `finalOutputDir`.
+  // Plugins that publish to external systems (Algolia push, search-index
+  // upload, generated sidecar files) belong here. Errors warn-and-continue
+  // because the site has already shipped to disk — failing the whole build
+  // for a post-deploy webhook would punish the operator for one flaky
+  // external service.
+  await invokeHook(
+    pluginSet,
+    'afterEmit',
+    async (plugin) => {
+      if (plugin.afterEmit) await plugin.afterEmit(pluginCtx);
+    },
+    { warnOnError: true },
+  );
+
   return {
     outputDir: finalOutputDir,
     routeCount: routes.length,
@@ -727,6 +845,88 @@ async function runBuild({
     skippedCount,
     dryRun: false,
   };
+}
+
+// Iterate the loaded plugin set in registration order and invoke a hook on
+// each one. By default a throwing hook propagates so the build fails loudly;
+// `warnOnError` flips that to log + continue (used for `afterEmit`, which
+// runs after the site is already on-disk).
+async function invokeHook(
+  set: LoadedPluginSet,
+  label: string,
+  fn: (plugin: Plugin) => Promise<void> | void,
+  opts: { warnOnError?: boolean } = {},
+): Promise<void> {
+  for (const plugin of set.plugins) {
+    try {
+      await fn(plugin);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (opts.warnOnError) {
+        logger.warn(`plugin '${plugin.name}' ${label} hook failed: ${msg}`);
+        continue;
+      }
+      throw err instanceof Error ? err : new Error(msg);
+    }
+  }
+}
+
+// Resolve each entry in `[components.helpers].paths` against the project root,
+// dynamic-import it, and register every named function export as a Handlebars
+// helper on the engine. Accepts a `default` export shaped `{ name, fn }` or
+// `Record<string, Function>` for modules that prefer not to use named exports.
+// A path that fails to import warns and is skipped so a broken helper file
+// never bricks the build.
+async function loadInlineHelpers(
+  cwd: string,
+  paths: readonly string[],
+  engine: ReturnType<typeof createEngine>,
+): Promise<void> {
+  if (paths.length === 0) return;
+  for (const rawPath of paths) {
+    const abs = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
+    const importPath = pathToFileURL(abs).href;
+    try {
+      const mod = (await import(importPath)) as Record<string, unknown>;
+      let registered = 0;
+      // Default export shaped as either a single { name, fn } pair or a flat
+      // map of helpers. Inspect both shapes; named exports are also walked
+      // below so a single file can mix both styles.
+      const def = mod.default;
+      if (def && typeof def === 'object') {
+        if (
+          'name' in (def as Record<string, unknown>) &&
+          'fn' in (def as Record<string, unknown>) &&
+          typeof (def as { fn: unknown }).fn === 'function' &&
+          typeof (def as { name: unknown }).name === 'string'
+        ) {
+          const single = def as { name: string; fn: (...args: unknown[]) => unknown };
+          engine.registerHelper?.(single.name, single.fn);
+          registered += 1;
+        } else {
+          for (const [key, value] of Object.entries(def as Record<string, unknown>)) {
+            if (typeof value === 'function') {
+              engine.registerHelper?.(key, value as (...args: unknown[]) => unknown);
+              registered += 1;
+            }
+          }
+        }
+      }
+      for (const [key, value] of Object.entries(mod)) {
+        if (key === 'default') continue;
+        if (typeof value === 'function') {
+          engine.registerHelper?.(key, value as (...args: unknown[]) => unknown);
+          registered += 1;
+        }
+      }
+      if (registered === 0) {
+        logger.warn(`helpers file '${rawPath}' registered no helpers (no function exports found)`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`failed to load helpers from '${rawPath}': ${msg}`);
+    }
+  }
 }
 
 function wrapRenderError(err: unknown, url: string, template: string): NectarError {

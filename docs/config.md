@@ -23,6 +23,15 @@ falls back to the listed default.
 | `tiers[]` | `array<object>` | Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops. |
 | `deploy` | `object` | Deploy-target-specific hints that influence files emitted alongside the site. |
 | `components` | `object` | Optional components that emit extra files or inject markup. |
+| `plugins` | `array<string>` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `nectar-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
+| `plugin_auto_detect` | `boolean` | Auto-discover plugins in `node_modules/` whose package name starts with `nectar-plugin-` (or `@scope/nectar-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
+
+## Top-level fields
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `plugins` | `array<string>` | no | `[]` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `nectar-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
+| `plugin_auto_detect` | `boolean` | no | `false` | Auto-discover plugins in `node_modules/` whose package name starts with `nectar-plugin-` (or `@scope/nectar-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
 
 ## `site`
 
@@ -369,3 +378,11 @@ Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `
 | `components.portal.signin_url` | `string` | no | — | Override for the URL injected into `data-portal="signin"` triggers (Ghost's Sign in link). |
 | `components.portal.account_url` | `string` | no | — | Override for the URL injected into `data-portal="account"` triggers (Ghost's Account link, shown to already-signed-in members). |
 | `components.portal.upgrade_url` | `string` | no | — | Override for the URL injected into `data-portal="upgrade"` triggers (Ghost's paid-tier Upgrade CTA). Typically a checkout / pricing page. |
+
+## `components.helpers`
+
+Lightweight extension point for registering Handlebars helpers from a config-listed file without writing a full plugin. The build dynamic-imports each `paths[]` entry and registers its exports as helpers on the render engine.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.helpers.paths` | `array<string>` | no | `[]` | Optional list of JavaScript / TypeScript files (relative to the project root) that export Handlebars helpers. Each module is dynamic-imported at build start; named exports become helpers registered under the export name, and a `default` export shaped `{ name: string, fn: Function }` (or `Record<string, Function>`) is registered accordingly. Thin sugar over writing a plugin that calls `engine.registerHelper`; for anything more involved than a couple of pure-function helpers, prefer a real plugin. |

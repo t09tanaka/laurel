@@ -45,14 +45,39 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(
     ...renderTable(
       ['Key', 'Type', 'Description'],
-      root.subsections.map((s) => [
-        code(s.path),
-        renderSubsectionTypeLabel(s),
-        s.description || '—',
-      ]),
+      [
+        ...root.subsections.map((s) => [
+          code(s.path),
+          renderSubsectionTypeLabel(s),
+          s.description || '—',
+        ]),
+        ...root.fields.map((f) => [code(f.path), code(f.type), f.description || '—']),
+      ],
     ),
   );
   lines.push('');
+
+  // Render top-level scalar / primitive-array fields in a dedicated table so
+  // their descriptions show up under the rule "every described field appears
+  // with its description" (docs.test.ts). Without this they would only be
+  // listed in the summary table above.
+  if (root.fields.length > 0) {
+    lines.push('## Top-level fields');
+    lines.push('');
+    lines.push(
+      ...renderTable(
+        ['Key', 'Type', 'Required', 'Default', 'Description'],
+        root.fields.map((f) => [
+          code(f.path),
+          code(f.type),
+          f.required ? 'yes' : 'no',
+          f.defaultLiteral === null ? '—' : code(f.defaultLiteral),
+          f.description || '—',
+        ]),
+      ),
+    );
+    lines.push('');
+  }
 
   for (const section of root.subsections) {
     lines.push(...renderSection(section));

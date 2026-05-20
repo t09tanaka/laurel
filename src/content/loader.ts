@@ -28,6 +28,20 @@ import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag, Tier } from './model.ts';
 import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
+// Plugin-supplied transform applied to the raw markdown body (after
+// frontmatter is stripped) before `marked.parse` runs. The pipeline composes
+// hooks in registration order, so each transform sees the previous one's
+// output. `kind` lets a hook opt into transforming only posts or pages;
+// `frontmatter` is the parsed YAML so transforms can branch on custom keys.
+export type MarkdownTransformHook = (
+  input: string,
+  ctx: {
+    readonly kind: 'post' | 'page';
+    readonly path: string;
+    readonly frontmatter: Readonly<Record<string, unknown>>;
+  },
+) => string | Promise<string>;
+
 export interface LoadContentOptions {
   cwd: string;
   config: NectarConfig;
@@ -49,6 +63,11 @@ export interface LoadContentOptions {
   // scheduled content. Independent of `includeDrafts`: a future-dated
   // `status: draft` still needs `includeDrafts: true` as well.
   includeFuturePosts?: boolean;
+  // Plugin-supplied markdown transforms applied to each post/page body before
+  // `marked.parse`. Empty by default; the build pipeline collects these from
+  // `Plugin.transformMarkdown` declarations and passes them through. Compose
+  // in registration order so each transform sees the previous output.
+  markdownTransforms?: readonly MarkdownTransformHook[];
 }
 
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
@@ -71,6 +90,7 @@ export async function loadContent({
   routesYaml,
   includeDrafts,
   includeFuturePosts,
+  markdownTransforms,
 }: LoadContentOptions): Promise<ContentGraph> {
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
@@ -103,6 +123,7 @@ export async function loadContent({
       taxonomies,
       includeDrafts: includeDrafts === true,
       includeFuturePosts: includeFuture,
+      markdownTransforms: markdownTransforms ?? [],
     });
   } finally {
     await pool.close();
@@ -117,18 +138,20 @@ async function loadContentWithPool({
   taxonomies,
   includeDrafts,
   includeFuturePosts,
+  markdownTransforms,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
   taxonomies: ResolvedTaxonomies;
   includeDrafts: boolean;
   includeFuturePosts: boolean;
+  markdownTransforms: readonly MarkdownTransformHook[];
 }): Promise<ContentGraph> {
   const [authors, tags, posts, pages] = await Promise.all([
     loadAuthors(cwd, config, taxonomies),
     loadTags(cwd, config, taxonomies),
-    loadPosts(cwd, config, pool),
-    loadPages(cwd, config, pool),
+    loadPosts(cwd, config, pool, markdownTransforms),
+    loadPages(cwd, config, pool, markdownTransforms),
   ]);
 
   const authorMap = new Map(authors.map((a) => [a.slug, a]));
@@ -387,11 +410,12 @@ async function loadPosts(
   cwd: string,
   config: NectarConfig,
   pool: MarkdownPool,
+  transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPost[]> {
   const dir = join(cwd, config.content.posts_dir);
   const posts = await loadMarkdownDir(
     dir,
-    async (file, raw) => normalizePost(file, raw, cwd, dir, config, pool),
+    async (file, raw) => normalizePost(file, raw, cwd, dir, config, pool, transforms),
     config.content.max_markdown_bytes,
   );
   if (config.content.visibility_policy === 'skip') {
@@ -404,11 +428,12 @@ async function loadPages(
   cwd: string,
   config: NectarConfig,
   pool: MarkdownPool,
+  transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPage[]> {
   const dir = join(cwd, config.content.pages_dir);
   return loadMarkdownDir(
     dir,
-    async (file, raw) => normalizePage(file, raw, cwd, dir, config, pool),
+    async (file, raw) => normalizePage(file, raw, cwd, dir, config, pool, transforms),
     config.content.max_markdown_bytes,
   );
 }
@@ -572,6 +597,30 @@ function sanitizeUserSlugList(values: string[], _context: string): string[] {
   return out;
 }
 
+async function applyMarkdownTransforms(
+  body: string,
+  kind: 'post' | 'page',
+  filePath: string,
+  frontmatter: Record<string, unknown>,
+  transforms: readonly MarkdownTransformHook[],
+): Promise<string> {
+  if (transforms.length === 0) return body;
+  let current = body;
+  for (const transform of transforms) {
+    try {
+      const next = await transform(current, { kind, path: filePath, frontmatter });
+      // Defensive: a plugin returning `undefined` (or non-string) should not
+      // wipe the post body. Treat anything non-string as "leave unchanged" so
+      // a buggy transform produces visible-but-recoverable output.
+      if (typeof next === 'string') current = next;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`markdown transform failed for ${filePath}: ${msg}`);
+    }
+  }
+  return current;
+}
+
 async function normalizePost(
   filePath: string,
   raw: string,
@@ -579,10 +628,13 @@ async function normalizePost(
   rootDir: string,
   config: NectarConfig | undefined,
   pool: MarkdownPool,
+  transforms: readonly MarkdownTransformHook[],
+  kind: 'post' | 'page' = 'post',
 ): Promise<RawPost> {
-  const { data, body } = parseFrontmatter(raw, { filePath });
+  const { data, body: rawBody } = parseFrontmatter(raw, { filePath });
   const unsafeHtml = asBool(data.unsafe_html, false);
   const locale = config?.site.locale;
+  const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
   const rendered = await pool.render(body, { unsafe: unsafeHtml, locale });
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
@@ -703,8 +755,9 @@ async function normalizePage(
   rootDir: string,
   config: NectarConfig | undefined,
   pool: MarkdownPool,
+  transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPage> {
-  const base = await normalizePost(filePath, raw, cwd, rootDir, config, pool);
+  const base = await normalizePost(filePath, raw, cwd, rootDir, config, pool, transforms, 'page');
   const { data } = parseFrontmatter(raw, { filePath });
   return {
     ...base,

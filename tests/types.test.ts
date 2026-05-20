@@ -5,6 +5,7 @@ import type {
   BuildOptions,
   BuildSummary,
   ContentGraph,
+  MarkdownTransformContext,
   NavigationItem,
   NectarConfig,
   NectarEngine,
@@ -12,6 +13,9 @@ import type {
   NectarPlugin,
   Page,
   PaginationInfo,
+  Plugin,
+  PluginFactory,
+  PluginRoute,
   Post,
   RenderInputs,
   RouteContext,
@@ -61,11 +65,15 @@ describe('public types barrel', () => {
       BuildOptions,
       BuildSummary,
       ContentGraph,
+      MarkdownTransformContext,
       NavigationItem,
       NectarConfig,
       NectarEngine,
       Page,
       PaginationInfo,
+      Plugin,
+      PluginFactory,
+      PluginRoute,
       Post,
       RenderInputs,
       RouteContext,
@@ -80,5 +88,27 @@ describe('public types barrel', () => {
     ];
     const sentinel: _Surface | undefined = undefined;
     expect(sentinel).toBeUndefined();
+  });
+
+  test('Plugin interface accepts the documented hook surface', () => {
+    const plugin: Plugin = {
+      name: 'shape-test',
+      beforeBuild(ctx: BuildContext) {
+        expect(ctx.cwd).toBeDefined();
+      },
+      afterContentLoad() {},
+      beforeRender() {},
+      afterRender(_ctx, _route, html: string) {
+        return html;
+      },
+      afterEmit() {},
+      routes() {
+        return [];
+      },
+      transformMarkdown(input: string) {
+        return input;
+      },
+    };
+    expect(plugin.name).toBe('shape-test');
   });
 });

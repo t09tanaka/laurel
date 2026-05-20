@@ -35,4 +35,12 @@ export type {
   ThemePackage,
 } from './theme/types.ts';
 
-export type { BuildContext, NectarHelper, NectarPlugin } from './plugin.ts';
+export type {
+  BuildContext,
+  MarkdownTransformContext,
+  NectarHelper,
+  NectarPlugin,
+  Plugin,
+  PluginFactory,
+  PluginRoute,
+} from './plugin/types.ts';

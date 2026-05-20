@@ -409,6 +409,18 @@ export const configSchema = z
       .describe(
         'Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops.',
       ),
+    plugins: z
+      .array(z.string())
+      .default([])
+      .describe(
+        'Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `nectar-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build.',
+      ),
+    plugin_auto_detect: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Auto-discover plugins in `node_modules/` whose package name starts with `nectar-plugin-` (or `@scope/nectar-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading.',
+      ),
     deploy: z
       .object({
         github_pages: z
@@ -986,6 +998,20 @@ export const configSchema = z
           .default({})
           .describe(
             'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.',
+          ),
+        helpers: z
+          .object({
+            paths: z
+              .array(z.string())
+              .default([])
+              .describe(
+                'Optional list of JavaScript / TypeScript files (relative to the project root) that export Handlebars helpers. Each module is dynamic-imported at build start; named exports become helpers registered under the export name, and a `default` export shaped `{ name: string, fn: Function }` (or `Record<string, Function>`) is registered accordingly. Thin sugar over writing a plugin that calls `engine.registerHelper`; for anything more involved than a couple of pure-function helpers, prefer a real plugin.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Lightweight extension point for registering Handlebars helpers from a config-listed file without writing a full plugin. The build dynamic-imports each `paths[]` entry and registers its exports as helpers on the render engine.',
           ),
       })
       .strict()
