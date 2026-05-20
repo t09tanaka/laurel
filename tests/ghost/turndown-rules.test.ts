@@ -930,6 +930,35 @@ describe('Ghost Turndown rules — kg-toggle-card', () => {
     expect(md).toContain('state="open"');
     expect(md).toContain('Use **carefully**.');
   });
+
+  test('preserves nested lists, code, and images in the toggle body', () => {
+    const html = `
+      <div class="kg-card kg-toggle-card">
+        <div class="kg-toggle-heading">
+          <h4 class="kg-toggle-heading-text">Nested content</h4>
+        </div>
+        <div class="kg-toggle-content">
+          <ul>
+            <li>First item</li>
+            <li>Second item</li>
+          </ul>
+          <pre><code class="language-js">console.log('nested')</code></pre>
+          <figure class="kg-card kg-image-card">
+            <img class="kg-image" src="https://example.com/toggle.png" alt="Toggle image">
+            <figcaption>Inside toggle</figcaption>
+          </figure>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< toggle heading="Nested content" >}}');
+    expect(md).toContain('*   First item');
+    expect(md).toContain("```js\nconsole.log('nested')\n```");
+    expect(md).toContain(
+      '{{< figure src="https://example.com/toggle.png" alt="Toggle image" caption="Inside toggle" />}}',
+    );
+    expect(md).toContain('{{< /toggle >}}');
+  });
 });
 
 describe('Ghost Turndown rules — kg-button-card', () => {

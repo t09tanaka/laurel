@@ -1454,7 +1454,7 @@ function renderToggleHtml(attrs: Record<string, string>, body: string): string {
     ? `<h4 class="kg-toggle-heading-text">${escapeHtmlAttr(heading)}</h4>`
     : '';
   const summary = `<summary class="kg-toggle-heading">${headingHtml}</summary>`;
-  const innerMarkdown = body.trim();
+  const innerMarkdown = expandKoenigShortcodes(body.trim());
   const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
   const openAttr = attrs.state === 'open' ? ' open' : '';
   return `\n\n<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}"${openAttr}>\n${summary}\n${contentBlock}\n</details>\n\n`;

@@ -393,6 +393,33 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html).toContain('<a href="https://example.com/">a link</a>');
   });
 
+  test('expands nested block body content from import-emitted shortcodes', async () => {
+    const md = [
+      '{{< toggle heading="Nested content" >}}',
+      '- First item',
+      '- Second item',
+      '',
+      '```js',
+      "console.log('nested')",
+      '```',
+      '',
+      '{{< figure src="https://example.com/toggle.png" alt="Toggle image" caption="Inside toggle" />}}',
+      '{{< /toggle >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<ul>');
+    expect(html).toContain('<li>First item</li>');
+    expect(html).toContain('<code class="language-js">');
+    expect(html).toContain('console.');
+    expect(html).toContain(
+      '<figure class="kg-card kg-image-card kg-width-regular kg-card-hascaption">',
+    );
+    expect(html).toContain('src="https://example.com/toggle.png"');
+    expect(html).toContain('alt="Toggle image"');
+    expect(html).toContain('<figcaption>Inside toggle</figcaption>');
+    expect(html).not.toContain('{{< figure');
+  });
+
   test('omits the heading element when no heading attribute is provided', async () => {
     const md = '{{< toggle >}}\nBody only.\n{{< /toggle >}}';
     const { html } = await renderMarkdown(md);
