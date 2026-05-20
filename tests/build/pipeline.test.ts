@@ -511,6 +511,55 @@ feature_image_alt: "Cover"
     }
   });
 
+  test('injects image dimensions into theme-rendered img tags during build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const tomlPath = join(cwd, 'nectar.toml');
+    await writeFile(
+      tomlPath,
+      [
+        readFileSync(tomlPath, 'utf8').replace('name = "source"', 'name = "solo-mini"'),
+        '',
+        '[components.opengraph]',
+        'rasterize_svg = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await cp(
+      join(process.cwd(), 'tests/fixtures/themes/solo-mini'),
+      join(cwd, 'themes/solo-mini'),
+      {
+        recursive: true,
+      },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/cover.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1234" height="567"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/cover.svg
+feature_image_alt: "Cover"
+---
+
+Body
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    const featureImage = imageTagForSrc(postHtml, '/content/images/cover.svg');
+
+    expect(featureImage).toContain('width="1234"');
+    expect(featureImage).toContain('height="567"');
+  });
+
   test('rewrites emitted HTML image URLs when image_cdn is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
