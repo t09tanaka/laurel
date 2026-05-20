@@ -310,6 +310,31 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
     );
   });
 
+  test('uses the outer figure figcaption as the gallery caption', async () => {
+    const html = `
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-container">
+          <div class="kg-gallery-row">
+            <div class="kg-gallery-image">
+              <figure>
+                <img src="/img/a.jpg" alt="A" />
+                <figcaption>Nested image caption</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+        <figcaption>Outer gallery caption</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('caption="Outer gallery caption"');
+    expect(md).not.toContain('Nested image caption');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('<figcaption>Outer gallery caption</figcaption>');
+    expect(rendered).not.toContain('Nested image caption');
+  });
+
   test('deduplicates repeated src across rows', () => {
     const html = `
       <figure class="kg-card kg-gallery-card">

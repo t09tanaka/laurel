@@ -27,6 +27,7 @@ interface DomNode {
   readonly innerHTML: string;
   readonly textContent: string | null;
   readonly attributes?: ArrayLike<{ readonly name: string; readonly value: string }>;
+  readonly childNodes?: ArrayLike<DomNode>;
   getAttribute(name: string): string | null;
   querySelector(selector: string): DomNode | null;
   querySelectorAll(selector: string): ArrayLike<DomNode>;
@@ -49,6 +50,14 @@ function attr(el: DomNode | null, name: string): string {
 
 function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
+}
+
+function directChildText(node: DomNode, nodeName: string): string {
+  const wanted = nodeName.toUpperCase();
+  for (const child of Array.from(node.childNodes ?? [])) {
+    if (child.nodeName === wanted) return text(child);
+  }
+  return '';
 }
 
 function html(el: DomNode | null): string {
@@ -470,7 +479,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
         shortcodeBlock(
           'gallery',
           {
-            caption: text(node.querySelector('figcaption')),
+            caption: directChildText(node, 'figcaption'),
             size: classByPrefix(node, 'kg-width-'),
           },
           rows.join('\n'),
