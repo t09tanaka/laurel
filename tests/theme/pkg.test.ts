@@ -162,6 +162,29 @@ describe('loadThemePackage schema validation', () => {
     expect(pkg.customDefaults.feed_layout).toBe('Right thumbnail');
   });
 
+  test('preserves Solo header section layout default for strict match comparisons', async () => {
+    const dir = await makeThemeDir({
+      name: 'solo',
+      config: {
+        custom: {
+          header_section_layout: {
+            type: 'select',
+            options: ['Typographic profile', 'Side by side'],
+            default: 'Typographic profile',
+          },
+        },
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.custom.header_section_layout?.options).toEqual([
+      'Typographic profile',
+      'Side by side',
+    ]);
+    expect(pkg.customDefaults.header_section_layout).toBe('Typographic profile');
+    expect(pkg.custom.header_section_layout?.default).toBe('Typographic profile');
+  });
+
   test('defaults Bulletin feature image width to Wide for post header layout classes', async () => {
     const dir = await makeThemeDir({
       name: 'bulletin',

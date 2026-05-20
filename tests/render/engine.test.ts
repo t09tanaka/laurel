@@ -1827,6 +1827,118 @@ describe('createEngine — Bulletin feature image width custom setting', () => {
   });
 });
 
+describe('createEngine — Solo header section layout custom setting', () => {
+  function makeTheme(customDefaults: Record<string, unknown>): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'solo',
+      version: '1.0.0',
+      posts_per_page: 10,
+      image_sizes: {},
+      card_assets: true,
+      custom: {
+        header_section_layout: {
+          type: 'select',
+          options: ['Typographic profile', 'Side by side'],
+          default: 'Typographic profile',
+        },
+      },
+      customDefaults,
+    };
+    return {
+      name: 'solo',
+      rootDir: '/tmp/themes/solo',
+      templates: {
+        index:
+          '<section class="gh-header{{#match @custom.header_section_layout "Typographic profile"}} is-typographic{{/match}}">Solo</section>',
+      },
+      partials: {},
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(custom: Record<string, unknown> = {}): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'solo', custom },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        accent_color: '#000000',
+      },
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      byId: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+    };
+  }
+
+  function makeRoute(): RouteContext {
+    return {
+      kind: 'index',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    };
+  }
+
+  test('default Typographic profile value remains matchable by Solo default template', () => {
+    const engine = createEngine({
+      config: makeConfig(),
+      content: makeContent(),
+      theme: makeTheme({ header_section_layout: 'Typographic profile' }),
+    });
+
+    expect(engine.render(makeRoute())).toContain('gh-header is-typographic');
+  });
+
+  test('config override Typographic profile remains matchable by Solo default template', () => {
+    const engine = createEngine({
+      config: makeConfig({ header_section_layout: 'Typographic profile' }),
+      content: makeContent(),
+      theme: makeTheme({ header_section_layout: 'Side by side' }),
+    });
+
+    expect(engine.render(makeRoute())).toContain('gh-header is-typographic');
+  });
+});
+
 // Issue #150: renderRoute() must reuse the precompiled inner+layout delegates
 // from createEngine() instead of re-running hb.compile per route. On a 10k post
 // blog the regression cost is ~20k extra compile passes plus the AST GC churn.

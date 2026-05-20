@@ -225,6 +225,27 @@ feed_layout = "Right thumbnail"
     });
   });
 
+  test('preserves Solo header section layout override casing and spaces', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Solo"
+
+[theme]
+name = "solo"
+
+[theme.custom]
+header_section_layout = "Typographic profile"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.theme.custom.header_section_layout).toBe('Typographic profile');
+    });
+  });
+
   test('accepts a base64 build.csp_nonce so CSP-aware deploys can opt in', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
