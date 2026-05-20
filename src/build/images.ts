@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
@@ -58,7 +58,7 @@ export function injectImageDimensionsIntoContent({
   cwd,
   config,
 }: InjectIntoContentOptions): void {
-  const assetsRoot = join(cwd, config.content.assets_dir);
+  const assetsRoot = resolve(cwd, config.content.assets_dir);
   const cache = new Map<string, ImageDimensions | null>();
   for (const post of content.posts) {
     post.html = injectImageDimensions(post.html, { assetsRoot, cache });
@@ -197,7 +197,7 @@ export type ImageVariantPlan = Map<string, number[]>;
 // sharp isn't installed.
 export async function planImageVariants(opts: PlanImageVariantsOptions): Promise<ImageVariantPlan> {
   const widths = opts.widths ?? DEFAULT_RESPONSIVE_WIDTHS;
-  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
   const plan: ImageVariantPlan = new Map();
   if (!existsSync(assetsRoot)) return plan;
 
@@ -236,7 +236,7 @@ export async function generateImageVariants(opts: GenerateImageVariantsOptions):
   const sharpFn = await loadSharp();
   if (!sharpFn) return 0;
 
-  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
   const outRoot = join(opts.outputDir, 'content/images');
   let count = 0;
 
@@ -439,7 +439,7 @@ export async function generateImageFormatVariants(
   const sharpFn = await loadSharp();
   if (!sharpFn) return 0;
 
-  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
   const outRoot = join(opts.outputDir, 'content/images');
   const cacheDir = resolveCacheDir(opts.cwd, imagesCfg.cache_dir);
   mkdirSync(cacheDir, { recursive: true });
@@ -650,7 +650,7 @@ export async function generateThemeImageSizeVariants(
   });
   if (entries.length === 0) return 0;
 
-  const assetsRoot = join(opts.cwd, opts.config.content.assets_dir);
+  const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
   if (!existsSync(assetsRoot)) return 0;
 
   const sharpFn = await loadSharp();

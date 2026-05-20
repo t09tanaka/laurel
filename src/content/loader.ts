@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, join, relative } from 'node:path';
+import { basename, extname, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
 import { assignPostUrls } from '~/build/permalinks.ts';
 import {
@@ -98,14 +98,15 @@ export async function loadContent({
   includeFuturePosts,
   markdownTransforms,
 }: LoadContentOptions): Promise<ContentGraph> {
+  resetAutoCreationWarnings();
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
 
   // Pre-count post/page files so the pool can skip spawning Bun Workers on
   // small sites where the spawn cost would exceed the parsing cost. Tags and
   // authors don't push markdown through `renderMarkdown`, so they're excluded.
-  const postsDir = join(cwd, config.content.posts_dir);
-  const pagesDir = join(cwd, config.content.pages_dir);
+  const postsDir = resolve(cwd, config.content.posts_dir);
+  const pagesDir = resolve(cwd, config.content.pages_dir);
   const [postCount, pageCount] = await Promise.all([
     countMarkdownFiles(postsDir),
     countMarkdownFiles(pagesDir),
@@ -445,7 +446,7 @@ async function loadPosts(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPost[]> {
-  const dir = join(cwd, config.content.posts_dir);
+  const dir = resolve(cwd, config.content.posts_dir);
   const posts = await loadMarkdownDir(
     dir,
     async (file, raw) => normalizePost(file, raw, cwd, dir, config, pool, transforms),
@@ -463,7 +464,7 @@ async function loadPages(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
 ): Promise<RawPage[]> {
-  const dir = join(cwd, config.content.pages_dir);
+  const dir = resolve(cwd, config.content.pages_dir);
   return loadMarkdownDir(
     dir,
     async (file, raw) => normalizePage(file, raw, cwd, dir, config, pool, transforms),
@@ -477,7 +478,7 @@ async function loadAuthors(
   taxonomies: ResolvedTaxonomies,
   basePath: string,
 ): Promise<Author[]> {
-  const dir = join(cwd, config.content.authors_dir);
+  const dir = resolve(cwd, config.content.authors_dir);
   return loadMarkdownDir(
     dir,
     async (file, raw) => normalizeAuthor(file, raw, config, taxonomies, basePath),
@@ -491,7 +492,7 @@ async function loadTags(
   taxonomies: ResolvedTaxonomies,
   basePath: string,
 ): Promise<Tag[]> {
-  const dir = join(cwd, config.content.tags_dir);
+  const dir = resolve(cwd, config.content.tags_dir);
   return loadMarkdownDir(
     dir,
     async (file, raw) => normalizeTag(file, raw, config, taxonomies, basePath),
@@ -598,7 +599,22 @@ function slugFromPath(filePath: string, rootDir: string): string {
   const rel = relative(rootDir, filePath);
   const withoutExt = rel.slice(0, rel.length - extname(rel).length);
   const candidate = withoutExt.replaceAll('\\', '/');
-  return slugify(candidate.split('/').pop() ?? basename(filePath), { lower: true, strict: true });
+  const segment = candidate.split('/').pop() ?? basename(filePath);
+  // `slugify` (with `strict: true`) drops underscores, so a file named
+  // `_index.md` collapses to an empty slug, making the post unreachable via
+  // any generated route (#859). Refuse the file at load time with a clear
+  // pointer to the source path so the contributor either renames the file
+  // or supplies an explicit `slug:` in frontmatter.
+  const slug = slugify(segment, { lower: true, strict: true });
+  if (slug.length === 0) {
+    throw new NectarError({
+      file: filePath,
+      message: `Cannot derive a slug from filename ${JSON.stringify(segment)}: produces empty value after sanitization.`,
+      hint: 'Rename the file to use ASCII letters/digits (e.g. `my-draft.md`) or add an explicit `slug:` in the frontmatter.',
+      code: 'content',
+    });
+  }
+  return slug;
 }
 
 // `feature_image_caption` is rendered raw by typical Ghost themes via
@@ -674,7 +690,20 @@ async function normalizePost(
   const slug =
     sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
     slugFromPath(filePath, rootDir);
-  const title = asString(data.title) ?? slug;
+  // Frontmatter `title:` is optional, but a post with no title still has to
+  // render something in `<h1>`, `<title>`, and sidebar lists. Fall back to
+  // the slug (Ghost does the same) and warn so the contributor sees the
+  // synthesised title at build time instead of silently shipping
+  // `hello-world` as the visible headline (#857). Also catches `title: ""`
+  // and `title:` (yaml null/blank) because `asString('')` returns `''`,
+  // which we treat as "missing" here.
+  const rawTitle = asString(data.title);
+  const title = rawTitle && rawTitle.trim().length > 0 ? rawTitle : slug;
+  if (title === slug && (rawTitle === undefined || rawTitle.trim().length === 0)) {
+    logger.warn(
+      `Missing or empty \`title\` in ${filePath}; using slug ${JSON.stringify(slug)} as the title. Set \`title:\` in frontmatter to silence this warning.`,
+    );
+  }
   const dateContext = `${filePath}`;
   const published = asDateISO(
     data.date ?? data.published_at,
@@ -936,7 +965,7 @@ function resolveLocalImageDimensions(
   if (idx < 0) return undefined;
   const rest = featureImage.slice(idx + marker.length).split(/[?#]/)[0] ?? '';
   if (rest === '' || rest.includes('..')) return undefined;
-  const assetsRoot = join(cwd, config.content.assets_dir);
+  const assetsRoot = resolve(cwd, config.content.assets_dir);
   const filePath = join(assetsRoot, rest);
   const rel = relative(assetsRoot, filePath);
   if (rel.startsWith('..') || rel.includes(`..${'/'}`)) return undefined;
@@ -1074,6 +1103,18 @@ function resolvePageRelations(
   };
 }
 
+// Module-level dedupe sets so a tag/author referenced by ten posts only
+// produces one warning per build (#860). Cleared at the start of every
+// `loadContent` call so back-to-back builds (e.g. `nectar dev` watch mode)
+// re-emit the warning if the offending content is still present.
+const warnedAutoTagSlugs = new Set<string>();
+const warnedAutoAuthorSlugs = new Set<string>();
+
+export function resetAutoCreationWarnings(): void {
+  warnedAutoTagSlugs.clear();
+  warnedAutoAuthorSlugs.clear();
+}
+
 function resolveTagSlugs(
   slugs: string[],
   tags: Map<string, Tag>,
@@ -1084,13 +1125,25 @@ function resolveTagSlugs(
   return slugs.map((slug) => {
     const existing = tags.get(slug);
     if (existing) return existing;
+    // A post references a tag slug that has no `content/tags/<slug>.md`
+    // file. Auto-create a stub so the post still renders, but warn once
+    // per build so a typo (`neews` vs `news`) doesn't silently ship a
+    // phantom tag archive with one post. Internal tags (`hash-*`) are
+    // legitimate stubs in Ghost workflows, so they're auto-created
+    // without a warning.
+    if (!warnedAutoTagSlugs.has(slug) && !slug.startsWith('hash-')) {
+      warnedAutoTagSlugs.add(slug);
+      logger.warn(
+        `Auto-creating tag ${JSON.stringify(slug)} referenced by post frontmatter but missing a content/tags/${slug}.md file. Add the file (or fix the typo) to silence this warning.`,
+      );
+    }
     const created: Tag = {
       id: `tag-${slug}`,
       slug,
       name: titleCase(slug),
       description: '',
       feature_image: undefined,
-      visibility: 'public',
+      visibility: slug.startsWith('hash-') ? 'internal' : 'public',
       meta_title: undefined,
       meta_description: undefined,
       url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'tag', slug),
@@ -1111,6 +1164,16 @@ function resolveAuthorSlugs(
   return slugs.map((slug) => {
     const existing = authors.get(slug);
     if (existing) return existing;
+    // Mirror of the tag path above: warn once per build when an author
+    // slug appears in frontmatter without a backing `content/authors/<slug>.md`.
+    // Without the warning a misspelled byline silently grows an entire
+    // phantom `/author/<slug>/` archive route.
+    if (!warnedAutoAuthorSlugs.has(slug)) {
+      warnedAutoAuthorSlugs.add(slug);
+      logger.warn(
+        `Auto-creating author ${JSON.stringify(slug)} referenced by post frontmatter but missing a content/authors/${slug}.md file. Add the file (or fix the typo) to silence this warning.`,
+      );
+    }
     const created: Author = {
       id: `author-${slug}`,
       slug,

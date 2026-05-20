@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { dirname, extname, join, relative } from 'node:path';
+import { dirname, extname, join, relative, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
@@ -64,7 +64,7 @@ export async function rasterizeOgImages({
   const Resvg = await loadResvg();
   if (!Resvg) return 0;
 
-  const assetsRoot = join(cwd, config.content.assets_dir);
+  const assetsRoot = resolve(cwd, config.content.assets_dir);
   const cache = new Map<string, string | null>();
   let count = 0;
 

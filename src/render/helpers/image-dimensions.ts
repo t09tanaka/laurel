@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import type Handlebars from 'handlebars';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
 import type { NectarEngine } from '../engine.ts';
@@ -65,7 +65,7 @@ function probeLocalImage(
   if (idx < 0) return undefined;
   const rest = cleaned.slice(idx + ASSETS_URL_MARKER.length);
   if (rest === '' || rest.includes('..')) return undefined;
-  const assetsRoot = join(cwd, engine.config.content.assets_dir);
+  const assetsRoot = resolve(cwd, engine.config.content.assets_dir);
   const filePath = join(assetsRoot, rest);
   const rel = relative(assetsRoot, filePath);
   if (rel.startsWith('..') || rel.startsWith(`..${sep}`)) return undefined;

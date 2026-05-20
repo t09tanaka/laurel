@@ -179,7 +179,7 @@ function splitIssues(issues: LintIssue[]): LintReport {
 }
 
 async function collectFrontmatter(cwd: string, dir: string): Promise<FrontmatterFile[]> {
-  const absDir = join(cwd, dir);
+  const absDir = resolve(cwd, dir);
   if (!existsSync(absDir)) return [];
   const allRels = await scanGlob('**/*.md', { cwd: absDir });
   const files = allRels
@@ -321,7 +321,7 @@ function checkAssetReferences(
   content: ContentGraph,
 ): LintIssue[] {
   const issues: LintIssue[] = [];
-  const assetsRoot = join(cwd, config.content.assets_dir);
+  const assetsRoot = resolve(cwd, config.content.assets_dir);
 
   const report = (url: string | undefined, owner: string): void => {
     if (!isLocalContentImage(url)) return;

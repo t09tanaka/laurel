@@ -165,7 +165,7 @@ export async function copyContentAssets(
 ): Promise<number> {
   const maxImageBytes = options?.maxImageBytes ?? 0;
   let total = 0;
-  total += await copyTree(join(cwd, contentImagesDir), join(outputDir, 'content/images'), {
+  total += await copyTree(resolve(cwd, contentImagesDir), join(outputDir, 'content/images'), {
     maxImageBytes,
   });
   // content/files and content/media come straight from Ghost exports

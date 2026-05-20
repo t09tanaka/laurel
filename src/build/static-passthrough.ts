@@ -1,5 +1,5 @@
 import { copyFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -23,7 +23,7 @@ export async function copyStaticDir(opts: {
   const { cwd, staticDir, outputDir } = opts;
   if (staticDir.length === 0) return 0;
 
-  const source = join(cwd, staticDir);
+  const source = resolve(cwd, staticDir);
   const tasks: Array<{ src: string; dst: string }> = [];
   let rels: string[] = [];
   try {
