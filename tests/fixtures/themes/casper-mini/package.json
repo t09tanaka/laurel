@@ -1,0 +1,19 @@
+{
+  "name": "casper-mini",
+  "description": "Minimal Casper-shaped fixture theme used to pin Nectar's Ghost-compat contract (i18n + @member + partial hash + Koenig classes). Not a real Casper release; just enough hbs to assert no `{{` leaks and no parse errors against canned fixtures.",
+  "version": "0.0.0",
+  "engines": {
+    "ghost": ">=5.0.0",
+    "ghost-api": "v5"
+  },
+  "config": {
+    "posts_per_page": 5,
+    "image_sizes": {
+      "xs": { "width": 160 },
+      "s": { "width": 480 },
+      "m": { "width": 720 },
+      "l": { "width": 1200 }
+    },
+    "card_assets": true
+  }
+}

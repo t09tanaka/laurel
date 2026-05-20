@@ -1,0 +1,9 @@
+{{!< default}}
+<header class="gh-archive">
+  <h1>{{tag.name}}</h1>
+  {{#if tag.description}}<p>{{tag.description}}</p>{{/if}}
+</header>
+<section class="gh-feed">
+  {{#foreach posts}}{{> "card"}}{{/foreach}}
+</section>
+{{pagination}}

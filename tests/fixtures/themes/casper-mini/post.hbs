@@ -1,0 +1,22 @@
+{{!< default}}
+<article class="gh-article {{post_class}}">
+  <header class="gh-article-header">
+    <h1>{{title}}</h1>
+    {{#if primary_author}}<p class="byline">{{t "By %" primary_author.name}}</p>{{/if}}
+    {{#if reading_time}}<p class="reading-time">{{reading_time minute=(t "1 min read") minutes=(t "% min read")}}</p>{{/if}}
+  </header>
+  <div class="gh-content">
+    {{content}}
+  </div>
+  {{!-- Ruby-style "more like this" using interpolated tags --}}
+  {{#if post.tags}}
+    {{#get "posts" filter="tag:[{{post.tags}}]+id:-{{post.id}}" limit="3" as |related|}}
+      <aside class="gh-related">
+        <h2>{{t "Related"}}</h2>
+        <ul>
+          {{#foreach related}}<li><a href="{{url}}">{{title}}</a></li>{{/foreach}}
+        </ul>
+      </aside>
+    {{/get}}
+  {{/if}}
+</article>

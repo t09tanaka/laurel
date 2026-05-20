@@ -1,0 +1,6 @@
+/* Stub stylesheet so `{{asset "built/screen.css"}}` resolves and asset
+   fingerprinting has something to hash. The contract test only checks that
+   the asset URL lands in the rendered HTML, not the CSS contents. */
+body {
+  font-family: system-ui, sans-serif;
+}
