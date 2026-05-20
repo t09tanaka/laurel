@@ -563,13 +563,21 @@ function evaluateTagOrAuthorAttr(raw: unknown, value: string): boolean {
 }
 
 // `{{#has number="3"}}` and `{{#has index="0"}}` compare a single integer
-// position (pagination page, foreach @index, …) against a literal or modulus
-// expression. `nth:N` is Ghost's modulus form: matches every Nth iteration
-// (`number === 0 mod N` after 1-indexing). Plain integers fall back to
-// equality. Range comparators (`>`, `<=`, …) are forwarded so themes can write
-// `index=">2"` for "after the third item".
+// position (pagination page, foreach @index, …) against literal, modulus, or
+// comparison expressions. Ghost also accepts comma-separated patterns such as
+// `number="3, 6, 9"`, which are evaluated as OR. `nth:N` is Ghost's modulus
+// form: matches every Nth iteration (`number === 0 mod N` after 1-indexing).
+// Plain integers fall back to equality. Range comparators (`>`, `<=`, …) are
+// forwarded so themes can write `index=">2"` for "after the third item".
 function evaluateNumberAttr(actual: number, value: string): boolean {
-  const trimmed = value.trim();
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .some((part) => evaluateSingleNumberPattern(actual, part));
+}
+
+function evaluateSingleNumberPattern(actual: number, trimmed: string): boolean {
   if (trimmed.startsWith('nth:')) {
     const n = Number(trimmed.slice('nth:'.length));
     if (!Number.isFinite(n) || n <= 0) return false;

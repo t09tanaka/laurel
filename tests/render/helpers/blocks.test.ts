@@ -725,6 +725,30 @@ describe('has helper', () => {
     ).toBe('a:MISS|b:MISS|c:HIT|d:MISS|');
   });
 
+  test('number="3, 6, 9" uses foreach @number as comma-separated patterns', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{#has number="3, 6, 9"}}[{{@number}}:{{slug}}]{{else}}-{{@number}}-{{/has}}{{/foreach}}',
+    );
+    const route = { data: { pagination: { page: 9 } } };
+    expect(
+      tpl(
+        {
+          items: [
+            { slug: 'a' },
+            { slug: 'b' },
+            { slug: 'c' },
+            { slug: 'd' },
+            { slug: 'e' },
+            { slug: 'f' },
+          ],
+        },
+        { data: { route } },
+      ),
+    ).toBe('-1--2-[3:c]-4--5-[6:f]');
+  });
+
   test('number="3" without nth falls back to strict equality on pagination page', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
@@ -732,6 +756,15 @@ describe('has helper', () => {
     const pageN = (n: number) => ({ data: { route: { data: { pagination: { page: n } } } } });
     expect(tpl({}, pageN(3))).toBe('HIT');
     expect(tpl({}, pageN(2))).toBe('MISS');
+  });
+
+  test('number comma-separated patterns still work against pagination page outside foreach', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has number="3, 6, 9"}}HIT{{else}}MISS{{/has}}');
+    const pageN = (n: number) => ({ data: { route: { data: { pagination: { page: n } } } } });
+    expect(tpl({}, pageN(6))).toBe('HIT');
+    expect(tpl({}, pageN(5))).toBe('MISS');
   });
 
   // #455 — `index="0"` compares against the `@index` exposed by `{{#foreach}}`.
@@ -752,6 +785,26 @@ describe('has helper', () => {
       '{{#foreach items}}{{#has index=">1"}}[{{slug}}]{{else}}-{{slug}}-{{/has}}{{/foreach}}',
     );
     expect(tpl({ items: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }] })).toBe('-a--b-[c]');
+  });
+
+  test('index="2, 5" matches comma-separated foreach @index values', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{#has index="2, 5"}}[{{@index}}:{{slug}}]{{else}}-{{@index}}-{{/has}}{{/foreach}}',
+    );
+    expect(
+      tpl({
+        items: [
+          { slug: 'a' },
+          { slug: 'b' },
+          { slug: 'c' },
+          { slug: 'd' },
+          { slug: 'e' },
+          { slug: 'f' },
+        ],
+      }),
+    ).toBe('-0--1-[2:c]-3--4-[5:f]');
   });
 
   // Ghost's `{{#has}}` treats multiple hash keys as OR: the block enters when
