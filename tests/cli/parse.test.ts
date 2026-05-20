@@ -11,7 +11,7 @@ import {
   suggestCommand,
   suggestFlag,
 } from '~/cli/parse.ts';
-import { BUILD_SPEC } from '~/cli/specs.ts';
+import { BUILD_SPEC, NEW_SPEC } from '~/cli/specs.ts';
 
 const SAMPLE_SPEC: CommandSpec = {
   name: 'build',
@@ -158,6 +158,25 @@ describe('parseCommand', () => {
   test('-- ends option parsing; trailing tokens become positionals', () => {
     const result = parseCommand(POSITIONAL_SPEC, ['post', '--', '--not-a-flag', 'My Title']);
     expect(result.positionals).toEqual(['post', '--not-a-flag', 'My Title']);
+  });
+
+  test('allows flags before required positionals', () => {
+    const result = parseCommand(NEW_SPEC, ['--slug', 'foo', 'post', 'Hello']);
+    expect(result.values.slug).toBe('foo');
+    expect(result.positionals).toEqual(['post', 'Hello']);
+  });
+
+  test('allows flags between positional arguments', () => {
+    const result = parseCommand(NEW_SPEC, ['post', '--slug', 'foo', '--draft', 'Hello']);
+    expect(result.values.slug).toBe('foo');
+    expect(result.values.draft).toBe(true);
+    expect(result.positionals).toEqual(['post', 'Hello']);
+  });
+
+  test('-- still ends option parsing when positionals and flags are interleaved', () => {
+    const result = parseCommand(NEW_SPEC, ['post', '--', '--slug', 'Hello']);
+    expect(result.values.slug).toBeUndefined();
+    expect(result.positionals).toEqual(['post', '--slug', 'Hello']);
   });
 
   test('repeated --config values are preserved in order for layered loading', () => {

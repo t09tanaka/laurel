@@ -37,6 +37,13 @@ describe('renderCliReference', () => {
     expect(md).toContain('required (variadic)');
   });
 
+  test('documents interleaved flag and positional parsing', () => {
+    const md = renderCliReference();
+    expect(md).toContain('## Argument order');
+    expect(md).toContain('nectar new --slug foo post "Hello"');
+    expect(md).toContain('`--` still ends option parsing');
+  });
+
   test('includes the supplied global options', () => {
     const md = renderCliReference();
     for (const g of DEFAULT_GLOBAL_OPTIONS) {

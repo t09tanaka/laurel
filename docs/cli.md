@@ -12,6 +12,13 @@ It is generated from the command specs in `src/cli/specs.ts`; run
 nectar [global options] <command> [options]
 ```
 
+## Argument order
+
+Within a subcommand, flags and positional arguments may be interleaved.
+`nectar new --slug foo post "Hello"` and `nectar new post --slug foo "Hello"`
+parse the same way. `--` still ends option parsing; every following token is
+treated as a positional argument, even when it looks like a flag.
+
 ## Global options
 
 | Flag | Env var | Description |
