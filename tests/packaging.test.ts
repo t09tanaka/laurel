@@ -154,4 +154,64 @@ describe('packaging', () => {
       }
     });
   });
+
+  describe('Docker image release', () => {
+    test('root Dockerfile builds a Bun alpine CLI image for nectar build', async () => {
+      const body = await readFile(join(REPO_ROOT, 'Dockerfile'), 'utf8');
+
+      expect(body).toContain('FROM oven/bun:${BUN_VERSION}-alpine AS deps');
+      expect(body).toContain('FROM oven/bun:${BUN_VERSION}-alpine AS prod-deps');
+      expect(body).toContain('RUN bun run build:cli');
+      expect(body).toContain('RUN bun install --frozen-lockfile --production');
+      expect(body).toContain('WORKDIR /workspace');
+      expect(body).toContain('RUN ln -s /opt/nectar/dist/cli.mjs /usr/local/bin/nectar');
+      expect(body).toContain('ENTRYPOINT ["nectar", "build"]');
+    });
+
+    test('root dockerignore keeps local-only and generated files out of the image context', async () => {
+      const body = await readFile(join(REPO_ROOT, '.dockerignore'), 'utf8');
+      const entries = body
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+      expect(entries).toContain('.git/');
+      expect(entries).toContain('.worktrees/');
+      expect(entries).toContain('node_modules/');
+      expect(entries).toContain('dist/');
+      expect(entries).toContain('.nectar-cache/');
+    });
+
+    test('release workflow publishes multi-arch images to GHCR and Docker Hub on tags', async () => {
+      const body = await readFile(join(REPO_ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+
+      expect(body).toContain('publish-docker:');
+      expect(body).toContain('packages: write');
+      expect(body).toContain('uses: docker/setup-qemu-action@v3');
+      expect(body).toContain('uses: docker/setup-buildx-action@v3');
+      expect(body).toContain('registry: ghcr.io');
+      expect(body).toContain('DOCKERHUB_USERNAME');
+      expect(body).toContain('DOCKERHUB_TOKEN');
+      expect(body).toContain('ghcr.io/${{ github.repository }}');
+      expect(body).toContain('docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nectar');
+      expect(body).toContain('platforms: linux/amd64,linux/arm64');
+      expect(body).toContain('push: true');
+      expect(body).toContain('type=raw,value=${{ needs.resolve-ref.outputs.tag }}');
+      expect(body).toContain(
+        'type=semver,pattern={{version}},value=${{ needs.resolve-ref.outputs.tag }}',
+      );
+    });
+
+    test('Docker docs document the published image and required Docker Hub secrets', async () => {
+      const deployDocs = await readFile(join(REPO_ROOT, 'docs', 'deploy', 'docker.md'), 'utf8');
+      const recipeDocs = await readFile(join(REPO_ROOT, 'docs', 'deployment', 'docker.md'), 'utf8');
+
+      expect(deployDocs).toContain('ghcr.io/t09tanaka/nectar:latest');
+      expect(deployDocs).toContain('t09tanaka/nectar:latest');
+      expect(deployDocs).toContain('DOCKERHUB_USERNAME');
+      expect(deployDocs).toContain('DOCKERHUB_TOKEN');
+      expect(deployDocs).toContain('nectar build');
+      expect(recipeDocs).toContain('ghcr.io/t09tanaka/nectar:latest');
+    });
+  });
 });

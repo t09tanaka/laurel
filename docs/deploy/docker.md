@@ -1,5 +1,63 @@
 # Deploying Nectar with Docker
 
+## Official build image
+
+Release tags publish a multi-arch Nectar CLI image for `linux/amd64` and
+`linux/arm64` to both GHCR and Docker Hub:
+
+```sh
+docker pull ghcr.io/t09tanaka/nectar:latest
+docker pull t09tanaka/nectar:latest
+```
+
+The image is based on `oven/bun:1.3.0-alpine`, uses `/workspace` as its working
+directory, and exposes `nectar build` as its entrypoint. Mount a Nectar project
+at `/workspace` to build it:
+
+```sh
+docker run --rm \
+  -v "$PWD:/workspace" \
+  ghcr.io/t09tanaka/nectar:latest
+```
+
+Arguments are passed to `nectar build`:
+
+```sh
+docker run --rm \
+  -v "$PWD:/workspace" \
+  ghcr.io/t09tanaka/nectar:latest \
+  --config nectar.toml --output dist
+```
+
+Use `--entrypoint nectar` when you need another command:
+
+```sh
+docker run --rm \
+  --entrypoint nectar \
+  -v "$PWD:/workspace" \
+  ghcr.io/t09tanaka/nectar:latest \
+  check
+```
+
+Tags include the pushed Git tag (`v0.1.0`), semver tags without the `v`
+prefix (`0.1.0`, `0.1`, `0`), and `latest`.
+
+## Release publishing setup
+
+The release workflow pushes the same multi-arch image to:
+
+- `ghcr.io/t09tanaka/nectar`
+- `docker.io/<DOCKERHUB_USERNAME>/nectar`
+
+GHCR uses the workflow `GITHUB_TOKEN` with `packages: write` permission. Docker
+Hub requires these repository secrets:
+
+- `DOCKERHUB_USERNAME`: Docker Hub namespace that owns the `nectar` repository
+- `DOCKERHUB_TOKEN`: Docker Hub access token with push access
+
+The workflow fails before building the image if either Docker Hub secret is
+missing, so tag releases do not silently skip Docker Hub publishing.
+
 Nectar ships two nginx-alpine samples under
 [`examples/docker/`](../../examples/docker/):
 [`Dockerfile`](../../examples/docker/Dockerfile) serves an already-built
