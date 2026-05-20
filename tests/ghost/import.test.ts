@@ -2976,6 +2976,68 @@ describe('importGhostExport — Lexical/Mobiledoc body rendering (#127)', () => 
     expect(body).not.toContain('from-lexical');
   });
 
+  test('strips a leading h1 that duplicates the Ghost title', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Fish & Chips',
+                  slug: 'duplicate-h1',
+                  html: '<h1> Fish &amp;\n Chips </h1><p>Body copy</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    const body = await readFile(join(cwd, 'content/posts/duplicate-h1.md'), 'utf8');
+    expect(body).toContain('Body copy');
+    expect(body).not.toContain('# Fish & Chips');
+  });
+
+  test('keeps a leading h1 when it does not match the Ghost title', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Fish & Chips',
+                  slug: 'different-h1',
+                  html: '<h1>Different heading</h1><p>Body copy</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.posts).toBe(1);
+    const body = await readFile(join(cwd, 'content/posts/different-h1.md'), 'utf8');
+    expect(body).toContain('# Different heading');
+    expect(body).toContain('Body copy');
+  });
+
   test('warns and writes an empty body when lexical JSON is unrenderable', async () => {
     await writeFile(
       exportFile,

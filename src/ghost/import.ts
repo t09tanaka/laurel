@@ -1,6 +1,8 @@
 import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
+import type { ChildNode, Element } from 'domhandler';
+import { parseDocument } from 'htmlparser2';
 import slugify from 'slugify';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
@@ -1551,21 +1553,58 @@ function renderPostHtml(post: GhostPost): string {
 
 function renderPostBody(post: GhostPost, html = renderPostHtml(post)): string {
   if (html.trim()) {
+    const bodyHtml = stripLeadingDuplicateTitleH1(html, post.title);
     const lexicalMarkdownCards = extractLexicalMarkdownCards(post.lexical);
     const rawMarkdownCards =
       lexicalMarkdownCards.length > 0
         ? lexicalMarkdownCards
         : extractMobiledocMarkdownCards(post.mobiledoc);
     if (rawMarkdownCards.length > 0) {
-      const body = turndownHtmlPreservingRawMarkdownCards(html, rawMarkdownCards);
+      const body = turndownHtmlPreservingRawMarkdownCards(bodyHtml, rawMarkdownCards);
       if (body !== null) return body;
     }
-    return turndownHtml(html);
+    return turndownHtml(bodyHtml);
   }
   if (post.lexical || post.mobiledoc) {
     logger.warn(`Post ${post.slug}: Lexical/Mobiledoc body rendered to empty content, skipping.`);
   }
   return '';
+}
+
+function stripLeadingDuplicateTitleH1(html: string, title: string): string {
+  const doc = parseDocument(html, {
+    decodeEntities: true,
+    lowerCaseAttributeNames: false,
+    withEndIndices: true,
+    withStartIndices: true,
+  });
+  const first = doc.children.find((node) => !isBlankTextOrComment(node));
+  if (!first || !isElement(first) || first.name.toLowerCase() !== 'h1') return html;
+  if (normalizeHeadingText(textContent(first)) !== normalizeHeadingText(title)) return html;
+
+  const start = first.startIndex;
+  const end = first.endIndex;
+  if (start === null || end === null || start < 0 || end < start) return html;
+  return `${html.slice(0, start)}${html.slice(end + 1)}`;
+}
+
+function normalizeHeadingText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function textContent(node: ChildNode): string {
+  if ('data' in node) return node.data;
+  if (!isElement(node)) return '';
+  return node.children.map((child) => textContent(child)).join('');
+}
+
+function isElement(node: ChildNode): node is Element {
+  return 'attribs' in node && 'children' in node;
+}
+
+function isBlankTextOrComment(node: ChildNode): boolean {
+  if ('data' in node) return node.data.trim() === '';
+  return false;
 }
 
 function turndownHtml(html: string): string {
