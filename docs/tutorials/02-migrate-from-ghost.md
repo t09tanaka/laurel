@@ -53,7 +53,7 @@ What the importer does:
 - Converts every post/page from Ghost's `html` / `mobiledoc` / `lexical` body
   into Markdown via Turndown.
 - Writes posts to `content/posts/<slug>.md`, pages to `content/pages/<slug>.md`,
-  authors with a real bio to `content/authors/<slug>.md`, tags with metadata to
+  authors to `content/authors/<slug>.md`, and tags with metadata to
   `content/tags/<slug>.md`.
 - Copies `images/`, `files/`, `media/` from `--assets` into
   `content/<name>/`, additively (existing files are not overwritten).
@@ -113,11 +113,12 @@ Things to double-check, in priority order:
 1. **Featured images.** Posts with `feature_image` set in Ghost should render
    them. If they don't, confirm `--assets` pointed at the directory holding
    `images/` and that the image paths look like `/content/images/...`.
-2. **Code injection.** Ghost's per-post header/footer injection is preserved
-   as `codeinjection_head` and `codeinjection_foot` frontmatter, and rendered
-   by `{{ghost_head}}` / `{{ghost_foot}}` in the theme. Site-wide injection
-   from Ghost admin is **not** imported — paste it into your theme's
-   `default.hbs` instead.
+2. **Code injection.** Ghost's per-post header/footer injection is skipped by
+   default. Re-run with `--keep-code-injection` only if you trust the export;
+   those fields then land as `codeinjection_head` and `codeinjection_foot`
+   frontmatter and render through `{{ghost_head}}` / `{{ghost_foot}}`. Site-wide
+   injection from Ghost admin is **not** imported — paste trusted snippets into
+   your theme's `default.hbs` instead.
 3. **Members / paid posts.** Static sites cannot enforce paywalls. By default
    Nectar strips `members`/`paid` post bodies down to a paywall stub so
    anonymous readers never see the real content; add a `<!-- members -->`

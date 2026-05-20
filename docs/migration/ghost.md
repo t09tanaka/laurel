@@ -5,6 +5,9 @@ It assumes you already run Ghost (self-hosted or Ghost(Pro)) and want to keep
 your posts, pages, tags, authors, images, and theme exactly as they are — but
 publish as static files instead of running a Node server and a database.
 
+For the concise support matrix of what the importer converts automatically and
+what remains manual, see [`docs/MIGRATION.md`](../MIGRATION.md).
+
 If you only need a 30-second summary, the example blog ships a short post that
 shows the same flow at a higher level: `example/content/posts/migrating-from-ghost.md`.
 This document is the version with all the edge cases, screenshots, and
@@ -134,7 +137,8 @@ Open your Ghost admin and navigate to **Settings → Labs**. Scroll to the
 Click **Export**. Ghost downloads a single JSON file, typically named
 `your-site.ghost.YYYY-MM-DD.json`. This file contains every post (published,
 draft, scheduled), every page, every tag, every author profile, plus your
-Ghost-side settings.
+Ghost-side settings. Nectar reads the content records from this file; it does
+not automatically convert Ghost settings into `nectar.toml`.
 
 **It does not contain images or uploaded files.** Those need a separate step.
 
@@ -231,12 +235,13 @@ want to diff the new import against your edits before adopting any of them.
 | `og_title` / `og_image`/ `og_description`     | `og_title` / `og_image` / `og_description` |
 | `twitter_title` / `twitter_image` / `twitter_description` | `twitter_title` / `twitter_image` / `twitter_description` |
 | `canonical_url`        | `canonical_url`                          |
-| `codeinjection_head`   | `codeinjection_head`                     |
-| `codeinjection_foot`   | `codeinjection_foot`                     |
+| `codeinjection_head`   | `codeinjection_head` only with `--keep-code-injection` |
+| `codeinjection_foot`   | `codeinjection_foot` only with `--keep-code-injection` |
 
-Tags and authors get their own Markdown files if they carry a description,
-feature image, or meta fields. Otherwise they are referenced from posts by
-slug and do not need a standalone file.
+Tags get their own Markdown files when they carry a description, feature
+image, accent color, or meta title. Authors get Markdown files when the
+importer can derive a safe slug. Plain tags with no metadata are referenced
+from posts by slug and do not need a standalone file.
 
 ### Ghost URL placeholders
 
@@ -249,14 +254,20 @@ yet rewriting.
 
 ### What does NOT get imported
 
-These are explicitly out of scope and the importer drops them silently:
+These are explicitly out of scope or require manual follow-up after import:
 
 - **Members, subscribers, paid plans.** Nectar is static; there is no
   members database.
+- **Ghost settings as automatic config.** Ghost's site title, navigation,
+  theme settings, Labs flags, email config, and similar admin settings must be
+  copied manually into `nectar.toml` where Nectar has an equivalent.
 - **Newsletter-only / email-only posts.** Email rendering is a Ghost
   server feature; static sites have no equivalent. Posts with
   `email_only: true` are still imported as Markdown, but they will render as
   regular pages with no email send pipeline.
+- **Snippets and custom fields outside Nectar frontmatter.** Editor snippets,
+  plugin-owned records, and custom export tables that are not represented by
+  the frontmatter mapping above are not converted.
 - **The Ghost Content API.** Themes that call `{{#get}}` against a remote
   endpoint resolve against the local content graph instead — see the Ghost
   compatibility doc.

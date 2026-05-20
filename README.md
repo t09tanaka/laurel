@@ -24,7 +24,8 @@ Designed around four pillars:
    opt in by config; not core.
 
 Plus migration tooling: `nectar import-ghost ghost-export.json` converts a
-Ghost admin JSON export into Markdown content.
+Ghost admin JSON export into Markdown content. The supported migration path is
+documented in [`docs/MIGRATION.md`](./docs/MIGRATION.md).
 
 ## Status
 
@@ -36,8 +37,9 @@ theme-compatibility policy,
 locales, asset fingerprinting, golden snapshot tests),
 `docs/theme-reference.md` for the machine-checked helper inventory plus
 content-shape index, and
-`docs/migration/ghost.md` for the step-by-step guide to moving a
-real blog off Ghost. If your Ghost site uses Members / Portal, read
+[`docs/MIGRATION.md`](./docs/MIGRATION.md) for the Ghost Admin export ->
+Markdown migration path, and `docs/migration/ghost.md` for the step-by-step
+guide to moving a real blog off Ghost. If your Ghost site uses Members / Portal, read
 `docs/MEMBERS.md` for what does and doesn't translate to a static build,
 plus wiring examples for Buttondown / Beehiiv / Substack.
 

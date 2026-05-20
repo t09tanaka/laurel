@@ -7,6 +7,10 @@ For a practical, signature-level reference of every helper and context with
 worked examples, see [`THEME_DEV.md`](./THEME_DEV.md). This document tracks
 status and edge cases as we discover them.
 
+For the supported Ghost Admin export -> Nectar Markdown import path, see
+[`MIGRATION.md`](./MIGRATION.md). It lists what `nectar import-ghost` imports
+automatically and what needs manual work after conversion.
+
 For the members / portal compatibility surface in particular — what
 `@member`, `@site.members_enabled`, `{{#unless access}}`, and the
 `data-portal="…"` rewrites mean in a static build, plus migration
