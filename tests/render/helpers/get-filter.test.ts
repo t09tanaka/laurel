@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
+import { registerStringHelpers } from '~/render/helpers/strings.ts';
 
 function buildEngine(content: {
   posts?: unknown[];
@@ -26,6 +27,7 @@ function buildEngine(content: {
     render: () => '',
   } as NectarEngine;
   registerBlockHelpers(engine);
+  registerStringHelpers(engine);
   return engine;
 }
 
@@ -88,96 +90,53 @@ describe('get helper filter via secondary indexes', () => {
   test('handles negation against the indexed set', () => {
     const engine = buildEngine({ posts: samplePosts });
     const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:news+id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+      `{{#get "posts" filter=(concat "tag:news+id:-" post.id) as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
     );
     expect(tpl({ post: { id: 'a' } })).toBe('b,');
   });
 
-  // On a single-post route, Ghost makes the post available through both `this`
-  // (flattened) and the route data. A sidebar/partial rendered where the
-  // surrounding ctx is something else still needs `{{post.id}}` to resolve, or
-  // `id:-` collapses to "not equal to ''" and silently matches every post.
-  test('interpolates {{post.id}} from route.data when surrounding ctx has no post', () => {
+  test('accepts nested dynamic filter values from Handlebars subexpressions', () => {
     const engine = buildEngine({ posts: samplePosts });
     const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:news+id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+      `{{#get "posts" filter=(concat "tag:" post.primary_tag.slug) as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
     );
-    const rendered = tpl(
-      { some: 'tag-archive-ctx' },
-      { data: { route: { kind: 'tag', data: { post: { id: 'a' } } } } },
-    );
-    expect(rendered).toBe('b,');
+    expect(tpl({ post: { primary_tag: { slug: 'opinion' } } })).toBe('c,');
   });
 
-  // Ruby-style "more posts like this" theme: `filter="tags:[{{post.tags}}]+id:-{{post.id}}"`.
-  // `post.tags` is a Tag[]; `String(arr)` would emit `[object Object],…` and
-  // the parser would match nothing. The interpolation projects each Tag down
-  // to its slug so the NQL list parser receives `news,opinion`.
-  test('interpolates {{post.tags}} as a comma-joined slug list (Tag[])', () => {
-    const engine = buildEngine({ posts: samplePosts });
-    const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:[{{post.tags}}]+id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
-    );
-    const post = {
-      id: 'a',
-      tags: [
-        { slug: 'news', name: 'News' },
-        { slug: 'opinion', name: 'Opinion' },
-      ],
-    };
-    expect(tpl({ post })).toBe('b,c,');
-  });
-
-  test('falls back to tag.name when slug is missing', () => {
-    const engine = buildEngine({ posts: samplePosts });
-    const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:[{{post.tags}}]" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
-    );
-    const post = { tags: [{ name: 'News' }] };
-    // Indexed lookup matches both slug:news and name:News, so posts a + b
-    // (tagged "news") show up.
-    expect(tpl({ post })).toBe('a,b,');
-  });
-
-  test('skips nulls and never emits [object Object]', () => {
-    const engine = buildEngine({ posts: samplePosts });
-    const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:[{{post.tags}}]" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
-    );
-    // null entries and a tag with neither slug nor name are dropped from the
-    // joined list; the remaining slug still drives the filter.
-    const post = { tags: [null, { slug: 'opinion' }, { foo: 'bar' }] };
-    const rendered = tpl({ post });
-    expect(rendered).not.toContain('[object Object]');
-    expect(rendered).toBe('c,');
-  });
-
-  test('falls through to route.data for nested paths like {{post.primary_tag.slug}}', () => {
-    const engine = buildEngine({ posts: samplePosts });
-    const tpl = engine.hb.compile(
-      `{{#get "posts" filter="tag:{{post.primary_tag.slug}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
-    );
-    const rendered = tpl(
-      {},
-      {
-        data: {
-          route: { kind: 'post', data: { post: { primary_tag: { slug: 'opinion' } } } },
+  test('keeps literal mustache braces inside quoted filter strings', () => {
+    const engine = buildEngine({
+      posts: [
+        { id: 'a', slug: 'a', title: 'a', published_at: '2026-05-19T00:00:00.000Z' },
+        {
+          id: 'literal',
+          slug: 'literal',
+          title: '{{post.id}}',
+          published_at: '2026-05-18T00:00:00.000Z',
         },
-      },
+      ],
+    });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="title:'{{post.id}}'" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
     );
-    expect(rendered).toBe('c,');
+    expect(tpl({ post: { id: 'a' } })).toBe('literal,');
   });
 
-  test('prefers surrounding ctx over route.data when both resolve the path', () => {
-    const engine = buildEngine({ posts: samplePosts });
+  test('does not re-interpolate mustache braces returned by subexpressions', () => {
+    const engine = buildEngine({
+      posts: [
+        { id: 'a', slug: 'a', title: 'a', published_at: '2026-05-19T00:00:00.000Z' },
+        {
+          id: 'literal',
+          slug: 'literal',
+          title: '{{post.id}}',
+          published_at: '2026-05-18T00:00:00.000Z',
+        },
+      ],
+    });
     const tpl = engine.hb.compile(
-      `{{#get "posts" filter="id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+      `{{#get "posts" filter=(concat "title:'" literalFilterValue "'") as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
     );
-    const rendered = tpl(
-      { post: { id: 'a' } },
-      { data: { route: { kind: 'post', data: { post: { id: 'b' } } } } },
-    );
-    expect(rendered).toBe('b,c,');
+    expect(tpl({ literalFilterValue: '{{post.id}}', post: { id: 'a' } })).toBe('literal,');
   });
 
   test('handles list values like tag:[a,b]', () => {

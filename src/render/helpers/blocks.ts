@@ -188,7 +188,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const limit: number | 'all' = limitRaw === 'all' ? 'all' : (parseNum(limitRaw) ?? 15);
     const requestedPage = Math.max(1, Math.trunc(parseNum(hash.page) ?? 1));
     const order = String(hash.order ?? 'published_at desc');
-    const filter = typeof hash.filter === 'string' ? hash.filter : '';
+    const filter = stringifyGetHashValue(hash.filter);
     const slugFilter = parseSlugHashFilter(hash);
     const include = parseIncludeTokens(hash.include);
     const fields = parseFieldsTokens(hash.fields);
@@ -343,6 +343,22 @@ function parseFieldsTokens(raw: unknown): readonly string[] {
     tokens.push(token);
   }
   return tokens;
+}
+
+function stringifyGetHashValue(raw: unknown): string {
+  if (raw == null) return '';
+  if (isHandlebarsSafeString(raw)) return raw.toHTML();
+  if (typeof raw === 'string') return raw;
+  return String(raw);
+}
+
+function isHandlebarsSafeString(value: unknown): value is { toHTML(): string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toHTML' in value &&
+    typeof value.toHTML === 'function'
+  );
 }
 
 function parseSlugHashFilter(hash: Record<string, unknown>): string | undefined {

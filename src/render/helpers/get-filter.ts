@@ -54,10 +54,10 @@ export function applyGetFilter(
   resource: string,
   items: readonly unknown[],
   filter: string,
-  ctx: unknown,
-  route?: unknown,
+  _ctx: unknown,
+  _route?: unknown,
 ): unknown[] {
-  const tree = parseFilterTree(filter, ctx, route);
+  const tree = parseFilterTree(filter);
   if (tree.invalid) return [];
   if (!tree.expr || tree.branches.length === 0) return items.slice();
 
@@ -207,8 +207,8 @@ function addEntry(index: FilterIndex, key: IndexedKey, value: string, item: unkn
 // Parses the Ghost NQL subset used by themes. Operator precedence is:
 // parentheses, AND (`+`), then OR (`,`). Parsed expressions are converted to
 // DNF so existing per-AND-branch index evaluation remains available.
-function parseFilterTree(filter: string, ctx: unknown, route?: unknown): FilterTree {
-  const source = interpolate(filter, ctx, route).trim();
+function parseFilterTree(filter: string): FilterTree {
+  const source = filter.trim();
   if (source === '') return { expr: null, branches: [], invalid: false };
   const parser = new FilterParser(source);
   const expr = parser.parse();
@@ -385,70 +385,6 @@ function toDnf(expr: FilterExpr): ParsedClause[][] {
     for (const r of right) branches.push([...l, ...r]);
   }
   return branches;
-}
-
-// Ghost themes write filter expressions like `id:-{{post.id}}` that need to
-// resolve the route's primary object (`post`, `page`, `tag`, `author`) even
-// when the surrounding Handlebars `this` is something else — e.g. a partial
-// invoked outside a `{{#post}}` scope, or a sidebar rendered on a tag archive.
-// Falling back to `route.data` keeps `{{post.id}}` interpolating to the actual
-// post id instead of an empty string (which, with negation, would silently
-// match every post in the collection).
-function interpolate(value: string, ctx: unknown, route?: unknown): string {
-  const routeData =
-    route && typeof route === 'object' ? (route as Record<string, unknown>).data : undefined;
-  return value.replace(/\{\{([^}]+)\}\}/g, (_, expr) => {
-    const path = String(expr).trim().split('.');
-    const fromCtx = resolvePath(ctx, path);
-    if (fromCtx != null) return stringifyForFilter(fromCtx);
-    const fromRoute = resolvePath(routeData, path);
-    return fromRoute == null ? '' : stringifyForFilter(fromRoute);
-  });
-}
-
-// Ruby-style themes use `filter="tags:[{{post.tags}}]"` to surface
-// related-posts collections. `post.tags` is a `Tag[]` (objects with `slug`,
-// `name`, etc.) — `String(arr)` would emit `[object Object],[object Object]`
-// which then evaluates to the literal string and silently matches nothing.
-// Project arrays of resource objects down to their slugs (or names as a
-// fallback) so the NQL list parser sees `news,opinion`. Plain scalars and
-// primitive arrays round-trip via `String()` unchanged.
-function stringifyForFilter(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (item == null) return '';
-        if (typeof item === 'object') {
-          const obj = item as Record<string, unknown>;
-          const slug = obj.slug;
-          if (typeof slug === 'string' && slug.length > 0) return slug;
-          const name = obj.name;
-          if (typeof name === 'string' && name.length > 0) return name;
-          return '';
-        }
-        return String(item);
-      })
-      .filter((s) => s.length > 0)
-      .join(',');
-  }
-  if (value != null && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    const slug = obj.slug;
-    if (typeof slug === 'string') return slug;
-    const name = obj.name;
-    if (typeof name === 'string') return name;
-    return '';
-  }
-  return String(value);
-}
-
-function resolvePath(source: unknown, path: string[]): unknown {
-  let cursor: unknown = source;
-  for (const seg of path) {
-    if (cursor == null || typeof cursor !== 'object') return undefined;
-    cursor = (cursor as Record<string, unknown>)[seg];
-  }
-  return cursor;
 }
 
 function evaluateClause(item: unknown, clause: ParsedClause): boolean {
