@@ -3,6 +3,8 @@ import type { ContentGraph, Post } from '~/content/model.ts';
 import { withBasePath } from '~/util/url.ts';
 import { writeHtml } from './emit.ts';
 import { renderFeedSafeHtml } from './feed-safe-html.ts';
+import { assignPostUrls } from './permalinks.ts';
+import { type ResolvedCollection, type RoutesYaml, resolveCollections } from './routes-yaml.ts';
 import { absoluteContentUrl, absoluteUrl } from './url.ts';
 
 // Sitemap emission has its own module (./sitemap.ts) so the Ghost 5-file
@@ -29,8 +31,9 @@ export async function emitRss(opts: {
   content: ContentGraph;
   outputDir: string;
   limit: number;
+  routesYaml?: RoutesYaml;
 }): Promise<void> {
-  const { config, content, outputDir, limit } = opts;
+  const { config, content, outputDir, limit, routesYaml } = opts;
   await emitRssFeed({
     config,
     posts: content.posts,
@@ -46,6 +49,16 @@ export async function emitRss(opts: {
       link: trimTrailingSlash(absoluteUrl('/', config)),
     },
   });
+
+  if (routesYaml !== undefined) {
+    await emitCollectionRssFeeds({
+      config,
+      content,
+      outputDir,
+      limit,
+      collections: resolveCollections(routesYaml),
+    });
+  }
 
   // Per-tag and per-author feeds are opt-out via [components.rss].per_tag /
   // per_author. The feeds match Ghost's `/tag/<slug>/rss/` and
@@ -110,9 +123,10 @@ async function emitRssFeed(opts: {
   outputDir: string;
   limit: number;
   pageFilename: (page: number) => string;
+  pageHref?: (page: number) => string;
   channel: RssChannel;
 }): Promise<void> {
-  const { config, posts, outputDir, limit, pageFilename, channel } = opts;
+  const { config, posts, outputDir, limit, pageFilename, pageHref, channel } = opts;
   // `base` is the configured public site URL with a stable slashless shape.
   // Route URLs go through `absoluteUrl`; feed body assets still use the lighter
   // root-relative attribute rewrite because they are not route permalinks.
@@ -134,7 +148,8 @@ async function emitRssFeed(opts: {
   // Compose the host-relative feed URL once per page. atom:link href entries
   // must be fully-qualified (RSS readers need an absolute origin), and they
   // live under `base_path` on subpath deploys (e.g. `/blog/rss.xml`).
-  const filenameHref = (page: number) => absoluteUrl(pageFilename(page), config);
+  const filenameHref = (page: number) =>
+    pageHref !== undefined ? pageHref(page) : absoluteUrl(pageFilename(page), config);
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = posts.slice(start, start + perPage);
@@ -172,6 +187,39 @@ ${items}
 </channel>
 </rss>`;
     await writeHtml(outputDir, filename, xml);
+  }
+}
+
+async function emitCollectionRssFeeds(opts: {
+  config: NectarConfig;
+  content: ContentGraph;
+  outputDir: string;
+  limit: number;
+  collections: readonly ResolvedCollection[];
+}): Promise<void> {
+  const { config, content, outputDir, limit, collections } = opts;
+  if (collections.length === 0) return;
+  const assignments = assignPostUrls(content.posts, collections);
+
+  for (const collection of collections) {
+    if (collection.rss === false) continue;
+    const collectionPosts = content.posts.filter(
+      (post) => assignments.get(post.id)?.collection === collection,
+    );
+    if (collectionPosts.length === 0) continue;
+    await emitRssFeed({
+      config,
+      posts: collectionPosts,
+      outputDir,
+      limit,
+      pageFilename: (page) => collectionRssPageFilename(collection.url, page),
+      pageHref: (page) => collectionRssPageHref(collection.url, page, config),
+      channel: {
+        title: collectionRssTitle(collection, config),
+        description: config.site.description,
+        link: absoluteContentUrl(collection.url, config),
+      },
+    });
   }
 }
 
@@ -232,6 +280,37 @@ function trimTrailingSlash(value: string): string {
 // Subsequent pages use `rss-N.xml` (N >= 2).
 function rssPageFilename(page: number): string {
   return page === 1 ? 'rss.xml' : `rss-${page}.xml`;
+}
+
+function collectionRssPageFilename(collectionUrl: string, page: number): string {
+  const base = collectionRssRoute(collectionUrl, page).replace(/^\/+/, '').replace(/\/+$/, '');
+  return base ? `${base}/index.xml` : 'rss/index.xml';
+}
+
+function collectionRssPageHref(collectionUrl: string, page: number, config: NectarConfig): string {
+  return absoluteUrl(collectionRssRoute(collectionUrl, page), config);
+}
+
+function collectionRssRoute(collectionUrl: string, page: number): string {
+  const clean = collectionUrl.replace(/\/+$/, '');
+  const prefix = clean === '' ? '' : clean.startsWith('/') ? clean : `/${clean}`;
+  const base = `${prefix}/rss/`;
+  return page === 1 ? base : `${base}${page}/`;
+}
+
+function collectionRssTitle(collection: ResolvedCollection, config: NectarConfig): string {
+  const label = collection.url
+    .replace(/^\/+|\/+$/g, '')
+    .split('/')
+    .filter(Boolean)
+    .pop();
+  if (!label) return config.site.title;
+  const title = label
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+  return title ? `${title} - ${config.site.title}` : config.site.title;
 }
 
 function renderItem(

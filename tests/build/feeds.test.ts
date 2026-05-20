@@ -889,6 +889,113 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
   });
 });
 
+describe('emitRss per-collection feeds (issue #967)', () => {
+  test('emits collection/rss/index.xml with only posts assigned to that collection', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-collection-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const blogTag = makeTag({
+      id: 'tag-blog',
+      slug: 'blog',
+      name: 'Blog',
+    });
+    const changelogTag = makeTag({
+      id: 'tag-changelog',
+      slug: 'changelog',
+      name: 'Changelog',
+    });
+    const blogPost = makePost({
+      id: 'p-blog',
+      slug: 'blog-post',
+      title: 'Blog Post',
+      url: '/blog/blog-post/',
+      tags: [blogTag],
+      primary_tag: blogTag,
+    });
+    const changelogPost = makePost({
+      id: 'p-changelog',
+      slug: 'ship-it',
+      title: 'Ship It',
+      url: '/changelog/ship-it/',
+      tags: [changelogTag],
+      primary_tag: changelogTag,
+    });
+    const content: ContentGraph = {
+      ...makeGraph(),
+      posts: [blogPost, changelogPost],
+      tags: [blogTag, changelogTag],
+      postsByTag: new Map([
+        [blogTag.slug, [blogPost]],
+        [changelogTag.slug, [changelogPost]],
+      ]),
+    };
+    const routesYaml = {
+      routes: {},
+      collections: {
+        '/blog/': {
+          permalink: '/blog/{slug}/',
+          filter: 'tag:blog',
+        },
+        '/changelog/': {
+          permalink: '/changelog/{slug}/',
+          filter: 'tag:changelog',
+        },
+      },
+    };
+
+    await emitRss({ config, content, outputDir, limit: 20, routesYaml });
+
+    const blogXml = readFileSync(join(outputDir, 'blog/rss/index.xml'), 'utf8');
+    expect(blogXml).toContain('<title><![CDATA[Blog Post]]></title>');
+    expect(blogXml).not.toContain('<title><![CDATA[Ship It]]></title>');
+    expect(blogXml).toContain('<title>Blog - T</title>');
+    expect(blogXml).toContain('<link>https://example.com/blog/</link>');
+    expect(blogXml).toContain(
+      '<atom:link href="https://example.com/blog/rss/" rel="self" type="application/rss+xml"/>',
+    );
+    expect(blogXml).toContain('<link>https://example.com/blog/blog-post/</link>');
+
+    const changelogXml = readFileSync(join(outputDir, 'changelog/rss/index.xml'), 'utf8');
+    expect(changelogXml).toContain('<title><![CDATA[Ship It]]></title>');
+    expect(changelogXml).not.toContain('<title><![CDATA[Blog Post]]></title>');
+  });
+
+  test('skips collections with rss disabled', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-collection-off-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const hiddenTag = makeTag({
+      id: 'tag-hidden',
+      slug: 'hidden',
+      name: 'Hidden',
+    });
+    const post = makePost({
+      id: 'p-hidden',
+      slug: 'hidden-post',
+      tags: [hiddenTag],
+      primary_tag: hiddenTag,
+    });
+    const content: ContentGraph = {
+      ...makeGraph(),
+      posts: [post],
+      tags: [hiddenTag],
+      postsByTag: new Map([[hiddenTag.slug, [post]]]),
+    };
+    const routesYaml = {
+      routes: {},
+      collections: {
+        '/hidden/': {
+          permalink: '/hidden/{slug}/',
+          filter: 'tag:hidden',
+          rss: false,
+        },
+      },
+    };
+
+    await emitRss({ config, content, outputDir, limit: 20, routesYaml });
+
+    expect(existsSync(join(outputDir, 'hidden/rss/index.xml'))).toBe(false);
+  });
+});
+
 describe('emitSitemap', () => {
   test('sitemap.xml is always a <sitemapindex> referencing all four Ghost sub-sitemaps', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));

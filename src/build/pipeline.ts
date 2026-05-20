@@ -98,6 +98,7 @@ import {
   injectSubresourceIntegrity,
   removeRedundantScriptPreload,
 } from './perf-hints.ts';
+import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
@@ -109,7 +110,7 @@ import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
 import { type RedirectRule, buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
-import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
+import { loadRoutesYaml, resolveCollections, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import {
   emitSearchJson,
@@ -1133,13 +1134,14 @@ async function runBuild({
       );
     }
     if (config.components.rss.enabled) {
-      markPlannedRssOutputs({ config, content, keepOutput });
+      markPlannedRssOutputs({ config, content, routesYaml, keepOutput });
       await timed(profiler, 'rss', () =>
         emitRss({
           config,
           content,
           outputDir,
           limit: config.components.rss.items,
+          routesYaml,
         }),
       );
     }
@@ -1492,6 +1494,7 @@ function markPlannedSitemapOutputs(opts: {
 function markPlannedRssOutputs(opts: {
   config: Awaited<ReturnType<typeof loadConfig>>;
   content: ContentGraph;
+  routesYaml: Awaited<ReturnType<typeof loadRoutesYaml>>;
   keepOutput: KeepOutput;
 }): void {
   const perPage = Math.max(1, Math.min(opts.config.components.rss.items, 250));
@@ -1510,6 +1513,30 @@ function markPlannedRssOutputs(opts: {
     for (const author of opts.content.authors) {
       const posts = opts.content.postsByAuthor.get(author.slug) ?? [];
       if (posts.length > 0) opts.keepOutput(`author/${author.slug}/rss/index.xml`);
+    }
+  }
+  const collections = resolveCollections(opts.routesYaml);
+  if (collections.length > 0) {
+    const assignments = assignPostUrls(opts.content.posts, collections);
+    for (const collection of collections) {
+      if (collection.rss === false) continue;
+      const postCount = opts.content.posts.filter(
+        (post) => assignments.get(post.id)?.collection === collection,
+      ).length;
+      if (postCount === 0) continue;
+      const pages = Math.max(1, Math.ceil(postCount / perPage));
+      const basePath = collection.url.replace(/^\/+/, '').replace(/\/+$/, '');
+      for (let page = 1; page <= pages; page++) {
+        const relPath =
+          page === 1
+            ? basePath
+              ? `${basePath}/rss/index.xml`
+              : 'rss/index.xml'
+            : basePath
+              ? `${basePath}/rss/${page}/index.xml`
+              : `rss/${page}/index.xml`;
+        opts.keepOutput(relPath);
+      }
     }
   }
 }
