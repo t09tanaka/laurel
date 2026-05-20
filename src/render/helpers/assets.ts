@@ -37,13 +37,21 @@ export function registerAssetHelpers(engine: NectarEngine): void {
       typeof options.hash.format === 'string' ? normalizeFormat(options.hash.format) : undefined;
     const absolute = options.hash.absolute === true;
     const siteUrl = engine.content.site.url;
-    // External URLs (different host, or non-http(s) schemes like data:) must not
-    // be rewritten — Nectar only controls resizing for its own /content/images/.
-    // Applying size/format segments to an external host produces a broken URL
-    // that the remote service cannot serve.
-    const external = isExternalUrl(candidate, siteUrl);
-    const url = external ? candidate : applyTransformSegments(candidate, sizeDef, formatKey);
-    if (absolute && !external) {
+    // applyTransformSegments only rewrites URLs whose path contains
+    // `/content/images/`. That guard is sufficient: a Ghost CDN host serving
+    // `https://CDN/content/images/foo.jpg` is exactly the case where injecting
+    // `/content/images/size/wXXX/` is required (issue #463) — the CDN
+    // understands the Ghost image-API URL shape regardless of host. Non-Ghost
+    // external URLs (e.g. `https://images.unsplash.com/photo.jpg`,
+    // protocol-relative `//foo/bar.jpg`, `data:` URIs) lack `/content/images/`
+    // in their path so they fall through unchanged.
+    const url = applyTransformSegments(candidate, sizeDef, formatKey);
+    const sameOriginAsSite = isSameOriginAsSite(candidate, siteUrl);
+    // absolute=true only re-resolves against siteUrl for paths/relative URLs
+    // and same-origin absolute URLs. External absolute URLs (different host,
+    // or non-http(s) schemes like data:) are returned as-is so we don't
+    // rewrite their origin (issue #1132).
+    if (absolute && sameOriginAsSite) {
       try {
         return new URL(url, siteUrl).toString();
       } catch {
@@ -94,27 +102,26 @@ function buildSizeSegment(size: ThemeImageSize): string {
   return s;
 }
 
-// A URL is "external" when it has its own scheme/host and that host differs
-// from the configured site URL. Protocol-relative `//host/...` is also treated
-// as external. Non-http(s) schemes (e.g. `data:`, `mailto:`) are always
-// external since they don't share an origin with siteUrl. Failures in parsing
-// siteUrl fall back to treating any URL with a scheme as external — safer than
-// rewriting something we can't reason about.
-function isExternalUrl(candidate: string, siteUrl: string): boolean {
-  if (candidate.startsWith('//')) return true;
-  if (!URL_SCHEME_RE.test(candidate)) return false;
+// A candidate is "same-origin as the configured site" when it is either a
+// path-relative URL (e.g. `/content/images/x.jpg`) or an absolute http(s) URL
+// whose host matches siteUrl's host. Protocol-relative `//host/...` and
+// non-http(s) schemes (`data:`, `mailto:`) are always treated as foreign so
+// `absolute=true` does not rewrite their origin.
+function isSameOriginAsSite(candidate: string, siteUrl: string): boolean {
+  if (candidate.startsWith('//')) return false;
+  if (!URL_SCHEME_RE.test(candidate)) return true;
   let candidateUrl: URL;
   try {
     candidateUrl = new URL(candidate);
   } catch {
-    return false;
+    return true;
   }
-  if (candidateUrl.protocol !== 'http:' && candidateUrl.protocol !== 'https:') return true;
+  if (candidateUrl.protocol !== 'http:' && candidateUrl.protocol !== 'https:') return false;
   try {
     const siteHost = new URL(siteUrl).host;
-    return candidateUrl.host !== siteHost;
+    return candidateUrl.host === siteHost;
   } catch {
-    return true;
+    return false;
   }
 }
 

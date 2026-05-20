@@ -308,6 +308,7 @@ function paginationInfo(
     limit: perPage,
     prev_url: prevUrl,
     next_url: nextUrl,
+    base_url: baseUrl,
   };
 }
 

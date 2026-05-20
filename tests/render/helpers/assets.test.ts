@@ -128,24 +128,26 @@ describe('img_url helper', () => {
     );
   });
 
-  test('passes external-host URLs through unchanged even when they contain /content/images/ (issue #1132)', () => {
+  test('injects size segment into external-host URLs whose path contains /content/images/ (issue #463 — Ghost CDN host support)', () => {
     const engine = makeEngine({
       imageSizes: { m: { width: 600 } },
       siteUrl: 'https://example.com',
     });
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
-    expect(tpl({ feature_image: 'https://other.example.com/content/images/x.jpg' })).toBe(
-      'https://other.example.com/content/images/x.jpg',
+    // Ghost CDN with a different host still understands /content/images/size/wXXX/...
+    // so we MUST inject the size segment for resize to take effect.
+    expect(tpl({ feature_image: 'https://cdn.example.com/content/images/2024/01/foo.jpg' })).toBe(
+      'https://cdn.example.com/content/images/size/w600/2024/01/foo.jpg',
     );
   });
 
-  test('passes protocol-relative URLs through unchanged (issue #1132)', () => {
+  test('injects size segment into protocol-relative URLs whose path contains /content/images/ (issue #463)', () => {
     const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
     expect(tpl({ feature_image: '//cdn.example.com/content/images/x.jpg' })).toBe(
-      '//cdn.example.com/content/images/x.jpg',
+      '//cdn.example.com/content/images/size/w600/x.jpg',
     );
   });
 
@@ -284,6 +286,45 @@ describe('img_url helper', () => {
     const engine = makeEngine({});
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image format="webp"}}');
+    expect(tpl({ feature_image: 'https://images.unsplash.com/photo.jpg' })).toBe(
+      'https://images.unsplash.com/photo.jpg',
+    );
+  });
+
+  // The following test cases are explicit completion-criteria checks for
+  // issue #463 (img_url should inject /content/images/size/wXXX/ on absolute
+  // Ghost CDN URLs).
+  test('issue #463: relative /content/images/foo.jpg with size="s" -> /content/images/size/w300/foo.jpg', () => {
+    const engine = makeEngine({ imageSizes: { s: { width: 300 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="s"}}');
+    expect(tpl({ feature_image: '/content/images/foo.jpg' })).toBe(
+      '/content/images/size/w300/foo.jpg',
+    );
+  });
+
+  test('issue #463: absolute CDN URL with size="m" gets size segment injected, host preserved', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
+    expect(tpl({ feature_image: 'https://cdn.example.com/content/images/2024/01/foo.jpg' })).toBe(
+      'https://cdn.example.com/content/images/size/w600/2024/01/foo.jpg',
+    );
+  });
+
+  test('issue #463: absolute CDN URL that already has size segment is not re-injected', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
+    expect(
+      tpl({ feature_image: 'https://cdn.example.com/content/images/size/w300/2024/01/foo.jpg' }),
+    ).toBe('https://cdn.example.com/content/images/size/w300/2024/01/foo.jpg');
+  });
+
+  test('issue #463: non-Ghost URL (no /content/images/) is left untouched', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m"}}');
     expect(tpl({ feature_image: 'https://images.unsplash.com/photo.jpg' })).toBe(
       'https://images.unsplash.com/photo.jpg',
     );

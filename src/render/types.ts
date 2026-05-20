@@ -11,6 +11,10 @@ export interface PaginationInfo {
   limit: number;
   prev_url: string | undefined;
   next_url: string | undefined;
+  // Base URL of the paginated listing (e.g. `/`, `/tag/foo/`, `/author/bar/`).
+  // Carried on the pagination payload so the {{page_url N}} helper can build
+  // arbitrary `${base_url}page/N/` links without re-parsing prev_url/next_url.
+  base_url: string;
 }
 
 export type RouteKind = 'index' | 'home' | 'post' | 'page' | 'tag' | 'author' | 'custom' | 'error';

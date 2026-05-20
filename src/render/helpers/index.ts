@@ -9,6 +9,7 @@ import { registerI18nHelpers } from './i18n.ts';
 import { registerImageDimensionHelpers } from './image-dimensions.ts';
 import { registerNavigationHelpers } from './navigation.ts';
 import { registerNumberHelpers } from './numbers.ts';
+import { registerPageUrlHelper } from './page-url.ts';
 import { registerStringHelpers } from './strings.ts';
 import { registerUrlHelpers } from './urls.ts';
 
@@ -23,6 +24,7 @@ export function registerHelpers(engine: NectarEngine): void {
   registerImageDimensionHelpers(engine);
   registerNavigationHelpers(engine);
   registerNumberHelpers(engine);
+  registerPageUrlHelper(engine);
   registerStringHelpers(engine);
   registerUrlHelpers(engine);
 }
