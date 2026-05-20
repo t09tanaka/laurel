@@ -300,3 +300,84 @@ describe('readable_url helper', () => {
     expect(tpl({ blank: '   ' })).toBe('|');
   });
 });
+
+describe('social_accounts helper', () => {
+  test('iterates site social accounts in Ghost platform order', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#social_accounts @site}}{{@number}}:{{type}}/{{name}}/{{username}}/{{href}}{{#if @last}}!{{else}}|{{/if}}{{/social_accounts}}',
+    );
+
+    expect(
+      tpl(
+        {},
+        {
+          data: {
+            site: {
+              twitter: '@nectar',
+              facebook: 'nectar.blog',
+              instagram: 'nectargram',
+            },
+          },
+        },
+      ),
+    ).toBe(
+      [
+        '1:x/X/@nectar/https://twitter.com/nectar|',
+        '2:facebook/Facebook/nectar.blog/https://facebook.com/nectar.blog|',
+        '3:instagram/Instagram/nectargram/https://www.instagram.com/nectargram!',
+      ].join(''),
+    );
+  });
+
+  test('iterates author social accounts from the current context when no source is passed', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#social_accounts}}{{type}}={{href}};{{else}}EMPTY{{/social_accounts}}',
+    );
+
+    expect(
+      tpl({
+        linkedin: 'alice-writes',
+        mastodon: '@alice@hachyderm.io',
+        threads: 'alice_threads',
+      }),
+    ).toBe(
+      [
+        'linkedin=https://www.linkedin.com/in/alice-writes;',
+        'threads=https://www.threads.net/@alice_threads;',
+        'mastodon=https://hachyderm.io/@alice;',
+      ].join(''),
+    );
+  });
+
+  test('passes full profile URLs through and skips handles that cannot be normalised', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#social_accounts author}}{{type}}:{{href}}|{{/social_accounts}}',
+    );
+
+    expect(
+      tpl({
+        author: {
+          bluesky: 'https://bsky.app/profile/alice.example',
+          mastodon: 'alice',
+          tiktok: '@alice',
+        },
+      }),
+    ).toBe('bluesky:https://bsky.app/profile/alice.example|tiktok:https://www.tiktok.com/@alice|');
+  });
+
+  test('renders the inverse block when there are no connected accounts', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#social_accounts author}}HIT{{else}}EMPTY{{/social_accounts}}',
+    );
+
+    expect(tpl({ author: { name: 'Alice' } })).toBe('EMPTY');
+  });
+});

@@ -13,6 +13,25 @@ const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
   instagram: (h) => `https://www.instagram.com/${stripAt(h)}`,
 };
 
+const SOCIAL_PLATFORMS = [
+  { type: 'x', sourceKey: 'twitter', name: 'X' },
+  { type: 'facebook', name: 'Facebook' },
+  { type: 'linkedin', name: 'LinkedIn' },
+  { type: 'bluesky', name: 'Bluesky' },
+  { type: 'threads', name: 'Threads' },
+  { type: 'mastodon', name: 'Mastodon' },
+  { type: 'tiktok', name: 'TikTok' },
+  { type: 'youtube', name: 'YouTube' },
+  { type: 'instagram', name: 'Instagram' },
+] as const;
+
+interface SocialAccount {
+  type: string;
+  href: string;
+  username: string;
+  name: string;
+}
+
 export function registerUrlHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('url', function urlHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -62,6 +81,35 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     const candidate = typeof positional === 'string' ? positional : ctx.url;
     return typeof candidate === 'string' ? readableUrl(candidate) : '';
   });
+
+  engine.hb.registerHelper(
+    'social_accounts',
+    function socialAccountsHelper(this: unknown, ...args: unknown[]) {
+      const options = args[args.length - 1] as Handlebars.HelperOptions;
+      const source = args.length > 1 ? args[0] : this;
+      if (typeof options.fn !== 'function') return '';
+
+      const accounts = buildSocialAccounts(source);
+      if (accounts.length === 0) {
+        return typeof options.inverse === 'function' ? options.inverse(this) : '';
+      }
+
+      let output = '';
+      for (let i = 0; i < accounts.length; i += 1) {
+        const data = engine.hb.createFrame(
+          (options.data as Record<string, unknown> | undefined) ?? {},
+        );
+        data.index = i;
+        data.number = i + 1;
+        data.first = i === 0;
+        data.last = i === accounts.length - 1;
+        data.even = i % 2 === 0;
+        data.odd = i % 2 !== 0;
+        output += options.fn(accounts[i], { data });
+      }
+      return output;
+    },
+  );
 }
 
 function stripAt(handle: string): string {
@@ -98,6 +146,22 @@ function buildSocialUrl(type: string, handle: string): string {
   const builder = SOCIAL_PATTERNS[type];
   if (!builder) return '';
   return builder(handle);
+}
+
+function buildSocialAccounts(source: unknown): SocialAccount[] {
+  if (!source || typeof source !== 'object') return [];
+  const ctx = source as Record<string, unknown>;
+  const accounts: SocialAccount[] = [];
+
+  for (const { type, name, sourceKey = type } of SOCIAL_PLATFORMS) {
+    const username = ctx[sourceKey];
+    if (typeof username !== 'string' || username.length === 0) continue;
+    const href = buildSocialUrl(sourceKey, username);
+    if (!href) continue;
+    accounts.push({ type, name, username, href });
+  }
+
+  return accounts;
 }
 
 function normaliseMastodon(handle: string): string {
