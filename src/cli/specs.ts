@@ -37,9 +37,12 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Write dist/.nectar-build-stats.json with phase timings and per-route render durations for diagnosing slow builds',
     },
-    'no-atomic': {
+    atomic: {
       type: 'boolean',
+      default: true,
       description:
+        'Use atomic staging: write into a sibling temp dir before renaming into build.output_dir',
+      negatedDescription:
         'Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted',
     },
     concurrency: {
@@ -65,18 +68,24 @@ export const BUILD_SPEC: CommandSpec = {
     },
     cache: {
       type: 'boolean',
+      default: true,
       description:
         'Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache',
+      negatedDescription: 'Force every route to render without consulting the incremental cache',
     },
     progress: {
       type: 'boolean',
+      default: true,
       description:
         'Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output',
+      negatedDescription: 'Suppress human-readable build progress and summary lines',
     },
     'copy-content-assets': {
       type: 'boolean',
+      default: true,
       description:
         'Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build',
+      negatedDescription: 'Skip copying files from content.assets_dir into the output',
     },
     watch: {
       type: 'boolean',
@@ -85,8 +94,11 @@ export const BUILD_SPEC: CommandSpec = {
     },
     'emit-content-api': {
       type: 'boolean',
+      default: true,
       description:
-        'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used',
+        'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used',
+      negatedDescription:
+        'Force Ghost Content API JSON shadows off for this build without editing the config',
     },
     json: {
       type: 'boolean',
@@ -224,10 +236,12 @@ export const SERVE_SPEC: CommandSpec = {
       description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
       placeholder: '<host>',
     },
-    'no-watch': {
+    watch: {
       type: 'boolean',
-      description:
-        'Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot',
+      default: true,
+      description: 'Enable the default rebuild-on-change loop while serving dist/',
+      negatedDescription:
+        'Disable the default rebuild-on-change loop; serve dist/ as a static snapshot',
     },
     build: {
       type: 'boolean',
@@ -463,9 +477,11 @@ export const DOCTOR_SPEC: CommandSpec = {
       type: 'boolean',
       description: 'Emit results as JSON (for CI consumption)',
     },
-    'no-network': {
+    network: {
       type: 'boolean',
-      description: 'Skip the network reachability check',
+      default: true,
+      description: 'Run the network reachability check',
+      negatedDescription: 'Skip the network reachability check',
     },
   },
   positionals: [],

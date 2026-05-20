@@ -5,6 +5,8 @@ export interface OptionSpec {
   short?: string;
   description: string;
   placeholder?: string;
+  default?: boolean;
+  negatedDescription?: string;
 }
 
 export interface PositionalSpec {
@@ -89,12 +91,10 @@ export function parseCommand(
     }
     const multiple = name === 'config' && opt.type === 'string' ? true : undefined;
     options[name] = short ? { type: opt.type, short, multiple } : { type: opt.type, multiple };
-    if (opt.type === 'boolean' && !name.startsWith('no-')) {
+    if (hasAutoNegativeAlias(name, opt, spec.options)) {
       const negativeName = `no-${name}`;
-      if (!(negativeName in spec.options)) {
-        options[negativeName] = { type: 'boolean' };
-        negativeAliases.set(negativeName, name);
-      }
+      options[negativeName] = { type: 'boolean' };
+      negativeAliases.set(negativeName, name);
     }
   }
 
@@ -179,7 +179,15 @@ function applyEnvFallbacks(
     if (values[name] !== undefined) continue;
     const envKey = envVarName(spec.name, name);
     const envValue = env[envKey];
-    if (envValue === undefined) continue;
+    if (envValue === undefined) {
+      if (hasAutoNegativeAlias(name, opt, spec.options)) {
+        const negativeEnvKey = envVarName(spec.name, `no-${name}`);
+        const negativeEnvValue = env[negativeEnvKey];
+        if (negativeEnvValue === undefined) continue;
+        values[name] = !parseBooleanEnv(negativeEnvValue, negativeEnvKey);
+      }
+      continue;
+    }
     if (opt.type === 'boolean') {
       values[name] = parseBooleanEnv(envValue, envKey);
     } else if (envValue !== '') {
@@ -227,8 +235,7 @@ function validatePositionals(spec: CommandSpec, positionals: string[]): void {
 
 export function formatUsageLine(spec: CommandSpec): string {
   const parts = [`nectar ${spec.name}`];
-  for (const opt of Object.entries(spec.options)) {
-    const [name, def] = opt;
+  for (const [name, def] of optionEntriesForDisplay(spec)) {
     const placeholder = def.type === 'string' ? ` ${def.placeholder ?? '<value>'}` : '';
     parts.push(`[--${name}${placeholder}]`);
   }
@@ -257,7 +264,7 @@ export function formatCommandHelp(spec: CommandSpec): string {
 
   lines.push('');
   lines.push('Options:');
-  for (const [name, def] of Object.entries(spec.options)) {
+  for (const [name, def] of optionEntriesForDisplay(spec)) {
     const flag = formatFlag(name, def);
     lines.push(`  ${pad(flag, 20)}${def.description}`);
   }
@@ -328,14 +335,40 @@ function collectKnownFlagNames(spec: CommandSpec): string[] {
   for (const [name, opt] of Object.entries(spec.options)) {
     if (name === 'help') continue;
     names.push(name);
-    if (opt.type === 'boolean' && !name.startsWith('no-')) {
-      const negativeName = `no-${name}`;
-      if (!(negativeName in spec.options)) {
-        names.push(negativeName);
-      }
+    if (hasAutoNegativeAlias(name, opt, spec.options)) {
+      names.push(`no-${name}`);
     }
   }
   return names;
+}
+
+function hasAutoNegativeAlias(
+  name: string,
+  opt: OptionSpec,
+  options: Readonly<Record<string, OptionSpec>>,
+): boolean {
+  return (
+    opt.type === 'boolean' &&
+    opt.default === true &&
+    !name.startsWith('no-') &&
+    !(`no-${name}` in options)
+  );
+}
+
+export function optionEntriesForDisplay(spec: CommandSpec): Array<[string, OptionSpec]> {
+  const entries: Array<[string, OptionSpec]> = [];
+  for (const [name, opt] of Object.entries(spec.options)) {
+    entries.push([name, opt]);
+    if (!hasAutoNegativeAlias(name, opt, spec.options)) continue;
+    entries.push([
+      `no-${name}`,
+      {
+        type: 'boolean',
+        description: opt.negatedDescription ?? `Disable --${name}`,
+      },
+    ]);
+  }
+  return entries;
 }
 
 export function suggestCommand(unknown: string, known: readonly string[]): string | undefined {

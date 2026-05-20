@@ -43,7 +43,7 @@ export async function runDoctor(args: string[]): Promise<number> {
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const asJson = parsed.values.json === true;
-  const skipNetwork = parsed.values['no-network'] === true;
+  const skipNetwork = parsed.values.network === false;
   const cwd = process.cwd();
 
   const results = await runChecks({ cwd, configPath, skipNetwork });

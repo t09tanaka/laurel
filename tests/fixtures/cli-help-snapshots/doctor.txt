@@ -1,11 +1,12 @@
 Run health checks on the project (bun, config, theme, content, network)
 
 Usage:
-  nectar doctor [--config <path>] [--json] [--no-network]
+  nectar doctor [--config <path>] [--json] [--network] [--no-network]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -j, --json          Emit results as JSON (for CI consumption)
+  --network           Run the network reachability check
   --no-network        Skip the network reachability check
   -h, --help          Show help for this command
 

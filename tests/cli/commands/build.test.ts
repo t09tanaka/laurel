@@ -845,6 +845,15 @@ describe('nectar build --emit-content-api (#214)', () => {
     expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(false);
   });
 
+  test('--no-emit-content-api forces shadows OFF even when config enables them', async () => {
+    const dir = await makeSite({ contentApiEnabled: true });
+    cleanups.push(dir);
+    const result = await runCli(['build', '--no-emit-content-api'], dir);
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(dir, 'dist', 'content', 'posts.json'))).toBe(false);
+    expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(false);
+  });
+
   test('no flag and no env var: respects the config value (default true)', async () => {
     const dir = await makeSite({ contentApiEnabled: true });
     cleanups.push(dir);
@@ -859,6 +868,7 @@ describe('nectar build --emit-content-api (#214)', () => {
     cleanups.push(dir);
     const { stdout } = await runCli(['build', '--help'], dir);
     expect(stdout).toContain('--emit-content-api');
+    expect(stdout).toContain('--no-emit-content-api');
   });
 });
 

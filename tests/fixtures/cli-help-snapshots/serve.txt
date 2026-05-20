@@ -1,12 +1,13 @@
 Serve the built site locally
 
 Usage:
-  nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--simulate <target>] [--json]
+  nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--simulate <target>] [--json]
 
 Options:
   -p, --port <n>      Port to listen on (1..65535 integer; defaults to 4321)
   --host <host>       Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
-  --no-watch          Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot
+  -w, --watch         Enable the default rebuild-on-change loop while serving dist/
+  --no-watch          Disable the default rebuild-on-change loop; serve dist/ as a static snapshot
   -b, --build         Run a full build before starting the server, regardless of whether dist/ already exists
   --simulate <target> Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel
   -j, --json          Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders

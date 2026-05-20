@@ -132,7 +132,7 @@ Build the site into the configured output directory
 Usage:
 
 ```
-nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--cache] [--progress] [--copy-content-assets] [--watch] [--emit-content-api] [--json]
+nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--atomic] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--cache] [--no-cache] [--progress] [--no-progress] [--copy-content-assets] [--no-copy-content-assets] [--watch] [--emit-content-api] [--no-emit-content-api] [--json]
 ```
 
 Options:
@@ -145,16 +145,21 @@ Options:
 | `--base-url <url>` | string | `NECTAR_BUILD_BASE_URL` | Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host |
 | `--strict` | boolean | `NECTAR_BUILD_STRICT` | Exit with non-zero status if any warnings are emitted |
 | `--profile` | boolean | `NECTAR_BUILD_PROFILE` | Write dist/.nectar-build-stats.json with phase timings and per-route render durations for diagnosing slow builds |
-| `--no-atomic` | boolean | `NECTAR_BUILD_NO_ATOMIC` | Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted |
+| `--atomic` | boolean | `NECTAR_BUILD_ATOMIC` | Use atomic staging: write into a sibling temp dir before renaming into build.output_dir |
+| `--no-atomic` | boolean | `NECTAR_BUILD_ATOMIC=0` | Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted |
 | `--concurrency <n>` | string | `NECTAR_BUILD_CONCURRENCY` | Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help |
 | `--dry-run` | boolean | `NECTAR_BUILD_DRY_RUN` | Plan routes, load templates, and render every route into memory without writing anything to disk (no staging dir, no asset copies, no manifest, no sitemap/RSS/etc.). Prints the same summary line as a real build; pair with --verbose to also print a per-route table (URL, template, bytes, output path) |
 | `--include-drafts` | boolean | `NECTAR_BUILD_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the build. Default is to exclude them so a forgotten WIP cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS |
 | `--force` | boolean | `NECTAR_BUILD_FORCE` | Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted |
 | `--cache` | boolean | `NECTAR_BUILD_CACHE` | Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache |
+| `--no-cache` | boolean | `NECTAR_BUILD_CACHE=0` | Force every route to render without consulting the incremental cache |
 | `--progress` | boolean | `NECTAR_BUILD_PROGRESS` | Print human-readable build progress and summary lines. Enabled by default; pass --no-progress to keep warnings/errors while suppressing build progress output |
+| `--no-progress` | boolean | `NECTAR_BUILD_PROGRESS=0` | Suppress human-readable build progress and summary lines |
 | `--copy-content-assets` | boolean | `NECTAR_BUILD_COPY_CONTENT_ASSETS` | Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build |
+| `--no-copy-content-assets` | boolean | `NECTAR_BUILD_COPY_CONTENT_ASSETS=0` | Skip copying files from content.assets_dir into the output |
 | `-w, --watch` | boolean | `NECTAR_BUILD_WATCH` | After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop |
-| `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used |
+| `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used |
+| `--no-emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API=0` | Force Ghost Content API JSON shadows off for this build without editing the config |
 | `-j, --json` | boolean | `NECTAR_BUILD_JSON` | Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
 
 Examples:
@@ -275,7 +280,7 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--simulate <target>] [--json]
+nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--simulate <target>] [--json]
 ```
 
 Options:
@@ -284,7 +289,8 @@ Options:
 | --- | --- | --- | --- |
 | `-p, --port <n>` | string | `NECTAR_SERVE_PORT` | Port to listen on (1..65535 integer; defaults to 4321) |
 | `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
-| `--no-watch` | boolean | `NECTAR_SERVE_NO_WATCH` | Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot |
+| `-w, --watch` | boolean | `NECTAR_SERVE_WATCH` | Enable the default rebuild-on-change loop while serving dist/ |
+| `--no-watch` | boolean | `NECTAR_SERVE_WATCH=0` | Disable the default rebuild-on-change loop; serve dist/ as a static snapshot |
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
 | `--simulate <target>` | string | `NECTAR_SERVE_SIMULATE` | Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel |
 | `-j, --json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
@@ -338,7 +344,7 @@ Run health checks on the project (bun, config, theme, content, network)
 Usage:
 
 ```
-nectar doctor [--config <path>] [--json] [--no-network]
+nectar doctor [--config <path>] [--json] [--network] [--no-network]
 ```
 
 Options:
@@ -347,7 +353,8 @@ Options:
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_DOCTOR_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-j, --json` | boolean | `NECTAR_DOCTOR_JSON` | Emit results as JSON (for CI consumption) |
-| `--no-network` | boolean | `NECTAR_DOCTOR_NO_NETWORK` | Skip the network reachability check |
+| `--network` | boolean | `NECTAR_DOCTOR_NETWORK` | Run the network reachability check |
+| `--no-network` | boolean | `NECTAR_DOCTOR_NETWORK=0` | Skip the network reachability check |
 
 Examples:
 

@@ -45,7 +45,7 @@ export async function runBuild(args: string[]): Promise<number> {
     typeof parsed.values['base-url'] === 'string' ? parsed.values['base-url'] : undefined;
   const strict = parsed.values.strict === true;
   const profile = parsed.values.profile === true;
-  const noAtomic = parsed.values['no-atomic'] === true;
+  const noAtomic = parsed.values.atomic === false;
   const dryRun = parsed.values['dry-run'] === true;
   const watch = parsed.values.watch === true;
   const force = parsed.values.force === true || parsed.values.cache === false;

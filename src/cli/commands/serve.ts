@@ -100,7 +100,7 @@ export async function runServe(args: string[]): Promise<number> {
     }
   }
 
-  const watchMode = parsed.values['no-watch'] !== true;
+  const watchMode = parsed.values.watch !== false;
   const forceBuild = parsed.values.build === true;
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });

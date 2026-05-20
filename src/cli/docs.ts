@@ -1,6 +1,12 @@
 import { resolve } from 'node:path';
 import type { CommandSpec, OptionSpec, PositionalSpec } from './parse.ts';
-import { envVarName, formatUsageLine, globalEnvVarName, optionShort } from './parse.ts';
+import {
+  envVarName,
+  formatUsageLine,
+  globalEnvVarName,
+  optionEntriesForDisplay,
+  optionShort,
+} from './parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 
 export interface GlobalOptionDoc {
@@ -210,10 +216,10 @@ function renderCommandSection(spec: CommandSpec): string[] {
   lines.push(
     ...renderTable(
       ['Flag', 'Type', 'Env var', 'Description'],
-      Object.entries(spec.options).map(([name, opt]) => [
+      optionEntriesForDisplay(spec).map(([name, opt]) => [
         code(formatFlagLabel(name, opt)),
         opt.type,
-        code(envVarName(spec.name, name)),
+        code(displayEnvVarName(spec, name)),
         opt.description,
       ]),
     ),
@@ -248,6 +254,13 @@ function formatFlagLabel(name: string, opt: OptionSpec): string {
   const short = shortName ? `-${shortName}, ` : '';
   const placeholder = opt.type === 'string' ? ` ${opt.placeholder ?? '<value>'}` : '';
   return `${short}--${name}${placeholder}`;
+}
+
+function displayEnvVarName(spec: CommandSpec, name: string): string {
+  if (name.startsWith('no-') && !(name in spec.options)) {
+    return `${envVarName(spec.name, name.slice(3))}=0`;
+  }
+  return envVarName(spec.name, name);
 }
 
 function renderTable(headers: string[], rows: string[][]): string[] {
