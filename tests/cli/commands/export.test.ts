@@ -193,6 +193,10 @@ describe('cli export', () => {
       expect(stdout).toContain('<link>https://export.test</link>');
       expect(stdout).toContain('<item>');
       expect(stdout).toContain('Hello World');
+      expect(stdout).toContain('<guid isPermaLink="false">');
+      expect(stdout).not.toContain(
+        '<guid isPermaLink="true">https://export.test/hello-world/</guid>',
+      );
       expect(stdout).toContain('</channel>');
       expect(stdout).toContain('</rss>');
     } finally {

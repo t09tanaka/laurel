@@ -150,6 +150,17 @@ async function checkOne(abs: string, kind: 'post' | 'page'): Promise<Frontmatter
     }
   }
 
+  if (data.uuid !== undefined && typeof data.uuid !== 'string') {
+    out.push({
+      file: abs,
+      line: headlineLine,
+      field: 'uuid',
+      message: `Field 'uuid' must be a string, got ${describeType(data.uuid)}`,
+      severity: 'error',
+      code: 'frontmatter/type',
+    });
+  }
+
   if (data.status !== undefined) {
     if (typeof data.status !== 'string' || !STATUS_VALUES.has(data.status)) {
       out.push({

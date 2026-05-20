@@ -339,6 +339,49 @@ Body changed, but slug and published_at stayed fixed.
     expect(movedBasePath.bySlug.posts.get('hello')?.uuid).not.toBe(post?.uuid);
   });
 
+  test('prefers explicit frontmatter UUIDs over derived values', async () => {
+    const cwd = await fixture();
+    const explicitPostUuid = '11111111-2222-5333-8444-555555555555';
+    const explicitPageUuid = 'aaaaaaaa-bbbb-5ccc-8ddd-eeeeeeeeeeee';
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+uuid: "${explicitPostUuid}"
+title: "Hello world"
+date: 2026-01-01T00:00:00Z
+tags: [news]
+authors: [casper]
+featured: true
+---
+
+# Hello
+
+Welcome to Nectar.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      `---
+uuid: "${explicitPageUuid}"
+title: "About"
+date: 2026-01-03T00:00:00Z
+---
+
+About body
+`,
+      'utf8',
+    );
+
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({ site: { title: 'X', url: 'https://x.test' } }),
+    });
+
+    expect(graph.bySlug.posts.get('hello')?.uuid).toBe(explicitPostUuid);
+    expect(graph.bySlug.pages.get('about')?.uuid).toBe(explicitPageUuid);
+  });
+
   test('counts primary and secondary author posts from the public post graph', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-author-count-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });

@@ -51,6 +51,7 @@ export type ExternalFetch = (
 // `tittle` or `feature-image` surface during `nectar check` instead of silently
 // being ignored at render time.
 const POST_KEYS: ReadonlySet<string> = new Set([
+  'uuid',
   'slug',
   'title',
   'date',

@@ -453,15 +453,15 @@ describe('emitRss', () => {
     expect(xml).toContain('<url>https://cdn.example.org/logo.png</url>');
   });
 
-  test('uses the post URL with isPermaLink="true" so feed readers can dedupe', async () => {
-    // Issue #426: Ghost emits guid as the post URL with isPermaLink="true".
-    // Without this, Feedly/NetNewsWire cannot dedupe across feed restarts.
+  test('uses the post UUID as the RSS guid when available', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
+    const uuid = '11111111-2222-5333-8444-555555555555';
     content.posts = [
       makePost({
         id: 'post-hello-world',
+        uuid,
         slug: 'hello-world',
         url: 'https://example.com/hello-world/',
       }),
@@ -470,8 +470,8 @@ describe('emitRss', () => {
     await emitRss({ config, content, outputDir, limit: 10 });
     const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
 
-    expect(xml).toContain('<guid isPermaLink="true">https://example.com/hello-world/</guid>');
-    expect(xml).not.toContain('isPermaLink="false"');
+    expect(xml).toContain(`<guid isPermaLink="false">${uuid}</guid>`);
+    expect(xml).toContain('<link>https://example.com/hello-world/</link>');
   });
 
   test('declares dc and media namespaces and emits <generator>', async () => {

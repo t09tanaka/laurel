@@ -27,13 +27,16 @@ function captureStderr(): CapturedStderr {
   } as CapturedStderr;
 }
 
-function makeExport(posts: Array<{ slug: string; title: string; html?: string }>): string {
+function makeExport(
+  posts: Array<{ slug: string; title: string; html?: string; uuid?: string }>,
+): string {
   return JSON.stringify({
     db: [
       {
         data: {
           posts: posts.map((p, i) => ({
             id: `post-${i}`,
+            uuid: p.uuid,
             title: p.title,
             slug: p.slug,
             html: p.html ?? `<p>${p.title}</p>`,
@@ -125,6 +128,17 @@ describe('importGhostExport — --on-conflict policy', () => {
     expect(after).not.toBe('EXISTING');
     expect(after).toContain('slug: "hello"');
     expect(captured.data).toContain(`Overwrote: ${dest}`);
+  });
+
+  test('preserves Ghost post UUIDs in frontmatter', async () => {
+    const uuid = '11111111-2222-5333-8444-555555555555';
+    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello', uuid }]));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    const out = await readFile(join(cwd, 'content/posts/hello.md'), 'utf8');
+
+    expect(summary.posts).toBe(1);
+    expect(out).toContain(`uuid: "${uuid}"`);
   });
 
   test('writes post tier relationships into frontmatter', async () => {

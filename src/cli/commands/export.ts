@@ -210,11 +210,13 @@ function renderRssItem(post: Post, base: string, fullContent: boolean): string {
   const link = post.url.startsWith('http')
     ? post.url
     : `${base}${post.url.startsWith('/') ? post.url : `/${post.url}`}`;
+  const guid = post.uuid ?? link;
+  const guidIsPermaLink = post.uuid ? 'false' : 'true';
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
     `<link>${escapeXml(link)}</link>`,
-    `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
+    `<guid isPermaLink="${guidIsPermaLink}">${escapeXml(guid)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
   ];
   for (const author of post.authors) {
@@ -261,6 +263,7 @@ function serializeSite(config: NectarConfig): Record<string, unknown> {
 function serializePost(post: Post): Record<string, unknown> {
   return {
     id: post.id,
+    uuid: post.uuid ?? post.id,
     slug: post.slug,
     title: post.title,
     html: post.html,
@@ -287,6 +290,7 @@ function serializePost(post: Post): Record<string, unknown> {
 function serializePage(page: Page): Record<string, unknown> {
   return {
     id: page.id,
+    uuid: page.uuid ?? page.id,
     slug: page.slug,
     title: page.title,
     html: page.html,

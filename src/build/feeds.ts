@@ -332,14 +332,13 @@ function renderItem(
   const html = fullContent
     ? absolutizeHtmlUrls(renderFeedSafeHtml(post.feed_html), base, basePath)
     : '';
+  const guid = post.uuid ?? link;
+  const guidIsPermaLink = post.uuid ? 'false' : 'true';
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
     `<link>${escapeXml(link)}</link>`,
-    // Ghost emits guid as the post URL with isPermaLink="true" so feed readers
-    // can dedupe across feed restarts and across site.url renames at the same
-    // canonical path. See issue #426.
-    `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
+    `<guid isPermaLink="${guidIsPermaLink}">${escapeXml(guid)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
   ];
   // dc:creator per author (Ghost emits one per author, primary first). Authors

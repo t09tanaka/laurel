@@ -68,6 +68,10 @@ const codeInjectionFields = {
 } satisfies z.ZodRawShape;
 
 const entryBaseFields = {
+  uuid: z
+    .string()
+    .optional()
+    .describe('Stable Ghost UUID override. Omit to let Nectar derive one deterministically.'),
   title: z.string().describe('Entry title. Required for posts and pages.'),
   slug: slugSchema.optional(),
   date: dateSchema.optional().describe('Alias for published_at.'),

@@ -139,7 +139,7 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
 
 describe('buildContext', () => {
   test('on a post route, ctx.post is the post object', () => {
-    const post = makePost();
+    const post = makePost({ uuid: '11111111-2222-5333-8444-555555555555' });
     const route: RouteContext = {
       kind: 'post',
       url: '/p1/',
@@ -150,6 +150,8 @@ describe('buildContext', () => {
     };
     const ctx = buildContext(engine, route);
     expect(ctx.post).toBe(post);
+    expect(ctx.uuid).toBe(post.uuid);
+    expect((ctx.post as Post).uuid).toBe(post.uuid);
     expect(ctx.page).toBe(false);
   });
 

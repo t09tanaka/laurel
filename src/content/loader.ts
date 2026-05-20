@@ -647,6 +647,7 @@ function buildSite(config: NectarConfig): SiteData {
 
 interface RawPost {
   id: string;
+  uuid: string | undefined;
   slug: string;
   locale: string;
   localeSource: 'frontmatter' | 'path' | 'site';
@@ -1202,6 +1203,7 @@ async function normalizePost(
 
   return {
     id: deterministicObjectId(kind, contentLocale.locale, slug, published),
+    uuid: asString(data.uuid),
     slug,
     locale: contentLocale.locale,
     localeSource: contentLocale.localeSource,
@@ -1653,7 +1655,7 @@ function resolvePostRelations(
 
   return {
     id: raw.id,
-    uuid: deterministicContentUuid(siteUrl, 'post', url),
+    uuid: raw.uuid ?? deterministicContentUuid(siteUrl, 'post', url),
     slug: raw.slug,
     locale: raw.locale,
     title: raw.title,
@@ -1750,7 +1752,7 @@ function resolvePageRelations(
 
   return {
     id: raw.id,
-    uuid: deterministicContentUuid(siteUrl, 'page', url),
+    uuid: raw.uuid ?? deterministicContentUuid(siteUrl, 'page', url),
     slug: raw.slug,
     locale: raw.locale,
     title: raw.title,
