@@ -52,9 +52,9 @@ collects the operator-facing pieces of that contract in one place:
   deploy-hook workflow, and the current lack of Render-specific generated
   headers / redirects.
 - [`docs/deploy/firebase-hosting.md`](./deploy/firebase-hosting.md) —
-  Firebase Hosting quickstart for serving the static `dist/` directory with a
-  hand-maintained `firebase.json`. Nectar does not currently emit
-  Firebase-specific config or expose `nectar deploy firebase`.
+  Firebase Hosting quickstart for serving the static `dist/` directory with
+  Nectar's generated `firebase.json`. Nectar does not currently expose
+  `nectar deploy firebase`, so publishing still uses the Firebase CLI.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and

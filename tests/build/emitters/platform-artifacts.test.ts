@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
-type DeployTarget = 'cloudflare_pages' | 'netlify' | 'vercel' | 'apache';
+type DeployTarget = 'cloudflare_pages' | 'netlify' | 'vercel' | 'apache' | 'firebase';
 
 async function makeSiteWithDeployTarget(target: DeployTarget): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), `nectar-emitter-${target}-`));
@@ -114,5 +114,37 @@ describe('deploy emitter integration outputs (#347)', () => {
     expect(body).toContain('RewriteRule ^old$ /new [R=308,L]');
     expect(body).toContain('Header always set X-Test-Emitter "integration"');
     expect(body).toContain('RewriteRule ^(.+[^/])$ $1/index.html [L]');
+  });
+
+  test('Firebase Hosting build emits firebase.json with hosting headers and redirects', async () => {
+    const cwd = await makeSiteWithDeployTarget('firebase');
+    const summary = await build({ cwd });
+
+    const body = JSON.parse(await readFile(join(summary.outputDir, 'firebase.json'), 'utf8')) as {
+      hosting: {
+        public: string;
+        cleanUrls: boolean;
+        trailingSlash?: boolean;
+        headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+        redirects: Array<{ source: string; destination: string; type: number }>;
+        rewrites: Array<{ source: string; destination: string }>;
+      };
+    };
+
+    expect(body.hosting.public).toBe('.');
+    expect(body.hosting.cleanUrls).toBe(true);
+    expect(body.hosting.trailingSlash).toBe(true);
+    expect(body.hosting.headers).toContainEqual(
+      expect.objectContaining({
+        source: '**',
+        headers: expect.arrayContaining([{ key: 'X-Test-Emitter', value: 'integration' }]),
+      }),
+    );
+    expect(body.hosting.redirects).toContainEqual({
+      source: '/old',
+      destination: '/new',
+      type: 308,
+    });
+    expect(body.hosting.rewrites).toEqual([]);
   });
 });

@@ -383,40 +383,28 @@ executes `vercel deploy dist --prod`. Set `VERCEL_TOKEN` in CI, and use
 
 **Recommended for:** teams already using Firebase projects and custom domains.
 
-For the full Firebase-specific guide, including a minimal `firebase.json`,
-redirect notes, and header caveats, see
+For the full Firebase-specific guide, including generated `firebase.json`,
+redirect notes, and header behavior, see
 [`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md).
 
-Nectar does not currently have a Firebase emitter or `nectar deploy firebase`
-command. Build the static site first, then let the Firebase CLI upload
+Nectar does not currently have a `nectar deploy firebase` command. Enable the
+Firebase emitter, build the static site, then let the Firebase CLI upload
 `dist/`:
+
+```toml
+[deploy.firebase]
+enabled = true
+```
 
 ```bash
 bunx nectar build
+cd dist
 firebase deploy --only hosting
 ```
 
-Use `dist` as the Hosting public directory and do not configure the site as a
-single-page app:
-
-```json
-{
-  "hosting": {
-    "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
-  }
-}
-```
-
-Firebase ignores Netlify / Cloudflare-style `dist/_redirects` files. Put
-redirects and custom response headers in `firebase.json` until Nectar grows a
-Firebase-specific emitter.
-
-Leave `trailingSlash` unset for Nectar. Firebase's default behavior already
-serves Nectar's generated directory indexes, such as `dist/about/index.html`,
-at trailing-slash URLs like `/about/`. Use `cleanUrls` only if you also copy
-standalone `.html` files into `dist/` and want Firebase to expose them without
-the extension; it is not required for Nectar's route pages.
+The emitter writes `dist/firebase.json` with `hosting.public = "."`, shared
+headers, redirects, `cleanUrls: true`, the configured trailing-slash policy,
+and an empty `rewrites` array so Nectar is not treated as an SPA.
 
 ---
 

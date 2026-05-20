@@ -222,66 +222,31 @@ Netlify reference:
 ## Firebase Hosting
 
 Firebase Hosting reads response headers from the `headers` array in
-`firebase.json`. Nectar does not currently emit Firebase-specific config, so
-mirror the policy there by hand:
+`firebase.json`. Enable `[deploy.firebase]` to have Nectar translate
+`[deploy.headers]` into the generated `dist/firebase.json`:
 
-`firebase.json`:
+`nectar.toml`:
 
-```json
-{
-  "hosting": {
-    "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "headers": [
-      {
-        "source": "**/*.@(html|xml|json)",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
-          },
-          {
-            "key": "Strict-Transport-Security",
-            "value": "max-age=31536000; includeSubDomains"
-          },
-          {
-            "key": "Referrer-Policy",
-            "value": "strict-origin-when-cross-origin"
-          },
-          {
-            "key": "X-Content-Type-Options",
-            "value": "nosniff"
-          },
-          {
-            "key": "X-Frame-Options",
-            "value": "DENY"
-          },
-          {
-            "key": "Permissions-Policy",
-            "value": "interest-cohort=(), browsing-topics=(), geolocation=(), camera=(), microphone=(), payment=()"
-          },
-          {
-            "key": "Cross-Origin-Opener-Policy",
-            "value": "same-origin"
-          }
-        ]
-      }
-    ]
-  }
-}
+```toml
+[deploy.firebase]
+enabled = true
+
+[deploy.headers.security]
+content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+strict_transport_security = "max-age=31536000; includeSubDomains"
+referrer_policy = "strict-origin-when-cross-origin"
+content_type_options = "nosniff"
+frame_options = "DENY"
+permissions_policy = "interest-cohort=(), browsing-topics=(), geolocation=(), camera=(), microphone=(), payment=()"
+cross_origin_opener_policy = "same-origin"
 ```
 
-Merge this with the cache-header example in
-[`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md) rather than
-creating a second `hosting` block. Firebase reference:
+Merge this with any cache rules in
+[`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md). Firebase reference:
 <https://firebase.google.com/docs/hosting/full-config>.
 
-Keep `trailingSlash` unset in this Firebase block unless you are intentionally
-changing Nectar's routing shape. Nectar emits pages as directory indexes such
-as `about/index.html`; Firebase's default trailing-slash handling already maps
-those to URLs like `/about/`. `cleanUrls` is only useful for extra standalone
-`.html` files that your project copies into `dist/`, not for Nectar's generated
-route pages.
+The Firebase emitter maps `build.trailing_slash` into the generated
+`trailingSlash` boolean and sets `cleanUrls: true`.
 
 ---
 

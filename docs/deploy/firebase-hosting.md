@@ -1,10 +1,11 @@
 # Deploying Nectar to Firebase Hosting
 
 Firebase Hosting serves Nectar's already-built `dist/` directory as static
-files. Nectar does not currently ship a Firebase-specific emitter, a
-`[deploy.firebase]` config block, or a `nectar deploy firebase` command. Keep
-Firebase configuration in a hand-maintained `firebase.json`, build with
-`nectar build`, then deploy `dist/` with the Firebase CLI.
+files. Nectar can emit a Firebase Hosting `firebase.json` into the build output
+from `[deploy.firebase]`, translating the shared `deploy.headers`,
+`redirects.yaml`, `build.trailing_slash`, and clean URL policy into Firebase's
+native Hosting config. Nectar does not currently ship a `nectar deploy firebase`
+command, so publishing still uses the Firebase CLI.
 
 This guide covers the local CLI path only. If you want GitHub Actions to run
 the deploy, wire the same commands into your own workflow; Nectar does not
@@ -38,74 +39,28 @@ currently include a Firebase Actions template.
    client-side SPA shell. Do not add a catch-all rewrite to `/index.html`
    unless your site intentionally needs SPA behavior.
 
-3. Replace or confirm the Hosting block in `firebase.json`:
+3. Enable the Firebase emitter in `nectar.toml`:
 
-   ```json
-   {
-     "hosting": {
-       "public": "dist",
-       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-       "headers": [
-         {
-           "source": "/assets/**",
-           "headers": [
-             {
-               "key": "Cache-Control",
-               "value": "public, max-age=31536000, immutable"
-             }
-           ]
-         },
-         {
-           "source": "/content/images/**",
-           "headers": [
-             {
-               "key": "Cache-Control",
-               "value": "public, max-age=31536000, immutable"
-             }
-           ]
-         },
-         {
-           "source": "**/*.@(html|xml|json)",
-           "headers": [
-             {
-               "key": "Cache-Control",
-               "value": "public, max-age=0, must-revalidate"
-             },
-             {
-               "key": "X-Content-Type-Options",
-               "value": "nosniff"
-             },
-             {
-               "key": "Referrer-Policy",
-               "value": "strict-origin-when-cross-origin"
-             }
-           ]
-         }
-       ]
-     }
-   }
+   ```toml
+   [deploy.firebase]
+   enabled = true
    ```
 
-   `"public": "dist"` is the important bit: Firebase uploads the already-built
-   Nectar output.
+   `nectar build` writes `dist/firebase.json` with `hosting.public = "."`.
+   This makes the output directory self-contained: run the Firebase CLI from
+   `dist/`, or copy the generated `hosting` block into a root-level
+   `firebase.json` if your deployment workflow must run from the project root.
 
-   Do not set `trailingSlash` for a normal Nectar site. Nectar emits route
-   pages as directory indexes such as `about/index.html`, and Firebase
-   Hosting's default behavior already serves those with directory-style URLs
-   such as `/about/`. Setting `"trailingSlash": true` forces trailing slashes
-   onto all static content URLs, while `"trailingSlash": false` strips them
-   from directory pages; both fight Nectar's generated links.
-
-   `cleanUrls` is optional and usually unnecessary for Nectar route pages
-   because they are not emitted as `about.html`. If you enable it for
-   hand-written `.html` files copied into `dist/`, keep `trailingSlash`
-   unset so Firebase still applies its directory-index behavior to Nectar
-   pages.
+   The generated config sets `cleanUrls: true` and maps
+   `build.trailing_slash` to Firebase's `trailingSlash` boolean. It emits
+   `rewrites: []` by default because Nectar emits real HTML files and
+   directory `index.html` files, not a client-side SPA shell.
 
 4. Build and test locally:
 
    ```sh
    bunx nectar build
+   cd dist
    firebase emulators:start --only hosting
    ```
 
@@ -115,14 +70,16 @@ currently include a Firebase Actions template.
 5. Deploy the static output:
 
    ```sh
+   cd dist
    firebase deploy --only hosting
    ```
 
 ## Redirects
 
 Nectar's generic redirects component can emit `dist/_redirects`, but Firebase
-Hosting does not read Netlify / Cloudflare Pages `_redirects` files. Put
-Firebase redirects directly in `firebase.json`:
+Hosting does not read Netlify / Cloudflare Pages `_redirects` files. When
+`[deploy.firebase].enabled = true`, Nectar also folds the canonical redirect
+rules into `dist/firebase.json`:
 
 ```json
 {
@@ -144,16 +101,16 @@ Firebase redirects directly in `firebase.json`:
 }
 ```
 
-Keep this file as the Firebase source of truth until Nectar grows a
-Firebase-specific emitter.
+Firebase applies redirect rules before static file lookup, and rules are
+first-match. Nectar preserves the same collapsed first-match order used by the
+other deploy emitters.
 
 ## Headers and caching
 
 Firebase reads custom response headers from the `headers` array in
-`firebase.json`. Because Nectar has no Firebase emitter today,
-`[deploy.headers]` is not translated into Firebase config. If you tighten
-cache or security headers in `nectar.toml`, mirror the policy manually in
-`firebase.json`.
+`firebase.json`. With `[deploy.firebase].enabled = true`, Nectar translates
+`[deploy.headers]` into that array, using Firebase recursive globs such as
+`/assets/**` and `**`.
 
 Use long-lived immutable cache headers only for fingerprinted or otherwise
 stable asset paths such as `/assets/**` and `/content/images/**`. Keep HTML,
@@ -185,12 +142,10 @@ trailing slash redirects:
 - When `trailingSlash` is omitted, Firebase uses trailing slashes for
   directory index files such as `about/index.html`.
 
-Because Nectar already writes directory index files, the recommended Firebase
-configuration is to omit `trailingSlash`. You may also omit `cleanUrls`; it
-does not make Nectar's generated route pages prettier. If your project copies
-extra standalone files such as `public/terms.html` into `dist/` and you want
-`/terms` to work, set `"cleanUrls": true` but still leave `trailingSlash`
-unset.
+Nectar maps `build.trailing_slash = "always"` to `"trailingSlash": true` and
+`"never"` to `"trailingSlash": false`. The generated config also sets
+`"cleanUrls": true`, which lets any standalone `*.html` files copied into
+`dist/` be served without the `.html` suffix.
 
 ## Custom domains and paths
 
@@ -213,10 +168,12 @@ update `[site].url` to the final public URL.
 ## Troubleshooting
 
 - **Deploy says `dist` does not exist:** run `bunx nectar build` before
-  `firebase deploy --only hosting`.
+  deploying, then run the Firebase CLI from `dist/` or copy the generated
+  Hosting block into your root `firebase.json`.
 - **Every route shows the home page:** remove any catch-all rewrite to
   `/index.html`; Nectar is not an SPA.
-- **Redirects from `redirects.yaml` do nothing:** Firebase ignores
-  `dist/_redirects`; copy the rules into `firebase.json` under `redirects`.
+- **Redirects from `redirects.yaml` do nothing:** enable `[deploy.firebase]`
+  and deploy with the generated `firebase.json`; Firebase ignores
+  `dist/_redirects`.
 - **Header changes do not appear:** confirm the rule's `source` pattern matches
   the deployed file and redeploy with `firebase deploy --only hosting`.

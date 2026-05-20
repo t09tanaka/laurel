@@ -37,6 +37,7 @@ import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from '
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
 import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
+import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects } from './github-pages.ts';
 import { emitHumans } from './humans.ts';
@@ -893,6 +894,13 @@ async function runBuild({
     enabled: config.deploy.vercel.enabled || autoNoindexProvider === 'vercel',
     headers: config.deploy.headers,
     rules: deployRedirects,
+    trailingSlash: config.build.trailing_slash,
+  });
+  await emitFirebaseJson({
+    outputDir,
+    enabled: config.deploy.firebase.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
     trailingSlash: config.build.trailing_slash,
   });
   await emitApacheHtaccess({

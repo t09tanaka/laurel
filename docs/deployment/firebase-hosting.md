@@ -1,15 +1,16 @@
 # Firebase Hosting deployment recipe
 
 Use this target when Firebase Hosting should serve Nectar's static `dist/`
-output. Nectar does not currently emit Firebase config, so `firebase.json` is
-owned by the site.
+output. Enable `[deploy.firebase]` to emit `dist/firebase.json` from Nectar's
+shared deploy headers, redirects, clean URL, and trailing-slash config.
 
 ## Recipe
 
 1. Set `site.url` to the Firebase Hosting URL or custom domain.
-2. Run `bunx nectar build`.
-3. Create or update `firebase.json` with `dist` as the public directory.
-4. Preserve clean URL and 404 behavior from the full guide.
+2. Add `[deploy.firebase] enabled = true` to `nectar.toml`.
+3. Run `bunx nectar build`.
+4. Deploy from `dist/`, or copy the generated Hosting block into your root
+   `firebase.json` if your workflow runs the Firebase CLI from the project root.
 5. Run `firebase deploy --only hosting`.
 6. Verify headers, canonical URLs, RSS, sitemap, and imported Ghost redirects.
 

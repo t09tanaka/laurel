@@ -638,6 +638,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Vercel-specific deploy hints.'),
+        firebase: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit a Firebase Hosting `firebase.json` at the output root folding `deploy.headers`, canonical redirect rules from `redirects.yaml` / Ghost-style redirects, `cleanUrls: true`, and the build trailing-slash policy into the native `hosting` config shape. The generated config sets `hosting.public` to `.` so the built output directory is self-contained for Firebase CLI deploys. `hosting.rewrites` is emitted as an empty array because Nectar is a static multi-page site and should not add a catch-all SPA rewrite by default. Leave disabled when deploying somewhere other than Firebase Hosting.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Firebase Hosting-specific deploy hints.'),
         apache: z
           .object({
             enabled: z
@@ -898,7 +910,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.',
+            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.firebase`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.',
           ),
       })
       .strict()
