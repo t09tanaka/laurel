@@ -77,34 +77,41 @@ export function buildApacheHtaccess(opts: {
   lines.push('  AddEncoding gzip .gz');
   lines.push('</IfModule>');
 
-  if (redirects.length > 0 || cacheRules.length > 0) {
+  lines.push('');
+  lines.push('<IfModule mod_rewrite.c>');
+  lines.push('  RewriteEngine On');
+
+  if (redirects.length > 0) {
     lines.push('');
-    lines.push('<IfModule mod_rewrite.c>');
-    lines.push('  RewriteEngine On');
-
-    if (redirects.length > 0) {
-      lines.push('');
-      lines.push('  # Redirects (from redirects.yaml; first-match)');
-      for (const rule of redirects) {
-        lines.push(
-          `  RewriteRule ${toApacheRewritePattern(rule.from)} ${rule.to} [R=${rule.status},L]`,
-        );
-      }
+    lines.push('  # Redirects (from redirects.yaml; first-match)');
+    for (const rule of redirects) {
+      lines.push(
+        `  RewriteRule ${toApacheRewritePattern(rule.from)} ${rule.to} [R=${rule.status},L]`,
+      );
     }
-
-    if (cacheRules.length > 0) {
-      lines.push('');
-      lines.push('  # Cache rule markers consumed by mod_headers below.');
-      cacheRules.forEach((rule, index) => {
-        lines.push('  RewriteCond %{ENV:NECTAR_CACHE_MATCHED} !1');
-        lines.push(
-          `  RewriteRule ${toApacheRewritePattern(rule.pattern)} - [E=NECTAR_CACHE_${index}:1,E=NECTAR_CACHE_MATCHED:1]`,
-        );
-      });
-    }
-
-    lines.push('</IfModule>');
   }
+
+  if (cacheRules.length > 0) {
+    lines.push('');
+    lines.push('  # Cache rule markers consumed by mod_headers below.');
+    cacheRules.forEach((rule, index) => {
+      lines.push('  RewriteCond %{ENV:NECTAR_CACHE_MATCHED} !1');
+      lines.push(
+        `  RewriteRule ${toApacheRewritePattern(rule.pattern)} - [E=NECTAR_CACHE_${index}:1,E=NECTAR_CACHE_MATCHED:1]`,
+      );
+    });
+  }
+
+  lines.push('');
+  lines.push("  # Resolve Nectar's slug/index.html output for clean URLs.");
+  lines.push('  RewriteCond %{REQUEST_FILENAME} !-f');
+  lines.push('  RewriteCond %{REQUEST_FILENAME}/index.html -f');
+  lines.push('  RewriteRule ^(.+[^/])$ $1/index.html [L]');
+  lines.push('');
+  lines.push('  RewriteCond %{REQUEST_FILENAME} !-f');
+  lines.push('  RewriteCond %{REQUEST_FILENAME}index.html -f');
+  lines.push('  RewriteRule ^(.+)/$ $1/index.html [L]');
+  lines.push('</IfModule>');
 
   if (cacheRules.length > 0 || securityHeaders.length > 0) {
     lines.push('');

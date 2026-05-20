@@ -38,10 +38,11 @@ migrations.
    ```
 
    Nectar writes `dist/.htaccess`. The generated file pins fingerprinted assets
-   to a year of immutable caching, forces HTML to revalidate, translates
-   `redirects.yaml` into `RewriteRule` redirects, sets configured security
-   headers, adds common static MIME types, enables pre-compressed sidecar hints,
-   and wires Apache to `dist/404.html`.
+   to a year of immutable caching, forces HTML to revalidate, resolves Nectar's
+   `slug/index.html` output for clean URLs, translates `redirects.yaml` into
+   `RewriteRule` redirects, sets configured security headers, adds common static
+   MIME types, enables pre-compressed sidecar hints, and wires Apache to
+   `dist/404.html`.
 
    For a hand-written baseline instead, see
    [`examples/deploy/apache/.htaccess`](../../examples/deploy/apache/.htaccess).
@@ -71,9 +72,15 @@ behaves the same on every host:
 
 ## Pretty URLs
 
-Nectar emits posts and pages as `slug/index.html`. Apache serves those
-correctly out of the box thanks to the default `DirectoryIndex index.html`.
-No `mod_rewrite` rules needed for the canonical case.
+Nectar emits posts and pages as `slug/index.html`. The generated `.htaccess`
+keeps `DirectoryIndex index.html` for canonical directory requests like
+`/about/`, and also adds a `mod_rewrite` fallback so `/about` resolves to
+`about/index.html` without requiring a separate trailing-slash redirect.
+
+The clean URL fallback runs after explicit redirects and after the rewrite
+environment markers used for Cache-Control. It only rewrites when the request is
+not an existing file and the matching `index.html` exists, so direct assets and
+index-less directories are left alone.
 
 If you have redirects from a Ghost migration, drop a `redirects.yaml` into the
 project root before building. With `[deploy.apache].enabled = true`, Nectar

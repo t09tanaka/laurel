@@ -54,6 +54,25 @@ describe('buildApacheHtaccess', () => {
     expect(out.indexOf('NECTAR_CACHE_0')).toBeLessThan(out.indexOf('NECTAR_CACHE_2'));
   });
 
+  test('resolves clean URLs to slug index files after redirects and cache markers', () => {
+    const out = buildApacheHtaccess({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [{ from: '/old', to: '/new', status: 301, force: false }],
+    });
+
+    expect(out).toContain('RewriteEngine On');
+    expect(out).toContain("  # Resolve Nectar's slug/index.html output for clean URLs.");
+    expect(out).toContain('RewriteCond %{REQUEST_FILENAME} !-f');
+    expect(out).toContain('RewriteCond %{REQUEST_FILENAME}/index.html -f');
+    expect(out).toContain('RewriteRule ^(.+[^/])$ $1/index.html [L]');
+    expect(out).toContain('RewriteCond %{REQUEST_FILENAME}index.html -f');
+    expect(out).toContain('RewriteRule ^(.+)/$ $1/index.html [L]');
+    expect(out.indexOf('# Redirects')).toBeLessThan(out.indexOf('# Cache rule markers'));
+    expect(out.indexOf('# Cache rule markers')).toBeLessThan(
+      out.indexOf("# Resolve Nectar's slug/index.html output"),
+    );
+  });
+
   test('attaches baseline and custom security headers via mod_headers', () => {
     const headers = configSchema.parse({
       site: { title: 'x' },

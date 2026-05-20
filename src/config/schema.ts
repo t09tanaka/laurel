@@ -598,7 +598,7 @@ export const configSchema = z
               .boolean()
               .default(false)
               .describe(
-                'Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support.',
+                "Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, resolves Nectar's `slug/index.html` output for clean URLs, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support.",
               ),
           })
           .strict()

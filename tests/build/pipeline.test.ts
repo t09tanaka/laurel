@@ -164,6 +164,8 @@ describe('build pipeline strict mode wiring', () => {
 
     expect(body).toContain('ErrorDocument 404 /404.html');
     expect(body).toContain('RewriteRule ^old$ /new [R=301,L]');
+    expect(body).toContain('RewriteRule ^(.+[^/])$ $1/index.html [L]');
+    expect(body).toContain('RewriteRule ^(.+)/$ $1/index.html [L]');
   });
 
   test('emits dist/_routes-manifest.json when deploy.cloudflare_workers is enabled', async () => {
