@@ -142,13 +142,50 @@ describe('buildVercelConfig', () => {
     const config = buildVercelConfig({
       headers: DEFAULT_HEADERS_CONFIG,
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
+      trailingSlash: 'always',
     });
     expect(config.headers).toBeDefined();
     expect(config.redirects).toEqual([{ source: '/old', destination: '/new', statusCode: 301 }]);
   });
 
+  test('combines cleanUrls and trailingSlash only for always-slash builds', () => {
+    const build = configSchema.parse({
+      site: { title: 'x' },
+      build: { trailing_slash: 'always' },
+    }).build;
+
+    const config = buildVercelConfig({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      trailingSlash: build.trailing_slash,
+    });
+
+    expect(config.cleanUrls).toBe(true);
+    expect(config.trailingSlash).toBe(true);
+  });
+
+  test('uses a non-looping Vercel URL combo when trailing slashes are not forced', () => {
+    const build = configSchema.parse({
+      site: { title: 'x' },
+      build: { trailing_slash: 'never' },
+    }).build;
+
+    const config = buildVercelConfig({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      trailingSlash: build.trailing_slash,
+    });
+
+    expect(config.cleanUrls).toBe(true);
+    expect(config.trailingSlash).toBe(false);
+  });
+
   test('omits the `redirects` key entirely when there are no rules', () => {
-    const config = buildVercelConfig({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
+    const config = buildVercelConfig({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      trailingSlash: 'always',
+    });
     expect(config.redirects).toBeUndefined();
   });
 
@@ -165,7 +202,7 @@ describe('buildVercelConfig', () => {
         },
       },
     }).deploy.headers;
-    const config = buildVercelConfig({ headers, rules: [] });
+    const config = buildVercelConfig({ headers, rules: [], trailingSlash: 'always' });
     expect(config.headers).toBeUndefined();
   });
 });
@@ -179,6 +216,7 @@ describe('emitVercelJson', () => {
       enabled: false,
       headers: DEFAULT_HEADERS_CONFIG,
       rules: [],
+      trailingSlash: 'always',
     });
 
     expect(existsSync(join(outputDir, 'vercel.json'))).toBe(false);
@@ -192,6 +230,7 @@ describe('emitVercelJson', () => {
       enabled: true,
       headers: DEFAULT_HEADERS_CONFIG,
       rules: [],
+      trailingSlash: 'always',
     });
 
     expect(existsSync(join(outputDir, 'vercel.json'))).toBe(true);
@@ -205,11 +244,19 @@ describe('emitVercelJson', () => {
       enabled: true,
       headers: DEFAULT_HEADERS_CONFIG,
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
+      trailingSlash: 'always',
     });
 
     const body = await readFile(join(outputDir, 'vercel.json'), 'utf8');
     expect(body.endsWith('\n')).toBe(true);
-    const parsed = JSON.parse(body) as { headers?: unknown[]; redirects?: unknown[] };
+    const parsed = JSON.parse(body) as {
+      cleanUrls?: unknown;
+      trailingSlash?: unknown;
+      headers?: unknown[];
+      redirects?: unknown[];
+    };
+    expect(parsed.cleanUrls).toBe(true);
+    expect(parsed.trailingSlash).toBe(true);
     expect(Array.isArray(parsed.headers)).toBe(true);
     expect(parsed.redirects).toEqual([{ source: '/old', destination: '/new', statusCode: 301 }]);
   });
@@ -223,6 +270,7 @@ describe('emitVercelJson', () => {
       enabled: true,
       headers: DEFAULT_HEADERS_CONFIG,
       rules: [],
+      trailingSlash: 'always',
     });
 
     expect(existsSync(join(outputDir, 'vercel.json'))).toBe(true);
@@ -249,11 +297,17 @@ describe('Vercel deployment docs', () => {
   test('document Vercel 404.html behavior for Nectar output', async () => {
     const root = join(import.meta.dir, '..', '..');
     const guide = await readFile(join(root, 'docs', 'deploy', 'vercel.md'), 'utf8');
+    const security = await readFile(join(root, 'docs', 'security', 'hosting.md'), 'utf8');
     const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
 
     expect(guide).toContain('Nectar always emits `dist/404.html`');
     expect(guide).toContain('Vercel treats a `404.html` file at the output root');
     expect(guide).toContain('No extra rewrite or `routes` entry');
+    expect(guide).toContain('## Clean URLs and trailing slashes');
+    expect(guide).toContain('`build.trailing_slash = "always"`');
+    expect(guide).toContain('`trailingSlash: false`');
+    expect(security).toContain('Keep `cleanUrls: true` with');
+    expect(security).toContain('for no-slash builds, use `trailingSlash: false`');
     expect(tutorial).toContain('Every Nectar build includes `dist/404.html`');
     expect(tutorial).toContain('does not need a catch-all rewrite for');
   });

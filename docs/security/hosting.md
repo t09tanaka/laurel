@@ -148,8 +148,8 @@ negation. Full reference:
 
 Vercel reads `vercel.json` from the project config or static deploy output.
 For Nectar sites, prefer `[deploy.vercel].enabled = true` so `nectar build`
-emits `dist/vercel.json` from `[deploy.headers]`. If you manage Vercel config
-by hand, headers are declarative:
+emits `dist/vercel.json` from `[deploy.headers]` and `build.trailing_slash`.
+If you manage Vercel config by hand, headers are declarative:
 
 `vercel.json`:
 
@@ -184,7 +184,10 @@ by hand, headers are declarative:
 ```
 
 If you already have a hand-maintained `vercel.json`, merge the `headers` array
-into it rather than replacing the file. Otherwise, set the same policies under
+into it rather than replacing the file. Keep `cleanUrls: true` with
+`trailingSlash: true` only for Nectar's default `build.trailing_slash =
+"always"` output; for no-slash builds, use `trailingSlash: false` with
+`cleanUrls: true` instead. Otherwise, set the same policies under
 `[deploy.headers]` and let Nectar generate the Vercel file. Vercel reference:
 <https://vercel.com/docs/projects/project-configuration#headers>.
 

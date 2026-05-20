@@ -144,6 +144,7 @@ Build pipeline options that shape the emitted site.
 | --- | --- | --- | --- | --- |
 | `build.output_dir` | `string` | no | `"dist"` | Directory to emit the built site into, relative to the project root. |
 | `build.base_path` | `string` | no | `"/"` | URL prefix the site is served from (e.g. `/` for a root deployment, `/blog/` for a subpath). All generated links and asset URLs respect this prefix. |
+| `build.trailing_slash` | `"always" \| "never"` | no | `"always"` | Trailing-slash policy exposed to deploy emitters that need explicit URL canonicalization. `always` matches Nectar's directory-index output (`/about/`) and lets Vercel safely emit both `cleanUrls: true` and `trailingSlash: true`; `never` tells Vercel to keep `cleanUrls: true` but set `trailingSlash: false` so Vercel does not combine extension stripping with forced slash redirects. |
 | `build.posts_per_page` | `number` | no | `12` | Posts per paginated index / archive page. |
 | `build.copy_content_assets` | `boolean` | no | `true` | When true, copy `content.assets_dir` into the output as `content/images/` so post-relative image URLs resolve. |
 | `build.max_image_bytes` | `number` | no | `5242880` | Refuse to emit raster images larger than this many bytes during content-asset copy, so a stray 40 MB DSLR JPEG cannot tank LCP. `0` disables the check entirely. Default is 5 MiB. |
@@ -341,7 +342,7 @@ rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist
 
 ## `deploy.headers`
 
-Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.
+Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.
 
 
 ## `deploy.headers.security`

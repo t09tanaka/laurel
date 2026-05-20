@@ -378,6 +378,12 @@ export const configSchema = z
           .describe(
             'URL prefix the site is served from (e.g. `/` for a root deployment, `/blog/` for a subpath). All generated links and asset URLs respect this prefix.',
           ),
+        trailing_slash: z
+          .enum(['always', 'never'])
+          .default('always')
+          .describe(
+            "Trailing-slash policy exposed to deploy emitters that need explicit URL canonicalization. `always` matches Nectar's directory-index output (`/about/`) and lets Vercel safely emit both `cleanUrls: true` and `trailingSlash: true`; `never` tells Vercel to keep `cleanUrls: true` but set `trailingSlash: false` so Vercel does not combine extension stripping with forced slash redirects.",
+          ),
         posts_per_page: z
           .number()
           .int()

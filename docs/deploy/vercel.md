@@ -24,7 +24,8 @@ vercel` for manual or custom CI uploads of an already-built `dist/`.
 
    This makes `nectar build` write `dist/vercel.json`. The file folds
    `[deploy.headers]` cache and security headers plus `redirects.yaml` into
-   Vercel's native `headers` and `redirects` arrays.
+   Vercel's native `headers` and `redirects` arrays, and sets Vercel's clean
+   URL and trailing-slash behavior from `build.trailing_slash`.
 
 2. Build locally once before wiring Vercel:
 
@@ -72,6 +73,31 @@ rewrite and can mask the intended 404 response semantics. Only use Vercel
 `routes` if you intentionally rename the not-found file, which Nectar does
 not do by default.
 
+## Clean URLs and trailing slashes
+
+Nectar route pages are directory-index files by default, such as
+`dist/about/index.html`, with canonical URLs like `/about/`. The default
+`build.trailing_slash = "always"` matches that output, so generated
+`dist/vercel.json` includes:
+
+```json
+{
+  "cleanUrls": true,
+  "trailingSlash": true
+}
+```
+
+If you opt into `build.trailing_slash = "never"`, Nectar still emits
+`cleanUrls: true`, but it writes `trailingSlash: false` instead of forcing
+slashes. This avoids combining Vercel's `.html` / `index.html` stripping with
+a trailing-slash redirect policy that does not match the configured canonical
+URLs. This setting controls Vercel URL normalization; it does not rewrite the
+static route file layout.
+
+When maintaining `vercel.json` by hand, only use `cleanUrls: true` together
+with `trailingSlash: true` for an always-slash build. For no-slash deployments,
+pair `cleanUrls: true` with `trailingSlash: false`.
+
 ## Redirects
 
 Add redirects to `redirects.yaml` at the project root:
@@ -91,6 +117,8 @@ With `[deploy.vercel].enabled = true`, Nectar writes those rules to
 
 ```json
 {
+  "cleanUrls": true,
+  "trailingSlash": true,
   "redirects": [
     { "source": "/feed", "destination": "/rss.xml", "statusCode": 301 },
     { "source": "/old-post/", "destination": "/new-post/", "statusCode": 308 }

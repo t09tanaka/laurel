@@ -35,7 +35,11 @@ interface VercelRedirectRule {
   statusCode: RedirectStatus;
 }
 
+export type BuildTrailingSlash = 'always' | 'never';
+
 export interface VercelConfig {
+  cleanUrls?: boolean;
+  trailingSlash?: boolean;
   headers?: VercelHeaderRule[];
   redirects?: VercelRedirectRule[];
 }
@@ -122,8 +126,12 @@ export function buildVercelRedirects(rules: readonly RedirectRule[]): VercelRedi
 export function buildVercelConfig(opts: {
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  trailingSlash: BuildTrailingSlash;
 }): VercelConfig {
-  const config: VercelConfig = {};
+  const config: VercelConfig = {
+    cleanUrls: true,
+    trailingSlash: opts.trailingSlash === 'always',
+  };
   const headerRules = buildVercelHeaders(opts.headers);
   if (headerRules.length > 0) {
     config.headers = headerRules;
@@ -140,9 +148,14 @@ export async function emitVercelJson(opts: {
   enabled: boolean;
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  trailingSlash: BuildTrailingSlash;
 }): Promise<void> {
   if (!opts.enabled) return;
-  const config = buildVercelConfig({ headers: opts.headers, rules: opts.rules });
+  const config = buildVercelConfig({
+    headers: opts.headers,
+    rules: opts.rules,
+    trailingSlash: opts.trailingSlash,
+  });
   await ensureDir(opts.outputDir);
   await writeFile(join(opts.outputDir, 'vercel.json'), `${JSON.stringify(config, null, 2)}\n`);
 }

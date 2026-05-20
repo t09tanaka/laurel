@@ -877,6 +877,7 @@ async function runBuild({
     enabled: config.deploy.vercel.enabled,
     headers: config.deploy.headers,
     rules: redirects,
+    trailingSlash: config.build.trailing_slash,
   });
   await emitApacheHtaccess({
     outputDir,
