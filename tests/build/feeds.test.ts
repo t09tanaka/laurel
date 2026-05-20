@@ -710,7 +710,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
       id: 'tag-news',
       slug: 'news',
       name: 'News',
-      url: 'https://example.com/tag/news/',
+      url: '/tag/news/',
     });
     const tutorials = makeTag({
       id: 'tag-tut',
@@ -722,7 +722,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
       id: 'p-news',
       slug: 'news-1',
       title: 'News Post',
-      url: 'https://example.com/news-1/',
+      url: '/news-1/',
       tags: [news],
       primary_tag: news,
     });
@@ -753,6 +753,8 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
     expect(newsXml).toContain(
       '<atom:link href="https://example.com/tag/news/rss/index.xml" rel="self" type="application/rss+xml"/>',
     );
+    expect(newsXml).toContain('<link>https://example.com/tag/news/</link>');
+    expect(newsXml).toContain('<link>https://example.com/news-1/</link>');
 
     const tutXml = readFileSync(join(outputDir, 'tag/tutorials/rss/index.xml'), 'utf8');
     expect(tutXml).toContain('<title><![CDATA[Tutorial Post]]></title>');
@@ -796,7 +798,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
       id: 'a-alice',
       slug: 'alice',
       name: 'Alice',
-      url: 'https://example.com/author/alice/',
+      url: '/author/alice/',
     });
     const bob = makeAuthor({
       id: 'a-bob',
@@ -808,7 +810,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
       id: 'p-a',
       slug: 'alice-1',
       title: 'Alice Post',
-      url: 'https://example.com/alice-1/',
+      url: '/alice-1/',
       authors: [alice],
       primary_author: alice,
     });
@@ -839,6 +841,8 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
     expect(aliceXml).toContain(
       '<atom:link href="https://example.com/author/alice/rss/index.xml" rel="self" type="application/rss+xml"/>',
     );
+    expect(aliceXml).toContain('<link>https://example.com/author/alice/</link>');
+    expect(aliceXml).toContain('<link>https://example.com/alice-1/</link>');
 
     const bobXml = readFileSync(join(outputDir, 'author/bob/rss/index.xml'), 'utf8');
     expect(bobXml).toContain('<title><![CDATA[Bob Post]]></title>');

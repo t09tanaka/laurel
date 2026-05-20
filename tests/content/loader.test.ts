@@ -332,10 +332,22 @@ describe('loadContent', () => {
         taxonomies: { tag: '/category/{slug}/', author: '/writer/{slug}/' },
       },
     });
-    expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('https://x.test/category/news/');
-    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe(
-      'https://x.test/writer/casper/',
-    );
+    expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('/category/news/');
+    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe('/writer/casper/');
+  });
+
+  test('stores model URLs as base-path-prefixed paths for url helper resolution', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { base_path: '/blog/' },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.posts.find((p) => p.slug === 'second')?.url).toBe('/blog/second/');
+    expect(graph.pages.find((p) => p.slug === 'about')?.url).toBe('/blog/about/');
+    expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('/blog/tag/news/');
+    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe('/blog/author/casper/');
   });
 
   test('graph.tiers is empty by default and the helper resolves it as a no-op resource', async () => {
@@ -431,15 +443,15 @@ describe('loadContent', () => {
     });
     const hello = graph.posts.find((p) => p.slug === 'hello');
     const second = graph.posts.find((p) => p.slug === 'second');
-    expect(hello?.url).toBe('https://x.test/blog/hello/');
-    expect(second?.url).toBe('https://x.test/second/');
+    expect(hello?.url).toBe('/blog/hello/');
+    expect(second?.url).toBe('/second/');
   });
 
   test('omitting collections leaves post.url at the legacy slug-based path', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
     const graph = await loadContent({ cwd, config });
-    expect(graph.posts.find((p) => p.slug === 'hello')?.url).toBe('https://x.test/hello/');
+    expect(graph.posts.find((p) => p.slug === 'hello')?.url).toBe('/hello/');
   });
 
   test('tag.url is blank when the tag taxonomy is disabled via routes.yaml', async () => {
@@ -452,9 +464,7 @@ describe('loadContent', () => {
     });
     expect(graph.tags.find((t) => t.slug === 'news')?.url).toBe('');
     // author archive remains enabled, so its URL stays populated
-    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe(
-      'https://x.test/author/casper/',
-    );
+    expect(graph.authors.find((a) => a.slug === 'casper')?.url).toBe('/author/casper/');
   });
 });
 
@@ -1587,7 +1597,7 @@ body
     );
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
     const graph = await loadContent({ cwd, config });
-    expect(graph.emailOnlyPosts[0]?.url).toBe('https://x.test/email-only/issue-1/');
+    expect(graph.emailOnlyPosts[0]?.url).toBe('/email-only/issue-1/');
   });
 
   test('missing email_only defaults to false (regular post, present in posts)', async () => {

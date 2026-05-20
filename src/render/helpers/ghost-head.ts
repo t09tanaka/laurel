@@ -496,8 +496,8 @@ function buildJsonLd(
           const entity: Record<string, unknown> = {
             '@type': 'Person',
             name: a.name,
-            url: a.url,
           };
+          if (a.url) entity.url = absoluteUrl(site.url, a.url);
           // Only the primary author carries the post's social attribution.
           // Co-authors fall back to the Person/url pairing without sameAs.
           if (primaryAuthor && a.name === primaryAuthor.name && authorSameAs.length > 0) {
@@ -568,7 +568,7 @@ function buildCollectionPage(
     .map((post, idx) => ({
       '@type': 'ListItem',
       position: idx + 1,
-      url: post.url,
+      url: absoluteUrl(site.url, post.url),
       name: post.title,
     }));
   return {
@@ -635,17 +635,17 @@ function buildBreadcrumbList(
   if (route?.data?.post && ctx.id) {
     const primaryTag = ctx.primary_tag as { name?: string; url?: string } | undefined;
     if (primaryTag?.name && primaryTag?.url) {
-      items.push({ name: primaryTag.name, item: primaryTag.url });
+      items.push({ name: primaryTag.name, item: absoluteUrl(site.url, primaryTag.url) });
     }
     items.push({ name: meta.title, item: meta.canonical });
   } else if (route?.data?.tag) {
     const tag = route.data.tag as { name?: string; url?: string };
     if (!tag.name || !tag.url) return undefined;
-    items.push({ name: tag.name, item: tag.url });
+    items.push({ name: tag.name, item: absoluteUrl(site.url, tag.url) });
   } else if (route?.data?.author) {
     const author = route.data.author as { name?: string; url?: string };
     if (!author.name || !author.url) return undefined;
-    items.push({ name: author.name, item: author.url });
+    items.push({ name: author.name, item: absoluteUrl(site.url, author.url) });
   } else {
     return undefined;
   }

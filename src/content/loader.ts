@@ -77,11 +77,9 @@ export interface LoadContentOptions {
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
 // when the taxonomy is disabled so template guards like
 // `typeof tag.url === 'string' && tag.url.length > 0` keep skipping the link.
-// `basePath` is the normalised `build.base_path` so subpath deploys (e.g.
-// hosting under `/blog/`) produce browser-resolvable archive URLs instead of
-// `https://host/tag/foo/`.
+// Model URLs stay path-only so `{{url}}` can render relative links by default
+// and `{{url absolute=true}}` can choose when to resolve against `site.url`.
 function taxonomyArchiveUrl(
-  siteUrl: string,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
   kind: 'tag' | 'author',
@@ -90,7 +88,7 @@ function taxonomyArchiveUrl(
 ): string {
   const template = taxonomies[kind];
   if (template === undefined) return '';
-  return joinRouteUrl(siteUrl, basePath, applyTaxonomyTemplate(template, slug), trailingSlash);
+  return joinRoutePath(basePath, applyTaxonomyTemplate(template, slug), trailingSlash);
 }
 
 export async function loadContent({
@@ -202,7 +200,6 @@ async function loadContentWithPool({
       raw,
       authorMap,
       tagMap,
-      site,
       basePath,
       taxonomies,
       config.build.trailing_slash,
@@ -217,8 +214,7 @@ async function loadContentWithPool({
     // stub emission is on (a missing href would lead to a 404; an
     // `/email-only/<slug>/` href just 404s when stubs are off, matching).
     if (resolved.email_only) {
-      resolved.url = joinRouteUrl(
-        site.url,
+      resolved.url = joinRoutePath(
         basePath,
         `/email-only/${resolved.slug}/`,
         config.build.trailing_slash,
@@ -251,7 +247,7 @@ async function loadContentWithPool({
     for (const post of resolvedPosts) {
       const a = assignments.get(post.id);
       if (!a) continue;
-      post.url = joinRouteUrl(site.url, basePath, a.urlPath, config.build.trailing_slash);
+      post.url = joinRoutePath(basePath, a.urlPath, config.build.trailing_slash);
     }
   }
 
@@ -262,7 +258,6 @@ async function loadContentWithPool({
       raw,
       authorMap,
       tagMap,
-      site,
       basePath,
       taxonomies,
       config.build.trailing_slash,
@@ -969,14 +964,7 @@ async function normalizeAuthor(
     instagram: asString(data.instagram),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(
-      config.site.url,
-      basePath,
-      taxonomies,
-      'author',
-      slug,
-      config.build.trailing_slash,
-    ),
+    url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, config.build.trailing_slash),
   };
 }
 
@@ -1001,14 +989,7 @@ async function normalizeTag(
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
-    url: taxonomyArchiveUrl(
-      config.site.url,
-      basePath,
-      taxonomies,
-      'tag',
-      slug,
-      config.build.trailing_slash,
-    ),
+    url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, config.build.trailing_slash),
     count: { posts: 0 },
   };
 }
@@ -1045,16 +1026,14 @@ function resolvePostRelations(
   raw: RawPost,
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
-  site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Post {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies, trailingSlash);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, basePath, taxonomies, trailingSlash);
   const authorList = resolveAuthorSlugs(
     raw.authorSlugs,
     authors,
-    site,
     basePath,
     taxonomies,
     trailingSlash,
@@ -1063,7 +1042,7 @@ function resolvePostRelations(
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinRouteUrl(site.url, basePath, `/${raw.slug}/`, trailingSlash);
+  const url = joinRoutePath(basePath, `/${raw.slug}/`, trailingSlash);
 
   return {
     id: raw.id,
@@ -1121,16 +1100,14 @@ function resolvePageRelations(
   raw: RawPage,
   authors: Map<string, Author>,
   tags: Map<string, Tag>,
-  site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Page {
-  const tagList = resolveTagSlugs(raw.tagSlugs, tags, site, basePath, taxonomies, trailingSlash);
+  const tagList = resolveTagSlugs(raw.tagSlugs, tags, basePath, taxonomies, trailingSlash);
   const authorList = resolveAuthorSlugs(
     raw.authorSlugs,
     authors,
-    site,
     basePath,
     taxonomies,
     trailingSlash,
@@ -1139,7 +1116,7 @@ function resolvePageRelations(
   const primary_author = raw.primaryAuthor
     ? authorList.find((a) => a.slug === raw.primaryAuthor)
     : authorList[0];
-  const url = joinRouteUrl(site.url, basePath, `/${raw.slug}/`, trailingSlash);
+  const url = joinRoutePath(basePath, `/${raw.slug}/`, trailingSlash);
 
   return {
     id: raw.id,
@@ -1199,7 +1176,6 @@ export function resetAutoCreationWarnings(): void {
 function resolveTagSlugs(
   slugs: string[],
   tags: Map<string, Tag>,
-  site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
@@ -1228,7 +1204,7 @@ function resolveTagSlugs(
       visibility: slug.startsWith('hash-') ? 'internal' : 'public',
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'tag', slug, trailingSlash),
+      url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, trailingSlash),
       count: { posts: 0 },
     };
     tags.set(slug, created);
@@ -1239,7 +1215,6 @@ function resolveTagSlugs(
 function resolveAuthorSlugs(
   slugs: string[],
   authors: Map<string, Author>,
-  site: SiteData,
   basePath: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
@@ -1277,7 +1252,7 @@ function resolveAuthorSlugs(
       instagram: undefined,
       meta_title: undefined,
       meta_description: undefined,
-      url: taxonomyArchiveUrl(site.url, basePath, taxonomies, 'author', slug, trailingSlash),
+      url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, trailingSlash),
     };
     authors.set(slug, created);
     return created;
@@ -1292,30 +1267,23 @@ function titleCase(slug: string): string {
     .join(' ');
 }
 
-// Compose an external URL by inserting `basePath` between the host and the
-// route-relative `path`. Centralised here so every `*.url` on the content
-// graph (post, page, tag, author) reflects the normalised `build.base_path`.
+// Compose a path by inserting `basePath` before the route-relative `path`.
+// Centralised here so every `*.url` on the content graph (post, page, tag,
+// author) reflects the normalised `build.base_path` without committing to an
+// absolute origin.
 // Inputs:
-//  - `base` is `site.url`, with or without a trailing slash.
 //  - `basePath` is the normalised `'/'` or `'/segment/.../'` shape.
 //  - `path` is root-relative (e.g. `'/post-slug/'`) -- the leading slash is
 //    optional; we tolerate both shapes so callers stay free of base_path
 //    hygiene.
-function joinUrl(base: string, basePath: string, path: string): string {
-  if (!base) return path;
+function joinPathWithBase(basePath: string, path: string): string {
   const prefix = basePath && basePath !== '/' ? basePath : '/';
   const clean = path.startsWith('/') ? path.slice(1) : path;
-  const composed = prefix === '/' ? `/${clean}` : `${prefix}${clean}`;
-  return new URL(composed, base.endsWith('/') ? base : `${base}/`).toString();
+  return prefix === '/' ? `/${clean}` : `${prefix}${clean}`;
 }
 
-function joinRouteUrl(
-  base: string,
-  basePath: string,
-  path: string,
-  trailingSlash: TrailingSlashPolicy,
-): string {
-  return joinUrl(base, basePath, canonicalRouteUrl(path, trailingSlash));
+function joinRoutePath(basePath: string, path: string, trailingSlash: TrailingSlashPolicy): string {
+  return joinPathWithBase(basePath, canonicalRouteUrl(path, trailingSlash));
 }
 
 // `plaintext.slice(0, 200)` cut by code-unit count, which means 200 Japanese

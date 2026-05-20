@@ -94,6 +94,15 @@ describe('url helper', () => {
     expect(tpl({})).toBe('https://blog.example.com/about/');
   });
 
+  test('absolute=true resolves a base-path model URL exactly once', () => {
+    const engine = makeEngine('https://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url author.url absolute=true}}');
+    expect(tpl({ author: { url: '/blog/author/casper/' } })).toBe(
+      'https://blog.example.com/blog/author/casper/',
+    );
+  });
+
   test('falls back to this.url when the positional argument resolves to undefined', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);

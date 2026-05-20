@@ -911,7 +911,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
         title: 'A post',
         primary_tag: {
           name: 'News',
-          url: 'https://example.com/tag/news/',
+          url: '/tag/news/',
         },
         published_at: '2026-01-01',
         updated_at: '2026-01-01',
@@ -1088,10 +1088,10 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
       {
         routeKind: 'tag',
         routeData: {
-          tag: { name: 'News', url: 'https://example.com/tag/news/' },
+          tag: { name: 'News', url: '/tag/news/' },
           posts: [
-            { url: 'https://example.com/a/', title: 'A' },
-            { url: 'https://example.com/b/', title: 'B' },
+            { url: '/a/', title: 'A' },
+            { url: '/b/', title: 'B' },
           ],
         },
       },
@@ -1135,8 +1135,8 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
       {
         routeKind: 'author',
         routeData: {
-          author: { name: 'Jane', url: 'https://example.com/author/jane/' },
-          posts: [{ url: 'https://example.com/x/', title: 'X' }],
+          author: { name: 'Jane', url: '/author/jane/' },
+          posts: [{ url: '/x/', title: 'X' }],
         },
       },
     );

@@ -1,6 +1,6 @@
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
-import { withBasePath } from '~/util/url.ts';
+import { absoluteUrl, withBasePath } from '~/util/url.ts';
 import { writeHtml } from './emit.ts';
 import { renderFeedSafeHtml } from './feed-safe-html.ts';
 
@@ -68,7 +68,7 @@ export async function emitRss(opts: {
         channel: {
           title: `${tag.name} - ${config.site.title}`,
           description: tag.description || config.site.description,
-          link: tag.url,
+          link: absoluteUrl(config.site.url, tag.url),
         },
       });
     }
@@ -86,7 +86,7 @@ export async function emitRss(opts: {
         channel: {
           title: `${author.name} - ${config.site.title}`,
           description: author.bio || config.site.description,
-          link: author.url,
+          link: absoluteUrl(config.site.url, author.url),
         },
       });
     }
@@ -238,9 +238,9 @@ function renderItem(
   fullContent: boolean,
   basePath = '/',
 ): string {
-  // `post.url` already encodes `base_path` (the loader threads it in), so
-  // the parsed pathname carries the subpath through to the feed's `<link>`.
-  const link = `${base}${new URL(post.url).pathname}`;
+  // `post.url` is path-only when it comes from the loader, but older tests and
+  // ad-hoc callers may still pass absolute values. Resolve both shapes once.
+  const link = absoluteUrl(base, post.url);
   // Absolutise only when we plan to ship the HTML body. Skipping the regex
   // walk when `fullContent=false` is the whole point of #517: at 10k items
   // the rewrite-then-discard cost was the second-largest slice of feed time.
