@@ -727,14 +727,23 @@ async function importFromResolvedInput(
   const writeLimit = pLimit(IMPORT_CONCURRENCY);
   const writeQueue: Array<Promise<void>> = [];
   const plannedPaths: string[] = [];
+  const claimedPostPageSlugs = new Map<string, PostPageSlugClaim>();
   let htmlPreserved = 0;
   for (const r of renderedPosts) {
     if (!r) continue;
-    recordSlugChange(r.isPage ? 'page' : 'post', r.originalSlug, r.slug);
-    if (!dryRun) await ensureDirOnce(dirname(r.dest));
+    const resolved = await resolvePostPageSlugClaim(
+      r,
+      onConflict,
+      counters,
+      claimedPostPageSlugs,
+      writtenThisRun,
+    );
+    if (!resolved) continue;
+    recordSlugChange(resolved.isPage ? 'page' : 'post', resolved.originalSlug, resolved.slug);
+    if (!dryRun) await ensureDirOnce(dirname(resolved.dest));
     const written = await dispatchWrite(
-      r.dest,
-      r.contents,
+      resolved.dest,
+      resolved.contents,
       onConflict,
       counters,
       dryRun,
@@ -743,12 +752,18 @@ async function importFromResolvedInput(
       writeLimit,
     );
     if (!written) continue;
+    if (!claimedPostPageSlugs.has(resolved.slug)) {
+      claimedPostPageSlugs.set(resolved.slug, {
+        kind: resolved.isPage ? 'page' : 'post',
+        dest: written,
+      });
+    }
     plannedPaths.push(written);
-    if (r.htmlContents !== undefined) {
+    if (resolved.htmlContents !== undefined) {
       const htmlDest = `${written}.html`;
       const htmlWritten = await dispatchWrite(
         htmlDest,
-        r.htmlContents,
+        resolved.htmlContents,
         onConflict,
         counters,
         dryRun,
@@ -761,9 +776,9 @@ async function importFromResolvedInput(
         htmlPreserved += 1;
       }
     }
-    for (const slug of r.tagSlugs) importedTagSlugs.add(slug);
-    for (const slug of r.authorSlugs) importedAuthorSlugs.add(slug);
-    if (r.isPage) pageCount += 1;
+    for (const slug of resolved.tagSlugs) importedTagSlugs.add(slug);
+    for (const slug of resolved.authorSlugs) importedAuthorSlugs.add(slug);
+    if (resolved.isPage) pageCount += 1;
     else postCount += 1;
   }
   await Promise.all(writeQueue);
@@ -1586,6 +1601,11 @@ interface RenderedPostRecord {
   authorSlugs: string[];
 }
 
+interface PostPageSlugClaim {
+  kind: 'post' | 'page';
+  dest: string;
+}
+
 interface RenderPostContext {
   opts: ImportGhostOptions;
   counters: {
@@ -1610,6 +1630,60 @@ interface RenderPostContext {
   tagSlugsForPost: (postId: string) => string[];
   authorSlugsForPost: (postId: string) => string[];
   tierSlugsForPost: (postId: string) => string[];
+}
+
+async function resolvePostPageSlugClaim(
+  record: RenderedPostRecord,
+  onConflict: OnConflict,
+  counters: { renamed: number; slugCollisions: number },
+  claimedPostPageSlugs: Map<string, PostPageSlugClaim>,
+  writtenThisRun: Set<string>,
+): Promise<RenderedPostRecord | undefined> {
+  const kind = record.isPage ? 'page' : 'post';
+  const existing = claimedPostPageSlugs.get(record.slug);
+  if (!existing || existing.kind === kind) return record;
+
+  if (onConflict !== 'rename') {
+    process.stderr.write(
+      `Post/page slug collision within Ghost export (refusing to write ${kind} ${JSON.stringify(record.slug)} because ${existing.kind} ${JSON.stringify(record.slug)} already claimed the public URL): ${record.dest}\n`,
+    );
+    counters.slugCollisions += 1;
+    return undefined;
+  }
+
+  const { slug, dest } = await nextAvailablePostPageSlug(
+    record,
+    claimedPostPageSlugs,
+    writtenThisRun,
+  );
+  process.stderr.write(`Renamed (post/page slug collision with ${existing.dest}): ${dest}\n`);
+  counters.renamed += 1;
+  return {
+    ...record,
+    slug,
+    dest,
+    contents: replaceImportedSlug(record.contents, slug),
+  };
+}
+
+async function nextAvailablePostPageSlug(
+  record: RenderedPostRecord,
+  claimedPostPageSlugs: Map<string, PostPageSlugClaim>,
+  writtenThisRun: Set<string>,
+): Promise<{ slug: string; dest: string }> {
+  const baseDir = dirname(record.dest);
+  for (let i = 2; ; i += 1) {
+    const slug = `${record.slug}-${i}`;
+    const dest = join(baseDir, `${slug}.md`);
+    if (claimedPostPageSlugs.has(slug) || writtenThisRun.has(dest) || (await pathExists(dest))) {
+      continue;
+    }
+    return { slug, dest };
+  }
+}
+
+function replaceImportedSlug(contents: string, slug: string): string {
+  return contents.replace(/^slug: .+$/m, `slug: ${JSON.stringify(slug)}`);
 }
 
 // Render a single Ghost post into a (dest, frontmatter+body) pair, or

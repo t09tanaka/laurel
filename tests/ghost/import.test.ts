@@ -29,7 +29,13 @@ function captureStderr(): CapturedStderr {
 }
 
 function makeExport(
-  posts: Array<{ slug: string; title: string; html?: string; uuid?: string }>,
+  posts: Array<{
+    slug: string;
+    title: string;
+    html?: string;
+    uuid?: string;
+    type?: 'post' | 'page';
+  }>,
 ): string {
   return JSON.stringify({
     db: [
@@ -42,7 +48,7 @@ function makeExport(
             slug: p.slug,
             html: p.html ?? `<p>${p.title}</p>`,
             status: 'published',
-            type: 'post',
+            type: p.type ?? 'post',
           })),
         },
       },
@@ -330,6 +336,59 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
     expect(summary.slugCollisions).toBe(1);
     expect(summary.posts).toBe(1);
     await expect(access(join(cwd, 'content/posts/preview.md'))).rejects.toThrow();
+  });
+
+  test('refuses a page when a post already claimed the same public slug', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'shared', title: 'Post', html: '<p>POST</p>' },
+        { slug: 'shared', title: 'Page', html: '<p>PAGE</p>', type: 'page' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'overwrite',
+    });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.pages).toBe(0);
+    expect(summary.slugCollisions).toBe(1);
+    expect(summary.overwritten).toBe(0);
+    expect(await readFile(join(cwd, 'content/posts/shared.md'), 'utf8')).toContain('title: "Post"');
+    await expect(access(join(cwd, 'content/pages/shared.md'))).rejects.toThrow();
+    expect(captured.data).toContain('Post/page slug collision within Ghost export');
+    expect(captured.data).toContain('post "shared"');
+    expect(captured.data).toContain('page "shared"');
+  });
+
+  test('rename policy gives a post/page slug collision a numbered public slug', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([
+        { slug: 'shared', title: 'Post', html: '<p>POST</p>' },
+        { slug: 'shared', title: 'Page', html: '<p>PAGE</p>', type: 'page' },
+      ]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      onConflict: 'rename',
+    });
+
+    expect(summary.posts).toBe(1);
+    expect(summary.pages).toBe(1);
+    expect(summary.renamed).toBe(1);
+    expect(summary.slugCollisions).toBe(0);
+    expect(await readFile(join(cwd, 'content/posts/shared.md'), 'utf8')).toContain(
+      'slug: "shared"',
+    );
+    const page = await readFile(join(cwd, 'content/pages/shared-2.md'), 'utf8');
+    expect(page).toContain('title: "Page"');
+    expect(page).toContain('slug: "shared-2"');
   });
 
   test('collision is independent across kinds (post slug == tag slug does not collide)', async () => {
