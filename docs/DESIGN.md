@@ -411,7 +411,37 @@ repo     = "owner/repo"  # giscus, utterances
 Optional ≠ baked-in. The build pipeline calls `applyComponents()` after route
 emission; each component either adds files to `dist/` or rewrites HTML.
 
-## 6. Testing strategy
+## 6. Build-time cache
+
+Build-time probes that may later touch the network should use
+`src/build/cache.ts` rather than inventing per-feature files. The shared JSON
+cache keeps cacheable probe results under `.nectar-cache/cache/<namespace>/`;
+bookmark and oEmbed metadata use the `embeds` namespace, so entries land at:
+
+```
+.nectar-cache/cache/embeds/<sha256>.json
+```
+
+The `<sha256>` is derived from the namespace plus a stable key. URL keys are
+stored in the JSON entry for debugging, but the filename never contains the raw
+host/path. Structured keys are sorted before hashing so future image probing can
+share the same layer without depending on object property order.
+
+The cache API supports three behaviours that remote metadata fetchers need:
+
+- **TTL** — callers can write or read with `ttlMs`; expired entries are skipped
+  unless stale data is explicitly allowed.
+- **Offline mode** — `readThrough(..., { offline: true })` never invokes the
+  fetch callback. It returns a stale cached value when one exists and otherwise
+  reports `offline-miss`.
+- **Read-through refresh** — online callers can provide `fetchValue`; a missing
+  or stale entry is refreshed and atomically written back.
+
+Actual bookmark/oEmbed fetching is intentionally separate. The cache layer is
+only the persistence contract that those future fetchers, and local image probe
+metadata if needed, should reuse.
+
+## 7. Testing strategy
 
 - **Unit** (`tests/<module>.test.ts`) — small, hermetic. Frontmatter parser,
   asset fingerprinter, helper behavior. Driven by `bun test`.
@@ -426,7 +456,7 @@ CI:
 - `bun run typecheck` (`tsc --noEmit`)
 - `bun test`
 
-## 7. Build sequence (MVP)
+## 8. Build sequence (MVP)
 
 1. Project skeleton, `bun init`, `tsconfig`, `biome`, `bun test` smoke.
 2. Markdown loader with YAML frontmatter, types, model tests.
@@ -442,7 +472,7 @@ CI:
     end-to-end build against Source.
 11. Ghost import tool (last; it's orthogonal to the render path).
 
-## 8. Open questions
+## 9. Open questions
 
 - Do we want a `nectar dev` server with HMR? Probably yes eventually, but
   not in scope for the bootstrap milestone — `bun --watch` over `nectar
