@@ -1372,7 +1372,10 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      if (s.startsWith('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes under Bun's test runner,
+      // so detect the `[warn]` token anywhere in the line rather than at
+      // index 0.
+      if (s.includes('[warn]')) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {
@@ -1416,12 +1419,12 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     // emit once per slug, not once per reference.
     await writeFile(
       join(dir, 'content/posts/a.md'),
-      '---\ntitle: A\ndate: 2026-01-01\ntags: [orphan-tag]\nauthors: [orphan-author]\n---\nbody\n',
+      '---\ntitle: A\ndate: 2026-01-01\ntags: [orphan-tag-unique-860]\nauthors: [orphan-author-unique-860]\n---\nbody\n',
       'utf8',
     );
     await writeFile(
       join(dir, 'content/posts/b.md'),
-      '---\ntitle: B\ndate: 2026-01-02\ntags: [orphan-tag]\nauthors: [orphan-author]\n---\nbody\n',
+      '---\ntitle: B\ndate: 2026-01-02\ntags: [orphan-tag-unique-860]\nauthors: [orphan-author-unique-860]\n---\nbody\n',
       'utf8',
     );
 
@@ -1429,7 +1432,10 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      if (s.startsWith('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes under Bun's test runner,
+      // so detect the `[warn]` token anywhere in the line rather than at
+      // index 0.
+      if (s.includes('[warn]')) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {
@@ -1439,10 +1445,10 @@ describe('loadContent parallel markdown loading is deterministic', () => {
       process.stderr.write = origWrite;
     }
     const tagWarns = warnings.filter(
-      (w) => w.includes('Auto-creating tag') && w.includes('"orphan-tag"'),
+      (w) => w.includes('Auto-creating tag') && w.includes('"orphan-tag-unique-860"'),
     );
     const authorWarns = warnings.filter(
-      (w) => w.includes('Auto-creating author') && w.includes('"orphan-author"'),
+      (w) => w.includes('Auto-creating author') && w.includes('"orphan-author-unique-860"'),
     );
     expect(tagWarns).toHaveLength(1);
     expect(authorWarns).toHaveLength(1);
@@ -1461,7 +1467,10 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      if (s.startsWith('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes under Bun's test runner,
+      // so detect the `[warn]` token anywhere in the line rather than at
+      // index 0.
+      if (s.includes('[warn]')) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {
