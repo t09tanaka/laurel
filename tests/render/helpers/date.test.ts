@@ -158,6 +158,14 @@ describe('date helper', () => {
     );
   });
 
+  test('timeago returns Day.js relative unit text', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const out = engine.hb.compile('{{date ts timeago=true}}')({ ts: past });
+    expect(out).toBe('a day ago');
+  });
+
   test('timeago output is localized', () => {
     const engine = makeEngine('ja');
     registerDateHelpers(engine);
