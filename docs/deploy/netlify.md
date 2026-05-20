@@ -148,6 +148,21 @@ deploy, request any missing URL and confirm the response status is `404`, then
 inspect `https://your-site.netlify.app/404.html` directly if you need to review
 the rendered page.
 
+When `[components.content_api].enabled = true`, Nectar also writes
+`dist/content/404.json` with a Ghost-shaped `errors` envelope. This keeps
+browser SDK consumers from receiving HTML when a post slug JSON file is
+missing. Netlify can route missing Content API JSON requests to that file while
+preserving a `404` status:
+
+```txt
+/content/*  /content/404.json  404
+```
+
+Place that rule after any real Content API redirects and do not mark it forced;
+Netlify's file shadowing should let existing `dist/content/**/*.json` files win.
+Verify with both an existing slug JSON URL and a missing one before enabling it
+on production.
+
 ## Headers and caching
 
 When `[deploy.netlify].enabled = true`, every build writes `dist/_headers`.

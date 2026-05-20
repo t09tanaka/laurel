@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 import { buildContentApiHeadersBody } from './headers.ts';
 
@@ -23,6 +24,7 @@ import { buildContentApiHeadersBody } from './headers.ts';
 //   content/tags.json                        — all public tags
 //   content/authors.json                     — all authors (with count.posts)
 //   content/settings.json                    — site settings singleton
+//   content/404.json                         — Ghost-shaped 404 error envelope
 //
 // Pre-baked tag shards exist because arbitrary Ghost NQL filtering needs a
 // server. Operators who need a different filter can shape it client-side off
@@ -75,9 +77,14 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writePerSlugPages(outputDir, serializedPages),
     writePerIdPages(outputDir, serializedPages),
     writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase),
+    writeContentApi404(outputDir),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
   ]);
+}
+
+async function writeContentApi404(outputDir: string): Promise<void> {
+  await writeJson(join(outputDir, 'content', '404.json'), buildContentApiNotFoundEnvelope());
 }
 
 // Writes a Ghost-shaped collection envelope to BOTH

@@ -82,6 +82,14 @@ static routes. Do not add a catch-all `_redirects` rewrite for missing paths to
 `/404.html`, such as `/* /404.html 404`, unless you are intentionally replacing
 Cloudflare Pages' built-in static 404 convention.
 
+When `[components.content_api].enabled = true`, Nectar also writes
+`dist/content/404.json` with the Ghost Content API `errors` envelope. Use it
+only from a routing layer that can apply the fallback after static asset lookup,
+for example a Pages Function or Worker that returns `/content/404.json` with
+status `404` for missing `/content/*` JSON requests. Do not add a broad
+`/content/* /content/404.json 404` rule to `_redirects` on Cloudflare Pages:
+Pages redirects are forced and would shadow real Content API JSON files.
+
 ## Cloudflare Workers Static Assets
 
 If you deploy the same `dist/` directory with Cloudflare Workers Static Assets

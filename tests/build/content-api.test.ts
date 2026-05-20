@@ -196,8 +196,30 @@ describe('emitContentApiStubs', () => {
 
     expect(existsSync(join(outputDir, 'content', 'posts.json'))).toBe(true);
     expect(existsSync(join(outputDir, 'content', 'settings.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', '404.json'))).toBe(true);
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
     expect(existsSync(join(outputDir, '_headers.cf'))).toBe(true);
+  });
+
+  test('emits a Ghost-shaped 404 error envelope for static Content API misses (#742)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-404-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', '404.json'), 'utf8'));
+    expect(body).toEqual({
+      errors: [
+        {
+          message: 'Resource not found error, cannot read post.',
+          context: 'The requested Content API resource was not found.',
+          type: 'NotFoundError',
+          details: null,
+          property: null,
+          help: null,
+          code: null,
+          id: 'nectar-content-api-404',
+        },
+      ],
+    });
   });
 
   test('duo emit: posts / tags / authors / settings each land at both .json and /index.json (#215)', async () => {

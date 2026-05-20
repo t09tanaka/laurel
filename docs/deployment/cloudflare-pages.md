@@ -12,7 +12,10 @@ serve `dist/` on Cloudflare's edge network.
 4. In Cloudflare Pages, use build command `bunx nectar build` and output
    directory `dist`.
 5. Set `BUN_VERSION` to a supported Bun version.
-6. Verify headers, redirects, RSS, sitemap, and the generated 404 page.
+6. For Content API SDK clients, route missing `/content/*` JSON requests to
+   `dist/content/404.json` only from a Function or Worker after static lookup;
+   do not use a broad Pages `_redirects` rule because it shadows real files.
+7. Verify headers, redirects, RSS, sitemap, and the generated 404 page.
 
 ## Source docs
 

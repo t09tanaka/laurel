@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 
 export interface EmitContentApiOptions {
@@ -40,6 +41,7 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
     writeSettings(outputDir, content.site),
     writePaginated(outputDir, 'posts', serializedPosts, postsPerPage),
     writePerTag(outputDir, content.tags, publishedPosts, urlBase),
+    writeContentApi404(outputDir),
   ]);
 
   await Promise.all([
@@ -72,6 +74,10 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   ]);
 
   await writeRedirects(outputDir, config.build.base_path, content);
+}
+
+async function writeContentApi404(outputDir: string): Promise<void> {
+  await writeJson(join(outputDir, API_BASE, '404.json'), buildContentApiNotFoundEnvelope());
 }
 
 async function writeResourceWith(

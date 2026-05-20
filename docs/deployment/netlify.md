@@ -11,7 +11,9 @@ deploy previews.
 4. In Netlify, use build command `bunx nectar build` and publish directory
    `dist`.
 5. Use the CLI workflow only when CI, not Netlify, owns the upload.
-6. Verify preview canonical URLs, redirects, headers, RSS, sitemap, and 404s.
+6. If Content API SDK clients fetch `/content/*`, add an unforced Netlify
+   fallback `/content/*  /content/404.json  404` after real API redirects.
+7. Verify preview canonical URLs, redirects, headers, RSS, sitemap, and 404s.
 
 ## Source docs
 

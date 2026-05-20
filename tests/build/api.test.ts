@@ -236,6 +236,16 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.paid_members_enabled).toBe(false);
     expect(settings.settings.members_invite_only).toBe(false);
     expect(settings.settings.recommendations_enabled).toBe(false);
+
+    const notFound = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/404.json'), 'utf8'),
+    );
+    expect(notFound.errors[0]).toMatchObject({
+      message: 'Resource not found error, cannot read post.',
+      type: 'NotFoundError',
+      id: 'nectar-content-api-404',
+    });
+    expect(notFound.errors[0].details).toBeNull();
   });
 
   test('writes per-slug single-resource files under ghost/api/content/<resource>/slug/<slug>.json', async () => {
