@@ -100,7 +100,15 @@ Trailing slashes matter — Nectar emits `<slug>/index.html`, so URLs end in
 
 **Recommended for:** form handling, branch previews, plugin ecosystem.
 
-Add `netlify.toml` at the repo root:
+Enable the Netlify emitter in `nectar.toml` so builds include the generated
+`_headers` file and Netlify-formatted redirects:
+
+```toml
+[deploy.netlify]
+enabled = true
+```
+
+Then add `netlify.toml` at the repo root:
 
 ```toml
 [build]
@@ -109,12 +117,6 @@ Add `netlify.toml` at the repo root:
 
 [build.environment]
   BUN_VERSION = "1.3.0"
-
-[[redirects]]
-  from = "/feed"
-  to = "/rss.xml"
-  status = 301
-  force = true
 ```
 
 Then **Netlify dashboard → Add new site → Import from Git → pick repo →
@@ -122,6 +124,21 @@ Deploy**. The `netlify.toml` overrides any guesses Netlify makes.
 
 Netlify's Bun support is via the `BUN_VERSION` build environment variable —
 without it, the build runs Node and `bunx` will fail.
+
+Custom redirects go in `redirects.yaml`; Nectar emits them to
+`dist/_redirects` when `[deploy.netlify].enabled = true`. Netlify's
+`force: true` semantics are supported via the `!` status suffix:
+
+```yaml
+# redirects.yaml
+- from: /feed
+  to: /rss.xml
+  status: 301
+  force: true
+```
+
+For CI-driven deploys, Netlify CLI uploads, and header customization details,
+see [`docs/deploy/netlify.md`](../deploy/netlify.md).
 
 ---
 

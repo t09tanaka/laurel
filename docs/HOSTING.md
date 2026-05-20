@@ -20,6 +20,9 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
   quickstart with the recommended Actions artifact workflow, project-site
   `base_path`, `.nojekyll`, and `CNAME` notes.
+- [`docs/deploy/netlify.md`](./deploy/netlify.md) — Netlify-specific
+  quickstart for Git builds and CI uploads, including Nectar's generated
+  `_headers` / `_redirects` behavior.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 
