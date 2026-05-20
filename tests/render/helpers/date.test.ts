@@ -89,6 +89,15 @@ describe('date helper', () => {
     expect(out).toBe('2026');
   });
 
+  test('invalid date strings render without throwing', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const template = engine.hb.compile('{{date "not-a-date"}}');
+
+    expect(() => template({})).not.toThrow();
+    expect(['Invalid Date', '']).toContain(template({}));
+  });
+
   test('falls back to the current date when the context has no dates', () => {
     const engine = makeEngine('en', 'UTC');
     registerDateHelpers(engine);

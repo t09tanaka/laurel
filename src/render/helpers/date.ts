@@ -52,10 +52,14 @@ export function registerDateHelpers(engine: NectarEngine): void {
     if (typeof options.hash.format === 'string') {
       return dayjs(value).tz(timezoneName).locale(dayjsLocale).format(options.hash.format);
     }
+    const date = toDate(value);
+    if (Number.isNaN(date.getTime())) {
+      return dayjs(value).locale(dayjsLocale).format();
+    }
     return new Intl.DateTimeFormat(intlLocale, {
       ...DEFAULT_INTL_OPTIONS,
       timeZone: timezoneName,
-    }).format(toDate(value));
+    }).format(date);
   });
 }
 
