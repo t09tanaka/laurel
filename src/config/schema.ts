@@ -1013,6 +1013,26 @@ export const configSchema = z
           .describe(
             'Lightweight extension point for registering Handlebars helpers from a config-listed file without writing a full plugin. The build dynamic-imports each `paths[]` entry and registers its exports as helpers on the render engine.',
           ),
+        analytics: z
+          .object({
+            provider: z
+              .enum(['none', 'plausible', 'umami', 'fathom', 'simpleanalytics', 'googleanalytics'])
+              .default('none')
+              .describe(
+                'Analytics backend whose tracking snippet is injected into every page via `{{ghost_head}}`. `none` skips injection. For `plausible` / `umami` / `fathom` / `simpleanalytics`, `site` is the domain / website ID / site ID used by the provider. For `googleanalytics`, `site` is the GA4 measurement id (e.g. `G-XXXXXXXX`). DNT and IP anonymisation are handled by the provider itself; consult their docs to opt in.',
+              ),
+            site: z
+              .string()
+              .optional()
+              .describe(
+                'Provider-specific identifier embedded in the analytics snippet. Plausible: domain (e.g. `example.com`). Umami: data-website-id (UUID). Fathom: data-site (e.g. `ABCDEFGH`). Google Analytics: measurement id (e.g. `G-XXXXXXXX`). Simple Analytics does not require a site id; the field is ignored. Required when `provider` is anything other than `none` / `simpleanalytics`.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            "Drop-in analytics snippet. When `provider` is set, the corresponding script tag (and any `<noscript>` fallback) is appended to every page's `{{ghost_head}}` output. Privacy concerns (Do-Not-Track honouring, IP anonymisation, cookie banners) are the provider's responsibility — Nectar only emits the documented embed snippet verbatim.",
+          ),
       })
       .strict()
       .default({})

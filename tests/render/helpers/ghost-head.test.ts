@@ -1404,3 +1404,120 @@ describe('ghost_head / ghost_foot post-level codeinjection (issue #408)', () => 
     expect(sitePos).toBeLessThan(postPos);
   });
 });
+
+// Issue #209: [components.analytics] injects a provider-specific snippet into
+// every page's {{ghost_head}}. The snippet is emitted before any
+// codeinjection_head so operators can still override it manually.
+describe('ghost_head analytics provider snippet (issue #209)', () => {
+  test('emits the Plausible script when provider is plausible', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'plausible', site: 'example.com' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer data-domain="example.com" src="https://plausible.io/js/script.js"></script>',
+    );
+  });
+
+  test('emits the Umami script when provider is umami', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'umami', site: 'abc-123' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script async defer src="https://cloud.umami.is/script.js" data-website-id="abc-123"></script>',
+    );
+  });
+
+  test('emits the Fathom script when provider is fathom', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'fathom', site: 'ABCDEFGH' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script src="https://cdn.usefathom.com/script.js" data-site="ABCDEFGH" defer></script>',
+    );
+  });
+
+  test('emits both the Simple Analytics script and the <noscript> pixel', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'simpleanalytics' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script async defer src="https://scripts.simpleanalyticscdn.com/latest.js"></script>',
+    );
+    expect(html).toContain(
+      '<noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif"',
+    );
+  });
+
+  test('emits gtag.js loader and inline init for googleanalytics', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'googleanalytics', site: 'G-XYZ123' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script async src="https://www.googletagmanager.com/gtag/js?id=G-XYZ123"></script>',
+    );
+    expect(html).toContain("gtag('config', 'G-XYZ123')");
+  });
+
+  test('emits no snippet when provider is none', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'none' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('plausible.io');
+    expect(html).not.toContain('umami.is');
+    expect(html).not.toContain('usefathom.com');
+    expect(html).not.toContain('simpleanalyticscdn.com');
+    expect(html).not.toContain('googletagmanager.com');
+  });
+
+  test('omits the snippet when a site-required provider is missing the site id', () => {
+    // Plausible / Umami / Fathom / GA all need a site identifier. Without it
+    // the snippet is silently dropped rather than emit a half-formed tag.
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: { analytics: { provider: 'plausible' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('plausible.io');
+  });
+
+  test('analytics snippet appears before codeinjection_head so operators can override it', () => {
+    const html = renderGhostHead(
+      { codeinjection_head: '<meta name="x-post" content="post">' },
+      '/',
+      {
+        config: {
+          components: { analytics: { provider: 'plausible', site: 'example.com' } },
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+    const analyticsPos = html.indexOf('plausible.io');
+    const injectionPos = html.indexOf('x-post');
+    expect(analyticsPos).toBeGreaterThan(-1);
+    expect(injectionPos).toBeGreaterThan(-1);
+    expect(analyticsPos).toBeLessThan(injectionPos);
+  });
+
+  test('escapes attribute-breaking characters in the site identifier', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        components: {
+          analytics: { provider: 'plausible', site: 'evil" onload="alert(1)' },
+        },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('onload="alert');
+    expect(html).toContain('&quot;');
+  });
+});

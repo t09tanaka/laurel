@@ -140,6 +140,14 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         );
       }
 
+      // Drop-in analytics snippet from [components.analytics]. Emitted before
+      // the code injection blocks so an operator who needs to override the
+      // upstream tag (e.g. swap in a self-hosted variant) can still do so via
+      // codeinjection_head, while plain configurations get the right snippet
+      // without writing any HTML.
+      const analyticsSnippet = renderAnalyticsSnippet(engine.config?.components?.analytics);
+      if (analyticsSnippet) parts.push(analyticsSnippet);
+
       // Raw HTML exit (1/2): codeinjection_head ships verbatim into <head>.
       // The loader already drops the field unless `build.allow_code_injection`
       // is true, so reaching here means the operator opted in. See
@@ -586,4 +594,51 @@ function escapeJsonForScript(json: string): string {
     .replace(/&/g, '\\u0026')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
+}
+
+// Drop-in analytics snippets per provider. Each branch returns the documented
+// upstream embed code verbatim, with the operator-supplied site id escaped
+// into the relevant attribute / URL. Privacy concerns (DNT, IP anonymisation,
+// cookie banners) are deferred to the provider per their own documentation.
+function renderAnalyticsSnippet(
+  cfg: { provider?: string; site?: string } | undefined,
+): string | undefined {
+  if (!cfg) return undefined;
+  const provider = cfg.provider;
+  if (!provider || provider === 'none') return undefined;
+  const site = typeof cfg.site === 'string' ? cfg.site.trim() : '';
+  switch (provider) {
+    case 'plausible':
+      if (!site) return undefined;
+      return `<script defer data-domain="${escapeAttr(site)}" src="https://plausible.io/js/script.js"></script>`;
+    case 'umami':
+      if (!site) return undefined;
+      return `<script async defer src="https://cloud.umami.is/script.js" data-website-id="${escapeAttr(site)}"></script>`;
+    case 'fathom':
+      if (!site) return undefined;
+      return `<script src="https://cdn.usefathom.com/script.js" data-site="${escapeAttr(site)}" defer></script>`;
+    case 'simpleanalytics':
+      // Simple Analytics needs no site id; embedding the script alone is
+      // enough. The <noscript> pixel is documented as the JS-disabled
+      // fallback so we emit it in the same block.
+      return [
+        `<script async defer src="https://scripts.simpleanalyticscdn.com/latest.js"></script>`,
+        `<noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade"></noscript>`,
+      ].join('\n');
+    case 'googleanalytics': {
+      if (!site) return undefined;
+      const id = escapeAttr(site);
+      // GA4 documented gtag.js snippet. The inline initialiser uses `Date()`
+      // not a stringifiable value so we cannot route it through JSON encoding;
+      // the measurement id is the only user-supplied piece and we escape it
+      // for both the URL and the gtag('config') argument.
+      const jsId = id.replace(/'/g, "\\'");
+      return [
+        `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>`,
+        `<script>window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${jsId}');</script>`,
+      ].join('\n');
+    }
+    default:
+      return undefined;
+  }
 }
