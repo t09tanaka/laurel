@@ -24,6 +24,14 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('width="1200" height="800"');
   });
 
+  test('documents the static audio card fallback', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain("Ghost's Koenig audio card uses `kg-audio-*` markup");
+    expect(doc).toContain('<audio src="/content/audio/episode.mp3" preload="metadata" controls>');
+    expect(doc).toContain('CSS alone cannot make an inert custom play button');
+  });
+
   test('documents Wave jquery CDN as a theme limitation', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 

@@ -153,6 +153,30 @@ each gallery image so Ghost themes can size rows without per-post JavaScript.
 Themes that still ship a post-body gallery bootstrap should remove it for
 Nectar builds and rely on the static markup instead.
 
+### Audio cards
+
+Ghost's Koenig audio card uses `kg-audio-*` markup plus shared runtime
+JavaScript for the custom play button, seek slider, and live timestamps. Nectar
+does not hydrate that runtime in static output.
+
+For Source, Nectar vendors stable CSS for the card shell, thumbnail, metadata,
+and player hooks, and it relies on the static `<audio controls>` fallback that
+Nectar's audio card renderer emits:
+
+```html
+<div class="kg-card kg-audio-card">
+  <img src="/content/images/podcast.jpg" alt="" class="kg-audio-thumbnail" />
+  <audio src="/content/audio/episode.mp3" preload="metadata" controls></audio>
+  <div class="kg-audio-title">Episode title</div>
+  <div class="kg-audio-duration">42:07</div>
+</div>
+```
+
+Themes that preserve Ghost's fully custom audio player DOM should vendor the
+matching Koenig JavaScript or ensure a native `<audio controls>` element remains
+available. CSS alone cannot make an inert custom play button or seek slider
+control playback.
+
 The Ease theme is the current compatibility example: its `index.hbs` and
 `tag.hbs` templates emit a `<button class="gh-loadmore">` load-more control.
 That button is intentionally just markup unless the theme also vendors the
