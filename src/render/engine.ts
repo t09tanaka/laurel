@@ -12,7 +12,7 @@ import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { splitLayout } from './layouts.ts';
-import { wrapMemberStub } from './member-stub.ts';
+import { type Member, type MemberSubscription, wrapMemberStub } from './member-stub.ts';
 import {
   compileThemeSource,
   installSourceAwareHelperErrors,
@@ -368,13 +368,19 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
 // that probe `{{@member.email}}` see "missing" (Handlebars-empty) rather than
 // the literal string "undefined". Static builds never authenticate anyone, so
 // this is a designer-preview affordance, not a delivery gate.
-function buildPreviewMember(engine: NectarEngine): Record<string, unknown> | undefined {
+function buildPreviewMember(engine: NectarEngine): Member | undefined {
   const preview = engine.config.components?.preview;
   const member = preview?.member;
   if (!member) return undefined;
-  const out: Record<string, unknown> = { paid: member.paid === true };
+  const out: Member = { paid: member.paid === true };
   if (typeof member.name === 'string') out.name = member.name;
   if (typeof member.email === 'string') out.email = member.email;
+  if (typeof member.default_payment_card_last4 === 'string') {
+    out.default_payment_card_last4 = member.default_payment_card_last4;
+  }
+  if (Array.isArray(member.subscriptions)) {
+    out.subscriptions = member.subscriptions.map(normalizePreviewSubscription);
+  }
   // Wrap in a Proxy so themes that probe richer Ghost shape (`@member.tier.name`,
   // `@member.subscriptions.0.status`) get a safe falsy chain instead of an
   // `undefined` that crashes any JS-side helper that does non-null-safe access.
@@ -382,6 +388,30 @@ function buildPreviewMember(engine: NectarEngine): Record<string, unknown> | und
   // safety to plugin helpers written in plain TS. See `member-stub.ts` for the
   // full design rationale.
   return wrapMemberStub(out);
+}
+
+function normalizePreviewSubscription(subscription: {
+  cancel_at_period_end?: boolean;
+  current_period_end?: string;
+  plan?: { currency_symbol?: string; interval?: string };
+}): MemberSubscription {
+  const out: MemberSubscription = {};
+  if (typeof subscription.cancel_at_period_end === 'boolean') {
+    out.cancel_at_period_end = subscription.cancel_at_period_end;
+  }
+  if (typeof subscription.current_period_end === 'string') {
+    out.current_period_end = subscription.current_period_end;
+  }
+  if (subscription.plan) {
+    out.plan = {};
+    if (typeof subscription.plan.currency_symbol === 'string') {
+      out.plan.currency_symbol = subscription.plan.currency_symbol;
+    }
+    if (typeof subscription.plan.interval === 'string') {
+      out.plan.interval = subscription.plan.interval;
+    }
+  }
+  return out;
 }
 
 // Ghost themes read `@config.posts_per_page` (flat keys from the theme's

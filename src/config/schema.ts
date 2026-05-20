@@ -1556,6 +1556,55 @@ export const configSchema = z
                   .string()
                   .optional()
                   .describe('Optional email surfaced as `{{@member.email}}` (rare in themes).'),
+                default_payment_card_last4: z
+                  .string()
+                  .optional()
+                  .describe(
+                    'Optional card suffix surfaced as `{{@member.default_payment_card_last4}}` for account templates such as Krabi that preview billing details.',
+                  ),
+                subscriptions: z
+                  .array(
+                    z
+                      .object({
+                        cancel_at_period_end: z
+                          .boolean()
+                          .optional()
+                          .describe(
+                            'Optional Ghost subscription cancellation flag surfaced as `{{cancel_at_period_end}}` inside `{{#foreach @member.subscriptions}}`.',
+                          ),
+                        current_period_end: z
+                          .string()
+                          .optional()
+                          .describe(
+                            'Optional billing period end surfaced as `{{current_period_end}}` inside `{{#foreach @member.subscriptions}}`.',
+                          ),
+                        plan: z
+                          .object({
+                            currency_symbol: z
+                              .string()
+                              .optional()
+                              .describe(
+                                'Optional plan currency symbol surfaced as `{{plan.currency_symbol}}` for account templates.',
+                              ),
+                            interval: z
+                              .string()
+                              .optional()
+                              .describe(
+                                'Optional plan interval surfaced as `{{plan.interval}}` for account templates.',
+                              ),
+                          })
+                          .strict()
+                          .optional()
+                          .describe(
+                            'Optional Ghost plan preview object. Missing plan fields remain safely empty in templates.',
+                          ),
+                      })
+                      .strict(),
+                  )
+                  .optional()
+                  .describe(
+                    'Optional Ghost-style subscription preview rows surfaced as `{{@member.subscriptions}}`. This exists only for build-time account-page previews; static output still has no authenticated viewer unless preview.member is configured.',
+                  ),
               })
               .strict()
               .optional()

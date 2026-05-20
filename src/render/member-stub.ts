@@ -40,6 +40,28 @@
 
 const STUB_SENTINEL = Symbol('nectar.memberStubSentinel');
 
+export interface MemberPlan {
+  [key: string]: unknown;
+  currency_symbol?: string;
+  interval?: string;
+}
+
+export interface MemberSubscription {
+  [key: string]: unknown;
+  cancel_at_period_end?: boolean;
+  current_period_end?: string;
+  plan?: MemberPlan;
+}
+
+export interface Member {
+  [key: string]: unknown;
+  paid?: boolean;
+  name?: string;
+  email?: string;
+  default_payment_card_last4?: string;
+  subscriptions?: MemberSubscription[];
+}
+
 interface MemberStubInternal {
   readonly [STUB_SENTINEL]: true;
 }
@@ -121,7 +143,7 @@ function makeFalsyStub(): MemberStubInternal {
       }
       return Object.getOwnPropertyDescriptor(target, prop);
     },
-  }) as MemberStubInternal;
+  }) as unknown as MemberStubInternal;
   return self.stub;
 }
 
@@ -141,7 +163,16 @@ function makeFalsyStub(): MemberStubInternal {
 // `ownKeys` honest (only operator-configured keys enumerate under
 // `Object.keys` / `for…in`).
 export function wrapMemberStub<T extends Record<string, unknown>>(member: T): T {
-  const falsyStub = makeFalsyStub();
+  return wrapMemberObject(member, makeFalsyStub(), new WeakMap<object, unknown>());
+}
+
+function wrapMemberObject<T extends Record<string, unknown>>(
+  member: T,
+  falsyStub: MemberStubInternal,
+  seen: WeakMap<object, unknown>,
+): T {
+  const cached = seen.get(member);
+  if (cached) return cached as T;
   // Shadow target carrying synthesised missing-key descriptors so the
   // `getOwnPropertyDescriptor` trap stays invariant-compatible. We could not
   // plant descriptors directly on `member` because the caller may have frozen
@@ -149,13 +180,14 @@ export function wrapMemberStub<T extends Record<string, unknown>>(member: T): T 
   // descriptors for keys the wrapper has been asked about; reads still go
   // through the real `member` first via the `get` trap.
   const shadow: Record<string, unknown> = {};
-  return new Proxy(member, {
+  const proxy = new Proxy(member, {
     get(target, prop, receiver) {
       // Don't shadow the well-known coercion hooks on the underlying object —
       // a Proxy with a custom `valueOf` would break `Object.is(member, member)`
       // comparisons against the wrapped instance.
       if (typeof prop === 'symbol') return Reflect.get(target, prop, receiver);
-      if (prop in target) return Reflect.get(target, prop, receiver);
+      if (prop in target)
+        return wrapMemberValue(Reflect.get(target, prop, receiver), falsyStub, seen);
       // Missing key → safe falsy stub. Chained access (`member.tier.name`)
       // walks the stub recursively and resolves to `""` at the leaf.
       return falsyStub;
@@ -187,6 +219,30 @@ export function wrapMemberStub<T extends Record<string, unknown>>(member: T): T 
       return Object.getOwnPropertyDescriptor(shadow, prop);
     },
   }) as T;
+  seen.set(member, proxy);
+  return proxy;
+}
+
+function wrapMemberValue(
+  value: unknown,
+  falsyStub: MemberStubInternal,
+  seen: WeakMap<object, unknown>,
+): unknown {
+  if (Array.isArray(value)) {
+    const cached = seen.get(value);
+    if (cached) return cached;
+    const wrapped = value.map((item) => wrapMemberValue(item, falsyStub, seen));
+    seen.set(value, wrapped);
+    return wrapped;
+  }
+  if (isPlainRecord(value)) return wrapMemberObject(value, falsyStub, seen);
+  return value;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 // Exposed so tests / plugins can detect a stub branch without depending on

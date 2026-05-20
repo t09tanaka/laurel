@@ -1033,6 +1033,79 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('[][][]');
   });
 
+  test('preview member subscriptions expose Krabi account fields safely (issue #720)', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      components: {
+        preview: {
+          member: {
+            paid: true,
+            name: 'Preview User',
+            default_payment_card_last4: '4242',
+            subscriptions: [
+              {
+                cancel_at_period_end: false,
+                current_period_end: '2026-06-30',
+                plan: {
+                  currency_symbol: '$',
+                  interval: 'month',
+                },
+              },
+            ],
+          },
+        },
+      },
+    } as unknown as NectarEngine['config'];
+    const data = buildRootData(engine, makeRoute());
+    const hb = Handlebars.create();
+    registerBlockHelpers({ ...engine, hb } as NectarEngine);
+    const tpl = hb.compile(
+      [
+        'card:{{@member.default_payment_card_last4}}',
+        '{{#foreach @member.subscriptions}}',
+        '|cancel:{{cancel_at_period_end}}',
+        '|end:{{current_period_end}}',
+        '|price:{{plan.currency_symbol}}/{{plan.interval}}',
+        '{{/foreach}}',
+      ].join(''),
+    );
+
+    expect(tpl({}, { data })).toBe('card:4242|cancel:false|end:2026-06-30|price:$/month');
+  });
+
+  test('preview member partial subscriptions keep Krabi account chains empty instead of crashing (issue #720)', () => {
+    const engine = makeEngine();
+    engine.config = {
+      ...engine.config,
+      components: {
+        preview: {
+          member: {
+            paid: true,
+            subscriptions: [{}],
+          },
+        },
+      },
+    } as unknown as NectarEngine['config'];
+    const data = buildRootData(engine, makeRoute());
+    const member = data.member as unknown as Record<string, unknown> & {
+      subscriptions: Array<{
+        plan: { currency_symbol: string; interval: string };
+        default_payment_card_last4: string;
+      }>;
+    };
+
+    expect(() => member.subscriptions[0]?.plan.currency_symbol).not.toThrow();
+
+    const hb = Handlebars.create();
+    registerBlockHelpers({ ...engine, hb } as NectarEngine);
+    const tpl = hb.compile(
+      '{{#foreach @member.subscriptions}}[{{cancel_at_period_end}}][{{current_period_end}}][{{plan.currency_symbol}}][{{plan.interval}}]{{/foreach}}',
+    );
+
+    expect(tpl({}, { data })).toBe('[][][][]');
+  });
+
   // Issue #418: themes branch on `@labs` to gate features behind a Ghost
   // "Labs" toggle. Nectar has no labs surface, so the data frame must still
   // ship an empty object so `{{#if @labs.foo}}` is deterministically falsy.
