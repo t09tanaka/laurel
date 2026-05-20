@@ -6,7 +6,7 @@ import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
 import { codeToHtml } from 'shiki';
 import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
-import { NectarError } from '~/util/errors.ts';
+import { NectarError, suggestClosest } from '~/util/errors.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
@@ -41,6 +41,15 @@ export interface KoenigShortcodeDiagnostic {
   shortcode: string;
   expectedClose: string;
   line: number;
+  col?: number;
+}
+
+export interface KoenigShortcodeValidationDiagnostic {
+  shortcode: string;
+  line: number;
+  col: number;
+  message: string;
+  hint?: string;
 }
 
 const sanitizeOptions: IOptions = {
@@ -243,7 +252,18 @@ export async function renderMarkdown(
     throw new NectarError({
       message: malformedKoenigShortcodeMessage(shortcodeDiagnostic),
       line: shortcodeDiagnostic.line,
+      col: shortcodeDiagnostic.col,
       hint: 'Close the shortcode or remove the malformed card block.',
+      code: 'content',
+    });
+  }
+  const validationDiagnostic = findInvalidKoenigShortcode(stripped);
+  if (validationDiagnostic) {
+    throw new NectarError({
+      message: invalidKoenigShortcodeMessage(validationDiagnostic),
+      line: validationDiagnostic.line,
+      col: validationDiagnostic.col,
+      hint: validationDiagnostic.hint,
       code: 'content',
     });
   }
@@ -609,6 +629,53 @@ const VIDEO_TRACK_SHORTCODE_RE =
 const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const NFT_SHORTCODE_RE = /\{\{<\s+nft((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
+type ShortcodeSchema = {
+  name: string;
+  requiredAttrGroups?: readonly (readonly string[])[];
+};
+
+const SHORTCODE_SCHEMAS: readonly ShortcodeSchema[] = [
+  { name: 'audio', requiredAttrGroups: [['src']] },
+  { name: 'bookmark', requiredAttrGroups: [['url']] },
+  { name: 'button', requiredAttrGroups: [['href']] },
+  { name: 'callout' },
+  { name: 'embed', requiredAttrGroups: [['url']] },
+  { name: 'figure', requiredAttrGroups: [['src']] },
+  { name: 'file', requiredAttrGroups: [['href', 'src']] },
+  { name: 'gallery' },
+  { name: 'gallery-image', requiredAttrGroups: [['src']] },
+  { name: 'gallery-row' },
+  {
+    name: 'header',
+    requiredAttrGroups: [
+      [
+        'heading',
+        'title',
+        'subheading',
+        'subtitle',
+        'button_href',
+        'buttonHref',
+        'cta-href',
+        'cta_href',
+        'background',
+        'background_image',
+      ],
+    ],
+  },
+  { name: 'nft', requiredAttrGroups: [['href', 'url', 'image', 'src']] },
+  {
+    name: 'product',
+    requiredAttrGroups: [['title', 'description', 'image', 'button-href']],
+  },
+  { name: 'toggle' },
+  { name: 'video', requiredAttrGroups: [['src']] },
+  { name: 'video-track', requiredAttrGroups: [['src']] },
+] as const;
+
+const SHORTCODE_SCHEMA_BY_NAME = new Map(
+  SHORTCODE_SCHEMAS.map((schema) => [schema.name, schema] as const),
+);
+const SHORTCODE_NAMES = SHORTCODE_SCHEMAS.map((schema) => schema.name);
 const BLOCK_SHORTCODES = new Set([
   'button',
   'callout',
@@ -623,6 +690,7 @@ const SHORTCODE_TOKEN_RE = /\{\{<([\s\S]*?)>\}\}|\{%([\s\S]*?)%\}/g;
 interface OpenShortcode {
   name: string;
   line: number;
+  col: number;
   syntax: 'hugo' | 'liquid';
 }
 
@@ -639,17 +707,19 @@ export function findMalformedKoenigShortcode(
     const syntax: OpenShortcode['syntax'] = hugoToken !== undefined ? 'hugo' : 'liquid';
     const token = (hugoToken ?? liquidToken ?? '').trim();
     const line = lineForIndex(lineStarts, match.index);
+    const col = colForIndex(lineStarts, match.index);
     const parsed = parseShortcodeToken(token, syntax);
     if (parsed) {
       if (parsed.kind === 'open') {
-        stack.push({ name: parsed.name, line, syntax });
+        stack.push({ name: parsed.name, line, col, syntax });
       } else {
         const open = stack.pop();
         if (!open || open.name !== parsed.name) {
           return {
             shortcode: parsed.name,
-            expectedClose: closeTokenFor({ name: parsed.name, line, syntax }),
+            expectedClose: closeTokenFor({ name: parsed.name, line, col, syntax }),
             line,
+            col,
           };
         }
       }
@@ -663,11 +733,114 @@ export function findMalformedKoenigShortcode(
     shortcode: open.name,
     expectedClose: closeTokenFor(open),
     line: open.line,
+    col: open.col,
   };
 }
 
 export function malformedKoenigShortcodeMessage(diagnostic: KoenigShortcodeDiagnostic): string {
   return `Malformed Koenig shortcode "${diagnostic.shortcode}": missing closing shortcode ${JSON.stringify(diagnostic.expectedClose)}.`;
+}
+
+export function findInvalidKoenigShortcode(
+  markdown: string,
+): KoenigShortcodeValidationDiagnostic | undefined {
+  const lineStarts = computeLineStarts(markdown);
+  SHORTCODE_TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null = SHORTCODE_TOKEN_RE.exec(markdown);
+  while (match !== null) {
+    const hugoToken = match[1];
+    const liquidToken = match[2];
+    const token = (hugoToken ?? liquidToken ?? '').trim();
+    const parsed = parseValidationToken(token);
+    if (!parsed || parsed.kind === 'close') {
+      match = SHORTCODE_TOKEN_RE.exec(markdown);
+      continue;
+    }
+
+    const schema = SHORTCODE_SCHEMA_BY_NAME.get(parsed.name);
+    const line = lineForIndex(lineStarts, match.index);
+    const col = colForIndex(lineStarts, match.index);
+    if (!schema) {
+      const closest = suggestClosest(parsed.name, SHORTCODE_NAMES);
+      return {
+        shortcode: parsed.name,
+        line,
+        col,
+        message: `Unknown Koenig shortcode "${parsed.name}".`,
+        hint: closest
+          ? `Did you mean "${closest}"?`
+          : 'Remove the shortcode or use a supported Koenig card shortcode.',
+      };
+    }
+
+    const attrs = parseShortcodeAttrs(parsed.attrs);
+    const missing = firstMissingRequiredAttrGroup(schema, attrs);
+    if (missing) {
+      const typo = closestAttrTypo(missing, Object.keys(attrs));
+      return {
+        shortcode: parsed.name,
+        line,
+        col,
+        message: `Invalid Koenig shortcode "${parsed.name}": missing required ${formatRequiredAttrGroup(missing)}.`,
+        hint: typo
+          ? `Did you mean "${typo.expected}" instead of "${typo.actual}"?`
+          : `Add ${formatRequiredAttrGroup(missing)} to the shortcode or remove the card block.`,
+      };
+    }
+
+    match = SHORTCODE_TOKEN_RE.exec(markdown);
+  }
+  return undefined;
+}
+
+export function invalidKoenigShortcodeMessage(
+  diagnostic: KoenigShortcodeValidationDiagnostic,
+): string {
+  return diagnostic.message;
+}
+
+function parseValidationToken(
+  token: string,
+): { kind: 'open' | 'close'; name: string; attrs: string } | undefined {
+  if (!token) return undefined;
+  if (token.startsWith('/')) {
+    const name = firstShortcodeToken(token.slice(1));
+    return name ? { kind: 'close', name, attrs: '' } : undefined;
+  }
+  const name = firstShortcodeToken(token);
+  if (!name) return undefined;
+  const withoutSelfClosing = token.endsWith('/') ? token.slice(0, -1).trimEnd() : token;
+  return { kind: 'open', name, attrs: withoutSelfClosing.slice(name.length) };
+}
+
+function firstMissingRequiredAttrGroup(
+  schema: ShortcodeSchema,
+  attrs: Record<string, string>,
+): readonly string[] | undefined {
+  for (const group of schema.requiredAttrGroups ?? []) {
+    if (!group.some((attr) => hasNonEmptyShortcodeAttr(attrs, attr))) return group;
+  }
+  return undefined;
+}
+
+function hasNonEmptyShortcodeAttr(attrs: Record<string, string>, attr: string): boolean {
+  return (attrs[attr] ?? '').trim().length > 0;
+}
+
+function formatRequiredAttrGroup(group: readonly string[]): string {
+  if (group.length === 1) return `attribute "${group[0]}"`;
+  return `one of ${group.map((attr) => `"${attr}"`).join(', ')}`;
+}
+
+function closestAttrTypo(
+  expectedAttrs: readonly string[],
+  actualAttrs: readonly string[],
+): { expected: string; actual: string } | undefined {
+  for (const actual of actualAttrs) {
+    const expected = suggestClosest(actual, expectedAttrs);
+    if (expected) return { expected, actual };
+  }
+  return undefined;
 }
 
 function parseShortcodeToken(
@@ -717,6 +890,12 @@ function lineForIndex(lineStarts: readonly number[], index: number): number {
     else high = mid - 1;
   }
   return high + 1;
+}
+
+function colForIndex(lineStarts: readonly number[], index: number): number {
+  const line = lineForIndex(lineStarts, index);
+  const start = lineStarts[line - 1] ?? 0;
+  return index - start + 1;
 }
 
 export function expandKoenigShortcodes(markdown: string): string {

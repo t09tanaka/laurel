@@ -269,13 +269,38 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
     expect(html).not.toContain('<figcaption>');
   });
 
-  test('drops bookmark shortcode silently when url is missing', async () => {
+  test('rejects bookmark shortcode when url is missing', async () => {
     const md = 'before\n\n{{< bookmark title="No URL" />}}\n\nafter';
-    const { html } = await renderMarkdown(md);
-    expect(html).not.toContain('kg-bookmark-card');
-    expect(html).not.toContain('{{< bookmark');
-    expect(html).toContain('before');
-    expect(html).toContain('after');
+    await expect(renderMarkdown(md)).rejects.toMatchObject({
+      message: 'Invalid Koenig shortcode "bookmark": missing required attribute "url".',
+      line: 3,
+      col: 1,
+      hint: 'Add attribute "url" to the shortcode or remove the card block.',
+      code: 'content',
+    });
+  });
+
+  test('suggests likely required attribute typos before shortcode text can leak', async () => {
+    const md = 'before\n\n{{< bookmark urll="https://example.com/" title="Typo" />}}\n\nafter';
+    await expect(renderMarkdown(md)).rejects.toMatchObject({
+      message: 'Invalid Koenig shortcode "bookmark": missing required attribute "url".',
+      line: 3,
+      col: 1,
+      hint: 'Did you mean "url" instead of "urll"?',
+      code: 'content',
+    });
+  });
+
+  test('rejects unknown shortcode names before rendering literal text', async () => {
+    await expect(
+      renderMarkdown('Intro.\n\n{{< bookmak url="https://example.com/" />}}'),
+    ).rejects.toMatchObject({
+      message: 'Unknown Koenig shortcode "bookmak".',
+      line: 3,
+      col: 1,
+      hint: 'Did you mean "bookmark"?',
+      code: 'content',
+    });
   });
 
   test('decodes escaped quotes and backslashes in attributes', async () => {
@@ -440,12 +465,14 @@ describe('renderMarkdown — button shortcode expansion', () => {
     expect(html).toContain('class="kg-btn kg-btn-accent"');
   });
 
-  test('drops the shortcode silently when href is missing', async () => {
+  test('rejects button shortcode when href is missing', async () => {
     const md = 'before\n\n{{< button >}}label{{< /button >}}\n\nafter';
-    const { html } = await renderMarkdown(md);
-    expect(html).not.toContain('kg-button-card');
-    expect(html).toContain('before');
-    expect(html).toContain('after');
+    await expect(renderMarkdown(md)).rejects.toMatchObject({
+      message: 'Invalid Koenig shortcode "button": missing required attribute "href".',
+      line: 3,
+      col: 1,
+      code: 'content',
+    });
   });
 });
 

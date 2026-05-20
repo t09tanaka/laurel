@@ -172,9 +172,62 @@ This card is never closed.
     expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
     expect(existsSync(join(summary.outputDir, 'broken-toggle/index.html'))).toBe(false);
     expect(stderr.output).toContain(
-      'content/posts/broken-toggle.md:8 - Malformed Koenig shortcode "toggle"',
+      'content/posts/broken-toggle.md:8:1 - Malformed Koenig shortcode "toggle"',
     );
     expect(stderr.output).not.toContain('at expandKoenigShortcodes');
+  });
+
+  test('warns and skips a post with invalid Koenig shortcode schema while continuing the build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/broken-shortcode.md'),
+      `---
+title: "Broken Shortcode"
+date: 2026-01-02T00:00:00Z
+---
+
+Intro.
+
+{{< bookmak url="https://example.com/" />}}
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/missing-shortcode-param.md'),
+      `---
+title: "Missing Shortcode Param"
+date: 2026-01-03T00:00:00Z
+---
+
+Intro.
+
+{{< bookmark urll="https://example.com/" title="Typo" />}}
+`,
+      'utf8',
+    );
+
+    const stderr = captureStderr();
+    let summary!: Awaited<ReturnType<typeof build>>;
+    try {
+      summary = await build({ cwd });
+    } finally {
+      stderr.restore();
+    }
+
+    expect(summary.warningCount).toBe(2);
+    expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'broken-shortcode/index.html'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'missing-shortcode-param/index.html'))).toBe(false);
+    expect(stderr.output).toContain(
+      'content/posts/broken-shortcode.md:8:1 - Unknown Koenig shortcode "bookmak".',
+    );
+    expect(stderr.output).toContain('hint: Did you mean "bookmark"?');
+    expect(stderr.output).toContain(
+      'content/posts/missing-shortcode-param.md:8:1 - Invalid Koenig shortcode "bookmark": missing required attribute "url".',
+    );
+    expect(stderr.output).toContain('hint: Did you mean "url" instead of "urll"?');
+    expect(stderr.output).not.toContain('{{< bookmak');
+    expect(stderr.output).not.toContain('{{< bookmark urll');
   });
 
   test('fails before static passthrough replaces generated deploy headers', async () => {

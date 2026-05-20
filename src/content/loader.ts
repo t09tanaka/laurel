@@ -30,7 +30,9 @@ import {
 } from './frontmatter.ts';
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import {
+  findInvalidKoenigShortcode,
   findMalformedKoenigShortcode,
+  invalidKoenigShortcodeMessage,
   malformedKoenigShortcodeMessage,
   sanitizeInlineCaptionHtml,
   truncateByWords,
@@ -1095,7 +1097,7 @@ async function normalizePost(
   const contentLocale = resolveContentLocale(data, filePath, pathLocale, locale ?? 'en');
   const body = await applyMarkdownTransforms(rawBody, kind, filePath, data, transforms);
   if (
-    warnAndSkipMalformedKoenigShortcode({
+    warnAndSkipInvalidKoenigShortcode({
       body,
       bodyStartLine: sourceBodyStartLine(raw, rawBody),
       cwd,
@@ -1336,28 +1338,50 @@ async function normalizePage(
   };
 }
 
-function warnAndSkipMalformedKoenigShortcode(opts: {
+function warnAndSkipInvalidKoenigShortcode(opts: {
   body: string;
   bodyStartLine: number;
   cwd: string;
   filePath: string;
 }): boolean {
   try {
-    const diagnostic = findMalformedKoenigShortcode(opts.body);
-    if (!diagnostic) return false;
-    logger.warn(
-      formatNectarError(
-        new NectarError({
-          file: opts.filePath,
-          line: opts.bodyStartLine + diagnostic.line - 1,
-          message: malformedKoenigShortcodeMessage(diagnostic),
-          hint: 'Close the shortcode or remove the malformed card block. This entry was skipped so the rest of the site can continue building.',
-          code: 'content',
-        }),
-        { cwd: opts.cwd },
-      ),
-    );
-    return true;
+    const malformed = findMalformedKoenigShortcode(opts.body);
+    if (malformed) {
+      logger.warn(
+        formatNectarError(
+          new NectarError({
+            file: opts.filePath,
+            line: opts.bodyStartLine + malformed.line - 1,
+            col: malformed.col,
+            message: malformedKoenigShortcodeMessage(malformed),
+            hint: 'Close the shortcode or remove the malformed card block. This entry was skipped so the rest of the site can continue building.',
+            code: 'content',
+          }),
+          { cwd: opts.cwd },
+        ),
+      );
+      return true;
+    }
+
+    const invalid = findInvalidKoenigShortcode(opts.body);
+    if (invalid) {
+      logger.warn(
+        formatNectarError(
+          new NectarError({
+            file: opts.filePath,
+            line: opts.bodyStartLine + invalid.line - 1,
+            col: invalid.col,
+            message: invalidKoenigShortcodeMessage(invalid),
+            hint: `${invalid.hint ?? 'Fix the shortcode schema issue.'} This entry was skipped so the rest of the site can continue building.`,
+            code: 'content',
+          }),
+          { cwd: opts.cwd },
+        ),
+      );
+      return true;
+    }
+
+    return false;
   } catch (err) {
     throw toNectarError(err, { file: opts.filePath });
   }
