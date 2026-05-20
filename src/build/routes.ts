@@ -5,9 +5,10 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
-import { assignPostUrls } from './permalinks.ts';
+import { type PostUrlAssignment, assignPostUrls } from './permalinks.ts';
 import {
   type ResolvedCollection,
+  type ResolvedRouteEntry,
   type RoutesYaml,
   type TrailingSlashPolicy,
   applyTaxonomyTemplate,
@@ -216,11 +217,11 @@ export function planRoutes(opts: {
     }
   }
 
-  // `routes:` section from `routes.yaml` — pin a URL to a template that
-  // renders with only the global context (no post/page/collection data).
-  // Collections and taxonomies are intentionally not applied here yet;
-  // `warnUnappliedSections` flags them at the pipeline boundary so authors
-  // see the gap at build time instead of silent misbehaviour.
+  // `routes:` section from `routes.yaml` — pin a URL to a template. Most
+  // custom routes render with only the global context. Wave's `/blog/`
+  // channel is handled as a small compatibility exception because the theme
+  // ships an empty `blog.hbs` and expects Ghost channel routing to feed an
+  // index-like post listing.
   const seenCustomUrls = new Set<string>();
   for (const entry of resolveRouteEntries(routesYaml)) {
     if (seenCustomUrls.has(entry.url)) {
@@ -230,10 +231,8 @@ export function planRoutes(opts: {
       continue;
     }
     seenCustomUrls.add(entry.url);
-    if (!hasTemplate(theme, entry.template)) {
-      logger.warn(
-        `routes.yaml: route '${entry.url}' references template '${entry.template}' but the active theme has no '${entry.template}.hbs'; skipping.`,
-      );
+    const customTemplate = resolveCustomRouteTemplate(theme, entry, indexTemplate);
+    if (!customTemplate) {
       continue;
     }
     if (entry.data !== undefined) {
@@ -246,16 +245,53 @@ export function planRoutes(opts: {
         `routes.yaml: route '${entry.url}' requests content_type '${entry.content_type}' which is parsed but not yet applied; the route will be emitted as HTML.`,
       );
     }
+    const channelPosts = resolveCustomChannelPosts(
+      entry,
+      content.posts,
+      postAssignments,
+      collections,
+    );
     for (const locale of routeLocales) {
-      const url = canonicalRouteUrl(withLocaleRoutePrefix(locale, entry.url), trailingSlash);
-      routes.push({
-        kind: 'custom',
-        url,
-        outputPath: routeUrlToOutputPath(url, trailingSlash),
-        template: entry.template,
-        locale,
-        data: {},
-        meta: defaultMeta(config, url, config.site.title),
+      const localeChannelPosts = channelPosts
+        ? filterByLocale(channelPosts, localeRouting ? locale : undefined)
+        : undefined;
+      const pages = localeChannelPosts ? paginatePosts(localeChannelPosts, perPage) : undefined;
+      const routePages = pages ?? [undefined];
+      routePages.forEach((slice, idx) => {
+        const base = withLocaleRoutePrefix(locale, entry.url);
+        const url = canonicalRouteUrl(
+          idx === 0 ? base : appendPaginationSegment(base, paginationPrefix, idx + 1),
+          trailingSlash,
+        );
+        routes.push({
+          kind: 'custom',
+          url,
+          outputPath: routeUrlToOutputPath(url, trailingSlash),
+          template: customTemplate,
+          locale,
+          lastmod: slice ? latestPostTimestamp(slice) : undefined,
+          indexable: slice ? idx === 0 : undefined,
+          data: slice
+            ? {
+                posts: slice,
+                pagination: paginationInfo(
+                  idx,
+                  pages ?? [slice],
+                  perPage,
+                  localeChannelPosts?.length ?? slice.length,
+                  withLocaleRoutePrefix(locale, entry.url),
+                  basePath,
+                  paginationPrefix,
+                  trailingSlash,
+                ),
+              }
+            : {},
+          meta: defaultMeta(
+            config,
+            url,
+            idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`,
+          ),
+        });
       });
     }
   }
@@ -403,6 +439,59 @@ function resolveIndexTemplate(theme: ThemeBundle): string | undefined {
 
 function hasTemplate(theme: ThemeBundle, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(theme.templates, name);
+}
+
+function resolveCustomRouteTemplate(
+  theme: ThemeBundle,
+  entry: ResolvedRouteEntry,
+  indexTemplate: string | undefined,
+): string | undefined {
+  const source = theme.templates[entry.template];
+  if (source !== undefined && !isWaveBlogChannel(entry)) return entry.template;
+  if (source !== undefined && source.trim().length > 0) return entry.template;
+
+  if (isWaveBlogChannel(entry)) {
+    if (indexTemplate) {
+      const reason = source === undefined ? 'has no blog.hbs' : 'has an empty blog.hbs';
+      logger.warn(
+        `routes.yaml: route '${entry.url}' ${reason}; falling back to ${indexTemplate}.hbs for the Wave-style blog channel.`,
+      );
+      return indexTemplate;
+    }
+    logger.warn(
+      `routes.yaml: route '${entry.url}' references template '${entry.template}' but the active theme has no usable '${entry.template}.hbs' or index.hbs fallback; skipping.`,
+    );
+    return undefined;
+  }
+
+  logger.warn(
+    `routes.yaml: route '${entry.url}' references template '${entry.template}' but the active theme has no '${entry.template}.hbs'; skipping.`,
+  );
+  return undefined;
+}
+
+function resolveCustomChannelPosts(
+  entry: ResolvedRouteEntry,
+  posts: readonly Post[],
+  assignments: ReadonlyMap<string, PostUrlAssignment>,
+  collections: readonly ResolvedCollection[],
+): Post[] | undefined {
+  if (!isWaveBlogChannel(entry)) return undefined;
+  const collection = collections.find((candidate) => sameRouteUrl(candidate.url, entry.url));
+  if (!collection) return [...posts];
+  return posts.filter((post) => assignments.get(post.id)?.collection === collection);
+}
+
+function isWaveBlogChannel(entry: ResolvedRouteEntry): boolean {
+  return entry.template === 'blog' && sameRouteUrl(entry.url, '/blog/');
+}
+
+function sameRouteUrl(a: string, b: string): boolean {
+  return canonicalRouteUrl(a, 'always') === canonicalRouteUrl(b, 'always');
+}
+
+function appendPaginationSegment(base: string, prefix: string, page: number): string {
+  return `${base.endsWith('/') ? base : `${base}/`}${prefix}/${page}/`;
 }
 
 function filterByLocale<T extends { locale?: string }>(

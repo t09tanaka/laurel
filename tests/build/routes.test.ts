@@ -1024,6 +1024,57 @@ describe('planRoutes — routes.yaml routes section', () => {
     const routes = planRoutes({ config, content, theme });
     expect(routes.some((r) => r.kind === 'custom')).toBe(false);
   });
+
+  test('Wave-style /blog/ channel falls back to index.hbs when blog.hbs is missing', () => {
+    const config = makeConfig('https://example.com');
+    const posts = [makePost('hello'), makePost('world')];
+    const content = makeGraph({ posts });
+    const theme = makeTheme();
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({ '/blog/': 'blog' }),
+    });
+    const blog = routes.find((r) => r.kind === 'custom' && r.url === '/blog/');
+    expect(blog).toBeDefined();
+    expect(blog?.template).toBe('index');
+    expect(blog?.data.posts?.map((p) => p.slug)).toEqual(['hello', 'world']);
+    expect(blog?.data.pagination?.base_url).toBe('/blog/');
+    expect(blog?.outputPath).toBe('blog/index.html');
+  });
+
+  test('Wave-style /blog/ channel falls back to index.hbs when blog.hbs is empty', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('hello')] });
+    const theme = makeTheme();
+    theme.templates.blog = '';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({ '/blog/': 'blog' }),
+    });
+    const blog = routes.find((r) => r.kind === 'custom' && r.url === '/blog/');
+    expect(blog?.template).toBe('index');
+    expect(blog?.data.posts?.map((p) => p.slug)).toEqual(['hello']);
+  });
+
+  test('Wave-style /blog/ channel uses blog.hbs when the theme ships a body', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({ posts: [makePost('hello')] });
+    const theme = makeTheme();
+    theme.templates.blog = '{{#foreach posts}}{{slug}}{{/foreach}}';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({ '/blog/': 'blog' }),
+    });
+    const blog = routes.find((r) => r.kind === 'custom' && r.url === '/blog/');
+    expect(blog?.template).toBe('blog');
+    expect(blog?.data.posts?.map((p) => p.slug)).toEqual(['hello']);
+  });
 });
 
 describe('planRoutes — routes.yaml collections', () => {
