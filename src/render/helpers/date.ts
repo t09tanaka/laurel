@@ -25,6 +25,7 @@ export function registerDateHelpers(engine: NectarEngine): void {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const inputs = args.slice(0, -1);
     const candidate = inputs[0];
+    const activeLocale = resolveDateLocale(options.hash.locale, dayjsLocale);
     const ctx = this as { published_at?: string; updated_at?: string; created_at?: string };
     let value: Date | string | number | undefined;
     if (
@@ -40,13 +41,19 @@ export function registerDateHelpers(engine: NectarEngine): void {
     }
     const timezoneName = engine.content.site.timezone ?? 'UTC';
     if (options.hash.timeago === true || options.hash.timeago === 'true') {
-      return dayjs(value).locale(dayjsLocale).fromNow();
+      return dayjs(value).locale(activeLocale).fromNow();
     }
     if (typeof options.hash.format === 'string') {
-      return dayjs(value).tz(timezoneName).locale(dayjsLocale).format(options.hash.format);
+      return dayjs(value).tz(timezoneName).locale(activeLocale).format(options.hash.format);
     }
-    return dayjs(value).tz(timezoneName).locale(dayjsLocale).format('ll');
+    return dayjs(value).tz(timezoneName).locale(activeLocale).format('ll');
   });
+}
+
+function resolveDateLocale(hashLocale: unknown, fallback: string): string {
+  if (typeof hashLocale !== 'string') return fallback;
+  const locale = hashLocale.trim();
+  return locale ? loadDayjsLocale(locale) : fallback;
 }
 
 function loadDayjsLocale(raw: string | undefined): string {

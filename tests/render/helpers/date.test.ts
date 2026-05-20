@@ -42,6 +42,22 @@ describe('date helper', () => {
     expect(out).toBe('2026年5月5日');
   });
 
+  test('locale hash overrides the site locale for one date call', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile(
+      '{{date "2026-05-05T00:00:00Z" format="MMMM Do, YYYY" locale="fr-fr"}}|{{date "2026-05-05T00:00:00Z" format="MMMM"}}',
+    )({});
+    expect(out).toBe('mai 5, 2026|May');
+  });
+
+  test('locale hash applies to the default ll format', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z" locale="ja-JP"}}')({});
+    expect(out).toBe('2026年5月5日');
+  });
+
   test('default format uses timezone from site config', () => {
     const engine = makeEngine('en-GB', 'Asia/Tokyo');
     registerDateHelpers(engine);
