@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
+import { renderSearchShim } from '~/search/runtime.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -235,6 +236,72 @@ export async function emitSearchUiCss(opts: {
   const dest = join(dir, 'search.css');
   await writeFile(dest, searchUiCss(config.site.accent_color), 'utf8');
   return dest;
+}
+
+// Emit the client-side runtime shim that wires `[data-ghost-search]` triggers
+// (and cmd+K / ctrl+K) into a Pagefind modal. Only emitted when the configured
+// engine actually produces a Pagefind index (`pagefind` or `json+pagefind`);
+// for other engines the shim would 404 on its `/pagefind/pagefind-ui.js`
+// import, so we skip emission entirely. See #553/#554/#556.
+export async function emitSearchShim(opts: {
+  config: NectarConfig;
+  outputDir: string;
+}): Promise<string | null> {
+  const { config, outputDir } = opts;
+  const cfg = config.components.search;
+  if (!cfg.enabled) return null;
+  if (cfg.engine !== 'pagefind' && cfg.engine !== 'json+pagefind') return null;
+  const dir = join(outputDir, 'search');
+  await ensureDir(dir);
+  const dest = join(dir, 'ghost-search.js');
+  const js = renderSearchShim({ basePath: config.build.base_path });
+  await writeFile(dest, js, 'utf8');
+  return dest;
+}
+
+// Inject a tiny `<script defer src="/search/ghost-search.js">` into rendered
+// HTML so Ghost themes that ship `[data-ghost-search]` buttons get a working
+// Pagefind modal without theme edits. We post-process the rendered HTML
+// rather than touching `ghost_head` because the helper is shared territory
+// with other in-flight work and we want to keep this change scoped to
+// search-specific code paths.
+export function injectSearchShimScript(html: string, basePath: string, cspNonce?: string): string {
+  // Don't inject twice on the same document. The marker attribute also makes
+  // the side-effect visible to manual inspection.
+  if (html.includes('data-nectar-search-shim')) return html;
+  // Only inject if the HTML actually references a Ghost search trigger;
+  // pages without any `data-ghost-search` element don't need the runtime.
+  if (!/data-ghost-search\b/i.test(html)) return html;
+  const headCloseMatch = /<\/head\s*>/i.exec(html);
+  if (!headCloseMatch) return html;
+  const normalized = basePath && basePath !== '/' ? basePath : '/';
+  const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
+  const src = `${prefix}search/ghost-search.js`;
+  const nonce = cspNonce ? ` nonce="${cspNonce}"` : '';
+  const tag = `<script defer src="${src}" data-nectar-search-shim${nonce}></script>`;
+  const insertAt = headCloseMatch.index;
+  return `${html.slice(0, insertAt)}${tag}${html.slice(insertAt)}`;
+}
+
+// Inject `<meta name="pagefind-skip">` into the <head> of HTML rendered for a
+// non-public post (visibility ∈ {members, paid, internal}). Pagefind's
+// crawler honours this meta as a signal to drop the page from the index, so
+// members-only and paid posts stay out of the public search bundle even
+// though the static HTML is still emitted to disk (themes may render
+// teaser/locked variants). Issue #555.
+//
+// Implemented as a post-render HTML rewrite (rather than via `ghost_head`)
+// to keep this PR scoped to search-specific files — `ghost_head.ts` is held
+// open by other in-flight work.
+export function injectPagefindSkipMeta(html: string): string {
+  if (html.includes('name="pagefind-skip"') || html.includes("name='pagefind-skip'")) {
+    return html;
+  }
+  const headOpenMatch = /<head\b[^>]*>/i.exec(html);
+  if (!headOpenMatch) return html;
+  const insertAt = headOpenMatch.index + headOpenMatch[0].length;
+  const tag = `<meta name="pagefind-skip">`;
+  return `${html.slice(0, insertAt)}${tag}${html.slice(insertAt)}`;
 }
 
 export async function runPagefind(opts: {

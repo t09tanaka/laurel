@@ -821,3 +821,131 @@ describe('build pipeline content_api stubs (#210/#211/#212)', () => {
     expect(existsSync(join(summary.outputDir, '_headers.cf'))).toBe(false);
   });
 });
+
+describe('build pipeline pagefind integration (#553/#554/#555/#556)', () => {
+  // Adds a minimal members-only post to the fixture so we can assert
+  // `<meta name="pagefind-skip">` only lands on non-public HTML. The
+  // shim-script injection is asserted against the index page which carries
+  // the theme's `[data-ghost-search]` button.
+  async function withMembersPost(opts: { engine: string }): Promise<string> {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/members-only.md'),
+      `---
+title: Members only
+visibility: members
+date: 2026-02-01T00:00:00Z
+---
+
+For members.
+`,
+      'utf8',
+    );
+    // Overwrite nectar.toml to enable the search component with the
+    // requested engine. We keep RSS/sitemap disabled to match the base
+    // fixture's expectations.
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+        '[components.search]',
+        'enabled = true',
+        `engine = "${opts.engine}"`,
+        // Force a missing binary so the test never depends on PATH and
+        // never blocks on the real pagefind walker; we only care that the
+        // pipeline emits the shim and the skip meta, not that the index
+        // bundle exists.
+        'pagefind_bin = "/nonexistent/pagefind-binary-for-tests"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    return cwd;
+  }
+
+  test('emits the runtime shim when engine includes pagefind', async () => {
+    const cwd = await withMembersPost({ engine: 'pagefind' });
+    const summary = await build({ cwd });
+    const shim = join(summary.outputDir, 'search', 'ghost-search.js');
+    expect(existsSync(shim)).toBe(true);
+    const body = readFileSync(shim, 'utf8');
+    expect(body).toContain('data-ghost-search');
+    expect(body).toContain('pagefind-ui.js');
+  });
+
+  test('skips shim emission when engine is json only', async () => {
+    const cwd = await withMembersPost({ engine: 'json' });
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, 'search', 'ghost-search.js'))).toBe(false);
+  });
+
+  test('skips shim emission when search is disabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Strict Test"',
+        'url = "https://strict.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+        '[components.search]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const summary = await build({ cwd });
+    expect(existsSync(join(summary.outputDir, 'search', 'ghost-search.js'))).toBe(false);
+    // Pagefind index dir must also be absent when the component is off.
+    expect(existsSync(join(summary.outputDir, 'pagefind'))).toBe(false);
+  });
+
+  test('injects pagefind-skip meta into non-public post HTML', async () => {
+    const cwd = await withMembersPost({ engine: 'pagefind' });
+    const summary = await build({ cwd });
+    const membersHtml = readFileSync(join(summary.outputDir, 'members-only', 'index.html'), 'utf8');
+    expect(membersHtml).toContain('<meta name="pagefind-skip">');
+  });
+
+  test('does NOT inject pagefind-skip meta into public post HTML', async () => {
+    const cwd = await withMembersPost({ engine: 'pagefind' });
+    const summary = await build({ cwd });
+    const publicHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
+    expect(publicHtml).not.toContain('pagefind-skip');
+  });
+
+  test('does NOT inject the shim script tag on pages without [data-ghost-search]', async () => {
+    // The minimal post page does not include the theme's search button, so
+    // the shim script should be skipped for it even though the search
+    // component is on.
+    const cwd = await withMembersPost({ engine: 'pagefind' });
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
+    if (!html.includes('data-ghost-search')) {
+      expect(html).not.toContain('data-nectar-search-shim');
+    }
+  });
+});

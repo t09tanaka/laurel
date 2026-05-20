@@ -71,7 +71,14 @@ import { loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
-import { emitSearchJson, emitSearchUiCss, runPagefind } from './search.ts';
+import {
+  emitSearchJson,
+  emitSearchShim,
+  emitSearchUiCss,
+  injectPagefindSkipMeta,
+  injectSearchShimScript,
+  runPagefind,
+} from './search.ts';
 import { copyStaticDir } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 import { emitVercelJson } from './vercel.ts';
@@ -385,7 +392,7 @@ async function runBuild({
 
         const stop = profiler?.start('render', route.url);
         try {
-          const html = rewritePortalLinks({
+          let html = rewritePortalLinks({
             html: rewriteRecommendationsButton({
               html: stripUnusedLightbox(
                 transformSubscribeForms(
@@ -398,6 +405,22 @@ async function runBuild({
             }),
             urls: portalUrls,
           });
+          // Pagefind integration: inject the runtime shim script on any page
+          // that has a `[data-ghost-search]` trigger, and tag non-public
+          // post HTML with `<meta name="pagefind-skip">` so Pagefind drops
+          // those pages from the public index. Both are no-ops unless the
+          // search component is enabled with a pagefind-emitting engine.
+          if (
+            config.components.search.enabled &&
+            (config.components.search.engine === 'pagefind' ||
+              config.components.search.engine === 'json+pagefind')
+          ) {
+            html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
+            const post = route.kind === 'post' ? route.data.post : undefined;
+            if (post && post.visibility !== 'public') {
+              html = injectPagefindSkipMeta(html);
+            }
+          }
           const bytes = Buffer.byteLength(html, 'utf8');
           stop?.({ bytes_emitted: bytes });
           return {
@@ -566,6 +589,9 @@ async function runBuild({
   }
   if (config.components.search.enabled) {
     await timed(profiler, 'search_json', () => emitSearchJson({ config, content, outputDir }));
+    // Emit the `[data-ghost-search]` runtime shim before Pagefind crawls,
+    // so the shim itself lands in the staging dir alongside the index.
+    await timed(profiler, 'search_shim', () => emitSearchShim({ config, outputDir }));
     // Pagefind walks the staged HTML and emits a `pagefind/` index. Run it
     // here (before `commitStagingDir`) so the index is part of the atomic
     // swap into `dist/` — never a half-indexed live deploy.

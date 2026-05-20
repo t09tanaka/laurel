@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import {
   buildSearchIndex,
   emitSearchJson,
+  emitSearchShim,
   emitSearchUiCss,
+  injectPagefindSkipMeta,
+  injectSearchShimScript,
   runPagefind,
   truncateExcerpt,
 } from '~/build/search.ts';
@@ -448,5 +451,125 @@ describe('runPagefind', () => {
     });
     const ok = await runPagefind({ config, outputDir });
     expect(ok).toBe(false);
+  });
+});
+
+describe('emitSearchShim', () => {
+  test('writes search/ghost-search.js when engine is pagefind', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'pagefind' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'ghost-search.js'));
+    const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
+    expect(js).toContain('data-ghost-search');
+    expect(js).toContain('pagefind-ui.js');
+    // Defends against regressions where the shim accidentally hard-codes the
+    // wrong endpoint or strips the base_path prefix.
+    expect(js).toContain('/pagefind/pagefind-ui.js');
+  });
+
+  test('writes the shim when engine is json+pagefind', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'json+pagefind' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'ghost-search.js'));
+    expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(true);
+  });
+
+  test('skips emission for json-only engine (nothing to wire)', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'json' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBeNull();
+    expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(false);
+  });
+
+  test('skips emission when the search component is disabled', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { enabled: false, engine: 'pagefind' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBeNull();
+    expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(false);
+  });
+
+  test('honours [build].base_path in the emitted URL', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      build: { base_path: '/blog/' },
+      components: { search: { engine: 'pagefind' } },
+    });
+    await emitSearchShim({ config, outputDir });
+    const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
+    expect(js).toContain('/blog/pagefind/pagefind-ui.js');
+  });
+});
+
+describe('injectSearchShimScript', () => {
+  test('injects the shim script tag into <head> on pages with [data-ghost-search]', () => {
+    const html =
+      '<html><head><title>x</title></head><body><button data-ghost-search></button></body></html>';
+    const out = injectSearchShimScript(html, '/');
+    expect(out).toContain('<script defer src="/search/ghost-search.js" data-nectar-search-shim>');
+    // Script must land inside <head>, before </head>.
+    expect(out.indexOf('data-nectar-search-shim')).toBeLessThan(out.indexOf('</head>'));
+  });
+
+  test('respects base_path when computing the script src', () => {
+    const html = '<html><head></head><body><button data-ghost-search></button></body></html>';
+    const out = injectSearchShimScript(html, '/blog/');
+    expect(out).toContain('src="/blog/search/ghost-search.js"');
+  });
+
+  test('skips pages without [data-ghost-search]', () => {
+    const html = '<html><head></head><body><p>no search</p></body></html>';
+    const out = injectSearchShimScript(html, '/');
+    expect(out).toBe(html);
+  });
+
+  test('is idempotent (no double injection)', () => {
+    const html = '<html><head></head><body><button data-ghost-search></button></body></html>';
+    const once = injectSearchShimScript(html, '/');
+    const twice = injectSearchShimScript(once, '/');
+    expect(twice).toBe(once);
+  });
+
+  test('forwards the CSP nonce when supplied', () => {
+    const html = '<html><head></head><body><button data-ghost-search></button></body></html>';
+    const out = injectSearchShimScript(html, '/', 'abc123');
+    expect(out).toContain('nonce="abc123"');
+  });
+});
+
+describe('injectPagefindSkipMeta', () => {
+  test('injects <meta name="pagefind-skip"> at the start of <head>', () => {
+    const html = '<html><head><title>x</title></head><body></body></html>';
+    const out = injectPagefindSkipMeta(html);
+    expect(out).toContain('<meta name="pagefind-skip">');
+    expect(out.indexOf('<meta name="pagefind-skip">')).toBeLessThan(out.indexOf('<title>'));
+  });
+
+  test('is idempotent', () => {
+    const html = '<html><head></head><body></body></html>';
+    const once = injectPagefindSkipMeta(html);
+    const twice = injectPagefindSkipMeta(once);
+    expect(twice).toBe(once);
+  });
+
+  test('returns input unchanged when no <head> element is present', () => {
+    const html = '<html><body><p>headless</p></body></html>';
+    expect(injectPagefindSkipMeta(html)).toBe(html);
   });
 });
