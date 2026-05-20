@@ -130,6 +130,71 @@ Body
     ]);
   });
 
+  test('materialises Source theme img_url size variants during build', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      ['', '[components.images]', 'formats = ["avif", "webp"]', ''].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    const sharp = (await import('sharp')).default;
+    await sharp({
+      create: {
+        width: 2400,
+        height: 1600,
+        channels: 3,
+        background: { r: 214, g: 63, b: 0 },
+      },
+    })
+      .jpeg()
+      .toFile(join(cwd, 'content/images/cover.jpg'));
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/cover.jpg
+feature_image_alt: "Cover"
+---
+
+<p><img src="/content/images/cover.jpg" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const homeHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    for (const width of [320, 600, 960, 1200, 2000]) {
+      expect(postHtml).toContain(`/content/images/size/w${width}/cover.jpg ${width}w`);
+      expect(existsSync(join(summary.outputDir, `content/images/size/w${width}/cover.jpg`))).toBe(
+        true,
+      );
+    }
+
+    expect(postHtml).toContain('<source type="image/avif"');
+    expect(postHtml).toContain('<source type="image/webp"');
+    for (const width of [600, 1000, 1600]) {
+      expect(postHtml).toContain(`/content/images/size/w${width}/cover.jpg.avif ${width}w`);
+      expect(postHtml).toContain(`/content/images/size/w${width}/cover.jpg.webp ${width}w`);
+      expect(
+        existsSync(join(summary.outputDir, `content/images/size/w${width}/cover.jpg.avif`)),
+      ).toBe(true);
+      expect(
+        existsSync(join(summary.outputDir, `content/images/size/w${width}/cover.jpg.webp`)),
+      ).toBe(true);
+    }
+
+    for (const width of [160, 320, 600, 960, 1200, 2000]) {
+      expect(homeHtml).toContain(`/content/images/size/w${width}/format/webp/cover.jpg ${width}w`);
+      expect(
+        existsSync(join(summary.outputDir, `content/images/size/w${width}/format/webp/cover.jpg`)),
+      ).toBe(true);
+    }
+  });
+
   test('throws a NectarError when frontmatter date is unparseable', async () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
     // Unparseable dates used to surface as a warning that fell back to the
