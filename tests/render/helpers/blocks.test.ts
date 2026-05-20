@@ -371,6 +371,13 @@ describe('is helper', () => {
 });
 
 describe('has helper', () => {
+  test('renders the inverse block when no hash arguments are provided', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has}}A{{else}}B{{/has}}');
+    expect(tpl({})).toBe('B');
+  });
+
   test('matches when the tag slug is present on the context', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
