@@ -53,6 +53,20 @@ describe('concat helper', () => {
       }),
     ).toBe('<span>one</span> | <strong>two</strong>');
   });
+
+  test('uses SafeString HTML instead of object coercion for compatible values', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{concat first second separator=separator}}');
+
+    expect(
+      tpl({
+        first: { toHTML: () => '<span>one</span>' },
+        second: 'two',
+        separator: { toHTML: () => '<i>/</i>' },
+      }),
+    ).toBe('<span>one</span><i>/</i>two');
+  });
 });
 
 describe('encode helper', () => {

@@ -4,8 +4,8 @@ import type { NectarEngine } from '../engine.ts';
 export function registerStringHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('concat', function concatHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
-    const separator = String(options.hash.separator ?? '');
-    return new engine.hb.SafeString(args.slice(0, -1).map(String).join(separator));
+    const separator = stringifyConcatValue(options.hash.separator);
+    return new engine.hb.SafeString(args.slice(0, -1).map(stringifyConcatValue).join(separator));
   });
 
   engine.hb.registerHelper('raw', function rawHelper(this: unknown, ...args: unknown[]) {
@@ -41,4 +41,19 @@ export function registerStringHelpers(engine: NectarEngine): void {
 
 function isHelperOptions(value: unknown): value is Handlebars.HelperOptions {
   return typeof value === 'object' && value !== null && 'hash' in value;
+}
+
+function stringifyConcatValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (isHandlebarsSafeString(value)) return value.toHTML();
+  return String(value);
+}
+
+function isHandlebarsSafeString(value: unknown): value is { toHTML(): string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toHTML' in value &&
+    typeof value.toHTML === 'function'
+  );
 }
