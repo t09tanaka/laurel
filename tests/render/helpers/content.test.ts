@@ -349,6 +349,15 @@ describe('excerpt helper', () => {
   });
 });
 
+describe('reading_time helper', () => {
+  test('uses the singular template for a 1-minute post', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{reading_time}}')({ reading_time: 1 });
+    expect(out).toBe('1 min read');
+  });
+});
+
 describe('meta_title helper pagination', () => {
   test('post route returns the explicit post title and ignores pagination hash', () => {
     const engine = makeEngine();
