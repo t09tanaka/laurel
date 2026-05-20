@@ -2268,21 +2268,23 @@ unless a heading is the very first element in the post content */
 /* 16. Cards
 /* ---------------------------------------------------------- */
 
-/* Add extra margin before/after any cards, except for when immediately preceeded by a heading */
+/* Add extra margin before/after any cards, except for when immediately preceeded by a heading.
+   Ghost Source historically used [id] as a heading proxy here. Nectar assigns heading IDs
+   during Markdown rendering, so keep the Source spacing intent explicit with heading tags. */
 
-.gh-content :not(.kg-card):not(table):not([id]) + :is(.kg-card, table) {
+.gh-content :not(.kg-card):not(table):not(:is(h1, h2, h3, h4, h5, h6)) + :is(.kg-card, table) {
     margin-top: calc(48px * var(--content-spacing-factor, 1));
 }
 
-.gh-content :is(.kg-card, table) + :not(.kg-card):not(table):not([id]) {
+.gh-content :is(.kg-card, table) + :not(.kg-card):not(table):not(:is(h1, h2, h3, h4, h5, h6)) {
     margin-top: calc(48px * var(--content-spacing-factor, 1));
 }
 
-.gh-content :not(.kg-card):not([id]) + .kg-card.kg-width-full {
+.gh-content :not(.kg-card):not(:is(h1, h2, h3, h4, h5, h6)) + .kg-card.kg-width-full {
     margin-top: calc(68px * var(--content-spacing-factor, 1));
 }
 
-.gh-content .kg-card.kg-width-full + :not(.kg-card):not([id]) {
+.gh-content .kg-card.kg-width-full + :not(.kg-card):not(:is(h1, h2, h3, h4, h5, h6)) {
     margin-top: calc(68px * var(--content-spacing-factor, 1));
 }
 
