@@ -145,6 +145,19 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('news|hash-featured|');
   });
 
+  test('visibility="all" returns every post regardless of item visibility', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach posts visibility="all"}}{{slug}}{{/foreach}}');
+    const posts = [
+      { slug: 'public', visibility: 'public' },
+      { slug: 'internal', visibility: 'internal' },
+      { slug: 'members', visibility: 'members' },
+      { slug: 'paid', visibility: 'paid' },
+    ];
+    expect(tpl({ posts })).toBe('publicinternalmemberspaid');
+  });
+
   // Authors have no `visibility` field in Nectar's content graph (mirroring
   // Ghost's API shape). The filter must treat a missing field as public so
   // `{{#foreach authors visibility="public"}}` is a no-op for that resource
