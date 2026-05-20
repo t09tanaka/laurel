@@ -5,11 +5,10 @@ generated `dist/` directory. This guide keeps Render as the build and hosting
 owner. If your team prefers GitHub Actions to run the same build first, use
 the optional deploy-hook workflow at the end.
 
-Nectar currently emits plain static files for Render. There is no
-Render-specific `render.yaml` emitter, and Nectar does not translate
-`[deploy.headers]` or `redirects.yaml` into Render-managed headers or
-redirects. Track those settings in the Render dashboard until a dedicated
-emitter exists.
+Nectar does not maintain a Render-specific redirects or headers format.
+Render Static Sites read Netlify-style `_redirects` and `_headers` files from
+the publish directory, so Nectar intentionally reuses the Netlify deploy
+emitter when you want generated redirect and header artifacts.
 
 ## Quickstart: Render builds from Git
 
@@ -75,25 +74,32 @@ usually requires a separate environment-aware script.
 
 ## Headers and redirects
 
-Nectar has first-class emitters for some static hosts, but not for Render
-today:
+Render Static Sites can consume Netlify-style `_redirects` and `_headers`
+files from the published `dist/` directory. Nectar reuses the Netlify emitter
+for that format; there is no separate `[deploy.render]` config block.
 
-- no `[deploy.render]` config block
-- no generated `render.yaml`
-- no Render-native headers or redirects generated from `[deploy.headers]`
-- no Render-native redirects generated from `redirects.yaml`
+To emit both files for Render, enable the Netlify deploy target in
+`nectar.toml`:
 
-If `components.redirects.enabled` is left at its default, Nectar can still
-write `dist/_redirects` for hosts that understand that file, but Render Static
-Sites do not consume it as a routing contract. Configure redirects and custom
-headers in the Render dashboard, or place a hand-maintained Render config in
-your repository if your Render service is set up to use one. For a minimal
-hand-maintained Blueprint, start from
-[`examples/render/render.yaml`](../../examples/render/render.yaml).
+```toml
+[deploy.netlify]
+enabled = true
+```
 
-For the security header baseline to mirror on Render, start from
-[`docs/security/hosting.md`](../security/hosting.md) and enter the same header
-values in Render's static-site settings.
+With that enabled, Nectar writes:
+
+- `dist/_headers` from `[deploy.headers]`
+- `dist/_redirects` from `redirects.yaml`, Ghost-style
+  `content/data/redirects.{yaml,yml,json}`, and generated trailing-slash rules
+
+Leave `components.redirects.enabled` at its default unless you want to suppress
+the component-level `_redirects` artifact entirely. If you need hand-authored
+rules, add them through the static passthrough directory and set
+`deploy.merge = true` so Nectar prepends the handwritten entries before the
+generated ones.
+
+For the security header baseline that Nectar emits into `_headers`, see
+[`docs/security/hosting.md`](../security/hosting.md).
 
 ## Optional: GitHub Actions deploy hook
 
