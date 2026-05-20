@@ -18,15 +18,8 @@ dayjs.extend(timezone);
 
 const requireDayjsLocale = createRequire(import.meta.url);
 
-const DEFAULT_INTL_OPTIONS: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: 'short',
-  day: '2-digit',
-};
-
 export function registerDateHelpers(engine: NectarEngine): void {
   const dayjsLocale = loadDayjsLocale(engine.content.site.locale);
-  const intlLocale = resolveIntlLocale(engine.content.site.locale);
 
   engine.hb.registerHelper('date', function dateHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -52,22 +45,8 @@ export function registerDateHelpers(engine: NectarEngine): void {
     if (typeof options.hash.format === 'string') {
       return dayjs(value).tz(timezoneName).locale(dayjsLocale).format(options.hash.format);
     }
-    const date = toDate(value);
-    if (Number.isNaN(date.getTime())) {
-      return dayjs(value).locale(dayjsLocale).format();
-    }
-    return new Intl.DateTimeFormat(intlLocale, {
-      ...DEFAULT_INTL_OPTIONS,
-      timeZone: timezoneName,
-    }).format(date);
+    return dayjs(value).tz(timezoneName).locale(dayjsLocale).format('ll');
   });
-}
-
-function toDate(value: Date | string | number | undefined): Date {
-  if (value instanceof Date) return value;
-  if (typeof value === 'number') return new Date(value);
-  if (typeof value === 'string') return new Date(value);
-  return new Date();
 }
 
 function loadDayjsLocale(raw: string | undefined): string {
@@ -84,23 +63,6 @@ function loadDayjsLocale(raw: string | undefined): string {
       return code;
     } catch {
       // try next candidate; dayjs locale file may not exist for this code
-    }
-  }
-  return 'en';
-}
-
-function resolveIntlLocale(raw: string | undefined): string {
-  if (!raw) return 'en';
-  const normalized = raw.replace(/_/g, '-');
-  const candidates = [normalized];
-  const langOnly = normalized.split('-')[0];
-  if (langOnly && langOnly !== normalized) candidates.push(langOnly);
-  for (const tag of candidates) {
-    try {
-      const supported = Intl.DateTimeFormat.supportedLocalesOf([tag]);
-      if (supported.length > 0) return supported[0];
-    } catch {
-      // ill-formed tag; try next candidate
     }
   }
   return 'en';
