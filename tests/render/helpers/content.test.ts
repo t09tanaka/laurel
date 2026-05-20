@@ -463,6 +463,22 @@ describe('meta_title helper pagination', () => {
     expect(out).toBe('News | Site');
   });
 
+  test('tag archive without an override falls back to tag.name before site title', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const tag = { name: 'News', slug: 'news' };
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { tag, meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { tag, pagination: { page: 1 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News');
+  });
+
   test('paginated tag archive appends the page suffix to the tag meta_title', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
@@ -493,6 +509,22 @@ describe('meta_title helper pagination', () => {
     expect(out).toBe('Custom Tag Title (Page 2)');
   });
 
+  test('paginated tag archive without an override appends the page suffix to tag.name', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const tag = { name: 'News', slug: 'news' };
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { tag, meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { tag, pagination: { page: 3 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News (Page 3)');
+  });
+
   test('paginated author archive appends the page suffix to the author meta_title', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
@@ -521,6 +553,22 @@ describe('meta_title helper pagination', () => {
       },
     );
     expect(out).toBe('Jane Doe | Site');
+  });
+
+  test('author archive without an override falls back to author.name before site title', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const author = { name: 'Jane Doe', slug: 'jane' };
+    const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
+      { author, meta_title: 'Jane Doe | Site' },
+      {
+        data: {
+          route: { kind: 'author', data: { author, pagination: { page: 1 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('Jane Doe');
   });
 
   test('paginated route without a page= hash returns the base title unchanged', () => {

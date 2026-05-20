@@ -1712,6 +1712,46 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     expect(html).toContain('<meta name="twitter:title" content="Configured Site Title">');
   });
 
+  test('tag archive without an override falls back to tag.name before site titles', () => {
+    const tag = { name: 'News', url: '/tag/news/' };
+    const html = renderGhostHead({ tag, meta_title: 'News | Nectar Test' }, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: { tag },
+      site: { meta_title: 'Configured Site Title' },
+    });
+    expect(html).toContain('<meta property="og:title" content="News">');
+    expect(html).toContain('<meta name="twitter:title" content="News">');
+    expect(html).not.toContain('content="News | Nectar Test"');
+    expect(html).not.toContain('content="Configured Site Title"');
+  });
+
+  test('tag archive respects tag.meta_title before tag.name', () => {
+    const tag = { name: 'News', meta_title: 'Custom News Title', url: '/tag/news/' };
+    const html = renderGhostHead({ tag }, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: { tag },
+    });
+    expect(html).toContain('<meta property="og:title" content="Custom News Title">');
+    expect(html).toContain('<meta name="twitter:title" content="Custom News Title">');
+  });
+
+  test('author archive without an override falls back to author.name before site titles', () => {
+    const author = { name: 'Jane Doe', url: '/author/jane/' };
+    const html = renderGhostHead(
+      { author, meta_title: 'Jane Doe | Nectar Test' },
+      '/author/jane/',
+      {
+        routeKind: 'author',
+        routeData: { author },
+        site: { meta_title: 'Configured Site Title' },
+      },
+    );
+    expect(html).toContain('<meta property="og:title" content="Jane Doe">');
+    expect(html).toContain('<meta name="twitter:title" content="Jane Doe">');
+    expect(html).not.toContain('content="Jane Doe | Nectar Test"');
+    expect(html).not.toContain('content="Configured Site Title"');
+  });
+
   test('@site.og_image is the last fallback for og:image / twitter:image', () => {
     const html = renderGhostHead({}, '/', {
       site: { og_image: 'https://cdn.example.com/share.png' },

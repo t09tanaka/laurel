@@ -164,13 +164,13 @@ export function registerContentHelpers(engine: NectarEngine): void {
         data?: Record<string, unknown>;
       };
       const site = options.data?.site as { title?: string } | undefined;
-      const explicit = (ctx.meta_title as string | undefined) || (ctx.title as string | undefined);
+      const explicit = firstNonEmptyString(ctx.meta_title, ctx.title);
       const pageSuffix = String(options.hash.page ?? '');
 
       if (route.kind === 'post' || route.kind === 'page') {
         return explicit ?? site?.title ?? '';
       }
-      const baseTitle = explicit ?? site?.title ?? '';
+      const baseTitle = routeScopedMetaTitle(ctx, route) ?? explicit ?? site?.title ?? '';
       const pagination = route.data?.pagination as { page?: number } | undefined;
       if (pagination?.page && pagination.page > 1 && pageSuffix) {
         return `${baseTitle}${pageSuffix.replace('%', String(pagination.page))}`;
@@ -494,6 +494,41 @@ function parseVisibility(value: unknown): 'all' | Set<string> {
     .filter((v) => v.length > 0);
   if (parts.includes('all')) return 'all';
   return parts.length > 0 ? new Set(parts) : new Set(['public']);
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function routeScopedMetaTitle(
+  ctx: Record<string, unknown>,
+  route: { kind?: string; data?: Record<string, unknown> },
+): string | undefined {
+  if (route.kind === 'tag') {
+    const tagFromCtx = recordValue(ctx.tag);
+    if (tagFromCtx) return firstNonEmptyString(tagFromCtx.meta_title, tagFromCtx.name);
+    if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
+    const tag = recordValue(route.data?.tag);
+    return firstNonEmptyString(tag?.meta_title, tag?.name);
+  }
+  if (route.kind === 'author') {
+    const authorFromCtx = recordValue(ctx.author);
+    if (authorFromCtx) {
+      return firstNonEmptyString(authorFromCtx.meta_title, authorFromCtx.name);
+    }
+    if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
+    const author = recordValue(route.data?.author);
+    return firstNonEmptyString(author?.meta_title, author?.name);
+  }
+  return undefined;
 }
 
 function escapeHtml(value: string): string {

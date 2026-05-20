@@ -314,9 +314,8 @@ function computeMeta(
   basePath: string,
 ): ComputedMeta {
   const titleFromCtx =
-    (ctx.meta_title as string | undefined) ||
-    (ctx.og_title as string | undefined) ||
-    (ctx.title as string | undefined);
+    routeScopedMetaTitle(ctx, route) ||
+    firstNonEmptyString(ctx.meta_title, ctx.og_title, ctx.title);
   const ogImage = ctx.og_image as string | undefined;
   const twitterImage = ctx.twitter_image as string | undefined;
   const featureImage = ctx.feature_image as string | undefined;
@@ -760,6 +759,46 @@ function buildPublisherLogo(
 
 function numericField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function routeScopedMetaTitle(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+): string | undefined {
+  if (route?.kind === 'tag') {
+    const tagFromCtx = recordValue(ctx.tag);
+    if (tagFromCtx) return firstNonEmptyString(tagFromCtx.meta_title, tagFromCtx.name);
+    if (firstNonEmptyString(ctx.meta_title, ctx.og_title, ctx.title)) return undefined;
+    const tag = recordValue(route.data?.tag);
+    return firstNonEmptyString(tag?.meta_title, tag?.name);
+  }
+  if (route?.kind === 'author') {
+    const authorFromCtx = recordValue(ctx.author);
+    if (authorFromCtx) {
+      return firstNonEmptyString(authorFromCtx.meta_title, authorFromCtx.name);
+    }
+    if (firstNonEmptyString(ctx.meta_title, ctx.og_title, ctx.title)) return undefined;
+    const author = recordValue(route.data?.author);
+    return firstNonEmptyString(author?.meta_title, author?.name);
+  }
+  return undefined;
 }
 
 // Normalise a Twitter handle / URL into the `@handle` form expected by the
