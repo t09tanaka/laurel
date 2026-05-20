@@ -5,6 +5,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import {
   RSS_MAX_ITEMS_PER_PAGE,
   SITEMAP_MAX_URLS_PER_FILE,
@@ -102,6 +103,74 @@ describe('absolutizeHtmlUrls', () => {
     expect(absolutizeHtmlUrls('<a href="/p"><img src="/i.png"></a>', base)).toBe(
       '<a href="https://example.com/p"><img src="https://example.com/i.png"></a>',
     );
+  });
+});
+
+describe('renderFeedSafeHtml', () => {
+  test('converts Koenig bookmark cards to a link and description', () => {
+    const html = renderFeedSafeHtml(`
+      <figure class="kg-card kg-bookmark-card">
+        <a class="kg-bookmark-container" href="https://example.com/post">
+          <div class="kg-bookmark-content">
+            <div class="kg-bookmark-title">Bookmark Title</div>
+            <div class="kg-bookmark-description">A linked summary.</div>
+          </div>
+        </a>
+      </figure>
+    `);
+
+    expect(html).toBe(
+      '<p><a href="https://example.com/post">Bookmark Title</a></p><p>A linked summary.</p>',
+    );
+    expect(html).not.toContain('kg-bookmark-card');
+  });
+
+  test('converts Koenig embed iframes to links and strips unsafe runtime tags', () => {
+    const html = renderFeedSafeHtml(`
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://www.youtube-nocookie.com/embed/abc" title="Video title"></iframe>
+        <script src="https://cdn.example/widget.js"></script>
+      </figure>
+    `);
+
+    expect(html).toBe(
+      '<p><a href="https://www.youtube-nocookie.com/embed/abc">Video title</a></p>',
+    );
+    expect(html).not.toContain('<iframe');
+    expect(html).not.toContain('<script');
+  });
+
+  test('converts Koenig gallery cards to image lists', () => {
+    const html = renderFeedSafeHtml(`
+      <figure class="kg-card kg-gallery-card">
+        <div class="kg-gallery-image"><img src="/content/images/one.jpg" alt="One" width="600"></div>
+        <div class="kg-gallery-image"><img src="/content/images/two.jpg" alt="Two" height="400"></div>
+        <figcaption>Gallery caption</figcaption>
+      </figure>
+    `);
+
+    expect(html).toBe(
+      '<ul><li><img src="/content/images/one.jpg" alt="One" width="600"></li><li><img src="/content/images/two.jpg" alt="Two" height="400"></li></ul><p>Gallery caption</p>',
+    );
+  });
+
+  test('converts Koenig audio and video cards to download links', () => {
+    const html = renderFeedSafeHtml(`
+      <div class="kg-card kg-audio-card">
+        <audio src="/content/audio/episode.mp3" controls></audio>
+        <div class="kg-audio-title">Episode 1</div>
+      </div>
+      <figure class="kg-card kg-video-card">
+        <div class="kg-video-container"><video src="/content/video/clip.mp4" controls></video></div>
+        <figcaption>Launch clip</figcaption>
+      </figure>
+    `);
+
+    expect(html.replace(/>\s+</g, '><')).toBe(
+      '<p><a href="/content/audio/episode.mp3">Download audio: Episode 1</a></p><p><a href="/content/video/clip.mp4">Download video: Launch clip</a></p>',
+    );
+    expect(html).not.toContain('<audio');
+    expect(html).not.toContain('<video');
   });
 });
 
@@ -586,6 +655,48 @@ describe('emitRss', () => {
     expect(xml).toContain(
       '<content:encoded><![CDATA[<p>Full body should ship.</p>]]></content:encoded>',
     );
+  });
+
+  test('full_content=true emits feed-safe Koenig card HTML without mutating page HTML', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-feed-safe-cards-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { full_content: true } },
+    });
+    const rawHtml = [
+      '<p>Intro.</p>',
+      '<figure class="kg-card kg-bookmark-card"><a class="kg-bookmark-container" href="/linked"><div class="kg-bookmark-title">Linked post</div><div class="kg-bookmark-description">Short summary.</div></a></figure>',
+      '<figure class="kg-card kg-embed-card"><iframe src="https://player.vimeo.com/video/123" title="Vimeo clip"></iframe></figure>',
+      '<figure class="kg-card kg-gallery-card"><div class="kg-gallery-image"><img src="/content/images/a.jpg" alt="A"></div><div class="kg-gallery-image"><img src="/content/images/b.jpg" alt="B"></div></figure>',
+      '<div class="kg-card kg-audio-card"><audio src="/content/audio/podcast.mp3" controls></audio><div class="kg-audio-title">Podcast</div></div>',
+      '<figure class="kg-card kg-video-card"><div class="kg-video-container"><video src="/content/video/clip.mp4" controls></video></div><figcaption>Clip</figcaption></figure>',
+    ].join('');
+    const content = makeGraph();
+    const post = content.posts[0];
+    if (!post) throw new Error('expected fixture post');
+    post.html = rawHtml;
+    post.feed_html = rawHtml;
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(post.html).toBe(rawHtml);
+    expect(xml).toContain('<p>Intro.</p>');
+    expect(xml).toContain('<a href="https://example.com/linked">Linked post</a>');
+    expect(xml).toContain('<p>Short summary.</p>');
+    expect(xml).toContain('<a href="https://player.vimeo.com/video/123">Vimeo clip</a>');
+    expect(xml).toContain('<img src="https://example.com/content/images/a.jpg" alt="A">');
+    expect(xml).toContain(
+      '<a href="https://example.com/content/audio/podcast.mp3">Download audio: Podcast</a>',
+    );
+    expect(xml).toContain(
+      '<a href="https://example.com/content/video/clip.mp4">Download video: Clip</a>',
+    );
+    expect(xml).not.toContain('<iframe');
+    expect(xml).not.toContain('<script');
+    expect(xml).not.toContain('<audio');
+    expect(xml).not.toContain('<video');
+    expect(xml).not.toContain('kg-bookmark-card');
   });
 });
 

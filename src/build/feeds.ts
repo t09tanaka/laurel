@@ -2,6 +2,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 import { withBasePath } from '~/util/url.ts';
 import { writeHtml } from './emit.ts';
+import { renderFeedSafeHtml } from './feed-safe-html.ts';
 
 // Sitemap emission has its own module (./sitemap.ts) so the Ghost 5-file
 // layout, the 50k-URL split, and the gzip companions can evolve without
@@ -245,7 +246,9 @@ function renderItem(
   // the rewrite-then-discard cost was the second-largest slice of feed time.
   // Pass `basePath` through so root-relative srcs in the body land under
   // `https://host/blog/...` rather than the raw host root.
-  const html = fullContent ? absolutizeHtmlUrls(post.feed_html, base, basePath) : '';
+  const html = fullContent
+    ? absolutizeHtmlUrls(renderFeedSafeHtml(post.feed_html), base, basePath)
+    : '';
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,

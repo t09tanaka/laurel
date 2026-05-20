@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
+import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
@@ -225,7 +226,9 @@ function renderRssItem(post: Post, base: string, fullContent: boolean): string {
   }
   parts.push(`<description><![CDATA[${escapeCdata(post.feed_excerpt)}]]></description>`);
   if (fullContent) {
-    parts.push(`<content:encoded><![CDATA[${escapeCdata(post.feed_html)}]]></content:encoded>`);
+    parts.push(
+      `<content:encoded><![CDATA[${escapeCdata(renderFeedSafeHtml(post.feed_html))}]]></content:encoded>`,
+    );
   }
   parts.push('</item>');
   return parts.join('');
