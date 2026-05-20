@@ -1,0 +1,61 @@
+# Dependabot configuration.
+#
+# This repo already uses Renovate (see .github/renovate.json) as the primary
+# version-bump driver because Renovate handles grouping, lockFileMaintenance,
+# and Asia/Tokyo schedules with finer control than Dependabot.
+#
+# Dependabot is kept enabled for two narrow purposes the Renovate config does
+# not cover natively:
+#
+#   1. GitHub native security advisories (Dependabot security updates run
+#      regardless of this file, but having the file present documents intent
+#      and ensures the ecosystems below are scanned).
+#   2. A weekly low-noise "ecosystem heartbeat" for github-actions so that
+#      action pins still bubble up even if Renovate is paused / misconfigured.
+#
+# Renovate continues to drive npm (bun) dependency updates; Dependabot's npm
+# entry below is open-pull-requests-limit: 0 to disable PRs while keeping
+# security updates active.
+version: 2
+updates:
+  # npm (bun) ecosystem.
+  # Renovate owns version bumps for bun.lock; Dependabot only handles security
+  # updates here. open-pull-requests-limit: 0 disables non-security PRs.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 0
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  # GitHub Actions pins.
+  # Dependabot is the primary driver for action SHA pin refreshes; Renovate
+  # also groups these but Dependabot's native handling of action references
+  # (including major version aliases) is reliable enough to keep as a
+  # belt-and-braces secondary feed.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"
