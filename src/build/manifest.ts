@@ -11,7 +11,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 // unchanged. The manifest is keyed on `MANIFEST_VERSION` rather than the
 // nectar package version so that ordinary patch releases (e.g. asset emitter
 // tweaks that do not affect HTML) keep their incremental cache.
-export const MANIFEST_VERSION = 2 as const;
+export const MANIFEST_VERSION = 3 as const;
 
 export const MANIFEST_FILENAME = '.nectar-manifest.json';
 
@@ -60,6 +60,7 @@ export function computeGlobalHash(opts: {
   site: SiteData;
   theme: ThemeBundle;
   themeFingerprint?: string;
+  contentImageAssets?: Array<{ rel: string; hash: string; outputRel: string }>;
 }): string {
   const { config, site, theme } = opts;
   const partials = Object.entries(theme.partials).sort(([a], [b]) => a.localeCompare(b));
@@ -74,6 +75,7 @@ export function computeGlobalHash(opts: {
     customDefaults: theme.pkg.customDefaults,
     posts_per_page: theme.pkg.posts_per_page,
     image_sizes: theme.pkg.image_sizes,
+    contentImageAssets: opts.contentImageAssets ?? [],
   };
   return sha256(stableStringify(payload));
 }

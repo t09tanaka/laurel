@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { copyFile, readFile, stat, utimes, writeFile } from 'node:fs/promises';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { NectarError } from '~/util/errors.ts';
@@ -161,6 +162,90 @@ export interface CopyContentAssetsOptions {
   // assets. Defaults on; SVG sanitization remains enabled even when false.
   stripMetadata?: boolean;
   onOutputPath?: ((path: string) => void) | undefined;
+  contentImagePlan?: ContentImageAssetPlan | undefined;
+}
+
+export interface ContentImageAssetPlanEntry {
+  rel: string;
+  sourcePath: string;
+  outputRel: string;
+  size: number;
+  mtimeMs: number;
+  hash: string;
+}
+
+export interface ContentImageAssetPlan {
+  entries: ContentImageAssetPlanEntry[];
+  byRel: Map<string, ContentImageAssetPlanEntry>;
+}
+
+export async function planContentImageAssets(
+  cwd: string,
+  contentImagesDir: string,
+  options?: Pick<CopyContentAssetsOptions, 'maxImageBytes' | 'stripMetadata'>,
+): Promise<ContentImageAssetPlan> {
+  const maxImageBytes = options?.maxImageBytes ?? 0;
+  const stripMetadata = options?.stripMetadata !== false;
+  const source = resolve(cwd, contentImagesDir);
+  const entries: ContentImageAssetPlanEntry[] = [];
+  const byRel = new Map<string, ContentImageAssetPlanEntry>();
+  let rels: string[] = [];
+  try {
+    rels = await scanGlob('**/*', { cwd: source, onlyFiles: true });
+  } catch (err) {
+    if (!isFsErrnoCode(err, 'ENOENT')) {
+      logger.warn(
+        `copyContentAssets: failed to scan ${source}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return { entries, byRel };
+  }
+
+  for (const rel of rels) {
+    const normalizedRel = toPosix(rel);
+    if (pathContainsSymlink(source, rel)) {
+      logger.warn(`Skipping symlinked content asset: ${join(source, rel)}`);
+      continue;
+    }
+    const src = join(source, rel);
+    let srcStat: { size: number; mtimeMs: number };
+    try {
+      const s = await stat(src);
+      srcStat = { size: s.size, mtimeMs: s.mtimeMs };
+    } catch (err) {
+      if (!isFsErrnoCode(err, 'ENOENT')) {
+        logger.warn(
+          `copyContentAssets: failed to stat ${src}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      continue;
+    }
+    if (maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
+      if (srcStat.size > maxImageBytes) {
+        logger.warn(
+          `Skipping oversized image ${src}: ${formatBytes(srcStat.size)} exceeds build.max_image_bytes=${formatBytes(maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
+        );
+        continue;
+      }
+    }
+
+    const bytes = await readFile(src);
+    const sanitized = sanitizeImageAssetBytes(bytes, src, '', { stripMetadata });
+    const hash = createHash('sha256').update(sanitized).digest('hex');
+    const outputRel = `_images/${hash.slice(0, 16)}/${basename(rel)}`;
+    const entry = {
+      rel: normalizedRel,
+      sourcePath: src,
+      outputRel,
+      size: sanitized.byteLength,
+      mtimeMs: srcStat.mtimeMs,
+      hash,
+    };
+    entries.push(entry);
+    byRel.set(normalizedRel, entry);
+  }
+
+  return { entries, byRel };
 }
 
 export async function copyContentAssets(
@@ -172,16 +257,25 @@ export async function copyContentAssets(
   const maxImageBytes = options?.maxImageBytes ?? 0;
   const stripMetadata = options?.stripMetadata !== false;
   let total = 0;
-  total += await copyTree(
-    resolve(cwd, contentImagesDir),
-    join(outputDir, 'content/images'),
-    'content/images',
-    {
-      maxImageBytes,
+  if (options?.contentImagePlan) {
+    total += await copyContentImagePlan(
+      options.contentImagePlan,
+      outputDir,
       stripMetadata,
-      onOutputPath: options?.onOutputPath,
-    },
-  );
+      options?.onOutputPath,
+    );
+  } else {
+    total += await copyTree(
+      resolve(cwd, contentImagesDir),
+      join(outputDir, 'content/images'),
+      'content/images',
+      {
+        maxImageBytes,
+        stripMetadata,
+        onOutputPath: options?.onOutputPath,
+      },
+    );
+  }
   // content/files and content/media come straight from Ghost exports
   // (import-ghost copies them next to content/images). They mirror Ghost's
   // /content/<name>/ URL layout so imported markdown links resolve. The image
@@ -209,6 +303,64 @@ export async function copyContentAssets(
     },
   );
   return total;
+}
+
+async function copyContentImagePlan(
+  plan: ContentImageAssetPlan,
+  outputDir: string,
+  stripMetadata: boolean,
+  onOutputPath: ((path: string) => void) | undefined,
+): Promise<number> {
+  const tasks = uniqueContentImageEntries(plan.entries);
+  if (tasks.length === 0) return 0;
+
+  await ensureDirs(tasks.map((entry) => dirname(join(outputDir, entry.outputRel))));
+  const limit = pLimit(EMIT_CONCURRENCY);
+  await Promise.all(
+    tasks.map((entry) =>
+      limit(async () => {
+        const dst = join(outputDir, entry.outputRel);
+        try {
+          const dstStat = await stat(dst);
+          if (dstStat.size === entry.size && dstStat.mtimeMs === entry.mtimeMs) {
+            onOutputPath?.(entry.outputRel);
+            return;
+          }
+        } catch (err) {
+          if (!isFsErrnoCode(err, 'ENOENT')) {
+            logger.warn(
+              `copyContentAssets: failed to stat existing destination ${dst}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        const bytes = await readFile(entry.sourcePath);
+        await writeFile(
+          dst,
+          sanitizeImageAssetBytes(bytes, entry.sourcePath, '', { stripMetadata }),
+        );
+        try {
+          const mtime = new Date(entry.mtimeMs);
+          await utimes(dst, mtime, mtime);
+        } catch (err) {
+          logger.warn(
+            `copyContentAssets: failed to stamp mtime on ${dst}: ${err instanceof Error ? err.message : String(err)} (rebuilds will recopy this file unnecessarily)`,
+          );
+        }
+        onOutputPath?.(entry.outputRel);
+      }),
+    ),
+  );
+  return tasks.length;
+}
+
+function uniqueContentImageEntries(
+  entries: ContentImageAssetPlanEntry[],
+): ContentImageAssetPlanEntry[] {
+  const seen = new Map<string, ContentImageAssetPlanEntry>();
+  for (const entry of entries) {
+    if (!seen.has(entry.outputRel)) seen.set(entry.outputRel, entry);
+  }
+  return [...seen.values()];
 }
 
 interface CopyTreeOptions {

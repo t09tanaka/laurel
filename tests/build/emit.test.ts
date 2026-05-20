@@ -3,7 +3,13 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyAssets, copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
+import {
+  copyAssets,
+  copyContentAssets,
+  planContentImageAssets,
+  writeHtml,
+  writeHtmlBatch,
+} from '~/build/emit.ts';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 
@@ -266,6 +272,49 @@ describe('copyAssets', () => {
 });
 
 describe('copyContentAssets', () => {
+  test('can copy content/images into content-addressed _images paths (#1054)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cas-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cas-'));
+    await mkdir(join(cwd, 'content/images/2024/01'), { recursive: true });
+    await mkdir(join(cwd, 'content/images/2025/02'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/2024/01/hero.png'), 'SAME');
+    await writeFile(join(cwd, 'content/images/2025/02/hero.png'), 'SAME');
+
+    const plan = await planContentImageAssets(cwd, 'content/images');
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      contentImagePlan: plan,
+    });
+    const entry = plan.byRel.get('2024/01/hero.png');
+
+    expect(entry?.outputRel).toMatch(/^_images\/[0-9a-f]{16}\/hero\.png$/);
+    expect(count).toBe(1);
+    expect(entry?.outputRel).toBe(plan.byRel.get('2025/02/hero.png')?.outputRel);
+    expect(await readFile(join(outputDir, entry?.outputRel ?? ''), 'utf8')).toBe('SAME');
+    expect(existsSync(join(outputDir, 'content/images/2024/01/hero.png'))).toBe(false);
+  });
+
+  test('content-addressed image plan honors metadata strip opt-out', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cas-exif-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cas-exif-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/photo.jpg'), jpegWithExif());
+
+    const plan = await planContentImageAssets(cwd, 'content/images', {
+      stripMetadata: false,
+    });
+    const count = await copyContentAssets(cwd, 'content/images', outputDir, {
+      stripMetadata: false,
+      contentImagePlan: plan,
+    });
+    const entry = plan.byRel.get('photo.jpg');
+
+    expect(count).toBe(1);
+    expect(entry?.outputRel).toMatch(/^_images\/[0-9a-f]{16}\/photo\.jpg$/);
+    const jpg = await readFile(join(outputDir, entry?.outputRel ?? ''));
+    expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(true);
+    expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(true);
+  });
+
   test('skips symlinked content asset files so external secrets are not published', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-'));
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-'));

@@ -41,7 +41,15 @@ import { CLOUDFLARE_WORKERS_MANIFEST_FILE } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
-import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
+import { rewriteContentImageUrls } from './content-image-urls.ts';
+import {
+  type ContentImageAssetPlan,
+  type HtmlOutput,
+  copyAssets,
+  copyContentAssets,
+  planContentImageAssets,
+  writeHtmlBatch,
+} from './emit.ts';
 import {
   type DeploymentProvider,
   deploymentHeaderTargets,
@@ -673,12 +681,24 @@ async function runBuild({
   }
   const portalUrls = resolvePortalUrls(config.components.portal);
 
+  const contentImagePlan: ContentImageAssetPlan = config.build.copy_content_assets
+    ? await timed(profiler, 'plan_content_images', () =>
+        planContentImageAssets(cwd, config.content.assets_dir, {
+          maxImageBytes: config.build.max_image_bytes,
+          stripMetadata: config.components.images.strip_metadata,
+        }),
+      )
+    : { entries: [], byRel: new Map() };
+  const contentImageAssets = contentImagePlan.entries
+    .map((entry) => ({ rel: entry.rel, hash: entry.hash, outputRel: entry.outputRel }))
+    .sort((a, b) => a.rel.localeCompare(b.rel));
   const themeFingerprint = computeThemeFingerprint(theme);
   const globalHash = computeGlobalHash({
     config,
     site: content.site,
     theme,
     themeFingerprint,
+    contentImageAssets,
   });
   const nextRoutes: Record<string, ManifestEntry> = {};
   const previousRoutes = previousManifest?.routes ?? {};
@@ -829,6 +849,7 @@ async function runBuild({
         html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
         html = rewriteBasePathUrls(html, config.build.base_path);
         html = rewriteImageCdnUrls(html, { config });
+        html = rewriteContentImageUrls(html, { config, plan: contentImagePlan });
         // afterRender chain: each plugin sees the previous transform's output
         // (including the Pagefind shim above when enabled). Returning anything
         // other than a string is treated as a pass-through so a plugin that
@@ -1063,6 +1084,7 @@ async function runBuild({
                 maxImageBytes: config.build.max_image_bytes,
                 stripMetadata: imagesCfg.strip_metadata,
                 onOutputPath: keepOutput,
+                contentImagePlan,
               }),
             );
           },

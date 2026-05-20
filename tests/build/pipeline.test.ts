@@ -78,6 +78,26 @@ function imageTagForSrc(html: string, src: string): string {
   return html.match(new RegExp(`<img\\b[^>]*src="${escapeRegExp(src)}"[^>]*>`))?.[0] ?? '';
 }
 
+async function findHashedImageOutputPath(outputDir: string, filename: string): Promise<string> {
+  const hashDirs = await readdir(join(outputDir, '_images'));
+  const found = hashDirs
+    .map((hashDir) => join(outputDir, '_images', hashDir, filename))
+    .find((path) => existsSync(path));
+  if (!found) throw new Error(`Could not find hashed image ${filename}`);
+  return found;
+}
+
+async function findHashedImagePublicPath(
+  outputDir: string,
+  filename: string,
+  basePath = '',
+): Promise<string> {
+  const path = await findHashedImageOutputPath(outputDir, filename);
+  const hashDir = path.split('/_images/')[1]?.split('/')[0];
+  if (!hashDir) throw new Error(`Could not determine hashed image directory for ${filename}`);
+  return `${basePath}/_images/${hashDir}/${filename}`;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -125,7 +145,7 @@ Body
     const summary = await build({ cwd });
 
     expect(summary.routeCount).toBeGreaterThan(0);
-    expect(summary.warningCount).toBe(2);
+    expect(summary.warningCount).toBe(3);
   });
 
   test('warns when rendered post HTML contains an image without alt text', async () => {
@@ -554,7 +574,8 @@ Body
 
     const summary = await build({ cwd });
     const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
-    const featureImage = imageTagForSrc(postHtml, '/content/images/cover.svg');
+    const publicCover = await findHashedImagePublicPath(summary.outputDir, 'cover.svg');
+    const featureImage = imageTagForSrc(postHtml, publicCover);
 
     expect(featureImage).toContain('width="1234"');
     expect(featureImage).toContain('height="567"');
@@ -593,7 +614,8 @@ date: 2026-01-01T00:00:00Z
 
     const summary = await build({ cwd });
     const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
-    const inlineImage = imageTagForSrc(postHtml, '/content/images/cover.jpg');
+    const publicCover = await findHashedImagePublicPath(summary.outputDir, 'cover.jpg');
+    const inlineImage = imageTagForSrc(postHtml, publicCover);
 
     expect(inlineImage).toContain('style="background:url(data:image/jpeg;base64,');
     expect(inlineImage).toContain('center / cover no-repeat;"');
@@ -779,12 +801,22 @@ feature_image_alt: "Cover"
 
     const summary = await build({ cwd });
     const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
-
-    expect(postHtml).toContain('src="/blog/content/images/cover.svg"');
-    expect(postHtml).toContain('src="/blog/content/images/inline.svg"');
-    expect(postHtml).toContain(
-      'srcset="/blog/content/images/inline-small.svg 320w, /blog/content/images/inline-large.svg 1200w"',
+    const publicCover = await findHashedImagePublicPath(summary.outputDir, 'cover.svg', '/blog');
+    const publicInline = await findHashedImagePublicPath(summary.outputDir, 'inline.svg', '/blog');
+    const publicInlineSmall = await findHashedImagePublicPath(
+      summary.outputDir,
+      'inline-small.svg',
+      '/blog',
     );
+    const publicInlineLarge = await findHashedImagePublicPath(
+      summary.outputDir,
+      'inline-large.svg',
+      '/blog',
+    );
+
+    expect(postHtml).toContain(`src="${publicCover}"`);
+    expect(postHtml).toContain(`src="${publicInline}"`);
+    expect(postHtml).toContain(`srcset="${publicInlineSmall} 320w, ${publicInlineLarge} 1200w"`);
     expect(postHtml).not.toContain('src="/content/images/');
     expect(postHtml).not.toContain('srcset="/content/images/');
     expect(postHtml).not.toContain('<base ');
@@ -1714,22 +1746,40 @@ describe('build pipeline build-manifest emission (#248)', () => {
 });
 
 describe('build pipeline content assets emission (#109)', () => {
-  test('copies content/images/** into dist/content/images/** so Ghost-style feature_image URLs resolve', async () => {
+  test('copies content/images/** into content-addressed _images paths and rewrites rendered URLs (#1054)', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await mkdir(join(cwd, 'content/images/2024/01'), { recursive: true });
     await writeFile(join(cwd, 'content/images/2024/01/foo.jpg'), 'FOO');
     await writeFile(join(cwd, 'content/images/welcome-cover.svg'), '<svg/>');
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/2024/01/foo.jpg
+---
+
+![Hero](/content/images/2024/01/foo.jpg)
+`,
+      'utf8',
+    );
 
     const summary = await build({ cwd });
+    const hashDirs = await readdir(join(summary.outputDir, '_images'));
+    const hashedFoo = hashDirs
+      .map((hashDir) => join(summary.outputDir, '_images', hashDir, 'foo.jpg'))
+      .find((path) => existsSync(path));
+    expect(hashedFoo).toBeDefined();
 
-    expect(existsSync(join(summary.outputDir, 'content/images/2024/01/foo.jpg'))).toBe(true);
-    expect(readFileSync(join(summary.outputDir, 'content/images/2024/01/foo.jpg'), 'utf8')).toBe(
-      'FOO',
-    );
-    expect(existsSync(join(summary.outputDir, 'content/images/welcome-cover.svg'))).toBe(true);
+    const publicFoo = `/_images/${hashDirs.find((hashDir) => existsSync(join(summary.outputDir, '_images', hashDir, 'foo.jpg')))}/foo.jpg`;
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    expect(readFileSync(hashedFoo ?? '', 'utf8')).toBe('FOO');
+    expect(existsSync(join(summary.outputDir, 'content/images/2024/01/foo.jpg'))).toBe(false);
+    expect(postHtml).toContain(`src="${publicFoo}"`);
+    expect(postHtml).toContain(`content="https://strict.test${publicFoo}"`);
   });
 
-  test('honours content.assets_dir override when copying to dist/content/images/', async () => {
+  test('honours content.assets_dir override when copying content-addressed images', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await mkdir(join(cwd, 'media/blog'), { recursive: true });
     await writeFile(join(cwd, 'media/blog/hero.png'), 'HERO');
@@ -1759,9 +1809,14 @@ describe('build pipeline content assets emission (#109)', () => {
     );
 
     const summary = await build({ cwd });
+    const hashDirs = await readdir(join(summary.outputDir, '_images'));
+    const hashedHero = hashDirs
+      .map((hashDir) => join(summary.outputDir, '_images', hashDir, 'hero.png'))
+      .find((path) => existsSync(path));
 
-    expect(existsSync(join(summary.outputDir, 'content/images/hero.png'))).toBe(true);
-    expect(readFileSync(join(summary.outputDir, 'content/images/hero.png'), 'utf8')).toBe('HERO');
+    expect(hashedHero).toBeDefined();
+    expect(readFileSync(hashedHero ?? '', 'utf8')).toBe('HERO');
+    expect(existsSync(join(summary.outputDir, 'content/images/hero.png'))).toBe(false);
   });
 
   test('skips content asset copy entirely when build.copy_content_assets is false', async () => {
@@ -1796,6 +1851,7 @@ describe('build pipeline content assets emission (#109)', () => {
     const summary = await build({ cwd });
 
     expect(existsSync(join(summary.outputDir, 'content/images/skipme.png'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, '_images'))).toBe(false);
   });
 });
 
@@ -1979,10 +2035,11 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     await rm(join(cwd, 'content/images/old.png'));
     await writeFile(join(cwd, 'content/images/new.png'), 'NEW', 'utf8');
     const summary = await build({ cwd });
+    const hashedNew = await findHashedImageOutputPath(summary.outputDir, 'new.png');
 
     expect(existsSync(join(summary.outputDir, 'manual-stale.txt'))).toBe(false);
     expect(existsSync(join(summary.outputDir, 'content/images/old.png'))).toBe(false);
-    expect(readFileSync(join(summary.outputDir, 'content/images/new.png'), 'utf8')).toBe('NEW');
+    expect(readFileSync(hashedNew, 'utf8')).toBe('NEW');
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
     expect(existsSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'))).toBe(true);
   });
