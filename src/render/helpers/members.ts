@@ -7,26 +7,16 @@ export function registerMemberHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'cancel_link',
     function cancelLinkHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const subscription = this as { id?: unknown; cancel_at_period_end?: unknown } | undefined;
-      if (subscription?.id === undefined || subscription.cancel_at_period_end === undefined) {
-        return new engine.hb.SafeString('');
-      }
-
       const hash = options.hash as Record<string, unknown>;
       const cls = pickString(hash.class, 'gh-subscription-cancel');
-      const errorClass = pickString(hash.errorClass, 'gh-error gh-error-subscription-cancel');
-      const cancelLabel = pickString(hash.cancelLabel, 'Cancel subscription');
-      const continueLabel = pickString(hash.continueLabel, 'Resume subscription');
-      const id = String(subscription.id);
-      const continuing = toBoolean(subscription.cancel_at_period_end);
-      const dataAttr = continuing
-        ? `data-members-continue-subscription="${escapeAttr(id)}"`
-        : `data-members-cancel-subscription="${escapeAttr(id)}"`;
-      const label = continuing ? continueLabel : cancelLabel;
+      const errorClass = pickString(hash.errorClass, '');
+      const error =
+        errorClass.length > 0
+          ? `<span data-cancel-subscription-error class="${escapeAttr(errorClass)}"></span>`
+          : '';
 
       return new engine.hb.SafeString(
-        `<a class="${escapeAttr(cls)}" ${dataAttr} href="javascript:">${escapeHtml(label)}</a>` +
-          `<span class="${escapeAttr(errorClass)}" data-members-error><!-- error message will appear here --></span>`,
+        `<a data-cancel-subscription class="${escapeAttr(cls)}">Cancel subscription</a>${error}`,
       );
     },
   );

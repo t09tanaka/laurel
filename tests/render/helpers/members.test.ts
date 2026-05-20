@@ -67,23 +67,25 @@ describe('member helpers', () => {
     }
   });
 
-  test('cancel_link is inert outside a subscription context', () => {
+  test('cancel_link renders a static cancellation placeholder outside a subscription context', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
-    expect(engine.hb.compile('{{cancel_link}}')({})).toBe('');
+    expect(engine.hb.compile('{{cancel_link}}')({})).toBe(
+      '<a data-cancel-subscription class="gh-subscription-cancel">Cancel subscription</a>',
+    );
   });
 
-  test('cancel_link renders escaped Ghost-compatible subscription markup', () => {
+  test('cancel_link escapes placeholder class and errorClass hash values', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
-    const html = engine.hb.compile('{{cancel_link class=cls cancelLabel=label errorClass="err"}}')({
+    const html = engine.hb.compile('{{cancel_link class=cls errorClass=err}}')({
       id: 'sub_1',
       cancel_at_period_end: false,
       cls: 'x"><script>',
-      label: 'Cancel <now>',
+      err: "err' onclick='alert(1)",
     });
     expect(html).toBe(
-      '<a class="x&quot;&gt;&lt;script&gt;" data-members-cancel-subscription="sub_1" href="javascript:">Cancel &lt;now&gt;</a><span class="err" data-members-error><!-- error message will appear here --></span>',
+      '<a data-cancel-subscription class="x&quot;&gt;&lt;script&gt;">Cancel subscription</a><span data-cancel-subscription-error class="err&#39; onclick=&#39;alert(1)"></span>',
     );
   });
 
