@@ -377,4 +377,152 @@ describe('emitContentApiShadows', () => {
       '/blog/ghost/api/content/posts/slug/hello-world/  /blog/ghost/api/content/posts/slug/hello-world/index.json  200',
     );
   });
+
+  test('emits per-id post and page shadows (#752)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-perid-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    await emitContentApiShadows({ config, content: makeGraph(), outputDir });
+
+    const postById = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/posts/post-1.json'), 'utf8'),
+    );
+    expect(postById.posts).toHaveLength(1);
+    expect(postById.posts[0].slug).toBe('hello-world');
+
+    const pageById = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/pages/page-1.json'), 'utf8'),
+    );
+    expect(pageById.pages).toHaveLength(1);
+  });
+
+  test('emits paginated posts shadows (#751)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-paginated-'));
+    const config = configSchema.parse({
+      site: { title: 'T' },
+      components: { content_api: { posts_per_page: 1 } },
+    });
+    const tag = makeTag();
+    const author = makeAuthor();
+    const posts = [
+      makePost({ id: 'a', slug: 'a' }),
+      makePost({ id: 'b', slug: 'b' }),
+      makePost({ id: 'c', slug: 'c' }),
+    ];
+    const graph: ContentGraph = {
+      ...makeGraph(),
+      posts,
+      bySlug: {
+        posts: new Map(posts.map((p) => [p.slug, p])),
+        pages: new Map(),
+        tags: new Map([[tag.slug, tag]]),
+        authors: new Map([[author.slug, author]]),
+      },
+      postsByTag: new Map([[tag.slug, posts]]),
+      postsByAuthor: new Map([[author.slug, posts]]),
+    };
+    await emitContentApiShadows({ config, content: graph, outputDir });
+
+    const page2 = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/posts/page/2.json'), 'utf8'),
+    );
+    expect(page2.posts).toHaveLength(1);
+    expect(page2.meta.pagination).toMatchObject({ page: 2, pages: 3, next: 3, prev: 1 });
+    expect(typeof page2.meta.pagination.next).toBe('number');
+    expect(typeof page2.meta.pagination.prev).toBe('number');
+  });
+
+  test('emits per-tag pre-baked shards (#757)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-pertag-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    await emitContentApiShadows({ config, content: makeGraph(), outputDir });
+
+    const tagPosts = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/posts/tag/news.json'), 'utf8'),
+    );
+    expect(tagPosts.posts).toHaveLength(1);
+    expect(tagPosts.posts[0].slug).toBe('hello-world');
+  });
+
+  test('authors include count.posts (#749)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-author-count-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    await emitContentApiShadows({ config, content: makeGraph(), outputDir });
+
+    const authors = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/authors.json'), 'utf8'),
+    );
+    expect(authors.authors[0].count).toEqual({ posts: 1 });
+  });
+
+  test('absolute_urls rewrites html to absolute URLs (#743)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-abs-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { content_api: { absolute_urls: true } },
+    });
+    const tag = makeTag();
+    const author = makeAuthor();
+    const post = makePost({ html: '<a href="/foo/">x</a>' });
+    const graph: ContentGraph = {
+      ...makeGraph(),
+      posts: [post],
+      tags: [tag],
+      authors: [author],
+      bySlug: {
+        posts: new Map([[post.slug, post]]),
+        pages: new Map(),
+        tags: new Map([[tag.slug, tag]]),
+        authors: new Map([[author.slug, author]]),
+      },
+      postsByTag: new Map([[tag.slug, [post]]]),
+      postsByAuthor: new Map([[author.slug, [post]]]),
+    };
+    await emitContentApiShadows({ config, content: graph, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0].html).toContain('href="https://example.com/foo/"');
+  });
+
+  test('emits access: "public" on every post (#764)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-access-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    await emitContentApiShadows({ config, content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0].access).toBe('public');
+  });
+
+  test('strips members-only body content from non-public posts (#759)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-strip-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const tag = makeTag();
+    const author = makeAuthor();
+    const post = makePost({
+      visibility: 'members',
+      html: '<p>secret</p>',
+      plaintext: 'secret',
+      excerpt: 'secret',
+    });
+    const graph: ContentGraph = {
+      ...makeGraph(),
+      posts: [post],
+      tags: [tag],
+      authors: [author],
+      bySlug: {
+        posts: new Map([[post.slug, post]]),
+        pages: new Map(),
+        tags: new Map([[tag.slug, tag]]),
+        authors: new Map([[author.slug, author]]),
+      },
+      postsByTag: new Map([[tag.slug, [post]]]),
+      postsByAuthor: new Map([[author.slug, [post]]]),
+    };
+    await emitContentApiShadows({ config, content: graph, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0].html).toBe('');
+    expect(body.posts[0].plaintext).toBe('');
+    expect(body.posts[0].excerpt).toBe('');
+    expect(body.posts[0].visibility).toBe('members');
+  });
 });

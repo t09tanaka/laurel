@@ -371,4 +371,235 @@ describe('emitContentApiStubs', () => {
 
     expect(second).toBe(first);
   });
+
+  test('emits pages.json with per-page shards (#750)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    expect(existsSync(join(outputDir, 'content', 'pages.json'))).toBe(true);
+    const collection = JSON.parse(readFileSync(join(outputDir, 'content', 'pages.json'), 'utf8'));
+    expect(Array.isArray(collection.pages)).toBe(true);
+    expect(collection.pages[0].slug).toBe('about');
+
+    // Per-slug and per-id shards.
+    expect(existsSync(join(outputDir, 'content', 'pages', 'slug', 'about.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'pages', 'page-1.json'))).toBe(true);
+    const single = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'pages', 'slug', 'about.json'), 'utf8'),
+    );
+    expect(single.pages).toHaveLength(1);
+    expect(single.pages[0].slug).toBe('about');
+  });
+
+  test('emits authors.json with count.posts (#749)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
+    expect(body.authors[0].count).toEqual({ posts: 1 });
+  });
+
+  test('emits per-post shards by id and by slug (#752)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    expect(existsSync(join(outputDir, 'content', 'posts', 'post-1.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'posts', 'slug', 'hello-world.json'))).toBe(true);
+
+    const bySlug = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'slug', 'hello-world.json'), 'utf8'),
+    );
+    const byId = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'post-1.json'), 'utf8'),
+    );
+    expect(bySlug.posts).toHaveLength(1);
+    expect(byId.posts).toHaveLength(1);
+    expect(bySlug.posts[0].id).toBe('post-1');
+    expect(byId.posts[0].slug).toBe('hello-world');
+  });
+
+  test('emits paginated posts shards (#751)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    // 3 posts, page size 2 → 2 pages.
+    const posts = [
+      makePost({ id: 'p1', slug: 'p1' }),
+      makePost({ id: 'p2', slug: 'p2' }),
+      makePost({ id: 'p3', slug: 'p3' }),
+    ];
+    const graph = makeGraph({ posts });
+    await emitContentApiStubs({ content: graph, outputDir, postsPerPage: 2 });
+
+    expect(existsSync(join(outputDir, 'content', 'posts', 'page', '1.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'posts', 'page', '2.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'posts', 'page', '1', 'index.json'))).toBe(true);
+
+    const page1 = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'page', '1.json'), 'utf8'),
+    );
+    expect(page1.posts).toHaveLength(2);
+    expect(page1.meta.pagination.page).toBe(1);
+    expect(page1.meta.pagination.pages).toBe(2);
+    expect(page1.meta.pagination.next).toBe(2);
+    expect(page1.meta.pagination.prev).toBeNull();
+    expect(typeof page1.meta.pagination.next).toBe('number');
+
+    const page2 = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'page', '2.json'), 'utf8'),
+    );
+    expect(page2.posts).toHaveLength(1);
+    expect(page2.meta.pagination.next).toBeNull();
+    expect(page2.meta.pagination.prev).toBe(1);
+    expect(typeof page2.meta.pagination.prev).toBe('number');
+  });
+
+  test('emits per-tag pre-baked filtered shards (#757)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const otherTag = makeTag({ id: 'tag-2', slug: 'tech', name: 'Tech' });
+    const newsTag = makeTag();
+    const postNews = makePost({ id: 'p-news', slug: 'p-news', tags: [newsTag] });
+    const postTech = makePost({
+      id: 'p-tech',
+      slug: 'p-tech',
+      tags: [otherTag],
+      primary_tag: otherTag,
+    });
+    const graph = makeGraph({
+      posts: [postNews, postTech],
+      tags: [newsTag, otherTag],
+    });
+    await emitContentApiStubs({ content: graph, outputDir });
+
+    const newsBody = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'tag', 'news.json'), 'utf8'),
+    );
+    expect(newsBody.posts).toHaveLength(1);
+    expect(newsBody.posts[0].slug).toBe('p-news');
+
+    const techBody = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'tag', 'tech.json'), 'utf8'),
+    );
+    expect(techBody.posts).toHaveLength(1);
+    expect(techBody.posts[0].slug).toBe('p-tech');
+  });
+
+  test('absolute_urls rewrites html src/href to absolute (#743)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const post = makePost({
+      html: '<p><a href="/foo/">foo</a> <img src="/images/x.png"/></p>',
+    });
+    const graph = makeGraph({ posts: [post] });
+    await emitContentApiStubs({ content: graph, outputDir, absoluteUrls: true });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0].html).toContain('href="https://example.com/foo/"');
+    expect(body.posts[0].html).toContain('src="https://example.com/images/x.png"');
+  });
+
+  test('absolute_urls leaves already-absolute and protocol-relative URLs alone', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const post = makePost({
+      html: '<a href="https://other.example/x">x</a> <img src="//cdn.example/y.png"/>',
+    });
+    const graph = makeGraph({ posts: [post] });
+    await emitContentApiStubs({ content: graph, outputDir, absoluteUrls: true });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0].html).toContain('https://other.example/x');
+    expect(body.posts[0].html).toContain('//cdn.example/y.png');
+    // No double-prefix.
+    expect(body.posts[0].html).not.toContain('https://example.comhttps://');
+  });
+
+  test('absolute_urls honours base_path', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const post = makePost({ html: '<a href="/x">x</a>' });
+    const graph = makeGraph({ posts: [post] });
+    await emitContentApiStubs({
+      content: graph,
+      outputDir,
+      absoluteUrls: true,
+      basePath: '/blog',
+    });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0].html).toContain('href="https://example.com/blog/x"');
+  });
+
+  test('strips members-only body content for non-public visibility (#759)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-strip-'));
+    const post = makePost({
+      visibility: 'members',
+      html: '<p>secret members content</p>',
+      plaintext: 'secret members content',
+      excerpt: 'secret excerpt',
+    });
+    const graph = makeGraph({ posts: [post] });
+    await emitContentApiStubs({ content: graph, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0].html).toBe('');
+    expect(body.posts[0].plaintext).toBe('');
+    expect(body.posts[0].excerpt).toBe('');
+    // Metadata still appears so the consumer can render a members-only card.
+    expect(body.posts[0].title).toBe('Hello, world');
+    expect(body.posts[0].visibility).toBe('members');
+  });
+
+  test('emits access: "public" on every post in the dump (#764)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-access-'));
+    const memberPost = makePost({
+      id: 'p-member',
+      slug: 'p-member',
+      visibility: 'paid',
+    });
+    const publicPost = makePost();
+    const graph = makeGraph({ posts: [publicPost, memberPost] });
+    await emitContentApiStubs({ content: graph, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    for (const p of body.posts as Array<{ access: string }>) {
+      expect(p.access).toBe('public');
+    }
+  });
+
+  test('pagination next/prev are numbers, not URLs (#760)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-pagination-'));
+    const posts = Array.from({ length: 5 }, (_, i) => makePost({ id: `p-${i}`, slug: `p-${i}` }));
+    await emitContentApiStubs({
+      content: makeGraph({ posts }),
+      outputDir,
+      postsPerPage: 2,
+    });
+
+    const page2 = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'page', '2.json'), 'utf8'),
+    );
+    expect(typeof page2.meta.pagination.next).toBe('number');
+    expect(typeof page2.meta.pagination.prev).toBe('number');
+    expect(page2.meta.pagination.next).toBe(3);
+    expect(page2.meta.pagination.prev).toBe(1);
+  });
+
+  test('_headers includes per-resource cache-control TTLs (#755)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-cache-control-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = readFileSync(join(outputDir, '_headers'), 'utf8');
+    expect(body).toContain('/content/posts/*');
+    expect(body).toContain('Cache-Control: public, max-age=300');
+    expect(body).toContain('/content/tags/*');
+    expect(body).toContain('/content/authors/*');
+    expect(body).toContain('Cache-Control: public, max-age=3600');
+    // More-specific rules precede the catch-all so first-match platforms
+    // apply the right TTL.
+    expect(body.indexOf('/content/posts/*')).toBeLessThan(body.indexOf('/content/*\n'));
+  });
+
+  test('author.url is /author/<slug>/ rooted at site.url + base_path (#754)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-author-url-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
+    expect(body.authors[0].url).toBe('https://example.com/author/casper/');
+  });
 });

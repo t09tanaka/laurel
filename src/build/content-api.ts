@@ -3,45 +3,78 @@ import { dirname, join } from 'node:path';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { projectPagination } from './api/pagination.ts';
+import { buildContentApiHeadersBody } from './headers.ts';
 
 // Static dump of Ghost Content API-shaped JSON under `dist/content/` so a
 // browser-only consumer can `fetch('/content/posts.json')` and treat the
-// response like a Content API page. This is a stub: pagination is fixed at
-// page 1 with all items in one shard. The CORS `_headers` (Netlify) and
-// `_headers.cf` (Cloudflare Pages) twin files announce that `/content/*`
-// is safe to read cross-origin. Pagination shards live in a separate task.
+// response like a Content API page.
 //
-// Duo emit (#215): each collection lands at both `content/<resource>.json`
-// and `content/<resource>/index.json`. Static hosts disagree on directory
-// index resolution -- Netlify maps `/content/posts/` to `index.json` while
-// other setups expect the bare `.json` -- so writing both lets the
-// `@tryghost/content-api` SDK and direct `fetch('/content/posts.json')`
-// calls land on the same payload from a single build.
+// Layout (each top-level collection ships in both `<resource>.json` and
+// `<resource>/index.json` for static-host directory-index quirks; see #215):
+//
+//   content/posts.json                       — all published posts (single shard)
+//   content/posts/page/<n>.json              — paginated shards (posts_per_page)
+//   content/posts/<id>.json                  — single post by id
+//   content/posts/slug/<slug>.json           — single post by slug
+//   content/posts/tag/<slug>.json            — posts pre-filtered by tag
+//   content/pages.json                       — all published pages
+//   content/pages/<id>.json                  — single page by id
+//   content/pages/slug/<slug>.json           — single page by slug
+//   content/tags.json                        — all public tags
+//   content/authors.json                     — all authors (with count.posts)
+//   content/settings.json                    — site settings singleton
+//
+// Pre-baked tag shards exist because arbitrary Ghost NQL filtering needs a
+// server. Operators who need a different filter can shape it client-side off
+// `content/posts.json`. See docs/api.md.
+//
+// The CORS `_headers` (Netlify) and `_headers.cf` (Cloudflare Pages) twin
+// files announce that `/content/*` is safe to read cross-origin and apply
+// per-resource Cache-Control TTLs (posts short, tags/authors longer; see
+// `headers.ts:CONTENT_API_CACHE_TTL`).
 
 export interface EmitContentApiStubsOptions {
   content: ContentGraph;
   outputDir: string;
+  // When set, rewrites relative URLs inside serialized `html` fields to
+  // absolute URLs using `site.url + basePath`. Mirrors the Ghost Content
+  // API `?absolute_urls=true` query at build time.
+  absoluteUrls?: boolean;
+  // Posts per paginated shard (`content/posts/page/<n>.json`). Defaults to
+  // 15 to match Ghost's Content API default `limit`.
+  postsPerPage?: number;
+  // base_path for absolute URL rewriting. Defaults to '/'.
+  basePath?: string;
 }
-
-const CORS_HEADERS_BODY = [
-  '/content/*',
-  '  Access-Control-Allow-Origin: *',
-  '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
-  '  Access-Control-Allow-Headers: Content-Type, Authorization',
-  '  Cache-Control: public, max-age=300',
-  '',
-].join('\n');
 
 export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Promise<void> {
   const { content, outputDir } = opts;
+  const absoluteUrls = opts.absoluteUrls ?? false;
+  const postsPerPage = opts.postsPerPage ?? 15;
+  const basePath = opts.basePath ?? '/';
+  const urlBase = absoluteUrls ? buildUrlBase(content.site.url, basePath) : undefined;
 
   const publishedPosts = content.posts.filter((p) => p.status === 'published');
+  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
+  const publishedPages = content.pages.filter((p) => p.status === 'published');
+  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
+  const serializedTags = content.tags.map(serializeTag);
+  const serializedAuthors = content.authors.map((a) =>
+    serializeAuthor(a, countAuthorPosts(a, content.posts)),
+  );
 
   await Promise.all([
-    writeCollection(outputDir, 'posts', publishedPosts.map(serializePost)),
-    writeCollection(outputDir, 'tags', content.tags.map(serializeTag)),
-    writeCollection(outputDir, 'authors', content.authors.map(serializeAuthor)),
+    writeCollection(outputDir, 'posts', serializedPosts),
+    writeCollection(outputDir, 'pages', serializedPages),
+    writeCollection(outputDir, 'tags', serializedTags),
+    writeCollection(outputDir, 'authors', serializedAuthors),
     writeSettingsDump(outputDir, content.site),
+    writePaginatedPosts(outputDir, serializedPosts, postsPerPage),
+    writePerSlugPosts(outputDir, serializedPosts),
+    writePerIdPosts(outputDir, serializedPosts),
+    writePerSlugPages(outputDir, serializedPages),
+    writePerIdPages(outputDir, serializedPages),
+    writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
   ]);
@@ -56,7 +89,7 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
 // rules. See #215.
 async function writeCollection(
   outputDir: string,
-  resource: 'posts' | 'tags' | 'authors',
+  resource: 'posts' | 'pages' | 'tags' | 'authors',
   items: Array<Record<string, unknown>>,
 ): Promise<void> {
   const body = {
@@ -68,6 +101,115 @@ async function writeCollection(
   const flat = join(outputDir, 'content', `${resource}.json`);
   const dirIndex = join(outputDir, 'content', resource, 'index.json');
   await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
+}
+
+async function writePaginatedPosts(
+  outputDir: string,
+  posts: Array<Record<string, unknown>>,
+  limit: number,
+): Promise<void> {
+  const total = posts.length;
+  // `pages` is at least 1 so an empty collection still gets a `/page/1.json`
+  // pointer. Mirrors `projectPagination`'s clamp.
+  const pages = total === 0 ? 1 : Math.max(1, Math.ceil(total / limit));
+  const writes: Array<Promise<void>> = [];
+  for (let page = 1; page <= pages; page++) {
+    const start = (page - 1) * limit;
+    const slice = posts.slice(start, start + limit);
+    const body = {
+      posts: slice,
+      meta: {
+        pagination: projectPagination({ page, limit, total }),
+      },
+    };
+    const flat = join(outputDir, 'content', 'posts', 'page', `${page}.json`);
+    const dirIndex = join(outputDir, 'content', 'posts', 'page', `${page}`, 'index.json');
+    writes.push(writeJson(flat, body), writeJson(dirIndex, body));
+  }
+  await Promise.all(writes);
+}
+
+async function writePerSlugPosts(
+  outputDir: string,
+  posts: Array<Record<string, unknown>>,
+): Promise<void> {
+  await Promise.all(
+    posts.map((post) => {
+      const slug = String(post.slug);
+      const body = { posts: [post] };
+      const flat = join(outputDir, 'content', 'posts', 'slug', `${slug}.json`);
+      const dirIndex = join(outputDir, 'content', 'posts', 'slug', slug, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
+async function writePerIdPosts(
+  outputDir: string,
+  posts: Array<Record<string, unknown>>,
+): Promise<void> {
+  await Promise.all(
+    posts.map((post) => {
+      const id = String(post.id);
+      const body = { posts: [post] };
+      const flat = join(outputDir, 'content', 'posts', `${id}.json`);
+      const dirIndex = join(outputDir, 'content', 'posts', id, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
+async function writePerSlugPages(
+  outputDir: string,
+  pages: Array<Record<string, unknown>>,
+): Promise<void> {
+  await Promise.all(
+    pages.map((page) => {
+      const slug = String(page.slug);
+      const body = { pages: [page] };
+      const flat = join(outputDir, 'content', 'pages', 'slug', `${slug}.json`);
+      const dirIndex = join(outputDir, 'content', 'pages', 'slug', slug, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
+async function writePerIdPages(
+  outputDir: string,
+  pages: Array<Record<string, unknown>>,
+): Promise<void> {
+  await Promise.all(
+    pages.map((page) => {
+      const id = String(page.id);
+      const body = { pages: [page] };
+      const flat = join(outputDir, 'content', 'pages', `${id}.json`);
+      const dirIndex = join(outputDir, 'content', 'pages', id, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
+async function writePerTagPosts(
+  outputDir: string,
+  tags: Tag[],
+  posts: Post[],
+  urlBase: string | undefined,
+): Promise<void> {
+  await Promise.all(
+    tags.map((tag) => {
+      const matching = posts.filter((post) => post.tags.some((t) => t.id === tag.id));
+      const serialized = matching.map((p) => serializePost(p, urlBase));
+      const body = {
+        posts: serialized,
+        meta: {
+          pagination: projectPagination({ total: serialized.length }),
+        },
+      };
+      const flat = join(outputDir, 'content', 'posts', 'tag', `${tag.slug}.json`);
+      const dirIndex = join(outputDir, 'content', 'posts', 'tag', tag.slug, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
 }
 
 async function writeSettingsDump(outputDir: string, site: SiteData): Promise<void> {
@@ -87,8 +229,8 @@ async function writeJson(dest: string, body: unknown): Promise<void> {
 // Append CORS rule to an existing `_headers` (or `_headers.cf`) if the
 // deploy emitter already wrote one. The catch-all `/*` rule in those files
 // is more specific than `/content/*` is for our use case, so we PREpend the
-// CORS rule with a blank-line separator so first-match platforms pick it up
-// for `/content/*` requests before falling through to defaults.
+// per-resource CORS+cache-control rules with a blank-line separator so
+// first-match platforms pick them up before falling through to defaults.
 async function writeCorsHeaders(outputDir: string, filename: string): Promise<void> {
   const dest = join(outputDir, filename);
   await ensureDir(outputDir);
@@ -96,18 +238,63 @@ async function writeCorsHeaders(outputDir: string, filename: string): Promise<vo
   try {
     existing = await readFile(dest, 'utf8');
   } catch {
-    // No pre-existing file: write CORS rule alone.
+    // No pre-existing file: write CORS rules alone.
   }
+  const body = buildContentApiHeadersBody();
   if (existing.length === 0) {
-    await writeFile(dest, CORS_HEADERS_BODY, 'utf8');
+    await writeFile(dest, body, 'utf8');
     return;
   }
-  if (existing.includes('/content/*')) {
+  if (existing.includes('/content/posts/*') || existing.includes('/content/tags/*')) {
     // Already merged on a previous build run; leave it as-is.
     return;
   }
-  const trimmed = existing.endsWith('\n') ? existing : `${existing}\n`;
-  await writeFile(dest, `${CORS_HEADERS_BODY}\n${trimmed}`, 'utf8');
+  // Drop the legacy single-block `/content/*` body if present so reruns
+  // upgrade cleanly to the per-resource layout without duplicating rules.
+  const stripped = stripLegacyContentBlock(existing);
+  const trimmed = stripped.endsWith('\n') ? stripped : `${stripped}\n`;
+  await writeFile(dest, `${body}\n${trimmed}`, 'utf8');
+}
+
+function stripLegacyContentBlock(existing: string): string {
+  // The pre-#751 CORS body was a single `/content/*` rule. Detect and remove
+  // it so we don't end up with both old and new rule blocks after upgrade.
+  const lines = existing.split('\n');
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? '';
+    if (line === '/content/*') {
+      // Skip until next blank line (rule boundary).
+      while (i < lines.length && (lines[i] ?? '') !== '') i++;
+      // Skip the blank separator too.
+      if (i < lines.length && (lines[i] ?? '') === '') i++;
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  return out.join('\n');
+}
+
+function buildUrlBase(siteUrl: string, basePath: string): string {
+  const root = siteUrl.replace(/\/+$/, '');
+  if (basePath === '/' || basePath === '') return root;
+  const trimmed = basePath.replace(/^\/+|\/+$/g, '');
+  return trimmed.length === 0 ? root : `${root}/${trimmed}`;
+}
+
+// Rewrites `src="/..."`, `href="/..."`, `srcset` entries, and any other
+// attribute whose value is a relative URL into an absolute URL rooted at
+// `urlBase`. Leaves already-absolute URLs (`http://`, `https://`, `//`,
+// `data:`, `mailto:`, `tel:`, fragment-only `#...`) untouched.
+function rewriteHtmlAbsolute(html: string, urlBase: string | undefined): string {
+  if (!urlBase || html.length === 0) return html;
+  // src / href attributes pointing at a relative URL.
+  return html.replace(/(\s(?:src|href|poster|action)=")(\/[^"]*)(")/g, (_m, p1, p2, p3) => {
+    if (p2.startsWith('//')) return `${p1}${p2}${p3}`;
+    return `${p1}${urlBase}${p2}${p3}`;
+  });
 }
 
 function serializeSettings(site: SiteData): Record<string, unknown> {
@@ -146,15 +333,21 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
   };
 }
 
-function serializePost(post: Post): Record<string, unknown> {
+function serializePost(post: Post, urlBase: string | undefined): Record<string, unknown> {
+  // Public JSON omits all members-only body content. For non-public posts
+  // (visibility != 'public') we strip the paywalled body fields so the
+  // static dump cannot be used to bypass a paywall configured upstream.
+  // Themes that need the gated preview still consume the rendered HTML
+  // pages, which apply the configured `visibility_policy` truncation.
+  const isPublic = post.visibility === 'public';
   return {
     id: post.id,
     uuid: post.id,
     slug: post.slug,
     title: post.title,
-    html: post.html,
-    plaintext: post.plaintext,
-    excerpt: post.excerpt,
+    html: isPublic ? rewriteHtmlAbsolute(post.html, urlBase) : '',
+    plaintext: isPublic ? post.plaintext : '',
+    excerpt: isPublic ? post.excerpt : '',
     custom_excerpt: post.custom_excerpt ?? null,
     feature_image: post.feature_image ?? null,
     feature_image_alt: post.feature_image_alt ?? null,
@@ -166,10 +359,16 @@ function serializePost(post: Post): Record<string, unknown> {
     created_at: post.created_at,
     reading_time: post.reading_time,
     visibility: post.visibility,
+    // `access: 'public'` signals to API consumers that this payload is the
+    // public, anonymous-reader view. Restricted posts still appear in the
+    // collection (with body stripped above) so client navigation surfaces
+    // members-only entries; the `access` field marks the payload itself,
+    // not the underlying gating, as public. See docs/api-stability.md.
+    access: 'public',
     tags: post.tags.map(serializeTag),
     primary_tag: post.primary_tag ? serializeTag(post.primary_tag) : null,
-    authors: post.authors.map(serializeAuthor),
-    primary_author: post.primary_author ? serializeAuthor(post.primary_author) : null,
+    authors: post.authors.map((a) => serializeAuthorBare(a)),
+    primary_author: post.primary_author ? serializeAuthorBare(post.primary_author) : null,
     url: post.url,
     canonical_url: post.canonical_url ?? null,
     meta_title: post.meta_title ?? null,
@@ -201,7 +400,14 @@ function serializeTag(tag: Tag): Record<string, unknown> {
   };
 }
 
-function serializeAuthor(author: Author): Record<string, unknown> {
+function serializeAuthor(author: Author, postCount: number): Record<string, unknown> {
+  return {
+    ...serializeAuthorBare(author),
+    count: { posts: postCount },
+  };
+}
+
+function serializeAuthorBare(author: Author): Record<string, unknown> {
   return {
     id: author.id,
     slug: author.slug,
@@ -219,18 +425,27 @@ function serializeAuthor(author: Author): Record<string, unknown> {
   };
 }
 
+function countAuthorPosts(author: Author, posts: Post[]): number {
+  let n = 0;
+  for (const post of posts) {
+    if (post.status !== 'published') continue;
+    if (post.authors.some((a) => a.id === author.id)) n++;
+  }
+  return n;
+}
+
 // Re-exported so future tests / docs can inspect the canonical CORS body.
-export const CORS_HEADERS_TEXT = CORS_HEADERS_BODY;
+export { buildContentApiHeadersBody as buildCorsHeadersBody } from './headers.ts';
 
 // Exported only for type-completeness on consumers that want to render
-// pages alongside posts. Currently unused by the stub emitter.
-export function serializePage(page: Page): Record<string, unknown> {
+// pages alongside posts.
+export function serializePage(page: Page, urlBase?: string): Record<string, unknown> {
   return {
     id: page.id,
     uuid: page.id,
     slug: page.slug,
     title: page.title,
-    html: page.html,
+    html: rewriteHtmlAbsolute(page.html, urlBase),
     plaintext: page.plaintext,
     excerpt: page.excerpt,
     feature_image: page.feature_image ?? null,
@@ -240,6 +455,7 @@ export function serializePage(page: Page): Record<string, unknown> {
     created_at: page.created_at,
     reading_time: page.reading_time,
     visibility: page.visibility,
+    access: 'public',
     url: page.url,
   };
 }

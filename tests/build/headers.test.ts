@@ -1,5 +1,10 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import { buildHeadersBody, validateHstsForPreload } from '~/build/headers.ts';
+import {
+  CONTENT_API_CACHE_TTL,
+  buildContentApiHeadersBody,
+  buildHeadersBody,
+  validateHstsForPreload,
+} from '~/build/headers.ts';
 import { configSchema } from '~/config/schema.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -183,5 +188,44 @@ describe('validateHstsForPreload', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('buildContentApiHeadersBody', () => {
+  test('emits per-resource Cache-Control TTLs in specificity order (#755)', () => {
+    const body = buildContentApiHeadersBody();
+
+    expect(body).toContain(
+      `/content/posts/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.posts}`,
+    );
+    expect(body).toContain(
+      `/content/tags/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.tags}`,
+    );
+    expect(body).toContain(
+      `/content/authors/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.authors}`,
+    );
+    expect(body).toContain(
+      `/content/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.catchAll}`,
+    );
+
+    // Specificity ordering: posts / tags / authors must all precede the
+    // `/content/*` catch-all so first-match platforms pick the right TTL.
+    const postsAt = body.indexOf('/content/posts/*');
+    const tagsAt = body.indexOf('/content/tags/*');
+    const authorsAt = body.indexOf('/content/authors/*');
+    const catchAt = body.indexOf('/content/*\n');
+    expect(postsAt).toBeLessThan(catchAt);
+    expect(tagsAt).toBeLessThan(catchAt);
+    expect(authorsAt).toBeLessThan(catchAt);
+  });
+
+  test('shorter posts TTL than tags/authors', () => {
+    expect(CONTENT_API_CACHE_TTL.posts).toBeLessThan(CONTENT_API_CACHE_TTL.tags);
+    expect(CONTENT_API_CACHE_TTL.posts).toBeLessThan(CONTENT_API_CACHE_TTL.authors);
+  });
+
+  test('ends with a trailing newline so concat is safe', () => {
+    const body = buildContentApiHeadersBody();
+    expect(body.endsWith('\n')).toBe(true);
   });
 });

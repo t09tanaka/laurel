@@ -903,6 +903,20 @@ export const configSchema = z
               .describe(
                 'Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Nectar is static-only.',
               ),
+            absolute_urls: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Rewrite relative URLs in serialized `html` fields to absolute URLs using `[site].url` + `[build].base_path`. Mirrors the Ghost Content API `?absolute_urls=true` query parameter as a build-time switch. Affects `posts`, `pages`, per-tag, paginated, and per-slug/per-id shards across both the flat `/content/*` dump and the `/ghost/api/content/*` SDK shadow tree. Has no effect on absolute URLs already present in the body.',
+              ),
+            posts_per_page: z
+              .number()
+              .int()
+              .positive()
+              .default(15)
+              .describe(
+                "Page size for the paginated posts shards (`content/posts/page/<n>.json` and `ghost/api/content/posts/page/<n>.json`). Matches Ghost's default Content API `limit=15`. Use `meta.pagination.next` / `meta.pagination.prev` (numbers, not URLs) to walk pages from the consumer.",
+              ),
           })
           .strict()
           .default({})

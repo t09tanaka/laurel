@@ -177,3 +177,63 @@ export async function writeHeadersFile(opts: {
   await ensureDir(opts.outputDir);
   await writeFile(join(opts.outputDir, '_headers'), buildHeadersBody(opts.headers));
 }
+
+// Cache-Control TTLs (seconds) for the `/content/*` Content-API dump shards.
+// Posts churn most often (a new post or a typo fix invalidates the listing),
+// so they ship with a short 5-minute TTL. Tags/authors are append-only in
+// practice — a new tag/author appears alongside a post commit, but the
+// existing entries are stable — so they ship with a longer 1-hour TTL. The
+// `/content/*` catch-all stays on the short TTL so anything not explicitly
+// classified (settings, search, future shards) gets the safe default.
+//
+// These values are hardcoded rather than exposed as config knobs because the
+// `/content/*` tree is a Nectar-specific build artifact and operators who
+// want bespoke cache policy can override via `[deploy.headers].cache_rules`,
+// which is appended into the same `_headers` file by the platform emitter.
+export const CONTENT_API_CACHE_TTL = {
+  posts: 300,
+  tags: 3600,
+  authors: 3600,
+  catchAll: 300,
+} as const;
+
+const CORS_DIRECTIVE_LINES = [
+  'Access-Control-Allow-Origin: *',
+  'Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+  'Access-Control-Allow-Headers: Content-Type, Authorization',
+] as const;
+
+interface ContentApiCorsRule {
+  pattern: string;
+  maxAge: number;
+}
+
+/**
+ * Build the `_headers` body for the Nectar Content API `/content/*` tree.
+ *
+ * Emits one rule per resource so first-match platforms (Netlify, Cloudflare
+ * Pages) apply the right Cache-Control TTL to each pattern. Order matters:
+ * the more specific `/content/posts/*` / `/content/tags/*` /
+ * `/content/authors/*` rules precede the `/content/*` catch-all so the
+ * catch-all does not shadow them.
+ *
+ * Returned text ends in a trailing newline so callers can concatenate with
+ * existing rules without dropping a blank-line separator.
+ */
+export function buildContentApiHeadersBody(): string {
+  const rules: ContentApiCorsRule[] = [
+    { pattern: '/content/posts/*', maxAge: CONTENT_API_CACHE_TTL.posts },
+    { pattern: '/content/tags/*', maxAge: CONTENT_API_CACHE_TTL.tags },
+    { pattern: '/content/authors/*', maxAge: CONTENT_API_CACHE_TTL.authors },
+    { pattern: '/content/*', maxAge: CONTENT_API_CACHE_TTL.catchAll },
+  ];
+  return `${rules
+    .map(({ pattern, maxAge }) =>
+      [
+        pattern,
+        ...CORS_DIRECTIVE_LINES.map((l) => `  ${l}`),
+        `  Cache-Control: public, max-age=${maxAge}`,
+      ].join('\n'),
+    )
+    .join('\n\n')}\n`;
+}

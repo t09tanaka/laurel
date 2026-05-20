@@ -18,23 +18,53 @@ type Collection = (typeof COLLECTIONS)[number];
 export async function emitContentApiShadows(opts: EmitContentApiOptions): Promise<void> {
   const { config, content, outputDir } = opts;
 
+  const absoluteUrls = config.components?.content_api?.absolute_urls ?? false;
+  const postsPerPage = config.components?.content_api?.posts_per_page ?? 15;
+  const urlBase = absoluteUrls ? buildUrlBase(content.site.url, config.build.base_path) : undefined;
+
+  const publishedPosts = content.posts.filter((p) => p.status === 'published');
+  const publishedPages = content.pages.filter((p) => p.status === 'published');
+
+  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
+  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
+  const serializedTags = content.tags.map(serializeTag);
+  const serializedAuthors = content.authors.map((a) =>
+    serializeAuthor(a, countAuthorPosts(a, content.posts)),
+  );
+
   await Promise.all([
-    writeResource(outputDir, 'posts', content.posts, serializePost),
-    writeResource(outputDir, 'pages', content.pages, serializePage),
-    writeResource(outputDir, 'authors', content.authors, serializeAuthor),
-    writeResource(outputDir, 'tags', content.tags, serializeTag),
+    writeResourceWith(outputDir, 'posts', serializedPosts),
+    writeResourceWith(outputDir, 'pages', serializedPages),
+    writeResourceWith(outputDir, 'authors', serializedAuthors),
+    writeResourceWith(outputDir, 'tags', serializedTags),
     writeSettings(outputDir, content.site),
+    writePaginated(outputDir, 'posts', serializedPosts, postsPerPage),
+    writePerTag(outputDir, content.tags, publishedPosts, urlBase),
   ]);
 
   await Promise.all([
-    ...content.posts.map((post) =>
-      writeBySlug(outputDir, 'posts', post.slug, { posts: [serializePost(post)] }),
-    ),
-    ...content.pages.map((page) =>
-      writeBySlug(outputDir, 'pages', page.slug, { pages: [serializePage(page)] }),
-    ),
+    ...serializedPosts.map((post) => {
+      const slug = String(post.slug);
+      const id = String(post.id);
+      const body = { posts: [post] };
+      return Promise.all([
+        writeBySlug(outputDir, 'posts', slug, body),
+        writeById(outputDir, 'posts', id, body),
+      ]).then(() => undefined);
+    }),
+    ...serializedPages.map((page) => {
+      const slug = String(page.slug);
+      const id = String(page.id);
+      const body = { pages: [page] };
+      return Promise.all([
+        writeBySlug(outputDir, 'pages', slug, body),
+        writeById(outputDir, 'pages', id, body),
+      ]).then(() => undefined);
+    }),
     ...content.authors.map((author) =>
-      writeBySlug(outputDir, 'authors', author.slug, { authors: [serializeAuthor(author)] }),
+      writeBySlug(outputDir, 'authors', author.slug, {
+        authors: [serializeAuthor(author, countAuthorPosts(author, content.posts))],
+      }),
     ),
     ...content.tags.map((tag) =>
       writeBySlug(outputDir, 'tags', tag.slug, { tags: [serializeTag(tag)] }),
@@ -44,13 +74,11 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   await writeRedirects(outputDir, config.build.base_path, content);
 }
 
-async function writeResource<T, U>(
+async function writeResourceWith(
   outputDir: string,
   resource: Collection,
-  items: T[],
-  serialize: (item: T) => U,
+  data: Array<Record<string, unknown>>,
 ): Promise<void> {
-  const data = items.map(serialize);
   const body = {
     [resource]: data,
     meta: {
@@ -61,6 +89,51 @@ async function writeResource<T, U>(
   await writeJson(join(outputDir, API_BASE, resource, 'index.json'), body);
 }
 
+async function writePaginated(
+  outputDir: string,
+  resource: 'posts',
+  data: Array<Record<string, unknown>>,
+  limit: number,
+): Promise<void> {
+  const total = data.length;
+  const pages = total === 0 ? 1 : Math.max(1, Math.ceil(total / limit));
+  for (let page = 1; page <= pages; page++) {
+    const start = (page - 1) * limit;
+    const slice = data.slice(start, start + limit);
+    const body = {
+      [resource]: slice,
+      meta: {
+        pagination: projectPagination({ page, limit, total }),
+      },
+    };
+    await writeJson(join(outputDir, API_BASE, resource, 'page', `${page}.json`), body);
+    await writeJson(join(outputDir, API_BASE, resource, 'page', `${page}`, 'index.json'), body);
+  }
+}
+
+async function writePerTag(
+  outputDir: string,
+  tags: Tag[],
+  posts: Post[],
+  urlBase: string | undefined,
+): Promise<void> {
+  await Promise.all(
+    tags.map((tag) => {
+      const matching = posts.filter((post) => post.tags.some((t) => t.id === tag.id));
+      const serialized = matching.map((p) => serializePost(p, urlBase));
+      const body = {
+        posts: serialized,
+        meta: {
+          pagination: projectPagination({ total: serialized.length }),
+        },
+      };
+      const flat = join(outputDir, API_BASE, 'posts', 'tag', `${tag.slug}.json`);
+      const dirIndex = join(outputDir, API_BASE, 'posts', 'tag', tag.slug, 'index.json');
+      return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
+    }),
+  );
+}
+
 async function writeBySlug(
   outputDir: string,
   resource: Collection,
@@ -69,6 +142,16 @@ async function writeBySlug(
 ): Promise<void> {
   await writeJson(join(outputDir, API_BASE, resource, 'slug', `${slug}.json`), body);
   await writeJson(join(outputDir, API_BASE, resource, 'slug', slug, 'index.json'), body);
+}
+
+async function writeById(
+  outputDir: string,
+  resource: Collection,
+  id: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  await writeJson(join(outputDir, API_BASE, resource, `${id}.json`), body);
+  await writeJson(join(outputDir, API_BASE, resource, id, 'index.json'), body);
 }
 
 async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
@@ -138,20 +221,36 @@ function normalizeBasePath(basePath: string): string {
   return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
 }
 
+function buildUrlBase(siteUrl: string, basePath: string): string {
+  const root = siteUrl.replace(/\/+$/, '');
+  if (basePath === '/' || basePath === '') return root;
+  const trimmed = basePath.replace(/^\/+|\/+$/g, '');
+  return trimmed.length === 0 ? root : `${root}/${trimmed}`;
+}
+
+function rewriteHtmlAbsolute(html: string, urlBase: string | undefined): string {
+  if (!urlBase || html.length === 0) return html;
+  return html.replace(/(\s(?:src|href|poster|action)=")(\/[^"]*)(")/g, (_m, p1, p2, p3) => {
+    if (p2.startsWith('//')) return `${p1}${p2}${p3}`;
+    return `${p1}${urlBase}${p2}${p3}`;
+  });
+}
+
 async function writeJson(dest: string, body: unknown): Promise<void> {
   await ensureDir(dirname(dest));
   await writeFile(dest, `${JSON.stringify(body)}\n`, 'utf8');
 }
 
-function serializePost(post: Post): Record<string, unknown> {
+function serializePost(post: Post, urlBase: string | undefined): Record<string, unknown> {
+  const isPublic = post.visibility === 'public';
   return {
     id: post.id,
     uuid: post.id,
     slug: post.slug,
     title: post.title,
-    html: post.html,
-    plaintext: post.plaintext,
-    excerpt: post.excerpt,
+    html: isPublic ? rewriteHtmlAbsolute(post.html, urlBase) : '',
+    plaintext: isPublic ? post.plaintext : '',
+    excerpt: isPublic ? post.excerpt : '',
     custom_excerpt: post.custom_excerpt ?? null,
     feature_image: post.feature_image ?? null,
     feature_image_alt: post.feature_image_alt ?? null,
@@ -163,10 +262,13 @@ function serializePost(post: Post): Record<string, unknown> {
     created_at: post.created_at,
     reading_time: post.reading_time,
     visibility: post.visibility,
+    // `access: 'public'` marks the payload as the public anonymous view.
+    // See docs/api-stability.md and content-api.ts for the rationale.
+    access: 'public',
     tags: post.tags.map(serializeTag),
     primary_tag: post.primary_tag ? serializeTag(post.primary_tag) : null,
-    authors: post.authors.map(serializeAuthor),
-    primary_author: post.primary_author ? serializeAuthor(post.primary_author) : null,
+    authors: post.authors.map((a) => serializeAuthorBare(a)),
+    primary_author: post.primary_author ? serializeAuthorBare(post.primary_author) : null,
     url: post.url,
     canonical_url: post.canonical_url ?? null,
     meta_title: post.meta_title ?? null,
@@ -183,13 +285,13 @@ function serializePost(post: Post): Record<string, unknown> {
   };
 }
 
-function serializePage(page: Page): Record<string, unknown> {
+function serializePage(page: Page, urlBase: string | undefined): Record<string, unknown> {
   return {
     id: page.id,
     uuid: page.id,
     slug: page.slug,
     title: page.title,
-    html: page.html,
+    html: rewriteHtmlAbsolute(page.html, urlBase),
     plaintext: page.plaintext,
     excerpt: page.excerpt,
     custom_excerpt: page.custom_excerpt ?? null,
@@ -202,10 +304,11 @@ function serializePage(page: Page): Record<string, unknown> {
     created_at: page.created_at,
     reading_time: page.reading_time,
     visibility: page.visibility,
+    access: 'public',
     tags: page.tags.map(serializeTag),
     primary_tag: page.primary_tag ? serializeTag(page.primary_tag) : null,
-    authors: page.authors.map(serializeAuthor),
-    primary_author: page.primary_author ? serializeAuthor(page.primary_author) : null,
+    authors: page.authors.map((a) => serializeAuthorBare(a)),
+    primary_author: page.primary_author ? serializeAuthorBare(page.primary_author) : null,
     url: page.url,
     canonical_url: page.canonical_url ?? null,
     meta_title: page.meta_title ?? null,
@@ -236,7 +339,14 @@ function serializeTag(tag: Tag): Record<string, unknown> {
   };
 }
 
-function serializeAuthor(author: Author): Record<string, unknown> {
+function serializeAuthor(author: Author, postCount: number): Record<string, unknown> {
+  return {
+    ...serializeAuthorBare(author),
+    count: { posts: postCount },
+  };
+}
+
+function serializeAuthorBare(author: Author): Record<string, unknown> {
   return {
     id: author.id,
     slug: author.slug,
@@ -252,4 +362,13 @@ function serializeAuthor(author: Author): Record<string, unknown> {
     meta_description: author.meta_description ?? null,
     url: author.url,
   };
+}
+
+function countAuthorPosts(author: Author, posts: Post[]): number {
+  let n = 0;
+  for (const post of posts) {
+    if (post.status !== 'published') continue;
+    if (post.authors.some((a) => a.id === author.id)) n++;
+  }
+  return n;
 }

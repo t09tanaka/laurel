@@ -800,7 +800,15 @@ async function runBuild({
   // PREpend the CORS rule onto whatever cache/security headers those
   // emitters already wrote, rather than overwriting them.
   if (contentApiEnabled) {
-    await timed(profiler, 'content_api_stubs', () => emitContentApiStubs({ content, outputDir }));
+    await timed(profiler, 'content_api_stubs', () =>
+      emitContentApiStubs({
+        content,
+        outputDir,
+        absoluteUrls: config.components.content_api.absolute_urls,
+        postsPerPage: config.components.content_api.posts_per_page,
+        basePath: config.build.base_path,
+      }),
+    );
   }
   // Load `redirects.yaml` once and hand the canonical rules to every emitter
   // that consumes them. Cloudflare Pages and Netlify both consume `_redirects`
