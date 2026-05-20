@@ -30,6 +30,8 @@ describe('loadTheme', () => {
     expect(theme.pkg.posts_per_page).toBe(12);
     expect(theme.pkg.image_sizes.xs?.width).toBe(160);
     expect(theme.pkg.customDefaults.site_background_color).toBe('#ffffff');
+    expect(theme.pkg.custom.header_text?.group).toBe('homepage');
+    expect(theme.pkg.custom.header_text?.visibility).toBe('header_style:[Landing, Search]');
     expect(Object.keys(theme.locales).length).toBeGreaterThan(0);
   });
 

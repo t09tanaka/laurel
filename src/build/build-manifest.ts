@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { dirname, join, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ThemeBundle } from '~/theme/types.ts';
+import type { ThemeBundle, ThemeCustomSettingDefinition } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, scanGlob } from '~/util/fs.ts';
 import { stableStringify } from './manifest.ts';
@@ -44,7 +44,11 @@ export interface BuildManifestJson {
   schema_version: typeof BUILD_MANIFEST_VERSION;
   generated_at: string;
   nectar: { version: string };
-  theme: { name: string; version: string };
+  theme: {
+    name: string;
+    version: string;
+    custom_settings: Record<string, ThemeCustomSettingDefinition>;
+  };
   config_hash: string;
   hash_algorithm: typeof HASH_ALGORITHM;
   route_count: number;
@@ -104,7 +108,11 @@ export async function emitBuildManifest(
     schema_version: BUILD_MANIFEST_VERSION,
     generated_at: (now ?? new Date()).toISOString(),
     nectar: { version: nectarVersion },
-    theme: { name: theme.pkg.name, version: theme.pkg.version },
+    theme: {
+      name: theme.pkg.name,
+      version: theme.pkg.version,
+      custom_settings: serializeCustomSettings(theme.pkg.custom),
+    },
     config_hash: computeConfigHash(config),
     hash_algorithm: HASH_ALGORITHM,
     route_count: routeCount,
@@ -121,6 +129,21 @@ export async function emitBuildManifest(
   await Bun.write(dest, `${JSON.stringify(manifest, null, 2)}\n`);
   await Bun.write(changedPathsAbsPath(outputDir), formatChangedPaths(changedPaths));
   return manifest;
+}
+
+function serializeCustomSettings(
+  custom: Record<string, ThemeCustomSettingDefinition>,
+): Record<string, ThemeCustomSettingDefinition> {
+  const out: Record<string, ThemeCustomSettingDefinition> = {};
+  for (const key of Object.keys(custom).sort()) {
+    const def = custom[key];
+    if (!def) continue;
+    out[key] = {
+      ...def,
+      ...(def.options ? { options: [...def.options] } : {}),
+    };
+  }
+  return out;
 }
 
 export async function loadBuildManifest(outputDir: string): Promise<BuildManifestJson | undefined> {

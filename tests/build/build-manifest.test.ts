@@ -65,7 +65,7 @@ describe('build-manifest', () => {
       expect(manifest.schema_version).toBe(BUILD_MANIFEST_VERSION);
       expect(manifest.generated_at).toBe('2026-05-20T00:00:00.000Z');
       expect(manifest.nectar.version).toBe('9.9.9');
-      expect(manifest.theme).toEqual({ name: 'source', version: '1.2.3' });
+      expect(manifest.theme).toEqual({ name: 'source', version: '1.2.3', custom_settings: {} });
       expect(manifest.route_count).toBe(1);
       expect(manifest.asset_count).toBe(1);
       expect(manifest.hash_algorithm).toBe('sha256');
@@ -75,6 +75,60 @@ describe('build-manifest', () => {
       // The on-disk JSON parses to the same shape we returned.
       const onDisk = (await Bun.file(buildManifestAbsPath(dir)).json()) as BuildManifestJson;
       expect(onDisk).toEqual(manifest);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('exposes theme custom-setting metadata for admin UI consumers', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-bm-'));
+    try {
+      await writeFile(join(dir, 'index.html'), '<html></html>', 'utf8');
+
+      const manifest = await emitBuildManifest({
+        outputDir: dir,
+        config: fakeConfig(),
+        theme: fakeTheme({
+          custom: {
+            show_featured_posts: {
+              type: 'boolean',
+              default: false,
+              description: 'Show featured posts on the home page',
+              group: 'homepage',
+              visibility: 'homepage',
+            },
+            navigation_layout: {
+              type: 'select',
+              options: ['Logo on the left', 'Logo in the middle'],
+              default: 'Logo on the left',
+              group: 'navigation',
+            },
+          },
+          customDefaults: {
+            show_featured_posts: false,
+            navigation_layout: 'Logo on the left',
+          },
+        }),
+        routeCount: 1,
+        assetCount: 0,
+        nectarVersion: '1.0.0',
+      });
+
+      expect(manifest.theme.custom_settings).toEqual({
+        navigation_layout: {
+          type: 'select',
+          options: ['Logo on the left', 'Logo in the middle'],
+          default: 'Logo on the left',
+          group: 'navigation',
+        },
+        show_featured_posts: {
+          type: 'boolean',
+          default: false,
+          description: 'Show featured posts on the home page',
+          group: 'homepage',
+          visibility: 'homepage',
+        },
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -192,7 +246,7 @@ describe('build-manifest', () => {
         schema_version: BUILD_MANIFEST_VERSION,
         generated_at: '2026-05-19T00:00:00.000Z',
         nectar: { version: '1.0.0' },
-        theme: { name: 'source', version: '1.2.3' },
+        theme: { name: 'source', version: '1.2.3', custom_settings: {} },
         config_hash: 'a'.repeat(64),
         hash_algorithm: 'sha256',
         route_count: 2,

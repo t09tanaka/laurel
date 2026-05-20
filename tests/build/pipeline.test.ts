@@ -690,7 +690,14 @@ describe('build pipeline build-manifest emission (#248)', () => {
       schema_version: number;
       generated_at: string;
       nectar: { version: string };
-      theme: { name: string; version: string };
+      theme: {
+        name: string;
+        version: string;
+        custom_settings: Record<
+          string,
+          { type: string; group?: string; visibility?: string; default?: unknown }
+        >;
+      };
       config_hash: string;
       hash_algorithm: string;
       route_count: number;
@@ -703,6 +710,10 @@ describe('build pipeline build-manifest emission (#248)', () => {
     expect(parsed.route_count).toBe(summary.routeCount);
     expect(parsed.asset_count).toBe(summary.assetCount);
     expect(parsed.theme.name).toBe('source');
+    const headerTextSetting = parsed.theme.custom_settings.header_text;
+    expect(headerTextSetting).toBeDefined();
+    expect(headerTextSetting?.group).toBe('homepage');
+    expect(headerTextSetting?.visibility).toBe('header_style:[Landing, Search]');
     expect(typeof parsed.nectar.version).toBe('string');
     expect(parsed.config_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(new Date(parsed.generated_at).toString()).not.toBe('Invalid Date');
