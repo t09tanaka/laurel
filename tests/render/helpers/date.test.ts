@@ -89,6 +89,21 @@ describe('date helper', () => {
     expect(out).toBe('2026');
   });
 
+  test('falls back to the current date when the context has no dates', () => {
+    const engine = makeEngine('en', 'UTC');
+    registerDateHelpers(engine);
+    const template = engine.hb.compile('{{date format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"}}');
+
+    const before = Date.now();
+    const out = template({});
+    const after = Date.now();
+    const rendered = Date.parse(out);
+
+    expect(Number.isNaN(rendered)).toBe(false);
+    expect(rendered).toBeGreaterThanOrEqual(before);
+    expect(rendered).toBeLessThanOrEqual(after);
+  });
+
   test('localized "MMMM" month token uses locale-specific month names', () => {
     const engine = makeEngine('ja');
     registerDateHelpers(engine);
