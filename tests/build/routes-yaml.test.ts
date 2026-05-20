@@ -31,6 +31,10 @@ describe('loadRoutesYaml', () => {
         '  /featured/: featured',
         '  /about/:',
         '    template: about',
+        '  /apple-news/:',
+        '    controller: channel',
+        '    template: apple-news',
+        '    filter: tag:[iphone,ipad,mac]',
         '    content_type: html',
         '',
         'collections:',
@@ -49,6 +53,11 @@ describe('loadRoutesYaml', () => {
     expect(yaml.routes['/featured/']).toBe('featured');
     expect(yaml.routes['/about/']).toEqual({
       template: 'about',
+    });
+    expect(yaml.routes['/apple-news/']).toEqual({
+      controller: 'channel',
+      template: 'apple-news',
+      filter: 'tag:[iphone,ipad,mac]',
       content_type: 'html',
     });
     expect(yaml.collections['/']).toEqual({
@@ -148,6 +157,11 @@ describe('resolveRouteEntries', () => {
     const yaml = emptyRoutesYaml();
     yaml.routes['/about/'] = { template: 'about' };
     yaml.routes['/data/'] = { template: 'tag', data: 'tag.info', content_type: 'json' };
+    yaml.routes['/apple-news/'] = {
+      controller: 'channel',
+      template: 'apple-news',
+      filter: 'tag:[iphone,ipad,mac]',
+    };
     const byUrl = Object.fromEntries(resolveRouteEntries(yaml).map((r) => [r.url, r]));
     expect(byUrl['/about/']).toEqual({
       url: '/about/',
@@ -159,6 +173,13 @@ describe('resolveRouteEntries', () => {
       template: 'tag',
       content_type: 'json',
       data: 'tag.info',
+    });
+    expect(byUrl['/apple-news/']).toEqual({
+      url: '/apple-news/',
+      template: 'apple-news',
+      controller: 'channel',
+      filter: 'tag:[iphone,ipad,mac]',
+      content_type: 'html',
     });
   });
 });

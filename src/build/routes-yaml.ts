@@ -24,6 +24,7 @@ import { logger } from '~/util/logger.ts';
 //                              templates or `undefined` for disabled kinds
 
 const routeContentTypeSchema = z.enum(['html', 'rss', 'atom', 'plain', 'json']);
+const routeControllerSchema = z.enum(['channel']);
 
 const routeEntryObjectSchema = z
   .object({
@@ -31,6 +32,14 @@ const routeEntryObjectSchema = z
       .string()
       .min(1)
       .describe('Template name (without `.hbs`) that should render this URL.'),
+    controller: routeControllerSchema
+      .optional()
+      .describe('Optional Ghost route controller. `channel` emits a filtered post listing.'),
+    filter: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Ghost/NQL-style post filter used by `controller: channel` routes.'),
     content_type: routeContentTypeSchema
       .optional()
       .describe('Output content type. Defaults to `html`.'),
@@ -112,6 +121,8 @@ export type TrailingSlashPolicy = 'always' | 'never' | 'preserve';
 export interface ResolvedRouteEntry {
   url: string;
   template: string;
+  controller?: z.infer<typeof routeControllerSchema>;
+  filter?: string;
   content_type: z.infer<typeof routeContentTypeSchema>;
   data?: string;
 }
@@ -170,6 +181,8 @@ export function resolveRouteEntries(yaml: RoutesYaml): ResolvedRouteEntry[] {
       template: entry.template,
       content_type: entry.content_type ?? 'html',
     };
+    if (entry.controller !== undefined) resolved.controller = entry.controller;
+    if (entry.filter !== undefined) resolved.filter = entry.filter;
     if (entry.data !== undefined) resolved.data = entry.data;
     out.push(resolved);
   }

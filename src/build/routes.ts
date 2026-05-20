@@ -5,7 +5,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
-import { type PostUrlAssignment, assignPostUrls } from './permalinks.ts';
+import { type PostUrlAssignment, assignPostUrls, parseFilter } from './permalinks.ts';
 import {
   type ResolvedCollection,
   type ResolvedRouteEntry,
@@ -223,11 +223,12 @@ export function planRoutes(opts: {
     }
   }
 
-  // `routes:` section from `routes.yaml` — pin a URL to a template. Most
-  // custom routes render with only the global context. Wave's `/blog/`
-  // channel is handled as a small compatibility exception because the theme
-  // ships an empty `blog.hbs` and expects Ghost channel routing to feed an
-  // index-like post listing.
+  // `routes:` section from `routes.yaml` — pin a URL to a template. Plain
+  // custom routes render with only the global context. Ghost channel routes
+  // (`controller: channel`) render an index-like, optionally-filtered post
+  // listing. Wave's historical `/blog/` route is kept as a compatibility
+  // exception because that theme shipped an empty `blog.hbs` while still
+  // expecting channel semantics.
   const seenCustomUrls = new Set<string>();
   for (const entry of resolveRouteEntries(routesYaml)) {
     if (seenCustomUrls.has(entry.url)) {
@@ -482,6 +483,13 @@ function resolveCustomChannelPosts(
   assignments: ReadonlyMap<string, PostUrlAssignment>,
   collections: readonly ResolvedCollection[],
 ): Post[] | undefined {
+  if (entry.controller === 'channel') {
+    const { predicate, warnings } = parseFilter(entry.filter);
+    for (const warning of warnings) {
+      logger.warn(`routes.yaml: route '${entry.url}' filter: ${warning}`);
+    }
+    return posts.filter(predicate);
+  }
   if (!isWaveBlogChannel(entry)) return undefined;
   const collection = collections.find((candidate) => sameRouteUrl(candidate.url, entry.url));
   if (!collection) return [...posts];

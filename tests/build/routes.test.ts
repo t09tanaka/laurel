@@ -3,6 +3,7 @@ import { type RoutesYaml, emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
+import { createEngine } from '~/render/engine.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
 function routesYamlWith(routes: RoutesYaml['routes']): RoutesYaml {
@@ -1110,6 +1111,60 @@ describe('planRoutes — routes.yaml routes section', () => {
     const blog = routes.find((r) => r.kind === 'custom' && r.url === '/blog/');
     expect(blog?.template).toBe('blog');
     expect(blog?.data.posts?.map((p) => p.slug)).toEqual(['hello']);
+  });
+
+  test('controller: channel routes render a filtered, paginated post list', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const iphone = makeTag('iphone');
+    const ipad = makeTag('ipad');
+    const mac = makeTag('mac');
+    const android = makeTag('android');
+    const posts = [
+      makePost('iphone-17', { tags: [iphone], primary_tag: iphone }),
+      makePost('ipad-pro', { tags: [ipad], primary_tag: ipad }),
+      makePost('pixel-news', { tags: [android], primary_tag: android }),
+      makePost('macbook-air', { tags: [mac], primary_tag: mac }),
+    ];
+    const content = makeGraph({ posts, tags: [iphone, ipad, mac, android] });
+    const theme = makeTheme();
+    theme.templates['apple-news'] = '{{#foreach posts}}{{slug}}|{{/foreach}}';
+
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({
+        '/apple-news/': {
+          controller: 'channel',
+          template: 'apple-news',
+          filter: 'tag:[iphone,ipad,mac]',
+        },
+      }),
+    });
+
+    const firstPage = routes.find((r) => r.kind === 'custom' && r.url === '/apple-news/');
+    const secondPage = routes.find((r) => r.kind === 'custom' && r.url === '/apple-news/page/2/');
+    expect(firstPage).toBeDefined();
+    expect(secondPage).toBeDefined();
+    if (!firstPage || !secondPage) throw new Error('Expected channel route pages to be planned');
+    expect(firstPage?.template).toBe('apple-news');
+    expect(firstPage?.outputPath).toBe('apple-news/index.html');
+    expect(firstPage?.data.posts?.map((p) => p.slug)).toEqual(['iphone-17', 'ipad-pro']);
+    expect(firstPage?.data.pagination).toMatchObject({
+      page: 1,
+      pages: 2,
+      total: 3,
+      next: 2,
+      base_url: '/apple-news/',
+      next_url: '/apple-news/page/2/',
+    });
+    expect(secondPage?.data.posts?.map((p) => p.slug)).toEqual(['macbook-air']);
+    expect(secondPage?.indexable).toBe(false);
+
+    const engine = createEngine({ config, content, theme });
+    expect(engine.render(firstPage)).toBe('iphone-17|ipad-pro|');
+    expect(engine.render(secondPage)).toBe('macbook-air|');
   });
 });
 
