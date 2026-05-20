@@ -1722,6 +1722,36 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<article class="kg-width-wide kg-tone-dark">Hash</article>');
   });
 
+  test('theme partial hash params create a partial scope for header background (issue #727)', () => {
+    const theme = makeTheme(
+      {
+        post: '{{> "header" background=feature_image}}',
+      },
+      {
+        header:
+          '{{#if background}}<header data-background="{{background}}">{{title}}</header>{{else}}no background{{/if}}',
+      },
+    );
+    const post: Post = makePost({
+      title: 'Liebling header',
+      feature_image: '/content/images/liebling-cover.jpg',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const html = engine.render({
+      kind: 'post',
+      url: '/liebling-header/',
+      outputPath: 'liebling-header/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    });
+
+    expect(html).toBe(
+      '<header data-background="/content/images/liebling-cover.jpg">Liebling header</header>',
+    );
+  });
+
   test('nested templates resolve parent-directory layout directives (issue #721)', () => {
     const theme = makeTheme({
       'default-wide': '<!doctype html><body data-layout="wide">{{{body}}}</body>',
