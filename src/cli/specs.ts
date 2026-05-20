@@ -779,19 +779,19 @@ export const TAGS_SPEC: CommandSpec = {
     },
     json: {
       type: 'boolean',
-      description: 'Emit results as JSON for CI consumption (both `list` and `rename`)',
+      description: 'Emit results as JSON for CI consumption (`list`, `rename`, and `merge`)',
     },
     'dry-run': {
       type: 'boolean',
       description:
-        'On `rename`: scan and report the files that would change without writing anything',
+        'On `rename`/`merge`: scan and report the files that would change without writing anything',
     },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically)',
+        '`list` (show tags), `rename <old-slug> <new-slug>`, or `merge <from> [from...] <into>` (rewrite post/page tag references and safely handle tag files)',
       required: true,
       variadic: true,
     },
@@ -801,6 +801,7 @@ export const TAGS_SPEC: CommandSpec = {
     'nectar tags list --orphaned                  # tags defined but unused',
     'nectar tags rename old-tag new-tag',
     'nectar tags rename old new --dry-run         # preview files that would change',
+    'nectar tags merge draft old canonical --dry-run',
   ],
 };
 

@@ -697,7 +697,7 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically) |
+| `<subcommand...>` | required (variadic) | `list` (show tags), `rename <old-slug> <new-slug>`, or `merge <from> [from...] <into>` (rewrite post/page tag references and safely handle tag files) |
 
 Options:
 
@@ -706,8 +706,8 @@ Options:
 | `-c, --config <path>` | string | `NECTAR_TAGS_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--orphaned` | boolean | `NECTAR_TAGS_ORPHANED` | Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only) |
 | `--unused` | boolean | `NECTAR_TAGS_UNUSED` | Alias for --orphaned (`list` only) |
-| `-j, --json` | boolean | `NECTAR_TAGS_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
-| `--dry-run` | boolean | `NECTAR_TAGS_DRY_RUN` | On `rename`: scan and report the files that would change without writing anything |
+| `-j, --json` | boolean | `NECTAR_TAGS_JSON` | Emit results as JSON for CI consumption (`list`, `rename`, and `merge`) |
+| `--dry-run` | boolean | `NECTAR_TAGS_DRY_RUN` | On `rename`/`merge`: scan and report the files that would change without writing anything |
 
 Examples:
 
@@ -716,6 +716,7 @@ nectar tags list                             # all tags + post counts
 nectar tags list --orphaned                  # tags defined but unused
 nectar tags rename old-tag new-tag
 nectar tags rename old new --dry-run         # preview files that would change
+nectar tags merge draft old canonical --dry-run
 ```
 
 ### `nectar authors`

@@ -4,14 +4,14 @@ Usage:
   nectar tags [--config <path>] [--orphaned] [--unused] [--json] [--dry-run] <subcommand...>
 
 Arguments:
-  subcommand          `list` (show tags) or `rename <old-slug> <new-slug>` (rewrite every post/page frontmatter reference + move `content/tags/<old>.md` to `<new>.md` atomically)
+  subcommand          `list` (show tags), `rename <old-slug> <new-slug>`, or `merge <from> [from...] <into>` (rewrite post/page tag references and safely handle tag files)
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --orphaned          Show only tags that are defined under content/tags/ but referenced by zero posts (`list` only)
   --unused            Alias for --orphaned (`list` only)
-  -j, --json          Emit results as JSON for CI consumption (both `list` and `rename`)
-  --dry-run           On `rename`: scan and report the files that would change without writing anything
+  -j, --json          Emit results as JSON for CI consumption (`list`, `rename`, and `merge`)
+  --dry-run           On `rename`/`merge`: scan and report the files that would change without writing anything
   -h, --help          Show help for this command
 
 Environment variables:
@@ -29,3 +29,4 @@ Examples:
   nectar tags list --orphaned                  # tags defined but unused
   nectar tags rename old-tag new-tag
   nectar tags rename old new --dry-run         # preview files that would change
+  nectar tags merge draft old canonical --dry-run

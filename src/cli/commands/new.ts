@@ -1,6 +1,5 @@
 import { access } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
-import slugify from 'slugify';
 import { loadConfig } from '~/config/loader.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -8,6 +7,7 @@ import { t } from '../i18n/index.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
+import { slugifyCliValue } from '../slug.ts';
 import { NEW_SPEC } from '../specs.ts';
 
 type Kind = 'post' | 'page' | 'tag' | 'author';
@@ -84,7 +84,7 @@ export async function runNew(args: string[]): Promise<number> {
   }
 
   const slugSource = isPostOrPage ? slugOverrideRaw || remainder : remainder;
-  const slug = slugifyNewValue(slugSource);
+  const slug = slugifyCliValue(slugSource);
   if (!slug) {
     process.stderr.write(`${t('new.invalidSlug')}\n`);
     return 2;
@@ -203,44 +203,8 @@ function parseCsvList(raw: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
-    .map((s) => slugifyNewValue(s))
+    .map((s) => slugifyCliValue(s))
     .filter((s) => s.length > 0);
-}
-
-function slugifyNewValue(value: string): string {
-  const asciiSlug = slugify(value, { lower: true, strict: true });
-  if (!hasNonAscii(value)) return asciiSlug;
-
-  const normalized = value.normalize('NFKC').toLowerCase();
-  let slug = '';
-  let pendingDash = false;
-
-  for (const char of normalized) {
-    const asciiPiece = slugify(char, { lower: true, strict: true });
-    const piece = asciiPiece || (isUnicodeSlugChar(char) ? char : '');
-
-    if (piece) {
-      if (pendingDash && slug.length > 0 && !slug.endsWith('-')) slug += '-';
-      slug += piece;
-      pendingDash = false;
-    } else if (isSlugSeparator(char)) {
-      pendingDash = slug.length > 0;
-    }
-  }
-
-  return slug.replace(/-+/g, '-').replace(/^-|-$/g, '');
-}
-
-function hasNonAscii(value: string): boolean {
-  return [...value].some((char) => (char.codePointAt(0) ?? 0) > 0x7f);
-}
-
-function isUnicodeSlugChar(char: string): boolean {
-  return /[\p{Letter}\p{Number}]/u.test(char);
-}
-
-function isSlugSeparator(char: string): boolean {
-  return /[\s\-_‐‑‒–—―・･]/u.test(char);
 }
 
 function titleFromSlug(slug: string): string {
