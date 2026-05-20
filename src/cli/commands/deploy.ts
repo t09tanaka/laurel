@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { changedPathsAbsPath, loadBuildManifest } from '~/build/build-manifest.ts';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
@@ -85,6 +86,7 @@ function resolveAutoTargetInArgs(
   // Help / version short-circuit: leave the original args alone so the
   // standard parser path handles `--help` / `-h` formatting.
   if (args.includes('--help') || args.includes('-h')) return args;
+  if (readTargetFlagValue(args) !== undefined) return args;
 
   let positionalIdx = -1;
   let positionalValue: string | undefined;
@@ -135,6 +137,20 @@ function resolveAutoTargetInArgs(
   return next;
 }
 
+function readTargetFlagValue(args: readonly string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === undefined) continue;
+    if (tok === '--') break;
+    if (tok.startsWith('--target=')) return tok.slice('--target='.length);
+    if (tok === '--target') {
+      const next = args[i + 1];
+      return next !== undefined && !next.startsWith('-') ? next : undefined;
+    }
+  }
+  return undefined;
+}
+
 function countFilesRecursive(dir: string, max: number): number {
   let count = 0;
   const stack: string[] = [dir];
@@ -166,6 +182,16 @@ function countFilesRecursive(dir: string, max: number): number {
   return count;
 }
 
+interface DeployFileSummary {
+  path: string;
+  size: number;
+}
+
+interface DeployDryRunSummary {
+  files: DeployFileSummary[];
+  changedPaths: string[] | undefined;
+}
+
 export interface DeployPlan {
   target: DeployTarget;
   // The external command + argv that would be spawned. For multi-step targets
@@ -191,11 +217,9 @@ export interface RunDeployOptions {
 
 export async function runDeploy(args: string[], options: RunDeployOptions = {}): Promise<number> {
   const env = options.env ?? process.env;
-  // The DEPLOY_SPEC marks `<target>` as required, so parseCommand would reject
-  // a bare `nectar deploy` (or `nectar deploy auto`) before we get a chance to
-  // run env-driven detection. Peek at the first non-flag positional and, when
-  // it is missing or the literal 'auto', swap in the detected target before
-  // delegating to parseCommand. Flags can still appear before the positional.
+  // Peek at the first non-flag positional and, when it is missing or the
+  // literal 'auto', swap in the detected target before delegating to
+  // parseCommand. Flags can still appear before the positional.
   const effectiveArgs = resolveAutoTargetInArgs(args, env);
   if (typeof effectiveArgs === 'number') return effectiveArgs;
 
@@ -218,19 +242,21 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   const cwd = options.cwd ?? process.cwd();
 
   const targetRaw = parsed.positionals[0];
-  if (targetRaw === undefined) {
+  const targetFromFlag = pickString(parsed.values.target);
+  const targetValue = targetRaw ?? targetFromFlag;
+  if (targetValue === undefined) {
     process.stderr.write('Missing required argument: <target>\n\n');
     process.stderr.write(formatCommandHelp(DEPLOY_SPEC));
     return EXIT_CODES.usage;
   }
-  if (!isDeployTarget(targetRaw)) {
+  if (!isDeployTarget(targetValue)) {
     process.stderr.write(
-      `Unknown deploy target: ${targetRaw} (expected one of: auto, ${DEPLOY_TARGETS.join(', ')})\n\n`,
+      `Unknown deploy target: ${targetValue} (expected one of: auto, ${DEPLOY_TARGETS.join(', ')})\n\n`,
     );
     process.stderr.write(formatCommandHelp(DEPLOY_SPEC));
     return EXIT_CODES.usage;
   }
-  const target: DeployTarget = targetRaw;
+  const target: DeployTarget = targetValue;
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const dryRun = parsed.values['dry-run'] === true;
   const runBuildFirst = parsed.values.build === true;
@@ -308,11 +334,92 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   }
 
   if (dryRun) {
-    process.stdout.write(`${plan.summary}\n`);
+    const deploySummary = await collectDeployDryRunSummary(outputDir);
+    process.stdout.write(formatDeployDryRun(plan, deploySummary));
     return EXIT_CODES.ok;
   }
 
   return await executePlan(plan);
+}
+
+async function collectDeployDryRunSummary(outputDir: string): Promise<DeployDryRunSummary> {
+  const buildManifest = await loadBuildManifest(outputDir);
+  const files =
+    buildManifest?.files.map((file) => ({ path: file.path, size: file.size })) ??
+    listFilesRecursive(outputDir);
+  return {
+    files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
+    changedPaths: readChangedPaths(outputDir),
+  };
+}
+
+function listFilesRecursive(dir: string): DeployFileSummary[] {
+  const files: DeployFileSummary[] = [];
+  const stack: string[] = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    if (cur === undefined) break;
+    let entries: string[];
+    try {
+      entries = readdirSync(cur);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      const full = join(cur, name);
+      let st: ReturnType<typeof statSync>;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      files.push({ path: toPosix(relative(dir, full)), size: st.size });
+    }
+  }
+  return files;
+}
+
+function readChangedPaths(outputDir: string): string[] | undefined {
+  const path = changedPathsAbsPath(outputDir);
+  if (!existsSync(path)) return undefined;
+  const body = readFileSync(path, 'utf8');
+  return body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function formatDeployDryRun(plan: DeployPlan, summary: DeployDryRunSummary): string {
+  const lines: string[] = [
+    plan.summary,
+    '',
+    `Files to deploy for ${plan.target} (${summary.files.length}):`,
+  ];
+  if (summary.files.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const file of summary.files) {
+      lines.push(`  ${file.path} (${formatBytes(file.size)})`);
+    }
+  }
+  lines.push('', 'Diff against last build:');
+  if (summary.changedPaths === undefined) {
+    lines.push('  (unavailable: no .nectar/changed-paths.txt)');
+  } else if (summary.changedPaths.length === 0) {
+    lines.push('  (no changed paths)');
+  } else {
+    lines.push(`Changed since previous build (${summary.changedPaths.length}):`);
+    for (const path of summary.changedPaths) lines.push(`  ${path}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatBytes(bytes: number): string {
+  return `${bytes} B`;
 }
 
 export interface PlanDeployArgs {
@@ -580,4 +687,8 @@ function quoteArg(arg: string): string {
   if (arg.length === 0) return "''";
   if (/^[A-Za-z0-9_\-+=:,.\/@%]+$/.test(arg)) return arg;
   return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+function toPosix(p: string): string {
+  return sep === '/' ? p : p.split(sep).join('/');
 }

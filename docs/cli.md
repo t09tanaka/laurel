@@ -887,14 +887,14 @@ Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel
 Usage:
 
 ```
-nectar deploy [--config <path>] [--build] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] <target>
+nectar deploy [--config <path>] [--build] [--target <target>] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] [target]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<target>` | required | Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync` |
+| `[target]` | optional | Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`. May also be passed as `--target <target>` |
 
 Options:
 
@@ -902,7 +902,8 @@ Options:
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_DEPLOY_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `-b, --build` | boolean | `NECTAR_DEPLOY_BUILD` | Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step |
-| `--dry-run` | boolean | `NECTAR_DEPLOY_DRY_RUN` | Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed |
+| `--target <target>` | string | `NECTAR_DEPLOY_TARGET` | Hosting target as a flag form for CI templates that prefer named options. Equivalent to the positional <target> |
+| `--dry-run` | boolean | `NECTAR_DEPLOY_DRY_RUN` | Print the external command(s), files that would be deployed for the selected target, and the changed-path diff from the last build without spawning anything |
 | `--project-name <name>` | string | `NECTAR_DEPLOY_PROJECT_NAME` | cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config |
 | `--branch <name>` | string | `NECTAR_DEPLOY_BRANCH` | cloudflare: branch label forwarded to `wrangler pages deploy --branch=<name>`. github-pages: branch to push the site to (defaults to `[deploy.github_pages].branch` or `gh-pages`) |
 | `--site-id <id>` | string | `NECTAR_DEPLOY_SITE_ID` | netlify only: Netlify site id forwarded to `netlify deploy --site=<id>`. Overrides `[deploy.netlify].site_id` |

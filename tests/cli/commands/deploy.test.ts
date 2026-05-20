@@ -60,6 +60,38 @@ async function makeFixtureWithDist(extraConfig: string[] = []): Promise<string> 
   return dir;
 }
 
+async function writeDeployBuildManifest(dir: string): Promise<void> {
+  await mkdir(join(dir, 'dist/.nectar'), { recursive: true });
+  await writeFile(
+    join(dir, 'dist/.nectar/build-manifest.json'),
+    `${JSON.stringify(
+      {
+        schema_version: 2,
+        generated_at: '2026-05-21T00:00:00.000Z',
+        nectar: { version: '0.1.0' },
+        theme: {
+          name: 'test-theme',
+          version: '1.0.0',
+          fingerprint: 'theme',
+          custom_settings: {},
+        },
+        config_hash: 'config',
+        hash_algorithm: 'sha256',
+        route_count: 1,
+        asset_count: 1,
+        routes: [],
+        files: [
+          { path: 'assets/app.css', size: 18, hash: 'css-hash' },
+          { path: 'index.html', size: 30, hash: 'html-hash' },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(join(dir, 'dist/.nectar/changed-paths.txt'), '/\n/index.html\n/assets/app.css\n');
+}
+
 describe('cli deploy', () => {
   test('--help advertises supported targets and --dry-run', async () => {
     const { stdout, exitCode } = await runCli(['deploy', '--help']);
@@ -172,6 +204,24 @@ describe('cli deploy', () => {
       expect(stdout).toContain('netlify deploy');
       expect(stdout).toContain('--dir');
       expect(stdout).toContain('--prod');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('dry-run prints target file list and last-build diff from the build manifest', async () => {
+    const dir = await makeFixtureWithDist();
+    await writeDeployBuildManifest(dir);
+    try {
+      const { stdout, exitCode } = await runCli(['deploy', '--target=netlify', '--dry-run'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('netlify deploy');
+      expect(stdout).toContain('Files to deploy for netlify (2):');
+      expect(stdout).toContain('  assets/app.css (18 B)');
+      expect(stdout).toContain('  index.html (30 B)');
+      expect(stdout).toContain('Changed since previous build (3):');
+      expect(stdout).toContain('  /index.html');
+      expect(stdout).toContain('  /assets/app.css');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

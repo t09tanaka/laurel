@@ -1189,10 +1189,16 @@ export const DEPLOY_SPEC: CommandSpec = {
       description:
         'Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step',
     },
+    target: {
+      type: 'string',
+      description:
+        'Hosting target as a flag form for CI templates that prefer named options. Equivalent to the positional <target>',
+      placeholder: '<target>',
+    },
     'dry-run': {
       type: 'boolean',
       description:
-        'Print the external command(s) the target would run (or the rsync source/destination, or the gh-pages branch push plan) without spawning anything. Used for CI smoke tests and so reviewers can audit the spawn payload before it is executed',
+        'Print the external command(s), files that would be deployed for the selected target, and the changed-path diff from the last build without spawning anything',
     },
     'project-name': {
       type: 'string',
@@ -1256,8 +1262,8 @@ export const DEPLOY_SPEC: CommandSpec = {
     {
       name: 'target',
       description:
-        'Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`',
-      required: true,
+        'Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`. May also be passed as `--target <target>`',
+      required: false,
     },
   ],
   examples: [
