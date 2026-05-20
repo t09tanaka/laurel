@@ -314,3 +314,282 @@ describe('get helper filter on empty featured result', () => {
     expect(tplFalse({})).toBe('a,b,');
   });
 });
+
+// #450 — null / true / false are NQL typed scalars, not string sentinels.
+// `featured:null` means "featured IS NULL", which on Nectar's content graph
+// translates to `item.featured == null`. The previous implementation compared
+// the literal string "null", silently matching nothing.
+describe('get helper filter — typed null/true/false values', () => {
+  test('featured:null matches posts whose featured is absent', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2026-05-19T00:00:00.000Z', featured: true },
+      { id: 'b', slug: 'b', published_at: '2026-05-18T00:00:00.000Z' /* no featured */ },
+      { id: 'c', slug: 'c', published_at: '2026-05-17T00:00:00.000Z', featured: null },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:null" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('b,c,');
+  });
+
+  test('featured:-null negates and returns posts where featured is set', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2026-05-19T00:00:00.000Z', featured: true },
+      { id: 'b', slug: 'b', published_at: '2026-05-18T00:00:00.000Z' /* missing */ },
+      { id: 'c', slug: 'c', published_at: '2026-05-17T00:00:00.000Z', featured: false },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:-null" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,c,');
+  });
+
+  test('featured:true uses the boolean literal, not the string "true"', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2026-05-19T00:00:00.000Z', featured: true },
+      { id: 'b', slug: 'b', published_at: '2026-05-18T00:00:00.000Z', featured: false },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:true" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,');
+  });
+});
+
+// #451 — Range comparators (`>`, `<`, `>=`, `<=`) on numeric and date-shaped
+// fields. ISO 8601 strings sort correctly under lexicographic compare, so the
+// helper can stay storage-agnostic for `published_at`.
+describe('get helper filter — comparison operators', () => {
+  test('published_at:>DATE filters posts strictly after the cutoff', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2024-06-01T00:00:00.000Z' },
+      { id: 'b', slug: 'b', published_at: '2024-01-15T00:00:00.000Z' },
+      { id: 'c', slug: 'c', published_at: '2023-12-31T23:59:59.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="published_at:>2024-01-01" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('numeric field comparison (count.posts:>=N) on tags', () => {
+    const tags = [
+      { id: 't1', slug: 'news', name: 'News', count: 4 },
+      { id: 't2', slug: 'opinion', name: 'Opinion', count: 1 },
+      { id: 't3', slug: 'sports', name: 'Sports', count: 7 },
+    ];
+    // The `count` field on tags is a number in this fixture; the helper should
+    // compare numerically rather than lexicographically (so "10" doesn't sort
+    // before "2").
+    const engine = buildEngine({ tags });
+    const tpl = engine.hb.compile(
+      `{{#get "tags" filter="count:>=4" order="name asc" as |items|}}{{#foreach items}}{{slug}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('news,sports,');
+  });
+
+  test('<= operator includes the boundary', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2024-06-01T00:00:00.000Z' },
+      { id: 'b', slug: 'b', published_at: '2024-01-01T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="published_at:<=2024-01-01T00:00:00.000Z" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('b,');
+  });
+});
+
+// #452 — Non-indexed fields used by Source-theme partials (primary_tag,
+// primary_author, status, etc.). These flow through the linear-scan fallback.
+describe('get helper filter — extended fields', () => {
+  test('primary_tag:slug compares against the nested primary_tag.slug', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        primary_tag: { slug: 'news' },
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        primary_tag: { slug: 'opinion' },
+      },
+      {
+        id: 'c',
+        slug: 'c',
+        published_at: '2026-05-17T00:00:00.000Z',
+        primary_tag: { slug: 'news' },
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="primary_tag:news" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,c,');
+  });
+
+  test('primary_author:slug filters by the primary author slug', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        primary_author: { slug: 'alice' },
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        primary_author: { slug: 'bob' },
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="primary_author:bob" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('b,');
+  });
+
+  test('status / type / page bare-key filters compare the field directly', () => {
+    const posts = [
+      { id: 'a', slug: 'a', published_at: '2026-05-19T00:00:00.000Z', status: 'published' },
+      { id: 'b', slug: 'b', published_at: '2026-05-18T00:00:00.000Z', status: 'draft' },
+      { id: 'c', slug: 'c', published_at: '2026-05-17T00:00:00.000Z', status: 'published' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="status:published" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,c,');
+  });
+});
+
+// #453 — Top-level `,` is OR; `+` is AND. Brackets and interpolations don't
+// participate in the split.
+describe('get helper filter — OR operator', () => {
+  test('top-level comma unions two AND branches', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: true,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        featured: false,
+        tags: [{ slug: 'opinion', name: 'Opinion' }],
+        authors: [],
+      },
+      {
+        id: 'c',
+        slug: 'c',
+        published_at: '2026-05-17T00:00:00.000Z',
+        featured: false,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    // (featured:true) OR (tag:opinion) → {a, b}
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="featured:true,tag:opinion" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('comma inside brackets stays a list-element separator, not an OR', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        tags: [{ slug: 'opinion', name: 'Opinion' }],
+        authors: [],
+      },
+      {
+        id: 'c',
+        slug: 'c',
+        published_at: '2026-05-17T00:00:00.000Z',
+        tags: [{ slug: 'sports', name: 'Sports' }],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:[news,opinion]" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('mixed OR + AND: `tag:news+featured:true , tag:opinion`', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        featured: true,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+      {
+        id: 'b',
+        slug: 'b',
+        published_at: '2026-05-18T00:00:00.000Z',
+        featured: false,
+        tags: [{ slug: 'opinion', name: 'Opinion' }],
+        authors: [],
+      },
+      {
+        id: 'c',
+        slug: 'c',
+        published_at: '2026-05-17T00:00:00.000Z',
+        featured: false,
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:news+featured:true,tag:opinion" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    // Branch 1 (tag:news AND featured:true) → {a}; branch 2 (tag:opinion) → {b}.
+    expect(tpl({})).toBe('a,b,');
+  });
+
+  test('empty branches are dropped (trailing comma, double comma)', () => {
+    const posts = [
+      {
+        id: 'a',
+        slug: 'a',
+        published_at: '2026-05-19T00:00:00.000Z',
+        tags: [{ slug: 'news', name: 'News' }],
+        authors: [],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:news,," as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,');
+  });
+});

@@ -16,10 +16,25 @@ const INDEXED_SET: ReadonlySet<string> = new Set<string>(INDEXED_KEYS);
 
 export type FilterIndex = Map<IndexedKey, Map<string, Set<unknown>>>;
 
+type FilterOp = '=' | '>' | '<' | '>=' | '<=';
+
+// A single comparison: `key OP value(s)` with optional negation. `op === '='`
+// with no special-typed values is the fast path that hits the secondary index.
+// Anything else (range comparators, typed nulls, list of typed values) goes
+// through a linear scan.
 interface ParsedClause {
   key: string;
+  op: FilterOp;
   negate: boolean;
+  // Values after interpolation, before type coercion. Each is a raw string
+  // that may decode to a typed scalar via `decodeValue`.
   values: string[];
+}
+
+// Ghost-NQL supports OR at the top level via `,` and AND via `+`. Each OR
+// branch ANDs its clauses. We evaluate per branch and union the results.
+interface FilterTree {
+  branches: ParsedClause[][];
 }
 
 // Routes the Ghost `{{#get}}` filter through per-resource secondary indexes
@@ -34,19 +49,51 @@ export function applyGetFilter(
   ctx: unknown,
   route?: unknown,
 ): unknown[] {
-  const clauses = parseFilterClauses(filter, ctx, route);
-  if (clauses.length === 0) return items.slice();
+  const tree = parseFilterTree(filter, ctx, route);
+  if (tree.branches.length === 0) return items.slice();
 
-  const index = getFilterIndex(engine, resource);
-  if (!index) {
-    return items.filter((item) => clauses.every((c) => evaluateClause(item, c)));
+  // Each OR branch contributes a set; final result = union.
+  const seen = new Set<unknown>();
+  const out: unknown[] = [];
+  for (const branch of tree.branches) {
+    const matched = applyAndBranch(engine, resource, items, branch);
+    for (const it of matched) {
+      if (!seen.has(it)) {
+        seen.add(it);
+        out.push(it);
+      }
+    }
   }
+  // Preserve original order by re-projecting through `items`.
+  if (tree.branches.length === 1) return out;
+  const order = new Map<unknown, number>();
+  items.forEach((it, i) => order.set(it, i));
+  out.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  return out;
+}
+
+function applyAndBranch(
+  engine: NectarEngine,
+  resource: string,
+  items: readonly unknown[],
+  clauses: ParsedClause[],
+): unknown[] {
+  if (clauses.length === 0) return items.slice();
+  const index = getFilterIndex(engine, resource);
+  if (!index) return items.filter((item) => clauses.every((c) => evaluateClause(item, c)));
 
   let candidates: Set<unknown> | null = null;
   const unindexed: ParsedClause[] = [];
 
   for (const clause of clauses) {
-    const map = INDEXED_SET.has(clause.key) ? index.get(clause.key as IndexedKey) : undefined;
+    // Only equality lookups on indexed keys with no typed-null/typed-boolean
+    // values can use the secondary index. Range comparators and typed values
+    // fall through to per-item evaluation.
+    const indexable =
+      clause.op === '=' &&
+      INDEXED_SET.has(clause.key) &&
+      clause.values.every((v) => !isTypedLiteral(v));
+    const map = indexable ? index.get(clause.key as IndexedKey) : undefined;
     if (!map) {
       unindexed.push(clause);
       continue;
@@ -147,15 +194,53 @@ function addEntry(index: FilterIndex, key: IndexedKey, value: string, item: unkn
   set.add(item);
 }
 
-function parseFilterClauses(filter: string, ctx: unknown, route?: unknown): ParsedClause[] {
-  const clauses: ParsedClause[] = [];
-  for (const raw of filter.split('+')) {
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    const parsed = parseClause(trimmed, ctx, route);
-    if (parsed) clauses.push(parsed);
+// Splits the filter source into OR branches (top-level `,`) then AND clauses
+// (top-level `+`). Both splits skip over any character that sits inside a
+// `[...]` bracket group or `{{...}}` interpolation, so `tag:[a,b]+id:c` parses
+// as `[tag:[a,b], id:c]` and `id:{{post.id,fallback}}` keeps the embedded `,`
+// inside the interpolation rather than becoming an OR boundary.
+function parseFilterTree(filter: string, ctx: unknown, route?: unknown): FilterTree {
+  const branches: ParsedClause[][] = [];
+  for (const branchSrc of splitTopLevel(filter, ',')) {
+    const clauses: ParsedClause[] = [];
+    for (const raw of splitTopLevel(branchSrc, '+')) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      const parsed = parseClause(trimmed, ctx, route);
+      if (parsed) clauses.push(parsed);
+    }
+    if (clauses.length > 0) branches.push(clauses);
   }
-  return clauses;
+  return { branches };
+}
+
+function splitTopLevel(src: string, delim: ',' | '+'): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let interpolating = false;
+  let start = 0;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (!interpolating && ch === '{' && src[i + 1] === '{') {
+      interpolating = true;
+      i += 1;
+      continue;
+    }
+    if (interpolating && ch === '}' && src[i + 1] === '}') {
+      interpolating = false;
+      i += 1;
+      continue;
+    }
+    if (interpolating) continue;
+    if (ch === '[') depth += 1;
+    else if (ch === ']') depth = Math.max(0, depth - 1);
+    else if (ch === delim && depth === 0) {
+      out.push(src.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(src.slice(start));
+  return out;
 }
 
 function parseClause(clause: string, ctx: unknown, route?: unknown): ParsedClause | null {
@@ -169,6 +254,13 @@ function parseClause(clause: string, ctx: unknown, route?: unknown): ParsedClaus
     negate = true;
     value = value.slice(1);
   }
+  // Leading comparison operator: `>`, `<`, `>=`, `<=`. Anything else is `=`.
+  let op: FilterOp = '=';
+  const opMatch = value.match(/^(<=|>=|<|>)\s*/);
+  if (opMatch) {
+    op = opMatch[1] as FilterOp;
+    value = value.slice(opMatch[0].length);
+  }
   let values: string[];
   if (value.startsWith('[') && value.endsWith(']')) {
     values = value
@@ -178,7 +270,7 @@ function parseClause(clause: string, ctx: unknown, route?: unknown): ParsedClaus
   } else {
     values = [value];
   }
-  return { key, negate, values };
+  return { key, op, negate, values };
 }
 
 // Ghost themes write filter expressions like `id:-{{post.id}}` that need to
@@ -211,39 +303,156 @@ function resolvePath(source: unknown, path: string[]): unknown {
 
 function evaluateClause(item: unknown, clause: ParsedClause): boolean {
   const obj = item as Record<string, unknown>;
-  const matched = clause.values.some((value) => fieldMatches(obj, clause.key, value));
+  const matched = clause.values.some((value) => fieldMatches(obj, clause.key, value, clause.op));
   return clause.negate ? !matched : matched;
 }
 
-function fieldMatches(item: Record<string, unknown>, key: string, value: string): boolean {
+// NQL has typed scalar literals: `null`, `true`, `false`, ISO-ish dates, and
+// numbers. `featured:null` is "IS NULL", not the string "null" — without this,
+// a theme writing `featured:-null` to mean "featured is set" would silently
+// match nothing.
+function isTypedLiteral(value: string): boolean {
+  return value === 'null' || value === 'true' || value === 'false';
+}
+
+// Maps the raw value into its NQL-decoded form. Strings stay strings; the
+// literals `null`/`true`/`false` decode to their JS counterparts; bare numeric
+// strings decode to numbers (so `>5` reads as a numeric comparison).
+function decodeValue(value: string): string | number | boolean | null {
+  if (value === 'null') return null;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value !== '' && !Number.isNaN(Number(value)) && /^-?\d+(?:\.\d+)?$/.test(value)) {
+    return Number(value);
+  }
+  return value;
+}
+
+// `fieldMatches` is the per-item evaluator used when the secondary index can't
+// service the clause (range comparator, typed literal, or non-indexed key).
+function fieldMatches(
+  item: Record<string, unknown>,
+  key: string,
+  value: string,
+  op: FilterOp,
+): boolean {
+  const decoded = decodeValue(value);
+  const actual = resolveField(item, key);
+  if (op === '=') return compareEq(actual, decoded);
+  return compareRange(actual, decoded, op);
+}
+
+// Resolves the field path used in NQL keys. Ghost surfaces `primary_tag` and
+// `primary_author` as objects; the loader's pre-computed `primary_tag.slug` is
+// what themes filter on. Date fields are kept as strings so lexicographic
+// compare on ISO timestamps matches numeric/date order.
+function resolveField(item: Record<string, unknown>, key: string): unknown {
   switch (key) {
     case 'id':
-      return String(item.id ?? '') === value;
+      return item.id;
     case 'slug':
-      return String(item.slug ?? '') === value;
+      return item.slug;
     case 'featured':
-      return Boolean(item.featured) === (value === 'true');
+      return item.featured;
+    case 'visibility':
+      return item.visibility ?? 'public';
     case 'tag':
     case 'tags':
-      return (
-        Array.isArray(item.tags) &&
-        item.tags.some((t) => {
-          const tag = t as { slug?: string; name?: string };
-          return tag.slug === value || tag.name === value;
-        })
-      );
+      return collectRefSlugs(item.tags);
     case 'author':
     case 'authors':
-      return (
-        Array.isArray(item.authors) &&
-        item.authors.some((a) => {
-          const author = a as { slug?: string; name?: string };
-          return author.slug === value || author.name === value;
-        })
-      );
-    case 'visibility':
-      return String(item.visibility ?? 'public') === value;
+      return collectRefSlugs(item.authors);
+    case 'primary_tag':
+      return (item.primary_tag as { slug?: unknown } | undefined)?.slug ?? null;
+    case 'primary_author':
+      return (item.primary_author as { slug?: unknown } | undefined)?.slug ?? null;
+    case 'published_at':
+    case 'updated_at':
+    case 'created_at':
+      return item[key] ?? null;
+    case 'status':
+    case 'type':
+    case 'page':
+    case 'feature_image':
+    case 'tier':
+    case 'tiers':
+      return item[key] ?? null;
     default:
-      return String(item[key] ?? '') === value;
+      return item[key] ?? null;
   }
+}
+
+function collectRefSlugs(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    const ref = entry as { slug?: unknown; name?: unknown };
+    if (typeof ref?.slug === 'string') out.push(ref.slug);
+    if (typeof ref?.name === 'string' && ref.name !== ref.slug) out.push(ref.name);
+  }
+  return out;
+}
+
+function compareEq(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(actual)) return actual.some((v) => compareEq(v, expected));
+  if (expected === null) return actual == null;
+  if (expected === true || expected === false) {
+    if (typeof actual === 'boolean') return actual === expected;
+    return Boolean(actual) === expected;
+  }
+  if (typeof expected === 'number') {
+    if (typeof actual === 'number') return actual === expected;
+    if (typeof actual === 'string') {
+      const n = Number(actual);
+      return Number.isFinite(n) && n === expected;
+    }
+    return false;
+  }
+  // expected is string here
+  if (actual == null) return false;
+  return String(actual) === expected;
+}
+
+// Range comparators (`>`, `<`, `>=`, `<=`) work on numbers and on string-typed
+// dates. String values compare lexicographically; ISO 8601 timestamps sort
+// correctly under string compare, so `published_at:>"2024-01-01"` Just Works.
+function compareRange(actual: unknown, expected: unknown, op: '>' | '<' | '>=' | '<='): boolean {
+  if (actual == null || expected == null) return false;
+  if (Array.isArray(actual)) return actual.some((v) => compareRange(v, expected, op));
+  const an = toNumeric(actual);
+  const en = toNumeric(expected);
+  if (an !== null && en !== null) {
+    switch (op) {
+      case '>':
+        return an > en;
+      case '<':
+        return an < en;
+      case '>=':
+        return an >= en;
+      case '<=':
+        return an <= en;
+    }
+  }
+  const as = String(actual);
+  const es = String(expected);
+  switch (op) {
+    case '>':
+      return as > es;
+    case '<':
+      return as < es;
+    case '>=':
+      return as >= es;
+    case '<=':
+      return as <= es;
+  }
+}
+
+function toNumeric(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'string' && value.trim() !== '' && /^-?\d+(?:\.\d+)?$/.test(value.trim())) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
