@@ -124,6 +124,10 @@ import {
 } from './search.ts';
 import { copyStaticDir, resolveStaticPassthroughDirs } from './static-passthrough.ts';
 import { containsSubscribeFormMarkup, transformSubscribeForms } from './subscribe-forms.ts';
+import {
+  findMissingThemeAssetReferences,
+  formatMissingThemeAssetReference,
+} from './theme-asset-references.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -604,6 +608,9 @@ async function runBuild({
 
   for (const ref of findMissingAssetReferences({ cwd, config, content })) {
     logger.warn(formatMissingAssetReference(ref));
+  }
+  for (const ref of findMissingThemeAssetReferences(theme)) {
+    logger.warn(formatMissingThemeAssetReference(ref));
   }
 
   const routes = await timed(profiler, 'plan', () =>

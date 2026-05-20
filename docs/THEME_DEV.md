@@ -197,8 +197,10 @@ hard-link them.
 
 If your theme references an asset that doesn't exist in the asset map, the
 helper still emits a path (`<basePath>/assets/<your-path>`). It just isn't
-fingerprinted — useful for build artefacts produced by an external pipeline,
-but you lose cache busting.
+fingerprinted. `nectar build` also prints a warning for literal
+`{{asset "..."}}` references that are missing on disk. This commonly means the
+theme's own build step has not run yet; run the theme's gulp/npm asset pipeline
+first so files such as `assets/built/screen.css` exist before building Nectar.
 
 ### Favicons and touch icons
 

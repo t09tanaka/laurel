@@ -879,6 +879,28 @@ date: 2026-01-01T00:00:00Z
     expect(manifest['built/screen.css']).toBeUndefined();
   });
 
+  test('warns when a theme template references a missing generated asset', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await rm(join(cwd, 'themes/source/assets/built/screen.css'));
+
+    const stderr = captureStderr();
+    let summary!: Awaited<ReturnType<typeof build>>;
+    try {
+      summary = await build({ cwd });
+    } finally {
+      stderr.restore();
+    }
+
+    const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(summary.warningCount).toBe(1);
+    expect(stderr.output).toContain(
+      "Theme template 'default' references theme asset 'built/screen.css'",
+    );
+    expect(stderr.output).toContain('Run the theme build step first');
+    expect(indexHtml).toContain('/assets/built/screen.css');
+    expect(indexHtml).not.toMatch(/\/assets\/built\/screen\.[0-9a-f]{10}\.css/);
+  });
+
   test('emits Ghost-compatible card assets when the theme package opts in', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
 
