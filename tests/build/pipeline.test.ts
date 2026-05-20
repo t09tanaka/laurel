@@ -118,6 +118,55 @@ Body
     await expect(build({ cwd })).rejects.toThrow(/static\/_headers.*generated deploy artifact/);
   });
 
+  test('copies public .well-known passthrough when static directory is absent', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'public', '.well-known', 'acme-challenge'), { recursive: true });
+    await writeFile(
+      join(cwd, 'public', '.well-known', 'acme-challenge', 'token'),
+      'challenge-body',
+      'utf8',
+    );
+    await writeFile(join(cwd, 'public', '.well-known', 'mta-sts.txt'), 'version: STSv1\n', 'utf8');
+    await writeFile(
+      join(cwd, 'public', '.well-known', 'security.txt'),
+      'Contact: mailto:security@example.test\n',
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(readFileSync(join(summary.outputDir, '.well-known/acme-challenge/token'), 'utf8')).toBe(
+      'challenge-body',
+    );
+    expect(readFileSync(join(summary.outputDir, '.well-known/mta-sts.txt'), 'utf8')).toBe(
+      'version: STSv1\n',
+    );
+    expect(readFileSync(join(summary.outputDir, '.well-known/security.txt'), 'utf8')).toBe(
+      'Contact: mailto:security@example.test\n',
+    );
+  });
+
+  test('fails before public passthrough replaces generated deploy headers', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[components.content_api]',
+        'enabled = false',
+        '',
+        '[deploy.cloudflare_pages]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'public'), { recursive: true });
+    await writeFile(join(cwd, 'public', '_headers'), '/*\n  X-Manual: yes\n', 'utf8');
+
+    await expect(build({ cwd })).rejects.toThrow(/public\/_headers.*generated deploy artifact/);
+  });
+
   test('merges static deploy headers when deploy.merge is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

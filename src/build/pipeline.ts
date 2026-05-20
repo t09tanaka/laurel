@@ -117,7 +117,7 @@ import {
   runPagefind,
   searchEngineUsesNectarGhostSearchShim,
 } from './search.ts';
-import { copyStaticDir } from './static-passthrough.ts';
+import { copyStaticDir, resolveStaticPassthroughDirs } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 
 export interface BuildOptions {
@@ -1294,25 +1294,32 @@ async function runBuild({
   });
 
   // Static passthrough runs as the final emit step so ordinary files the user
-  // drops under `<cwd>/<content.static_dir>/` win over generated output. Deploy
-  // metadata files are protected below so `_headers`, `_redirects`, and
-  // `vercel.json` cannot silently replace generated platform artifacts.
+  // drops under `<cwd>/<content.static_dir>/` win over generated output. When
+  // the default `static/` directory is absent, `public/` is accepted as the
+  // same top-level convention. Deploy metadata files are protected below so
+  // `_headers`, `_redirects`, and `vercel.json` cannot silently replace
+  // generated platform artifacts.
   const generatedDeployArtifactPaths = ['_headers', '_redirects', 'vercel.json'].filter((path) =>
     plannedOutputPaths.has(path),
   );
-  await timed(profiler, 'static_passthrough', () =>
-    copyStaticDir({
+  await timed(profiler, 'static_passthrough', async () => {
+    for (const staticDir of resolveStaticPassthroughDirs({
       cwd,
       staticDir: config.content.static_dir,
-      outputDir,
-      onOutputPath: keepOutput,
-      generatedConflict: {
-        paths: generatedDeployArtifactPaths,
-        force,
-        merge: config.deploy.merge,
-      },
-    }),
-  );
+    })) {
+      await copyStaticDir({
+        cwd,
+        staticDir,
+        outputDir,
+        onOutputPath: keepOutput,
+        generatedConflict: {
+          paths: generatedDeployArtifactPaths,
+          force,
+          merge: config.deploy.merge,
+        },
+      });
+    }
+  });
   keepOutput('.nectar/asset-manifest.json');
   await timed(profiler, 'asset_manifest', () => emitAssetManifest({ outputDir, theme }));
 

@@ -386,7 +386,7 @@ export const configSchema = z
           .string()
           .default('static')
           .describe(
-            'Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. Set to an empty string to disable the passthrough.',
+            'Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `.well-known/acme-challenge/*`, `.well-known/mta-sts.txt`, `.well-known/security.txt`, `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. The default convention reads `static/`; if that directory is absent and top-level `public/` exists, Nectar copies `public/` instead. Set to an empty string to disable the passthrough.',
           ),
         visibility_policy: z
           .enum(['truncate', 'render-full', 'skip'])

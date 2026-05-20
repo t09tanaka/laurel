@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
@@ -83,6 +83,30 @@ export async function copyStaticDir(opts: {
     ),
   );
   return tasks.length;
+}
+
+export function resolveStaticPassthroughDirs(opts: {
+  cwd: string;
+  staticDir: string;
+}): string[] {
+  const { cwd, staticDir } = opts;
+  if (staticDir.length === 0) return [];
+  if (
+    staticDir === 'static' &&
+    !dirExists(resolve(cwd, 'static')) &&
+    dirExists(resolve(cwd, 'public'))
+  ) {
+    return ['public'];
+  }
+  return [staticDir];
+}
+
+function dirExists(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function toPosix(path: string): string {

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyStaticDir } from '~/build/static-passthrough.ts';
+import { copyStaticDir, resolveStaticPassthroughDirs } from '~/build/static-passthrough.ts';
 
 async function makeOutputDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'nectar-static-out-'));
@@ -196,16 +196,33 @@ describe('copyStaticDir', () => {
     expect(parsed.redirects?.map((rule) => rule.source)).toEqual(['/manual-old', '/old']);
   });
 
-  test('copies dotfiles dropped into the static directory', async () => {
+  test('copies nested .well-known directories dropped into the static directory', async () => {
     const outputDir = await makeOutputDir();
     const cwd = await makeCwd();
-    await mkdir(join(cwd, 'static'), { recursive: true });
-    await writeFile(join(cwd, 'static', '.well-known'), 'verify-me', 'utf8');
+    await mkdir(join(cwd, 'static', '.well-known', 'acme-challenge'), { recursive: true });
+    await writeFile(
+      join(cwd, 'static', '.well-known', 'acme-challenge', 'token'),
+      'acme-token',
+      'utf8',
+    );
+    await writeFile(join(cwd, 'static', '.well-known', 'mta-sts.txt'), 'mta-sts', 'utf8');
+    await writeFile(join(cwd, 'static', '.well-known', 'security.txt'), 'security', 'utf8');
 
     const copied = await copyStaticDir({ cwd, staticDir: 'static', outputDir });
 
-    expect(copied).toBe(1);
-    expect(readFileSync(join(outputDir, '.well-known'), 'utf8')).toBe('verify-me');
+    expect(copied).toBe(3);
+    expect(readFileSync(join(outputDir, '.well-known', 'acme-challenge', 'token'), 'utf8')).toBe(
+      'acme-token',
+    );
+    expect(readFileSync(join(outputDir, '.well-known', 'mta-sts.txt'), 'utf8')).toBe('mta-sts');
+    expect(readFileSync(join(outputDir, '.well-known', 'security.txt'), 'utf8')).toBe('security');
+  });
+
+  test('uses public as the default passthrough convention when static is absent', async () => {
+    const cwd = await makeCwd();
+    await mkdir(join(cwd, 'public'), { recursive: true });
+
+    expect(resolveStaticPassthroughDirs({ cwd, staticDir: 'static' })).toEqual(['public']);
   });
 
   test('skips symlinked files so they cannot escape the static directory', async () => {
