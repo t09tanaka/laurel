@@ -756,6 +756,18 @@ describe('match helper', () => {
     expect(tpl({ a: 1, b: 2 })).toBe('MISS');
   });
 
+  test('block form supports Ghost-style else match chains', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#match width "Full"}}full{{else match width "=" "Wide"}}wide{{else match width "=" "Small"}}small{{else}}fallback{{/match}}',
+    );
+    expect(tpl({ width: 'Full' })).toBe('full');
+    expect(tpl({ width: 'Wide' })).toBe('wide');
+    expect(tpl({ width: 'Small' })).toBe('small');
+    expect(tpl({ width: 'Narrow' })).toBe('fallback');
+  });
+
   test('block form renders inverse when pagination.page resolves missing (issue #1709)', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
