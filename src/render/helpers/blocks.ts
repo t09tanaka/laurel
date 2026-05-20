@@ -255,13 +255,13 @@ function computeGetPagination(
     return { page: 1, limit, pages: 1, total, prev: null, next: null };
   }
   const pages = Math.max(1, Math.ceil(total / limit));
-  const page = Math.min(Math.max(1, requestedPage), pages);
+  const page = Math.max(1, requestedPage);
   return {
     page,
     limit,
     pages,
     total,
-    prev: page > 1 ? page - 1 : null,
+    prev: page > 1 && total > 0 ? Math.min(page - 1, pages) : null,
     next: page < pages ? page + 1 : null,
   };
 }

@@ -204,13 +204,12 @@ describe('get helper pagination metadata', () => {
     expect(tpl({})).toBe('p3,p4,p5,');
   });
 
-  test('clamps requested pages beyond the last page', () => {
+  test('renders inverse for requested pages beyond the last page', () => {
     const engine = buildEngine({ posts: buildPosts(5) });
     const tpl = engine.hb.compile(
-      `{{#get "posts" limit=2 page=99 as |items meta|}}page={{meta.pagination.page}} count={{items.length}} prev={{meta.pagination.prev}} next={{meta.pagination.next}}{{/get}}`,
+      `{{#get "posts" limit=2 page=99 as |items meta|}}page={{meta.pagination.page}} count={{items.length}}{{else}}empty{{/get}}`,
     );
-    // Page 3 of 3 (pages=ceil(5/2)=3), holds 1 item, prev=2, next=null.
-    expect(tpl({})).toBe('page=3 count=1 prev=2 next=');
+    expect(tpl({})).toBe('empty');
   });
 
   test('limit="all" collapses to a single page covering every match', () => {
@@ -264,6 +263,16 @@ describe('get helper fields= projection', () => {
     );
 
     expect(tpl({})).toBe('page=2 total=12;p5:|p6:|p7:|p8:|p9:|');
+  });
+
+  test('supports Digest archive detection with fields plus page hash params', () => {
+    const tplSource = `{{#get "posts" fields="id" page="2"}}archive{{else}}single-page{{/get}}`;
+
+    const singlePage = buildEngine({ posts: buildPosts(15) });
+    expect(singlePage.hb.compile(tplSource)({})).toBe('single-page');
+
+    const paged = buildEngine({ posts: buildPosts(16) });
+    expect(paged.hb.compile(tplSource)({})).toBe('archive');
   });
 
   test('accepts comma-separated fields without mutating the source content', () => {
