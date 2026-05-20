@@ -13,6 +13,7 @@ import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { resolveLayoutName, splitLayout } from './layouts.ts';
 import { type Member, type MemberSubscription, wrapMemberStub } from './member-stub.ts';
+import { withTrustedCaptionHtml, withTrustedCaptionHtmlArray } from './safe-context.ts';
 import {
   compileThemeSource,
   installSourceAwareHelperErrors,
@@ -257,12 +258,14 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.locale = route.locale;
   }
   if (data.post) {
-    Object.assign(ctx, data.post);
-    ctx.post = data.post;
+    const post = withTrustedCaptionHtml(engine.hb, data.post);
+    Object.assign(ctx, post);
+    ctx.post = post;
   }
   if (data.page) {
-    Object.assign(ctx, data.page);
-    ctx.page = data.page;
+    const page = withTrustedCaptionHtml(engine.hb, data.page);
+    Object.assign(ctx, page);
+    ctx.page = page;
   }
   if (route.kind === 'home') {
     ctx.meta_title = route.meta.title;
@@ -280,7 +283,7 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.feature_image = data.author.cover_image;
   }
   if (data.posts) {
-    ctx.posts = data.posts;
+    ctx.posts = withTrustedCaptionHtmlArray(engine.hb, data.posts);
   }
   // Ghost themes often probe `pagination.page` directly even on non-listing
   // routes (for example Dawn's `{{#match pagination.page 2}}`). Keep the

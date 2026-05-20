@@ -1,5 +1,6 @@
 import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
+import { withTrustedCaptionHtml, withTrustedCaptionHtmlArray } from '../safe-context.ts';
 import { applyGetFilter } from './get-filter.ts';
 
 interface HelperOptions extends Handlebars.HelperOptions {
@@ -388,13 +389,13 @@ function attachAuthorPostCount(
 function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {
   switch (resource) {
     case 'posts':
-      return engine.content.posts;
+      return withTrustedCaptionHtmlArray(engine.hb, engine.content.posts);
+    case 'pages':
+      return withTrustedCaptionHtmlArray(engine.hb, engine.content.pages);
     case 'tags':
       return engine.content.tags;
     case 'authors':
       return engine.content.authors;
-    case 'pages':
-      return engine.content.pages;
     case 'tiers':
       return engine.content.tiers;
     default:
@@ -422,7 +423,7 @@ function registerContextBlock(
       const route = options.data?.route as Record<string, unknown> | undefined;
       const value = (this as Record<string, unknown> | undefined)?.[name] ?? pick(route);
       if (!value) return options.inverse ? options.inverse(this) : '';
-      return options.fn(value);
+      return options.fn(withTrustedCaptionHtml(engine.hb, value));
     },
   );
 }
@@ -447,7 +448,7 @@ function registerAdjacentPostBlock(
       const fromRoute = route?.data?.post?.[key];
       const target = fromCtx ?? fromRoute;
       if (!target) return options.inverse ? options.inverse(this) : '';
-      return options.fn(target);
+      return options.fn(withTrustedCaptionHtml(engine.hb, target));
     },
   );
 }

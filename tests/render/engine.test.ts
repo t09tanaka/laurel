@@ -567,6 +567,71 @@ describe('buildContext', () => {
     expect(tokens).not.toContain('feature-image');
     expect(tokens).not.toContain('image-cover');
   });
+
+  test('feature_image_caption renders as trusted HTML in root and post block contexts (issue #865)', () => {
+    const post = makePost({
+      feature_image_caption: 'Photo by <a href="https://ok.test">Alice</a> &amp; <em>Bob</em>',
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const hb = Handlebars.create();
+    const blockEngine = {
+      ...engine,
+      hb,
+      content: { posts: [], pages: [], tags: [], authors: [], tiers: [] },
+      sortedCache: new Map<string, readonly unknown[]>(),
+    } as unknown as NectarEngine;
+    registerBlockHelpers(blockEngine);
+
+    const ctx = buildContext(blockEngine, route);
+    const data = { route };
+    const tpl = hb.compile('{{feature_image_caption}}|{{#post}}{{feature_image_caption}}{{/post}}');
+
+    expect(tpl(ctx, { data })).toBe(
+      'Photo by <a href="https://ok.test">Alice</a> &amp; <em>Bob</em>|Photo by <a href="https://ok.test">Alice</a> &amp; <em>Bob</em>',
+    );
+    expect(post.feature_image_caption).toBe(
+      'Photo by <a href="https://ok.test">Alice</a> &amp; <em>Bob</em>',
+    );
+  });
+
+  test('feature_image_caption renders as trusted HTML when posts are iterated (issue #865)', () => {
+    const post = makePost({
+      feature_image_caption: 'Credit <strong>Casper</strong>',
+    });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: { posts: [post] },
+      meta: baseMeta,
+    };
+    const hb = Handlebars.create();
+    const blockEngine = {
+      ...engine,
+      hb,
+      content: { posts: [post], pages: [], tags: [], authors: [], tiers: [] },
+      sortedCache: new Map<string, readonly unknown[]>(),
+    } as unknown as NectarEngine;
+    registerBlockHelpers(blockEngine);
+
+    const ctx = buildContext(blockEngine, route);
+    const tpl = hb.compile(
+      '{{#foreach posts}}<figcaption>{{feature_image_caption}}</figcaption>{{/foreach}}',
+    );
+
+    expect(tpl(ctx, { data: { route } })).toBe(
+      '<figcaption>Credit <strong>Casper</strong></figcaption>',
+    );
+    expect(post.feature_image_caption).toBe('Credit <strong>Casper</strong>');
+  });
 });
 
 function makePagination(page: number): RouteContext['data']['pagination'] {
