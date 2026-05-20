@@ -1,5 +1,6 @@
 import type Handlebars from 'handlebars';
 import { sanitizeHref } from '~/util/safe-href.ts';
+import { withBasePath } from '~/util/url.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerNavigationHelpers(engine: NectarEngine): void {
@@ -39,6 +40,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       // here keeps `{{navigation type="secondary"}}` emitting an empty `<ul>`
       // instead of crashing.
       const items = type === 'secondary' ? (site.secondary_navigation ?? []) : site.navigation;
+      const basePath = engine.config?.build?.base_path;
 
       // Theme override: if the theme ships `partials/navigation.hbs`, render
       // it with the resolved navigation context so theme authors can supply
@@ -57,7 +59,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
             ...item,
             slug,
             current: isCurrent,
-            url: sanitizeHref(String(item.url ?? ''), '{{navigation}} helper'),
+            url: navigationHref(String(item.url ?? ''), basePath),
           };
         });
         const compiled = engine.hb.compile(themePartial, { noEscape: false });
@@ -77,7 +79,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
             (currentUrl !== undefined &&
               (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url)));
           const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
-          const safeUrl = sanitizeHref(String(item.url ?? ''), '{{navigation}} helper');
+          const safeUrl = navigationHref(String(item.url ?? ''), basePath);
           return `<li class="nav-${slug}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
         })
         .join('');
@@ -218,6 +220,20 @@ function escapeAttr(value: string): string {
 
 function normaliseUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
+}
+
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.\-]*:/i;
+
+function navigationHref(value: string, basePath: string | undefined): string {
+  const href = sanitizeHref(value, '{{navigation}} helper');
+  if (!shouldApplyBasePath(href)) return href;
+  return withBasePath(basePath, href);
+}
+
+function shouldApplyBasePath(href: string): boolean {
+  if (!href || href.startsWith('#') || href.startsWith('?')) return false;
+  if (href.startsWith('//') || URL_SCHEME_RE.test(href)) return false;
+  return href.startsWith('/') || /^[A-Za-z0-9._~-]/.test(href);
 }
 
 function currentRouteClass(options: Handlebars.HelperOptions): string {

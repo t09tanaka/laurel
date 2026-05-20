@@ -10,6 +10,7 @@ interface NavItem {
 
 function makeEngine(
   overrides: {
+    basePath?: string;
     locale?: string;
     locales?: Record<string, Record<string, string>>;
     partials?: Record<string, string>;
@@ -19,7 +20,7 @@ function makeEngine(
   const site = overrides.locale ? { locale: overrides.locale } : {};
   return {
     hb,
-    config: {} as NectarEngine['config'],
+    config: { build: { base_path: overrides.basePath ?? '/' } } as NectarEngine['config'],
     content: { site } as unknown as NectarEngine['content'],
     theme: {
       locales: overrides.locales ?? {},
@@ -108,6 +109,58 @@ describe('navigation helper', () => {
 });
 
 describe('navigation helper href sanitisation', () => {
+  test('applies build.base_path to primary root-relative URLs only', () => {
+    const engine = makeEngine({ basePath: '/blog' });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [
+              { label: 'About', url: '/about/' },
+              { label: 'External', url: 'https://example.com/' },
+              { label: 'CDN', url: '//cdn.example.com/app.js' },
+              { label: 'Mail', url: 'mailto:hi@example.com' },
+              { label: 'Phone', url: 'tel:+15551234' },
+              { label: 'Anchor', url: '#section' },
+            ],
+            secondary_navigation: [],
+          },
+          route: { url: '/about/' },
+        },
+      },
+    );
+
+    expect(html).toContain('href="/blog/about/"');
+    expect(html).toContain('href="https://example.com/"');
+    expect(html).toContain('href="//cdn.example.com/app.js"');
+    expect(html).toContain('href="mailto:hi@example.com"');
+    expect(html).toContain('href="tel:+15551234"');
+    expect(html).toContain('href="#section"');
+  });
+
+  test('applies build.base_path to secondary root-relative URLs', () => {
+    const engine = makeEngine({ basePath: '/blog' });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation type="secondary"}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [],
+            secondary_navigation: [{ label: 'Contact', url: '/contact/' }],
+          },
+          route: { url: '/contact/' },
+        },
+      },
+    );
+
+    expect(html).toContain('href="/blog/contact/"');
+  });
+
   test('preserves http(s), mailto, tel, and relative URLs', () => {
     const html = renderNavigation(
       [
