@@ -93,7 +93,7 @@ describe('rewriteImageCdnUrls', () => {
       '<img src="/.netlify/images?url=%2Fcontent%2Fimages%2Fa.jpg&amp;w=640&amp;q=85" width="640">',
     );
     expect(vercel).toBe(
-      '<source srcset="/_next/image?url=%2Fcontent%2Fimages%2Fa.jpg&amp;w=640&amp;q=85 640w">',
+      '<source srcset="/_vercel/image?url=%2Fcontent%2Fimages%2Fa.jpg&amp;w=640&amp;q=85 640w">',
     );
   });
 
@@ -107,7 +107,7 @@ describe('rewriteImageCdnUrls', () => {
 
     expect(skipped).toBe('<img src="/content/images/a.jpg">');
     expect(rewritten).toBe(
-      '<img src="/_next/image?url=%2Fcontent%2Fimages%2Fa.jpg&amp;w=1200&amp;q=85">',
+      '<img src="/_vercel/image?url=%2Fcontent%2Fimages%2Fa.jpg&amp;w=1200&amp;q=85">',
     );
   });
 

@@ -143,7 +143,9 @@ function rewriteImageUrl(
     case 'netlify':
       return buildQueryAdapterUrl(config, '/.netlify/images', source, width, false);
     case 'vercel':
-      return width ? buildQueryAdapterUrl(config, '/_next/image', source, width, true) : undefined;
+      return width
+        ? buildQueryAdapterUrl(config, '/_vercel/image', source, width, true)
+        : undefined;
     case 'cloudinary':
       return buildCloudinaryUrl(config, source, width);
     case 'imgproxy':
