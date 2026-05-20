@@ -542,18 +542,20 @@ function makePostTemplatePicker(
   }
 }
 
-// Mirrors Ghost's per-page template override: when a page's frontmatter declares
-// `template: foo`, render through `custom-foo.hbs` if the active theme ships
-// one; otherwise fall back to `page.hbs` and warn so the misconfiguration is
-// visible at build time. The frontmatter loader has already normalized the
-// value to the `custom-<slug>` form.
+// Mirrors Ghost's per-page template override: explicit custom templates take
+// precedence, then page-specific templates such as `page-authors.hbs`, then the
+// default `page.hbs`. The frontmatter loader has already normalized explicit
+// values to the `custom-<slug>` form.
 function resolvePageTemplate(page: Page, theme: ThemeBundle): string {
   const requested = page.custom_template;
-  if (!requested) return 'page';
-  if (hasTemplate(theme, requested)) return requested;
-  logger.warn(
-    `Page "${page.slug}" requested template "${requested}" but theme has no matching .hbs; falling back to page.hbs.`,
-  );
+  if (requested) {
+    if (hasTemplate(theme, requested)) return requested;
+    logger.warn(
+      `Page "${page.slug}" requested template "${requested}" but theme has no matching .hbs; falling back through page-{slug}.hbs/page.hbs.`,
+    );
+  }
+  const slugTemplate = `page-${page.slug}`;
+  if (hasTemplate(theme, slugTemplate)) return slugTemplate;
   return 'page';
 }
 

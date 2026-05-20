@@ -595,6 +595,39 @@ describe('planRoutes — page custom_template (issue #1005)', () => {
     expect(pageRoute?.template).toBe('page');
   });
 
+  test('uses page-{slug}.hbs for Liebling-style authors and newsletter pages', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('authors'), makePage('newsletter')],
+    });
+    const theme = makeTheme();
+    theme.templates['page-authors'] = '{{!liebling authors}}';
+    theme.templates['page-newsletter'] = '{{!liebling newsletter}}';
+
+    const routes = planRoutes({ config, content, theme });
+
+    expect(routes.find((r) => r.kind === 'page' && r.url === '/authors/')?.template).toBe(
+      'page-authors',
+    );
+    expect(routes.find((r) => r.kind === 'page' && r.url === '/newsletter/')?.template).toBe(
+      'page-newsletter',
+    );
+  });
+
+  test('custom page template takes precedence over page-{slug}.hbs', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      pages: [makePage('newsletter', { custom_template: 'custom-signup' })],
+    });
+    const theme = makeTheme();
+    theme.templates['custom-signup'] = '{{!custom signup}}';
+    theme.templates['page-newsletter'] = '{{!liebling newsletter}}';
+
+    const routes = planRoutes({ config, content, theme });
+    const pageRoute = routes.find((r) => r.kind === 'page');
+    expect(pageRoute?.template).toBe('custom-signup');
+  });
+
   test('supports Dawn no-feature-image alternate page layout', () => {
     const config = makeConfig('https://example.com');
     const content = makeGraph({
