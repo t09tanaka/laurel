@@ -17,10 +17,12 @@ import { getNectarVersion } from '~/util/nectar-version.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitContentApiShadows } from './api.ts';
+import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest } from './build-manifest.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
+import { emitCloudflareRoutes } from './cloudflare-routes.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { emitCustomRedirects } from './custom-redirects.ts';
@@ -771,6 +773,21 @@ async function runBuild({
     enabled: config.deploy.cloudflare_pages.enabled,
     headers: config.deploy.headers,
   });
+  // Cloudflare Pages Functions exclusion descriptor. Gated on the same flag
+  // as the `_headers` emit because they only matter together (no point
+  // shipping `_routes.json` to a Netlify deploy). See cloudflare-routes.ts
+  // for the rationale on emitting an empty exclude array.
+  await emitCloudflareRoutes({
+    outputDir,
+    enabled: config.deploy.cloudflare_pages.enabled,
+  });
+  // Azure Static Web Apps config. Emitted unconditionally — the file is
+  // azure-specific and inert on every other host, and a single nectar build
+  // should be deployable to Azure without an extra config knob. Users who
+  // need richer routing should drop a `staticwebapp.config.json` into the
+  // static-passthrough dir, which overrides this default via the post-emit
+  // passthrough step below.
+  await emitAzureStaticWebAppConfig({ outputDir });
   await emitNetlifyHeaders({
     outputDir,
     enabled: config.deploy.netlify.enabled,
