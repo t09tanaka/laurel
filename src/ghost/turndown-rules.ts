@@ -1066,7 +1066,8 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const alt = attr(img, 'alt');
       const srcset = attr(img, 'srcset');
       const sizes = attr(img, 'sizes');
-      if (!caption && !srcset && !sizes) return wrap(`![${alt}](${src})`);
+      const href = imageWrapAnchorHref(node);
+      if (!caption && !srcset && !sizes && !href) return wrap(`![${alt}](${src})`);
       return wrap(
         shortcode('figure', {
           src,
@@ -1076,6 +1077,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           srcset,
           sizes,
           ...pictureSourceAttrs(node),
+          href,
           size: classByPrefix(node, 'kg-width-'),
           caption,
         }),

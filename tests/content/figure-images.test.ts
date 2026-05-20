@@ -202,6 +202,16 @@ describe('renderMarkdown — image figure promotion', () => {
     expect(html).toContain('<img class="kg-image"');
   });
 
+  test('promotes a raw linked image paragraph into a figure with anchor preserved', async () => {
+    const { html } = await renderMarkdown(
+      '<p><a href="https://ex.test/"><img src="https://cdn.test/x.png" alt="alt"></a></p>',
+    );
+    expect(html).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
+    expect(html).toContain('<a href="https://ex.test/"><img class="kg-image"');
+    expect(html).toContain('src="https://cdn.test/x.png"');
+    expect(html).toContain('alt="alt"');
+  });
+
   test('does not promote when the paragraph has surrounding text', async () => {
     const { html } = await renderMarkdown('Hello ![alt](https://cdn.test/x.png) world');
     expect(html).not.toContain('<figure');

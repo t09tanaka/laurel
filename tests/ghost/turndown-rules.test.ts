@@ -1117,6 +1117,25 @@ describe('Ghost Turndown rules — plain figure', () => {
     const md = td.turndown(html);
     expect(md.trim()).toBe('![X](/x.jpg)');
   });
+
+  test('preserves image click target from plain linked figures', () => {
+    const html = `
+      <figure>
+        <a href="https://target.example/">
+          <img src="/x.jpg" alt="X" width="1200" height="800" />
+        </a>
+        <figcaption>Linked caption</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="/x.jpg"');
+    expect(md).toContain('alt="X"');
+    expect(md).toContain('width="1200"');
+    expect(md).toContain('height="800"');
+    expect(md).toContain('href="https://target.example/"');
+    expect(md).toContain('caption="Linked caption"');
+  });
 });
 
 describe('Ghost Turndown rules — picture element', () => {
