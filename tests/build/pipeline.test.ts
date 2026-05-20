@@ -100,6 +100,33 @@ describe('build pipeline strict mode wiring', () => {
     expect(readFileSync(nojekyll, 'utf8')).toBe('');
   });
 
+  test('emits dist/.nectar/cloudfront-response-headers-policy.json from deploy headers', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[deploy.headers.security]',
+        'content_security_policy = "default-src \'self\'"',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+
+    const summary = await build({ cwd });
+    const body = JSON.parse(
+      readFileSync(
+        join(summary.outputDir, '.nectar', 'cloudfront-response-headers-policy.json'),
+        'utf8',
+      ),
+    );
+
+    expect(body.SecurityHeadersConfig.ContentSecurityPolicy).toEqual({
+      ContentSecurityPolicy: "default-src 'self'",
+      Override: true,
+    });
+  });
+
   test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

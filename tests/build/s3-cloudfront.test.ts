@@ -57,6 +57,19 @@ describe('S3 + CloudFront deploy docs', () => {
     expect(workflow).toContain('dist/.nectar/changed-paths.txt');
     expect(workflow).toContain('--paths $(cat dist/.nectar/changed-paths.txt)');
   });
+
+  test('documents the generated CloudFront response headers policy config', async () => {
+    const guide = await readFile(join(root, 'docs', 'deploy', 's3-cloudfront.md'), 'utf8');
+
+    expect(guide).toContain('dist/.nectar/cloudfront-response-headers-policy.json');
+    expect(guide).toContain('aws cloudfront create-response-headers-policy');
+    expect(guide).toContain(
+      '--response-headers-policy-config file://dist/.nectar/cloudfront-response-headers-policy.json',
+    );
+    expect(guide).toContain('[deploy.headers].security');
+    expect(guide).toContain('deploy.headers.cache_rules');
+    expect(guide).toContain('Response Headers Policy applies uniformly');
+  });
 });
 
 describe('S3 + CloudFront deploy samples', () => {

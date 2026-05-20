@@ -267,6 +267,28 @@ Pages and Netlify. Configure response headers in CloudFront with a Response
 Headers Policy, and configure caching with CloudFront cache policies plus the
 object metadata you upload to S3.
 
+Every `nectar build` writes an AWS CLI-ready Response Headers Policy config at
+`dist/.nectar/cloudfront-response-headers-policy.json`. The file is generated
+from `[deploy.headers].security`, including CSP, HSTS, referrer policy,
+permissions policy, and custom security headers:
+
+```sh
+bunx nectar build
+aws cloudfront create-response-headers-policy \
+  --response-headers-policy-config file://dist/.nectar/cloudfront-response-headers-policy.json
+```
+
+The command returns a Response Headers Policy ID. Attach that ID to the
+CloudFront default cache behavior, and to any ordered cache behaviors that
+serve the same site. CloudFront policy names are account-wide, so edit the
+generated `Name` field before creating another policy for a second site, or
+update your existing policy instead of creating a duplicate.
+
+`deploy.headers.cache_rules` are not emitted into this policy because a
+Response Headers Policy applies uniformly to a CloudFront cache behavior rather
+than matching Nectar's URL patterns. Keep per-path caching in S3 object metadata,
+separate CloudFront cache behaviors, or CloudFront cache policies.
+
 The starter workflow uses two `aws s3 sync` passes:
 
 - fingerprinted assets receive `Cache-Control: public, max-age=31536000,

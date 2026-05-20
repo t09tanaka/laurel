@@ -886,7 +886,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.',
+            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.',
           ),
       })
       .strict()

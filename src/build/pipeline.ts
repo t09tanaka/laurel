@@ -27,6 +27,7 @@ import { emitCaddyfile } from './caddy.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCloudflareRoutes } from './cloudflare-routes.ts';
 import { emitCloudflareWorkersManifest } from './cloudflare-workers.ts';
+import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { emitCustomRedirects } from './custom-redirects.ts';
@@ -808,6 +809,10 @@ async function runBuild({
   await emitNetlifyHeaders({
     outputDir,
     enabled: config.deploy.netlify.enabled,
+    headers: config.deploy.headers,
+  });
+  await emitCloudFrontResponseHeadersPolicy({
+    outputDir,
     headers: config.deploy.headers,
   });
   // Static content API dump: `dist/content/posts.json`,
