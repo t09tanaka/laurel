@@ -776,3 +776,161 @@ describe('createEngine — default search partial (issue #1135)', () => {
     expect(engine.hb.partials['partials/search']).toBe('<!-- theme search override -->');
   });
 });
+
+// Issue #150: renderRoute() must reuse the precompiled inner+layout delegates
+// from createEngine() instead of re-running hb.compile per route. On a 10k post
+// blog the regression cost is ~20k extra compile passes plus the AST GC churn.
+// These tests pin the contract: engine.templates / engine.layouts are populated
+// at createEngine time and renderRoute is a pure lookup afterwards.
+describe('createEngine — precompiled template+layout cache (issue #150)', () => {
+  function makeTheme(templates: Record<string, string>): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'fixture',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    };
+    return {
+      name: 'fixture',
+      rootDir: '/tmp/themes/fixture',
+      templates,
+      partials: {},
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'fixture', custom: {} },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        direction: 'ltr',
+        timezone: 'UTC',
+        cover_image: undefined,
+        logo: undefined,
+        logo_width: undefined,
+        logo_height: undefined,
+        icon: undefined,
+        accent_color: '#000',
+        navigation: [],
+        secondary_navigation: [],
+        lang: 'en',
+        twitter: undefined,
+        facebook: undefined,
+        members_enabled: false,
+        paid_members_enabled: false,
+        members_invite_only: false,
+        recommendations_enabled: false,
+      },
+    } as unknown as ContentGraph;
+  }
+
+  test('engine.templates and engine.layouts are populated for every theme template at createEngine time', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><body>{{{body}}}</body>',
+      post: '{{!< default}}\n<article>{{post.title}}</article>',
+      home: '<section>{{@site.title}}</section>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(typeof engine.templates.default).toBe('function');
+    expect(typeof engine.templates.post).toBe('function');
+    expect(typeof engine.templates.home).toBe('function');
+    expect(typeof engine.layouts.default).toBe('function');
+    expect(typeof engine.layouts.post).toBe('function');
+    expect(typeof engine.layouts.home).toBe('function');
+  });
+
+  test('rendering the same route 100 times triggers zero additional hb.compile calls', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><body data-layout="default">{{{body}}}</body>',
+      post: '{{!< default}}\n<article>{{post.title}}</article>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    // Spy on hb.compile AFTER createEngine returns. Every compile call from
+    // here on means a route render is doing work it shouldn't be doing.
+    const originalCompile = engine.hb.compile.bind(engine.hb);
+    let compileCount = 0;
+    engine.hb.compile = ((...args: Parameters<typeof Handlebars.compile>) => {
+      compileCount += 1;
+      return originalCompile(...args);
+    }) as typeof Handlebars.compile;
+
+    const post: Post = makePost({ title: 'Hello' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+
+    for (let i = 0; i < 100; i += 1) {
+      engine.render(route);
+    }
+    expect(compileCount).toBe(0);
+  });
+
+  test('renderRoute reuses the same compiled delegate references across calls', () => {
+    const theme = makeTheme({
+      default: '<!doctype html><body>{{{body}}}</body>',
+      post: '{{!< default}}\n<article>{{post.title}}</article>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const innerBefore = engine.templates.post;
+    const layoutBefore = engine.layouts.default;
+    const post: Post = makePost({ title: 'Hello' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    engine.render(route);
+    engine.render(route);
+    expect(engine.templates.post).toBe(innerBefore);
+    expect(engine.layouts.default).toBe(layoutBefore);
+  });
+});
