@@ -631,6 +631,24 @@ describe('has helper', () => {
     expect(tpl({}, pageN(6))).toBe('HIT');
   });
 
+  // #729 — London uses `{{#has number="nth:3"}}` inside `{{#foreach}}`.
+  // In that scope Ghost evaluates `number=` against the iteration's 1-indexed
+  // `@number`, not the outer route pagination page.
+  test('number="nth:3" uses foreach @number when rendered inside foreach', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items}}{{slug}}:{{#has number="nth:3"}}HIT{{else}}MISS{{/has}}|{{/foreach}}',
+    );
+    const route = { data: { pagination: { page: 6 } } };
+    expect(
+      tpl(
+        { items: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }, { slug: 'd' }] },
+        { data: { route } },
+      ),
+    ).toBe('a:MISS|b:MISS|c:HIT|d:MISS|');
+  });
+
   test('number="3" without nth falls back to strict equality on pagination page', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);

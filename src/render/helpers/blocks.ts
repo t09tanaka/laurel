@@ -118,11 +118,16 @@ export function registerBlockHelpers(engine: NectarEngine): void {
               break;
             }
             case 'number': {
+              const frameNumber = parseNum(
+                (options.data as { number?: unknown } | undefined)?.number,
+              );
               const route = options.data?.route as
                 | { data?: { pagination?: { page?: number } } }
                 | undefined;
               const page = route?.data?.pagination?.page ?? 1;
-              matched = evaluateNumberAttr(page, value);
+              const actual =
+                frameNumber !== undefined && Number.isFinite(frameNumber) ? frameNumber : page;
+              matched = evaluateNumberAttr(actual, value);
               break;
             }
             case 'index': {
