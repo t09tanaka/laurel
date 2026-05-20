@@ -1,10 +1,14 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { COMMAND_NAMES, COMMAND_SPECS, COMPLETIONS_SPEC } from '../specs.ts';
 
-type Shell = 'bash' | 'zsh' | 'fish' | 'powershell';
+type Shell = 'bash' | 'zsh' | 'fish' | 'pwsh';
 
-const SHELLS: readonly Shell[] = ['bash', 'zsh', 'fish', 'powershell'];
+const SHELLS: readonly Shell[] = ['bash', 'zsh', 'fish', 'pwsh'];
 const COMPLETION_COMMAND_ALIASES: Record<string, string> = { completion: 'completions' };
+const SHELL_ALIASES: Record<string, Shell> = { powershell: 'pwsh' };
 
 export async function runCompletions(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -23,19 +27,59 @@ export async function runCompletions(args: string[]): Promise<number> {
     return 0;
   }
 
-  const shellArg = parsed.positionals[0];
-  if (shellArg === undefined) {
-    process.stderr.write('Missing shell argument. Expected one of: bash, zsh, fish, powershell\n');
+  const [shellOrAction, installShellArg, ...extraArgs] = parsed.positionals;
+  if (extraArgs.length > 0) {
+    process.stderr.write(`Unexpected argument: ${extraArgs.join(' ')}\n`);
     return 2;
   }
-  const shell = shellArg.toLowerCase();
-  if (!isSupportedShell(shell)) {
+
+  if (shellOrAction === 'install') {
+    return installCompletions(parsed, installShellArg);
+  }
+
+  if (shellOrAction === undefined) {
+    process.stderr.write('Missing shell argument. Expected one of: bash, zsh, fish, pwsh\n');
+    return 2;
+  }
+  const shell = normalizeShell(shellOrAction);
+  if (shell === undefined) {
     process.stderr.write(
-      `Unsupported shell: ${shellArg}. Expected one of: bash, zsh, fish, powershell\n`,
+      `Unsupported shell: ${shellOrAction}. Expected one of: bash, zsh, fish, pwsh\n`,
     );
     return 2;
   }
 
+  process.stdout.write(renderCompletionScript(shell));
+  return 0;
+}
+
+async function installCompletions(
+  parsed: ParsedCommand,
+  installShellArg?: string,
+): Promise<number> {
+  const requestedShell = installShellArg ?? stringValue(parsed.values.shell) ?? 'auto';
+  const shell = resolveInstallShell(requestedShell, process.env);
+  if (shell === undefined) {
+    process.stderr.write(
+      `Unsupported shell: ${requestedShell}. Expected one of: auto, bash, zsh, fish, pwsh\n`,
+    );
+    return 2;
+  }
+  if (shell === 'auto') {
+    process.stderr.write(
+      'Could not detect the current shell. Re-run with --shell bash, --shell zsh, --shell fish, or --shell pwsh.\n',
+    );
+    return 2;
+  }
+
+  const targetPath = completionInstallPath(shell, process.env);
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, renderCompletionScript(shell), { mode: 0o644 });
+  process.stdout.write(`Installed nectar ${shell} completions to ${targetPath}\n`);
+  return 0;
+}
+
+function renderCompletionScript(shell: Shell): string {
   const commands = commandNamesWithCompletionAliases();
   const flags: Record<string, string[]> = {};
   for (const name of commands) {
@@ -45,27 +89,65 @@ export async function runCompletions(args: string[]): Promise<number> {
     flags[name].push('--help');
   }
 
-  let script: string;
   switch (shell) {
     case 'bash':
-      script = renderBash(commands, flags);
-      break;
+      return renderBash(commands, flags);
     case 'zsh':
-      script = renderZsh(commands, flags);
-      break;
+      return renderZsh(commands, flags);
     case 'fish':
-      script = renderFish(commands, flags);
-      break;
-    case 'powershell':
-      script = renderPowerShell(commands, flags);
-      break;
+      return renderFish(commands, flags);
+    case 'pwsh':
+      return renderPowerShell(commands, flags);
   }
-  process.stdout.write(script);
-  return 0;
 }
 
-function isSupportedShell(s: string): s is Shell {
-  return (SHELLS as readonly string[]).includes(s);
+function resolveInstallShell(input: string, env: NodeJS.ProcessEnv): Shell | 'auto' | undefined {
+  const shell = input.toLowerCase();
+  if (shell === 'auto') return detectShell(env) ?? 'auto';
+  return normalizeShell(shell);
+}
+
+function normalizeShell(input: string): Shell | undefined {
+  const shell = input.toLowerCase();
+  const aliased = SHELL_ALIASES[shell];
+  if (aliased !== undefined) return aliased;
+  if ((SHELLS as readonly string[]).includes(shell)) return shell as Shell;
+  return undefined;
+}
+
+function detectShell(env: NodeJS.ProcessEnv): Shell | undefined {
+  const shellName = env.SHELL ? basename(env.SHELL).toLowerCase() : '';
+  const shell = normalizeShell(shellName);
+  if (shell !== undefined) return shell;
+  if (process.platform === 'win32' || env.PSModulePath !== undefined) return 'pwsh';
+  return undefined;
+}
+
+function completionInstallPath(shell: Shell, env: NodeJS.ProcessEnv): string {
+  const home = homePath(env);
+  const xdgDataHome = env.XDG_DATA_HOME || join(home, '.local', 'share');
+  const xdgConfigHome = env.XDG_CONFIG_HOME || join(home, '.config');
+  switch (shell) {
+    case 'bash':
+      return join(xdgDataHome, 'bash-completion', 'completions', 'nectar');
+    case 'zsh':
+      return join(env.ZDOTDIR || join(home, '.zsh'), 'completions', '_nectar');
+    case 'fish':
+      return join(xdgConfigHome, 'fish', 'completions', 'nectar.fish');
+    case 'pwsh':
+      if (process.platform === 'win32') {
+        return join(env.USERPROFILE || home, 'Documents', 'PowerShell', 'nectar-completions.ps1');
+      }
+      return join(xdgConfigHome, 'powershell', 'nectar-completions.ps1');
+  }
+}
+
+function homePath(env: NodeJS.ProcessEnv): string {
+  return env.HOME || env.USERPROFILE || homedir();
+}
+
+function stringValue(value: string | boolean | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 function commandNamesWithCompletionAliases(): string[] {
@@ -81,7 +163,7 @@ function renderBash(commands: string[], flags: Record<string, string[]>): string
   const cases = commands
     .map((name) => `      ${name})\n        opts="${(flags[name] ?? []).join(' ')}";;`)
     .join('\n');
-  return `# nectar bash completion. Source this file or place it under /etc/bash_completion.d/.
+  return `# nectar bash completion. Install with: nectar completions install --shell bash
 _nectar_completions() {
   local cur prev cmd opts
   COMPREPLY=()
@@ -120,7 +202,7 @@ function renderZsh(commands: string[], flags: Record<string, string[]>): string 
     .map((n) => `      ${n}) __nectar_${n.replace(/-/g, '_')} ;;`)
     .join('\n');
   return `#compdef nectar
-# nectar zsh completion. Place under any directory in $fpath (e.g. /usr/local/share/zsh/site-functions/_nectar).
+# nectar zsh completion. Install with: nectar completions install --shell zsh
 ${subFns}
 _nectar() {
   local context state state_descr line
@@ -146,7 +228,7 @@ _nectar "$@"
 
 function renderFish(commands: string[], flags: Record<string, string[]>): string {
   const lines: string[] = [];
-  lines.push('# nectar fish completion. Place under ~/.config/fish/completions/nectar.fish.');
+  lines.push('# nectar fish completion. Install with: nectar completions install --shell fish.');
   lines.push(
     "complete -c nectar -n '__fish_use_subcommand' -a 'help version' -d 'Built-in command'",
   );
@@ -171,7 +253,7 @@ function renderPowerShell(commands: string[], flags: Record<string, string[]>): 
       return `    '${name}' { return @(${flagList}) }`;
     })
     .join('\n');
-  return `# nectar PowerShell completion. Save and dot-source in your $PROFILE.
+  return `# nectar PowerShell completion. Install with: nectar completions install --shell pwsh
 Register-ArgumentCompleter -Native -CommandName nectar -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $tokens = $commandAst.CommandElements

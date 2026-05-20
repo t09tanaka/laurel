@@ -1,16 +1,18 @@
-Print a shell completion script for the given shell
+Print or install a shell completion script
 
 Usage:
-  nectar completions [--json] <shell>
+  nectar completions [--json] [--shell <auto|bash|zsh|fish|pwsh>] [shell-or-action] [install-shell]
 
 Arguments:
-  shell               Target shell: bash, zsh, fish, or powershell
+  shell-or-action     Target shell (bash, zsh, fish, pwsh) or `install`
+  install-shell       Optional install target shell: auto, bash, zsh, fish, or pwsh
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
 
 Options:
   -j, --json          No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text
+  --shell <auto|bash|zsh|fish|pwsh>  Shell to install completions for: auto, bash, zsh, fish, or pwsh
   -h, --help          Show help for this command
 
 Environment variables:
@@ -28,3 +30,5 @@ Examples:
   nectar completions bash >> ~/.bashrc
   nectar completions zsh > ~/.zsh/_nectar
   nectar completions fish > ~/.config/fish/completions/nectar.fish
+  nectar completions install                 # install for the detected shell
+  nectar completions install --shell zsh     # install under a user-writable zsh path

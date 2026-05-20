@@ -14,7 +14,7 @@ Commands:
   doctor            Run health checks on the project (bun, config, theme, content, network)
   diagnostics       Create support-safe diagnostics bundles
   clean             Remove dist/ and .nectar-cache build artifacts
-  completions       Print a shell completion script for the given shell
+  completions       Print or install a shell completion script
   config            Inspect or update the loaded Nectar config
   schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json
   content           Inspect or modify content in the project (posts, pages)

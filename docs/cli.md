@@ -146,7 +146,7 @@ when prompts are enabled.
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
-| [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
+| [`nectar completions`](#nectar-completions) | Print or install a shell completion script |
 | [`nectar config`](#nectar-config) | Inspect or update the loaded Nectar config |
 | [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
@@ -504,25 +504,27 @@ nectar clean --keep dist/.well-known --yes   # preserve specific paths
 
 ### `nectar completions`
 
-Print a shell completion script for the given shell
+Print or install a shell completion script
 
 Usage:
 
 ```
-nectar completions [--json] <shell>
+nectar completions [--json] [--shell <auto|bash|zsh|fish|pwsh>] [shell-or-action] [install-shell]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<shell>` | required | Target shell: bash, zsh, fish, or powershell |
+| `[shell-or-action]` | optional | Target shell (bash, zsh, fish, pwsh) or `install` |
+| `[install-shell]` | optional | Optional install target shell: auto, bash, zsh, fish, or pwsh |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-j, --json` | boolean | `NECTAR_COMPLETIONS_JSON` | No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text |
+| `--shell <auto\|bash\|zsh\|fish\|pwsh>` | string | `NECTAR_COMPLETIONS_SHELL` | Shell to install completions for: auto, bash, zsh, fish, or pwsh |
 
 Examples:
 
@@ -531,6 +533,8 @@ nectar completion bash >> ~/.bashrc         # singular alias
 nectar completions bash >> ~/.bashrc
 nectar completions zsh > ~/.zsh/_nectar
 nectar completions fish > ~/.config/fish/completions/nectar.fish
+nectar completions install                 # install for the detected shell
+nectar completions install --shell zsh     # install under a user-writable zsh path
 ```
 
 ### `nectar config`

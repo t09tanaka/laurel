@@ -644,19 +644,29 @@ export const CLEAN_SPEC: CommandSpec = {
 
 export const COMPLETIONS_SPEC: CommandSpec = {
   name: 'completions',
-  summary: 'Print a shell completion script for the given shell',
+  summary: 'Print or install a shell completion script',
   options: {
     json: {
       type: 'boolean',
       description:
         'No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text',
     },
+    shell: {
+      type: 'string',
+      description: 'Shell to install completions for: auto, bash, zsh, fish, or pwsh',
+      placeholder: '<auto|bash|zsh|fish|pwsh>',
+    },
   },
   positionals: [
     {
-      name: 'shell',
-      description: 'Target shell: bash, zsh, fish, or powershell',
-      required: true,
+      name: 'shell-or-action',
+      description: 'Target shell (bash, zsh, fish, pwsh) or `install`',
+      required: false,
+    },
+    {
+      name: 'install-shell',
+      description: 'Optional install target shell: auto, bash, zsh, fish, or pwsh',
+      required: false,
     },
   ],
   examples: [
@@ -664,6 +674,8 @@ export const COMPLETIONS_SPEC: CommandSpec = {
     'nectar completions bash >> ~/.bashrc',
     'nectar completions zsh > ~/.zsh/_nectar',
     'nectar completions fish > ~/.config/fish/completions/nectar.fish',
+    'nectar completions install                 # install for the detected shell',
+    'nectar completions install --shell zsh     # install under a user-writable zsh path',
   ],
 };
 
