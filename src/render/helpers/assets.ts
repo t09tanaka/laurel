@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import { joinPath } from '~/theme/assets.ts';
+import { assetPublicUrl, joinPath } from '~/theme/assets.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
@@ -11,15 +11,13 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     function assetHelper(path: unknown, options?: Handlebars.HelperOptions) {
       const logical = String(path ?? '').replace(/^\//, '');
       const candidates = buildAssetCandidates(logical, options?.hash?.hasMinFile);
-      let resolved: string | undefined;
       for (const key of candidates) {
         const asset = engine.theme.assets.get(key);
         if (asset) {
-          resolved = asset.fingerprintedPath;
-          break;
+          return new engine.hb.SafeString(encodeAssetUrl(assetPublicUrl(asset, basePath)));
         }
       }
-      if (!resolved) resolved = `assets/${logical}`;
+      const resolved = `assets/${logical}`;
       return new engine.hb.SafeString(encodeAssetUrl(joinPath(basePath, resolved)));
     },
   );

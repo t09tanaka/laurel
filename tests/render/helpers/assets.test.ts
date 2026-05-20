@@ -484,6 +484,56 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/blog/assets/css/screen.abc123.css');
   });
 
+  test('adds a cache-busting query for known non-fingerprinted assets', () => {
+    const engine = makeEngine({ basePath: '/blog' });
+    engine.theme.assets.set('assets/images/icon.svg', {
+      logicalPath: 'assets/images/icon.svg',
+      fingerprintedPath: 'assets/images/icon.svg',
+      sourcePath: '/theme/assets/images/icon.svg',
+      hash: 'abc123def0',
+      integrity: 'sha384-icon',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "images/icon.svg"}}');
+    expect(tpl({})).toBe('/blog/assets/images/icon.svg?v=abc123def0');
+  });
+
+  test('encodes non-fingerprinted asset paths without escaping the cache-busting query', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/images/100% legit%20icon.svg', {
+      logicalPath: 'assets/images/100% legit%20icon.svg',
+      fingerprintedPath: 'assets/images/100% legit%20icon.svg',
+      sourcePath: '/theme/assets/images/100% legit%20icon.svg',
+      hash: 'abc123def0',
+      integrity: 'sha384-icon',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "images/100% legit%20icon.svg"}}');
+    expect(tpl({})).toBe('/assets/images/100%25%20legit%20icon.svg?v=abc123def0');
+  });
+
+  test('known non-fingerprinted asset URLs remain attribute-safe after query injection', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/images/a"><script>x</script>.svg', {
+      logicalPath: 'assets/images/a"><script>x</script>.svg',
+      fingerprintedPath: 'assets/images/a"><script>x</script>.svg',
+      sourcePath: '/theme/assets/images/a"><script>x</script>.svg',
+      hash: 'abc123def0',
+      integrity: 'sha384-icon',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('<img src="{{asset "images/a\\"><script>x</script>.svg"}}">');
+    const out = tpl({});
+    expect(out).not.toContain('<script>');
+    expect(out).not.toContain('"><');
+    expect(out).toBe(
+      '<img src="/assets/images/a%22%3E%3Cscript%3Ex%3C/script%3E.svg?v=abc123def0">',
+    );
+  });
+
   test('does not double-encode already encoded URL path segments', () => {
     const engine = makeEngine({ basePath: '/' });
     registerAssetHelpers(engine);

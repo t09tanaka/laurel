@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadThemeAssets } from '~/theme/assets.ts';
+import { assetPublicUrl, loadThemeAssets } from '~/theme/assets.ts';
 
 describe('loadThemeAssets symlink protection', () => {
   test('skips symlinked theme asset files', async () => {
@@ -26,6 +26,22 @@ describe('loadThemeAssets symlink protection', () => {
 });
 
 describe('loadThemeAssets fingerprint cache', () => {
+  test('keeps image asset filenames stable but cache-busts their public URL', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-image-cache-'));
+    const assetsDir = join(themeDir, 'assets', 'images');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(assetsDir, 'icon.svg'), '<svg viewBox="0 0 1 1"></svg>');
+
+    const map = await loadThemeAssets(themeDir);
+    const asset = map.get('assets/images/icon.svg');
+
+    expect(asset?.fingerprintedPath).toBe('assets/images/icon.svg');
+    expect(asset?.hash).toMatch(/^[0-9a-f]{10}$/);
+    expect(asset ? assetPublicUrl(asset, '/blog') : '').toBe(
+      `/blog/assets/images/icon.svg?v=${asset?.hash}`,
+    );
+  });
+
   test('computes sha384 SRI alongside the fingerprint hash', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-sri-'));
     const assetsDir = join(themeDir, 'assets', 'built');

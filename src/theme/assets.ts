@@ -200,7 +200,8 @@ async function assetDigestsStream(file: string): Promise<{ sha1Short: string; in
 
 export function assetPublicUrl(asset: ThemeAsset, basePath: string): string {
   const path = asset.fingerprintedPath;
-  return joinPath(basePath, path);
+  const url = joinPath(basePath, path);
+  return asset.fingerprintedPath === asset.logicalPath ? `${url}?v=${asset.hash}` : url;
 }
 
 export function joinPath(base: string, path: string): string {
