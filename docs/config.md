@@ -463,6 +463,22 @@ Lightweight extension point for registering Handlebars helpers from a config-lis
 | --- | --- | --- | --- | --- |
 | `components.helpers.paths` | `array<string>` | no | `[]` | Optional list of JavaScript / TypeScript files (relative to the project root) that export Handlebars helpers. Each module is dynamic-imported at build start; named exports become helpers registered under the export name, and a `default` export shaped `{ name: string, fn: Function }` (or `Record<string, Function>`) is registered accordingly. Thin sugar over writing a plugin that calls `engine.registerHelper`; for anything more involved than a couple of pure-function helpers, prefer a real plugin. |
 
+## `components.tags`
+
+Tag archive emission knobs. Currently only `min_posts_per_tag`; reserved for future per-archive controls.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.tags.min_posts_per_tag` | `number` | no | `1` | Minimum number of associated posts a tag must have for its archive route (`/tag/<slug>/`) to be generated. Defaults to `1` so tags with zero posts are silently skipped — Ghost JSON exports commonly include hundreds of internal `hash-` tags or legacy tags with no associated content, and pre-rendering archive pages for each one blows up planning time and emits thousands of near-empty HTML files on large imports (see backlog #152). Set to `0` to render every tag regardless of post count (back-compat with sites that want empty archives discoverable), or raise to e.g. `2` to suppress one-off tags that add long-tail noise without useful crawl signal. |
+
+## `components.authors`
+
+Author archive emission knobs. Mirrors `[components.tags]` for the per-author archive route.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.authors.min_posts_per_author` | `number` | no | `1` | Minimum number of associated posts an author must have for their archive route (`/author/<slug>/`) to be generated. Defaults to `1` so authors with no published posts are silently skipped — sites with imported staff profiles or guest-author placeholders should not ship a dead author archive. Set to `0` to render every author regardless of post count, or raise to e.g. `2` to suppress single-post contributors from the author archive surface. |
+
 ## `components.analytics`
 
 Drop-in analytics snippet. When `provider` is set, the corresponding script tag (and any `<noscript>` fallback) is appended to every page's `{{ghost_head}}` output. Privacy concerns (Do-Not-Track honouring, IP anonymisation, cookie banners) are the provider's responsibility — Nectar only emits the documented embed snippet verbatim.

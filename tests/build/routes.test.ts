@@ -1107,3 +1107,178 @@ describe('planRoutes — pagination URL prefix (#788)', () => {
     expect(pagination.next_url).toBe('/p/3/');
   });
 });
+
+describe('planRoutes — min_posts_per_tag / min_posts_per_author (#152)', () => {
+  test('default (=1) skips empty tag archives', () => {
+    // A `hash-` style internal tag plus a legacy unused tag both end up with
+    // 0 posts via the loader's inverse index. The default `min_posts_per_tag`
+    // of 1 should suppress their `/tag/<slug>/` route while letting the
+    // populated tag through.
+    const config = makeConfig('https://example.com');
+    const populated = makeTag('news');
+    const empty = makeTag('legacy');
+    const hashTag = makeTag('hash-internal');
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [populated], primary_tag: populated })],
+      tags: [populated, empty, hashTag],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tagSlugs = routes
+      .filter((r) => r.kind === 'tag')
+      .map((r) => (r.data?.tag as Tag | undefined)?.slug);
+    expect(tagSlugs).toEqual(['news']);
+  });
+
+  test('default (=1) skips empty author archives', () => {
+    const config = makeConfig('https://example.com');
+    const populated = makeAuthor('alice');
+    const empty = makeAuthor('bob');
+    const content = makeGraph({
+      posts: [makePost('a', { authors: [populated], primary_author: populated })],
+      authors: [populated, empty],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const authorSlugs = routes
+      .filter((r) => r.kind === 'author')
+      .map((r) => (r.data?.author as Author | undefined)?.slug);
+    expect(authorSlugs).toEqual(['alice']);
+  });
+
+  test('min_posts_per_tag = 0 keeps empty tag archives (back-compat)', () => {
+    const config = makeConfig('https://example.com');
+    config.components = {
+      ...(config.components ?? {}),
+      tags: { min_posts_per_tag: 0 },
+    } as NectarConfig['components'];
+    const populated = makeTag('news');
+    const empty = makeTag('legacy');
+    const content = makeGraph({
+      posts: [makePost('a', { tags: [populated], primary_tag: populated })],
+      tags: [populated, empty],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tagSlugs = routes
+      .filter((r) => r.kind === 'tag')
+      .map((r) => (r.data?.tag as Tag | undefined)?.slug);
+    expect(tagSlugs.sort()).toEqual(['legacy', 'news']);
+  });
+
+  test('min_posts_per_tag = 2 suppresses single-post tags', () => {
+    const config = makeConfig('https://example.com');
+    config.components = {
+      ...(config.components ?? {}),
+      tags: { min_posts_per_tag: 2 },
+    } as NectarConfig['components'];
+    const popular = makeTag('news');
+    const oneOff = makeTag('typo');
+    const content = makeGraph({
+      posts: [
+        makePost('a', { tags: [popular], primary_tag: popular }),
+        makePost('b', { tags: [popular], primary_tag: popular }),
+        makePost('c', { tags: [oneOff], primary_tag: oneOff }),
+      ],
+      tags: [popular, oneOff],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const tagSlugs = routes
+      .filter((r) => r.kind === 'tag')
+      .map((r) => (r.data?.tag as Tag | undefined)?.slug);
+    expect(tagSlugs).toEqual(['news']);
+  });
+
+  test('min_posts_per_author = 0 keeps empty author archives', () => {
+    const config = makeConfig('https://example.com');
+    config.components = {
+      ...(config.components ?? {}),
+      authors: { min_posts_per_author: 0 },
+    } as NectarConfig['components'];
+    const populated = makeAuthor('alice');
+    const empty = makeAuthor('bob');
+    const content = makeGraph({
+      posts: [makePost('a', { authors: [populated], primary_author: populated })],
+      authors: [populated, empty],
+    });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const authorSlugs = routes
+      .filter((r) => r.kind === 'author')
+      .map((r) => (r.data?.author as Author | undefined)?.slug);
+    expect(authorSlugs.sort()).toEqual(['alice', 'bob']);
+  });
+});
+
+describe('planRoutes — postsByTag / postsByAuthor index parity (#151)', () => {
+  // Regression guard: planRoutes consumes the loader-built indices instead of
+  // re-scanning `content.posts` for every tag/author. Confirm the routes
+  // produced match what an O(T·P) filter would have produced.
+  test('indexed lookup matches naive filter for tag archives', () => {
+    const config = makeConfig('https://example.com');
+    const a = makeTag('a');
+    const b = makeTag('b');
+    const c = makeTag('c');
+    const posts = [
+      makePost('p1', { tags: [a, b], primary_tag: a }),
+      makePost('p2', { tags: [b, c], primary_tag: b }),
+      makePost('p3', { tags: [a], primary_tag: a }),
+    ];
+    const content = makeGraph({ posts, tags: [a, b, c] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const indexed = new Map<string, string[]>();
+    for (const r of routes) {
+      if (r.kind !== 'tag') continue;
+      const tag = r.data?.tag as Tag;
+      const tagPosts = (r.data?.posts as Post[]) ?? [];
+      if (!indexed.has(tag.slug)) indexed.set(tag.slug, []);
+      for (const p of tagPosts) indexed.get(tag.slug)?.push(p.slug);
+    }
+    // Reproduce via naive filter so a future regression in the index keeps
+    // failing here.
+    const naive = new Map<string, string[]>();
+    for (const tag of [a, b, c]) {
+      naive.set(
+        tag.slug,
+        posts.filter((p) => p.tags.some((t) => t.slug === tag.slug)).map((p) => p.slug),
+      );
+    }
+    for (const [slug, slugs] of indexed) {
+      expect(slugs.sort()).toEqual((naive.get(slug) ?? []).sort());
+    }
+  });
+
+  test('indexed lookup matches naive filter for author archives', () => {
+    const config = makeConfig('https://example.com');
+    const alice = makeAuthor('alice');
+    const bob = makeAuthor('bob');
+    const posts = [
+      makePost('p1', { authors: [alice], primary_author: alice }),
+      makePost('p2', { authors: [alice, bob], primary_author: alice }),
+      makePost('p3', { authors: [bob], primary_author: bob }),
+    ];
+    const content = makeGraph({ posts, authors: [alice, bob] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const indexed = new Map<string, string[]>();
+    for (const r of routes) {
+      if (r.kind !== 'author') continue;
+      const author = r.data?.author as Author;
+      const authorPosts = (r.data?.posts as Post[]) ?? [];
+      if (!indexed.has(author.slug)) indexed.set(author.slug, []);
+      for (const p of authorPosts) indexed.get(author.slug)?.push(p.slug);
+    }
+    const naive = new Map<string, string[]>();
+    for (const author of [alice, bob]) {
+      naive.set(
+        author.slug,
+        posts.filter((p) => p.authors.some((a) => a.slug === author.slug)).map((p) => p.slug),
+      );
+    }
+    for (const [slug, slugs] of indexed) {
+      expect(slugs.sort()).toEqual((naive.get(slug) ?? []).sort());
+    }
+  });
+});

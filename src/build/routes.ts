@@ -121,8 +121,19 @@ export function planRoutes(opts: {
 
   if (theme.templates.tag && taxonomies.tag !== undefined) {
     const tagTemplate = taxonomies.tag;
+    // Skip empty tags by default so Ghost JSON imports (which routinely carry
+    // hundreds of legacy / `hash-` tags with zero published posts) don't blow
+    // up route planning and emit a dead `/tag/<slug>/` per orphan. Operators
+    // who want every tag pre-rendered for crawl/back-compat set
+    // `[components.tags].min_posts_per_tag = 0`; raising it suppresses
+    // long-tail one-off tags. See backlog #152.
+    // Optional chaining + fallback keeps unit tests that hand-roll a partial
+    // config (skipping the schema parser) working — production builds always
+    // see the schema default of 1.
+    const minPostsPerTag = config.components.tags?.min_posts_per_tag ?? 1;
     for (const tag of content.tags) {
       const tagPosts = content.postsByTag.get(tag.slug) ?? [];
+      if (tagPosts.length < minPostsPerTag) continue;
       const pages = paginatePosts(tagPosts, perPage);
       const base = applyTaxonomyTemplate(tagTemplate, tag.slug);
       pages.forEach((slice, idx) => {
@@ -226,8 +237,13 @@ export function planRoutes(opts: {
 
   if (theme.templates.author && taxonomies.author !== undefined) {
     const authorTemplate = taxonomies.author;
+    // Mirror of `min_posts_per_tag`: suppress dead `/author/<slug>/` archives
+    // for imported staff profiles or placeholder authors with no published
+    // posts. See backlog #152.
+    const minPostsPerAuthor = config.components.authors?.min_posts_per_author ?? 1;
     for (const author of content.authors) {
       const authorPosts = content.postsByAuthor.get(author.slug) ?? [];
+      if (authorPosts.length < minPostsPerAuthor) continue;
       const pages = paginatePosts(authorPosts, perPage);
       const base = applyTaxonomyTemplate(authorTemplate, author.slug);
       pages.forEach((slice, idx) => {
