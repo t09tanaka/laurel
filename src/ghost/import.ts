@@ -59,6 +59,17 @@ interface GhostExport {
   db: GhostExportDbEntry[];
 }
 
+const GHOST_EXPORT_TABLE_KEYS = [
+  'posts',
+  'tags',
+  'users',
+  'tiers',
+  'settings',
+  'posts_tags',
+  'posts_authors',
+  'posts_tiers',
+] as const;
+
 interface MergedGhostData {
   posts: GhostPost[];
   tags: GhostTag[];
@@ -348,6 +359,52 @@ const GHOST_PROJECT_FILE_FAMILIES = [
   },
 ] as const;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function validateGhostExportShape(value: unknown): GhostExport {
+  if (!isRecord(value)) {
+    throw new Error('Invalid Ghost export: top-level JSON must be an object');
+  }
+
+  const db = value.db;
+  if (!Array.isArray(db) || db.length === 0) {
+    throw new Error('Invalid Ghost export: db array missing or empty');
+  }
+
+  let sawData = false;
+  for (const [index, entry] of db.entries()) {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid Ghost export: db[${index}] must be an object`);
+    }
+    if (!hasOwn(entry, 'data')) continue;
+
+    const data = entry.data;
+    if (!isRecord(data)) {
+      throw new Error(`Invalid Ghost export: db[${index}].data must be an object`);
+    }
+
+    sawData = true;
+    for (const key of GHOST_EXPORT_TABLE_KEYS) {
+      if (!hasOwn(data, key)) continue;
+      if (!Array.isArray(data[key])) {
+        throw new Error(`Invalid Ghost export: db[${index}].data.${key} must be an array`);
+      }
+    }
+  }
+
+  if (!sawData) {
+    throw new Error('Invalid Ghost export: no db[i].data block present');
+  }
+
+  return value as GhostExport;
+}
+
 // Newer Ghost admin exports split tables across multiple `db[i]` blocks (e.g.
 // posts in db[0], posts_meta/members/snippets in db[1]). Reading only db[0]
 // would silently drop content from any subsequent block, so concatenate the
@@ -522,13 +579,14 @@ async function importFromResolvedInput(
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
   const raw = await readFile(resolved.jsonFile, 'utf8');
-  let parsed: GhostExport;
+  let parsedJson: unknown;
   try {
-    parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
+    parsedJson = JSON.parse(raw) as unknown;
   } catch (err) {
     const reason = err instanceof Error ? `: ${err.message}` : '';
     throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
   }
+  const parsed = validateGhostExportShape(stripGhostUrlPlaceholder(parsedJson));
   const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers } =
     mergeGhostDbEntries(parsed.db);
   const filters = resolveImportFilters(opts);

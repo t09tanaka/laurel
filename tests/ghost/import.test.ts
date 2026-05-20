@@ -2975,10 +2975,38 @@ describe('importGhostExport — multi-db export merging (#126)', () => {
     );
   });
 
+  test('throws when the top-level export JSON is not an object (#1043)', async () => {
+    await writeFile(exportFile, JSON.stringify([{ db: [] }]));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /top-level JSON must be an object/,
+    );
+  });
+
   test('throws when db array is present but empty', async () => {
     await writeFile(exportFile, JSON.stringify({ db: [] }));
     await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
       /db array missing or empty/,
+    );
+  });
+
+  test('throws when a db entry is not an object (#1043)', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [null] }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /db\[0\] must be an object/,
+    );
+  });
+
+  test('throws when a db data block is not an object (#1043)', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [{ data: 'corrupt' }] }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /db\[0\]\.data must be an object/,
+    );
+  });
+
+  test('throws when a known data table is not an array (#1043)', async () => {
+    await writeFile(exportFile, JSON.stringify({ db: [{ data: { posts: { id: 'p1' } } }] }));
+    await expect(importGhostExport({ cwd, file: exportFile })).rejects.toThrow(
+      /db\[0\]\.data\.posts must be an array/,
     );
   });
 

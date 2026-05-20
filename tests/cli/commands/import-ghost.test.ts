@@ -361,6 +361,16 @@ describe('cli import-ghost — input validation', () => {
     expect(exitCode).toBe(1);
     expect(stderr).toContain(`Invalid JSON in Ghost export: ${invalidJson}`);
   });
+
+  test('corrupt Ghost export structure exits 1 with a clear validation error', async () => {
+    const corruptJson = join(dir, 'corrupt.json');
+    await writeFile(corruptJson, JSON.stringify({ db: [{ data: { posts: {} } }] }));
+
+    const { stderr, exitCode } = await runCli(['import-ghost', corruptJson], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('Invalid Ghost export: db[0].data.posts must be an array');
+  });
 });
 
 describe('cli import-ghost — --dry-run (#502)', () => {
