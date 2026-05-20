@@ -48,6 +48,24 @@ vercel` for manual or custom CI uploads of an already-built `dist/`.
 Vercel detects Bun from `bun.lock`, so a separate `BUN_VERSION` environment
 variable is not required for the default Git-connected build.
 
+## 404 pages
+
+Nectar always emits `dist/404.html`. If the active theme provides
+`error-404.hbs` or `error.hbs`, that template renders the file; otherwise
+Nectar writes its built-in branded 404 page.
+
+Vercel treats a `404.html` file at the output root as the custom not-found
+page for static site generators. With the Output Directory set to `dist`, an
+unmatched URL such as `/missing-page/` receives Vercel's 404 status while
+serving Nectar's `dist/404.html` body. No extra rewrite or `routes` entry is
+needed for the standard filename.
+
+Keep `404.html` at the publish root. Do not add a catch-all rewrite from
+`/(.*)` to `/404.html`; that would turn every unknown URL into an ordinary
+rewrite and can mask the intended 404 response semantics. Only use Vercel
+`routes` if you intentionally rename the not-found file, which Nectar does
+not do by default.
+
 ## Redirects
 
 Add redirects to `redirects.yaml` at the project root:

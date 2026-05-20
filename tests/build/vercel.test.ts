@@ -244,3 +244,17 @@ describe('examples/ci/vercel.yml', () => {
     expect(body).toContain('vercel@latest deploy --prebuilt');
   });
 });
+
+describe('Vercel deployment docs', () => {
+  test('document Vercel 404.html behavior for Nectar output', async () => {
+    const root = join(import.meta.dir, '..', '..');
+    const guide = await readFile(join(root, 'docs', 'deploy', 'vercel.md'), 'utf8');
+    const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
+
+    expect(guide).toContain('Nectar always emits `dist/404.html`');
+    expect(guide).toContain('Vercel treats a `404.html` file at the output root');
+    expect(guide).toContain('No extra rewrite or `routes` entry');
+    expect(tutorial).toContain('Every Nectar build includes `dist/404.html`');
+    expect(tutorial).toContain('does not need a catch-all rewrite for');
+  });
+});

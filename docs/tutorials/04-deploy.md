@@ -260,6 +260,11 @@ enabled = true
 Vercel reads `bun.lock` and uses Bun automatically. No environment variable
 required for the default Git-connected build.
 
+Every Nectar build includes `dist/404.html`. On Vercel, that root-level file
+is served as the custom not-found page for unmatched static routes, with a 404
+status, so the standard setup above does not need a catch-all rewrite for
+`404.html`.
+
 Custom redirects go in `redirects.yaml`; with `[deploy.vercel].enabled = true`,
 Nectar folds them into `dist/vercel.json` alongside cache and security
 headers. Supported status codes are 301, 302, 307, and 308; the first rule per
