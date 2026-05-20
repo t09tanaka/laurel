@@ -105,6 +105,11 @@ export async function runBuild(args: string[]): Promise<number> {
   const emitContentApi: boolean | undefined =
     typeof emitContentApiRaw === 'boolean' ? emitContentApiRaw : undefined;
 
+  if (configPath === undefined && !(await hasProjectConfig(cwd))) {
+    process.stderr.write(`No nectar.toml found in ${cwd}\n`);
+    return EXIT_CODES.generic;
+  }
+
   const buildArgs = {
     cwd,
     configPath,
@@ -322,6 +327,13 @@ function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
     if (existsSync(p)) paths.add(p);
   }
   return [...paths];
+}
+
+async function hasProjectConfig(cwd: string): Promise<boolean> {
+  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+    if (await Bun.file(join(cwd, name)).exists()) return true;
+  }
+  return false;
 }
 
 // Filters fs.watch noise that would otherwise spam rebuilds: build artifacts
