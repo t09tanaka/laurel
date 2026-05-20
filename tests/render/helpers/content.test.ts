@@ -1208,6 +1208,13 @@ describe('post_class helper', () => {
 });
 
 describe('body_class helper', () => {
+  test('falls back to the route-kind default when ctx.body_class is missing', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{body_class}}')({}, { data: { route: { kind: 'post' } } });
+    expect(out).toBe('nectar-route-post');
+  });
+
   test('ctx.body_class overrides the route-kind default', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
@@ -1216,5 +1223,18 @@ describe('body_class helper', () => {
       { data: { route: { kind: 'post' } } },
     );
     expect(out).toBe('custom');
+  });
+
+  test('post template fallback includes tag tokens for the current post', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{body_class}}')(
+      { tags: [{ slug: 'news' }, { slug: 'sport' }] },
+      { data: { route: { kind: 'post' } } },
+    );
+    const tokens = out.split(' ');
+    expect(tokens).toContain('nectar-route-post');
+    expect(tokens).toContain('tag-news');
+    expect(tokens).toContain('tag-sport');
   });
 });

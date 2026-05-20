@@ -328,8 +328,20 @@ export function registerContentHelpers(engine: NectarEngine): void {
     'body_class',
     function bodyClassHelper(this: unknown, options: Handlebars.HelperOptions) {
       const route = options.data?.route as { kind?: string } | undefined;
-      const ctx = this as { body_class?: string };
-      return ctx.body_class ?? (route?.kind ? `nectar-route-${route.kind}` : '');
+      const ctx = this as { body_class?: string; tags?: { slug?: unknown }[] };
+      if (ctx.body_class !== undefined) return ctx.body_class;
+      const tokens = route?.kind ? [`nectar-route-${route.kind}`] : [];
+      if (route?.kind === 'post') {
+        const seen = new Set(tokens);
+        for (const tag of ctx.tags ?? []) {
+          if (typeof tag.slug !== 'string' || tag.slug.length === 0) continue;
+          const token = `tag-${tag.slug}`;
+          if (seen.has(token)) continue;
+          seen.add(token);
+          tokens.push(token);
+        }
+      }
+      return tokens.join(' ');
     },
   );
 }
