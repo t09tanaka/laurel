@@ -65,6 +65,14 @@ That means runtime-only Ghost snippets such as Biron's subscribe error display
 static render time, the path resolves to an empty string and does not throw.
 Nectar does not implement a runtime subscribe POST error lifecycle.
 
+### `is_popup`
+
+Ghost sets root `is_popup` while rendering the subscribe iframe popup. Nectar
+does not implement that popup rendering context, so every static route exposes
+`is_popup: false` on the root template context. Theme guards such as Wave's
+`{{#if is_popup}}` therefore remain safe and deterministic, but popup-only
+classes like `.popup` are never added by Nectar.
+
 ## Migration: Ghost HTML card sanitisation
 
 Ghost's "HTML card" (`<!--kg-card-begin: html-->…<!--kg-card-end: html-->`,

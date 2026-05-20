@@ -401,6 +401,20 @@ describe('buildContext', () => {
     expect(ctx.access).toBe(true);
   });
 
+  test('ctx.is_popup is explicitly false on static routes (issue #1721)', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    expect(ctx.is_popup).toBe(false);
+    expect(Object.hasOwn(ctx, 'is_popup')).toBe(true);
+  });
+
   // Cross-theme body_class variants (issue #862). Ghost emits route-kind
   // template tokens that themes hook for layout; Source ships separate CSS
   // for the home root, paginated archives, the error page, and aggregated
@@ -1460,6 +1474,23 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       meta: baseMeta,
     });
     expect(html).toBe('<main>beforeafter</main>');
+  });
+
+  test('Wave-style popup guard renders without adding the popup class (issue #1721)', () => {
+    const theme = makeTheme({
+      default: '<body class="{{#if is_popup}}popup{{/if}}">{{{body}}}</body>',
+      index: '{{!< default}}<main>body</main>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const html = engine.render({
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'index',
+      data: {},
+      meta: baseMeta,
+    });
+    expect(html).toBe('<body class=""><main>body</main></body>');
   });
 });
 

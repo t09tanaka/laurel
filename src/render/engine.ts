@@ -271,6 +271,11 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   // every route's root context. The dedicated `access` helper still handles
   // inline / block invocations and stays the canonical entry point.
   ctx.access = true;
+  // Ghost sets `is_popup` only while rendering the subscribe iframe popup.
+  // Nectar has no popup iframe renderer, so keep the root context explicitly
+  // false instead of undefined. Themes such as Wave guard `.popup` classes
+  // with `{{#if is_popup}}` and should deterministically take the static path.
+  ctx.is_popup = false;
   return ctx;
 }
 
