@@ -402,6 +402,13 @@ describe('has helper', () => {
     expect(tpl({ visibility: 'members' })).toBe('gated');
   });
 
+  test('arbitrary hash keys fall through to context property comparison', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has featured="true"}}yes{{/has}}');
+    expect(tpl({ featured: true })).toBe('yes');
+  });
+
   test('falls through to inverse when the requested tag is absent', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
