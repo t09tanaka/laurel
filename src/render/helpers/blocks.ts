@@ -352,7 +352,7 @@ function registerContextBlock(
     name,
     function contextBlockHelper(this: unknown, options: Handlebars.HelperOptions) {
       const route = options.data?.route as Record<string, unknown> | undefined;
-      const value = pick(route) ?? (this as Record<string, unknown>)?.[name];
+      const value = (this as Record<string, unknown> | undefined)?.[name] ?? pick(route);
       if (!value) return options.inverse ? options.inverse(this) : '';
       return options.fn(value);
     },

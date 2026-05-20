@@ -713,6 +713,28 @@ describe('post/page/tag/author context helpers', () => {
     const tpl = engine.hb.compile('{{#post}}HIT{{else}}NONE{{/post}}');
     expect(tpl({}, { data: { route: {} } })).toBe('NONE');
   });
+
+  test('author block prefers the current post author inside foreach posts', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach posts}}{{#author}}{{name}}{{/author}}|{{/foreach}}');
+    const ctx = {
+      posts: [
+        { title: 'One', author: { name: 'Post Author' } },
+        { title: 'Two', author: { name: 'Second Author' } },
+      ],
+    };
+    const data = { route: { kind: 'author', data: { author: { name: 'Route Author' } } } };
+    expect(tpl(ctx, { data })).toBe('Post Author|Second Author|');
+  });
+
+  test('author block falls back to the route author outside a post context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#author}}{{name}}{{else}}NONE{{/author}}');
+    const data = { route: { kind: 'author', data: { author: { name: 'Route Author' } } } };
+    expect(tpl({}, { data })).toBe('Route Author');
+  });
 });
 
 describe('prev_post / next_post helpers', () => {
