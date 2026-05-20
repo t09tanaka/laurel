@@ -26,14 +26,16 @@ import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest, loadBuildManifest } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
-import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
-import { emitCloudflareRoutes } from './cloudflare-routes.ts';
 import { emitCloudflareWorkersManifest } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
-import { emitCustomRedirects } from './custom-redirects.ts';
 import { type HtmlOutput, copyAssets, copyContentAssets, writeHtmlBatch } from './emit.ts';
+import {
+  deploymentHeaderTargets,
+  deploymentRoutingTargets,
+  emitDeployTargets,
+} from './emitters/registry.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
 import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
@@ -69,7 +71,6 @@ import {
 } from './manifest.ts';
 import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
-import { emitNetlifyHeaders, emitNetlifyRedirects } from './netlify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import {
@@ -106,7 +107,6 @@ import {
 } from './search.ts';
 import { copyStaticDir } from './static-passthrough.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
-import { emitVercelJson } from './vercel.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -814,19 +814,29 @@ async function runBuild({
   const autoNoindexProvider = isNonProductionBuild(config)
     ? config.build.metadata.provider
     : undefined;
-  await emitCloudflarePagesHeaders({
+  // Load `redirects.yaml` once and hand the canonical rules to every deploy
+  // emitter that consumes them. Cloudflare Pages and Netlify both consume
+  // `_redirects` at the publish root; the Netlify emitter translates
+  // `force: true` into the `!` status suffix Netlify needs. Vercel / Apache /
+  // nginx emitters read from the same parsed list.
+  const userRedirects = await loadAllRedirects(cwd);
+  const deployRedirects = [
+    ...userRedirects,
+    ...buildTrailingSlashRedirects({
+      routes,
+      policy: config.build.trailing_slash,
+      basePath: config.build.base_path,
+    }),
+  ];
+  const deploymentArtifacts = {
     outputDir,
-    enabled: config.deploy.cloudflare_pages.enabled || autoNoindexProvider === 'cloudflare_pages',
-    headers: config.deploy.headers,
-  });
-  // Cloudflare Pages Functions exclusion descriptor. Gated on the same flag
-  // as the `_headers` emit because they only matter together (no point
-  // shipping `_routes.json` to a Netlify deploy). See cloudflare-routes.ts
-  // for the rationale on emitting an empty exclude array.
-  await emitCloudflareRoutes({
-    outputDir,
-    enabled: config.deploy.cloudflare_pages.enabled,
-  });
+    config,
+    routes,
+    userRedirects,
+    deployRedirects,
+    autoNoindexProvider,
+  };
+  await emitDeployTargets(deploymentHeaderTargets, deploymentArtifacts);
   // Azure Static Web Apps config. Emitted unconditionally — the file is
   // azure-specific and inert on every other host, and a single nectar build
   // should be deployable to Azure without an extra config knob. Users who
@@ -834,11 +844,6 @@ async function runBuild({
   // static-passthrough dir, which overrides this default via the post-emit
   // passthrough step below.
   await emitAzureStaticWebAppConfig({ outputDir });
-  await emitNetlifyHeaders({
-    outputDir,
-    enabled: config.deploy.netlify.enabled || autoNoindexProvider === 'netlify',
-    headers: config.deploy.headers,
-  });
   await emitCloudFrontResponseHeadersPolicy({
     outputDir,
     headers: config.deploy.headers,
@@ -860,20 +865,6 @@ async function runBuild({
       }),
     );
   }
-  // Load `redirects.yaml` once and hand the canonical rules to every emitter
-  // that consumes them. Cloudflare Pages and Netlify both consume `_redirects`
-  // at the publish root; the Netlify emitter translates `force: true` into the
-  // `!` status suffix Netlify needs. Vercel / Apache / nginx emitters read
-  // from the same parsed list.
-  const userRedirects = await loadAllRedirects(cwd);
-  const deployRedirects = [
-    ...userRedirects,
-    ...buildTrailingSlashRedirects({
-      routes,
-      policy: config.build.trailing_slash,
-      basePath: config.build.base_path,
-    }),
-  ];
   // Component-level emit runs first so platform-specific emitters can layer
   // their own files (`_headers`, `vercel.json`, …) on top. The component emit
   // writes a baseline `_redirects` whenever rules exist and the toggle is on —
@@ -891,29 +882,13 @@ async function runBuild({
     enabled: config.deploy.github_pages.redirects,
     basePath: config.build.base_path,
   });
-  await emitCustomRedirects({
-    outputDir,
-    rules: deployRedirects,
-    enabled: config.deploy.cloudflare_pages.enabled,
-  });
   await emitCloudflareWorkersManifest({
     outputDir,
     enabled: config.deploy.cloudflare_workers.enabled,
     headers: config.deploy.headers,
     rules: deployRedirects,
   });
-  await emitNetlifyRedirects({
-    outputDir,
-    rules: deployRedirects,
-    enabled: config.deploy.netlify.enabled,
-  });
-  await emitVercelJson({
-    outputDir,
-    enabled: config.deploy.vercel.enabled || autoNoindexProvider === 'vercel',
-    headers: config.deploy.headers,
-    rules: deployRedirects,
-    trailingSlash: config.build.trailing_slash,
-  });
+  await emitDeployTargets(deploymentRoutingTargets, deploymentArtifacts);
   await emitFirebaseJson({
     outputDir,
     enabled: config.deploy.firebase.enabled,
