@@ -574,6 +574,27 @@ describe('planRoutes — posts_per_page precedence', () => {
     const indexPages = routes.filter((r) => r.kind === 'home' || r.kind === 'index');
     expect(indexPages).toHaveLength(Math.ceil(10 / 3));
   });
+
+  test('route pagination exposes numeric Ghost-compatible page and total fields', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 3;
+    const posts = Array.from({ length: 10 }, (_, i) => makePost(`p${i}`));
+    const content = makeGraph({ posts });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const page2 = routes.find((r) => r.kind === 'index' && r.url === '/page/2/');
+
+    expect(page2?.data.pagination).toMatchObject({
+      page: 2,
+      pages: 4,
+      total: 10,
+      limit: 3,
+      prev: 1,
+      next: 3,
+    });
+    expect(typeof page2?.data.pagination?.page).toBe('number');
+    expect(typeof page2?.data.pagination?.total).toBe('number');
+  });
 });
 
 describe('planRoutes — routes.yaml taxonomies (issue #233)', () => {

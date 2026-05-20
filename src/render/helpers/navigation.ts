@@ -93,17 +93,13 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const route = options.data?.route as
         | { url?: string; data?: { pagination?: PaginationLike } }
         | undefined;
-      const pagination = route?.data?.pagination;
+      const pagination = paginationContext(route?.data?.pagination, route?.url);
       if (!pagination || pagination.pages <= 1) return new engine.hb.SafeString('');
 
       if (options.fn) {
-        const blockContext = {
-          ...pagination,
-          page_url: currentPaginationPageUrl(pagination, route?.url),
-        };
-        const html = options.fn(blockContext, {
+        const html = options.fn(pagination, {
           data: options.data,
-          blockParams: [blockContext],
+          blockParams: [pagination],
         });
         return new engine.hb.SafeString(html);
       }
@@ -185,10 +181,39 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
 interface PaginationLike {
   page: number;
   pages: number;
+  total: number;
   prev_url: string | undefined;
   next_url: string | undefined;
   base_url?: string | undefined;
   page_url?: string | undefined;
+}
+
+function paginationContext(
+  pagination: PaginationLike | undefined,
+  routeUrl: string | undefined,
+): PaginationLike | undefined {
+  if (!pagination) return undefined;
+  const page = positiveInteger(pagination.page, 1);
+  const pages = positiveInteger(pagination.pages, 1);
+  const total = nonNegativeInteger(pagination.total, 0);
+  const normalized = {
+    ...pagination,
+    page,
+    pages,
+    total,
+  };
+  return {
+    ...normalized,
+    page_url: currentPaginationPageUrl(normalized, routeUrl),
+  };
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : fallback;
+}
+
+function nonNegativeInteger(value: unknown, fallback: number): number {
+  return Number.isInteger(value) && Number(value) >= 0 ? Number(value) : fallback;
 }
 
 function currentPaginationPageUrl(

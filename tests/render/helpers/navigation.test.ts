@@ -216,6 +216,7 @@ describe('navigation helper href sanitisation', () => {
 function renderPagination(pagination: {
   page: number;
   pages: number;
+  total?: number;
   prev_url: string | undefined;
   next_url: string | undefined;
   base_url?: string | undefined;
@@ -238,6 +239,7 @@ function renderPaginationTemplate(
   pagination: {
     page: number;
     pages: number;
+    total?: number;
     prev_url: string | undefined;
     next_url: string | undefined;
     base_url?: string | undefined;
@@ -331,6 +333,21 @@ describe('pagination helper block form', () => {
       base_url: '/',
     });
     expect(html).toBe('/page/2/');
+  });
+
+  test('exposes numeric page and total fields for Ghost-compatible themes', () => {
+    const html = renderPaginationTemplate(
+      '{{#pagination}}page={{this.page}} total={{this.total}}{{/pagination}}',
+      {
+        page: 2,
+        pages: 3,
+        total: 17,
+        prev_url: '/',
+        next_url: '/page/3/',
+        base_url: '/',
+      },
+    );
+    expect(html).toBe('page=2 total=17');
   });
 
   test('exposes pagination as the first block param', () => {
@@ -738,7 +755,7 @@ describe('pagination helper theme partial override', () => {
   test('renders partials/pagination.hbs when the theme provides one', () => {
     const engine = makeEngine({
       partials: {
-        pagination: `<nav class="theme-pagination">p{{page}}/{{pages}}|{{prev_url}}|{{next_url}}</nav>`,
+        pagination: `<nav class="theme-pagination">p{{page}}/{{pages}} total={{total}}|{{prev_url}}|{{next_url}}</nav>`,
       },
     });
     registerNavigationHelpers(engine);
@@ -752,6 +769,7 @@ describe('pagination helper theme partial override', () => {
               pagination: {
                 page: 2,
                 pages: 4,
+                total: 18,
                 prev_url: '/page/1/',
                 next_url: '/page/3/',
               },
@@ -760,7 +778,7 @@ describe('pagination helper theme partial override', () => {
         },
       },
     );
-    expect(html).toBe('<nav class="theme-pagination">p2/4|/page/1/|/page/3/</nav>');
+    expect(html).toBe('<nav class="theme-pagination">p2/4 total=18|/page/1/|/page/3/</nav>');
   });
 
   test('skips render when pagination.pages <= 1 even if a theme partial is present', () => {

@@ -285,8 +285,8 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   return ctx;
 }
 
-function defaultPaginationContext(): { page: number; pages: number } {
-  return { page: 1, pages: 1 };
+function defaultPaginationContext(): { page: number; pages: number; total: number } {
+  return { page: 1, pages: 1, total: 0 };
 }
 
 export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {

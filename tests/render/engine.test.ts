@@ -165,7 +165,7 @@ describe('buildContext', () => {
       data: {},
       meta: baseMeta,
     };
-    expect(buildContext(engine, homeRoute).pagination).toEqual({ page: 1, pages: 1 });
+    expect(buildContext(engine, homeRoute).pagination).toEqual({ page: 1, pages: 1, total: 0 });
 
     const pageRoute: RouteContext = {
       kind: 'page',
@@ -175,7 +175,7 @@ describe('buildContext', () => {
       data: { page: makePage() },
       meta: baseMeta,
     };
-    expect(buildContext(engine, pageRoute).pagination).toEqual({ page: 1, pages: 1 });
+    expect(buildContext(engine, pageRoute).pagination).toEqual({ page: 1, pages: 1, total: 0 });
   });
 
   test('routes with pagination preserve the route pagination object (issue #1709)', () => {
