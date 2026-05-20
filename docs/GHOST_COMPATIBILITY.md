@@ -270,7 +270,7 @@ templates to add `gh-content` / `gh-canvas`.
 | Shortcode/input | Rendered wrapper contract |
 |-----------------|---------------------------|
 | `{{< figure />}}` | `<figure class="kg-card kg-image-card kg-width-*">` with a `.kg-image` image, optional wrapping link, and caption. |
-| `{{< bookmark />}}` | `<figure class="kg-card kg-bookmark-card">` with `.kg-bookmark-container` children. |
+| `{{< bookmark />}}` | `<figure class="kg-card kg-bookmark-card">` with the exact `.kg-bookmark-container` child structure documented below. |
 | `{{< embed />}}` | `<figure class="kg-card kg-embed-card kg-width-*">` with a static supported-provider iframe or fallback link. |
 | `{{< gallery >}}` | `<figure class="kg-card kg-gallery-card kg-width-*">` with `.kg-gallery-container`, `.kg-gallery-row`, and `.kg-gallery-image`. |
 | `{{< callout >}}` | `<div class="kg-card kg-callout-card ...">` with `.kg-callout-emoji` and `.kg-callout-text`. |
@@ -280,6 +280,36 @@ templates to add `gh-content` / `gh-canvas`.
 | `{{< audio />}}` | `<div class="kg-card kg-audio-card">` with an `<audio controls>` element and metadata rows. |
 | `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card">` with image, title, description, optional rating, and CTA scaffold. |
+
+Bookmark cards intentionally pin Ghost's Source/Casper DOM contract. The outer
+element is always a `figure.kg-card.kg-bookmark-card`; the clickable child is
+the single `a.kg-bookmark-container`; title, description, metadata, and
+thumbnail nodes stay under Ghost's `kg-bookmark-*` class names so theme CSS can
+target them without custom selectors:
+
+```html
+<figure class="kg-card kg-bookmark-card">
+  <a class="kg-bookmark-container" href="https://example.com/post">
+    <div class="kg-bookmark-content">
+      <div class="kg-bookmark-title">Bookmark Title</div>
+      <div class="kg-bookmark-description">A short summary.</div>
+      <div class="kg-bookmark-metadata">
+        <img class="kg-bookmark-icon" src="https://example.com/icon.png" alt="">
+        <span class="kg-bookmark-author">Jane Doe</span>
+        <span class="kg-bookmark-publisher">Example</span>
+      </div>
+    </div>
+    <div class="kg-bookmark-thumbnail">
+      <img src="https://example.com/thumb.jpg" alt="">
+    </div>
+  </a>
+</figure>
+```
+
+Nectar does not inject Ghost Admin or shared-theme-assets JavaScript for
+bookmark link tracking. A theme or analytics plugin that needs click tracking
+must attach its own listener to `.kg-bookmark-container`; Nectar only guarantees
+the static DOM and class contract above.
 
 Raw Ghost-compatible HTML scaffolds for `kg-header-card`, `kg-nft-card`, and
 `kg-signup-card` are preserved through sanitisation so theme CSS hooks and

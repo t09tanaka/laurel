@@ -20,6 +20,10 @@ async function renderFixture(name: string): Promise<string> {
   return html;
 }
 
+function normalizeIntertagWhitespace(html: string): string {
+  return html.replace(/>\s+</g, '><').trim();
+}
+
 describe('card fixture corpus', () => {
   test('card spacing contract keeps kg-card roots as gh-content direct children', async () => {
     const md = [
@@ -129,6 +133,31 @@ describe('card fixture corpus', () => {
     expect(html).toContain('class="kg-bookmark-thumbnail"');
     // Shortcode must not leak through verbatim into the rendered HTML.
     expect(html).not.toContain('{{< bookmark');
+  });
+
+  test('bookmark shortcode matches the Ghost DOM contract modulo whitespace', async () => {
+    const html = await renderFixture('bookmark');
+
+    expect(normalizeIntertagWhitespace(html)).toBe(
+      normalizeIntertagWhitespace(`
+        <figure class="kg-card kg-bookmark-card">
+          <a class="kg-bookmark-container" href="https://example.com/post">
+            <div class="kg-bookmark-content">
+              <div class="kg-bookmark-title">Bookmark Title</div>
+              <div class="kg-bookmark-description">A short summary of the linked article.</div>
+              <div class="kg-bookmark-metadata">
+                <img class="kg-bookmark-icon" src="https://example.com/icon.png" alt="" />
+                <span class="kg-bookmark-author">Jane Doe</span>
+                <span class="kg-bookmark-publisher">Example</span>
+              </div>
+            </div>
+            <div class="kg-bookmark-thumbnail">
+              <img src="https://example.com/thumb.jpg" alt="" />
+            </div>
+          </a>
+        </figure>
+      `),
+    );
   });
 
   test('callout card keeps emoji + text wrappers with colour modifier class', async () => {
