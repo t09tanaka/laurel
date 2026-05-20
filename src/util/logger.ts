@@ -44,6 +44,11 @@ function parseInitialJsonMode(env: NodeJS.ProcessEnv): LogOutputMode {
   return 'text';
 }
 
+function parseEnvFlag(raw: string | undefined): boolean {
+  if (raw === undefined || raw === '') return false;
+  return /^(1|true|yes|on)$/i.test(raw.trim());
+}
+
 function detectColorEnabled(env: NodeJS.ProcessEnv): boolean {
   // NECTAR_NO_COLOR is the project-namespaced override. Parse it as boolean
   // so `NECTAR_NO_COLOR=0` (explicit re-enable) wins over a globally-set
@@ -154,14 +159,30 @@ function emit(level: Level, parts: unknown[]): void {
     writeToLevelStream(level, `${safeJsonStringify(record)}\n`);
     return;
   }
-  const tag = level === 'info' ? '' : `${colorize(`[${level}]`, levelColor(level))} `;
   const trailing = fields ? ` ${formatFieldsForText(fields)}` : '';
-  writeToLevelStream(level, `${tag}${message}${trailing}\n`);
+  writeToLevelStream(level, formatTextLine(level, message, trailing));
 }
 
 function writeToLevelStream(level: Level, chunk: string): void {
-  const stream = order[level] >= order.warn ? process.stderr : process.stdout;
+  const stream = levelStream(level);
   stream.write(chunk);
+}
+
+function levelStream(level: Level): NodeJS.WriteStream {
+  return order[level] >= order.warn ? process.stderr : process.stdout;
+}
+
+function formatTextLine(level: Level, message: string, trailing: string): string {
+  if (shouldPrefixTextTimestamp(level)) {
+    return `[${new Date().toISOString()}] ${level} ${message}${trailing}\n`;
+  }
+  const tag = level === 'info' ? '' : `${colorize(`[${level}]`, levelColor(level))} `;
+  return `${tag}${message}${trailing}\n`;
+}
+
+function shouldPrefixTextTimestamp(level: Level): boolean {
+  if (parseEnvFlag(process.env.NECTAR_LOG_TIMESTAMPS)) return true;
+  return levelStream(level).isTTY !== true;
 }
 
 function levelColor(level: Level): keyof typeof ANSI {

@@ -34,6 +34,43 @@ function captureStreams(fn: () => void): { stdout: string; stderr: string } {
   return { stdout, stderr };
 }
 
+function withStreamTty<T>(stream: NodeJS.WriteStream, isTTY: boolean | undefined, fn: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(stream, 'isTTY');
+  Object.defineProperty(stream, 'isTTY', {
+    configurable: true,
+    value: isTTY,
+  });
+  try {
+    return fn();
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(stream, 'isTTY', descriptor);
+    } else {
+      Reflect.deleteProperty(stream, 'isTTY');
+    }
+  }
+}
+
+function withEnv<T>(key: string, value: string | undefined, fn: () => T): T {
+  const prev = process.env[key];
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    if (prev === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = prev;
+    }
+  }
+}
+
+const isoTimestampPrefix = /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] /;
+
 describe('logger warning counter', () => {
   test('warn() increments the counter; resetWarningCount() clears it', () => {
     resetWarningCount();
@@ -71,6 +108,72 @@ describe('logger stream routing', () => {
   });
 });
 
+describe('logger text timestamps', () => {
+  test('non-TTY text logs include a leading ISO timestamp and level', () => {
+    const { stdout, stderr } = withEnv('NECTAR_LOG_TIMESTAMPS', undefined, () =>
+      withStreamTty(process.stdout, false, () =>
+        withStreamTty(process.stderr, false, () =>
+          captureStreams(() => {
+            logger.info('build.done');
+            logger.warn('build.warned');
+          }),
+        ),
+      ),
+    );
+
+    expect(stdout).toMatch(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] info build\.done\n$/);
+    expect(stderr).toMatch(
+      /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] warn build\.warned\n$/,
+    );
+  });
+
+  test('TTY text logs keep the existing human-readable default', () => {
+    const { stdout, stderr } = withEnv('NECTAR_LOG_TIMESTAMPS', undefined, () =>
+      withStreamTty(process.stdout, true, () =>
+        withStreamTty(process.stderr, true, () =>
+          captureStreams(() => {
+            logger.info('build.done');
+            logger.warn('build.warned');
+          }),
+        ),
+      ),
+    );
+
+    expect(stdout).toBe('build.done\n');
+    expect(stderr).toBe('[warn] build.warned\n');
+  });
+
+  test('NECTAR_LOG_TIMESTAMPS=1 enables timestamps even for TTY text logs', () => {
+    const { stdout } = withEnv('NECTAR_LOG_TIMESTAMPS', '1', () =>
+      withStreamTty(process.stdout, true, () =>
+        captureStreams(() => {
+          logger.info('build.done');
+        }),
+      ),
+    );
+
+    expect(stdout).toMatch(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] info build\.done\n$/);
+  });
+
+  test('json mode keeps the ts field instead of prefixing msg', () => {
+    const prev = getOutputMode();
+    setOutputMode('json');
+    try {
+      const { stdout } = withEnv('NECTAR_LOG_TIMESTAMPS', '1', () =>
+        captureStreams(() => {
+          logger.info('build.done');
+        }),
+      );
+      const obj = JSON.parse(stdout.trim()) as { ts?: string; msg: string };
+      expect(obj.ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(obj.msg).toBe('build.done');
+      expect(obj.msg).not.toMatch(isoTimestampPrefix);
+    } finally {
+      setOutputMode(prev);
+    }
+  });
+});
+
 describe('setLogLevel', () => {
   afterEach(() => {
     setLogLevel('info');
@@ -94,11 +197,13 @@ describe('setLogLevel', () => {
 
   test('debug level emits debug but suppresses trace', () => {
     setLogLevel('debug');
-    const { stdout, stderr } = captureStreams(() => {
-      logger.trace('t');
-      logger.debug('d');
-      logger.info('i');
-    });
+    const { stdout, stderr } = withStreamTty(process.stdout, true, () =>
+      captureStreams(() => {
+        logger.trace('t');
+        logger.debug('d');
+        logger.info('i');
+      }),
+    );
     expect(stdout).not.toContain('[trace]');
     expect(stdout).toContain('[debug] d');
     expect(stdout).toContain('i');
@@ -107,11 +212,13 @@ describe('setLogLevel', () => {
 
   test('trace level emits everything including trace', () => {
     setLogLevel('trace');
-    const { stdout, stderr } = captureStreams(() => {
-      logger.trace('t');
-      logger.debug('d');
-      logger.info('i');
-    });
+    const { stdout, stderr } = withStreamTty(process.stdout, true, () =>
+      captureStreams(() => {
+        logger.trace('t');
+        logger.debug('d');
+        logger.info('i');
+      }),
+    );
     expect(stdout).toContain('[trace] t');
     expect(stdout).toContain('[debug] d');
     expect(stdout).toContain('i');
