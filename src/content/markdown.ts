@@ -1681,7 +1681,7 @@ function renderProductHtml(attrs: Record<string, string>): string {
     ? `<div class="kg-product-card-title">${escapeHtmlAttr(title)}</div>`
     : '';
   const descriptionHtml = description
-    ? `<div class="kg-product-card-description">${escapeHtmlAttr(description)}</div>`
+    ? `<div class="kg-product-card-description"><p>${escapeHtmlAttr(description)}</p></div>`
     : '';
   const ratingHtml =
     attrs.rating && /^\d+(?:\.\d+)?$/.test(attrs.rating)
@@ -1691,7 +1691,7 @@ function renderProductHtml(attrs: Record<string, string>): string {
     buttonHref && buttonText
       ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
       : '';
-  return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
+  return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${ratingHtml}${descriptionHtml}${buttonHtml}</div></div>\n\n`;
 }
 
 function renderNftHtml(attrs: Record<string, string>): string {

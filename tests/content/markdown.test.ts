@@ -903,11 +903,16 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain('class="kg-product-card-image"');
     expect(html).toContain('src="https://cdn.test/product.jpg"');
     expect(html).toContain('<div class="kg-product-card-title">Sample widget</div>');
-    expect(html).toContain('<div class="kg-product-card-description">');
+    expect(html).toContain(
+      '<div class="kg-product-card-description"><p>A short product description.</p></div>',
+    );
     expect(html).toContain('class="kg-product-card-rating"');
     expect(html).toContain('data-rating="5"');
     expect(html).toContain('class="kg-product-card-button kg-product-card-btn-accent"');
     expect(html).toContain('href="https://example.com/buy"');
+    expect(html).toMatch(
+      /kg-product-card-image[\s\S]*kg-product-card-title[\s\S]*kg-product-card-rating[\s\S]*kg-product-card-description[\s\S]*kg-product-card-button/,
+    );
     expect(html).not.toContain('{{< product');
   });
 

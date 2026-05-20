@@ -412,8 +412,42 @@ export function renderToggleCardHtml(payload: unknown): string {
 }
 
 export function renderProductCardHtml(payload: unknown): string {
-  const title = strProp(payload, 'productTitle');
-  const description = strProp(payload, 'productDescription');
-  if (!title && !description) return '';
-  return `<div class="kg-card kg-product-card">${title ? `<div class="kg-product-card-title">${escapeHtml(title)}</div>` : ''}${description ? `<div class="kg-product-card-description">${description}</div>` : ''}</div>`;
+  const title = strProp(payload, 'productTitle') || strProp(payload, 'title');
+  const description = strProp(payload, 'productDescription') || strProp(payload, 'description');
+  const image =
+    strProp(payload, 'productImageSrc') ||
+    strProp(payload, 'productImage') ||
+    strProp(payload, 'image');
+  const buttonHref =
+    strProp(payload, 'productUrl') ||
+    strProp(payload, 'productButtonUrl') ||
+    strProp(payload, 'buttonUrl') ||
+    strProp(payload, 'url');
+  const buttonText =
+    strProp(payload, 'productButton') ||
+    strProp(payload, 'productButtonText') ||
+    strProp(payload, 'buttonText');
+  const rating = dimensionProp(payload, 'productRating') || dimensionProp(payload, 'rating');
+  if (!title && !description && !image && !buttonHref) return '';
+  const imageHtml = image
+    ? `<img class="kg-product-card-image" src="${escapeAttr(image)}" alt="">`
+    : '';
+  const titleHtml = title ? `<div class="kg-product-card-title">${escapeHtml(title)}</div>` : '';
+  const ratingHtml =
+    rating && /^\d+(?:\.\d+)?$/.test(rating)
+      ? `<div class="kg-product-card-rating" data-rating="${escapeAttr(rating)}"></div>`
+      : '';
+  const descriptionHtml = renderProductDescriptionHtml(description);
+  const buttonHtml =
+    buttonHref && buttonText
+      ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeAttr(buttonHref)}">${escapeHtml(buttonText)}</a>`
+      : '';
+  return `<div class="kg-card kg-product-card${widthClass(payload)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${ratingHtml}${descriptionHtml}${buttonHtml}</div></div>`;
+}
+
+function renderProductDescriptionHtml(description: string): string {
+  if (!description) return '';
+  const trimmed = description.trim();
+  const body = /^\s*<(?:p|ul|ol)\b/i.test(trimmed) ? description : `<p>${description}</p>`;
+  return `<div class="kg-product-card-description">${body}</div>`;
 }

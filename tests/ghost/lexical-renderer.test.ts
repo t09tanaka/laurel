@@ -206,6 +206,27 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('class="kg-card kg-video-card kg-width-wide"');
   });
 
+  test('renders product cards in the Source theme DOM contract order', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'product',
+          productTitle: 'Sample widget',
+          productDescription: '<p>A short product description.</p>',
+          productImageSrc: 'https://cdn.test/product.jpg',
+          productRating: 5,
+          productUrl: 'https://example.com/buy',
+          productButton: 'Buy now',
+          cardWidth: 'regular',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe(
+      '<div class="kg-card kg-product-card kg-width-regular"><div class="kg-product-card-container"><img class="kg-product-card-image" src="https://cdn.test/product.jpg" alt=""><div class="kg-product-card-title">Sample widget</div><div class="kg-product-card-rating" data-rating="5"></div><div class="kg-product-card-description"><p>A short product description.</p></div><a class="kg-product-card-button kg-product-card-btn-accent" href="https://example.com/buy">Buy now</a></div></div>',
+    );
+  });
+
   test('lazy-loads iframe embed card html', () => {
     const out = renderLexicalToHtml(
       lex([
