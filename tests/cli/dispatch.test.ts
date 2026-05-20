@@ -61,6 +61,23 @@ describe('cli dispatch', () => {
     expect(stdout).toContain(`nectar ${pkg.version}`);
   });
 
+  test('version --check respects NECTAR_NO_UPDATE_CHECK', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['version', '--check'], {
+      NECTAR_NO_UPDATE_CHECK: '1',
+    });
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Update check disabled by NECTAR_NO_UPDATE_CHECK');
+  });
+
+  test('version --help documents the update check flag', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['version', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('nectar version [--check]');
+    expect(stdout).toContain('--check');
+  });
+
   test('unknown command exits 2 and suggests the closest match', async () => {
     const { stderr, exitCode } = await runCli(['buld']);
     expect(exitCode).toBe(2);

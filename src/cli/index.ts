@@ -3,6 +3,7 @@
 import { EXIT_CODES } from '~/util/errors.ts';
 import { logger, setColorEnabled, setLogLevel, setOutputMode } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
+import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts';
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
@@ -44,7 +45,7 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     if (!spec) continue;
     lines.push(`  ${name.padEnd(width)}${spec.summary}`);
   }
-  lines.push(`  ${'version'.padEnd(width)}Print the version`);
+  lines.push(`  ${'version'.padEnd(width)}Print the version and optionally check for updates`);
   lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
   lines.push('');
   lines.push('Global options:');
@@ -105,6 +106,18 @@ async function printCommandHelp(
   }
 
   return dispatch(resolved.canonical, [...resolved.rest, '--help']);
+}
+
+function printVersionUsage(stream: NodeJS.WriteStream = process.stdout): void {
+  const lines: string[] = [];
+  lines.push('Usage:');
+  lines.push('  nectar version [--check]');
+  lines.push('');
+  lines.push('Options:');
+  lines.push('  --check     Check npm/GitHub for the latest release');
+  lines.push('  -h, --help  Show help for this command');
+  lines.push('');
+  stream.write(lines.join('\n'));
 }
 
 async function dispatch(command: string, rest: string[]): Promise<number> {
@@ -264,8 +277,22 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === 'version' || command === '--version' || command === '-v') {
-    process.stdout.write(`${version}\n`);
-    return 0;
+    if (rest.length === 0) {
+      process.stdout.write(`${version}\n`);
+      return 0;
+    }
+    if (command === 'version' && rest.length === 1 && (rest[0] === '--help' || rest[0] === '-h')) {
+      printVersionUsage();
+      return 0;
+    }
+    if (command === 'version' && rest.length === 1 && rest[0] === '--check') {
+      const result = await checkLatestRelease({ currentVersion: version, env: process.env });
+      process.stdout.write(formatReleaseCheck(result));
+      return 0;
+    }
+    process.stderr.write(`Unknown option for version: ${rest.join(' ')}\n\n`);
+    printVersionUsage(process.stderr);
+    return 2;
   }
 
   // `env` is an alias for `info` so the second-nature `nectar env` lands on
