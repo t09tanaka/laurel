@@ -595,6 +595,38 @@ body
     }
   });
 
+  test('surfaces unparseable post date as a NectarError instead of silently sorting to 1970', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-date-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const file = join(cwd, 'content/posts/bad-date.md');
+    await writeFile(
+      file,
+      `---
+title: "Bad date"
+date: "not-a-real-date"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    try {
+      await loadContent({ cwd, config });
+      throw new Error('expected loadContent to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.file).toBe(file);
+      expect(ne.code).toBe('content');
+      expect(ne.message).toMatch(/Invalid date in frontmatter/);
+      expect(ne.message).toContain('not-a-real-date');
+      // The post path is also embedded in the message via the context arg, so
+      // logs that bypass the formatter still pinpoint the offending file.
+      expect(ne.message).toContain(file);
+    }
+  });
+
   test('strips raw <script> from feature_image_caption frontmatter', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-xss-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });

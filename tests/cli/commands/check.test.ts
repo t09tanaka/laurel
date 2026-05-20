@@ -84,18 +84,23 @@ describe('cli check', () => {
     expect(exitCode).toBe(0);
   });
 
-  test('exits 0 when warnings exist but --strict is not set', async () => {
+  test('exits non-zero on an unparseable post date even without --strict', async () => {
     dir = await makeFixture();
     await Bun.write(
       join(dir, 'content/posts/bad-date.md'),
       ['---', 'title: Bad Date', 'date: not-a-real-date', '---', '', 'body'].join('\n'),
     );
+    // Unparseable dates used to be a soft warning that silently fell back to
+    // 1970-01-01, sorting the post to the bottom of feeds. They are now a
+    // hard content error so authors notice the typo at build time.
     const { stderr, exitCode } = await runCli(['check'], dir);
-    expect(exitCode).toBe(0);
+    expect(exitCode).not.toBe(0);
     expect(stderr).toContain('Invalid date in frontmatter');
+    expect(stderr).toContain('bad-date.md');
+    expect(stderr).toContain('not-a-real-date');
   });
 
-  test('exits 1 when warnings exist and --strict is set', async () => {
+  test('exits 1 when an unparseable post date is present with --strict', async () => {
     dir = await makeFixture();
     await Bun.write(
       join(dir, 'content/posts/bad-date.md'),
@@ -104,7 +109,8 @@ describe('cli check', () => {
     const { stderr, exitCode } = await runCli(['check', '--strict'], dir);
     expect(exitCode).toBe(1);
     expect(stderr).toContain('Invalid date in frontmatter');
-    expect(stderr).toContain('Strict mode');
+    expect(stderr).toContain('bad-date.md');
+    expect(stderr).toContain('not-a-real-date');
   });
 
   test('exits 1 with file path and parse error when a template is malformed', async () => {

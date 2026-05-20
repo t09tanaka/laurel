@@ -1,51 +1,88 @@
 import { describe, expect, test } from 'bun:test';
 import { asDateISO, parseFrontmatter } from '~/content/frontmatter.ts';
 import { NectarError } from '~/util/errors.ts';
-import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 
 describe('asDateISO', () => {
   test('parses ISO date strings', () => {
-    resetWarningCount();
     const out = asDateISO('2026-01-02T03:04:05Z');
     expect(out).toBe('2026-01-02T03:04:05.000Z');
-    expect(getWarningCount()).toBe(0);
   });
 
   test('returns Date instances as ISO', () => {
-    resetWarningCount();
     const out = asDateISO(new Date('2026-05-19T00:00:00Z'));
     expect(out).toBe('2026-05-19T00:00:00.000Z');
-    expect(getWarningCount()).toBe(0);
   });
 
   test('uses fallback silently when value is undefined', () => {
-    resetWarningCount();
     const fallback = '2026-01-01T00:00:00.000Z';
     expect(asDateISO(undefined, fallback)).toBe(fallback);
-    expect(getWarningCount()).toBe(0);
+  });
+
+  test('uses fallback silently when value is null', () => {
+    const fallback = '2026-01-01T00:00:00.000Z';
+    expect(asDateISO(null, fallback)).toBe(fallback);
   });
 
   test('uses fallback silently when value is an empty string', () => {
-    resetWarningCount();
     const fallback = '2026-01-01T00:00:00.000Z';
     expect(asDateISO('   ', fallback)).toBe(fallback);
-    expect(getWarningCount()).toBe(0);
   });
 
-  test('warns when value is a non-empty invalid date string', () => {
-    resetWarningCount();
-    const fallback = '2026-01-01T00:00:00.000Z';
-    const out = asDateISO('not-a-date', fallback, 'posts/foo.md date');
-    expect(out).toBe(fallback);
-    expect(getWarningCount()).toBe(1);
+  test('throws NectarError including post path and original value for an unparseable date string', () => {
+    const postPath = 'content/posts/foo.md';
+    expect(() => asDateISO('not-a-date', undefined, `${postPath} date`)).toThrow(NectarError);
+    try {
+      asDateISO('not-a-date', undefined, `${postPath} date`);
+      throw new Error('expected asDateISO to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.code).toBe('content');
+      expect(ne.message).toContain(postPath);
+      expect(ne.message).toContain('not-a-date');
+      expect(ne.message).toMatch(/Invalid date in frontmatter/);
+    }
   });
 
-  test('warns when value is an unexpected non-string type', () => {
-    resetWarningCount();
+  test('throws NectarError including post path when fallback is provided but value is unparseable', () => {
+    const postPath = 'content/posts/bar.md';
     const fallback = '2026-01-01T00:00:00.000Z';
-    const out = asDateISO({ year: 2026 } as unknown, fallback);
-    expect(out).toBe(fallback);
-    expect(getWarningCount()).toBe(1);
+    expect(() => asDateISO('totally bogus', fallback, `${postPath} published_at`)).toThrow(
+      NectarError,
+    );
+    try {
+      asDateISO('totally bogus', fallback, `${postPath} published_at`);
+    } catch (err) {
+      const ne = err as NectarError;
+      expect(ne.message).toContain(postPath);
+      expect(ne.message).toContain('totally bogus');
+    }
+  });
+
+  test('throws NectarError for an unexpected non-string type, embedding context', () => {
+    const postPath = 'content/posts/baz.md';
+    try {
+      asDateISO({ year: 2026 } as unknown, undefined, `${postPath} date`);
+      throw new Error('expected asDateISO to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.message).toContain(postPath);
+      expect(ne.message).toMatch(/unexpected object value/);
+    }
+  });
+
+  test('throws NectarError for an Invalid Date instance', () => {
+    const postPath = 'content/posts/qux.md';
+    try {
+      asDateISO(new Date('not-a-date'), undefined, `${postPath} date`);
+      throw new Error('expected asDateISO to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NectarError);
+      const ne = err as NectarError;
+      expect(ne.message).toContain(postPath);
+      expect(ne.message).toMatch(/Invalid Date/);
+    }
   });
 });
 

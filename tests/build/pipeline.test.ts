@@ -67,10 +67,20 @@ describe('build pipeline strict mode wiring', () => {
     expect(summary.warningCount).toBe(0);
   });
 
-  test('reports warningCount > 0 when frontmatter date is invalid', async () => {
+  test('throws a NectarError when frontmatter date is unparseable', async () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
-    const summary = await build({ cwd });
-    expect(summary.warningCount).toBeGreaterThan(0);
+    // Unparseable dates used to surface as a warning that fell back to the
+    // epoch; they now hard-fail the build so the typo can't ship silently.
+    let caught: unknown;
+    try {
+      await build({ cwd });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeDefined();
+    const message = (caught as Error).message;
+    expect(message).toMatch(/Invalid date in frontmatter/);
+    expect(message).toContain('not-a-real-date');
   });
 
   test('emits dist/robots.txt with sitemap URL by default', async () => {

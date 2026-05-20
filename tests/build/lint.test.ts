@@ -77,16 +77,29 @@ describe('lintContent', () => {
     expect(unknown?.message).toContain("'tittle'");
   });
 
-  test('flags malformed dates', async () => {
+  test('malformed dates surface from the loader as a hard error before lint runs', async () => {
+    // Unparseable frontmatter dates used to be a `malformed-date` lint
+    // warning that the build silently absorbed by falling back to the epoch.
+    // They now throw from the content loader, so lintContent never runs and
+    // `check` exits non-zero with the offending post path embedded in the
+    // message. The lint rule for malformed dates still exists as a backstop
+    // for non-`date`-key date fields, but for the canonical `date` key the
+    // loader fails first.
     const fx = await makeFixture({
       'content/posts/bad.md': ['---', 'title: Bad', 'date: not-a-real-date', '---', 'body'].join(
         '\n',
       ),
     });
     cwd = fx.cwd;
-    const { config, content } = await loadAll(cwd);
-    const report = await lintContent({ cwd, config, content });
-    expect(report.warnings.some((w) => w.code === 'malformed-date')).toBe(true);
+    let caught: unknown;
+    try {
+      await loadAll(cwd);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeDefined();
+    expect((caught as Error).message).toMatch(/Invalid date in frontmatter/);
+    expect((caught as Error).message).toContain('not-a-real-date');
   });
 
   test('reports duplicate slugs as errors', async () => {

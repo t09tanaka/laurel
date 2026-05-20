@@ -1,6 +1,5 @@
 import matter from 'gray-matter';
 import { NectarError } from '~/util/errors.ts';
-import { logger } from '~/util/logger.ts';
 
 export interface ParsedFrontmatter {
   data: Record<string, unknown>;
@@ -85,20 +84,55 @@ export function asBool(value: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
+// Parse a frontmatter date value to an ISO string. When `value` is missing or
+// an empty string, return `fallback` (or an undefined sentinel via
+// `new Date(0)` if no fallback is provided) — this is the "no date provided"
+// path and is silent. When `value` is present but cannot be parsed as a date,
+// throw a `NectarError` so the build fails with a useful pointer instead of
+// silently sorting the post to 1970-01-01 in feeds. The post path is included
+// in the error message (the outer `loadMarkdownDir` wraps the error to also
+// surface `file` separately, but embedding it in the message keeps it visible
+// even when callers re-wrap or log without a formatter).
 export function asDateISO(value: unknown, fallback?: string, context?: string): string {
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw invalidDateError(context, value, 'value is an Invalid Date');
+    }
+    return value.toISOString();
+  }
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed === '') return fallback ?? new Date(0).toISOString();
     const d = new Date(trimmed);
     if (!Number.isNaN(d.getTime())) return d.toISOString();
-    logger.warn(
-      `Invalid date in frontmatter${context ? ` (${context})` : ''}: ${JSON.stringify(value)}`,
-    );
-  } else if (value !== undefined && value !== null) {
-    logger.warn(
-      `Invalid date type in frontmatter${context ? ` (${context})` : ''}: ${typeof value}`,
-    );
+    throw invalidDateError(context, value, 'unparseable date string');
   }
-  return fallback ?? new Date(0).toISOString();
+  if (value === undefined || value === null) {
+    return fallback ?? new Date(0).toISOString();
+  }
+  throw invalidDateError(context, value, `unexpected ${typeof value} value`);
+}
+
+function invalidDateError(
+  context: string | undefined,
+  value: unknown,
+  reason: string,
+): NectarError {
+  const where = context ? ` (${context})` : '';
+  const rendered = renderDateValue(value);
+  return new NectarError({
+    message: `Invalid date in frontmatter${where}: ${reason} — got ${rendered}`,
+    hint: 'Use an ISO-8601 date such as 2026-01-02 or 2026-01-02T03:04:05Z, or remove the field to fall back to the file mtime.',
+    code: 'content',
+  });
+}
+
+function renderDateValue(value: unknown): string {
+  if (value instanceof Date) return `Date(${value.toString()})`;
+  if (typeof value === 'string') return JSON.stringify(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
