@@ -1025,7 +1025,10 @@ describe('buildRootData', () => {
 // would otherwise re-stamp the layout into the inner body, producing
 // duplicated output or surprising the helpers that walk `@root.body`.
 describe('createEngine — templates registered as partials (issue #1131)', () => {
-  function makeTheme(templates: Record<string, string>): ThemeBundle {
+  function makeTheme(
+    templates: Record<string, string>,
+    partials: Record<string, string> = {},
+  ): ThemeBundle {
     const pkg: ThemePackage = {
       name: 'fixture',
       version: '0.0.0',
@@ -1039,7 +1042,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       name: 'fixture',
       rootDir: '/tmp/themes/fixture',
       templates,
-      partials: {},
+      partials,
       pkg,
       locales: {},
       assets: new Map(),
@@ -1164,6 +1167,36 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       meta: baseMeta,
     };
     expect(engine.render(pageRoute)).toBe('not-page2');
+  });
+
+  test('partials included inside foreach can read the current item feature_image (issue #1710)', () => {
+    const theme = makeTheme(
+      {
+        home: '{{#foreach posts}}{{> "srcset"}}{{/foreach}}',
+      },
+      {
+        srcset: '<img src="{{img_url feature_image size="s"}}">',
+      },
+    );
+    theme.pkg.image_sizes = { s: { width: 320 } };
+    const posts = [
+      makePost({ slug: 'a', feature_image: '/content/images/a.jpg' }),
+      makePost({ slug: 'b', feature_image: '/content/images/b.jpg' }),
+    ];
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const html = engine.render({
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: { posts },
+      meta: baseMeta,
+    });
+
+    expect(html).toBe(
+      '<img src="/content/images/size/w320/a.jpg"><img src="/content/images/size/w320/b.jpg">',
+    );
   });
 
   // Issue #1305: themes (Edition, Source) use `{{> "content" width="wide"}}`
