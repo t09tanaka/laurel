@@ -2398,15 +2398,118 @@ blockquote.kg-blockquote-alt {
 
 /* Header */
 
-.has-serif-title:not([class*=" gh-font-heading"]):not([class^="gh-font-heading"]) .kg-card.kg-header-card h2.kg-header-card-header {
+.kg-header-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 420px;
+    padding: 80px var(--container-gap);
+    text-align: center;
+    background-color: var(--color-lighter-gray);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+    color: var(--color-darker-gray);
+}
+
+.kg-header-card.kg-size-small {
+    min-height: 280px;
+}
+
+.kg-header-card.kg-size-large {
+    min-height: 560px;
+}
+
+.kg-header-card.kg-style-dark {
+    background-color: var(--color-darker-gray);
+    color: var(--color-white);
+}
+
+.kg-header-card.kg-style-light {
+    background-color: var(--color-light-gray);
+    color: var(--color-darker-gray);
+}
+
+.kg-header-card.kg-style-accent {
+    background-color: var(--ghost-accent-color);
+    color: var(--color-white);
+}
+
+.kg-header-card :is(.kg-header-card-heading, .kg-header-card-header) {
+    max-width: 880px;
+    font-size: 6.4rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.05;
+}
+
+.kg-header-card :is(.kg-header-card-subheading, .kg-header-card-subheader) {
+    max-width: 720px;
+    margin-top: 1.6rem;
+    font-size: 2.2rem;
+    font-weight: 450;
+    line-height: 1.35;
+    opacity: 0.82;
+}
+
+.kg-header-card-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 3.2rem;
+    padding: 0.8em 1.4em;
+    border-radius: 100px;
+    background-color: var(--color-darker-gray);
+    color: var(--color-white);
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.kg-header-card-button:hover {
+    opacity: 0.92;
+}
+
+.kg-header-card:is(.kg-style-dark, .kg-style-accent) .kg-header-card-button {
+    background-color: var(--color-white);
+    color: var(--color-darker-gray);
+}
+
+.kg-header-card.kg-style-light .kg-header-card-button {
+    background-color: var(--color-darker-gray);
+    color: var(--color-white);
+}
+
+@media (max-width: 767px) {
+    .kg-header-card {
+        min-height: 320px;
+        padding-block: 48px;
+    }
+
+    .kg-header-card.kg-size-large {
+        min-height: 420px;
+    }
+
+    .kg-header-card :is(.kg-header-card-heading, .kg-header-card-header) {
+        font-size: 3.8rem;
+    }
+
+    .kg-header-card :is(.kg-header-card-subheading, .kg-header-card-subheader) {
+        font-size: 1.8rem;
+    }
+}
+
+.has-serif-title:not([class*=" gh-font-heading"]):not([class^="gh-font-heading"]) .kg-card.kg-header-card h2:is(.kg-header-card-heading, .kg-header-card-header) {
     font-family: var(--font-serif);
 }
 
-.has-mono-title:not([class*=" gh-font-heading"]):not([class^="gh-font-heading"]) .kg-card.kg-header-card h2.kg-header-card-header {
+.has-mono-title:not([class*=" gh-font-heading"]):not([class^="gh-font-heading"]) .kg-card.kg-header-card h2:is(.kg-header-card-heading, .kg-header-card-header) {
     font-family: var(--font-mono);
 }
 
-.has-serif-body:not([class*=" gh-font-body"]):not([class^="gh-font-body"]) .kg-header-card h3.kg-header-card-subheader {
+.has-serif-body:not([class*=" gh-font-body"]):not([class^="gh-font-body"]) .kg-header-card h3:is(.kg-header-card-subheading, .kg-header-card-subheader) {
     font-family: var(--font-serif);
 }
 
