@@ -21,6 +21,7 @@ import { type RedirectRule, type RedirectStatus, collapseRedirects } from './red
 //   include /var/www/nectar/.nectar/nginx.conf;
 
 const CATCH_ALL = '/*';
+const NOT_FOUND_PATH = '/404.html';
 
 const SECURITY_HEADER_FIELDS: ReadonlyArray<{
   key: keyof Omit<HeadersConfig['security'], 'custom'>;
@@ -146,6 +147,8 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
   // `always` when they pre-compress every asset including HTML.
   lines.push('    gzip_static on;');
   lines.push('    brotli_static on;');
+  lines.push('');
+  lines.push(`    error_page 404 ${NOT_FOUND_PATH};`);
 
   if (redirects.length > 0) {
     lines.push('');
@@ -156,19 +159,21 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
     }
   }
 
+  lines.push('');
+  lines.push(`    location = ${NOT_FOUND_PATH} {`);
+  pushHeaders(lines, collectNotFoundCacheControl(opts.headers), securityHeaders);
+  lines.push('        internal;');
+  lines.push(`        try_files ${NOT_FOUND_PATH} =404;`);
+  lines.push('    }');
+
   for (const loc of locations) {
     lines.push('');
     lines.push(`    ${loc.head} {`);
-    if (loc.cacheControl !== null) {
-      lines.push(`        add_header Cache-Control "${loc.cacheControl}" always;`);
-    }
     // nginx `add_header` does NOT merge with parent blocks — once a `location`
     // declares any `add_header`, the server-level headers are dropped for that
     // location. Repeating security headers in every emitted block is the
     // simplest way to keep them attached to every response.
-    for (const h of securityHeaders) {
-      lines.push(`        add_header ${h.name} "${escapeNginxValue(h.value)}" always;`);
-    }
+    pushHeaders(lines, loc.cacheControl, securityHeaders);
     // `$uri/` between the literal path and the explicit `index.html` lookup
     // is the trailing-slash variant: when the request is `/about`, nginx tries
     // `/about` (file), then `/about/` (directory — which triggers the `index`
@@ -193,6 +198,22 @@ function escapeNginxValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+function pushHeaders(lines: string[], cacheControl: string | null, securityHeaders: HeaderEntry[]) {
+  if (cacheControl !== null) {
+    lines.push(`        add_header Cache-Control "${cacheControl}" always;`);
+  }
+  for (const h of securityHeaders) {
+    lines.push(`        add_header ${h.name} "${escapeNginxValue(h.value)}" always;`);
+  }
+}
+
+function collectNotFoundCacheControl(headers: HeadersConfig): string | null {
+  const explicit = headers.cache_rules.find((rule) => rule.pattern === NOT_FOUND_PATH);
+  if (explicit) return explicit.cache_control;
+  const catchAll = headers.cache_rules.find((rule) => rule.pattern === CATCH_ALL);
+  return catchAll?.cache_control ?? null;
+}
+
 function collectLocationBlocks(headers: HeadersConfig): LocationBlock[] {
   const seen = new Set<string>();
   const ordered: LocationBlock[] = [];
@@ -200,6 +221,7 @@ function collectLocationBlocks(headers: HeadersConfig): LocationBlock[] {
   let sawCatchAllInCacheRules = false;
 
   for (const rule of headers.cache_rules) {
+    if (rule.pattern === NOT_FOUND_PATH) continue;
     if (seen.has(rule.pattern)) continue;
     seen.add(rule.pattern);
     const block: LocationBlock = {

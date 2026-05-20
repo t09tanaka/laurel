@@ -41,6 +41,7 @@ describe('Fly.io deploy sample', () => {
     expect(body).toContain('dist/.nectar/nginx.conf');
     expect(body).toContain('root /usr/share/nginx/html;');
     expect(body).toContain('error_page 404 /404.html;');
+    expect(body).toContain('internal;');
     expect(body).toContain('try_files $uri $uri/ $uri/index.html =404;');
     expect(body).toContain('try_files /404.html =404;');
   });

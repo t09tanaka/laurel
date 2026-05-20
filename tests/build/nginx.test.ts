@@ -12,6 +12,13 @@ async function makeOutputDir(): Promise<string> {
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
 
+function extractLocationBlock(config: string, head: string): string {
+  const start = config.indexOf(`    ${head} {\n`);
+  if (start === -1) return '';
+  const end = config.indexOf('\n    }', start);
+  return end === -1 ? '' : config.slice(start, end + '\n    }'.length);
+}
+
 describe('toNginxLocationHead', () => {
   test('collapses the catch-all `/*` to the implicit `location /` block', () => {
     expect(toNginxLocationHead('/*')).toBe('location /');
@@ -67,6 +74,19 @@ describe('buildNginxServerBlock', () => {
       '        add_header Cache-Control "public, max-age=0, must-revalidate" always;',
     );
     expect(out).not.toContain('expires ');
+  });
+
+  test('uses Nectar 404.html as the internal nginx 404 response body', () => {
+    const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
+    const notFoundBlock = extractLocationBlock(out, 'location = /404.html');
+
+    expect(out).toContain('    error_page 404 /404.html;');
+    expect(notFoundBlock).toContain('        internal;');
+    expect(notFoundBlock).toContain('        try_files /404.html =404;');
+    expect(notFoundBlock).toContain(
+      '        add_header Cache-Control "public, max-age=0, must-revalidate" always;',
+    );
+    expect(notFoundBlock).toContain('        add_header X-Content-Type-Options "nosniff" always;');
   });
 
   test('emits try_files with trailing-slash variant for SPA-style index.html resolution inside every location', () => {
@@ -223,6 +243,27 @@ describe('buildNginxServerBlock', () => {
     expect(assetsBlocks).toHaveLength(1);
     expect(out).toContain('add_header Cache-Control "public, max-age=60" always;');
     expect(out).not.toContain('max-age=3600');
+  });
+
+  test('folds an explicit /404.html cache rule into the dedicated internal not-found location', () => {
+    const headers = configSchema.parse({
+      site: { title: 'x' },
+      deploy: {
+        headers: {
+          cache_rules: [
+            { pattern: '/404.html', cache_control: 'no-store' },
+            { pattern: '/*', cache_control: 'public, max-age=0, must-revalidate' },
+          ],
+        },
+      },
+    }).deploy.headers;
+    const out = buildNginxServerBlock({ headers, rules: [] });
+    const exact404Locations = out.match(/location = \/404\.html \{/g) ?? [];
+    const notFoundBlock = extractLocationBlock(out, 'location = /404.html');
+
+    expect(exact404Locations).toHaveLength(1);
+    expect(notFoundBlock).toContain('        internal;');
+    expect(notFoundBlock).toContain('        add_header Cache-Control "no-store" always;');
   });
 });
 

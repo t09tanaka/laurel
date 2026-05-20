@@ -34,6 +34,9 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('root /usr/share/nginx/html;');
     expect(body).toContain('try_files $uri $uri/ $uri/index.html =404;');
     expect(body).toContain('error_page 404 /404.html;');
+    expect(body).toContain('location = /404.html {');
+    expect(body).toContain('internal;');
+    expect(body).toContain('try_files /404.html =404;');
   });
 
   test('is linked from the Docker deploy docs, deploy tutorial, and examples index', async () => {

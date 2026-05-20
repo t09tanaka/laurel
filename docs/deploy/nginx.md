@@ -81,6 +81,8 @@ The generated server block:
   its own headers;
 - serves Nectar's `slug/index.html` output with
   `try_files $uri $uri/ $uri/index.html =404;`;
+- maps nginx 404 errors to Nectar's generated `dist/404.html` body with
+  `error_page 404 /404.html;` and an internal exact-match 404 location;
 - translates `redirects.yaml` rules into `location { return <status> <to>; }`
   directives.
 
@@ -164,3 +166,6 @@ generated file in place; the next `nectar build` rewrites it.
   `server` block may be handling the request first.
 - **Pretty URLs 404:** confirm the copied directory matches
   `[deploy.nginx].root` and contains each page's `index.html`.
+- **404s show nginx's default body:** rebuild with `[deploy.nginx].enabled =
+  true`, confirm `dist/404.html` exists, and ensure nginx includes the
+  generated `dist/.nectar/nginx.conf`.

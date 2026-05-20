@@ -774,7 +774,8 @@ The generated file folds `[deploy.headers]` and `redirects.yaml` into a full
 for Nectar's default asset paths, repeats security headers inside each
 `location`, enables `gzip_static` and `brotli_static`, serves
 `slug/index.html` URLs with `try_files $uri $uri/ $uri/index.html =404;`, and
-turns redirect rules into nginx `return` directives.
+uses `dist/404.html` as the nginx 404 response body before turning redirect
+rules into nginx `return` directives.
 
 ---
 
