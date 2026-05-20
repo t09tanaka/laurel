@@ -40,6 +40,19 @@ describe('concat helper', () => {
     const tpl = engine.hb.compile('{{concat "<b>" "hi" "</b>"}}');
     expect(tpl({})).toBe('<b>hi</b>');
   });
+
+  test('honours separator= between SafeString inputs without downstream escaping', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{concat first second separator=" | "}}');
+
+    expect(
+      tpl({
+        first: new engine.hb.SafeString('<span>one</span>'),
+        second: new engine.hb.SafeString('<strong>two</strong>'),
+      }),
+    ).toBe('<span>one</span> | <strong>two</strong>');
+  });
 });
 
 describe('encode helper', () => {
