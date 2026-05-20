@@ -354,6 +354,13 @@ to `netlify.toml` at the repo root:
 Then **Netlify dashboard → Add new site → Import from Git → pick repo →
 Deploy**. The `netlify.toml` overrides any guesses Netlify makes.
 
+Nectar emits `dist/404.html` on every build. If your theme provides
+`error-404.hbs`, that template becomes the file; otherwise Nectar writes a
+default branded noindex page. Netlify automatically uses a publish-root
+`404.html` as the custom response body for unmatched paths, so do not add a
+catch-all `/* /404.html 404` redirect unless you are intentionally replacing
+Netlify's built-in static 404 behavior.
+
 Netlify's Bun support is via the `BUN_VERSION` build environment variable —
 without it, the build runs Node and `bunx` will fail. The sample also shows
 where optional Netlify build plugin blocks belong; Nectar build-time plugins

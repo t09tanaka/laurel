@@ -10,6 +10,12 @@ publish from a connected repository. Use the Netlify CLI path when GitHub
 Actions (or another CI system) should build with Bun and upload `dist/` to a
 Netlify site that is not connected to Git.
 
+Nectar builds always include `dist/404.html`: themes can provide it with an
+`error-404.hbs` template, and otherwise Nectar writes a default noindex page.
+Netlify automatically serves a publish-root `404.html` as the custom 404 page
+for unmatched paths, so no `_redirects` rule or `netlify.toml` fallback is
+required for normal static-site 404s.
+
 ## Quickstart: Netlify builds from Git
 
 1. Add the Netlify deploy target to `nectar.toml`:
@@ -50,11 +56,14 @@ Netlify site that is not connected to Git.
 
    ```sh
    curl -sI https://your-site.netlify.app/ | sort
+   curl -sI https://your-site.netlify.app/missing-page | sort
    curl -sI https://your-site.netlify.app/assets/built/screen.css | sort
    ```
 
    The HTML response should include the baseline security headers, and
-   fingerprinted assets should receive long-lived immutable cache headers.
+   fingerprinted assets should receive long-lived immutable cache headers. The
+   missing path should return `404` while using Nectar's generated
+   `404.html` body.
 
 ## Quickstart: GitHub Actions uploads `dist/`
 
@@ -117,6 +126,27 @@ With `[deploy.netlify].enabled = true`, Nectar prepends those rules to
 static file exists at the source path. If two rules share the same `from`, the
 first rule wins, matching Netlify's first-match behavior. Supported status
 codes are `301`, `302`, `307`, and `308`; omitted status defaults to `301`.
+
+Do not add a catch-all redirect such as `/* /404.html 404` for a normal Nectar
+site. Netlify's `404.html` convention already handles missing paths after
+static files and redirects are considered. A catch-all redirect can also shadow
+legitimate paths if it is ordered incorrectly or marked as forced.
+
+## Custom 404 page
+
+Netlify's static hosting convention is publish-root `404.html`. Nectar matches
+that convention by writing `dist/404.html` on every build:
+
+- If the active theme has `error-404.hbs`, the rendered theme error route is
+  written to `404.html`.
+- If the theme does not provide that template, Nectar writes a small branded
+  fallback page with `<meta name="robots" content="noindex">`.
+
+Because Netlify consumes the file by name, keep `publish = "dist"` in
+`netlify.toml` and avoid moving the error page into a subdirectory. To verify a
+deploy, request any missing URL and confirm the response status is `404`, then
+inspect `https://your-site.netlify.app/404.html` directly if you need to review
+the rendered page.
 
 ## Headers and caching
 
