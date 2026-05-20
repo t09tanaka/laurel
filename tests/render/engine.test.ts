@@ -796,6 +796,162 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
   });
 });
 
+// Issue #552: template-as-partial registration must not clobber a theme
+// partial of the same bare name. A theme that ships `partials/index.hbs`
+// expects `{{> index}}` to resolve to its partial, not to the layout-stripped
+// body of `index.hbs`. The template body stays reachable via the dedicated
+// `__template__/<name>` namespace as an escape hatch.
+describe('createEngine — template-as-partial namespace collision (issue #552)', () => {
+  function makeTheme(opts: {
+    templates?: Record<string, string>;
+    partials?: Record<string, string>;
+  }): ThemeBundle {
+    const pkg: ThemePackage = {
+      name: 'fixture',
+      version: '0.0.0',
+      posts_per_page: 5,
+      image_sizes: {},
+      card_assets: false,
+      custom: {},
+      customDefaults: {},
+    };
+    return {
+      name: 'fixture',
+      rootDir: '/tmp/themes/fixture',
+      templates: opts.templates ?? {},
+      partials: opts.partials ?? {},
+      pkg,
+      locales: {},
+      assets: new Map(),
+    };
+  }
+
+  function makeConfig(): NectarConfig {
+    return {
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        timezone: 'UTC',
+        lang: 'en',
+        navigation: [],
+        secondary_navigation: [],
+      },
+      build: { output_dir: 'dist', base_path: '' },
+      components: {},
+      theme: { dir: 'themes', name: 'fixture', custom: {} },
+      recommendations: [],
+    } as unknown as NectarConfig;
+  }
+
+  function makeContent(): ContentGraph {
+    return {
+      posts: [],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: {
+        posts: new Map(),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
+      site: {
+        title: 'Example',
+        description: 'desc',
+        url: 'https://example.com',
+        locale: 'en',
+        direction: 'ltr',
+        timezone: 'UTC',
+        cover_image: undefined,
+        logo: undefined,
+        logo_width: undefined,
+        logo_height: undefined,
+        icon: undefined,
+        accent_color: '#000',
+        navigation: [],
+        secondary_navigation: [],
+        lang: 'en',
+        twitter: undefined,
+        facebook: undefined,
+        members_enabled: false,
+        paid_members_enabled: false,
+        members_invite_only: false,
+        comments_enabled: false,
+        recommendations_enabled: false,
+        meta_title: undefined,
+        meta_description: undefined,
+        og_image: undefined,
+        og_title: undefined,
+        og_description: undefined,
+        twitter_image: undefined,
+        twitter_title: undefined,
+        twitter_description: undefined,
+        codeinjection_head: undefined,
+        codeinjection_foot: undefined,
+      },
+    } as unknown as ContentGraph;
+  }
+
+  test('a theme partial named `index` wins over the index.hbs template body on `{{> index}}`', () => {
+    const theme = makeTheme({
+      templates: {
+        index: '<section data-source="template">template body</section>',
+        home: '{{> index}}',
+      },
+      partials: {
+        index: '<section data-source="partial">theme partial body</section>',
+      },
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials.index).toBe(
+      '<section data-source="partial">theme partial body</section>',
+    );
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html).toContain('data-source="partial"');
+    expect(html).not.toContain('data-source="template"');
+  });
+
+  test('exposes the template body under `__template__/<name>` even when a same-named theme partial exists', () => {
+    const theme = makeTheme({
+      templates: {
+        index: '<section data-source="template">template body</section>',
+      },
+      partials: {
+        index: '<section data-source="partial">theme partial body</section>',
+      },
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials['__template__/index']).toBe(
+      '<section data-source="template">template body</section>',
+    );
+  });
+
+  test('without a colliding theme partial, the template body stays reachable under its bare name', () => {
+    const theme = makeTheme({
+      templates: {
+        post: '<article>{{post.title}}</article>',
+      },
+      partials: {},
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials.post).toBe('<article>{{post.title}}</article>');
+    expect(engine.hb.partials['__template__/post']).toBe('<article>{{post.title}}</article>');
+  });
+});
+
 // Issue #1135: Nectar ships a default `{{> search}}` partial so themes can
 // drop in the search widget without authoring markup themselves. Themes that
 // prefer their own UI must still be able to override by shipping

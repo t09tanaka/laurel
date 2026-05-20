@@ -12,6 +12,7 @@ function makeEngine(
   overrides: {
     locale?: string;
     locales?: Record<string, Record<string, string>>;
+    partials?: Record<string, string>;
   } = {},
 ): NectarEngine {
   const hb = Handlebars.create();
@@ -20,7 +21,10 @@ function makeEngine(
     hb,
     config: {} as NectarEngine['config'],
     content: { site } as unknown as NectarEngine['content'],
-    theme: { locales: overrides.locales ?? {} } as unknown as NectarEngine['theme'],
+    theme: {
+      locales: overrides.locales ?? {},
+      partials: overrides.partials ?? {},
+    } as unknown as NectarEngine['theme'],
     templates: {},
     layouts: {},
     render() {
@@ -468,5 +472,186 @@ describe('pagination helper i18n', () => {
     expect(html).not.toContain('<script>');
     expect(html).not.toContain('<img src=x>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+// Issues #549 / #464: when the theme ships `partials/navigation.hbs`, the
+// helper should render that partial with the resolved navigation context
+// instead of emitting its bespoke <ul class="nav"> fallback.
+describe('navigation helper theme partial override', () => {
+  test('renders partials/navigation.hbs when the theme provides one', () => {
+    const engine = makeEngine({
+      partials: {
+        navigation: `<nav class="theme-nav">{{#each navigation}}<a href="{{url}}" data-slug="{{slug}}"{{#if current}} aria-current="page"{{/if}}>{{label}}</a>{{/each}}</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [
+              { label: 'Home', url: '/' },
+              { label: 'About', url: '/about/' },
+            ],
+            secondary_navigation: [],
+          },
+          route: { url: '/about/' },
+        },
+      },
+    );
+    expect(html).toContain('class="theme-nav"');
+    expect(html).toContain('data-slug="home"');
+    expect(html).toContain('data-slug="about"');
+    expect(html).toContain('href="/about/" data-slug="about" aria-current="page"');
+    expect(html).not.toContain('<ul class="nav">');
+  });
+
+  test('forwards type="secondary" and the resolved items into the theme partial', () => {
+    const engine = makeEngine({
+      partials: {
+        navigation: `<nav data-type="{{type}}">{{#each navigation}}<i>{{label}}</i>{{/each}}</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation type="secondary"}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [],
+            secondary_navigation: [{ label: 'Contact', url: '/contact/' }],
+          },
+          route: { url: '/' },
+        },
+      },
+    );
+    expect(html).toContain('data-type="secondary"');
+    expect(html).toContain('<i>Contact</i>');
+  });
+
+  test('sanitises item URLs before exposing them to the theme partial', () => {
+    const engine = makeEngine({
+      partials: {
+        navigation: `<nav>{{#each navigation}}<a href="{{url}}">{{label}}</a>{{/each}}</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [{ label: 'Evil', url: 'javascript:alert(1)' }],
+            secondary_navigation: [],
+          },
+          route: { url: '/' },
+        },
+      },
+    );
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('href="#"');
+  });
+
+  test('falls back to bespoke <ul class="nav"> when the theme has no navigation partial', () => {
+    const engine = makeEngine({ partials: {} });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [{ label: 'Home', url: '/' }],
+            secondary_navigation: [],
+          },
+          route: { url: '/' },
+        },
+      },
+    );
+    expect(html).toContain('<ul class="nav">');
+    expect(html).toContain('<li class="nav-home" aria-current="page">');
+  });
+});
+
+// Issues #550 / #465: when the theme ships `partials/pagination.hbs`, the
+// helper should render that partial with the pagination object as the root
+// context instead of emitting its bespoke <nav class="pagination"> markup.
+describe('pagination helper theme partial override', () => {
+  test('renders partials/pagination.hbs when the theme provides one', () => {
+    const engine = makeEngine({
+      partials: {
+        pagination: `<nav class="theme-pagination">p{{page}}/{{pages}}|{{prev_url}}|{{next_url}}</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{pagination}}');
+    const html = template(
+      {},
+      {
+        data: {
+          route: {
+            data: {
+              pagination: {
+                page: 2,
+                pages: 4,
+                prev_url: '/page/1/',
+                next_url: '/page/3/',
+              },
+            },
+          },
+        },
+      },
+    );
+    expect(html).toBe('<nav class="theme-pagination">p2/4|/page/1/|/page/3/</nav>');
+  });
+
+  test('skips render when pagination.pages <= 1 even if a theme partial is present', () => {
+    const engine = makeEngine({
+      partials: {
+        pagination: `<nav class="theme-pagination">should not appear</nav>`,
+      },
+    });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{pagination}}');
+    const html = template(
+      {},
+      {
+        data: {
+          route: {
+            data: {
+              pagination: { page: 1, pages: 1, prev_url: undefined, next_url: undefined },
+            },
+          },
+        },
+      },
+    );
+    expect(html).toBe('');
+  });
+
+  test('falls back to bespoke pagination markup when the theme has no pagination partial', () => {
+    const engine = makeEngine({ partials: {} });
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{pagination}}');
+    const html = template(
+      {},
+      {
+        data: {
+          route: {
+            data: {
+              pagination: { page: 2, pages: 3, prev_url: '/page/1/', next_url: '/page/3/' },
+            },
+          },
+        },
+      },
+    );
+    expect(html).toContain('<nav class="pagination"');
+    expect(html).toContain('Page 2 of 3');
+    expect(html).toContain('href="/page/1/"');
+    expect(html).toContain('href="/page/3/"');
   });
 });

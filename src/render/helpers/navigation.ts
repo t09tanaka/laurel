@@ -33,6 +33,32 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       // here keeps `{{navigation type="secondary"}}` emitting an empty `<ul>`
       // instead of crashing.
       const items = type === 'secondary' ? (site.secondary_navigation ?? []) : site.navigation;
+
+      // Theme override: if the theme ships `partials/navigation.hbs`, render
+      // it with the resolved navigation context so theme authors can supply
+      // custom markup without forking the helper. Falls through to the
+      // bespoke HTML below when no theme partial is present (issues
+      // #549 / #464).
+      const themePartial = engine.theme?.partials?.navigation;
+      if (themePartial) {
+        const enriched = items.map((item) => {
+          const slug = item.slug ?? slugify(item.label);
+          const isCurrent =
+            item.current ??
+            (currentUrl !== undefined &&
+              (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url)));
+          return {
+            ...item,
+            slug,
+            current: isCurrent,
+            url: sanitizeHref(String(item.url ?? ''), '{{navigation}} helper'),
+          };
+        });
+        const compiled = engine.hb.compile(themePartial, { noEscape: false });
+        const html = compiled({ navigation: enriched, type }, { data: options.data });
+        return new engine.hb.SafeString(html);
+      }
+
       const list = items
         .map((item) => {
           // Prefer the enriched fields that buildRootData attaches (so a
@@ -59,6 +85,18 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const route = options.data?.route as { data?: { pagination?: PaginationLike } } | undefined;
       const pagination = route?.data?.pagination;
       if (!pagination || pagination.pages <= 1) return new engine.hb.SafeString('');
+
+      // Theme override: if the theme ships `partials/pagination.hbs`, render
+      // it with the pagination context so theme authors can supply custom
+      // markup without forking the helper. Falls through to the bespoke HTML
+      // below when no theme partial is present (issues #550 / #465).
+      const themePartial = engine.theme?.partials?.pagination;
+      if (themePartial) {
+        const compiled = engine.hb.compile(themePartial, { noEscape: false });
+        const html = compiled(pagination, { data: options.data });
+        return new engine.hb.SafeString(html);
+      }
+
       const parts: string[] = [
         '<nav class="pagination" role="navigation" aria-label="Pagination">',
       ];

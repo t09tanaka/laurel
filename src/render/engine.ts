@@ -135,7 +135,18 @@ function registerPartials(
   // of `post.hbs` would otherwise re-invoke the default layout from the
   // calling template's body, producing duplicated layout output or compile
   // surprises (issue #1131).
+  //
+  // Theme partials win on bare-name collisions: if a theme ships
+  // `partials/index.hbs`, `{{> index}}` must resolve to the theme partial,
+  // not the `index.hbs` template body. Skip the template-as-partial
+  // registration whenever the bare name is already claimed by a theme partial,
+  // and always expose the template body under the `__template__/<name>`
+  // namespace as a stable escape hatch for callers that explicitly want the
+  // template body (issue #552).
+  const themePartialNames = new Set(Object.keys(theme.partials));
   for (const [name, body] of Object.entries(templateBodies)) {
+    hb.registerPartial(`__template__/${name}`, body);
+    if (themePartialNames.has(name)) continue;
     hb.registerPartial(name, body);
   }
 }
