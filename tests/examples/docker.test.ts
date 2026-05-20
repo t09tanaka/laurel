@@ -56,6 +56,18 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('return 200 "ok\\n";');
   });
 
+  test('provides a compose snippet for reverse proxy deployments', async () => {
+    const body = await readFile(join(sampleDir, 'docker-compose.yml'), 'utf8');
+
+    expect(body).toContain('dockerfile: Dockerfile.multi-stage');
+    expect(body).toContain('expose:');
+    expect(body).toContain('- "80"');
+    expect(body).toContain('traefik.http.routers.nectar.rule');
+    expect(body).toContain('traefik.http.services.nectar.loadbalancer.server.port: "80"');
+    expect(body).toContain('reverse_proxy nectar:80');
+    expect(body).toContain('external: true');
+  });
+
   test('is linked from the Docker deploy docs, deploy tutorial, and examples index', async () => {
     const dockerDocs = await readFile(join(root, 'docs', 'deploy', 'docker.md'), 'utf8');
     const deployTutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
@@ -66,6 +78,7 @@ describe('examples/docker nginx-alpine sample', () => {
       expect(body).toContain('examples/docker/Dockerfile.multi-stage');
       expect(body).toContain('examples/docker/.dockerignore');
       expect(body).toContain('examples/docker/nginx.conf');
+      expect(body).toContain('examples/docker/docker-compose.yml');
     }
   });
 });

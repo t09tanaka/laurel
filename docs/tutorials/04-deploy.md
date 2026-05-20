@@ -12,9 +12,11 @@ image; Nectar ships
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage),
 [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore), and
-[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). Fly.io is
-covered as a container runtime around that pre-built output, using Nectar's
-generated `dist/.nectar/nginx.conf` for redirects and headers.
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf), and a
+reverse-proxy compose snippet at
+[`examples/docker/docker-compose.yml`](../../examples/docker/docker-compose.yml).
+Fly.io is covered as a container runtime around that pre-built output, using
+Nectar's generated `dist/.nectar/nginx.conf` for redirects and headers.
 
 **Universal pre-flight:**
 
@@ -42,8 +44,9 @@ For the focused Docker guide, including the sample
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage),
 [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore),
-[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf), and nginx
-config caveats, see
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf),
+[`examples/docker/docker-compose.yml`](../../examples/docker/docker-compose.yml),
+and nginx config caveats, see
 [`docs/deploy/docker.md`](../deploy/docker.md).
 
 Nectar does not build inside a container by default. Build first, then mount

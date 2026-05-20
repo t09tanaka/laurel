@@ -9,6 +9,8 @@ behind nginx in a container.
 2. Run `bunx nectar build`.
 3. Choose the single-stage or multi-stage Docker sample.
 4. Copy the sample Dockerfile and nginx config into the site repository.
+   If you run behind Traefik or Caddy, also copy
+   `examples/docker/docker-compose.yml`.
 5. Build and run the image locally before pushing it to a registry.
 6. Verify a deep page, static assets, 404s, and migrated redirects.
 

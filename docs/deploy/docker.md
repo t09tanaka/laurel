@@ -10,8 +10,10 @@ copying `dist/` into an `nginx:1.27-alpine` runtime image. Both use the
 matching [`nginx.conf`](../../examples/docker/nginx.conf). The multi-stage
 sample also pairs with
 [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore) to keep
-local-only directories out of the Docker build context. Nectar still does not
-require Docker-specific package scripts or a compose file.
+local-only directories out of the Docker build context. A reverse-proxy compose
+snippet is available at
+[`docker-compose.yml`](../../examples/docker/docker-compose.yml). Nectar still
+does not require Docker-specific package scripts.
 
 ## Quickstart: local nginx container
 
@@ -83,6 +85,25 @@ generated `/app/dist/` files, so build tools and source files do not ship in
 the runtime layer. The sample `.dockerignore` excludes `.git/`, `node_modules/`,
 and any host-built `dist/` from the build context; do not copy it for the
 single-stage `Dockerfile` unless you remove `dist/` from the ignore list.
+
+## Run behind Traefik or Caddy with compose
+
+Use the compose sample when a reverse proxy should route traffic to the nginx
+container over a shared Docker network:
+
+```sh
+cp examples/docker/Dockerfile.multi-stage Dockerfile.multi-stage
+cp examples/docker/nginx.conf nginx.conf
+cp examples/docker/docker-compose.yml docker-compose.yml
+docker network create proxy
+docker compose up -d --build
+```
+
+The sample builds with `Dockerfile.multi-stage`, exposes nginx port `80` to
+the `proxy` network, includes Traefik labels for `blog.example.com`, and keeps
+`127.0.0.1:8080:80` for local smoke tests or a host-level Caddy proxy. Change
+the hostname and network name to match your proxy stack. For a Caddy container
+on the same network, point the site block at `reverse_proxy nectar:80`.
 
 ## Optional: generate a Nectar nginx config
 
