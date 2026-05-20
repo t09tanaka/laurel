@@ -651,7 +651,7 @@ export const CONTENT_SPEC: CommandSpec = {
     kind: {
       type: 'string',
       description:
-        'For `list`: filter by content kind (posts or pages). For `show` and `delete`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)',
+        'For `list`: filter by content kind (posts or pages). For `show`, `delete`, and `touch`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)',
       placeholder: '<posts|pages>',
     },
     lines: {
@@ -685,7 +685,7 @@ export const CONTENT_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit results as JSON for CI consumption (`list`, `show`, `rename`, and `delete`)',
+        'Emit results as JSON for CI consumption (`list`, `show`, `rename`, `delete`, and `touch`)',
     },
     redirect: {
       type: 'boolean',
@@ -697,12 +697,28 @@ export const CONTENT_SPEC: CommandSpec = {
       description:
         'On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files',
     },
+    date: {
+      type: 'string',
+      description:
+        'On `touch`: set `updated_at` to this ISO-8601 timestamp instead of the current time; `now` is also accepted',
+      placeholder: '<iso|now>',
+    },
+    published: {
+      type: 'boolean',
+      description: 'On `touch`: update `published_at` to the same timestamp as `updated_at`',
+    },
+    'published-at': {
+      type: 'string',
+      description:
+        'On `touch`: set `published_at` to this ISO-8601 timestamp (or `now`) while also updating `updated_at`',
+      placeholder: '<iso|now>',
+    },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)',
+        '`list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.nectar/trash/` with restore metadata), or `touch <slug>` (update date frontmatter)',
       required: true,
       variadic: true,
     },
@@ -716,6 +732,8 @@ export const CONTENT_SPEC: CommandSpec = {
     'nectar content rename old-slug new-slug --redirect',
     'nectar content delete old-slug',
     'nectar content delete --purge old-slug',
+    'nectar content touch hello-world --date 2026-01-02T03:04:05Z',
+    'nectar content touch about --kind pages --published',
   ],
 };
 

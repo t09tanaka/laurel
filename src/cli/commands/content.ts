@@ -60,9 +60,12 @@ export async function runContent(args: string[]): Promise<number> {
   if (sub === 'delete') {
     return runDelete({ parsed, cwd, configPath, now: new Date() });
   }
+  if (sub === 'touch') {
+    return runTouch({ parsed, cwd, configPath });
+  }
   if (sub !== 'list') {
     process.stderr.write(
-      `Unknown subcommand: ${sub ?? ''}. Expected \`list\`, \`show <slug>\`, \`rename <old-slug> <new-slug>\`, or \`delete <slug>\`.\n`,
+      `Unknown subcommand: ${sub ?? ''}. Expected \`list\`, \`show <slug>\`, \`rename <old-slug> <new-slug>\`, \`delete <slug>\`, or \`touch <slug>\`.\n`,
     );
     return 2;
   }
@@ -569,6 +572,162 @@ async function runRename({ parsed, cwd, configPath }: ContentCommandOpts): Promi
     reportError(err, cwd);
     return 1;
   }
+}
+
+async function runTouch({ parsed, cwd, configPath }: ContentCommandOpts): Promise<number> {
+  const slug = parsed.positionals[1];
+  if (!slug) {
+    process.stderr.write('`content touch` requires <slug>.\n');
+    return 2;
+  }
+  if (parsed.positionals.length > 2) {
+    process.stderr.write('`content touch` takes exactly <slug>.\n');
+    return 2;
+  }
+
+  const kindHint = parseKindHintValue(parsed.values.kind);
+  if (kindHint === false) return 2;
+  const search = contentSearchKinds(kindHint);
+
+  const dateRaw = typeof parsed.values.date === 'string' ? parsed.values.date : 'now';
+  const updatedAt = parseTouchDate(dateRaw, '--date');
+  if (updatedAt === undefined) return 2;
+
+  let publishedAt: string | undefined;
+  if (typeof parsed.values['published-at'] === 'string') {
+    publishedAt = parseTouchDate(parsed.values['published-at'], '--published-at');
+    if (publishedAt === undefined) return 2;
+  } else if (parsed.values.published === true) {
+    publishedAt = updatedAt;
+  }
+
+  const asJson = parsed.values.json === true;
+
+  try {
+    const config = await loadConfig({ cwd, configPath });
+    const dirs: Record<Kind, string> = {
+      posts: absolutise(cwd, config.content.posts_dir),
+      pages: absolutise(cwd, config.content.pages_dir),
+    };
+    const matches = await resolveContentFilesBySlug(slug, search, dirs);
+    if (matches.length === 0) {
+      process.stderr.write(`No post or page found with slug "${slug}".\n`);
+      return 1;
+    }
+    if (matches.length > 1) {
+      process.stderr.write(
+        `Slug "${slug}" is ambiguous (${matches.map((m) => m.kind).join(', ')}). Pass --kind posts or --kind pages.\n`,
+      );
+      return 2;
+    }
+
+    const target = matches[0];
+    if (!target) return 1;
+    const original = await readFile(target.path, 'utf8');
+    const touched = rewriteFrontmatterDates(original, { updatedAt, publishedAt });
+    await writeFile(target.path, touched, 'utf8');
+
+    if (asJson) {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            kind: target.kind,
+            slug,
+            path: target.path,
+            updated_at: updatedAt,
+            published_at: publishedAt ?? null,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      logger.info(`Touched ${target.kind}/${slug} (${target.path}) updated_at=${updatedAt}`);
+      if (publishedAt) {
+        logger.info(`Updated published_at=${publishedAt}`);
+      }
+    }
+    return 0;
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+}
+
+function parseTouchDate(value: string, flag: string): string | undefined {
+  const raw = value.trim();
+  if (raw.length === 0) {
+    process.stderr.write(`${flag} must not be empty.\n`);
+    return undefined;
+  }
+  const date = raw.toLowerCase() === 'now' ? new Date() : new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    process.stderr.write(`Invalid ${flag} value: ${value}. Expected ISO-8601 or "now".\n`);
+    return undefined;
+  }
+  return date.toISOString();
+}
+
+async function resolveContentFilesBySlug(
+  slug: string,
+  search: readonly Kind[],
+  dirs: Record<Kind, string>,
+): Promise<Array<{ kind: Kind; path: string }>> {
+  const matches: Array<{ kind: Kind; path: string }> = [];
+  for (const kind of search) {
+    const resolved = await resolveContentSlugPath(slug, [kind], dirs);
+    if (resolved) matches.push(resolved);
+  }
+  return matches;
+}
+
+export function rewriteFrontmatterDates(
+  source: string,
+  opts: { updatedAt: string; publishedAt?: string },
+): string {
+  const lines = source.split('\n');
+  const updates: Array<[key: string, value: string]> = [['updated_at', opts.updatedAt]];
+  if (opts.publishedAt !== undefined) updates.push(['published_at', opts.publishedAt]);
+
+  if (!isOpeningFrontmatterFence(lines[0])) {
+    const frontmatter = ['---', ...updates.map(([key, value]) => `${key}: ${value}`), '---', ''];
+    return [...frontmatter, source].join('\n');
+  }
+
+  let closeIdx = -1;
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i]?.trim() === '---') {
+      closeIdx = i;
+      break;
+    }
+  }
+  if (closeIdx === -1) {
+    throw new Error('frontmatter has no closing `---`; refusing to touch');
+  }
+
+  for (const [key, value] of updates) {
+    let found = false;
+    const keyPattern = new RegExp(`^(\\s*${key}\\s*:\\s*).*$`);
+    for (let i = 1; i < closeIdx; i += 1) {
+      const raw = lines[i] ?? '';
+      if (keyPattern.test(raw)) {
+        lines[i] = raw.replace(keyPattern, `$1${value}`);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      lines.splice(closeIdx, 0, `${key}: ${value}`);
+      closeIdx += 1;
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function isOpeningFrontmatterFence(line: string | undefined): boolean {
+  const trimmed = line?.trim() ?? '';
+  return trimmed === '---' || /^---ya?ml$/i.test(trimmed);
 }
 
 // Rewrite the `slug:` line inside the leading YAML frontmatter block. If the

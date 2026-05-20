@@ -564,29 +564,32 @@ Inspect or modify content in the project (posts, pages)
 Usage:
 
 ```
-nectar content [--config <path>] [--kind <posts|pages>] [--lines <n>] [--frontmatter] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] <subcommand...>
+nectar content [--config <path>] [--kind <posts|pages>] [--lines <n>] [--frontmatter] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] [--date <iso|now>] [--published] [--published-at <iso|now>] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata) |
+| `<subcommand...>` | required (variadic) | `list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.nectar/trash/` with restore metadata), or `touch <slug>` (update date frontmatter) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONTENT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `show` and `delete`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
+| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `show`, `delete`, and `touch`: restrict slug lookup to one kind (default searches posts then pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
 | `--lines <n>` | string | `NECTAR_CONTENT_LINES` | For `show`: number of body lines to print after the frontmatter (default: 20) |
 | `--frontmatter` | boolean | `NECTAR_CONTENT_FRONTMATTER` | For `show`: print only the YAML frontmatter block, without body preview lines |
 | `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published; `list` only) |
 | `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have any given tag slug (`list` only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have any given author slug (`list` only); repeat or comma-separate |
-| `-j, --json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (`list`, `show`, `rename`, and `delete`) |
+| `-j, --json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (`list`, `show`, `rename`, `delete`, and `touch`) |
 | `--redirect` | boolean | `NECTAR_CONTENT_REDIRECT` | On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component |
 | `--purge` | boolean | `NECTAR_CONTENT_PURGE` | On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files |
+| `--date <iso\|now>` | string | `NECTAR_CONTENT_DATE` | On `touch`: set `updated_at` to this ISO-8601 timestamp instead of the current time; `now` is also accepted |
+| `--published` | boolean | `NECTAR_CONTENT_PUBLISHED` | On `touch`: update `published_at` to the same timestamp as `updated_at` |
+| `--published-at <iso\|now>` | string | `NECTAR_CONTENT_PUBLISHED_AT` | On `touch`: set `published_at` to this ISO-8601 timestamp (or `now`) while also updating `updated_at` |
 
 Examples:
 
@@ -599,6 +602,8 @@ nectar content show about --kind pages --frontmatter
 nectar content rename old-slug new-slug --redirect
 nectar content delete old-slug
 nectar content delete --purge old-slug
+nectar content touch hello-world --date 2026-01-02T03:04:05Z
+nectar content touch about --kind pages --published
 ```
 
 ### `nectar info`

@@ -439,3 +439,137 @@ describe('cli content delete', () => {
     }
   });
 });
+
+describe('cli content touch', () => {
+  test('updates updated_at with a deterministic timestamp', async () => {
+    const dir = await makeFixture();
+    try {
+      const result = await runCli(
+        ['content', 'touch', 'hello', '--date', '2026-02-03T04:05:06Z', '--json'],
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      const parsed = JSON.parse(result.stdout) as { kind: string; updated_at: string };
+      expect(parsed.kind).toBe('posts');
+      expect(parsed.updated_at).toBe('2026-02-03T04:05:06.000Z');
+
+      const body = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(body).toContain('updated_at: 2026-02-03T04:05:06.000Z');
+      expect(body).toContain('\n\nBody\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--published updates published_at to the same timestamp', async () => {
+    const dir = await makeFixture();
+    try {
+      const result = await runCli(
+        ['content', 'touch', 'hello', '--date', '2026-02-03T04:05:06Z', '--published'],
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const body = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(body).toContain('updated_at: 2026-02-03T04:05:06.000Z');
+      expect(body).toContain('published_at: 2026-02-03T04:05:06.000Z');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--published-at can use a timestamp distinct from --date', async () => {
+    const dir = await makeFixture();
+    try {
+      const result = await runCli(
+        [
+          'content',
+          'touch',
+          'hello',
+          '--date',
+          '2026-02-03T04:05:06Z',
+          '--published-at',
+          '2026-02-04T05:06:07Z',
+        ],
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const body = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(body).toContain('updated_at: 2026-02-03T04:05:06.000Z');
+      expect(body).toContain('published_at: 2026-02-04T05:06:07.000Z');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('can touch pages when --kind pages is supplied', async () => {
+    const dir = await makeFixture();
+    try {
+      const result = await runCli(
+        ['content', 'touch', 'about', '--kind', 'pages', '--date', '2026-02-03T04:05:06Z'],
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+
+      const body = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
+      expect(body).toContain('updated_at: 2026-02-03T04:05:06.000Z');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('falls back to explicit frontmatter slug when filename does not match', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/source-file.md'),
+        '---\ntitle: Alias\nslug: alias-slug\nupdated_at: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+      );
+
+      const result = await runCli(
+        ['content', 'touch', 'alias-slug', '--date', '2026-02-03T04:05:06Z'],
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+
+      const body = await readFile(join(dir, 'content/posts/source-file.md'), 'utf8');
+      expect(body).toContain('updated_at: 2026-02-03T04:05:06.000Z');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('requires --kind when the slug exists in posts and pages', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/pages/hello.md'),
+        '---\ntitle: Page Hello\ndate: 2026-01-04T00:00:00Z\n---\n',
+      );
+
+      const result = await runCli(
+        ['content', 'touch', 'hello', '--date', '2026-02-03T04:05:06Z'],
+        dir,
+      );
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain('ambiguous');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects invalid touch dates with exit 2', async () => {
+    const dir = await makeFixture();
+    try {
+      const result = await runCli(['content', 'touch', 'hello', '--date', 'not-a-date'], dir);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain('Invalid --date value');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
