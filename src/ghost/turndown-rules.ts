@@ -220,6 +220,10 @@ function dataAttrs(node: DomNode): Array<[string, string]> {
     .map(({ name, value }) => [name, value] as [string, string]);
 }
 
+function hasAttr(el: DomNode | null, name: string): boolean {
+  return el ? el.getAttribute(name) !== null : false;
+}
+
 function isDataKgCard(node: FilterNode, ...types: readonly string[]): boolean {
   if (node.nodeName !== 'DIV') return false;
   const t = node.getAttribute?.('data-kg-card');
@@ -715,6 +719,70 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           text: text(anchor),
           align: classByPrefix(node, 'kg-align-'),
           style: classByPrefix(anchor, 'kg-btn-'),
+        }),
+      );
+    },
+  });
+
+  // Signup card: <div class="kg-card kg-signup-card">...<form data-members-form>
+  //
+  // The default Turndown walk flattens this into heading/paragraph/button text,
+  // permanently losing the Ghost Members contract (`data-members-form`,
+  // `data-members-email`, labels, success/error copy) and the provider-facing
+  // form fields. Emit a metadata carrier only; rendering/provider wiring lives
+  // in the build layer.
+  turndown.addRule('kg-signup-card', {
+    filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-signup-card'),
+    replacement: (_content, node) => {
+      const form = node.querySelector('form');
+      const button =
+        node.querySelector('.kg-signup-card-button') ??
+        form?.querySelector('button') ??
+        node.querySelector('button');
+      const nameInput =
+        form?.querySelector('input[data-members-name]') ??
+        form?.querySelector('input[name="name"]') ??
+        form?.querySelector('input[type="text"]') ??
+        null;
+      const emailInput =
+        form?.querySelector('input[data-members-email]') ??
+        form?.querySelector('input[type="email"]') ??
+        null;
+      const labels = form
+        ? Array.from(form.querySelectorAll('[data-members-label]') as ArrayLike<DomNode>)
+            .map((label) => attr(label, 'value') || text(label))
+            .filter((label) => label !== '')
+            .join(',')
+        : '';
+      const image = node.querySelector('.kg-signup-card-image') ?? node.querySelector('img');
+
+      return wrap(
+        liquidShortcode('signup', {
+          heading: text(node.querySelector('.kg-signup-card-heading')),
+          subheading: text(node.querySelector('.kg-signup-card-subheading')),
+          button: text(button),
+          disclaimer: text(node.querySelector('.kg-signup-card-disclaimer')),
+          background:
+            attr(image, 'src') ||
+            attr(node, 'data-kg-background-image') ||
+            attr(node, 'data-background-image') ||
+            backgroundImageUrlFromStyle(attr(node, 'style')),
+          labels,
+          width: classByPrefix(node, 'kg-width-'),
+          style: classByPrefix(node, 'kg-style-'),
+          form_action: attr(form, 'action'),
+          form_method: attr(form, 'method'),
+          'data-members-form': attr(form, 'data-members-form'),
+          name_field: attr(nameInput, 'name'),
+          name_placeholder: attr(nameInput, 'placeholder'),
+          name_required: hasAttr(nameInput, 'required') ? 'true' : '',
+          'data-members-name': hasAttr(nameInput, 'data-members-name') ? 'true' : '',
+          email_field: attr(emailInput, 'name'),
+          email_placeholder: attr(emailInput, 'placeholder'),
+          email_required: hasAttr(emailInput, 'required') ? 'true' : '',
+          'data-members-email': hasAttr(emailInput, 'data-members-email') ? 'true' : '',
+          success: text(node.querySelector('[data-members-success]')),
+          error: text(node.querySelector('[data-members-error]')),
         }),
       );
     },

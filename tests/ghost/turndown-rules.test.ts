@@ -756,6 +756,85 @@ describe('Ghost Turndown rules — kg-button-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — kg-signup-card', () => {
+  test('preserves copy, layout, and data-members form contract as a signup shortcode', () => {
+    const html = `
+      <div
+        class="kg-card kg-signup-card kg-width-wide kg-style-image"
+        data-kg-background-image="https://cdn.test/signup.jpg"
+        style="background-image: url(https://cdn.test/signup.jpg)"
+      >
+        <h2 class="kg-signup-card-heading">Join the newsletter</h2>
+        <p class="kg-signup-card-subheading">One short digest per week.</p>
+        <form class="kg-signup-card-form" action="/members/api/send-magic-link/" method="post" data-members-form="signup">
+          <label>
+            Name
+            <input class="kg-signup-card-input" type="text" name="name" placeholder="Your name" data-members-name required>
+          </label>
+          <label>
+            Email
+            <input class="kg-signup-card-input" type="email" name="email" placeholder="you@example.com" data-members-email required>
+          </label>
+          <input type="hidden" data-members-label value="weekly">
+          <input type="hidden" data-members-label value="vip">
+          <button class="kg-signup-card-button" type="submit">Subscribe</button>
+          <p class="kg-signup-card-disclaimer">No spam. Unsubscribe anytime.</p>
+          <p data-members-success>Check your inbox.</p>
+          <p data-members-error>Please enter a valid email.</p>
+        </form>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{% signup');
+    expect(md).toContain('heading="Join the newsletter"');
+    expect(md).toContain('subheading="One short digest per week."');
+    expect(md).toContain('button="Subscribe"');
+    expect(md).toContain('disclaimer="No spam. Unsubscribe anytime."');
+    expect(md).toContain('background="https://cdn.test/signup.jpg"');
+    expect(md).toContain('labels="weekly,vip"');
+    expect(md).toContain('width="wide"');
+    expect(md).toContain('style="image"');
+    expect(md).toContain('form_action="/members/api/send-magic-link/"');
+    expect(md).toContain('form_method="post"');
+    expect(md).toContain('data-members-form="signup"');
+    expect(md).toContain('name_field="name"');
+    expect(md).toContain('name_placeholder="Your name"');
+    expect(md).toContain('name_required="true"');
+    expect(md).toContain('data-members-name="true"');
+    expect(md).toContain('email_field="email"');
+    expect(md).toContain('email_placeholder="you@example.com"');
+    expect(md).toContain('email_required="true"');
+    expect(md).toContain('data-members-email="true"');
+    expect(md).toContain('success="Check your inbox."');
+    expect(md).toContain('error="Please enter a valid email."');
+    expect(md).toContain('%}');
+    expect(md).not.toContain('## Join the newsletter');
+    expect(md).not.toContain('Subscribe\n');
+  });
+
+  test('falls back to visible inputs when data-members markers are missing', () => {
+    const html = `
+      <div class="kg-card kg-signup-card kg-style-light">
+        <h2 class="kg-signup-card-heading">Stay in the loop</h2>
+        <form class="kg-signup-card-form" data-members-form="subscribe">
+          <input class="kg-signup-card-input" type="text" name="full_name" placeholder="Full name">
+          <input class="kg-signup-card-input" type="email" name="contact" placeholder="Email address">
+          <button class="kg-signup-card-button">Join</button>
+        </form>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{% signup');
+    expect(md).toContain('heading="Stay in the loop"');
+    expect(md).toContain('button="Join"');
+    expect(md).toContain('data-members-form="subscribe"');
+    expect(md).toContain('name_field="full_name"');
+    expect(md).toContain('name_placeholder="Full name"');
+    expect(md).toContain('email_field="contact"');
+    expect(md).toContain('email_placeholder="Email address"');
+  });
+});
+
 describe('Ghost Turndown rules — kg-header-card v1', () => {
   test('preserves style, background, title, subtitle, and CTA as a header shortcode', () => {
     const html = `

@@ -253,11 +253,7 @@ visibility: "public"
 status: "published"
 ---
 
-## Join the newsletter
-
-One short digest per week.
-
-Subscribe
+{% signup heading="Join the newsletter" subheading="One short digest per week." button="Subscribe" width="regular" style="light" data-members-form="signup" email_placeholder="you@example.com" email_required="true" %}
 
 === content/posts/card-toggle.md ===
 ---
