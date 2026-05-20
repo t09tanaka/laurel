@@ -88,8 +88,8 @@ jobs:
   build:
     name: build (${{ matrix.artifact }})
     needs: [resolve-ref, verify]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     # id-token: write is required for SLSA build provenance attestation via
     # actions/attest-build-provenance. attestations: write is required to
     # publish the attestation to the repo's attestations registry. See #512.
@@ -103,14 +103,24 @@ jobs:
         include:
           - target: bun-linux-x64
             artifact: nectar-linux-x64
+            platform: linux
+            runner: ubuntu-latest
           - target: bun-linux-arm64
             artifact: nectar-linux-arm64
+            platform: linux
+            runner: ubuntu-latest
           - target: bun-darwin-x64
             artifact: nectar-darwin-x64
+            platform: darwin
+            runner: macos-14
           - target: bun-darwin-arm64
             artifact: nectar-darwin-arm64
+            platform: darwin
+            runner: macos-14
           - target: bun-windows-x64
             artifact: nectar-windows-x64.exe
+            platform: windows
+            runner: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,6 +150,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Compile standalone binary
+        shell: bash
         run: |
           mkdir -p dist-bin
           bun build \
@@ -149,6 +160,136 @@ jobs:
             --target=${{ matrix.target }} \
             --outfile=dist-bin/${{ matrix.artifact }} \
             src/cli/index.ts
+
+      - name: Sign and notarize macOS binary
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          APPLE_DEVELOPER_ID_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARYTOOL_APPLE_ID: ${{ secrets.APPLE_NOTARYTOOL_APPLE_ID }}
+          APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          required=(
+            APPLE_DEVELOPER_ID_CERT_BASE64
+            APPLE_DEVELOPER_ID_CERT_PASSWORD
+            APPLE_TEAM_ID
+            APPLE_NOTARYTOOL_APPLE_ID
+            APPLE_NOTARYTOOL_PASSWORD
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required macOS signing secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+          cert_path="$RUNNER_TEMP/apple-developer-id.p12"
+          keychain_path="$RUNNER_TEMP/nectar-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          notary_zip="$RUNNER_TEMP/${{ matrix.artifact }}.zip"
+          cleanup() {
+            security delete-keychain "$keychain_path" >/dev/null 2>&1 || true
+            rm -f "$cert_path" "$notary_zip"
+          }
+          trap cleanup EXIT
+
+          printf '%s' "$APPLE_DEVELOPER_ID_CERT_BASE64" | /usr/bin/base64 -D > "$cert_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$cert_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security list-keychains -d user -s "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+
+          identity="$(security find-identity -v -p codesigning "$keychain_path" | awk -F '"' '/Developer ID Application/ { print $2; exit }')"
+          if [[ -z "$identity" ]]; then
+            echo "No Developer ID Application signing identity found in APPLE_DEVELOPER_ID_CERT_BASE64" >&2
+            exit 1
+          fi
+
+          codesign --force --options runtime --timestamp --sign "$identity" "dist-bin/${{ matrix.artifact }}"
+          codesign --verify --strict --verbose=2 "dist-bin/${{ matrix.artifact }}"
+
+          ditto -c -k --keepParent "dist-bin/${{ matrix.artifact }}" "$notary_zip"
+          xcrun notarytool submit "$notary_zip" \
+            --apple-id "$APPLE_NOTARYTOOL_APPLE_ID" \
+            --password "$APPLE_NOTARYTOOL_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+      - name: Sign Windows binary
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+          WINDOWS_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $required = @(
+            "WINDOWS_SIGNING_CERT_BASE64",
+            "WINDOWS_SIGNING_CERT_PASSWORD"
+          )
+          $missing = @()
+          foreach ($name in $required) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              $missing += $name
+            }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Error "Missing required Windows signing secrets: $($missing -join ', ')"
+            exit 1
+          }
+
+          $cert = $null
+          $pfxPath = Join-Path $env:RUNNER_TEMP "nectar-windows-signing.pfx"
+          try {
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
+            $securePassword = ConvertTo-SecureString $env:WINDOWS_SIGNING_CERT_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+            if (-not $cert) {
+              Write-Error "Failed to import WINDOWS_SIGNING_CERT_BASE64"
+              exit 1
+            }
+
+            $timestampUrl = $env:WINDOWS_SIGNING_TIMESTAMP_URL
+            if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
+              $timestampUrl = "http://timestamp.digicert.com"
+            }
+
+            $binary = "dist-bin/${{ matrix.artifact }}"
+            $signature = Set-AuthenticodeSignature -FilePath $binary -Certificate $cert -TimestampServer $timestampUrl -HashAlgorithm SHA256
+            $signature | Format-List
+            if ($signature.Status -ne "Valid") {
+              Write-Error "Authenticode signing failed with status $($signature.Status): $($signature.StatusMessage)"
+              exit 1
+            }
+
+            $verification = Get-AuthenticodeSignature -FilePath $binary
+            if ($verification.Status -ne "Valid") {
+              Write-Error "Authenticode verification failed with status $($verification.Status): $($verification.StatusMessage)"
+              exit 1
+            }
+          } finally {
+            if ($cert) {
+              Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force -ErrorAction SilentlyContinue
+            }
+            Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+          }
 
       # SLSA build provenance attestation (#512).
       # Produces a signed, Sigstore-backed statement that this exact binary
@@ -196,9 +337,8 @@ jobs:
           sha256sum nectar-* > SHASUMS256.txt
           cat SHASUMS256.txt
 
-      # Signing (cosign / minisign) is intentionally out of scope for now.
-      # When added, sign SHASUMS256.txt and upload alongside the binaries.
-      # See https://docs.sigstore.dev/cosign/ and https://jedisct1.github.io/minisign/.
+      # Signed checksums (cosign / minisign) are intentionally out of scope for now.
+      # Platform binaries are signed in the build job before upload.
 
       - name: Extract release notes from CHANGELOG.md
         id: notes
@@ -249,6 +389,13 @@ jobs:
             echo ""
             echo "The npm package is published with \`--provenance\` and can be verified"
             echo "with \`npm audit signatures\`."
+            echo ""
+            echo "### Platform code signatures"
+            echo ""
+            echo "macOS binaries are signed with an Apple Developer ID Application"
+            echo "certificate and submitted to Apple notarization before upload."
+            echo "The Windows binary is signed with Authenticode and a trusted"
+            echo "timestamp. Linux binaries are covered by checksums and build provenance."
             echo ""
             echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
           } >> release_notes.md
@@ -303,6 +450,13 @@ jobs:
             echo ""
             echo "The npm package is published with \`--provenance\` and can be verified"
             echo "with \`npm audit signatures\`."
+            echo ""
+            echo "### Platform code signatures"
+            echo ""
+            echo "macOS binaries are signed with an Apple Developer ID Application"
+            echo "certificate and submitted to Apple notarization before upload."
+            echo "The Windows binary is signed with Authenticode and a trusted"
+            echo "timestamp. Linux binaries are covered by checksums and build provenance."
             echo ""
             echo "Signed checksums (cosign / minisign) are not yet provided. Track the work in #511."
           } > combined_notes.md

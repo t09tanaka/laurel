@@ -58,7 +58,9 @@ chmod +x nectar
 
 Available triples: `nectar-linux-x64`, `nectar-linux-arm64`,
 `nectar-darwin-x64`, `nectar-darwin-arm64`, `nectar-windows-x64.exe`. Each
-release also publishes `SHASUMS256.txt` for verification.
+release also publishes `SHASUMS256.txt` for verification. macOS release
+binaries are signed and notarized, and the Windows binary is Authenticode-signed;
+release operator notes live in [`docs/release.md`](./docs/release.md).
 
 Prefer npm? `npm i -g nectar` works too once Bun is installed locally.
 
