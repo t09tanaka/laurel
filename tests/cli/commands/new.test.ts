@@ -46,6 +46,21 @@ describe('cli new — slug collision handling', () => {
     expect(body).toContain('slug: hello-world');
   });
 
+  test('creates a post from a Japanese title without deriving an empty slug', async () => {
+    const { exitCode } = await runCli(['new', 'post', '日本語タイトル'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/日本語タイトル.md'), 'utf8');
+    expect(body).toContain('title: "日本語タイトル"');
+    expect(body).toContain('slug: 日本語タイトル');
+  });
+
+  test('preserves CJK words when a title also contains ASCII words', async () => {
+    const { exitCode } = await runCli(['new', 'post', '東京 Update'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/東京-update.md'), 'utf8');
+    expect(body).toContain('slug: 東京-update');
+  });
+
   test('refuses to overwrite an existing file and exits 1 with guidance', async () => {
     const dest = join(dir, 'content/posts/hello-world.md');
     await Bun.write(dest, 'EXISTING CONTENT');
@@ -281,6 +296,14 @@ describe('cli new — tag and author kinds', () => {
     expect(body).toContain('description:');
     expect(body).not.toContain('date:');
     expect(body).not.toContain('tags:');
+  });
+
+  test('"new tag <slug>" accepts a Japanese slug', async () => {
+    const { exitCode } = await runCli(['new', 'tag', 'ニュース'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/tags/ニュース.md'), 'utf8');
+    expect(body).toContain('slug: ニュース');
+    expect(body).toContain('name: "ニュース"');
   });
 
   test('"new author <slug>" writes into content.authors_dir with slug + name + bio', async () => {
