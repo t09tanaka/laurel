@@ -25,9 +25,12 @@ Node `parseArgs` semantics: the last `--config` value wins.
 
 The value precedence for config-backed behaviour is: CLI flag, then
 command-specific env var, then config file, then schema default. Separately,
-`NECTAR_<SECTION>_<KEY>` environment variables override scalar
+`NECTAR_<SECTION>_<KEY>` environment variables override matching
 `nectar.toml` keys after the file is parsed, for example
-`NECTAR_SITE_URL=https://preview.example`.
+`NECTAR_SITE_URL=https://preview.example`. String, number, boolean, and
+array keys are coerced through the same schema parser as TOML config;
+primitive arrays may be comma-separated or JSON arrays, while object arrays
+must be JSON arrays.
 
 On Netlify `deploy-preview` and `branch-deploy` builds, `DEPLOY_PRIME_URL`
 is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar

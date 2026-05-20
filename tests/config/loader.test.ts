@@ -720,6 +720,68 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('env overrides coerce primitive array strings', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_PLUGINS: './plugins/a.ts, nectar-plugin-b',
+          NECTAR_COMPONENTS_IMAGES_FORMATS: '["avif","webp"]',
+          NECTAR_DEPLOY_RSYNC_FLAGS: '["-az","--checksum"]',
+        },
+      });
+      expect(config.plugins).toEqual(['./plugins/a.ts', 'nectar-plugin-b']);
+      expect(config.components.images.formats).toEqual(['avif', 'webp']);
+      expect(config.deploy.rsync.flags).toEqual(['-az', '--checksum']);
+    });
+  });
+
+  test('env overrides coerce object arrays from JSON', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_NAVIGATION: JSON.stringify([
+            { label: 'Home', url: '/' },
+            { label: 'Docs', url: '/docs/' },
+          ]),
+          NECTAR_TIERS: JSON.stringify([
+            {
+              name: 'Supporter',
+              monthly_price: 9,
+              benefits: ['Archive', 'Newsletter'],
+            },
+          ]),
+        },
+      });
+      expect(config.navigation).toEqual([
+        { label: 'Home', url: '/' },
+        { label: 'Docs', url: '/docs/' },
+      ]);
+      expect(config.tiers).toEqual([
+        {
+          name: 'Supporter',
+          description: '',
+          monthly_price: 9,
+          currency: 'USD',
+          benefits: ['Archive', 'Newsletter'],
+        },
+      ]);
+    });
+  });
+
+  test('env overrides ignore malformed array values', async () => {
+    await withTempDir(async (cwd) => {
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NECTAR_PLUGINS: '[not json',
+        },
+      });
+      expect(config.plugins).toEqual([]);
+    });
+  });
+
   test('env overrides reject non-numeric values for number keys', async () => {
     await withTempDir(async (cwd) => {
       // Garbled number string falls back to the schema default rather than

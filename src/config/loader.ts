@@ -144,7 +144,7 @@ function walkParent(
 
 // Apply `NECTAR_<SECTION>_<KEY>` env overrides on top of the parsed TOML
 // payload. The env var name is mapped back to a dotted config path by
-// walking the schema: for each leaf primitive key we precompute its
+// walking the schema: for each leaf primitive or array key we precompute its
 // `NECTAR_FOO_BAR_BAZ` form, and any matching env var's value is coerced
 // into the schema's expected JS type before being merged into the parsed
 // object. Unknown `NECTAR_*` vars are ignored silently so the override
@@ -159,7 +159,7 @@ function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
     if (ENV_VAR_RESERVED.has(name)) continue;
     const entry = map.get(name);
     if (!entry) continue;
-    const value = coerceEnvValue(raw, entry.kind, name);
+    const value = coerceEnvValue(raw, entry.kind, name, entry.elementKind);
     if (value === ENV_COERCE_FAILED) continue;
     target = setDeep(target, entry.path, value);
   }
@@ -287,11 +287,12 @@ function firstNonEmptyEnv(...values: (string | undefined)[]): string | undefined
 // in `docs/`.
 const ENV_VAR_RESERVED = new Set(['NECTAR_LOG_LEVEL', 'NECTAR_NO_WORKERS', 'NECTAR_DRAFTS']);
 
-type EnvValueKind = 'string' | 'number' | 'boolean';
+type EnvValueKind = 'string' | 'number' | 'boolean' | 'array';
 
 interface EnvMapEntry {
   path: string[];
   kind: EnvValueKind;
+  elementKind?: EnvValueKind | undefined;
 }
 
 function buildEnvVarMap(schema: ZodTypeAny): Map<string, EnvMapEntry> {
@@ -306,6 +307,10 @@ function walkSchema(
   out: Map<string, EnvMapEntry>,
 ): void {
   const unwrapped = unwrapZodType(schema);
+  if (unwrapped instanceof z.ZodArray) {
+    registerEnvPath(out, path, 'array', leafKind(unwrapZodType(unwrapped.element as ZodTypeAny)));
+    return;
+  }
   if (unwrapped instanceof z.ZodObject) {
     const shape = unwrapped.shape as Record<string, ZodTypeAny>;
     for (const [key, child] of Object.entries(shape)) {
@@ -316,11 +321,21 @@ function walkSchema(
   if (path.length === 0) return;
   const kind = leafKind(unwrapped);
   if (kind === undefined) return;
+  registerEnvPath(out, path, kind);
+}
+
+function registerEnvPath(
+  out: Map<string, EnvMapEntry>,
+  path: readonly string[],
+  kind: EnvValueKind,
+  elementKind?: EnvValueKind | undefined,
+): void {
+  if (path.length === 0) return;
   const name = `NECTAR_${path.map((p) => p.toUpperCase()).join('_')}`;
   // First-registered path wins. The schema is acyclic and walked
   // deterministically so duplicates don't happen in practice, but be
   // conservative anyway.
-  if (!out.has(name)) out.set(name, { path: [...path], kind });
+  if (!out.has(name)) out.set(name, { path: [...path], kind, elementKind });
 }
 
 function leafKind(schema: ZodTypeAny): EnvValueKind | undefined {
@@ -339,7 +354,8 @@ function coerceEnvValue(
   raw: string,
   kind: EnvValueKind,
   varName: string,
-): string | number | boolean | typeof ENV_COERCE_FAILED {
+  elementKind?: EnvValueKind | undefined,
+): string | number | boolean | unknown[] | typeof ENV_COERCE_FAILED {
   if (kind === 'string') return raw;
   if (kind === 'number') {
     const n = Number(raw);
@@ -362,7 +378,43 @@ function coerceEnvValue(
     );
     return ENV_COERCE_FAILED;
   }
+  if (kind === 'array') {
+    return coerceEnvArray(raw, varName, elementKind);
+  }
   return ENV_COERCE_FAILED;
+}
+
+function coerceEnvArray(
+  raw: string,
+  varName: string,
+  elementKind: EnvValueKind | undefined,
+): unknown[] | typeof ENV_COERCE_FAILED {
+  const trimmed = raw.trim();
+  if (trimmed === '') return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+      logger.warn(`Ignoring ${varName}: JSON value is not an array.`);
+      return ENV_COERCE_FAILED;
+    } catch {
+      logger.warn(`Ignoring ${varName}: value ${JSON.stringify(raw)} is not a valid JSON array.`);
+      return ENV_COERCE_FAILED;
+    }
+  }
+  if (elementKind === undefined) {
+    logger.warn(`Ignoring ${varName}: object arrays must be provided as a JSON array.`);
+    return ENV_COERCE_FAILED;
+  }
+  const values: unknown[] = [];
+  for (const part of trimmed.split(',')) {
+    const value = part.trim();
+    if (value.length === 0) continue;
+    const coerced = coerceEnvValue(value, elementKind, varName);
+    if (coerced === ENV_COERCE_FAILED) return ENV_COERCE_FAILED;
+    values.push(coerced);
+  }
+  return values;
 }
 
 function setDeep(target: unknown, path: readonly string[], value: unknown): unknown {
