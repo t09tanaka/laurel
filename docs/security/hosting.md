@@ -5,10 +5,11 @@ hosting platform is responsible for HTTP response headers** — Nectar itself
 cannot send a `Content-Security-Policy` or `Strict-Transport-Security`
 header at request time, because there is no Nectar process at request time.
 
-This page collects copy-pasteable header snippets for the four hosts the
-[deploy tutorial](../tutorials/04-deploy.md) covers (Cloudflare Pages, Vercel,
-Netlify, GitHub Pages). Pick the one that matches your host and drop it in
-the repo root.
+This page collects copy-pasteable header snippets for the hosted platforms
+the [deploy tutorial](../tutorials/04-deploy.md) covers (Cloudflare Pages,
+Vercel, Netlify, GitHub Pages), plus the matching `nectar.toml` settings for
+self-hosted nginx. Pick the one that matches your host and add it to the
+place that host actually reads.
 
 > If you skip this step, your site ships with the defaults the host gives you.
 > On most free tiers that means **no CSP, no HSTS, no Referrer-Policy** — fine
@@ -208,6 +209,43 @@ form is preferred because it lives next to the rest of the build config:
 
 Netlify reference:
 <https://docs.netlify.com/routing/headers/>.
+
+---
+
+## nginx
+
+Nectar emits nginx headers into `dist/.nectar/nginx.conf` when
+`[deploy.nginx].enabled = true`. Put the security values in `nectar.toml`
+under `[deploy.headers].security` so they are generated alongside the cache
+rules and repeated inside every nginx `location` block:
+
+```toml
+[deploy.nginx]
+enabled = true
+root = "/var/www/nectar"
+server_name = "example.com"
+
+[deploy.headers.security]
+content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+strict_transport_security = "max-age=31536000; includeSubDomains"
+referrer_policy = "strict-origin-when-cross-origin"
+content_type_options = "nosniff"
+frame_options = "DENY"
+permissions_policy = "interest-cohort=(), browsing-topics=(), geolocation=(), camera=(), microphone=(), payment=()"
+cross_origin_opener_policy = "same-origin"
+```
+
+Then rebuild and include the generated file from nginx's top-level
+`http { ... }` context:
+
+```nginx
+include /var/www/nectar/.nectar/nginx.conf;
+```
+
+Nectar's generated block listens on port 80. Keep TLS certificates,
+HTTP-to-HTTPS redirects, and any load-balancer-specific behavior in your
+operator-managed nginx config. See [`../deploy/nginx.md`](../deploy/nginx.md)
+for the full deploy flow.
 
 ---
 

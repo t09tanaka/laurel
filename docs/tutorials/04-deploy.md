@@ -1,10 +1,11 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, or S3 + CloudFront
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, S3 + CloudFront, or nginx
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
-Nectar emits plain static files. Any static host will serve them. The
-configs below are the minimum to get a working CI build on each major
-free-tier host, plus the AWS-native S3 + CloudFront path.
+Nectar emits plain static files. Any static host or web server will serve
+them. The configs below are the minimum to get a working CI build on each
+major free-tier host, plus AWS-native S3 + CloudFront and self-hosted nginx
+quickstarts.
 
 **Universal pre-flight:**
 
@@ -344,6 +345,59 @@ production S3 + CloudFront path.
 
 ---
 
+## nginx
+
+**Recommended for:** self-hosted VPS deployments and Ghost migrations already
+running behind nginx.
+
+For the focused nginx guide, including TLS notes and troubleshooting, see
+[`docs/deploy/nginx.md`](../deploy/nginx.md).
+
+1. Enable the nginx deploy target and set the filesystem root nginx will serve:
+
+   ```toml
+   [deploy.nginx]
+   enabled = true
+   root = "/var/www/nectar"
+   server_name = "example.com"
+   ```
+
+2. Build locally and confirm the generated config exists:
+
+   ```bash
+   bunx nectar build
+   test -f dist/.nectar/nginx.conf
+   ```
+
+3. Sync the complete `dist/` directory to the server:
+
+   ```bash
+   rsync -avz --delete dist/ user@host:/var/www/nectar/
+   ```
+
+4. Include the generated server block from nginx's main config, under the
+   top-level `http { ... }` context:
+
+   ```nginx
+   include /var/www/nectar/.nectar/nginx.conf;
+   ```
+
+5. Test and reload nginx on the server:
+
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+The generated file folds `[deploy.headers]` and `redirects.yaml` into a full
+`server { ... }` block at `dist/.nectar/nginx.conf`. It sets `Cache-Control`
+for Nectar's default asset paths, repeats security headers inside each
+`location`, enables `gzip_static` and `brotli_static`, serves
+`slug/index.html` URLs with `try_files $uri $uri/ $uri/index.html =404;`, and
+turns redirect rules into nginx `return` directives.
+
+---
+
 ## Troubleshooting deploys
 
 - **Build runs locally, fails in CI.** Usually a missing Bun. Confirm the
@@ -352,7 +406,11 @@ production S3 + CloudFront path.
 - **404 on direct page loads in production.** Your host is stripping
   trailing slashes. Add a redirect rule (`netlify.toml`, `vercel.json`,
   `_redirects`) or configure "Always append trailing slash" in the host's
-  settings.
+  settings. On nginx, confirm the generated `try_files $uri $uri/
+  $uri/index.html =404;` block is the one handling the request.
+- **`nginx -t` fails on `brotli_static`.** Your nginx build does not have the
+  Brotli module loaded. Install an nginx package with Brotli support, load the
+  module, or remove `brotli_static on;` from the deployed include.
 - **Assets 404 with `/<repo>/...` prefix on GitHub Pages.** You missed
   `[build] base_path`. Set it to your subdirectory path with leading and
   trailing slash, e.g. `"/my-blog/"`, and rebuild.
@@ -375,15 +433,17 @@ bunx nectar build --base-path /preview/feature-x/
 
 ## Security headers
 
-The configs above get the site live, but **do not set any HTTP security
-headers**. Static hosts default to no CSP, no HSTS, no Referrer-Policy on
-most free tiers — fine for a personal site, risky once you accept
-contributions to `content/`, enable `build.allow_code_injection`, or serve
-a custom domain.
+The configs above get the site live, but most hosted platforms still need a
+stricter security header baseline. Static hosts default to no CSP, no HSTS,
+no Referrer-Policy on most free tiers — fine for a personal site, risky once
+you accept contributions to `content/`, enable `build.allow_code_injection`,
+or serve a custom domain.
 
 See [`docs/security/hosting.md`](../security/hosting.md) for
 copy-pasteable `_headers` / `vercel.json` / `netlify.toml` snippets with
 a Nectar-calibrated baseline `Content-Security-Policy`,
 `Strict-Transport-Security`, `Referrer-Policy`, `Permissions-Policy`, and
-related headers. GitHub Pages users will find the workarounds for the
-host's hard-coded headers there too.
+related headers. nginx users should set the same values under
+`[deploy.headers].security` so they are emitted into
+`dist/.nectar/nginx.conf`. GitHub Pages users will find the workarounds for
+the host's hard-coded headers there too.

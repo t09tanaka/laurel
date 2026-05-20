@@ -7,8 +7,8 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/security/hosting.md`](./security/hosting.md) — copy-pasteable
   **security header** snippets (HSTS, CSP, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`) for
-  Cloudflare Pages, Vercel, Netlify, and GitHub Pages. Start here for any new
-  deploy.
+  Cloudflare Pages, Vercel, Netlify, GitHub Pages, and self-hosted nginx.
+  Start here for any new deploy.
 - [`docs/security/threat-model.md`](./security/threat-model.md) —
   build-time security model. Covers `build.allow_code_injection`,
   `codeinjection_head` / `codeinjection_foot`, `unsafe_html`, and other
@@ -21,9 +21,9 @@ collects the operator-facing pieces of that contract in one place:
   limit, including the private-bucket Worker pattern, R2 endpoint/credential
   setup, and the difference between scoped image sync and `nectar deploy r2`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
-  deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages),
-  without security headers wired in. Pair with `security/hosting.md` for the
-  full set.
+  deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages,
+  nginx), without the stricter security header baseline wired in. Pair with
+  `security/hosting.md` for the full set.
 - [`docs/deploy/github-pages.md`](./deploy/github-pages.md) — GitHub Pages
   quickstart with the recommended Actions artifact workflow, project-site
   `base_path`, `.nojekyll`, and `CNAME` notes.
@@ -34,6 +34,9 @@ collects the operator-facing pieces of that contract in one place:
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and
   `nectar deploy s3`.
+- [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
+  for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
+  the generated server block from the main nginx config.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
   trust model for content contributors.
 
@@ -43,7 +46,8 @@ If you just want a defensible default stack on a new deploy:
 
 1. Pick your host's section in
    [`docs/security/hosting.md`](./security/hosting.md) and drop the
-   `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root.
+   `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root, or
+   set `[deploy.headers].security` for nginx.
 2. Verify with `curl -sI https://your-site.example/ | sort` after the next
    deploy — you should see `Strict-Transport-Security`,
    `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
@@ -89,4 +93,5 @@ review of the inlined HTML. See
   under `tutorials/` are the right starting point if you've never shipped a
   Nectar build.
 - A platform comparison — the hosts covered are the ones whose deploy
-  conventions Nectar documents or emits first-class static artifacts for.
+  conventions Nectar documents or emits first-class static artifacts for,
+  including self-hosted nginx.
