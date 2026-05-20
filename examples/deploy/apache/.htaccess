@@ -1,0 +1,87 @@
+# Example .htaccess for a Nectar static site served by Apache HTTPD.
+#
+# Copy to your Apache document root (e.g. /var/www/yoursite/.htaccess). Assumes
+# `AllowOverride All` is enabled for the document root and `mod_headers`,
+# `mod_expires`, `mod_rewrite`, `mod_deflate`, and (optionally) `mod_brotli`
+# are loaded.
+#
+# See docs/deploy/apache.md for the full walkthrough.
+
+# ---------------------------------------------------------------------------
+# Pretty URLs and the themed 404 page.
+# ---------------------------------------------------------------------------
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
+# Strip trailing index.html so /post/ and /post/index.html stay canonical.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{THE_REQUEST} \s/+(.*)index\.html[\s?] [NC]
+  RewriteRule ^ /%1 [R=301,L]
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# ETag: drop the inode component so identical files behind two web heads
+# serve under the same ETag. Conditional GETs stop missing across replicas.
+# ---------------------------------------------------------------------------
+FileETag MTime Size
+
+# ---------------------------------------------------------------------------
+# Cache-Control via mod_headers. Mirrors nectar's _headers defaults so the
+# site behaves the same on Apache as on Netlify / Cloudflare Pages.
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  # Fingerprinted built assets: a year of immutable caching.
+  <FilesMatch "\.(css|js|woff2?|ttf|otf|eot|svg|png|jpg|jpeg|gif|webp|avif|ico|mp4|webm|ogg|map)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML: revalidate every request so a redeploy is visible on next click.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  # Security headers (catch-all). Tighten Strict-Transport-Security once the
+  # site only serves over HTTPS; omit `preload` until max-age >= 31536000.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+  # Header always set Content-Security-Policy "default-src 'self'"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# mod_expires: belt-and-braces caching for clients that ignore Cache-Control
+# but honor Expires.
+# ---------------------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/avif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression. Prefer pre-compressed sidecars (nectar emits .br + .gz when
+# [build].precompress = true) so Apache doesn't burn CPU per request.
+# ---------------------------------------------------------------------------
+<IfModule mod_brotli.c>
+  AddEncoding br .br
+  <FilesMatch "\.(html|css|js|json|svg|xml|txt|map)\.br$">
+    Header set Content-Encoding br
+    Header append Vary Accept-Encoding
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddEncoding gzip .gz
+  <FilesMatch "\.(html|css|js|json|svg|xml|txt|map)\.gz$">
+    Header set Content-Encoding gzip
+    Header append Vary Accept-Encoding
+  </FilesMatch>
+</IfModule>

@@ -1,0 +1,42 @@
+# Example Caddyfile for a Nectar static site.
+#
+# Drop into /etc/caddy/Caddyfile, replace `yoursite.example.com` with your
+# hostname, and `sudo systemctl reload caddy`. See docs/deploy/caddy.md for
+# the full walkthrough.
+
+yoursite.example.com {
+    root * /var/www/yoursite
+    encode zstd gzip
+
+    # Pre-compressed sidecars from `nectar build` when [build].precompress = true.
+    file_server {
+        precompressed br gzip
+    }
+
+    # Cache-Control: pin fingerprinted assets and content images for a year,
+    # force HTML to revalidate every request so a redeploy is visible on the
+    # next click. Mirrors nectar's `_headers` defaults.
+    @assets path /assets/* /content/images/* /pagefind/*
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    @html path *.html
+    header @html Cache-Control "public, max-age=0, must-revalidate"
+
+    # Security headers (catch-all). Uncomment HSTS once the site only serves
+    # over HTTPS; omit `preload` until max-age >= 31536000.
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Strict-Transport-Security "max-age=63072000; includeSubDomains"
+        # Content-Security-Policy "default-src 'self'"
+    }
+
+    # Redirects (paste rules from a Ghost migration here).
+    # redir /old-permalink/ /new/path/ permanent
+
+    # Themed 404 page. Without this Caddy serves its built-in HTML.
+    handle_errors {
+        rewrite * /404.html
+        file_server
+    }
+}
