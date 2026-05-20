@@ -760,6 +760,23 @@ describe('get helper', () => {
   });
 });
 
+describe('data helper', () => {
+  test('renders with the existing root data instead of loading extra content', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#data}}{{site.title}}|{{route.kind}}|{{@site.title}}|{{@route.kind}}{{/data}}',
+    );
+    const data = {
+      site: { title: 'Nectar Test' },
+      route: { kind: 'home' },
+    };
+
+    expect(() => tpl({}, { data })).not.toThrow();
+    expect(tpl({}, { data })).toBe('Nectar Test|home|Nectar Test|home');
+  });
+});
+
 describe('post/page/tag/author context helpers', () => {
   test('post block enters the body when a post is attached to the route', () => {
     const engine = makeEngine();

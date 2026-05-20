@@ -151,6 +151,15 @@ export function registerBlockHelpers(engine: NectarEngine): void {
   registerContextBlock(engine, 'tag', (route) => pickFromRoute(route, 'tag'));
   registerContextBlock(engine, 'author', (route) => pickFromRoute(route, 'author'));
 
+  engine.hb.registerHelper(
+    'data',
+    function dataHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const rootData = (options.data as Record<string, unknown> | undefined) ?? {};
+      const data = engine.hb.createFrame(rootData);
+      return options.fn(rootData, { data });
+    },
+  );
+
   registerAdjacentPostBlock(engine, 'prev_post', 'prev');
   registerAdjacentPostBlock(engine, 'next_post', 'next');
 
