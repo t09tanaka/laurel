@@ -29,6 +29,8 @@ Ghost admin JSON export into Markdown content.
 ## Status
 
 Bootstrap in progress. See `docs/DESIGN.md` for the full architecture,
+[`VERSIONING.md`](./VERSIONING.md) for the SemVer, public API, and
+theme-compatibility policy,
 `docs/GHOST_COMPATIBILITY.md` for the helper coverage matrix,
 `docs/THEME_DEV.md` for the theme developer handbook (helpers, partials,
 locales, asset fingerprinting, golden snapshot tests),
