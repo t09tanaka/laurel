@@ -44,8 +44,10 @@ interface GhostExportDbEntry {
     posts?: GhostPost[];
     tags?: GhostTag[];
     users?: GhostUser[];
+    tiers?: GhostTier[];
     posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
     posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
+    posts_tiers?: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
   };
 }
 
@@ -57,8 +59,10 @@ interface MergedGhostData {
   posts: GhostPost[];
   tags: GhostTag[];
   users: GhostUser[];
+  tiers: GhostTier[];
   postsTags: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
   postsAuthors: Array<{ post_id: string; user_id: string; sort_order?: number }>;
+  postsTiers: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
 }
 
 interface GhostPost {
@@ -76,6 +80,7 @@ interface GhostPost {
   type?: 'post' | 'page';
   status?: string;
   visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
+  tiers?: GhostTier[] | null;
   custom_excerpt?: string | null;
   published_at?: string | null;
   updated_at?: string | null;
@@ -91,6 +96,14 @@ interface GhostPost {
   canonical_url?: string | null;
   codeinjection_head?: string | null;
   codeinjection_foot?: string | null;
+}
+
+interface GhostTier {
+  id: string;
+  slug?: string | null;
+  name?: string | null;
+  monthly_price?: number | null;
+  yearly_price?: number | null;
 }
 
 interface GhostTag {
@@ -241,8 +254,10 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     posts: [],
     tags: [],
     users: [],
+    tiers: [],
     postsTags: [],
     postsAuthors: [],
+    postsTiers: [],
   };
 
   let sawData = false;
@@ -253,8 +268,10 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     if (d.posts) merged.posts.push(...d.posts);
     if (d.tags) merged.tags.push(...d.tags);
     if (d.users) merged.users.push(...d.users);
+    if (d.tiers) merged.tiers.push(...d.tiers);
     if (d.posts_tags) merged.postsTags.push(...d.posts_tags);
     if (d.posts_authors) merged.postsAuthors.push(...d.posts_authors);
+    if (d.posts_tiers) merged.postsTiers.push(...d.posts_tiers);
   }
 
   if (!sawData) {
@@ -394,7 +411,9 @@ async function importFromResolvedInput(
     const reason = err instanceof Error ? `: ${err.message}` : '';
     throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
   }
-  const { posts, tags, users, postsTags, postsAuthors } = mergeGhostDbEntries(parsed.db);
+  const { posts, tags, users, tiers, postsTags, postsAuthors, postsTiers } = mergeGhostDbEntries(
+    parsed.db,
+  );
 
   // Image download requires network and writes to content/images. In dry-run
   // mode we skip the downloader entirely; the dry-run summary should preview
@@ -412,6 +431,7 @@ async function importFromResolvedInput(
 
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
+  const tierById = new Map(tiers.map((t) => [t.id, t]));
 
   // Destinations successfully claimed (written, overwritten, or renamed-into)
   // during this import run. Used to detect intra-export slug collisions, which
@@ -448,6 +468,7 @@ async function importFromResolvedInput(
   // Without this, a 50k-post export with 200k posts_tags rows is ~10^10 ops.
   const postsTagsByPost = groupBySortedByOrder(postsTags, (r) => r.post_id);
   const postsAuthorsByPost = groupBySortedByOrder(postsAuthors, (r) => r.post_id);
+  const postsTiersByPost = groupBySortedByOrder(postsTiers, (r) => r.post_id);
 
   const tagSlugsForPost = (postId: string): string[] =>
     (postsTagsByPost.get(postId) ?? [])
@@ -465,6 +486,11 @@ async function importFromResolvedInput(
         if (!u) return '';
         return safeSlug(u.slug) || safeSlug(u.name);
       })
+      .filter((slug): slug is string => slug.length > 0);
+
+  const tierSlugsForPost = (postId: string): string[] =>
+    (postsTiersByPost.get(postId) ?? [])
+      .map((r) => tierSlug(tierById.get(r.tier_id)))
       .filter((slug): slug is string => slug.length > 0);
 
   // Track which base dirs we've already ensured so we don't pay ensureDir
@@ -498,6 +524,7 @@ async function importFromResolvedInput(
           urlRewriter,
           tagSlugsForPost,
           authorSlugsForPost,
+          tierSlugsForPost,
         }),
       ),
     ),
@@ -1018,6 +1045,7 @@ interface RenderPostContext {
   urlRewriter: GhostUrlRewriter | undefined;
   tagSlugsForPost: (postId: string) => string[];
   authorSlugsForPost: (postId: string) => string[];
+  tierSlugsForPost: (postId: string) => string[];
 }
 
 // Render a single Ghost post into a (dest, frontmatter+body) pair, or
@@ -1082,6 +1110,9 @@ async function renderPostRecord(
   }
   const codeinjection_head = keepCodeInjection ? rawHead : undefined;
   const codeinjection_foot = keepCodeInjection ? rawFoot : undefined;
+  const tiers = isPage
+    ? undefined
+    : uniqueStrings([...ctx.tierSlugsForPost(post.id), ...tierSlugsFromPost(post.tiers)]);
   const frontmatter = buildFrontmatter({
     slug,
     title: post.title,
@@ -1092,6 +1123,7 @@ async function renderPostRecord(
     feature_image_alt: post.feature_image_alt ?? undefined,
     feature_image_caption: post.feature_image_caption ?? undefined,
     visibility: post.visibility ?? 'public',
+    tiers,
     status: post.status ?? 'published',
     tags: ctx.tagSlugsForPost(post.id),
     authors: ctx.authorSlugsForPost(post.id),
@@ -1183,6 +1215,27 @@ function safeSlug(input: unknown): string {
   if (result.length === 0) return '';
   if (!SAFE_SLUG_RE.test(result)) return '';
   return result;
+}
+
+function tierSlug(tier: GhostTier | undefined): string {
+  if (!tier) return '';
+  return safeSlug(tier.slug) || safeSlug(tier.name);
+}
+
+function tierSlugsFromPost(tiers: GhostPost['tiers']): string[] {
+  if (!Array.isArray(tiers)) return [];
+  return tiers.map(tierSlug).filter((slug): slug is string => slug.length > 0);
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
 }
 
 // Defense in depth: even after safeSlug, refuse to write anywhere outside the

@@ -176,13 +176,15 @@ async function checkOne(abs: string, kind: 'post' | 'page'): Promise<Frontmatter
     }
   }
 
-  if (data.tags !== undefined && data.tags !== null) {
-    if (!Array.isArray(data.tags) && typeof data.tags !== 'string') {
+  for (const listField of ['tags', 'tiers'] as const) {
+    const value = data[listField];
+    if (value === undefined || value === null) continue;
+    if (!Array.isArray(value) && typeof value !== 'string') {
       out.push({
         file: abs,
         line: headlineLine,
-        field: 'tags',
-        message: `Field 'tags' must be an array or comma-separated string, got ${describeType(data.tags)}`,
+        field: listField,
+        message: `Field '${listField}' must be an array or comma-separated string, got ${describeType(value)}`,
         severity: 'error',
         code: 'frontmatter/type',
       });

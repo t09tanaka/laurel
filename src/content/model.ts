@@ -140,6 +140,7 @@ export interface Post {
   // exact upstream value instead of a coerced one. See #325.
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   status: 'published' | 'draft' | 'scheduled';
+  tiers: Tier[];
   // Ghost's `email_only` flag — posts authored to ship via newsletter only
   // and not appear on the web. Default `false`. Routes are skipped by the
   // route planner unless `[build].emit_email_only_stub = true`, which opts

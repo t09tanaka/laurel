@@ -580,6 +580,40 @@ About JA.
     expect(graph.tiers[1]?.type).toBe('paid');
   });
 
+  test('post.tiers resolves frontmatter tier slugs against configured tiers', async () => {
+    const cwd = await fixture();
+    await writeFile(
+      join(cwd, 'content/posts/tiered.md'),
+      `---
+title: "Tiered"
+date: 2026-03-01T00:00:00Z
+visibility: tiers
+tiers: [premium, supporter]
+---
+
+Members-only body.
+`,
+      'utf8',
+    );
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        tiers: [
+          { name: 'Premium', monthly_price: 9, yearly_price: 90, currency: 'USD' },
+          { name: 'Supporter', monthly_price: 3, currency: 'USD' },
+        ],
+      }),
+    });
+
+    const tiered = graph.posts.find((p) => p.slug === 'tiered');
+    expect(tiered?.tiers.map((t) => [t.slug, t.name, t.monthly_price, t.yearly_price])).toEqual([
+      ['premium', 'Premium', 9, 90],
+      ['supporter', 'Supporter', 3, undefined],
+    ]);
+    expect(graph.posts.find((p) => p.slug === 'second')?.tiers).toEqual([]);
+  });
+
   test('post.url honours routes.yaml `collections:` permalink and filter', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

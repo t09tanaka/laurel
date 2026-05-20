@@ -127,6 +127,39 @@ describe('importGhostExport — --on-conflict policy', () => {
     expect(captured.data).toContain(`Overwrote: ${dest}`);
   });
 
+  test('writes post tier relationships into frontmatter', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'post-1',
+                  title: 'Premium Post',
+                  slug: 'premium-post',
+                  html: '<p>Secret</p>',
+                  status: 'published',
+                  type: 'post',
+                  visibility: 'tiers',
+                },
+              ],
+              tiers: [{ id: 'tier-1', slug: 'premium', name: 'Premium' }],
+              posts_tiers: [{ post_id: 'post-1', tier_id: 'tier-1', sort_order: 0 }],
+            },
+          },
+        ],
+      }),
+    );
+
+    await importGhostExport({ cwd, file: exportFile });
+
+    const out = await readFile(join(cwd, 'content/posts/premium-post.md'), 'utf8');
+    expect(out).toContain('visibility: "tiers"');
+    expect(out).toContain('tiers: ["premium"]');
+  });
+
   test('rename writes to a numbered filename and leaves the original alone', async () => {
     await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello' }]));
     const dest = join(cwd, 'content/posts/hello.md');

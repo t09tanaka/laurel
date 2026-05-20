@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ContentGraph, Page, Post, Tag } from '~/content/model.ts';
+import type { ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
 import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import type { RouteContext } from '~/render/types.ts';
@@ -39,6 +39,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     word_count: 0,
     visibility: 'public',
     status: 'published',
+    tiers: [],
     tags: [],
     primary_tag: undefined,
     authors: [],
@@ -55,7 +56,9 @@ function makePost(overrides: Partial<Post> = {}): Post {
     twitter_image: undefined,
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
+    custom_template: undefined,
     comments: false,
+    access: false,
     prev: undefined,
     next: undefined,
     feed_html: '',
@@ -1265,6 +1268,45 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       meta: baseMeta,
     };
     expect(engine.render(pageRoute)).toBe('not-page2');
+  });
+
+  test('post partial hashes resolve tiers from the post context', () => {
+    const premium: Tier = {
+      id: 'premium',
+      slug: 'premium',
+      name: 'Premium',
+      description: '',
+      type: 'paid',
+      active: true,
+      visibility: 'public',
+      trial_days: 0,
+      monthly_price: 9,
+      yearly_price: 90,
+      currency: 'USD',
+      welcome_page_url: undefined,
+      benefits: [],
+    };
+    const theme = makeTheme(
+      {
+        post: '{{> "content-cta" tiers=tiers}}',
+      },
+      {
+        'content-cta': '{{#each tiers}}{{slug}}={{monthly_price}}{{else}}none{{/each}}',
+      },
+    );
+    const post = makePost({ visibility: 'tiers', tiers: [premium] });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+
+    expect(engine.render(route)).toBe('premium=9');
   });
 
   test('partials included inside foreach can read the current item feature_image (issue #1710)', () => {

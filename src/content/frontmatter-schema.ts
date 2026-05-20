@@ -100,6 +100,9 @@ export const postFrontmatterSchema = z
       .optional()
       .describe('Custom post template slug, with or without custom-.'),
     visibility: z.enum(frontmatterVisibilityValues).optional().default('public'),
+    tiers: stringListSchema
+      .optional()
+      .describe('Tier slugs/names that can access a post with visibility: tiers.'),
     featured: z.boolean().optional().default(false).describe('Mark this post as featured.'),
     email_only: z
       .boolean()

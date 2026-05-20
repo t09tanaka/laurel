@@ -214,6 +214,7 @@ async function loadContentWithPool({
 
   const authorMap = new Map(authors.map((a) => [localizedKey(a.locale, a.slug), a]));
   const tagMap = new Map(tags.map((t) => [localizedKey(t.locale, t.slug), t]));
+  const tiers = buildTiers(config);
 
   // Scheduled posts and posts with a future `published_at` must stay hidden
   // until the wall-clock release time has passed. Two distinct gates fold into
@@ -248,6 +249,7 @@ async function loadContentWithPool({
       config.site.locale,
       taxonomies,
       config.build.trailing_slash,
+      tiers,
     );
     // Posts with `email_only: true` ship via newsletter only and must not
     // appear in any public aggregate (home, archives, RSS, sitemap, search
@@ -364,7 +366,6 @@ async function loadContentWithPool({
     }
   }
 
-  const tiers = buildTiers(config);
   const rawPostsById = new Map(posts.map((post) => [post.id, post]));
   const rawPagesById = new Map(pages.map((page) => [page.id, page]));
   const rawTagsById = new Map(rawTags.map((tag) => [tag.id, tag]));
@@ -489,6 +490,41 @@ function buildTiers(config: NectarConfig): Tier[] {
   });
 }
 
+function resolvePostTiers(tierSlugs: readonly string[], tiers: readonly Tier[]): Tier[] {
+  if (tierSlugs.length === 0) return [];
+  const bySlug = new Map(tiers.map((tier) => [tier.slug, tier]));
+  const out: Tier[] = [];
+  const seen = new Set<string>();
+  for (const slug of tierSlugs) {
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(bySlug.get(slug) ?? tierStub(slug));
+  }
+  return out;
+}
+
+function tierStub(slug: string): Tier {
+  return {
+    id: slug,
+    slug,
+    name: slug
+      .split('-')
+      .filter(Boolean)
+      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+      .join(' '),
+    description: '',
+    type: 'free',
+    active: true,
+    visibility: 'public',
+    trial_days: 0,
+    monthly_price: undefined,
+    yearly_price: undefined,
+    currency: undefined,
+    welcome_page_url: undefined,
+    benefits: [],
+  };
+}
+
 function buildSite(config: NectarConfig): SiteData {
   // Ghost's Source theme branches sidebar/footer/CTA/navigation on these flags.
   // They drive UI rendering only — Nectar is static-only, so the actual
@@ -592,6 +628,7 @@ interface RawPost {
   created_at: string;
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   status: 'published' | 'draft' | 'scheduled';
+  tierSlugs: string[];
   tagSlugs: string[];
   authorSlugs: string[];
   primaryTag: string | undefined;
@@ -1119,6 +1156,7 @@ async function normalizePost(
     created_at: created,
     visibility,
     status,
+    tierSlugs: sanitizeUserSlugList(asStringArray(data.tiers), `${filePath} frontmatter tiers`),
     tagSlugs: sanitizeUserSlugList(asStringArray(data.tags), `${filePath} frontmatter tags`),
     authorSlugs: sanitizeUserSlugList(
       asStringArray(data.authors ?? data.author),
@@ -1433,6 +1471,7 @@ function resolvePostRelations(
   siteLocale: string,
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
+  tiers: readonly Tier[],
 ): Post {
   const tagList = resolveTagSlugs(
     raw.tagSlugs,
@@ -1487,6 +1526,7 @@ function resolvePostRelations(
     word_count: raw.word_count,
     visibility: raw.visibility,
     status: raw.status,
+    tiers: resolvePostTiers(raw.tierSlugs, tiers),
     email_only: raw.email_only,
     tags: tagList,
     primary_tag,

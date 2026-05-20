@@ -59,6 +59,7 @@ const POST_KEYS: ReadonlySet<string> = new Set([
   'created_at',
   'status',
   'visibility',
+  'tiers',
   'custom_excerpt',
   'excerpt',
   'unsafe_html',
