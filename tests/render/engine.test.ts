@@ -352,6 +352,19 @@ describe('buildContext', () => {
     expect(ctx.message).toBe('Page not found');
     expect(ctx.error).toEqual({ statusCode: 404, message: 'Page not found' });
   });
+
+  test('ctx.access is true on every route so {{#unless access}} skips gated branches (issue #157)', () => {
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post: makePost() },
+      meta: baseMeta,
+    };
+    const ctx = buildContext(engine, route);
+    expect(ctx.access).toBe(true);
+  });
 });
 
 describe('buildRootData', () => {

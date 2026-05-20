@@ -195,6 +195,14 @@ export function buildContext(_engine: NectarEngine, route: RouteContext): Record
   ctx.body_class = computeBodyClass(route);
   const postOrPage = data.post ?? data.page;
   ctx.post_class = postOrPage ? computePostClass(postOrPage) : '';
+  // Ghost gates locked content with `{{#unless access}}` (and reads `{{access}}`
+  // inline for icon paths). Handlebars resolves the bare `access` token as a
+  // context lookup before falling through to the helper registry, so the
+  // `access` helper alone wouldn't make `{{#unless access}}` evaluate truthy.
+  // Nectar is members-out-of-scope (see CLAUDE.md), so seed `access: true` on
+  // every route's root context. The dedicated `access` helper still handles
+  // inline / block invocations and stays the canonical entry point.
+  ctx.access = true;
   return ctx;
 }
 

@@ -111,3 +111,36 @@ describe('eq helper', () => {
     expect(tpl({ a: 'x', b: 'y' })).toBe('false');
   });
 });
+
+describe('access helper', () => {
+  test('inline form is truthy because members are out of scope', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{access}}');
+    expect(tpl({})).toBe('true');
+  });
+
+  test('inline form via sub-expression is truthy', () => {
+    // Themes that explicitly defer to the helper (rather than relying on the
+    // context-seeded `access` property) write `{{#unless (access)}}`. This
+    // exercises the helper's direct return path.
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{#unless (access)}}LOCKED{{else}}OPEN{{/unless}}');
+    expect(tpl({})).toBe('OPEN');
+  });
+
+  test('block form invokes fn with the current context', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{#access}}HIT:{{name}}{{else}}MISS{{/access}}');
+    expect(tpl({ name: 'reader' })).toBe('HIT:reader');
+  });
+
+  test('block form always enters fn (no inverse for unauthenticated builds)', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{#access}}OPEN{{else}}LOCKED{{/access}}');
+    expect(tpl({})).toBe('OPEN');
+  });
+});
