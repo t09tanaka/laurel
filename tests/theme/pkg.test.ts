@@ -137,6 +137,31 @@ describe('loadThemePackage schema validation', () => {
     expect(pkg.customDefaults.layout).toBe('b');
   });
 
+  test('preserves package.json select option strings for strict match comparisons', async () => {
+    const dir = await makeThemeDir({
+      config: {
+        custom: {
+          theme_edition: {
+            type: 'select',
+            options: ['Minimal', 'Magazine'],
+            default: 'Minimal',
+          },
+          feed_layout: {
+            type: 'select',
+            options: ['Classic', 'Right thumbnail'],
+            default: 'Right thumbnail',
+          },
+        },
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.custom.theme_edition?.options).toEqual(['Minimal', 'Magazine']);
+    expect(pkg.custom.feed_layout?.options).toEqual(['Classic', 'Right thumbnail']);
+    expect(pkg.customDefaults.theme_edition).toBe('Minimal');
+    expect(pkg.customDefaults.feed_layout).toBe('Right thumbnail');
+  });
+
   test('keeps a color default as-is at load time (sanitization happens at render time)', async () => {
     const dir = await makeThemeDir({
       config: {

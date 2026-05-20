@@ -187,6 +187,26 @@ some_brand_new_setting = "ok"
     });
   });
 
+  test('preserves theme custom select values with package.json casing and spaces', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]
+title = "Edition"
+
+[theme.custom]
+theme_edition = "Minimal"
+feed_layout = "Right thumbnail"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.theme.custom.theme_edition).toBe('Minimal');
+      expect(config.theme.custom.feed_layout).toBe('Right thumbnail');
+    });
+  });
+
   test('accepts a base64 build.csp_nonce so CSP-aware deploys can opt in', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
