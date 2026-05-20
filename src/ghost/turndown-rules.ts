@@ -213,6 +213,20 @@ function imageWrapAnchorHref(figure: DomNode): string {
   return '';
 }
 
+function pictureSourceAttrs(node: DomNode): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const sources = Array.from(node.querySelectorAll('source') as ArrayLike<DomNode>);
+  sources.forEach((source, index) => {
+    const prefix = `source${index + 1}_`;
+    attrs[`${prefix}srcset`] = attr(source, 'srcset');
+    attrs[`${prefix}src`] = attr(source, 'src');
+    attrs[`${prefix}type`] = attr(source, 'type');
+    attrs[`${prefix}media`] = attr(source, 'media');
+    attrs[`${prefix}sizes`] = attr(source, 'sizes');
+  });
+  return attrs;
+}
+
 function lastAnchorHref(node: DomNode): string {
   const anchors = Array.from(node.querySelectorAll('a') as ArrayLike<DomNode>);
   for (let i = anchors.length - 1; i >= 0; i--) {
@@ -772,6 +786,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           height: attr(img, 'height'),
           srcset: attr(img, 'srcset'),
           sizes: attr(img, 'sizes'),
+          ...pictureSourceAttrs(node),
           href: imageWrapAnchorHref(node),
           size: classByPrefix(node, 'kg-width-'),
           caption: text(node.querySelector('figcaption')),
@@ -1058,6 +1073,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           height: attr(img, 'height'),
           srcset,
           sizes,
+          ...pictureSourceAttrs(node),
           size: classByPrefix(node, 'kg-width-'),
           caption,
         }),
@@ -1085,8 +1101,8 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   });
 
   // <picture> wraps an <img> with <source> fallbacks. Default behaviour drops
-  // the wrapper and the alternate sources; instead, fall back to the inner
-  // <img>'s src/alt which is the lowest-common-denominator markdown image.
+  // the wrapper and the alternate sources; preserve each source on the figure
+  // shortcode so MP4/GIF/WebP/AVIF fallbacks survive import and render.
   turndown.addRule('picture-element', {
     filter: (node) => node.nodeName === 'PICTURE',
     replacement: (_content, node) => {
@@ -1094,7 +1110,21 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       if (!img) return '';
       const src = attr(img, 'src');
       if (!src) return '';
-      return `![${attr(img, 'alt')}](${src})`;
+      const sourceAttrs = pictureSourceAttrs(node);
+      if (Object.values(sourceAttrs).every((value) => value === '')) {
+        return `![${attr(img, 'alt')}](${src})`;
+      }
+      return wrap(
+        shortcode('figure', {
+          src,
+          alt: attr(img, 'alt'),
+          width: attr(img, 'width'),
+          height: attr(img, 'height'),
+          srcset: attr(img, 'srcset'),
+          sizes: attr(img, 'sizes'),
+          ...sourceAttrs,
+        }),
+      );
     },
   });
 

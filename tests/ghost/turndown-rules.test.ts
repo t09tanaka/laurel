@@ -207,6 +207,27 @@ describe('Ghost Turndown rules — kg-image-card', () => {
     expect(md).toContain('sizes="(min-width: 1200px) 1000px, 100vw"');
   });
 
+  test('preserves picture sources for animated image migrations', () => {
+    const html = `
+      <figure class="kg-card kg-image-card kg-width-wide">
+        <picture>
+          <source srcset="https://media.giphy.com/media/abc/giphy.mp4" type="video/mp4" media="(prefers-reduced-motion: no-preference)" />
+          <source srcset="https://media.giphy.com/media/abc/giphy.gif" type="image/gif" />
+          <img src="https://media.giphy.com/media/abc/giphy_s.gif" alt="Animated demo" width="480" height="270" />
+        </picture>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="https://media.giphy.com/media/abc/giphy_s.gif"');
+    expect(md).toContain('source1_srcset="https://media.giphy.com/media/abc/giphy.mp4"');
+    expect(md).toContain('source1_type="video/mp4"');
+    expect(md).toContain('source1_media="(prefers-reduced-motion: no-preference)"');
+    expect(md).toContain('source2_srcset="https://media.giphy.com/media/abc/giphy.gif"');
+    expect(md).toContain('source2_type="image/gif"');
+    expect(md).toContain('size="wide"');
+  });
+
   test('plain raw img preserves srcset and sizes via figure shortcode', () => {
     const html = `
       <p>
@@ -1072,16 +1093,31 @@ describe('Ghost Turndown rules — plain figure', () => {
 });
 
 describe('Ghost Turndown rules — picture element', () => {
-  test('falls back to the inner img', () => {
+  test('preserves source set on a figure shortcode', () => {
     const html = `
       <picture>
-        <source srcset="/x.webp" type="image/webp" />
-        <source srcset="/x.avif" type="image/avif" />
-        <img src="/x.jpg" alt="Pic" />
+        <source srcset="/x.mp4" type="video/mp4" media="(prefers-reduced-motion: no-preference)" />
+        <source srcset="/x.gif" type="image/gif" />
+        <img src="/x.jpg" alt="Pic" width="640" height="360" />
       </picture>
     `;
     const md = td.turndown(html);
-    expect(md.trim()).toContain('![Pic](/x.jpg)');
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="/x.jpg"');
+    expect(md).toContain('alt="Pic"');
+    expect(md).toContain('width="640"');
+    expect(md).toContain('height="360"');
+    expect(md).toContain('source1_srcset="/x.mp4"');
+    expect(md).toContain('source1_type="video/mp4"');
+    expect(md).toContain('source1_media="(prefers-reduced-motion: no-preference)"');
+    expect(md).toContain('source2_srcset="/x.gif"');
+    expect(md).toContain('source2_type="image/gif"');
+  });
+
+  test('falls back to the inner img when there are no sources', () => {
+    const html = '<picture><img src="/x.jpg" alt="Pic" /></picture>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('![Pic](/x.jpg)');
   });
 
   test('drops picture with no fallback img', () => {

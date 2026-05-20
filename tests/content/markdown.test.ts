@@ -740,6 +740,22 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain('<figcaption>Hero caption</figcaption>');
   });
 
+  test('expands figure shortcode source set into a picture-wrapped image', async () => {
+    const md =
+      '{{< figure src="https://media.tenor.com/fallback.gif" alt="Animated clip" width="640" height="360" source1_srcset="https://media.tenor.com/clip.mp4" source1_type="video/mp4" source1_media="(prefers-reduced-motion: no-preference)" source2_srcset="https://media.tenor.com/clip.gif" source2_type="image/gif" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figure class="kg-card kg-image-card kg-width-regular">');
+    expect(html).toContain('<picture><source type="video/mp4"');
+    expect(html).toContain('media="(prefers-reduced-motion: no-preference)"');
+    expect(html).toContain('srcset="https://media.tenor.com/clip.mp4"');
+    expect(html).toContain('<source type="image/gif" srcset="https://media.tenor.com/clip.gif">');
+    expect(html).toContain('<img class="kg-image" src="https://media.tenor.com/fallback.gif"');
+    expect(html).toContain('alt="Animated clip"');
+    expect(html).toContain('width="640"');
+    expect(html).toContain('height="360"');
+    expect(html).toContain('</picture>');
+  });
+
   test('defaults imported figure shortcodes to regular width and rejects unknown widths', async () => {
     const regular = await renderMarkdown('{{< figure src="https://cdn.test/a.jpg" />}}');
     expect(regular.html).toContain('class="kg-card kg-image-card kg-width-regular"');

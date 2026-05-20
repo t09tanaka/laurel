@@ -1107,9 +1107,36 @@ function renderFigureHtml(attrs: Record<string, string>): string {
     .filter((s) => s !== '')
     .join(' ');
   const image = `<img ${imgAttrs} />`;
-  const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${image}</a>` : image;
+  const pictureSources = renderFigurePictureSourcesHtml(attrs);
+  const media = pictureSources ? `<picture>${pictureSources}${image}</picture>` : image;
+  const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${media}</a>` : media;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
   return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+}
+
+function renderFigurePictureSourcesHtml(attrs: Record<string, string>): string {
+  const sources: string[] = [];
+  for (let index = 1; index <= 20; index += 1) {
+    const prefix = `source${index}_`;
+    const srcset = attrs[`${prefix}srcset`] ?? '';
+    const src = attrs[`${prefix}src`] ?? '';
+    const type = attrs[`${prefix}type`] ?? '';
+    const media = attrs[`${prefix}media`] ?? '';
+    const sizes = attrs[`${prefix}sizes`] ?? '';
+    if (!srcset && !src && !type && !media && !sizes) break;
+    if (!srcset && !src) continue;
+    const sourceAttrs = [
+      type ? `type="${escapeHtmlAttr(type)}"` : '',
+      media ? `media="${escapeHtmlAttr(media)}"` : '',
+      srcset ? `srcset="${escapeHtmlAttr(srcset)}"` : '',
+      src ? `src="${escapeHtmlAttr(src)}"` : '',
+      sizes ? `sizes="${escapeHtmlAttr(sizes)}"` : '',
+    ]
+      .filter((s) => s !== '')
+      .join(' ');
+    sources.push(`<source ${sourceAttrs}>`);
+  }
+  return sources.join('');
 }
 
 function lazyImageAttr(attrs: Record<string, string>): string {
