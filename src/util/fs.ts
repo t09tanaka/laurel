@@ -14,11 +14,21 @@ export async function ensureDir(path: string): Promise<void> {
 // list to a bounded parallel pipeline (read + parse + hash + …). Bun's glob
 // scan is sequential under the hood either way, so collecting up front does
 // not change scan throughput — it just unblocks the work that follows.
+//
+// Results are sorted in lexicographic order so the build is byte-identical
+// across runs and across filesystems whose `readdir` order is not stable
+// (HFS+/APFS, ext4 + dir_index, Lustre, NFS, …). Every caller used to need to
+// remember to `.sort()` their own list to keep generated artefacts (asset
+// manifests, route lists, build-manifest entries) reproducible; centralising
+// it here makes deterministic output the default and stops new callers from
+// reintroducing FS-order leaks.
 export async function scanGlob(
   pattern: string,
   options: Parameters<Bun.Glob['scan']>[0],
 ): Promise<string[]> {
-  return Array.fromAsync(new Bun.Glob(pattern).scan(options));
+  const rels = await Array.fromAsync(new Bun.Glob(pattern).scan(options));
+  rels.sort();
+  return rels;
 }
 
 // Walks each component of `relativePath` under `baseDir` and returns true if any
