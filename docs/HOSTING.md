@@ -13,6 +13,9 @@ collects the operator-facing pieces of that contract in one place:
   build-time security model. Covers `build.allow_code_injection`,
   `codeinjection_head` / `codeinjection_foot`, `unsafe_html`, and other
   raw-HTML exits. Read this before flipping `allow_code_injection = true`.
+- [`docs/deployment/index.md`](./deployment/index.md) — one-page deployment
+  recipes for Ghost migrators who already know their host and want the short
+  checklist before opening the detailed target guide.
 - [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) —
   Cloudflare Pages quickstart covering the Git-connected build, generated
   `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
