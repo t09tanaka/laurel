@@ -1,5 +1,11 @@
 import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
+import {
+  PORTAL_RUNTIME_PATH,
+  PORTAL_RUNTIME_VERSION,
+  renderPortalRuntimeConfig,
+} from '~/build/portal-runtime.ts';
+import { resolvePortalUrls } from '~/build/portal-urls.ts';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { type HeadHint, collectComponentHeadHints } from '~/render/component-head-hints.ts';
 import { joinPath } from '~/theme/assets.ts';
@@ -243,6 +249,8 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
     if (typeof site.codeinjection_foot === 'string' && site.codeinjection_foot) {
       parts.push(site.codeinjection_foot);
     }
+    const portalRuntime = renderStaticPortalRuntime(engine);
+    if (portalRuntime) parts.push(portalRuntime);
     if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
       parts.push(ctx.codeinjection_foot);
     }
@@ -878,6 +886,23 @@ function renderPortalSnippet(
   const src = sanitizeScriptSrc(cfg.script_src);
   if (!src) return undefined;
   return `<script defer src="${escapeAttr(src)}" data-i18n="true" data-ghost="${escapeAttr(siteUrl)}"></script>`;
+}
+
+function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
+  if (!engine.content.site.members_enabled) return undefined;
+  const portal = engine.config?.components?.portal;
+  const basePath = engine.config?.build?.base_path ?? '/';
+  const nonce = nonceAttr(engine.config?.build?.csp_nonce);
+  const configJson = renderPortalRuntimeConfig({
+    basePath,
+    portalUrls: portal ? resolvePortalUrls(portal) : {},
+    recommendationsEnabled: engine.config?.recommendations?.length > 0,
+  });
+  const src = joinPath(basePath, `${PORTAL_RUNTIME_PATH}?v=${PORTAL_RUNTIME_VERSION}`);
+  return [
+    `<script${nonce}>window.NectarPortal=${escapeJsonForScript(configJson)};</script>`,
+    `<script src="${escapeAttr(src)}" defer${nonce}></script>`,
+  ].join('\n');
 }
 
 // Sodo Search injection. Returns the `<script defer src="…">` tag when the

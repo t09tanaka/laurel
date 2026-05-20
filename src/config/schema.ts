@@ -1414,7 +1414,7 @@ export const configSchema = z
               .string()
               .optional()
               .describe(
-                'Override for the URL injected into `data-portal="signup"` triggers (Ghost\'s Subscribe button). When unset and the active provider can infer one from `publication`, the inferred URL is used; otherwise the button is left untouched.',
+                'Override for the URL injected into `data-portal="signup"` / `data-portal="subscribe"` triggers (Ghost\'s Subscribe button). When unset and the active provider can infer one from `publication`, the inferred URL is used; otherwise the static runtime logs a warning on click.',
               ),
             signin_url: z
               .string()
@@ -1432,7 +1432,7 @@ export const configSchema = z
               .string()
               .optional()
               .describe(
-                'Override for the URL injected into `data-portal="upgrade"` triggers (Ghost\'s paid-tier Upgrade CTA). Typically a checkout / pricing page.',
+                'Override for the URL injected into `data-portal="upgrade"` triggers (Ghost\'s paid-tier Upgrade CTA). Typically a checkout / pricing page; without it the static runtime logs a documented stub warning.',
               ),
             inject_script: z
               .boolean()
@@ -1450,7 +1450,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.',
+            'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `@site.members_enabled` is true, Nectar also emits `assets/nectar-portal.js` and injects it through `{{ghost_foot}}` so `[data-portal]` buttons warn or navigate instead of becoming silent no-ops. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.',
           ),
         helpers: z
           .object({

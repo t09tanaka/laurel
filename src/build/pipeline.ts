@@ -83,6 +83,7 @@ import {
   injectSubresourceIntegrity,
   removeRedundantScriptPreload,
 } from './perf-hints.ts';
+import { emitPortalRuntime } from './portal-runtime.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
@@ -690,6 +691,9 @@ async function runBuild({
 
   const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
   await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
+  await timed(profiler, 'portal_runtime', () =>
+    emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
+  );
   if (config.build.copy_content_assets) {
     await timed(profiler, 'copy_content_assets', () =>
       copyContentAssets(cwd, config.content.assets_dir, outputDir, {

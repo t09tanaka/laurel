@@ -3,6 +3,7 @@ import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
+import { PORTAL_RUNTIME_JS, PORTAL_RUNTIME_PATH } from '~/build/portal-runtime.ts';
 
 // Issue #494: the vendored Source theme ships `data-portal="signup"` /
 // `data-portal="signin"` / `data-portal="account"` markup inside the
@@ -49,6 +50,11 @@ describe('example build with portal enabled (#494)', () => {
     // sign-in UI surface in nav is present (and not stubbed out by the
     // `{{#if @site.members_enabled}}` guard).
     expect(indexHtml).toMatch(/data-portal="(signin|signup)"/);
+    expect(indexHtml).toContain('window.NectarPortal=');
+    expect(indexHtml).toContain('src="/assets/nectar-portal.js?v=');
+    expect(await readFile(join(summary.outputDir, PORTAL_RUNTIME_PATH), 'utf8')).toBe(
+      PORTAL_RUNTIME_JS,
+    );
   });
 
   test('external provider rewrites portal buttons to the provider URL', async () => {

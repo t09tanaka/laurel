@@ -108,6 +108,19 @@ function renderGhostHead(
   });
 }
 
+function renderGhostFoot(
+  ctx: Record<string, unknown>,
+  opts: {
+    site?: Partial<SiteData>;
+    config?: Partial<NectarEngine['config']>;
+  } = {},
+): string {
+  const engine = makeEngine(opts.site, opts.config);
+  registerGhostHeadFootHelpers(engine);
+  const template = engine.hb.compile('{{{ghost_foot}}}');
+  return template(ctx, { data: { route: { url: '/', data: ctx } } });
+}
+
 function extractJsonLd(html: string): string {
   const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   if (!match) throw new Error(`no JSON-LD found in: ${html}`);
@@ -1779,6 +1792,113 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     });
     expect(html).not.toContain('onload="alert');
     expect(html).toContain('&quot;');
+  });
+});
+
+// Issue #123: Source-style themes render visible `[data-portal]` buttons when
+// members are enabled. Nectar ships a static runtime in {{ghost_foot}} so those
+// buttons navigate or warn instead of silently doing nothing.
+describe('ghost_foot static Portal runtime injection (issue #123)', () => {
+  test('emits no runtime when members are disabled', () => {
+    const html = renderGhostFoot({});
+
+    expect(html).not.toContain('nectar-portal.js');
+    expect(html).not.toContain('NectarPortal');
+  });
+
+  test('emits runtime config and asset when members are enabled', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        site: { members_enabled: true },
+        config: {
+          build: { base_path: '/' },
+          components: {
+            portal: {
+              provider: 'buttondown',
+              paid: false,
+              invite_only: false,
+              publication: 'my-newsletter',
+            },
+          },
+          recommendations: [],
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html).toContain('window.NectarPortal=');
+    expect(html).toContain('"signup":"https://buttondown.email/my-newsletter"');
+    expect(html).toContain('"signin":"https://buttondown.email/login"');
+    expect(html).toContain('src="/assets/nectar-portal.js?v=');
+  });
+
+  test('includes configured upgrade URL and recommendations deep-link', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        site: { members_enabled: true },
+        config: {
+          build: { base_path: '/blog/' },
+          components: {
+            portal: {
+              provider: 'custom',
+              paid: true,
+              invite_only: false,
+              upgrade_url: 'https://example.test/checkout',
+            },
+          },
+          recommendations: [{ title: 'Friend', url: 'https://friend.test' }],
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html).toContain('"upgrade":"https://example.test/checkout"');
+    expect(html).toContain('"recommendations":"/blog/recommendations/#all-recommendations"');
+    expect(html).toContain('src="/blog/assets/nectar-portal.js?v=');
+  });
+
+  test('escapes inline config so a URL cannot break out of the script tag', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        site: { members_enabled: true },
+        config: {
+          build: { base_path: '/' },
+          components: {
+            portal: {
+              provider: 'custom',
+              paid: false,
+              invite_only: false,
+              signup_url: '</script><script>alert(1)</script>',
+            },
+          },
+          recommendations: [],
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html).not.toContain('</script><script>alert(1)');
+    expect(html).toContain('\\u003C/script');
+  });
+
+  test('keeps site and page codeinjection_foot around the runtime', () => {
+    const html = renderGhostFoot(
+      { codeinjection_foot: '<!-- page -->' },
+      {
+        site: {
+          members_enabled: true,
+          codeinjection_foot: '<!-- site -->',
+        },
+        config: {
+          build: { base_path: '/' },
+          components: { portal: { provider: 'custom', paid: false, invite_only: false } },
+          recommendations: [],
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html.indexOf('<!-- site -->')).toBeLessThan(html.indexOf('NectarPortal'));
+    expect(html.indexOf('NectarPortal')).toBeLessThan(html.indexOf('<!-- page -->'));
   });
 });
 

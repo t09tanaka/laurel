@@ -173,25 +173,32 @@ inert.
 
 ## 3. How the portal adapter rewrites buttons and forms
 
-Nectar's portal adapter (`src/build/portal-shim.ts`) does **one thing
-automatically**: it rewrites Source theme's
-`<button data-portal="recommendations">` into an anchor that deep-links to the
-auto-generated `/recommendations/#all-recommendations` page. Everything else
-about `data-portal="*"` is left alone for the provider's script to handle.
+When `@site.members_enabled` is true, Nectar emits a small static runtime at
+`assets/nectar-portal.js` and injects it through `{{ghost_foot}}`. It listens
+for `[data-portal]` clicks so Ghost themes do not ship visible buttons that are
+silent no-ops. The runtime uses the same URLs resolved from
+`[components.portal]` as the build-time portal adapter; actions without a real
+provider URL are documented stubs that log a browser-console warning.
+
+Nectar also keeps the no-JavaScript path for things it can resolve at build
+time: `src/build/portal-shim.ts` rewrites configured signup/signin/account/
+upgrade buttons to anchors, and rewrites Source theme's recommendations button
+to the generated `/recommendations/#all-recommendations` page.
 
 The full picture:
 
 | `data-portal` value | Source theme uses it for      | Nectar behaviour                                                                                  |
 |---------------------|-------------------------------|---------------------------------------------------------------------------------------------------|
-| `recommendations`   | Sidebar "See all" button      | **Rewritten** to `<a href=".../recommendations/#all-recommendations">` (works without JS).        |
-| `signin`            | Header "Sign in" button       | Untouched. Inert under `provider = "none"`. Under `ghost` / `custom`, your script intercepts it.  |
-| `signup`            | Sidebar Subscribe CTA         | Untouched. Same handling rules.                                                                   |
-| `upgrade`           | Paid-only Upgrade button      | Untouched. Same handling rules.                                                                   |
-| `account`           | Footer "Account" link         | Untouched. Same handling rules.                                                                   |
+| `recommendations`   | Sidebar "See all" button      | Rewritten to `/recommendations/#all-recommendations` when recommendations are configured; otherwise the runtime warns. |
+| `signin`            | Header "Sign in" button       | Opens the configured/inferred sign-in URL when available; otherwise the runtime warns.            |
+| `signup` / `subscribe` | Sidebar Subscribe CTA      | Opens the configured/inferred signup URL when available; otherwise the runtime warns.             |
+| `upgrade`           | Paid-only Upgrade button      | Opens `upgrade_url` when configured; otherwise the runtime warns because Nectar has no checkout backend. |
+| `account`           | Footer "Account" link         | Opens the configured/inferred account URL when available; otherwise the runtime warns.            |
 
 Anchors using `href="#/portal/signin"`, `href="#/portal/signup"`, etc., are
-also passed through verbatim. They are **inert hash fragments** unless a
-client-side script wires them up.
+also handled by the runtime while members are enabled. If a theme or custom
+script has already supplied a normal non-Portal `href`, the runtime leaves the
+browser's default navigation alone.
 
 `{{subscribe_form}}`, `{{input_email}}`, and hand-written Dawn-style subscribe
 forms emit `data-members-form` / `data-members-email` attributes. Nectar's
@@ -208,14 +215,10 @@ and it does not implement Ghost's runtime success / error state machine.
 `data-members-success` and `data-members-error` are static presentation hooks
 until your JavaScript toggles them.
 
-### Why the asymmetry?
-
-The recommendations button is rewritten because its target — the
-`/recommendations/` page — is something Nectar itself emits, deterministically.
-The other `data-portal` values target server endpoints that *only exist if you
-bring a backend*. Rewriting them to a dead route would mask the absence of
-that backend; leaving them as `data-portal="..."` keeps the integration
-contract visible and lets your provider snippet hook them at runtime.
+The runtime dispatches a cancelable `nectar:portal` event before taking its
+fallback action. Custom provider code can listen for that event, call
+`preventDefault()`, and run its own modal or checkout flow without forking the
+theme markup.
 
 ---
 
@@ -234,21 +237,10 @@ trust implications.
 
 ```toml
 [components.portal]
-provider = "custom"   # show the UI shell; we'll wire the handlers
-paid     = false
+provider = "buttondown"
+publication = "<your-username>"
+paid = false
 invite_only = false
-
-[site]
-codeinjection_head = """
-<script>
-  document.addEventListener('click', function (e) {
-    var trigger = e.target.closest('[data-portal="signup"], [data-portal="signin"], a[href^="#/portal"]');
-    if (!trigger) return;
-    e.preventDefault();
-    window.open('https://buttondown.com/<your-username>', '_blank', 'noopener');
-  });
-</script>
-"""
 ```
 
 To replace the `{{subscribe_form}}` no-op form with Buttondown's hosted form,
@@ -260,21 +252,9 @@ under *Settings → Subscribe form → Embed*.
 
 ```toml
 [components.portal]
-provider = "custom"
-paid     = true        # if you sell paid tiers on Beehiiv
-
-[site]
-codeinjection_head = """
-<script async src="https://embeds.beehiiv.com/attribution.js"></script>
-<script>
-  document.addEventListener('click', function (e) {
-    var trigger = e.target.closest('[data-portal="signup"], [data-portal="signin"], [data-portal="upgrade"]');
-    if (!trigger) return;
-    e.preventDefault();
-    window.open('https://<your-pub>.beehiiv.com/subscribe', '_blank', 'noopener');
-  });
-</script>
-"""
+provider = "beehiiv"
+publication = "<your-pub>"
+paid = true        # if you sell paid tiers on Beehiiv
 ```
 
 For inline subscribe forms, replace the rendered `data-members-form="subscribe"`
@@ -284,20 +264,9 @@ form with Beehiiv's iframe embed via a theme partial override.
 
 ```toml
 [components.portal]
-provider = "custom"
-paid     = true
-
-[site]
-codeinjection_head = """
-<script>
-  document.addEventListener('click', function (e) {
-    var trigger = e.target.closest('[data-portal="signup"], [data-portal="signin"], [data-portal="upgrade"]');
-    if (!trigger) return;
-    e.preventDefault();
-    window.location = 'https://<your-pub>.substack.com/subscribe';
-  });
-</script>
-"""
+provider = "substack"
+publication = "<your-pub>"
+paid = true
 ```
 
 For inline forms, Substack provides an `<iframe>` embed under *Settings →
@@ -343,11 +312,10 @@ server:
   *everyone*. The static page cannot test "did this visitor pay" — that's a
   server query. If your provider supports JS-side gating, you can re-reveal
   the body client-side after auth; Nectar does not ship that runtime.
-- **No sign-in / account / upgrade pages.** Hash routes like
-  `#/portal/signin`, `#/portal/account`, `#/portal/upgrade` are inert in the
-  static build. Wiring them is up to your provider script (section 3 above).
-  The full Ghost "account management" UI — billing, tier change, comp,
-  invoices — is not reproducible statically and must live on the provider's
+- **No built-in sign-in / account / upgrade pages.** The static runtime can
+  route `#/portal/signin`, `#/portal/account`, and `#/portal/upgrade` clicks
+  to configured provider URLs, but it does not implement Ghost's account UI.
+  Billing, tier changes, comps, and invoices must live on the provider's
   hosted page.
 - **No `{{#access}}` content gating.** The `{{access}}` helper always returns
   `false`, so themes can't render member-only content based on viewer
