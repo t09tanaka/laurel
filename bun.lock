@@ -7,8 +7,11 @@
       "dependencies": {
         "@iarna/toml": "^2.2.5",
         "dayjs": "^1.11.13",
+        "dom-serializer": "2.0.0",
+        "domhandler": "5.0.3",
         "gray-matter": "^4.0.3",
         "handlebars": "^4.7.8",
+        "htmlparser2": "10.1.0",
         "js-yaml": "^4.1.1",
         "marked": "14.1.4",
         "marked-gfm-heading-id": "^4.1.1",

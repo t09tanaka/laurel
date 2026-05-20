@@ -1,3 +1,6 @@
+import renderHtml from 'dom-serializer';
+import type { ChildNode, Element } from 'domhandler';
+import { parseDocument } from 'htmlparser2';
 import { Marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
@@ -134,11 +137,91 @@ export async function renderMarkdown(
   const raw = await marked.parse(expanded);
   const promoted = promoteImagesToFigures(raw);
   const newsletterStripped = stripEmailCtaCards(promoted);
-  const html = options.unsafe ? newsletterStripped : sanitizeRenderedHtml(newsletterStripped);
+  const sanitized = options.unsafe ? newsletterStripped : sanitizeRenderedHtml(newsletterStripped);
+  const html = enforceKoenigCardSpacingContract(sanitized);
   const plaintext = htmlToPlaintext(html);
   const word_count = countWords(plaintext, options.locale);
   const reading_time = computeReadingTime(plaintext, options.locale, word_count);
   return { html, plaintext, word_count, reading_time };
+}
+
+export function enforceKoenigCardSpacingContract(html: string): string {
+  if (!html.includes('kg-card')) return html;
+
+  const doc = parseDocument(html, {
+    decodeEntities: false,
+    lowerCaseAttributeNames: false,
+  });
+  const strippedIds = stripIdsFromKoenigCards(doc.children);
+  const unwrapped = unwrapTopLevelKoenigCardWrappers(doc.children);
+  if (!strippedIds && !unwrapped.changed) return html;
+  doc.children = unwrapped.nodes;
+  relinkSiblings(doc.children);
+  return renderHtml(doc.children, { decodeEntities: false });
+}
+
+function stripIdsFromKoenigCards(nodes: ChildNode[]): boolean {
+  let changed = false;
+  for (const node of nodes) {
+    if (!isElement(node)) continue;
+    if (hasClass(node, 'kg-card')) {
+      if (node.attribs.id !== undefined) {
+        const { id: _id, ...attribs } = node.attribs;
+        node.attribs = attribs;
+        changed = true;
+      }
+    }
+    changed = stripIdsFromKoenigCards(node.children) || changed;
+  }
+  return changed;
+}
+
+function unwrapTopLevelKoenigCardWrappers(nodes: ChildNode[]): {
+  nodes: ChildNode[];
+  changed: boolean;
+} {
+  let changed = false;
+  const next = nodes.map((node) => {
+    const card = topLevelSoleKoenigCard(node);
+    if (!card || card === node) return node;
+    card.parent = node.parent;
+    changed = true;
+    return card;
+  });
+  return { nodes: next, changed };
+}
+
+function topLevelSoleKoenigCard(node: ChildNode): Element | null {
+  if (!isElement(node)) return null;
+  if (hasClass(node, 'kg-card')) return node;
+
+  const significant = node.children.filter((child) => !isBlankTextOrComment(child));
+  if (significant.length !== 1) return null;
+
+  const only = significant[0];
+  return only && isElement(only) ? topLevelSoleKoenigCard(only) : null;
+}
+
+function isElement(node: ChildNode): node is Element {
+  return 'attribs' in node && 'children' in node;
+}
+
+function hasClass(node: Element, className: string): boolean {
+  return (node.attribs.class ?? '').split(/\s+/).includes(className);
+}
+
+function isBlankTextOrComment(node: ChildNode): boolean {
+  if ('data' in node) return node.data.trim() === '';
+  return false;
+}
+
+function relinkSiblings(nodes: ChildNode[]): void {
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (!node) continue;
+    node.prev = nodes[i - 1] ?? null;
+    node.next = nodes[i + 1] ?? null;
+  }
 }
 
 // Ghost's editor emits three newsletter-related card wrappers that need

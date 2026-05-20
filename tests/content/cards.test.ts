@@ -21,6 +21,33 @@ async function renderFixture(name: string): Promise<string> {
 }
 
 describe('card fixture corpus', () => {
+  test('card spacing contract keeps kg-card roots as gh-content direct children', async () => {
+    const md = [
+      'Intro paragraph.',
+      '',
+      '<div class="nectar-card" id="wrapper"><figure id="hello-heading" class="kg-card kg-image-card kg-width-full"><img src="https://cdn.test/a.jpg" alt=""></figure></div>',
+      '',
+      '{{< audio src="https://cdn.test/audio.mp3" title="Episode" />}}',
+      '',
+      'Outro paragraph.',
+    ].join('\n');
+
+    const { html } = await renderMarkdown(md);
+
+    expect(html).toBe(
+      '<p>Intro paragraph.</p>\n' +
+        '<figure class="kg-card kg-image-card kg-width-full"><img src="https://cdn.test/a.jpg" alt></figure>\n' +
+        '\n\n\n' +
+        '<div class="kg-card kg-audio-card"><audio src="https://cdn.test/audio.mp3" preload="metadata" controls></audio><div class="kg-audio-title">Episode</div></div>\n' +
+        '\n\n\n' +
+        '<p>Outro paragraph.</p>\n',
+    );
+    expect(html).not.toContain('nectar-card');
+    expect(html).not.toContain('id="hello-heading"');
+    expect(html).not.toMatch(/<[^>]*\bclass="[^"]*\bkg-card\b[^"]*"[^>]*\bid=/);
+    expect(html).not.toMatch(/<[^>]*\bid="[^"]*"[^>]*\bclass="[^"]*\bkg-card\b/);
+  });
+
   test('keeps the major Casper-family Koenig card wrapper classes', async () => {
     const requiredWrappers = [
       ['bookmark', 'kg-bookmark-card'],
