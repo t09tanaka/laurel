@@ -29,6 +29,8 @@ export async function runCheck(args: string[]): Promise<number> {
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const strict = parsed.values.strict === true;
+  const checkLinks = parsed.values['check-links'] === true;
+  const checkExternal = parsed.values['check-external'] === true;
   const cwd = process.cwd();
 
   resetWarningCount();
@@ -58,7 +60,13 @@ export async function runCheck(args: string[]): Promise<number> {
     );
     validateThemeCustom({ config, pkg: theme.pkg });
 
-    const lintReport = await lintContent({ cwd, config, content });
+    const lintReport = await lintContent({
+      cwd,
+      config,
+      content,
+      checkLinks,
+      checkExternal,
+    });
     for (const issue of lintReport.warnings) emitIssue(issue, 'warning');
     for (const issue of lintReport.errors) emitIssue(issue, 'error');
     if (lintReport.errors.length > 0) {

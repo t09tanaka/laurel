@@ -156,6 +156,16 @@ export const CHECK_SPEC: CommandSpec = {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings were emitted during the check',
     },
+    'check-links': {
+      type: 'boolean',
+      description:
+        'Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check',
+    },
+    'check-external': {
+      type: 'boolean',
+      description:
+        'Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s',
+    },
   },
   positionals: [],
 };

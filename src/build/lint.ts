@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, extname, join, relative } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
@@ -25,7 +25,24 @@ export interface LintContentOptions {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;
+  // Opt-in: scan markdown bodies for relative `.md` cross-links and
+  // relative image references; flag any that don't resolve on disk.
+  // Off by default because it re-reads every post/page body during `check`.
+  checkLinks?: boolean;
+  // Opt-in: probe every external http/https URL (navigation, plus body links
+  // when checkLinks is also on) with a HEAD request; flag non-2xx/timeouts.
+  // Off by default because it requires the network and is slow.
+  checkExternal?: boolean;
+  // Internal seam so tests can stub fetch without hitting the network.
+  externalFetch?: ExternalFetch;
+  // Per-URL timeout for external probes; defaults to 5s.
+  externalTimeoutMs?: number;
 }
+
+export type ExternalFetch = (
+  url: string,
+  signal: AbortSignal,
+) => Promise<{ ok: boolean; status: number }>;
 
 // Known frontmatter keys per content kind, mirroring everything the loader reads
 // in `normalizePost` / `normalizePage` / `normalizeAuthor` / `normalizeTag`.
@@ -112,6 +129,7 @@ interface FrontmatterFile {
   rawSlug: string | undefined;
   slug: string;
   data: Record<string, unknown>;
+  body: string;
 }
 
 export async function lintContent(opts: LintContentOptions): Promise<LintReport> {
@@ -134,6 +152,18 @@ export async function lintContent(opts: LintContentOptions): Promise<LintReport>
 
   issues.push(...checkAssetReferences(opts.cwd, opts.config, opts.content));
   issues.push(...checkNavigation(opts.config, opts.content));
+
+  const externalUrls: string[] = collectExternalNavUrls(opts.config);
+  if (opts.checkLinks) {
+    const internal = checkInternalLinks(opts.cwd, opts.config, [...postFiles, ...pageFiles]);
+    issues.push(...internal.issues);
+    externalUrls.push(...internal.externalUrls);
+  }
+  if (opts.checkExternal) {
+    issues.push(
+      ...(await checkExternalLinks(externalUrls, opts.externalFetch, opts.externalTimeoutMs)),
+    );
+  }
 
   return splitIssues(issues);
 }
@@ -163,8 +193,9 @@ async function collectFrontmatter(cwd: string, dir: string): Promise<Frontmatter
       continue;
     }
     let data: Record<string, unknown>;
+    let body: string;
     try {
-      ({ data } = parseFrontmatter(raw, { filePath: file }));
+      ({ data, body } = parseFrontmatter(raw, { filePath: file }));
     } catch {
       // parseFrontmatter throws on malformed YAML; the loader surfaces that
       // before lint runs, so skip here instead of double-reporting.
@@ -172,7 +203,7 @@ async function collectFrontmatter(cwd: string, dir: string): Promise<Frontmatter
     }
     const rawSlug = typeof data.slug === 'string' ? data.slug : undefined;
     const slug = resolveSlug(rawSlug, file, absDir);
-    out.push({ file, rawSlug, slug, data });
+    out.push({ file, rawSlug, slug, data, body });
   }
   return out;
 }
@@ -408,3 +439,174 @@ const KNOWN_GENERATED_ROUTES: ReadonlySet<string> = new Set([
   '404',
   'page',
 ]);
+
+interface InternalLinkScan {
+  issues: LintIssue[];
+  externalUrls: string[];
+}
+
+// Walks every post / page body once, surfaces broken `[text](./foo.md)` style
+// cross-links plus broken relative image references, and as a side effect
+// hands back the http/https URLs so `--check-external` doesn't need a second pass.
+function checkInternalLinks(
+  cwd: string,
+  config: NectarConfig,
+  files: FrontmatterFile[],
+): InternalLinkScan {
+  const issues: LintIssue[] = [];
+  const externalUrls: string[] = [];
+
+  const knownMd = new Set<string>();
+  for (const f of files) knownMd.add(resolve(f.file));
+
+  const assetsRoot = resolve(cwd, config.content.assets_dir);
+  const projectRoot = resolve(cwd);
+
+  for (const f of files) {
+    const bodyNoCode = stripCodeBlocks(f.body);
+    const dir = dirname(f.file);
+    for (const link of extractMarkdownLinks(bodyNoCode)) {
+      const { url, isImage } = link;
+      if (!url) continue;
+      if (url.startsWith('#')) continue;
+      if (url.startsWith('mailto:') || url.startsWith('tel:')) continue;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('//')) {
+        if (/^https?:/i.test(url)) externalUrls.push(url);
+        continue;
+      }
+
+      const pathPart = url.split(/[?#]/)[0] ?? '';
+      if (!pathPart) continue;
+
+      const target = url.startsWith('/')
+        ? resolve(projectRoot, `.${pathPart}`)
+        : resolve(dir, pathPart);
+
+      if (/\.md$/i.test(pathPart)) {
+        if (!knownMd.has(target)) {
+          issues.push({
+            level: 'warning',
+            code: 'broken-link',
+            message: `Markdown link '${url}' in ${f.file} does not resolve to a known post or page (looked for ${target}).`,
+            file: f.file,
+          });
+        }
+        continue;
+      }
+
+      if (isImage || isImageExtension(pathPart)) {
+        const candidates = [target];
+        if (url.startsWith('/')) candidates.push(resolve(assetsRoot, pathPart.replace(/^\/+/, '')));
+        if (!candidates.some((c) => existsSync(c))) {
+          issues.push({
+            level: 'warning',
+            code: 'broken-image-link',
+            message: `Image reference '${url}' in ${f.file} does not exist on disk.`,
+            file: f.file,
+          });
+        }
+      }
+    }
+  }
+
+  return { issues, externalUrls };
+}
+
+function collectExternalNavUrls(config: NectarConfig): string[] {
+  const urls: string[] = [];
+  for (const item of [...config.navigation, ...config.secondary_navigation]) {
+    if (/^https?:/i.test(item.url)) urls.push(item.url);
+  }
+  return urls;
+}
+
+async function checkExternalLinks(
+  rawUrls: string[],
+  fetcher: ExternalFetch | undefined,
+  timeoutMs: number | undefined,
+): Promise<LintIssue[]> {
+  const issues: LintIssue[] = [];
+  const unique = [...new Set(rawUrls)];
+  if (unique.length === 0) return issues;
+
+  const timeout = timeoutMs ?? 5000;
+  const probe = fetcher ?? defaultHeadProbe;
+
+  const results = await Promise.allSettled(
+    unique.map(async (url) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const res = await probe(url, controller.signal);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }),
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r && r.status === 'rejected') {
+      const url = unique[i] ?? '';
+      const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      issues.push({
+        level: 'warning',
+        code: 'external-link-broken',
+        message: `External URL '${url}' failed: ${reason}.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+async function defaultHeadProbe(
+  url: string,
+  signal: AbortSignal,
+): Promise<{ ok: boolean; status: number }> {
+  // HEAD first; some hosts reject it, so fall back to GET on 405 / 501.
+  let res = await fetch(url, { method: 'HEAD', signal, redirect: 'follow' });
+  if (res.status === 405 || res.status === 501) {
+    res = await fetch(url, { method: 'GET', signal, redirect: 'follow' });
+  }
+  return { ok: res.ok, status: res.status };
+}
+
+interface ExtractedLink {
+  url: string;
+  isImage: boolean;
+}
+
+// Minimal markdown link extractor — handles `[text](url)`, `![alt](url)`, and
+// `<https://…>` autolinks. Title attributes (`"…"`) are stripped from the URL.
+function extractMarkdownLinks(body: string): ExtractedLink[] {
+  const out: ExtractedLink[] = [];
+  const re = /(!?)\[(?:[^\]]|\\.)*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
+  for (const m of body.matchAll(re)) {
+    const url = m[2];
+    if (!url) continue;
+    out.push({ url, isImage: m[1] === '!' });
+  }
+  const auto = /<(https?:[^>\s]+)>/g;
+  for (const m of body.matchAll(auto)) {
+    const url = m[1];
+    if (url) out.push({ url, isImage: false });
+  }
+  return out;
+}
+
+// Drop fenced and inline code so links living inside code samples aren't
+// reported. We also drop indented code blocks (4-space) to keep noise down.
+function stripCodeBlocks(body: string): string {
+  return body
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/~~~[\s\S]*?~~~/g, '')
+    .replace(/`[^`\n]*`/g, '');
+}
+
+function isImageExtension(pathPart: string): boolean {
+  return /\.(png|jpe?g|gif|webp|avif|svg|bmp|ico|tiff?)$/i.test(pathPart);
+}

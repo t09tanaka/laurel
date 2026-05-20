@@ -54,6 +54,24 @@ describe('cli check', () => {
     expect(stdout).toContain('--strict');
   });
 
+  test('--help advertises the --check-links / --check-external flags', async () => {
+    const { stdout, exitCode } = await runCli(['check', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--check-links');
+    expect(stdout).toContain('--check-external');
+  });
+
+  test('--check-links flags a dead cross-link with --strict', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'content/posts/a.md'),
+      ['---', 'title: A', 'date: 2026-01-01', '---', '[gone](./missing.md)'].join('\n'),
+    );
+    const { stderr, exitCode } = await runCli(['check', '--check-links', '--strict'], dir);
+    expect(stderr).toContain('missing.md');
+    expect(exitCode).toBe(1);
+  });
+
   test('exits 0 on a clean project without --strict', async () => {
     dir = await makeFixture();
     const { exitCode } = await runCli(['check'], dir);

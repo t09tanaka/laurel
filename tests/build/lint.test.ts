@@ -227,6 +227,137 @@ describe('lintContent', () => {
     expect(report.warnings.some((w) => w.code === 'navigation-dead-link')).toBe(true);
   });
 
+  test('checkLinks: flags broken relative .md cross-link', async () => {
+    const fx = await makeFixture({
+      'content/posts/a.md': [
+        '---',
+        'title: A',
+        'date: 2026-01-01',
+        '---',
+        'See [other](./missing.md) and [self](./b.md).',
+      ].join('\n'),
+      'content/posts/b.md': ['---', 'title: B', 'date: 2026-01-02', '---', 'b'].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content, checkLinks: true });
+    const broken = report.warnings.filter((w) => w.code === 'broken-link');
+    expect(broken.length).toBe(1);
+    expect(broken[0]?.message).toContain('missing.md');
+  });
+
+  test('checkLinks: relative .md links are silent when off by default', async () => {
+    const fx = await makeFixture({
+      'content/posts/a.md': [
+        '---',
+        'title: A',
+        'date: 2026-01-01',
+        '---',
+        'See [other](./nope.md).',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content });
+    expect(report.warnings.some((w) => w.code === 'broken-link')).toBe(false);
+  });
+
+  test('checkLinks: flags missing relative image reference', async () => {
+    const fx = await makeFixture({
+      'content/posts/a.md': [
+        '---',
+        'title: A',
+        'date: 2026-01-01',
+        '---',
+        '![alt](./images/missing.png)',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content, checkLinks: true });
+    expect(report.warnings.some((w) => w.code === 'broken-image-link')).toBe(true);
+  });
+
+  test('checkLinks: ignores links inside code blocks', async () => {
+    const fx = await makeFixture({
+      'content/posts/a.md': [
+        '---',
+        'title: A',
+        'date: 2026-01-01',
+        '---',
+        '```',
+        '[ghost](./nope.md)',
+        '```',
+        'and inline `[also](./nope.md)`',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content, checkLinks: true });
+    expect(report.warnings.some((w) => w.code === 'broken-link')).toBe(false);
+  });
+
+  test('checkExternal: probes navigation URLs with the injected fetch', async () => {
+    const fx = await makeFixture({
+      'nectar.toml': [
+        '[site]',
+        'title = "External"',
+        '',
+        '[[navigation]]',
+        'label = "Up"',
+        'url = "https://example.com/up"',
+        '',
+        '[[navigation]]',
+        'label = "Down"',
+        'url = "https://example.com/down"',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const calls: string[] = [];
+    const report = await lintContent({
+      cwd,
+      config,
+      content,
+      checkExternal: true,
+      externalFetch: async (url) => {
+        calls.push(url);
+        return url.endsWith('/down') ? { ok: false, status: 404 } : { ok: true, status: 200 };
+      },
+    });
+    expect(calls.sort()).toEqual(['https://example.com/down', 'https://example.com/up']);
+    const broken = report.warnings.filter((w) => w.code === 'external-link-broken');
+    expect(broken.length).toBe(1);
+    expect(broken[0]?.message).toContain('/down');
+  });
+
+  test('checkExternal: stays silent when not opted in', async () => {
+    const fx = await makeFixture({
+      'nectar.toml': [
+        '[site]',
+        'title = "External"',
+        '',
+        '[[navigation]]',
+        'label = "Up"',
+        'url = "https://example.com/up"',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    let calls = 0;
+    const report = await lintContent({
+      cwd,
+      config,
+      content,
+      externalFetch: async () => {
+        calls++;
+        return { ok: true, status: 200 };
+      },
+    });
+    expect(calls).toBe(0);
+    expect(report.warnings.some((w) => w.code === 'external-link-broken')).toBe(false);
+  });
+
   test('navigation absolute URLs and anchors are ignored', async () => {
     const fx = await makeFixture({
       'nectar.toml': [

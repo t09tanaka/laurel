@@ -153,7 +153,7 @@ Validate config, theme, and content
 Usage:
 
 ```
-nectar check [--config <path>] [--strict]
+nectar check [--config <path>] [--strict] [--check-links] [--check-external]
 ```
 
 Options:
@@ -162,6 +162,8 @@ Options:
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_CHECK_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--strict` | boolean | `NECTAR_CHECK_STRICT` | Exit with non-zero status if any warnings were emitted during the check |
+| `--check-links` | boolean | `NECTAR_CHECK_CHECK_LINKS` | Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check |
+| `--check-external` | boolean | `NECTAR_CHECK_CHECK_EXTERNAL` | Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s |
 
 ### `nectar doctor`
 
