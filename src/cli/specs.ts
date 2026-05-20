@@ -1033,7 +1033,7 @@ export const MIGRATE_SPEC: CommandSpec = {
 export const THEME_SPEC: CommandSpec = {
   name: 'theme',
   summary:
-    'Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials',
+    'Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials',
   options: {
     config: {
       type: 'string',
@@ -1060,19 +1060,21 @@ export const THEME_SPEC: CommandSpec = {
     },
     json: {
       type: 'boolean',
-      description: '`lint` only: emit findings as JSON instead of the default table',
+      description: '`list` / `lint`: emit JSON instead of the default table',
     },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)',
+        '`list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory)',
       required: true,
       variadic: true,
     },
   ],
   examples: [
+    'nectar theme list                            # show themes under theme.dir',
+    'nectar theme list --json                     # machine-readable theme list',
     'nectar theme new my-theme                    # scaffold themes/my-theme/',
     'nectar theme new my-fork --from source       # fork the active theme',
     'nectar theme zip                             # ship-ready zip in cwd',

@@ -123,7 +123,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar fmt`](#nectar-fmt) | Format content Markdown frontmatter in place |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
 | [`nectar authors`](#nectar-authors) | Inspect authors in the project |
-| [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
+| [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
@@ -753,7 +753,7 @@ nectar authors list --json                   # machine-readable author inventory
 
 ### `nectar theme`
 
-Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
+Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
 
 Usage:
 
@@ -765,7 +765,7 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory) |
+| `<subcommand...>` | required (variadic) | `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), or `lint <path>` (audit a theme directory) |
 
 Options:
 
@@ -775,11 +775,13 @@ Options:
 | `--from <theme-name>` | string | `NECTAR_THEME_FROM` | `new` only: copy from an existing theme directory under `themes/` instead of writing the minimal default scaffold |
 | `-o, --output <path>` | string | `NECTAR_THEME_OUTPUT` | `zip` only: output path for the archive (defaults to `<name>-<version>.zip` in the current directory) |
 | `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
-| `-j, --json` | boolean | `NECTAR_THEME_JSON` | `lint` only: emit findings as JSON instead of the default table |
+| `-j, --json` | boolean | `NECTAR_THEME_JSON` | `list` / `lint`: emit JSON instead of the default table |
 
 Examples:
 
 ```
+nectar theme list                            # show themes under theme.dir
+nectar theme list --json                     # machine-readable theme list
 nectar theme new my-theme                    # scaffold themes/my-theme/
 nectar theme new my-fork --from source       # fork the active theme
 nectar theme zip                             # ship-ready zip in cwd

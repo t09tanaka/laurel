@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import { loadConfig } from '~/config/loader.ts';
 import { logger } from '~/util/logger.ts';
@@ -41,8 +41,11 @@ export async function runTheme(args: string[]): Promise<number> {
   if (sub === 'lint') {
     return runLint({ parsed, cwd });
   }
+  if (sub === 'list') {
+    return runList({ parsed, cwd, configPath });
+  }
   process.stderr.write(
-    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`new <name>\`, \`zip\`, or \`lint <path>\`.\n`,
+    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`list\`, \`new <name>\`, \`zip\`, or \`lint <path>\`.\n`,
   );
   return 2;
 }
@@ -51,6 +54,13 @@ interface SubOpts {
   parsed: ParsedCommand;
   cwd: string;
   configPath: string | undefined;
+}
+
+interface ThemeListRow {
+  name: string;
+  version: string | null;
+  path: string;
+  default: boolean;
 }
 
 async function runLint({ parsed, cwd }: Omit<SubOpts, 'configPath'>): Promise<number> {
@@ -108,6 +118,33 @@ async function runNew({ parsed, cwd, configPath }: SubOpts): Promise<number> {
   }
 }
 
+async function runList({ parsed, cwd, configPath }: SubOpts): Promise<number> {
+  if (parsed.positionals.length > 1) {
+    process.stderr.write('`theme list` takes no further arguments.\n');
+    return 2;
+  }
+  const asJson = parsed.values.json === true;
+  try {
+    const config = await loadConfig({ cwd, configPath });
+    const rows = await listThemes({
+      cwd,
+      themesDir: config.theme.dir,
+      defaultName: config.theme.name,
+    });
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ count: rows.length, themes: rows }, null, 2)}\n`);
+    } else if (rows.length === 0) {
+      process.stdout.write('No themes found.\n');
+    } else {
+      process.stdout.write(renderThemeListTable(rows));
+    }
+    return 0;
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+}
+
 async function runZip({ parsed, cwd, configPath }: SubOpts): Promise<number> {
   const force = parsed.values.force === true;
   const outputOverride =
@@ -149,6 +186,60 @@ async function runZip({ parsed, cwd, configPath }: SubOpts): Promise<number> {
     reportError(err, cwd);
     return 1;
   }
+}
+
+async function listThemes(opts: {
+  cwd: string;
+  themesDir: string;
+  defaultName: string;
+}): Promise<ThemeListRow[]> {
+  const themesRoot = isAbsolute(opts.themesDir) ? opts.themesDir : join(opts.cwd, opts.themesDir);
+  if (!existsSync(themesRoot)) return [];
+  const entries = await readdir(themesRoot, { withFileTypes: true });
+  const rows: ThemeListRow[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const themeRoot = join(themesRoot, entry.name);
+    const pkg = await readThemePackage(themeRoot);
+    rows.push({
+      name: entry.name,
+      version: pkg?.version ?? null,
+      path: relative(opts.cwd, themeRoot).replaceAll('\\', '/') || entry.name,
+      default: entry.name === opts.defaultName,
+    });
+  }
+  rows.sort((a, b) => {
+    if (a.default !== b.default) return a.default ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+}
+
+function renderThemeListTable(rows: ThemeListRow[]): string {
+  const nameWidth = Math.max(4, ...rows.map((r) => r.name.length));
+  const versionWidth = Math.max(7, ...rows.map((r) => (r.version ?? '-').length));
+  const pathWidth = Math.max(4, ...rows.map((r) => r.path.length));
+  const lines: string[] = [];
+  lines.push(
+    `${pad('name', nameWidth)}  ${pad('version', versionWidth)}  ${pad('path', pathWidth)}  default`,
+  );
+  lines.push(
+    `${'-'.repeat(nameWidth)}  ${'-'.repeat(versionWidth)}  ${'-'.repeat(pathWidth)}  -------`,
+  );
+  for (const row of rows) {
+    lines.push(
+      `${pad(row.name, nameWidth)}  ${pad(row.version ?? '-', versionWidth)}  ${pad(row.path, pathWidth)}  ${
+        row.default ? 'yes' : ''
+      }`,
+    );
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function pad(text: string, width: number): string {
+  if (text.length >= width) return text;
+  return text + ' '.repeat(width - text.length);
 }
 
 interface ZipEntry {

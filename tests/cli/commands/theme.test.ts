@@ -45,6 +45,16 @@ async function makeProject(): Promise<string> {
   return dir;
 }
 
+async function writeTheme(dir: string, name: string, version?: string): Promise<void> {
+  await mkdir(join(dir, 'themes', name), { recursive: true });
+  if (version !== undefined) {
+    await writeFile(
+      join(dir, 'themes', name, 'package.json'),
+      `${JSON.stringify({ name, version }, null, 2)}\n`,
+    );
+  }
+}
+
 describe('buildZipFromEntries', () => {
   test('writes a valid local-file-header signature at offset 0', () => {
     const buf = buildZipFromEntries(
@@ -64,6 +74,68 @@ describe('buildZipFromEntries', () => {
       'mytheme',
     );
     expect(buf.toString('binary')).toContain('mytheme/README.md');
+  });
+});
+
+describe('cli theme list', () => {
+  test('lists themes with versions and marks the configured default', async () => {
+    const dir = await makeProject();
+    try {
+      await writeTheme(dir, 'demo', '1.2.3');
+      await writeTheme(dir, 'alto', '0.4.0');
+      await writeTheme(dir, 'unpackaged');
+
+      const { stdout, exitCode } = await runCli(['theme', 'list', '--json'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as {
+        count: number;
+        themes: Array<{ name: string; version: string | null; path: string; default: boolean }>;
+      };
+      expect(parsed.count).toBe(3);
+      expect(parsed.themes[0]).toEqual({
+        name: 'demo',
+        version: '1.2.3',
+        path: 'themes/demo',
+        default: true,
+      });
+      expect(parsed.themes.map((theme) => theme.name)).toEqual(['demo', 'alto', 'unpackaged']);
+      expect(parsed.themes.find((theme) => theme.name === 'unpackaged')?.version).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('text mode prints a theme table', async () => {
+    const dir = await makeProject();
+    try {
+      await writeTheme(dir, 'demo', '1.2.3');
+      await writeTheme(dir, 'source', '2.0.0');
+
+      const { stdout, exitCode } = await runCli(['theme', 'list'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('name');
+      expect(stdout).toContain('version');
+      expect(stdout).toContain('path');
+      expect(stdout).toContain('default');
+      expect(stdout).toContain('demo');
+      expect(stdout).toContain('1.2.3');
+      expect(stdout).toContain('themes/demo');
+      expect(stdout).toContain('yes');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('prints an empty message when theme.dir does not exist', async () => {
+    const dir = await makeProject();
+    try {
+      await rm(join(dir, 'themes'), { recursive: true, force: true });
+      const { stdout, exitCode } = await runCli(['theme', 'list'], dir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe('No themes found.\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

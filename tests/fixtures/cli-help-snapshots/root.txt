@@ -23,7 +23,7 @@ Commands:
   fmt               Format content Markdown frontmatter in place
   tags              Inspect or modify tags in the project
   authors           Inspect authors in the project
-  theme             Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
+  theme             Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
   migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
   deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
   export            Dump the loaded content as JSON or regenerate the RSS feed without running a full build
