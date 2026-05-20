@@ -657,6 +657,8 @@ const VIDEO_TRACK_SHORTCODE_RE =
   /\{\{<\s+video-track((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
 const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const LIQUID_PRODUCT_SHORTCODE_RE =
+  /\{%\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 const NFT_SHORTCODE_RE = /\{\{<\s+nft((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
 type ShortcodeSchema = {
@@ -985,6 +987,9 @@ export function expandKoenigShortcodes(markdown: string): string {
       renderVideoHtml(parseShortcodeAttrs(attrsStr), ''),
     )
     .replace(PRODUCT_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderProductHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(LIQUID_PRODUCT_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderProductHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(NFT_SHORTCODE_RE, (_match, attrsStr: string) =>
@@ -1671,8 +1676,8 @@ function renderProductHtml(attrs: Record<string, string>): string {
   const title = attrs.title ?? '';
   const description = attrs.description ?? '';
   const image = attrs.image ?? '';
-  const buttonHref = attrs['button-href'] ?? '';
-  const buttonText = attrs['button-text'] ?? '';
+  const buttonHref = attrs.href ?? attrs['button-href'] ?? '';
+  const buttonText = attrs.button ?? attrs['button-text'] ?? '';
   if (!title && !description && !image && !buttonHref) return '';
   const imageHtml = image
     ? `<img class="kg-product-card-image" src="${escapeHtmlAttr(image)}" alt="" />`

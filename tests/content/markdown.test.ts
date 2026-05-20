@@ -896,7 +896,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
 
   test('expands product shortcode into a kg-product-card scaffold', async () => {
     const md =
-      '{{< product title="Sample widget" description="A short product description." image="https://cdn.test/product.jpg" rating="5" button-href="https://example.com/buy" button-text="Buy now" />}}';
+      '{% product image="https://cdn.test/product.jpg" title="Sample widget" rating="5" description="A short product description." button="Buy now" href="https://example.com/buy" %}';
     const { html } = await renderMarkdown(md);
     expect(html).toContain('class="kg-card kg-product-card kg-width-regular"');
     expect(html).toContain('class="kg-product-card-container"');

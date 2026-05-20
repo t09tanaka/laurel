@@ -52,6 +52,10 @@ function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
 }
 
+function countNodes(nodes: ArrayLike<DomNode>): number {
+  return Array.from(nodes).length;
+}
+
 function directChildText(node: DomNode, nodeName: string): string {
   const wanted = nodeName.toUpperCase();
   for (const child of Array.from(node.childNodes ?? [])) {
@@ -1025,14 +1029,19 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   turndown.addRule('kg-product-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-product-card'),
     replacement: (_content, node) => {
+      const rating = node.querySelector('.kg-product-card-rating');
+      const activeRatingCount = countNodes(
+        rating?.querySelectorAll('.kg-product-card-rating-active') ?? [],
+      );
       return wrap(
-        shortcode('product', {
-          title: text(node.querySelector('.kg-product-card-title')),
-          description: text(node.querySelector('.kg-product-card-description')),
+        liquidShortcode('product', {
           image: attr(node.querySelector('.kg-product-card-image'), 'src'),
-          rating: attr(node.querySelector('.kg-product-card-rating'), 'data-rating'),
-          'button-href': attr(node.querySelector('a.kg-product-card-button'), 'href'),
-          'button-text': text(node.querySelector('.kg-product-card-button')),
+          title: text(node.querySelector('.kg-product-card-title')),
+          rating:
+            attr(rating, 'data-rating') || (activeRatingCount > 0 ? `${activeRatingCount}` : ''),
+          description: text(node.querySelector('.kg-product-card-description')),
+          button: text(node.querySelector('.kg-product-card-button')),
+          href: attr(node.querySelector('a.kg-product-card-button'), 'href'),
         }),
       );
     },

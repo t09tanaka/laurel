@@ -228,7 +228,7 @@ visibility: "public"
 status: "published"
 ---
 
-{{< product title="Sample widget" description="A short product description." image="https://cdn.test/product.jpg" button-href="https://example.com/buy" button-text="Buy now" />}}
+{% product image="https://cdn.test/product.jpg" title="Sample widget" description="A short product description." button="Buy now" href="https://example.com/buy" %}
 
 === content/posts/card-recommendations.md ===
 ---

@@ -1077,24 +1077,32 @@ describe('Ghost Turndown rules — kg-html-card', () => {
 });
 
 describe('Ghost Turndown rules — kg-product-card', () => {
-  test('captures title, description, image, rating, and button', () => {
+  test('captures title, description, image, active-span rating, and button', () => {
     const html = `
       <div class="kg-card kg-product-card">
-        <img class="kg-product-card-image" src="/p.jpg" alt="" />
-        <div class="kg-product-card-title">Widget</div>
-        <div class="kg-product-card-description">Best in class.</div>
-        <div class="kg-product-card-rating" data-rating="5"></div>
-        <a class="kg-product-card-button" href="https://example.com/widget">Get it</a>
+        <div class="kg-product-card-container">
+          <img class="kg-product-card-image" src="/p.jpg" alt="" />
+          <div class="kg-product-card-title">Widget</div>
+          <div class="kg-product-card-rating">
+            <span class="kg-product-card-rating-active"></span>
+            <span class="kg-product-card-rating-active"></span>
+            <span class="kg-product-card-rating-active"></span>
+            <span class="kg-product-card-rating-active"></span>
+            <span></span>
+          </div>
+          <div class="kg-product-card-description"><p>Best in class.</p></div>
+          <a class="kg-product-card-button" href="https://example.com/widget">Get it</a>
+        </div>
       </div>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< product');
-    expect(md).toContain('title="Widget"');
-    expect(md).toContain('description="Best in class."');
+    expect(md).toContain('{% product');
     expect(md).toContain('image="/p.jpg"');
-    expect(md).toContain('rating="5"');
-    expect(md).toContain('button-href="https://example.com/widget"');
-    expect(md).toContain('button-text="Get it"');
+    expect(md).toContain('title="Widget"');
+    expect(md).toContain('rating="4"');
+    expect(md).toContain('description="Best in class."');
+    expect(md).toContain('button="Get it"');
+    expect(md).toContain('href="https://example.com/widget"');
   });
 });
 
