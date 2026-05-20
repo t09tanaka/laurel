@@ -1,11 +1,15 @@
 import { relative } from 'node:path';
 import { type LintIssue, lintContent } from '~/build/lint.ts';
+import { type RedirectRule, collapseRedirects, loadRedirects } from '~/build/redirects.ts';
 import { loadRoutesYaml } from '~/build/routes-yaml.ts';
+import { planRoutes } from '~/build/routes.ts';
 import { loadContent } from '~/content/loader.ts';
+import type { RouteContext } from '~/render/types.ts';
 import { compileThemeTemplates } from '~/theme/compile-check.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
+import { withBasePath } from '~/util/url.ts';
 import { type FrontmatterIssue, checkFrontmatterSchemas } from '../check-frontmatter.ts';
 import { type TemplateIssue, checkThemeTemplates } from '../check-templates.ts';
 import { reportConfigValidationError, validateConfigOnly } from '../config-validation.ts';
@@ -135,6 +139,19 @@ export async function runCheck(args: string[]): Promise<number> {
     }
     validateThemeCustom({ config, pkg: theme.pkg });
 
+    const routes = planRoutes({ config, content, theme, routesYaml });
+    const redirectShadowWarnings = await checkRedirectRouteShadows({
+      cwd,
+      basePath: config.build.base_path,
+      routes,
+    });
+    warnings.push(...redirectShadowWarnings);
+    if (!asJson) {
+      for (const warning of redirectShadowWarnings) {
+        logger.warn(`${warning.message} [${warning.code}]`);
+      }
+    }
+
     if (checkFrontmatter) {
       const fmIssues = await checkFrontmatterSchemas({ cwd, config });
       for (const issue of fmIssues) collectFrontmatterIssue(issue, cwd, errors, warnings);
@@ -256,6 +273,72 @@ function emitIssue(issue: LintIssue, level: 'warning' | 'error'): void {
   const message = `${location}${issue.message} [${issue.code}]`;
   if (level === 'error') logger.error(message);
   else logger.warn(message);
+}
+
+async function checkRedirectRouteShadows(opts: {
+  cwd: string;
+  basePath: string;
+  routes: readonly RouteContext[];
+}): Promise<ReportEntry[]> {
+  const redirects = collapseRedirects(await loadRedirects(opts.cwd));
+  if (redirects.length === 0 || opts.routes.length === 0) return [];
+
+  const routeBySource = buildShadowableRouteSources(opts.routes, opts.basePath);
+  const warnings: ReportEntry[] = [];
+  for (const redirect of redirects) {
+    if (!isExactRedirectSource(redirect)) continue;
+    const route = routeBySource.get(redirect.from);
+    if (!route) continue;
+    warnings.push({
+      file: 'redirects.yaml',
+      code: 'redirect-shadows-route',
+      message: `redirects.yaml: redirect from ${redirect.from} is shadowed by generated route ${route.url} (${route.outputPath}); on static hosts that prefer files, the route can win before this redirect runs.`,
+    });
+  }
+  return warnings;
+}
+
+function buildShadowableRouteSources(
+  routes: readonly RouteContext[],
+  basePath: string,
+): Map<string, Pick<RouteContext, 'url' | 'outputPath'>> {
+  const normalizedBasePath = normalizeBasePathForMatch(basePath);
+  const out = new Map<string, Pick<RouteContext, 'url' | 'outputPath'>>();
+  for (const route of routes) {
+    const deployedUrl = withBasePath(normalizedBasePath, route.url);
+    for (const source of shadowableSourcesForRoute(deployedUrl, route.outputPath)) {
+      if (!out.has(source)) out.set(source, { url: route.url, outputPath: route.outputPath });
+    }
+  }
+  return out;
+}
+
+function shadowableSourcesForRoute(deployedUrl: string, outputPath: string): string[] {
+  const sources = [deployedUrl];
+  if (outputPath === 'index.html' || outputPath.endsWith('/index.html')) {
+    const slashless = deployedUrl.endsWith('/') ? deployedUrl.slice(0, -1) : deployedUrl;
+    if (slashless && slashless !== deployedUrl) sources.push(slashless);
+  }
+  return sources;
+}
+
+function isExactRedirectSource(rule: RedirectRule): boolean {
+  return (
+    rule.from.startsWith('/') &&
+    !rule.from.includes('*') &&
+    !rule.from.includes('?') &&
+    !rule.from.includes('#')
+  );
+}
+
+function normalizeBasePathForMatch(basePath: string): string {
+  const trimmed = basePath.trim();
+  if (!trimmed || trimmed === '/') return '/';
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const withTrailingSlash = withLeadingSlash.endsWith('/')
+    ? withLeadingSlash
+    : `${withLeadingSlash}/`;
+  return withTrailingSlash.replace(/\/{2,}/g, '/');
 }
 
 function collectFrontmatterIssue(

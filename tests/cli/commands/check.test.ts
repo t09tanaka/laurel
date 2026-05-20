@@ -130,6 +130,132 @@ describe('cli check', () => {
     );
   });
 
+  test('warns when redirects.yaml source is shadowed by a generated route', async () => {
+    dir = await makeFixture();
+    await Bun.write(join(dir, 'themes/minimal/page.hbs'), '<!doctype html>{{page.title}}');
+    await Bun.write(join(dir, 'content/posts/.keep'), '');
+    await Bun.write(
+      join(dir, 'content/pages/foo.md'),
+      ['---', 'title: Foo', 'date: 2026-01-01', '---', '', 'body'].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'redirects.yaml'),
+      ['- from: /foo', '  to: /bar', '  status: 301'].join('\n'),
+    );
+
+    const { stdout, exitCode } = await runCli(['check', '--json'], dir);
+    const report = JSON.parse(stdout) as { warnings: Array<{ code: string; message: string }> };
+
+    expect(exitCode).toBe(0);
+    const warning = report.warnings.find((w) => w.code === 'redirect-shadows-route');
+    expect(warning?.message).toContain('/foo');
+    expect(warning?.message).toContain('/foo/');
+  });
+
+  test('does not warn for a redirect outside the configured base_path', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Check Test"',
+        '',
+        '[theme]',
+        'name = "minimal"',
+        'dir = "themes"',
+        '',
+        '[build]',
+        'base_path = "/blog/"',
+      ].join('\n'),
+    );
+    await Bun.write(join(dir, 'themes/minimal/page.hbs'), '<!doctype html>{{page.title}}');
+    await Bun.write(join(dir, 'content/posts/.keep'), '');
+    await Bun.write(
+      join(dir, 'content/pages/foo.md'),
+      ['---', 'title: Foo', 'date: 2026-01-01', '---', '', 'body'].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'redirects.yaml'),
+      ['- from: /foo', '  to: /bar', '  status: 301'].join('\n'),
+    );
+
+    const { stdout, exitCode } = await runCli(['check', '--json'], dir);
+    const report = JSON.parse(stdout) as { warnings: Array<{ code: string }> };
+
+    expect(exitCode).toBe(0);
+    expect(report.warnings.some((w) => w.code === 'redirect-shadows-route')).toBe(false);
+  });
+
+  test('warns for a redirect that shadows a route under the configured base_path', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Check Test"',
+        '',
+        '[theme]',
+        'name = "minimal"',
+        'dir = "themes"',
+        '',
+        '[build]',
+        'base_path = "/blog/"',
+      ].join('\n'),
+    );
+    await Bun.write(join(dir, 'themes/minimal/page.hbs'), '<!doctype html>{{page.title}}');
+    await Bun.write(join(dir, 'content/posts/.keep'), '');
+    await Bun.write(
+      join(dir, 'content/pages/foo.md'),
+      ['---', 'title: Foo', 'date: 2026-01-01', '---', '', 'body'].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'redirects.yaml'),
+      ['- from: /blog/foo', '  to: /bar', '  status: 301'].join('\n'),
+    );
+
+    const { stdout, exitCode } = await runCli(['check', '--json'], dir);
+    const report = JSON.parse(stdout) as { warnings: Array<{ code: string; message: string }> };
+
+    expect(exitCode).toBe(0);
+    const warning = report.warnings.find((w) => w.code === 'redirect-shadows-route');
+    expect(warning?.message).toContain('/blog/foo');
+    expect(warning?.message).toContain('/foo/');
+  });
+
+  test('does not warn for slash-only mismatch when trailing_slash is never', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Check Test"',
+        '',
+        '[theme]',
+        'name = "minimal"',
+        'dir = "themes"',
+        '',
+        '[build]',
+        'trailing_slash = "never"',
+      ].join('\n'),
+    );
+    await Bun.write(join(dir, 'themes/minimal/page.hbs'), '<!doctype html>{{page.title}}');
+    await Bun.write(join(dir, 'content/posts/.keep'), '');
+    await Bun.write(
+      join(dir, 'content/pages/foo.md'),
+      ['---', 'title: Foo', 'date: 2026-01-01', '---', '', 'body'].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'redirects.yaml'),
+      ['- from: /foo/', '  to: /bar', '  status: 301'].join('\n'),
+    );
+
+    const { stdout, exitCode } = await runCli(['check', '--json'], dir);
+    const report = JSON.parse(stdout) as { warnings: Array<{ code: string }> };
+
+    expect(exitCode).toBe(0);
+    expect(report.warnings.some((w) => w.code === 'redirect-shadows-route')).toBe(false);
+  });
+
   test('global --warnings-as-errors exits 1 on check warnings without --strict', async () => {
     dir = await makeFixture();
     await Bun.write(
