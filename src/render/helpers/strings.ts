@@ -8,6 +8,15 @@ export function registerStringHelpers(engine: NectarEngine): void {
     return new engine.hb.SafeString(args.slice(0, -1).map(String).join(separator));
   });
 
+  engine.hb.registerHelper('raw', function rawHelper(this: unknown, ...args: unknown[]) {
+    const value = args.length > 1 ? args[0] : undefined;
+    const options = args[args.length - 1];
+    if (isHelperOptions(options) && typeof options.fn === 'function') {
+      return new engine.hb.SafeString(options.fn(this));
+    }
+    return new engine.hb.SafeString(String(value ?? ''));
+  });
+
   engine.hb.registerHelper('encode', function encodeHelper(value: unknown) {
     return encodeURIComponent(String(value ?? ''));
   });
@@ -28,4 +37,8 @@ export function registerStringHelpers(engine: NectarEngine): void {
       return template.replace(/%/g, String(n));
     },
   );
+}
+
+function isHelperOptions(value: unknown): value is Handlebars.HelperOptions {
+  return typeof value === 'object' && value !== null && 'hash' in value;
 }

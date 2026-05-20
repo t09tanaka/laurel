@@ -95,6 +95,7 @@ the rest return plain strings and Handlebars escapes them.
 ### String helpers — `src/render/helpers/strings.ts`
 
 - `{{concat a b …}}` — String concatenation.
+- `{{raw value}}` / `{{{{raw}}}}…{{{{/raw}}}}` — Emit explicitly trusted HTML without escaping (SafeString).
 - `{{encode value}}` — URL-encode a value.
 - `{{upper value}}` — Upper-case a value.
 - `{{lower value}}` — Lower-case a value.

@@ -82,6 +82,52 @@ describe('encode helper', () => {
   });
 });
 
+describe('raw helper', () => {
+  test('returns a SafeString so explicitly raw HTML is not escaped', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{raw value}}');
+
+    expect(tpl({ value: '<span data-x="1">trusted</span>' })).toBe(
+      '<span data-x="1">trusted</span>',
+    );
+  });
+
+  test('does not change default Handlebars escaping for ordinary values', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{value}}');
+
+    expect(tpl({ value: '<script>alert(1)</script>' })).toBe(
+      '&lt;script&gt;alert(1)&lt;/script&gt;',
+    );
+  });
+
+  test('treats undefined as an empty raw string', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{raw missing}}');
+
+    expect(tpl({})).toBe('');
+  });
+
+  test('treats a missing positional argument as an empty raw string', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{raw}}');
+
+    expect(tpl({})).toBe('');
+  });
+
+  test('supports Handlebars raw block syntax without evaluating the body', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{{{raw}}}}<span>{{value}}</span>{{{{/raw}}}}');
+
+    expect(tpl({ value: 'escaped' })).toBe('<span>{{value}}</span>');
+  });
+});
+
 describe('upper / lower helpers', () => {
   test('upper uppercases the string value', () => {
     const engine = makeEngine();
