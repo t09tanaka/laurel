@@ -40,8 +40,8 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     // of having to switch context. When no positional argument is given,
     // fall back to `this.url` (the standard `{{url}}` inside a post block).
     const positional = args.length > 1 ? args[0] : undefined;
-    const ctx = this as { url?: string };
-    const candidate = typeof positional === 'string' ? positional : ctx.url;
+    const ctx = this as { url?: unknown };
+    const candidate = resolveUrlCandidate(positional) ?? resolveUrlCandidate(ctx);
     const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
     const secure = options.hash.secure === true || options.hash.secure === 'true';
     if (!candidate) return '';
@@ -114,6 +114,13 @@ export function registerUrlHelpers(engine: NectarEngine): void {
 
 function stripAt(handle: string): string {
   return handle.replace(/^@/, '');
+}
+
+function resolveUrlCandidate(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return undefined;
+  const url = (value as { url?: unknown }).url;
+  return typeof url === 'string' ? url : undefined;
 }
 
 function isAbsoluteHttpUrl(value: string): boolean {

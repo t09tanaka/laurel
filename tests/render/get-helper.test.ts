@@ -2,6 +2,7 @@ import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
+import { registerUrlHelpers } from '~/render/helpers/urls.ts';
 import { logger } from '~/util/logger.ts';
 
 function buildEngine(content: {
@@ -17,6 +18,7 @@ function buildEngine(content: {
     hb,
     config: {} as NectarEngine['config'],
     content: {
+      site: { url: 'https://example.com' },
       posts: content.posts ?? [],
       tags: content.tags ?? [],
       authors: content.authors ?? [],
@@ -31,6 +33,7 @@ function buildEngine(content: {
     render: () => '',
   } as NectarEngine;
   registerBlockHelpers(engine);
+  registerUrlHelpers(engine);
   return engine;
 }
 
@@ -479,6 +482,22 @@ describe('get helper include= parameter', () => {
       `{{#get "authors" include="count.posts" as |items|}}{{#each items}}{{count.posts}}{{/each}}{{/get}}`,
     );
     expect(tpl({})).toBe('0');
+  });
+});
+
+describe('get helper with url helper', () => {
+  test('passes iterated tag objects as positional url helper arguments', () => {
+    const engine = buildEngine({
+      tags: [
+        { id: 'tag-1', name: 'News', slug: 'news', url: '/tag/news/' },
+        { id: 'tag-2', name: 'Opinion', slug: 'opinion', url: '/tag/opinion/' },
+      ],
+    });
+    const tpl = engine.hb.compile(
+      `{{#get "tags" order="slug asc" as |items|}}{{#foreach items as |tag|}}{{url tag}};{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({ url: '/current/' })).toBe('/tag/news/;/tag/opinion/;');
   });
 });
 

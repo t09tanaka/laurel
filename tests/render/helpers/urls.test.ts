@@ -103,6 +103,20 @@ describe('url helper', () => {
     );
   });
 
+  test('uses a positional object url over the current context url', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url tag}}');
+    expect(tpl({ url: '/ignored/', tag: { url: '/tag/news/' } })).toBe('/tag/news/');
+  });
+
+  test('absolute=true resolves a positional object url against the site origin', () => {
+    const engine = makeEngine('https://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url tag absolute=true}}');
+    expect(tpl({ tag: { url: '/tag/news/' } })).toBe('https://blog.example.com/tag/news/');
+  });
+
   test('falls back to this.url when the positional argument resolves to undefined', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
