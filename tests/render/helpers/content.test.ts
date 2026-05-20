@@ -338,6 +338,15 @@ describe('excerpt helper', () => {
     });
     expect(out).toBe('01234567890123456789012345678901234567890123456789');
   });
+
+  test('falls back from custom_excerpt to excerpt and then plaintext', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const tpl = engine.hb.compile('{{excerpt}}');
+
+    expect(tpl({ excerpt: 'auto', plaintext: 'plain' })).toBe('auto');
+    expect(tpl({ plaintext: 'plain' })).toBe('plain');
+  });
 });
 
 describe('meta_title helper pagination', () => {
