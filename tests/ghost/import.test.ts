@@ -1145,6 +1145,51 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
       'style="background-image:url(&quot;/content/images/2024/01/html-bg.jpg&quot;)"',
     );
   });
+
+  test('strips __GHOST_URL__ from bookmark icon and thumbnail metadata', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Bookmark',
+                slug: 'bookmark',
+                html: [
+                  '<figure class="kg-card kg-bookmark-card">',
+                  '<a class="kg-bookmark-container" href="https://example.com/article">',
+                  '<div class="kg-bookmark-content">',
+                  '<div class="kg-bookmark-title">Example</div>',
+                  '<div class="kg-bookmark-metadata">',
+                  '<img class="kg-bookmark-icon" src="__GHOST_URL__/content/images/favicon.ico" alt="">',
+                  '</div>',
+                  '</div>',
+                  '<div class="kg-bookmark-thumbnail">',
+                  '<img src="__GHOST_URL__/content/images/bookmark.jpg" alt="">',
+                  '</div>',
+                  '</a>',
+                  '</figure>',
+                ].join(''),
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(1);
+
+    const postMd = await readFile(join(cwd, 'content/posts/bookmark.md'), 'utf8');
+    expect(postMd).not.toContain('__GHOST_URL__');
+    expect(postMd).toContain('icon="/content/images/favicon.ico"');
+    expect(postMd).toContain('thumbnail="/content/images/bookmark.jpg"');
+  });
 });
 
 describe('importGhostExport — Koenig card comment fences', () => {
@@ -1340,6 +1385,77 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).not.toContain('images.unsplash.com');
     expect(md).toContain(`/content/images/external/${files[0]}`);
     expect(md).toContain(`feature_image: "/content/images/external/${files[0]}"`);
+  });
+
+  test('downloads bookmark icon and thumbnail URLs under content/images/bookmarks/', async () => {
+    const iconUrl = 'https://example.com/favicon.ico';
+    const thumbnailUrl = 'https://cdn.example.com/thumb.jpg?width=1200';
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Bookmark',
+                  slug: 'bookmark',
+                  html: [
+                    '<figure class="kg-card kg-bookmark-card">',
+                    '<a class="kg-bookmark-container" href="https://example.com/article">',
+                    '<div class="kg-bookmark-content">',
+                    '<div class="kg-bookmark-title">Example</div>',
+                    '<div class="kg-bookmark-metadata">',
+                    `<img class="kg-bookmark-icon" src="${iconUrl}" alt="">`,
+                    '</div>',
+                    '</div>',
+                    '<div class="kg-bookmark-thumbnail">',
+                    `<img src="${thumbnailUrl}" alt="">`,
+                    '</div>',
+                    '</a>',
+                    '</figure>',
+                  ].join(''),
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const { fetcher, calls } = fakeFetch({
+      ok: {
+        [iconUrl]: { body: 'ICO', contentType: 'image/x-icon' },
+        [thumbnailUrl]: { body: 'JPG', contentType: 'image/jpeg' },
+      },
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(2);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls.sort()).toEqual([iconUrl, thumbnailUrl].sort());
+
+    const bookmarkDir = join(cwd, 'content/images/bookmarks');
+    const files = (await readdir(bookmarkDir)).sort();
+    expect(files.length).toBe(2);
+    expect(files).toContainEqual(expect.stringMatching(/^[a-f0-9]{16}\.ico$/));
+    expect(files).toContainEqual(expect.stringMatching(/^[a-f0-9]{16}\.jpg$/));
+
+    const md = await readFile(join(cwd, 'content/posts/bookmark.md'), 'utf8');
+    expect(md).not.toContain(iconUrl);
+    expect(md).not.toContain(thumbnailUrl);
+    expect(md).toContain('/content/images/bookmarks/');
+    expect(md).toContain('icon="/content/images/bookmarks/');
+    expect(md).toContain('thumbnail="/content/images/bookmarks/');
   });
 
   test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {

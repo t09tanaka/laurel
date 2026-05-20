@@ -40,6 +40,10 @@ const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s"']+)(\s+"[^"]*")?\)/g;
 // `src` only appearing once per tag (Turndown's output and Koenig HTML cards
 // honor this).
 const HTML_IMG_RE = /<img\b([^>]*?)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)>/gi;
+const BOOKMARK_SHORTCODE_RE =
+  /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
+const BOOKMARK_IMAGE_ATTRS = new Set(['icon', 'thumbnail']);
 
 const KNOWN_IMAGE_EXTS = new Set([
   '.jpg',
@@ -97,10 +101,14 @@ export class GhostImageDownloader {
   // Download a single image URL and return the rewritten site-relative URL,
   // or `null` if the input should be left alone (non-http(s), already
   // relative, or download failed).
-  async downloadOne(url: string): Promise<string | null> {
+  async downloadOne(
+    url: string,
+    opts?: { externalDir?: 'external' | 'bookmarks' },
+  ): Promise<string | null> {
     if (!isHttpUrl(url)) return null;
+    const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${url}` : url;
 
-    const cached = this.cache.get(url);
+    const cached = this.cache.get(cacheKey);
     if (cached !== undefined) {
       return cached?.rewrittenUrl ?? null;
     }
@@ -109,7 +117,7 @@ export class GhostImageDownloader {
       const response = await this.fetcher(url);
       if (!response.ok) {
         logger.warn(`Failed to download image ${url}: HTTP ${response.status}`);
-        this.cache.set(url, null);
+        this.cache.set(cacheKey, null);
         this._failed += 1;
         return null;
       }
@@ -125,7 +133,7 @@ export class GhostImageDownloader {
             logger.warn(
               `Failed to download image ${url}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
             );
-            this.cache.set(url, null);
+            this.cache.set(cacheKey, null);
             this._failed += 1;
             return null;
           }
@@ -137,11 +145,11 @@ export class GhostImageDownloader {
         logger.warn(
           `Failed to download image ${url}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
         );
-        this.cache.set(url, null);
+        this.cache.set(cacheKey, null);
         this._failed += 1;
         return null;
       }
-      const { localPath, rewrittenUrl } = derivePaths(url, contentType);
+      const { localPath, rewrittenUrl } = derivePaths(url, contentType, opts);
       const absPath = join(this.contentRoot, stripContentPrefix(localPath));
       // Defense in depth: pathname normalization in `URL` already strips
       // `..`, but assert we stay under the configured content output root.
@@ -149,14 +157,14 @@ export class GhostImageDownloader {
       await ensureDir(dirname(absPath));
       await writeFile(absPath, buf);
       const entry: CacheEntry = { rewrittenUrl };
-      this.cache.set(url, entry);
+      this.cache.set(cacheKey, entry);
       this._downloaded += 1;
       return rewrittenUrl;
     } catch (err) {
       logger.warn(
         `Failed to download image ${url}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      this.cache.set(url, null);
+      this.cache.set(cacheKey, null);
       this._failed += 1;
       return null;
     }
@@ -169,14 +177,20 @@ export class GhostImageDownloader {
     const urls = new Set<string>();
     for (const m of text.matchAll(MARKDOWN_IMAGE_RE)) urls.add(m[2]);
     for (const m of text.matchAll(HTML_IMG_RE)) urls.add(m[3]);
-    if (urls.size === 0) return text;
+    const bookmarkUrls = collectBookmarkImageUrls(text);
+    if (urls.size === 0 && bookmarkUrls.size === 0) return text;
 
     const replacements = new Map<string, string>();
     for (const url of urls) {
       const rep = await this.downloadOne(url);
       if (rep) replacements.set(url, rep);
     }
-    if (replacements.size === 0) return text;
+    const bookmarkReplacements = new Map<string, string>();
+    for (const url of bookmarkUrls) {
+      const rep = await this.downloadOne(url, { externalDir: 'bookmarks' });
+      if (rep) bookmarkReplacements.set(url, rep);
+    }
+    if (replacements.size === 0 && bookmarkReplacements.size === 0) return text;
 
     return text
       .replace(MARKDOWN_IMAGE_RE, (full, alt: string, url: string, title?: string) => {
@@ -186,7 +200,10 @@ export class GhostImageDownloader {
       .replace(HTML_IMG_RE, (full, before: string, quote: string, url: string, after: string) => {
         const rep = replacements.get(url);
         return rep ? `<img${before}src=${quote}${rep}${quote}${after}>` : full;
-      });
+      })
+      .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>
+        rewriteBookmarkImageAttrs(full, attrs, bookmarkReplacements),
+      );
   }
 
   // Rewrite a single frontmatter URL field (e.g. feature_image). Returns the
@@ -212,6 +229,7 @@ function isHttpUrl(s: string): boolean {
 function derivePaths(
   url: string,
   contentType: string,
+  opts?: { externalDir?: 'external' | 'bookmarks' },
 ): { localPath: string; rewrittenUrl: string } {
   const u = new URL(url);
   const pathname = u.pathname;
@@ -236,10 +254,41 @@ function derivePaths(
   const ext = inferExtension(url, contentType);
   const hash = sha256Hex(url).slice(0, 16);
   const file = `${hash}${ext}`;
+  const externalDir = opts?.externalDir ?? 'external';
   return {
-    localPath: join('content', 'images', 'external', file),
-    rewrittenUrl: `/content/images/external/${file}`,
+    localPath: join('content', 'images', externalDir, file),
+    rewrittenUrl: `/content/images/${externalDir}/${file}`,
   };
+}
+
+function collectBookmarkImageUrls(text: string): Set<string> {
+  const urls = new Set<string>();
+  for (const shortcode of text.matchAll(BOOKMARK_SHORTCODE_RE)) {
+    const attrs = shortcode[1];
+    SHORTCODE_ATTR_RE.lastIndex = 0;
+    let attr: RegExpExecArray | null = SHORTCODE_ATTR_RE.exec(attrs);
+    while (attr !== null) {
+      const name = attr[1];
+      const value = attr[2];
+      if (BOOKMARK_IMAGE_ATTRS.has(name) && isHttpUrl(value)) urls.add(value);
+      attr = SHORTCODE_ATTR_RE.exec(attrs);
+    }
+  }
+  return urls;
+}
+
+function rewriteBookmarkImageAttrs(
+  full: string,
+  attrs: string,
+  replacements: Map<string, string>,
+): string {
+  if (replacements.size === 0) return full;
+  const rewrittenAttrs = attrs.replace(SHORTCODE_ATTR_RE, (match, name: string, value: string) => {
+    if (!BOOKMARK_IMAGE_ATTRS.has(name)) return match;
+    const rep = replacements.get(value);
+    return rep ? `${name}="${rep}"` : match;
+  });
+  return full.replace(attrs, rewrittenAttrs);
 }
 
 function inferExtension(url: string, contentType: string): string {
