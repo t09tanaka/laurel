@@ -33,6 +33,7 @@ line in the workflow you copy.
 | `github-pages.yml`    | GitHub Pages        | None — uses the built-in `GITHUB_TOKEN` and the `actions/deploy-pages` flow. Enable Pages -> Source = GitHub Actions. |
 | `cloudflare-pages.yml`| Cloudflare Pages    | Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Edit `CLOUDFLARE_PROJECT_NAME` in the workflow env block.    |
 | `netlify.yml`         | Netlify             | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Also deploys PR previews.                                            |
+| `netlify-cli.yml`     | Netlify CLI upload  | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Use when Netlify is not connected to Git and Actions uploads `dist/`. |
 | `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses `vercel deploy --prebuilt`.                        |
 | `azure-static-web-apps.yml` | Azure Static Web Apps | Secret `AZURE_STATIC_WEB_APPS_API_TOKEN` from the SWA resource. PR previews land in named slots automatically.       |
 | `s3-cloudfront.yml`   | AWS S3 + CloudFront | Secret `AWS_ROLE_TO_ASSUME` (OIDC), `CLOUDFRONT_DISTRIBUTION_ID`. Variables `AWS_REGION`, `S3_BUCKET`.                |
@@ -46,8 +47,10 @@ line in the workflow you copy.
   in `nectar.toml` if you use a project site URL.
 - **CDN-heavy + low cost:** `cloudflare-pages.yml`. Cloudflare's free tier
   covers most blogs. The provider-managed deploys keep preview URLs per branch.
-- **Marketing-site features (forms, redirects, edge functions):** `netlify.yml`
-  or `vercel.yml`. Both also publish PR preview deploys.
+- **Marketing-site features (forms, redirects, edge functions):** Netlify or
+  Vercel. For Netlify's native Git integration, use the `netlify.toml` flow in
+  `docs/deploy/netlify.md`. If GitHub Actions should upload `dist/` to a
+  Netlify site that is not connected to Git, copy `netlify-cli.yml`.
 - **You already live in AWS:** `s3-cloudfront.yml`. Pair with the CloudFront
   Function at `examples/s3-cloudfront/append-index.js` to keep directory-style
   URLs working from an S3 origin. The full setup checklist lives in

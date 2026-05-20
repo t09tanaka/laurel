@@ -1,9 +1,14 @@
 # Deploying Nectar to Netlify
 
 Netlify can either build a Nectar site from Git or receive a pre-built
-`dist/` directory from CI. This guide covers both paths, plus the generated
-`_headers` / `_redirects` files Nectar writes when `[deploy.netlify]` is
-enabled.
+`dist/` directory from the Netlify CLI. This guide covers both paths, plus the
+generated `_headers` / `_redirects` files Nectar writes when
+`[deploy.netlify]` is enabled.
+
+Use Netlify's Git integration when you want Netlify to own checkout, build, and
+publish from a connected repository. Use the Netlify CLI path when GitHub
+Actions (or another CI system) should build with Bun and upload `dist/` to a
+Netlify site that is not connected to Git.
 
 ## Quickstart: Netlify builds from Git
 
@@ -47,10 +52,12 @@ enabled.
    The HTML response should include the baseline security headers, and
    fingerprinted assets should receive long-lived immutable cache headers.
 
-## Quickstart: CI uploads `dist/`
+## Quickstart: GitHub Actions uploads `dist/`
 
 Use this path when GitHub Actions is the deploy driver and Netlify is only the
-hosting target.
+hosting target. Do not also enable Netlify's Git integration for the same site,
+or one commit can produce both a Netlify-built deploy and a CLI-uploaded
+deploy.
 
 1. Create a Netlify site without connecting a repository.
 2. Add repository secrets:
@@ -61,11 +68,11 @@ hosting target.
    | `NETLIFY_SITE_ID` | API ID from the Netlify site settings |
 
 3. Copy
-   [`examples/ci/netlify.yml`](../../examples/ci/netlify.yml)
+   [`examples/ci/netlify-cli.yml`](../../examples/ci/netlify-cli.yml)
    to `.github/workflows/netlify.yml`.
 4. Push to `main`. The workflow builds with Bun, uploads `dist/` with
-   `netlify-cli deploy --dir=dist --prod`, and creates preview deploys for
-   pull requests.
+   `bunx netlify-cli deploy --dir=dist --site="$NETLIFY_SITE_ID" --prod`, and
+   creates preview deploys for pull requests without `--prod`.
 
 The same flow can be run locally after a build:
 

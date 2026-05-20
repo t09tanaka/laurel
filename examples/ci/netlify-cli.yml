@@ -1,4 +1,4 @@
-# Deploy a Nectar site to Netlify.
+# Deploy a pre-built Nectar site to Netlify with the Netlify CLI.
 #
 # Copy this file to .github/workflows/netlify.yml in your repo. In Netlify,
 # create a site with "no repository" so GitHub Actions is the only deploy
@@ -6,10 +6,11 @@
 #   - NETLIFY_AUTH_TOKEN  (personal access token from Netlify user settings)
 #   - NETLIFY_SITE_ID     (the API ID of the Netlify site)
 #
-# Push to main and this workflow uploads dist/ as a production deploy via the
-# Netlify CLI. Pull requests deploy as preview URLs.
+# Push to main and this workflow uploads dist/ as a production deploy.
+# Pull requests upload preview deploys. Do not also enable Netlify's Git
+# integration for the same site, or the same commit can be deployed twice.
 
-name: Deploy to Netlify
+name: Deploy to Netlify with CLI
 
 on:
   push:
@@ -22,7 +23,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: netlify-${{ github.ref }}
+  group: netlify-cli-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
