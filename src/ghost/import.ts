@@ -297,11 +297,32 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
 
   let extractedZipRoot: string | undefined;
   let inputFile = opts.file;
-  if (opts.file.toLowerCase().endsWith('.zip')) {
+  const detected = await detectGhostExportFormat(opts.file);
+  if (detected === 'wordpress-xml') {
+    // WordPress WXR is a real format we ship a separate importer for; spotting
+    // it here saves the user from staring at a "no .json found" failure.
+    throw new Error(
+      `${opts.file} looks like a WordPress WXR XML export. Use \`nectar import-wordpress ${opts.file}\` instead.`,
+    );
+  }
+  const hasZipExt = opts.file.toLowerCase().endsWith('.zip');
+  if (detected === 'zip' || (hasZipExt && detected === 'unknown')) {
+    // Honour an explicit `.zip` extension even when the magic bytes are
+    // wrong: the user said zip, so attempt extraction and let `unzip` produce
+    // the canonical "not a valid archive" failure. This preserves the
+    // pre-detection behaviour for hand-crafted / corrupt zips that exercise
+    // the error path in tests, while still letting magic-bytes redirect
+    // extension-less archives.
     const extracted = await extractZipExport(opts.file);
     extractedZipRoot = extracted.cleanupRoot;
     inputFile = extracted.contentRoot;
   }
+  // For `json` / `directory` / `unknown` we fall through to `resolveInput`
+  // which already handles bare paths and directories. `unknown` covers
+  // extension-less JSON whose first byte isn't `{` (rare; for example a
+  // Ghost export wrapped in a single-line minified file with a leading
+  // whitespace stripped); the downstream JSON.parse error has the location
+  // info we need.
 
   try {
     return await importFromResolvedInput(inputFile, opts, onConflict, counters);
@@ -310,6 +331,55 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
       await rm(extractedZipRoot, { recursive: true, force: true });
     }
   }
+}
+
+export type GhostExportFormat = 'json' | 'zip' | 'directory' | 'wordpress-xml' | 'unknown';
+
+// Sniff the export type without trusting the file extension. Order: stat
+// (directory shortcut), then magic-bytes from the first few bytes. Magic
+// bytes used:
+//   - 50 4B 03 04   PK\x03\x04   → ZIP local file header
+//   - leading `{` or `[`         → JSON
+//   - leading `<`                → XML; treated as WordPress WXR so we can
+//                                  redirect the user to import-wordpress
+// Everything else falls back to `unknown` and the caller passes the path
+// through unchanged (matching the pre-detection behaviour for bare JSON).
+export async function detectGhostExportFormat(file: string): Promise<GhostExportFormat> {
+  try {
+    const st = await stat(file);
+    if (st.isDirectory()) return 'directory';
+  } catch {
+    // Let resolveInput surface the ENOENT with a useful message.
+    return 'unknown';
+  }
+  // 8 bytes is enough for the ZIP signature + a BOM + the first JSON / XML
+  // glyph; reading more would just slow down the sniff for huge files.
+  const fh = Bun.file(file);
+  const head = new Uint8Array(await fh.slice(0, 8).arrayBuffer());
+  if (
+    head.length >= 4 &&
+    head[0] === 0x50 &&
+    head[1] === 0x4b &&
+    (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07) &&
+    (head[3] === 0x04 || head[3] === 0x06 || head[3] === 0x08)
+  ) {
+    return 'zip';
+  }
+  // Skip UTF-8 BOM (EF BB BF) before looking at the first printable byte so
+  // editor-saved exports with a BOM still get classified correctly.
+  let i = 0;
+  if (head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf) i = 3;
+  // Then skip ASCII whitespace.
+  while (
+    i < head.length &&
+    (head[i] === 0x20 || head[i] === 0x09 || head[i] === 0x0a || head[i] === 0x0d)
+  ) {
+    i += 1;
+  }
+  const first = head[i];
+  if (first === 0x7b /* { */ || first === 0x5b /* [ */) return 'json';
+  if (first === 0x3c /* < */) return 'wordpress-xml';
+  return 'unknown';
 }
 
 async function importFromResolvedInput(

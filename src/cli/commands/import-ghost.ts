@@ -80,6 +80,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
   }
 
   const keepCodeInjection = parsed.values['keep-code-injection'] === true;
+  const asJson = parsed.values.json === true;
 
   const cwd = process.cwd();
   try {
@@ -95,6 +96,10 @@ export async function runImportGhost(args: string[]): Promise<number> {
       maxFileSizeBytes,
       keepCodeInjection,
     });
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ ok: true, dryRun, summary })}\n`);
+      return 0;
+    }
     if (dryRun) {
       process.stdout.write(formatDryRunSummary(summary, { downloadImages }));
       return 0;

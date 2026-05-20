@@ -5,6 +5,7 @@ import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import type { Page, Post } from '~/content/model.ts';
+import { ensureContentDirs } from '../ensure-content-dirs.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { LINT_SPEC } from '../specs.ts';
@@ -55,6 +56,7 @@ export async function runLint(args: string[]): Promise<number> {
   let findings: Finding[] = [];
   try {
     const config = await loadConfig({ cwd, configPath });
+    await ensureContentDirs(cwd, config);
     findings = findings.concat(await scanRawFrontmatter(cwd, config));
     // The content loader rejects malformed frontmatter outright; a clean load
     // tells us the corpus parses, then we layer semantic checks on top.

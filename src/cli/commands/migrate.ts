@@ -61,8 +61,15 @@ export async function runMigrate(args: string[]): Promise<number> {
   // varies more, so we currently only walk `posts/`. Anything outside that
   // surface area is left to a follow-up.
   const dryRun = parsed.values['dry-run'] === true;
+  const asJson = parsed.values.json === true;
   try {
     const result = await runMinimalImport({ cwd, source, sourcePath: path, dryRun });
+    if (asJson) {
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, source, dryRun, posts: result.posts, sourceDir: result.sourceDir })}\n`,
+      );
+      return 0;
+    }
     if (dryRun) {
       logger.info(
         `Dry run (${source}): would copy ${result.posts} post(s) from ${result.sourceDir}`,
@@ -87,6 +94,7 @@ function buildGhostArgs(parsed: ParsedCommand, file: string): string[] {
   if (parsed.values['download-images'] === true) out.push('--download-images');
   if (parsed.values['dry-run'] === true) out.push('--dry-run');
   if (parsed.values['keep-code-injection'] === true) out.push('--keep-code-injection');
+  if (parsed.values.json === true) out.push('--json');
   out.push(file);
   return out;
 }
@@ -95,6 +103,7 @@ function buildWordPressArgs(parsed: ParsedCommand, file: string): string[] {
   const out: string[] = [];
   pushIfString(out, parsed.values['on-conflict'], '--on-conflict');
   if (parsed.values['dry-run'] === true) out.push('--dry-run');
+  if (parsed.values.json === true) out.push('--json');
   out.push(file);
   return out;
 }

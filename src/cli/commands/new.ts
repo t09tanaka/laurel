@@ -123,7 +123,13 @@ export async function runNew(args: string[]): Promise<number> {
   });
 
   await writeFile(dest, body, 'utf8');
-  logger.info(`Created ${dest}`);
+
+  const asJson = parsed.values.json === true;
+  if (asJson) {
+    process.stdout.write(`${JSON.stringify({ ok: true, kind, slug, path: dest })}\n`);
+  } else {
+    logger.info(`Created ${dest}`);
+  }
 
   if (openEditor) {
     const code = await openInEditor(dest);

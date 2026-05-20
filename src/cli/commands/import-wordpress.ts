@@ -42,9 +42,14 @@ export async function runImportWordPress(args: string[]): Promise<number> {
   }
 
   const dryRun = parsed.values['dry-run'] === true;
+  const asJson = parsed.values.json === true;
   const cwd = process.cwd();
   try {
     const summary = await importWordPressExport({ cwd, file, onConflict, dryRun });
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ ok: true, dryRun, summary })}\n`);
+      return 0;
+    }
     if (dryRun) {
       process.stdout.write(formatDryRunSummary(summary));
       return 0;

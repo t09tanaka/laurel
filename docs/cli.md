@@ -18,6 +18,9 @@ nectar [global options] <command> [options]
 | --- | --- | --- |
 | `--quiet` | `NECTAR_QUIET` | Suppress info/debug output (keeps warn/error) |
 | `-V, --verbose` | `NECTAR_VERBOSE` | Increase verbosity to debug (stack `-VV` for trace) |
+| `--json` | `NECTAR_JSON` | Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`. |
+| `--no-color` | `NECTAR_NO_COLOR` | Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides. |
+| `--debug` | `NECTAR_DEBUG` | Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env. |
 | `-h, --help` | — | Show help for the top-level CLI or any subcommand |
 | `-v, --version` | — | Print the Nectar version and exit |
 
@@ -75,7 +78,7 @@ Scaffold a new Nectar project in the current (or given) directory
 Usage:
 
 ```
-nectar init [--yes] [--force] [--dir <path>]
+nectar init [--yes] [--force] [--dir <path>] [--json]
 ```
 
 Options:
@@ -85,6 +88,15 @@ Options:
 | `-y, --yes` | boolean | `NECTAR_INIT_YES` | Skip prompts and use defaults (non-interactive) |
 | `--force` | boolean | `NECTAR_INIT_FORCE` | Overwrite existing files in the target directory |
 | `--dir <path>` | string | `NECTAR_INIT_DIR` | Target directory to scaffold into (defaults to .) |
+| `--json` | boolean | `NECTAR_INIT_JSON` | Emit the scaffold summary (created paths) as JSON on stdout instead of the human "Scaffolded" log |
+
+Examples:
+
+```
+nectar init                                  # scaffold in the current dir (interactive)
+nectar init --yes                            # accept defaults; CI-friendly
+nectar init --dir my-blog --yes              # scaffold a new project folder
+```
 
 ### `nectar build`
 
@@ -93,7 +105,7 @@ Build the site into the configured output directory
 Usage:
 
 ```
-nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--watch] [--emit-content-api]
+nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--watch] [--emit-content-api] [--json]
 ```
 
 Options:
@@ -113,6 +125,18 @@ Options:
 | `--force` | boolean | `NECTAR_BUILD_FORCE` | Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted |
 | `--watch` | boolean | `NECTAR_BUILD_WATCH` | After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop |
 | `--emit-content-api` | boolean | `NECTAR_BUILD_EMIT_CONTENT_API` | Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used |
+| `--json` | boolean | `NECTAR_BUILD_JSON` | Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them |
+
+Examples:
+
+```
+nectar build                                 # one-shot build into dist/
+nectar build --strict                        # fail when the build emits any warnings
+nectar build --output dist-preview --base-path /preview/
+nectar build --dry-run --verbose             # plan routes without writing anything
+nectar build --watch                         # rebuild on content/theme/config changes
+nectar build --json                          # emit the summary as JSON for CI
+```
 
 ### `nectar new`
 
@@ -121,7 +145,7 @@ Scaffold a new post, page, tag, or author
 Usage:
 
 ```
-nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] <kind> <title...>
+nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--json] <kind> <title...>
 ```
 
 Arguments:
@@ -143,6 +167,17 @@ Options:
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Comma-separated list of tag slugs to seed in frontmatter (post only) |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
+| `--json` | boolean | `NECTAR_NEW_JSON` | Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line |
+
+Examples:
+
+```
+nectar new post "Hello World"               # content/posts/hello-world.md
+nectar new post "Draft Idea" --draft        # status: draft so the build skips it
+nectar new post "Tagged" --tags news,tech --author jane
+nectar new tag releases                      # content/tags/releases.md
+nectar new author jane                       # content/authors/jane.md
+```
 
 ### `nectar open`
 
@@ -151,7 +186,7 @@ Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>
 Usage:
 
 ```
-nectar open [--config <path>] [--kind <posts|pages>] [slug]
+nectar open [--config <path>] [--kind <posts|pages>] [--json] [slug]
 ```
 
 Arguments:
@@ -166,6 +201,15 @@ Options:
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_OPEN_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--kind <posts\|pages>` | string | `NECTAR_OPEN_KIND` | Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error |
+| `--json` | boolean | `NECTAR_OPEN_JSON` | Emit the resolved file path (and slug/kind) as JSON on stdout instead of spawning $EDITOR. Useful for piping into other tooling |
+
+Examples:
+
+```
+nectar open hello-world                      # opens content/posts/hello-world.md
+nectar open about --kind pages
+EDITOR=code nectar open hello-world          # respects $EDITOR
+```
 
 ### `nectar dev`
 
@@ -174,7 +218,7 @@ Run a development server: builds once, watches content/theme/config, rebuilds on
 Usage:
 
 ```
-nectar dev [--config <path>] [--port <n>] [--host <host>]
+nectar dev [--config <path>] [--port <n>] [--host <host>] [--json]
 ```
 
 Options:
@@ -184,6 +228,15 @@ Options:
 | `--config <path>` | string | `NECTAR_DEV_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--port <n>` | string | `NECTAR_DEV_PORT` | Port to listen on (0..65535 integer; defaults to 4321; pass 0 to let the kernel pick a free port for CI/smoke tests) |
 | `--host <host>` | string | `NECTAR_DEV_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
+| `--json` | boolean | `NECTAR_DEV_JSON` | Switch logger output (status / rebuild events) to one JSON object per line for CI / log forwarders. Accepted globally; flag here just makes it visible in `--help` |
+
+Examples:
+
+```
+nectar dev                                   # http://localhost:4321 with live reload
+nectar dev --port 8080                       # pick a different port
+nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing)
+```
 
 ### `nectar serve`
 
@@ -192,7 +245,7 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--no-watch] [--build]
+nectar serve [--port <n>] [--host <host>] [--no-watch] [--build] [--json]
 ```
 
 Options:
@@ -203,6 +256,16 @@ Options:
 | `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 | `--no-watch` | boolean | `NECTAR_SERVE_NO_WATCH` | Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot |
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
+| `--json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
+
+Examples:
+
+```
+nectar serve                                 # serve dist/ + rebuild on change
+nectar serve --no-watch                      # serve dist/ as a static snapshot
+nectar serve --build                         # build first, then serve
+nectar serve --port 8080 --host 0.0.0.0
+```
 
 ### `nectar check`
 
@@ -211,7 +274,7 @@ Validate config, theme, and content
 Usage:
 
 ```
-nectar check [--config <path>] [--strict] [--check-links] [--check-external]
+nectar check [--config <path>] [--strict] [--check-links] [--check-external] [--check-frontmatter] [--check-templates] [--json]
 ```
 
 Options:
@@ -222,6 +285,19 @@ Options:
 | `--strict` | boolean | `NECTAR_CHECK_STRICT` | Exit with non-zero status if any warnings were emitted during the check |
 | `--check-links` | boolean | `NECTAR_CHECK_CHECK_LINKS` | Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check |
 | `--check-external` | boolean | `NECTAR_CHECK_CHECK_EXTERNAL` | Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s |
+| `--check-frontmatter` | boolean | `NECTAR_CHECK_CHECK_FRONTMATTER` | Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings |
+| `--check-templates` | boolean | `NECTAR_CHECK_CHECK_TEMPLATES` | Cross-check the active theme against the route plan: warn when a route would request a template name (post, page, tag, author, index, default) that does not exist in the theme. Stops a typo in a route layout from rendering through the default fallback unnoticed |
+| `--json` | boolean | `NECTAR_CHECK_JSON` | Emit the check report as JSON ({ ok, errors: [...], warnings: [...] }) on stdout for CI consumption. Each entry includes file, line, message, and code |
+
+Examples:
+
+```
+nectar check                                 # config + theme + content validation
+nectar check --strict                        # fail on any warning (use in CI)
+nectar check --check-frontmatter --check-templates
+nectar check --check-links                   # also resolve relative markdown links
+nectar check --json | jq                     # machine-readable findings
+```
 
 ### `nectar doctor`
 
@@ -240,6 +316,14 @@ Options:
 | `--config <path>` | string | `NECTAR_DOCTOR_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--json` | boolean | `NECTAR_DOCTOR_JSON` | Emit results as JSON (for CI consumption) |
 | `--no-network` | boolean | `NECTAR_DOCTOR_NO_NETWORK` | Skip the network reachability check |
+
+Examples:
+
+```
+nectar doctor                                # full project health check
+nectar doctor --no-network                   # skip the connectivity probe
+nectar doctor --json                         # machine-readable for CI
+```
 
 ### `nectar clean`
 
@@ -261,6 +345,15 @@ Options:
 | `--keep <path[,path...]>` | string | `NECTAR_CLEAN_KEEP` | Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries |
 | `--json` | boolean | `NECTAR_CLEAN_JSON` | Emit the deletion summary as JSON (paths, kept, bytes) for CI consumption |
 
+Examples:
+
+```
+nectar clean                                 # interactive; asks before deleting
+nectar clean --yes                           # non-interactive (CI/scripts)
+nectar clean --dry-run                       # show what would be removed
+nectar clean --keep dist/.well-known --yes   # preserve specific paths
+```
+
 ### `nectar completions`
 
 Print a shell completion script for the given shell
@@ -268,7 +361,7 @@ Print a shell completion script for the given shell
 Usage:
 
 ```
-nectar completions <shell>
+nectar completions [--json] <shell>
 ```
 
 Arguments:
@@ -281,6 +374,15 @@ Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
+| `--json` | boolean | `NECTAR_COMPLETIONS_JSON` | No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text |
+
+Examples:
+
+```
+nectar completions bash >> ~/.bashrc
+nectar completions zsh > ~/.zsh/_nectar
+nectar completions fish > ~/.config/fish/completions/nectar.fish
+```
 
 ### `nectar config`
 
@@ -304,6 +406,14 @@ Options:
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_CONFIG_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+
+Examples:
+
+```
+nectar config path                           # absolute path of the loaded toml
+nectar config get site.url
+nectar config get build.base_path --json
+```
 
 ### `nectar content`
 
@@ -333,6 +443,15 @@ Options:
 | `--json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
 | `--redirect` | boolean | `NECTAR_CONTENT_REDIRECT` | On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component |
 
+Examples:
+
+```
+nectar content list                          # posts + pages with status/date
+nectar content list --kind pages
+nectar content list --tag changelog --json
+nectar content rename old-slug new-slug --redirect
+```
+
 ### `nectar info`
 
 Print Nectar, Bun, and project environment information
@@ -349,6 +468,14 @@ Options:
 | --- | --- | --- | --- |
 | `--config <path>` | string | `NECTAR_INFO_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--json` | boolean | `NECTAR_INFO_JSON` | Emit the report as JSON for CI consumption |
+
+Examples:
+
+```
+nectar info                                  # human-readable summary
+nectar info --json                           # machine-readable; same payload
+nectar env                                   # alias for `nectar info`
+```
 
 ### `nectar lint`
 
@@ -368,6 +495,15 @@ Options:
 | `--json` | boolean | `NECTAR_LINT_JSON` | Emit findings as JSON ({ count, findings: [{ rule, severity, file, message }] }) for CI consumption |
 | `--strict` | boolean | `NECTAR_LINT_STRICT` | Exit with non-zero status if any warning-level findings were emitted (errors always exit non-zero) |
 | `--max-title-length <n>` | string | `NECTAR_LINT_MAX_TITLE_LENGTH` | Override the max title length before a warning is emitted (default: 70 characters; Google SERP cut-off rule of thumb) |
+
+Examples:
+
+```
+nectar lint                                  # warn-level summary table
+nectar lint --strict                         # exit non-zero on any warning
+nectar lint --json | jq                      # CI-friendly findings stream
+nectar lint --max-title-length 60
+```
 
 ### `nectar tags`
 
@@ -395,6 +531,15 @@ Options:
 | `--json` | boolean | `NECTAR_TAGS_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
 | `--dry-run` | boolean | `NECTAR_TAGS_DRY_RUN` | On `rename`: scan and report the files that would change without writing anything |
 
+Examples:
+
+```
+nectar tags list                             # all tags + post counts
+nectar tags list --orphaned                  # tags defined but unused
+nectar tags rename old-tag new-tag
+nectar tags rename old new --dry-run         # preview files that would change
+```
+
 ### `nectar theme`
 
 Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
@@ -421,6 +566,16 @@ Options:
 | `--force` | boolean | `NECTAR_THEME_FORCE` | Overwrite the destination directory (`new`) or archive (`zip`) if it already exists |
 | `--json` | boolean | `NECTAR_THEME_JSON` | `lint` only: emit findings as JSON instead of the default table |
 
+Examples:
+
+```
+nectar theme new my-theme                    # scaffold themes/my-theme/
+nectar theme new my-fork --from source       # fork the active theme
+nectar theme zip                             # ship-ready zip in cwd
+nectar theme lint themes/my-theme            # audit before shipping
+nectar theme:lint themes/my-theme            # colon-style alias
+```
+
 ### `nectar migrate`
 
 Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
@@ -428,7 +583,7 @@ Convert content from another platform into Nectar Markdown. `ghost <file>`, `wor
 Usage:
 
 ```
-nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] <source-and-args...>
+nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] [--json] <source-and-args...>
 ```
 
 Arguments:
@@ -449,6 +604,17 @@ Options:
 | `--source-url <url>` | string | `NECTAR_MIGRATE_SOURCE_URL` | ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths |
 | `--max-size <size>` | string | `NECTAR_MIGRATE_MAX_SIZE` | ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables) |
 | `--keep-code-injection` | boolean | `NECTAR_MIGRATE_KEEP_CODE_INJECTION` | ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source. |
+| `--json` | boolean | `NECTAR_MIGRATE_JSON` | Emit the migration summary as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar migrate ghost export.json
+nectar migrate ghost export.zip --on-conflict overwrite
+nectar migrate wordpress export.xml
+nectar migrate hugo ./old-hugo-site --dry-run
+nectar migrate jekyll ./old-jekyll-site
+```
 
 ### `nectar deploy`
 
@@ -457,7 +623,7 @@ Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel
 Usage:
 
 ```
-nectar deploy [--config <path>] [--build] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] <target>
+nectar deploy [--config <path>] [--build] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] <target>
 ```
 
 Arguments:
@@ -482,6 +648,18 @@ Options:
 | `--endpoint <url>` | string | `NECTAR_DEPLOY_ENDPOINT` | r2 only: R2 S3-compatible endpoint URL forwarded as `--endpoint-url <url>` to `aws s3 sync`. Overrides `[deploy.r2].endpoint` |
 | `--destination <user@host:path>` | string | `NECTAR_DEPLOY_DESTINATION` | rsync only: destination string (e.g. `user@host:/var/www/site/`). Overrides `[deploy.rsync].destination` |
 | `--remote <name>` | string | `NECTAR_DEPLOY_REMOTE` | github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`) |
+| `--json` | boolean | `NECTAR_DEPLOY_JSON` | Emit the deploy plan / outcome as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar deploy cloudflare --project-name my-blog --build
+nectar deploy netlify --site-id abc123
+nectar deploy vercel --prod
+nectar deploy github-pages --branch gh-pages
+nectar deploy rsync --destination user@host:/var/www/site/
+nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run
+```
 
 ### `nectar export`
 
@@ -490,7 +668,7 @@ Dump the loaded content as JSON or regenerate the RSS feed without running a ful
 Usage:
 
 ```
-nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] <format>
+nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--json] <format>
 ```
 
 Arguments:
@@ -507,6 +685,16 @@ Options:
 | `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
+| `--json` | boolean | `NECTAR_EXPORT_JSON` | No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error |
+
+Examples:
+
+```
+nectar export json > content.json
+nectar export json --pretty -o snapshot.json
+nectar export ghost-json -o ghost-backup.json
+nectar export rss -o feed.xml
+```
 
 ### `nectar import-ghost`
 
@@ -515,14 +703,14 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--max-size <size>] [--keep-code-injection] [--json] <file>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<file>` | required | Path to a Ghost export: the JSON file, an unzipped folder, or the .zip archive itself |
+| `<file>` | required | Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json) |
 
 Options:
 
@@ -536,6 +724,17 @@ Options:
 | `--dry-run` | boolean | `NECTAR_IMPORT_GHOST_DRY_RUN` | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |
 | `--max-size <size>` | string | `NECTAR_IMPORT_GHOST_MAX_SIZE` | Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check. |
 | `--keep-code-injection` | boolean | `NECTAR_IMPORT_GHOST_KEEP_CODE_INJECTION` | Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source. |
+| `--json` | boolean | `NECTAR_IMPORT_GHOST_JSON` | Emit the import summary as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar import-ghost ghost-export.json
+nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
+nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
+nectar import-ghost export.json --download-images --max-image-size 5MB
+nectar import-ghost export.json --on-conflict overwrite
+```
 
 ### `nectar import-wordpress`
 
@@ -544,7 +743,7 @@ Convert a WordPress WXR XML export into Markdown content
 Usage:
 
 ```
-nectar import-wordpress [--on-conflict <skip|overwrite|rename>] [--dry-run] <file>
+nectar import-wordpress [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <file>
 ```
 
 Arguments:
@@ -559,3 +758,12 @@ Options:
 | --- | --- | --- | --- |
 | `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_WORDPRESS_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
 | `--dry-run` | boolean | `NECTAR_IMPORT_WORDPRESS_DRY_RUN` | Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files |
+| `--json` | boolean | `NECTAR_IMPORT_WORDPRESS_JSON` | Emit the import summary as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar import-wordpress wordpress.xml
+nectar import-wordpress wordpress.xml --dry-run
+nectar import-wordpress wordpress.xml --on-conflict rename
+```

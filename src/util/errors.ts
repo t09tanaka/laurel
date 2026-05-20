@@ -30,6 +30,7 @@ export interface NectarErrorLocation {
 export interface NectarErrorInit extends NectarErrorLocation {
   message: string;
   hint?: string;
+  docsUrl?: string;
   cause?: unknown;
   code?: NectarErrorCode;
 }
@@ -39,6 +40,7 @@ export class NectarError extends Error {
   readonly line?: number;
   readonly col?: number;
   readonly hint?: string;
+  readonly docsUrl?: string;
   readonly code?: NectarErrorCode;
 
   constructor(init: NectarErrorInit) {
@@ -48,6 +50,7 @@ export class NectarError extends Error {
     this.line = init.line;
     this.col = init.col;
     this.hint = init.hint;
+    this.docsUrl = init.docsUrl;
     this.code = init.code;
   }
 }
@@ -71,6 +74,7 @@ export function formatNectarError(err: NectarError, options: FormatOptions = {})
   if (headline) lines.push(headline);
   else lines.push(`---- ${err.message}`);
   if (err.hint) lines.push(`     hint: ${err.hint}`);
+  if (err.docsUrl) lines.push(`     docs: ${err.docsUrl}`);
   return lines.join('\n');
 }
 
@@ -133,6 +137,7 @@ export function toNectarError(err: unknown, fallback: NectarErrorLocation = {}):
       line: err.line ?? fallback.line,
       col: err.col ?? fallback.col,
       hint: err.hint,
+      docsUrl: err.docsUrl,
       cause: err.cause ?? err,
     };
     if (err.code !== undefined) init.code = err.code;

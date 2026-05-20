@@ -73,8 +73,21 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. To force them off without editing the config, set `NECTAR_BUILD_EMIT_CONTENT_API=0` (the standard env fallback). Without the flag and env var the config value (default `true`) is used',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them',
+    },
   },
   positionals: [],
+  examples: [
+    'nectar build                                 # one-shot build into dist/',
+    'nectar build --strict                        # fail when the build emits any warnings',
+    'nectar build --output dist-preview --base-path /preview/',
+    'nectar build --dry-run --verbose             # plan routes without writing anything',
+    'nectar build --watch                         # rebuild on content/theme/config changes',
+    'nectar build --json                          # emit the summary as JSON for CI',
+  ],
 };
 
 export const NEW_SPEC: CommandSpec = {
@@ -122,6 +135,11 @@ export const NEW_SPEC: CommandSpec = {
       description:
         'Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset)',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line',
+    },
   },
   positionals: [
     { name: 'kind', description: 'post, page, tag, or author', required: true },
@@ -132,6 +150,13 @@ export const NEW_SPEC: CommandSpec = {
       required: true,
       variadic: true,
     },
+  ],
+  examples: [
+    'nectar new post "Hello World"               # content/posts/hello-world.md',
+    'nectar new post "Draft Idea" --draft        # status: draft so the build skips it',
+    'nectar new post "Tagged" --tags news,tech --author jane',
+    'nectar new tag releases                      # content/tags/releases.md',
+    'nectar new author jane                       # content/authors/jane.md',
   ],
 };
 
@@ -156,8 +181,18 @@ export const DEV_SPEC: CommandSpec = {
       description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
       placeholder: '<host>',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Switch logger output (status / rebuild events) to one JSON object per line for CI / log forwarders. Accepted globally; flag here just makes it visible in `--help`',
+    },
   },
   positionals: [],
+  examples: [
+    'nectar dev                                   # http://localhost:4321 with live reload',
+    'nectar dev --port 8080                       # pick a different port',
+    'nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing)',
+  ],
 };
 
 export const SERVE_SPEC: CommandSpec = {
@@ -185,8 +220,19 @@ export const SERVE_SPEC: CommandSpec = {
       description:
         'Run a full build before starting the server, regardless of whether dist/ already exists',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders',
+    },
   },
   positionals: [],
+  examples: [
+    'nectar serve                                 # serve dist/ + rebuild on change',
+    'nectar serve --no-watch                      # serve dist/ as a static snapshot',
+    'nectar serve --build                         # build first, then serve',
+    'nectar serve --port 8080 --host 0.0.0.0',
+  ],
 };
 
 export const CHECK_SPEC: CommandSpec = {
@@ -212,8 +258,30 @@ export const CHECK_SPEC: CommandSpec = {
       description:
         'Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s',
     },
+    'check-frontmatter': {
+      type: 'boolean',
+      description:
+        'Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings',
+    },
+    'check-templates': {
+      type: 'boolean',
+      description:
+        'Cross-check the active theme against the route plan: warn when a route would request a template name (post, page, tag, author, index, default) that does not exist in the theme. Stops a typo in a route layout from rendering through the default fallback unnoticed',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the check report as JSON ({ ok, errors: [...], warnings: [...] }) on stdout for CI consumption. Each entry includes file, line, message, and code',
+    },
   },
   positionals: [],
+  examples: [
+    'nectar check                                 # config + theme + content validation',
+    'nectar check --strict                        # fail on any warning (use in CI)',
+    'nectar check --check-frontmatter --check-templates',
+    'nectar check --check-links                   # also resolve relative markdown links',
+    'nectar check --json | jq                     # machine-readable findings',
+  ],
 };
 
 export const IMPORT_GHOST_SPEC: CommandSpec = {
@@ -265,14 +333,25 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source.',
     },
+    json: {
+      type: 'boolean',
+      description: 'Emit the import summary as JSON on stdout for CI consumption',
+    },
   },
   positionals: [
     {
       name: 'file',
       description:
-        'Path to a Ghost export: the JSON file, an unzipped folder, or the .zip archive itself',
+        'Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\\x03\\x04 → zip, leading "{" / "[" → json)',
       required: true,
     },
+  ],
+  examples: [
+    'nectar import-ghost ghost-export.json',
+    'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
+    'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
+    'nectar import-ghost export.json --download-images --max-image-size 5MB',
+    'nectar import-ghost export.json --on-conflict overwrite',
   ],
 };
 
@@ -291,6 +370,10 @@ export const IMPORT_WORDPRESS_SPEC: CommandSpec = {
       description:
         'Parse the export and print a summary of what would land (posts, drafts, type/status-filtered items, empty bodies, conflicts) without writing files',
     },
+    json: {
+      type: 'boolean',
+      description: 'Emit the import summary as JSON on stdout for CI consumption',
+    },
   },
   positionals: [
     {
@@ -298,6 +381,11 @@ export const IMPORT_WORDPRESS_SPEC: CommandSpec = {
       description: 'Path to a WordPress WXR XML export (Tools → Export in wp-admin produces this)',
       required: true,
     },
+  ],
+  examples: [
+    'nectar import-wordpress wordpress.xml',
+    'nectar import-wordpress wordpress.xml --dry-run',
+    'nectar import-wordpress wordpress.xml --on-conflict rename',
   ],
 };
 
@@ -319,8 +407,18 @@ export const INIT_SPEC: CommandSpec = {
       description: 'Target directory to scaffold into (defaults to .)',
       placeholder: '<path>',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the scaffold summary (created paths) as JSON on stdout instead of the human "Scaffolded" log',
+    },
   },
   positionals: [],
+  examples: [
+    'nectar init                                  # scaffold in the current dir (interactive)',
+    'nectar init --yes                            # accept defaults; CI-friendly',
+    'nectar init --dir my-blog --yes              # scaffold a new project folder',
+  ],
 };
 
 export const DOCTOR_SPEC: CommandSpec = {
@@ -342,6 +440,11 @@ export const DOCTOR_SPEC: CommandSpec = {
     },
   },
   positionals: [],
+  examples: [
+    'nectar doctor                                # full project health check',
+    'nectar doctor --no-network                   # skip the connectivity probe',
+    'nectar doctor --json                         # machine-readable for CI',
+  ],
 };
 
 export const CLEAN_SPEC: CommandSpec = {
@@ -375,18 +478,35 @@ export const CLEAN_SPEC: CommandSpec = {
     },
   },
   positionals: [],
+  examples: [
+    'nectar clean                                 # interactive; asks before deleting',
+    'nectar clean --yes                           # non-interactive (CI/scripts)',
+    'nectar clean --dry-run                       # show what would be removed',
+    'nectar clean --keep dist/.well-known --yes   # preserve specific paths',
+  ],
 };
 
 export const COMPLETIONS_SPEC: CommandSpec = {
   name: 'completions',
   summary: 'Print a shell completion script for the given shell',
-  options: {},
+  options: {
+    json: {
+      type: 'boolean',
+      description:
+        'No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text',
+    },
+  },
   positionals: [
     {
       name: 'shell',
       description: 'Target shell: bash, zsh, fish, or powershell',
       required: true,
     },
+  ],
+  examples: [
+    'nectar completions bash >> ~/.bashrc',
+    'nectar completions zsh > ~/.zsh/_nectar',
+    'nectar completions fish > ~/.config/fish/completions/nectar.fish',
   ],
 };
 
@@ -439,6 +559,12 @@ export const CONTENT_SPEC: CommandSpec = {
       variadic: true,
     },
   ],
+  examples: [
+    'nectar content list                          # posts + pages with status/date',
+    'nectar content list --kind pages',
+    'nectar content list --tag changelog --json',
+    'nectar content rename old-slug new-slug --redirect',
+  ],
 };
 
 export const INFO_SPEC: CommandSpec = {
@@ -456,6 +582,11 @@ export const INFO_SPEC: CommandSpec = {
     },
   },
   positionals: [],
+  examples: [
+    'nectar info                                  # human-readable summary',
+    'nectar info --json                           # machine-readable; same payload',
+    'nectar env                                   # alias for `nectar info`',
+  ],
 };
 
 export const TAGS_SPEC: CommandSpec = {
@@ -495,6 +626,12 @@ export const TAGS_SPEC: CommandSpec = {
       variadic: true,
     },
   ],
+  examples: [
+    'nectar tags list                             # all tags + post counts',
+    'nectar tags list --orphaned                  # tags defined but unused',
+    'nectar tags rename old-tag new-tag',
+    'nectar tags rename old new --dry-run         # preview files that would change',
+  ],
 };
 
 export const CONFIG_SPEC: CommandSpec = {
@@ -520,6 +657,11 @@ export const CONFIG_SPEC: CommandSpec = {
       required: true,
       variadic: true,
     },
+  ],
+  examples: [
+    'nectar config path                           # absolute path of the loaded toml',
+    'nectar config get site.url',
+    'nectar config get build.base_path --json',
   ],
 };
 
@@ -551,6 +693,12 @@ export const LINT_SPEC: CommandSpec = {
     },
   },
   positionals: [],
+  examples: [
+    'nectar lint                                  # warn-level summary table',
+    'nectar lint --strict                         # exit non-zero on any warning',
+    'nectar lint --json | jq                      # CI-friendly findings stream',
+    'nectar lint --max-title-length 60',
+  ],
 };
 
 export const MIGRATE_SPEC: CommandSpec = {
@@ -603,6 +751,10 @@ export const MIGRATE_SPEC: CommandSpec = {
       description:
         'ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source.',
     },
+    json: {
+      type: 'boolean',
+      description: 'Emit the migration summary as JSON on stdout for CI consumption',
+    },
   },
   positionals: [
     {
@@ -612,6 +764,13 @@ export const MIGRATE_SPEC: CommandSpec = {
       required: true,
       variadic: true,
     },
+  ],
+  examples: [
+    'nectar migrate ghost export.json',
+    'nectar migrate ghost export.zip --on-conflict overwrite',
+    'nectar migrate wordpress export.xml',
+    'nectar migrate hugo ./old-hugo-site --dry-run',
+    'nectar migrate jekyll ./old-jekyll-site',
   ],
 };
 
@@ -657,6 +816,13 @@ export const THEME_SPEC: CommandSpec = {
       variadic: true,
     },
   ],
+  examples: [
+    'nectar theme new my-theme                    # scaffold themes/my-theme/',
+    'nectar theme new my-fork --from source       # fork the active theme',
+    'nectar theme zip                             # ship-ready zip in cwd',
+    'nectar theme lint themes/my-theme            # audit before shipping',
+    'nectar theme:lint themes/my-theme            # colon-style alias',
+  ],
 };
 
 export const OPEN_SPEC: CommandSpec = {
@@ -675,6 +841,11 @@ export const OPEN_SPEC: CommandSpec = {
         'Restrict the lookup to `posts` or `pages` (default: search both). When a slug exists under both kinds the explicit hint avoids the ambiguity error',
       placeholder: '<posts|pages>',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'Emit the resolved file path (and slug/kind) as JSON on stdout instead of spawning $EDITOR. Useful for piping into other tooling',
+    },
   },
   positionals: [
     {
@@ -682,6 +853,11 @@ export const OPEN_SPEC: CommandSpec = {
       description: 'Slug of the post or page to open (e.g. `hello-world`)',
       required: false,
     },
+  ],
+  examples: [
+    'nectar open hello-world                      # opens content/posts/hello-world.md',
+    'nectar open about --kind pages',
+    'EDITOR=code nectar open hello-world          # respects $EDITOR',
   ],
 };
 
@@ -759,6 +935,10 @@ export const DEPLOY_SPEC: CommandSpec = {
         'github-pages only: git remote forwarded to `git push <remote> <branch>` (defaults to `[deploy.github_pages].remote` or `origin`)',
       placeholder: '<name>',
     },
+    json: {
+      type: 'boolean',
+      description: 'Emit the deploy plan / outcome as JSON on stdout for CI consumption',
+    },
   },
   positionals: [
     {
@@ -767,6 +947,14 @@ export const DEPLOY_SPEC: CommandSpec = {
         'Hosting target: `cloudflare`, `netlify`, `vercel`, `github-pages`, `s3`, `r2`, or `rsync`',
       required: true,
     },
+  ],
+  examples: [
+    'nectar deploy cloudflare --project-name my-blog --build',
+    'nectar deploy netlify --site-id abc123',
+    'nectar deploy vercel --prod',
+    'nectar deploy github-pages --branch gh-pages',
+    'nectar deploy rsync --destination user@host:/var/www/site/',
+    'nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run',
   ],
 };
 
@@ -797,6 +985,11 @@ export const EXPORT_SPEC: CommandSpec = {
       description:
         'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
     },
+    json: {
+      type: 'boolean',
+      description:
+        'No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error',
+    },
   },
   positionals: [
     {
@@ -805,6 +998,12 @@ export const EXPORT_SPEC: CommandSpec = {
         'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML)',
       required: true,
     },
+  ],
+  examples: [
+    'nectar export json > content.json',
+    'nectar export json --pretty -o snapshot.json',
+    'nectar export ghost-json -o ghost-backup.json',
+    'nectar export rss -o feed.xml',
   ],
 };
 

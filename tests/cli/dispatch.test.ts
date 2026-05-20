@@ -198,4 +198,26 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(2);
     expect(stderr).toContain('NECTAR_BUILD_STRICT');
   });
+
+  test('top-level --help advertises the new global flags', async () => {
+    const { stdout } = await runCli(['--help']);
+    expect(stdout).toContain('--json');
+    expect(stdout).toContain('--no-color');
+    expect(stdout).toContain('--debug');
+  });
+
+  test('per-command --help renders an Examples: block', async () => {
+    const { stdout } = await runCli(['build', '--help']);
+    expect(stdout).toContain('Examples:');
+    expect(stdout).toContain('nectar build');
+  });
+
+  test('global --json before subcommand flows through to the subcommand parser', async () => {
+    // `config path` produces a JSON envelope when --json is in scope. Passing
+    // --json globally (before the command name) must reach the parsed.values.
+    const { stdout, exitCode } = await runCli(['--json', 'config', 'path']);
+    expect(exitCode).toBe(0);
+    // Expect a JSON object on stdout (not a plain absolute path).
+    expect(stdout.trim().startsWith('{')).toBe(true);
+  });
 });

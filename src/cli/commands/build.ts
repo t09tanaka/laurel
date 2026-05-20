@@ -5,6 +5,7 @@ import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
+import { ensureContentDirs } from '../ensure-content-dirs.ts';
 import {
   CliUsageError,
   type ParsedCommand,
@@ -46,6 +47,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const dryRun = parsed.values['dry-run'] === true;
   const watch = parsed.values.watch === true;
   const force = parsed.values.force === true;
+  const asJson = parsed.values.json === true;
   // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
   // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
   // populated `parsed.values['include-drafts']` if set; only fall back to the
@@ -112,6 +114,22 @@ export async function runBuild(args: string[]): Promise<number> {
   } as const;
 
   const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
+    if (asJson) {
+      // Emit one JSON line per invocation (initial build + each rebuild) so
+      // CI consumers can `tail -f | jq` the stream. The payload mirrors the
+      // BuildSummary surface without leaking internal types.
+      const payload = {
+        ok: true,
+        prefix: opts.prefix ?? (summary.dryRun ? 'dry-run' : 'built'),
+        routeCount: summary.routeCount,
+        assetCount: summary.assetCount,
+        outputDir: summary.outputDir,
+        warningCount: summary.warningCount,
+        dryRun: summary.dryRun === true,
+      };
+      process.stdout.write(`${JSON.stringify(payload)}\n`);
+      return;
+    }
     const prefix = opts.prefix ?? (summary.dryRun ? 'Dry run: would build' : 'Built');
     logger.info(
       `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
@@ -120,6 +138,17 @@ export async function runBuild(args: string[]): Promise<number> {
       logger.info(formatDryRunRouteTable(summary.routes));
     }
   };
+
+  // Auto-create missing content dirs before the first build so a fresh
+  // checkout doesn't fail with ENOENT. Warning-level so the user sees the
+  // remediation; safe to no-op when dirs already exist.
+  try {
+    const cfgForPreflight = await loadConfig({ cwd, configPath });
+    await ensureContentDirs(cwd, cfgForPreflight);
+  } catch {
+    // Config errors are surfaced by the build pipeline below with a richer
+    // NectarError; do not double-report here.
+  }
 
   let initialSummary: BuildSummary;
   try {

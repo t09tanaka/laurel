@@ -4,7 +4,13 @@ import { extractGlobalFlags } from '~/cli/global-flags.ts';
 describe('extractGlobalFlags', () => {
   test('returns defaults when no flags are present', () => {
     const { flags, rest } = extractGlobalFlags(['build', '--strict']);
-    expect(flags).toEqual({ quiet: false, verboseCount: 0 });
+    expect(flags).toEqual({
+      quiet: false,
+      verboseCount: 0,
+      json: false,
+      noColor: false,
+      debug: false,
+    });
     expect(rest).toEqual(['build', '--strict']);
   });
 
@@ -108,6 +114,59 @@ describe('extractGlobalFlags env var fallbacks', () => {
 
   test('default env source is empty (hermetic)', () => {
     const { flags } = extractGlobalFlags(['build']);
-    expect(flags).toEqual({ quiet: false, verboseCount: 0 });
+    expect(flags).toEqual({
+      quiet: false,
+      verboseCount: 0,
+      json: false,
+      noColor: false,
+      debug: false,
+    });
+  });
+
+  test('--json sets the global flag and is stripped from argv', () => {
+    const { flags, rest } = extractGlobalFlags(['config', '--json', 'path']);
+    expect(flags.json).toBe(true);
+    // Stripped at the global level; the CLI entrypoint forwards it back
+    // into the dispatched subcommand's argv, so per-command parsers still
+    // see it via parsed.values.json.
+    expect(rest).not.toContain('--json');
+    expect(rest).toEqual(['config', 'path']);
+  });
+
+  test('--no-color sets flag and is stripped from argv', () => {
+    const { flags, rest } = extractGlobalFlags(['build', '--no-color']);
+    expect(flags.noColor).toBe(true);
+    expect(rest).toEqual(['build']);
+  });
+
+  test('--debug sets flag and is stripped from argv', () => {
+    const { flags, rest } = extractGlobalFlags(['build', '--debug']);
+    expect(flags.debug).toBe(true);
+    expect(rest).toEqual(['build']);
+  });
+
+  test('NO_COLOR env (any non-empty value) disables color', () => {
+    const { flags } = extractGlobalFlags(['build'], { NO_COLOR: '1' });
+    expect(flags.noColor).toBe(true);
+  });
+
+  test('NO_COLOR empty string does not disable', () => {
+    const { flags } = extractGlobalFlags(['build'], { NO_COLOR: '' });
+    expect(flags.noColor).toBe(false);
+  });
+
+  test('NECTAR_NO_COLOR=0 re-enables color even if NO_COLOR=1', () => {
+    const { flags } = extractGlobalFlags(['build'], { NO_COLOR: '1', NECTAR_NO_COLOR: '0' });
+    expect(flags.noColor).toBe(false);
+  });
+
+  test('NECTAR_JSON=1 sets json mode', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_JSON: '1' });
+    expect(flags.json).toBe(true);
+  });
+
+  test('NECTAR_DEBUG=true sets debug mode', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_DEBUG: 'true' });
+    expect(flags.debug).toBe(true);
   });
 });

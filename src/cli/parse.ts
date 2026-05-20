@@ -19,6 +19,11 @@ export interface CommandSpec {
   summary: string;
   options: Record<string, OptionSpec>;
   positionals: PositionalSpec[];
+  // Per-command usage examples rendered as an `Examples:` block in
+  // `formatCommandHelp`. Each entry is a complete shell invocation (e.g.
+  // `nectar build --strict`) optionally followed by `  # comment` on the same
+  // line. Empty / missing → the block is omitted.
+  examples?: string[];
 }
 
 export interface ParsedCommand {
@@ -183,6 +188,14 @@ export function formatCommandHelp(spec: CommandSpec): string {
     lines.push('  Every flag has an env var fallback (CLI flag > env var > config > default).');
     lines.push('  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).');
     lines.push(`  Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`);
+  }
+
+  if (spec.examples && spec.examples.length > 0) {
+    lines.push('');
+    lines.push('Examples:');
+    for (const ex of spec.examples) {
+      lines.push(`  ${ex}`);
+    }
   }
   lines.push('');
   return lines.join('\n');

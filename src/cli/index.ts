@@ -1,10 +1,31 @@
 #!/usr/bin/env bun
 
-import { setLogLevel } from '~/util/logger.ts';
+import { EXIT_CODES } from '~/util/errors.ts';
+import { setColorEnabled, setLogLevel, setOutputMode } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
+import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
+
+// Crash hooks: a stray `await` or floating promise that rejects in the build
+// pipeline used to print a stack trace and leave the shell with a misleading
+// exit code (sometimes 0 in older Node builds). We install explicit hooks at
+// the CLI entrypoint so:
+//   - The rejection / exception is reported through the same `reportError`
+//     pipeline as a normal command failure (respects --json, NECTAR_DEBUG=1,
+//     and the docs/hint annotations on NectarError).
+//   - The process exits with status 1 deterministically.
+// Listeners are installed at module load time so they cover dynamic imports
+// in `dispatch()`, not just synchronous code paths in `main()`.
+process.on('unhandledRejection', (reason: unknown) => {
+  reportError(reason);
+  process.exit(EXIT_CODES.generic);
+});
+process.on('uncaughtException', (err: unknown) => {
+  reportError(err);
+  process.exit(EXIT_CODES.generic);
+});
 
 function printTopUsage(version: string, stream: NodeJS.WriteStream = process.stdout): void {
   const lines: string[] = [];
@@ -26,6 +47,15 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   lines.push('Global options:');
   lines.push(`  ${'--quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
   lines.push(`  ${'-V, --verbose'.padEnd(width)}Increase verbosity to debug (stack -VV for trace)`);
+  lines.push(
+    `  ${'--json'.padEnd(width)}Emit one JSON object per log line + JSON-shaped command output where supported`,
+  );
+  lines.push(
+    `  ${'--no-color'.padEnd(width)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,
+  );
+  lines.push(
+    `  ${'--debug'.padEnd(width)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
+  );
   lines.push('');
   lines.push('Run `nectar <command> --help` for more details on a specific command.');
   lines.push('');
@@ -134,6 +164,24 @@ function applyGlobalFlags(flags: GlobalFlags): void {
   } else if (flags.verboseCount >= 2) {
     setLogLevel('trace');
   }
+  if (flags.json) {
+    setOutputMode('json');
+    // JSON consumers can't read ANSI; flip color off so a json stream stays
+    // 7-bit clean even when stderr is a TTY (e.g. piped through `jq`).
+    setColorEnabled(false);
+  }
+  if (flags.noColor) {
+    setColorEnabled(false);
+  }
+  if (flags.debug) {
+    // `--debug` is shorthand for "show me the stack and bump log level".
+    // Setting the env here also reaches modules that read NECTAR_DEBUG at
+    // call time (e.g. report.ts).
+    process.env.NECTAR_DEBUG = '1';
+    if (!flags.quiet && flags.verboseCount === 0) {
+      setLogLevel('debug');
+    }
+  }
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -141,10 +189,12 @@ async function main(argv: string[]): Promise<number> {
   const version = await getNectarVersion();
 
   let filtered: string[];
+  let globalJson = false;
   try {
     const result = extractGlobalFlags(raw, process.env);
     applyGlobalFlags(result.flags);
     filtered = result.rest;
+    globalJson = result.flags.json;
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n\n`);
     printTopUsage(version, process.stderr);
@@ -192,7 +242,15 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  return dispatch(canonical, rest);
+  // Forward the global `--json` flag back into the subcommand argv so
+  // commands that declare `json` in their spec (config, clean, doctor, lint,
+  // build, check, ...) parse it through `parsed.values.json`. The global
+  // extractor stripped it earlier to keep it out of the dispatcher's
+  // command-name slot; we add it back here, but only if the user didn't
+  // already type `--json` after the subcommand (rest already has it).
+  const argsForDispatch = globalJson && !rest.includes('--json') ? ['--json', ...rest] : rest;
+
+  return dispatch(canonical, argsForDispatch);
 }
 
 const code = await main(process.argv);

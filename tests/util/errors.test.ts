@@ -153,6 +153,41 @@ describe('toNectarError preserves code', () => {
   });
 });
 
+describe('NectarError docsUrl', () => {
+  test('stores and exposes docsUrl', () => {
+    const err = new NectarError({
+      message: 'theme/missing',
+      docsUrl: 'https://nectar.dev/docs/theme',
+    });
+    expect(err.docsUrl).toBe('https://nectar.dev/docs/theme');
+  });
+
+  test('formatNectarError prints a docs: line when set', () => {
+    const err = new NectarError({
+      message: 'oops',
+      file: '/repo/x.md',
+      line: 1,
+      hint: 'fix it',
+      docsUrl: 'https://nectar.dev/docs/x',
+    });
+    const out = formatNectarError(err, { cwd: '/repo' });
+    expect(out).toContain('hint: fix it');
+    expect(out).toContain('docs: https://nectar.dev/docs/x');
+  });
+
+  test('formatNectarError omits docs: line when unset', () => {
+    const err = new NectarError({ message: 'oops', file: '/repo/x.md', line: 1, hint: 'fix it' });
+    const out = formatNectarError(err, { cwd: '/repo' });
+    expect(out).not.toContain('docs:');
+  });
+
+  test('toNectarError preserves docsUrl', () => {
+    const original = new NectarError({ message: 'x', docsUrl: 'https://a.b/c' });
+    const wrapped = toNectarError(original, { file: '/repo/y.md' });
+    expect(wrapped.docsUrl).toBe('https://a.b/c');
+  });
+});
+
 describe('levenshtein and suggestClosest', () => {
   test('levenshtein basic distances', () => {
     expect(levenshtein('cat', 'cat')).toBe(0);

@@ -20,6 +20,24 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     description: 'Increase verbosity to debug (stack `-VV` for trace)',
     envVar: globalEnvVarName('verbose'),
   },
+  {
+    flag: '--json',
+    description:
+      'Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`.',
+    envVar: globalEnvVarName('json'),
+  },
+  {
+    flag: '--no-color',
+    description:
+      'Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides.',
+    envVar: globalEnvVarName('no-color'),
+  },
+  {
+    flag: '--debug',
+    description:
+      'Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env.',
+    envVar: globalEnvVarName('debug'),
+  },
   { flag: '-h, --help', description: 'Show help for the top-level CLI or any subcommand' },
   { flag: '-v, --version', description: 'Print the Nectar version and exit' },
 ];
@@ -165,6 +183,15 @@ function renderCommandSection(spec: CommandSpec): string[] {
       ]),
     ),
   );
+
+  if (spec.examples && spec.examples.length > 0) {
+    lines.push('');
+    lines.push('Examples:');
+    lines.push('');
+    lines.push('```');
+    for (const ex of spec.examples) lines.push(ex);
+    lines.push('```');
+  }
   return lines;
 }
 
