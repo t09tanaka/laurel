@@ -180,6 +180,17 @@ function renderPagination(pagination: {
 }
 
 describe('pagination helper href sanitisation', () => {
+  test('renders newer and older anchors when URLs are present', () => {
+    const html = renderPagination({
+      page: 2,
+      pages: 5,
+      prev_url: '/page/1/',
+      next_url: '/page/3/',
+    });
+    expect(html).toContain('class="newer-posts"');
+    expect(html).toContain('class="older-posts"');
+  });
+
   test('preserves safe relative URLs', () => {
     const html = renderPagination({
       page: 2,
