@@ -541,6 +541,10 @@ describe('link_class helper parent-route matching', () => {
     expect(renderLinkClass('/tag/news/page/2/', 'for="/tag/"')).toBe('nav-current');
   });
 
+  test('returns the active class for a tag index item on a tag detail route', () => {
+    expect(renderLinkClass('/tag/news/', 'for="/tag/"')).toBe('nav-current');
+  });
+
   test('still treats a missing-slash route as a descendant of a trailing-slash target', () => {
     expect(renderLinkClass('/tag/news', 'for="/tag/news/"')).toBe('nav-current');
   });

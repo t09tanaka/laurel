@@ -281,12 +281,20 @@ function shouldApplyBasePath(href: string): boolean {
 
 function currentRouteClass(options: Handlebars.HelperOptions): string {
   const route = options.data?.route as { url?: string } | undefined;
+  const routeUrl = route?.url;
   const target = String(options.hash.for ?? '');
   const active = String(options.hash.activeClass ?? 'nav-current');
-  if (!route?.url || !target) return '';
-  if (route.url === target || normaliseUrl(route.url) === normaliseUrl(target)) {
-    return active;
-  }
+  if (!routeUrl || !target) return '';
+  if (isCurrentRouteTarget(routeUrl, target)) return active;
+  return '';
+}
+
+function isCurrentRouteTarget(routeUrl: string, target: string): boolean {
+  if (routeUrl === target) return true;
+  const current = normaliseUrl(routeUrl);
+  const sectionRoot = normaliseUrl(target);
+  if (current === sectionRoot) return true;
+
   // Treat a directory-style target (trailing slash) as a section root so
   // sub-routes like `/tag/news/page/2/` still highlight the parent
   // `/tag/news/` link. The trailing slash is the opt-in: a bare `/tag/news`
@@ -295,10 +303,11 @@ function currentRouteClass(options: Handlebars.HelperOptions): string {
   // so `/tag/news` (no slash) and `/tag/news/` both qualify as descendants of
   // `/tag/news/`.
   if (target.endsWith('/')) {
-    const routeWithSlash = route.url.endsWith('/') ? route.url : `${route.url}/`;
-    if (routeWithSlash.startsWith(target)) return active;
+    const currentWithSlash = current.endsWith('/') ? current : `${current}/`;
+    const sectionRootWithSlash = sectionRoot.endsWith('/') ? sectionRoot : `${sectionRoot}/`;
+    if (currentWithSlash.startsWith(sectionRootWithSlash)) return true;
   }
-  return '';
+  return false;
 }
 
 // target="_blank" leaks window.opener to the destination page, letting it
