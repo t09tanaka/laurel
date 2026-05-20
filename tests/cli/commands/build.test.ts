@@ -107,6 +107,33 @@ async function makeDryRunFixture(): Promise<string> {
   return dir;
 }
 
+async function makePreviewFeedFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-preview-feeds-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/authors'), { recursive: true });
+  await Bun.write(
+    join(dir, 'nectar.toml'),
+    [
+      '[site]',
+      'title = "Preview Feed Test"',
+      'url = "https://prod.example.com"',
+      '',
+      '[theme]',
+      'dir = "themes"',
+      'name = "source"',
+      '',
+    ].join('\n'),
+  );
+  await Bun.write(
+    join(dir, 'content/posts/hello.md'),
+    '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+  );
+  await Bun.write(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n');
+  const themeSrc = join(process.cwd(), 'example/themes/source');
+  await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+  return dir;
+}
+
 describe('nectar build --dry-run (#252)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
@@ -152,6 +179,61 @@ describe('nectar build base URL precedence', () => {
     while (cleanups.length > 0) {
       const dir = cleanups.pop();
       if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('writes provider preview URLs into RSS and sitemap absolute URLs', async () => {
+    const cases: {
+      name: string;
+      env: Record<string, string>;
+      previewUrl: string;
+    }[] = [
+      {
+        name: 'Netlify deploy preview',
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'deploy-preview',
+          DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app',
+        },
+        previewUrl: 'https://deploy-preview-42--site.netlify.app',
+      },
+      {
+        name: 'Cloudflare Pages',
+        env: {
+          CF_PAGES: '1',
+          CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
+        },
+        previewUrl: 'https://feature-docs.example.pages.dev',
+      },
+      {
+        name: 'Vercel',
+        env: {
+          VERCEL: '1',
+          VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
+        },
+        previewUrl: 'https://feature-docs-git-main-team.vercel.app',
+      },
+    ];
+
+    for (const { name, env, previewUrl } of cases) {
+      const dir = await makePreviewFeedFixture();
+      cleanups.push(dir);
+
+      const result = await runCli(['build'], dir, env);
+      expect(result.exitCode, name).toBe(0);
+
+      const rss = readFileSync(join(dir, 'dist/rss.xml'), 'utf8');
+      expect(rss, name).toContain(`<link>${previewUrl}/hello/</link>`);
+      expect(rss, name).toContain(`href="${previewUrl}/rss.xml"`);
+      expect(rss, name).not.toContain('https://prod.example.com');
+
+      const sitemapIndex = readFileSync(join(dir, 'dist/sitemap.xml'), 'utf8');
+      expect(sitemapIndex, name).toContain(`<loc>${previewUrl}/sitemap-posts.xml</loc>`);
+      expect(sitemapIndex, name).not.toContain('https://prod.example.com');
+
+      const sitemapPosts = readFileSync(join(dir, 'dist/sitemap-posts.xml'), 'utf8');
+      expect(sitemapPosts, name).toContain(`<loc>${previewUrl}/hello/</loc>`);
+      expect(sitemapPosts, name).not.toContain('https://prod.example.com');
     }
   });
 
