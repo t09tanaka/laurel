@@ -385,6 +385,50 @@ feature_image_alt: "Cover"
     expect(postHtml).not.toContain('src="/content/images/cover.svg"');
   });
 
+  test('rewrites emitted HTML image URLs through Netlify Image CDN', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[image_cdn]',
+        'enabled = true',
+        'adapter = "netlify"',
+        'quality = 75',
+        '',
+        '[components.opengraph]',
+        'rasterize_svg = false',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/ghost-upload.jpg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+<p><img src="/content/images/ghost-upload.jpg" width="640" alt="Inline"></p>
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(postHtml).toContain(
+      'src="/.netlify/images?url=%2Fcontent%2Fimages%2Fghost-upload.jpg&amp;w=640&amp;q=75"',
+    );
+    expect(postHtml).not.toContain('src="/content/images/ghost-upload.jpg"');
+  });
+
   test('throws a NectarError when frontmatter date is unparseable', async () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
     // Unparseable dates used to surface as a warning that fell back to the

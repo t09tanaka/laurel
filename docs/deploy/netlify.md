@@ -180,6 +180,37 @@ The catch-all route also receives the baseline security headers from
 `nectar.toml` under `[deploy.headers]`; do not duplicate those rules in
 `netlify.toml` unless you intentionally want Netlify-owned config to take over.
 
+## Netlify Image CDN
+
+Netlify can resize local Ghost-style uploads without pre-generating every image
+variant. Enable Nectar's image CDN post-process when `/content/images/...`
+contains many migrated images and you want emitted `<img>` tags to point at
+Netlify's `/.netlify/images` endpoint:
+
+```toml
+[image_cdn]
+enabled = true
+adapter = "netlify"
+quality = 75
+path_prefixes = ["/content/images/"]
+```
+
+With that config, a theme or Markdown image such as:
+
+```html
+<img src="/content/images/2026/05/hero.jpg" width="1200" alt="">
+```
+
+is emitted as a same-origin Netlify Image CDN URL:
+
+```html
+<img src="/.netlify/images?url=%2Fcontent%2Fimages%2F2026%2F05%2Fhero.jpg&amp;w=1200&amp;q=75" width="1200" alt="">
+```
+
+Widths come from the rendered `width` attribute or `srcset` descriptor. Set
+`image_cdn.default_width` if your theme emits single image URLs without a width
+and you still want those URLs to include `w=`.
+
 ## Preview deploys
 
 On Netlify Git builds, Nectar automatically uses `DEPLOY_PRIME_URL` as
