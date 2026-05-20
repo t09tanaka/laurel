@@ -286,10 +286,46 @@ function interpolate(value: string, ctx: unknown, route?: unknown): string {
   return value.replace(/\{\{([^}]+)\}\}/g, (_, expr) => {
     const path = String(expr).trim().split('.');
     const fromCtx = resolvePath(ctx, path);
-    if (fromCtx != null) return String(fromCtx);
+    if (fromCtx != null) return stringifyForFilter(fromCtx);
     const fromRoute = resolvePath(routeData, path);
-    return fromRoute == null ? '' : String(fromRoute);
+    return fromRoute == null ? '' : stringifyForFilter(fromRoute);
   });
+}
+
+// Ruby-style themes use `filter="tags:[{{post.tags}}]"` to surface
+// related-posts collections. `post.tags` is a `Tag[]` (objects with `slug`,
+// `name`, etc.) — `String(arr)` would emit `[object Object],[object Object]`
+// which then evaluates to the literal string and silently matches nothing.
+// Project arrays of resource objects down to their slugs (or names as a
+// fallback) so the NQL list parser sees `news,opinion`. Plain scalars and
+// primitive arrays round-trip via `String()` unchanged.
+function stringifyForFilter(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item == null) return '';
+        if (typeof item === 'object') {
+          const obj = item as Record<string, unknown>;
+          const slug = obj.slug;
+          if (typeof slug === 'string' && slug.length > 0) return slug;
+          const name = obj.name;
+          if (typeof name === 'string' && name.length > 0) return name;
+          return '';
+        }
+        return String(item);
+      })
+      .filter((s) => s.length > 0)
+      .join(',');
+  }
+  if (value != null && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const slug = obj.slug;
+    if (typeof slug === 'string') return slug;
+    const name = obj.name;
+    if (typeof name === 'string') return name;
+    return '';
+  }
+  return String(value);
 }
 
 function resolvePath(source: unknown, path: string[]): unknown {

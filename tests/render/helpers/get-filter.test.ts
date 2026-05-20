@@ -109,6 +109,49 @@ describe('get helper filter via secondary indexes', () => {
     expect(rendered).toBe('b,');
   });
 
+  // Ruby-style "more posts like this" theme: `filter="tags:[{{post.tags}}]+id:-{{post.id}}"`.
+  // `post.tags` is a Tag[]; `String(arr)` would emit `[object Object],…` and
+  // the parser would match nothing. The interpolation projects each Tag down
+  // to its slug so the NQL list parser receives `news,opinion`.
+  test('interpolates {{post.tags}} as a comma-joined slug list (Tag[])', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:[{{post.tags}}]+id:-{{post.id}}" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const post = {
+      id: 'a',
+      tags: [
+        { slug: 'news', name: 'News' },
+        { slug: 'opinion', name: 'Opinion' },
+      ],
+    };
+    expect(tpl({ post })).toBe('b,c,');
+  });
+
+  test('falls back to tag.name when slug is missing', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:[{{post.tags}}]" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    const post = { tags: [{ name: 'News' }] };
+    // Indexed lookup matches both slug:news and name:News, so posts a + b
+    // (tagged "news") show up.
+    expect(tpl({ post })).toBe('a,b,');
+  });
+
+  test('skips nulls and never emits [object Object]', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="tag:[{{post.tags}}]" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    // null entries and a tag with neither slug nor name are dropped from the
+    // joined list; the remaining slug still drives the filter.
+    const post = { tags: [null, { slug: 'opinion' }, { foo: 'bar' }] };
+    const rendered = tpl({ post });
+    expect(rendered).not.toContain('[object Object]');
+    expect(rendered).toBe('c,');
+  });
+
   test('falls through to route.data for nested paths like {{post.primary_tag.slug}}', () => {
     const engine = buildEngine({ posts: samplePosts });
     const tpl = engine.hb.compile(
