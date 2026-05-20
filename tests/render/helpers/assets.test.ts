@@ -400,11 +400,12 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('<link href="{{asset "a\\"><script>x</script>.css"}}">');
     const out = tpl({});
-    // Handlebars escapes the unsafe characters; no raw <script> tag survives.
+    // URL construction percent-encodes path characters before Handlebars sees
+    // the value; the helper still returns a plain string so attribute escaping
+    // remains the final rendering layer.
     expect(out).not.toContain('<script>');
     expect(out).not.toContain('"><');
-    expect(out).toContain('&quot;');
-    expect(out).toContain('&lt;script&gt;');
+    expect(out).toBe('<link href="/assets/a%22%3E%3Cscript%3Ex%3C/script%3E.css">');
   });
 
   test('basic URL emits without HTML-significant characters when filename is safe', () => {
@@ -440,6 +441,27 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{asset "css/screen.css"}}');
     expect(tpl({})).toBe('/blog/assets/css/screen.abc123.css');
+  });
+
+  test('does not double-encode already encoded URL path segments', () => {
+    const engine = makeEngine({ basePath: '/' });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "images/hero%20image.css"}}');
+    expect(tpl({})).toBe('/assets/images/hero%20image.css');
+  });
+
+  test('encodes literal percent signs without double-encoding existing escapes', () => {
+    const engine = makeEngine({ basePath: '/blog' });
+    engine.theme.assets.set('assets/images/100% legit%20image.css', {
+      logicalPath: 'assets/images/100% legit%20image.css',
+      fingerprintedPath: 'assets/images/100% legit%20image.abc123.css',
+      sourcePath: '/theme/assets/images/100% legit%20image.css',
+      hash: 'abc123',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "images/100% legit%20image.css"}}');
+    expect(tpl({})).toBe('/blog/assets/images/100%25%20legit%20image.abc123.css');
   });
 
   test('triple-stash {{{asset}}} returns the raw URL (user explicitly opts out of escape)', () => {

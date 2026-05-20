@@ -22,7 +22,7 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     // escape (covers &, <, >, ", ', `). Wrapping in SafeString would skip
     // that and let a filename like `a"><script>x</script>.css` break out
     // of an `href="…"` attribute.
-    return joinPath(basePath, resolved);
+    return encodeUrlPath(joinPath(basePath, resolved));
   });
 
   engine.hb.registerHelper('img_url', function imgUrlHelper(...args: unknown[]) {
@@ -144,6 +144,23 @@ function isSameOriginAsSite(candidate: string, siteUrl: string): boolean {
 }
 
 const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+const PERCENT_ESCAPE_RE = /%[0-9A-Fa-f]{2}/g;
+
+function encodeUrlPath(path: string): string {
+  return path.split('/').map(encodeUrlPathSegment).join('/');
+}
+
+function encodeUrlPathSegment(segment: string): string {
+  let out = '';
+  let cursor = 0;
+  for (const match of segment.matchAll(PERCENT_ESCAPE_RE)) {
+    out += encodeURIComponent(segment.slice(cursor, match.index));
+    out += match[0];
+    cursor = match.index + match[0].length;
+  }
+  out += encodeURIComponent(segment.slice(cursor));
+  return out;
+}
 
 function extractImage(value: unknown): string | undefined {
   if (!value || typeof value !== 'object') return undefined;
