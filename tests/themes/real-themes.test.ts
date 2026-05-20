@@ -199,6 +199,80 @@ describe('real Ghost theme contract', () => {
     expect(css).not.toContain('.content');
   });
 
+  test('solo-mini exposes primary_tag.accent_color to post.hbs', async () => {
+    const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-solo-tag-accent-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    const themeDir = join(workDir, 'themes', 'solo-mini');
+    await cp(join(FIXTURE_DIR, 'solo-mini'), themeDir, { recursive: true });
+
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Solo Tag Accent"',
+        'description = "Smoke fixture for Solo primary_tag.accent_color"',
+        'url = "https://smoke.example.com"',
+        'locale = "en"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        '',
+        '[theme]',
+        'name = "solo-mini"',
+        'dir = "themes"',
+        '',
+        '[content]',
+        'posts_dir = "content/posts"',
+        'pages_dir = "content/pages"',
+        'authors_dir = "content/authors"',
+        'tags_dir = "content/tags"',
+        'assets_dir = "content/images"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 5',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(workDir, 'content', 'tags', 'general.md'),
+      [
+        '---',
+        'slug: general',
+        'name: General',
+        'description: "Default tag for the smoke fixture."',
+        'feature_image: "/content/images/cover.svg"',
+        'accent_color: "#ff5a7a"',
+        '---',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(themeDir, 'post.hbs'),
+      [
+        '{{!< default}}',
+        '<article class="solo-post {{post_class}}" style="--tag-accent: {{primary_tag.accent_color}}">',
+        '  <h1>{{title}}</h1>',
+        '  <section class="gh-content gh-canvas">',
+        '    {{content}}',
+        '  </section>',
+        '</article>',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+
+    const postHtml = readFileSync(join(workDir, 'dist', 'welcome', 'index.html'), 'utf8');
+    expect(postHtml).toContain('style="--tag-accent: #ff5a7a"');
+  });
+
   test('casper-mini keeps Koenig cards as direct gh-content gh-canvas children', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
     const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-gh-content-card-'));
