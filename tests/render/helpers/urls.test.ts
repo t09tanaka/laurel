@@ -27,6 +27,13 @@ describe('url helper', () => {
     expect(tpl({ url: '/hello/' })).toBe('/hello/');
   });
 
+  test('returns ctx.url unchanged when absolute is not requested', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url}}');
+    expect(tpl({ url: '/welcome/' })).toBe('/welcome/');
+  });
+
   test('absolute=true resolves the url against the site origin', () => {
     const engine = makeEngine('https://blog.example.com');
     registerUrlHelpers(engine);
