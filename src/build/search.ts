@@ -266,6 +266,7 @@ export function searchEngineUsesNectarGhostSearchShim(
   return (
     engine === 'json' ||
     engine === 'json+lunr' ||
+    engine === 'lunr' ||
     engine === 'pagefind' ||
     engine === 'json+pagefind'
   );
@@ -273,8 +274,10 @@ export function searchEngineUsesNectarGhostSearchShim(
 
 function searchShimStrategyForEngine(
   engine: NectarConfig['components']['search']['engine'],
-): 'json' | 'pagefind' {
-  return engine === 'pagefind' || engine === 'json+pagefind' ? 'pagefind' : 'json';
+): 'json' | 'pagefind' | 'lunr' {
+  if (engine === 'pagefind' || engine === 'json+pagefind') return 'pagefind';
+  if (engine === 'lunr') return 'lunr';
+  return 'json';
 }
 
 // Emit the client-side runtime shim that wires `[data-ghost-search]` triggers

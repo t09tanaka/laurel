@@ -6,12 +6,13 @@
 // working modal by routing them to either:
 //   - Pagefind UI, when the configured engine emits a Pagefind index.
 //   - Nectar's flat `content/search.json`, for the default JSON search index.
+//   - Nectar's pre-built `search-index.json`, for the Lunr search index.
 //
 // We ship this as a string constant rather than a separate `.js` source so the
 // build pipeline can write it verbatim without a bundler step. The emitted JS
 // uses no imports except the lazy Pagefind import in Pagefind mode.
 
-export type SearchShimStrategy = 'json' | 'pagefind';
+export type SearchShimStrategy = 'json' | 'pagefind' | 'lunr';
 
 export interface SearchShimOptions {
   // Base path prefix applied to absolute URLs the shim resolves. Defaults to
@@ -38,6 +39,8 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
   const pagefindUrl = `${basePath}pagefind/pagefind-ui.js`;
   const pagefindCss = `${basePath}pagefind/pagefind-ui.css`;
   const searchJsonUrl = `${basePath}content/search.json`;
+  const lunrRuntimeUrl = `${basePath}search/lunr.min.js`;
+  const lunrIndexUrl = `${basePath}search-index.json`;
   // Use JSON-stringified values so paths with characters needing escaping stay
   // safe inside the emitted JS.
   return `// Nectar search runtime shim. Auto-generated; do not edit by hand.
@@ -50,9 +53,13 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
   var PAGEFIND_UI_URL = ${JSON.stringify(pagefindUrl)};
   var PAGEFIND_CSS_URL = ${JSON.stringify(pagefindCss)};
   var SEARCH_JSON_URL = ${JSON.stringify(searchJsonUrl)};
+  var LUNR_RUNTIME_URL = ${JSON.stringify(lunrRuntimeUrl)};
+  var LUNR_INDEX_URL = ${JSON.stringify(lunrIndexUrl)};
   var MODAL_ID = 'nectar-search-modal';
   var uiPromise = null;
   var jsonPromise = null;
+  var lunrRuntimePromise = null;
+  var lunrIndexPromise = null;
 
   function ensurePagefindCss() {
     if (document.querySelector('link[data-nectar-search-css]')) return;
@@ -145,6 +152,8 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     modal.removeAttribute('hidden');
     if (SEARCH_MODE === 'pagefind') {
       openPagefindModal();
+    } else if (SEARCH_MODE === 'lunr') {
+      openLunrModal();
     } else {
       openJsonModal();
     }
@@ -192,6 +201,57 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
         throw err;
       });
     return jsonPromise;
+  }
+
+  function loadLunrRuntime() {
+    if (typeof window.lunr === 'function') return Promise.resolve(window.lunr);
+    if (lunrRuntimePromise) return lunrRuntimePromise;
+    lunrRuntimePromise = new Promise(function (resolve, reject) {
+      var existing = document.querySelector('script[data-nectar-lunr-runtime]');
+      if (existing) {
+        existing.addEventListener('load', function () {
+          if (typeof window.lunr === 'function') resolve(window.lunr);
+          else reject(new Error('lunr runtime missing on window'));
+        }, { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+      var script = document.createElement('script');
+      script.src = LUNR_RUNTIME_URL;
+      script.defer = true;
+      script.setAttribute('data-nectar-lunr-runtime', '');
+      script.addEventListener('load', function () {
+        if (typeof window.lunr === 'function') resolve(window.lunr);
+        else reject(new Error('lunr runtime missing on window'));
+      }, { once: true });
+      script.addEventListener('error', reject, { once: true });
+      document.head.appendChild(script);
+    }).catch(function (err) {
+      lunrRuntimePromise = null;
+      console.warn('[nectar-search] Failed to load Lunr runtime from ' + LUNR_RUNTIME_URL + '.', err);
+      throw err;
+    });
+    return lunrRuntimePromise;
+  }
+
+  function loadLunrIndex() {
+    if (lunrIndexPromise) return lunrIndexPromise;
+    lunrIndexPromise = loadLunrRuntime()
+      .then(function (lunr) {
+        return fetch(LUNR_INDEX_URL).then(function (r) {
+          if (!r.ok) throw new Error('search-index.json fetch failed: ' + r.status);
+          return r.json().then(function (data) {
+            var docs = Array.isArray(data && data.docs) ? data.docs : [];
+            return { index: lunr.Index.load(data.index), docs: docs };
+          });
+        });
+      })
+      .catch(function (err) {
+        lunrIndexPromise = null;
+        console.warn('[nectar-search] Failed to load Lunr search index from ' + LUNR_INDEX_URL + '.', err);
+        throw err;
+      });
+    return lunrIndexPromise;
   }
 
   function normalizeEntries(data) {
@@ -247,7 +307,11 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     mount.appendChild(status);
     mount.appendChild(list);
     input.addEventListener('input', function () {
-      runJsonSearch(input, status, list);
+      if (SEARCH_MODE === 'lunr') {
+        runLunrSearch(input, status, list);
+      } else {
+        runJsonSearch(input, status, list);
+      }
     });
     return { input: input, status: status, list: list };
   }
@@ -258,6 +322,15 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     ui.input.focus();
     if (ui.input.value.trim().length >= 2) {
       runJsonSearch(ui.input, ui.status, ui.list);
+    }
+  }
+
+  function openLunrModal() {
+    var ui = ensureJsonUi();
+    if (!ui || !ui.input) return;
+    ui.input.focus();
+    if (ui.input.value.trim().length >= 2) {
+      runLunrSearch(ui.input, ui.status, ui.list);
     }
   }
 
@@ -275,6 +348,39 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     status.textContent = 'Searching...';
     loadSearchJson().then(function (entries) {
       var hits = scoreEntries(entries, query).slice(0, 10);
+      clearList(list);
+      if (hits.length === 0) {
+        status.textContent = 'No results found.';
+        return;
+      }
+      status.textContent = '';
+      renderJsonResults(hits, list);
+    }).catch(function () {
+      status.textContent = 'Search index unavailable.';
+    });
+  }
+
+  function runLunrSearch(input, status, list) {
+    var query = input.value.trim();
+    clearList(list);
+    if (query.length < 2) {
+      status.textContent = 'Type at least 2 characters.';
+      return;
+    }
+    status.textContent = 'Searching...';
+    loadLunrIndex().then(function (bundle) {
+      var byId = {};
+      for (var i = 0; i < bundle.docs.length; i++) {
+        byId[bundle.docs[i].id] = bundle.docs[i];
+      }
+      var hits = [];
+      try {
+        hits = bundle.index.search(query).map(function (hit) {
+          return byId[hit.ref];
+        }).filter(Boolean).slice(0, 10);
+      } catch (_) {
+        hits = [];
+      }
       clearList(list);
       if (hits.length === 0) {
         status.textContent = 'No results found.';

@@ -527,6 +527,20 @@ describe('emitSearchShim', () => {
     expect(existsSync(join(outputDir, 'search', 'ghost-search.js'))).toBe(true);
   });
 
+  test('writes a Lunr-backed shim when engine is lunr', async () => {
+    const outputDir = await makeOutputDir();
+    const config = configSchema.parse({
+      site: { title: 'S', url: 'https://x.test' },
+      components: { search: { engine: 'lunr' } },
+    });
+    const dest = await emitSearchShim({ config, outputDir });
+    expect(dest).toBe(join(outputDir, 'search', 'ghost-search.js'));
+    const js = readFileSync(join(outputDir, 'search', 'ghost-search.js'), 'utf8');
+    expect(js).toContain('var SEARCH_MODE = "lunr"');
+    expect(js).toContain('/search/lunr.min.js');
+    expect(js).toContain('/search-index.json');
+  });
+
   test('skips emission for sodo-search engines handled by ghost_head', async () => {
     const outputDir = await makeOutputDir();
     const config = configSchema.parse({
@@ -578,6 +592,7 @@ describe('searchEngineUsesNectarGhostSearchShim', () => {
   test('enables the built-in shim for JSON and Pagefind engines', () => {
     expect(searchEngineUsesNectarGhostSearchShim('json')).toBe(true);
     expect(searchEngineUsesNectarGhostSearchShim('json+lunr')).toBe(true);
+    expect(searchEngineUsesNectarGhostSearchShim('lunr')).toBe(true);
     expect(searchEngineUsesNectarGhostSearchShim('pagefind')).toBe(true);
     expect(searchEngineUsesNectarGhostSearchShim('json+pagefind')).toBe(true);
   });
@@ -585,7 +600,6 @@ describe('searchEngineUsesNectarGhostSearchShim', () => {
   test('leaves explicit Sodo Search engines to ghost_head injection', () => {
     expect(searchEngineUsesNectarGhostSearchShim('sodo-search')).toBe(false);
     expect(searchEngineUsesNectarGhostSearchShim('json+sodo-search')).toBe(false);
-    expect(searchEngineUsesNectarGhostSearchShim('lunr')).toBe(false);
   });
 });
 

@@ -2321,6 +2321,23 @@ For members.
     expect(body).toContain('var SEARCH_MODE = "json"');
   });
 
+  test('emits and injects a Lunr-backed runtime shim for Ghost search triggers', async () => {
+    const cwd = await withMembersPost({ engine: 'lunr' });
+    const summary = await build({ cwd });
+    const shim = join(summary.outputDir, 'search', 'ghost-search.js');
+    expect(existsSync(shim)).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'search-index.json'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, 'search', 'lunr.min.js'))).toBe(true);
+    const body = readFileSync(shim, 'utf8');
+    expect(body).toContain('var SEARCH_MODE = "lunr"');
+    expect(body).toContain('/search/lunr.min.js');
+    expect(body).toContain('/search-index.json');
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    expect(html).toContain('data-ghost-search');
+    expect(html).toContain('src="/search/ghost-search.js"');
+    expect(html).toContain('data-nectar-search-shim');
+  });
+
   test('skips shim emission when search is disabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

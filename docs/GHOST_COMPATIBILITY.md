@@ -518,7 +518,8 @@ hashes the final inline script bodies and appends `sha256-...` sources to
   `content/search.json` ({ `posts`, `pages`, `tags`, `authors` }) and injects a
   static modal shim for Ghost-style `[data-ghost-search]` buttons on JSON
   engines. It can also shell out to Pagefind (`engine = "pagefind"` /
-  `"json+pagefind"`) and route the same buttons to Pagefind UI. If you opt into
+  `"json+pagefind"`) and route the same buttons to Pagefind UI, or use the
+  pre-built Lunr index (`engine = "lunr"`) for the same modal. If you opt into
   `engine = "sodo-search"`, pin or self-host the configured external script.
   Themes that hard-code the `/search/` POST shape need to be re-wired to one of
   these consumers.
