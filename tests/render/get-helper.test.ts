@@ -93,6 +93,21 @@ describe('get helper memoization', () => {
     expect(engine.sortedCache.get('posts|title asc')).toBe(cached);
   });
 
+  test('orders string fields with case-insensitive locale comparison', () => {
+    const posts = [
+      { id: 'upper-beta', title: 'Beta', published_at: '2026-05-20T00:00:00.000Z' },
+      { id: 'lower-beta', title: 'beta', published_at: '2026-05-19T00:00:00.000Z' },
+      { id: 'upper-alpha', title: 'Alpha', published_at: '2026-05-18T00:00:00.000Z' },
+      { id: 'lower-alpha', title: 'alpha', published_at: '2026-05-17T00:00:00.000Z' },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" order="title asc" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('upper-alpha,lower-alpha,upper-beta,lower-beta,');
+  });
+
   test('applying a filter does not change the sorted-then-filtered output', () => {
     const posts = [
       { id: 'a', title: 'A', featured: true, published_at: '2026-05-19T00:00:00.000Z' },
