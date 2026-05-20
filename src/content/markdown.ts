@@ -433,10 +433,32 @@ function hasCaptionClass(caption: string): string {
 
 const KOENIG_WIDTHS = new Set(['regular', 'wide', 'full']);
 
-function koenigWidthClass(attrs: Record<string, string>, defaultWidth = ''): string {
-  const raw = attrs.size ?? attrs.cardWidth ?? defaultWidth;
-  const normalized = raw.replace(/^kg-width-/, '');
-  return KOENIG_WIDTHS.has(normalized) ? ` kg-width-${normalized}` : '';
+function koenigWidthClass(attrs: Record<string, string>): string {
+  return ` kg-width-${koenigWidth(attrs)}`;
+}
+
+function koenigWidth(attrs: Record<string, string>): string {
+  return (
+    normalizeKoenigWidth(attrs.width) ??
+    normalizeKoenigWidth(attrs.size) ??
+    normalizeKoenigWidth(attrs.cardWidth) ??
+    'regular'
+  );
+}
+
+function normalizeKoenigWidth(raw: string | undefined): string | null {
+  const normalized = (raw ?? '').trim().replace(/^kg-width-/, '');
+  return KOENIG_WIDTHS.has(normalized) ? normalized : null;
+}
+
+function mediaWidthAttr(attrs: Record<string, string>): string {
+  const width = attrs.width;
+  return width && !normalizeKoenigWidth(width) ? `width="${escapeHtmlAttr(width)}"` : '';
+}
+
+function mediaWidthValue(attrs: Record<string, string>, fallback: string): string {
+  const width = attrs.width;
+  return width && !normalizeKoenigWidth(width) ? width : fallback;
 }
 
 function renderBookmarkHtml(attrs: Record<string, string>): string {
@@ -478,7 +500,7 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
   const anchor = `<a class="kg-bookmark-container" href="${escapeHtmlAttr(url)}">${contentHtml}${thumbnailHtml}</a>`;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
 
-  return `\n\n<figure class="kg-card kg-bookmark-card${hasCaptionClass(caption)}">${anchor}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-bookmark-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${anchor}${figcaption}</figure>\n\n`;
 }
 
 function renderFigureHtml(attrs: Record<string, string>): string {
@@ -489,7 +511,7 @@ function renderFigureHtml(attrs: Record<string, string>): string {
     'class="kg-image"',
     `src="${escapeHtmlAttr(src)}"`,
     `alt="${escapeHtmlAttr(attrs.alt ?? '')}"`,
-    attrs.width ? `width="${escapeHtmlAttr(attrs.width)}"` : '',
+    mediaWidthAttr(attrs),
     attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
     attrs.srcset ? `srcset="${escapeHtmlAttr(attrs.srcset)}"` : '',
     attrs.sizes ? `sizes="${escapeHtmlAttr(attrs.sizes)}"` : '',
@@ -499,7 +521,7 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const image = `<img ${imgAttrs} />`;
   const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${image}</a>` : image;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
-  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs, 'regular')}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
 }
 
 type StaticEmbed = {
@@ -523,7 +545,7 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
   }
 
   const title = attrs.title || embed.title;
-  const width = attrs.width || embed.width;
+  const width = mediaWidthValue(attrs, embed.width);
   const height = attrs.height || embed.height;
   const iframe = `<iframe src="${escapeHtmlAttr(embed.src)}" title="${escapeHtmlAttr(title)}" width="${escapeHtmlAttr(width)}" height="${escapeHtmlAttr(height)}" loading="lazy" frameborder="0" allow="${escapeHtmlAttr(embed.allow)}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   return `\n\n<figure class="${cardClass}">${iframe}${figcaption}</figure>\n\n`;
@@ -658,7 +680,7 @@ function renderToggleHtml(attrs: Record<string, string>, body: string): string {
   const summary = `<summary class="kg-toggle-heading">${headingHtml}</summary>`;
   const innerMarkdown = body.trim();
   const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
-  return `\n\n<details class="kg-card kg-toggle-card">\n${summary}\n${contentBlock}\n</details>\n\n`;
+  return `\n\n<details class="kg-card kg-toggle-card${koenigWidthClass(attrs)}">\n${summary}\n${contentBlock}\n</details>\n\n`;
 }
 
 // Restrict callout color tokens to the kebab-case set Ghost ships so attacker-
@@ -674,7 +696,7 @@ function renderCalloutHtml(attrs: Record<string, string>, body: string): string 
   const emojiHtml = emoji ? `<div class="kg-callout-emoji">${escapeHtmlAttr(emoji)}</div>` : '';
   const innerMarkdown = body.trim();
   const textHtml = `<div class="kg-callout-text">\n\n${innerMarkdown}\n\n</div>`;
-  return `\n\n<div class="kg-card kg-callout-card${colorClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
+  return `\n\n<div class="kg-card kg-callout-card${koenigWidthClass(attrs)}${colorClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
 }
 
 function renderButtonHtml(attrs: Record<string, string>, body: string): string {
@@ -689,7 +711,7 @@ function renderButtonHtml(attrs: Record<string, string>, body: string): string {
   // (layout / hover) + `kg-btn-{style}` (color). When style is missing the
   // theme defaults to the accent variant, so keep that fallback inline.
   const finalStyle = styleClass.trim() ? styleClass : 'kg-btn-accent';
-  return `\n\n<div class="kg-card kg-button-card${alignClass}"><a href="${escapeHtmlAttr(href)}" class="kg-btn ${finalStyle.trim()}">${escapeHtmlAttr(label)}</a></div>\n\n`;
+  return `\n\n<div class="kg-card kg-button-card${koenigWidthClass(attrs)}${alignClass}"><a href="${escapeHtmlAttr(href)}" class="kg-btn ${finalStyle.trim()}">${escapeHtmlAttr(label)}</a></div>\n\n`;
 }
 
 function renderGalleryHtml(attrs: Record<string, string>, body: string): string {
@@ -738,7 +760,7 @@ function renderFileHtml(attrs: Record<string, string>): string {
   const filesizeHtml = attrs.size
     ? `<div class="kg-file-card-filesize">${escapeHtmlAttr(attrs.size)}</div>`
     : '';
-  return `\n\n<div class="kg-card kg-file-card"><a class="kg-file-card-container" href="${escapeHtmlAttr(src)}">${titleHtml}${captionHtml}${filenameHtml}${filesizeHtml}</a></div>\n\n`;
+  return `\n\n<div class="kg-card kg-file-card${koenigWidthClass(attrs)}"><a class="kg-file-card-container" href="${escapeHtmlAttr(src)}">${titleHtml}${captionHtml}${filenameHtml}${filesizeHtml}</a></div>\n\n`;
 }
 
 function renderAudioHtml(attrs: Record<string, string>): string {
@@ -753,7 +775,7 @@ function renderAudioHtml(attrs: Record<string, string>): string {
   const durationHtml = attrs.duration
     ? `<div class="kg-audio-duration">${escapeHtmlAttr(attrs.duration)}</div>`
     : '';
-  return `\n\n<div class="kg-card kg-audio-card">${thumbnailHtml}<audio src="${escapeHtmlAttr(src)}" preload="metadata" controls></audio>${titleHtml}${durationHtml}</div>\n\n`;
+  return `\n\n<div class="kg-card kg-audio-card${koenigWidthClass(attrs)}">${thumbnailHtml}<audio src="${escapeHtmlAttr(src)}" preload="metadata" controls></audio>${titleHtml}${durationHtml}</div>\n\n`;
 }
 
 function renderVideoHtml(attrs: Record<string, string>, body: string): string {
@@ -762,7 +784,7 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
   const videoAttrs = [
     `src="${escapeHtmlAttr(src)}"`,
     attrs.poster ? `poster="${escapeHtmlAttr(attrs.poster)}"` : '',
-    attrs.width ? `width="${escapeHtmlAttr(attrs.width)}"` : '',
+    mediaWidthAttr(attrs),
     attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
     attrs.preload ? `preload="${escapeHtmlAttr(attrs.preload)}"` : '',
     truthyShortcodeAttr(attrs.controls) ? 'controls' : '',
@@ -829,7 +851,7 @@ function renderProductHtml(attrs: Record<string, string>): string {
     buttonHref && buttonText
       ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
       : '';
-  return `\n\n<div class="kg-card kg-product-card"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
+  return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${descriptionHtml}${ratingHtml}${buttonHtml}</div></div>\n\n`;
 }
 
 function truthyShortcodeAttr(value: string | undefined): boolean {

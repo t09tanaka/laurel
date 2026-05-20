@@ -42,7 +42,7 @@ describe('card fixture corpus', () => {
       '<p>Intro paragraph.</p>\n' +
         '<figure class="kg-card kg-image-card kg-width-full"><img src="https://cdn.test/a.jpg" alt></figure>\n' +
         '\n\n\n' +
-        '<div class="kg-card kg-audio-card"><audio src="https://cdn.test/audio.mp3" preload="metadata" controls></audio><div class="kg-audio-title">Episode</div></div>\n' +
+        '<div class="kg-card kg-audio-card kg-width-regular"><audio src="https://cdn.test/audio.mp3" preload="metadata" controls></audio><div class="kg-audio-title">Episode</div></div>\n' +
         '\n\n\n' +
         '<p>Outro paragraph.</p>\n',
     );
@@ -124,7 +124,7 @@ describe('card fixture corpus', () => {
 
   test('bookmark shortcode expands into the kg-bookmark-card figure', async () => {
     const html = await renderFixture('bookmark');
-    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card kg-width-regular">');
     expect(html).toContain('<a class="kg-bookmark-container" href="https://example.com/post">');
     expect(html).toContain('<div class="kg-bookmark-title">Bookmark Title</div>');
     expect(html).toContain('<div class="kg-bookmark-description">');
@@ -140,7 +140,7 @@ describe('card fixture corpus', () => {
 
     expect(normalizeIntertagWhitespace(html)).toBe(
       normalizeIntertagWhitespace(`
-        <figure class="kg-card kg-bookmark-card">
+        <figure class="kg-card kg-bookmark-card kg-width-regular">
           <a class="kg-bookmark-container" href="https://example.com/post">
             <div class="kg-bookmark-content">
               <div class="kg-bookmark-title">Bookmark Title</div>
@@ -199,7 +199,7 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://vimeo.com/76979871" provider="vimeo" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-regular"');
     expect(html).toContain('src="https://player.vimeo.com/video/76979871"');
     expect(html).toContain('title="Vimeo video"');
   });
@@ -208,7 +208,7 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://open.spotify.com/track/11dFghVXANMlKmJXsNCbNl" provider="spotify" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-regular"');
     expect(html).toContain('src="https://open.spotify.com/embed/track/11dFghVXANMlKmJXsNCbNl"');
     expect(html).toContain('height="152"');
     expect(html).toContain('title="Spotify embed"');
@@ -218,7 +218,7 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card kg-card-hascaption"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-regular kg-card-hascaption"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
     expect(html).toContain('<figcaption>Open on Twitter</figcaption>');
     expect(html).not.toContain('<iframe');
@@ -341,7 +341,7 @@ describe('card fixture corpus', () => {
 
   test('toggle shortcode expands into a <details> with kg-toggle-card hooks', async () => {
     const html = await renderFixture('toggle');
-    expect(html).toContain('<details class="kg-card kg-toggle-card">');
+    expect(html).toContain('<details class="kg-card kg-toggle-card kg-width-regular">');
     expect(html).toContain('<summary class="kg-toggle-heading">');
     expect(html).toContain('<h4 class="kg-toggle-heading-text">See the details</h4>');
     expect(html).toContain('<div class="kg-toggle-content">');

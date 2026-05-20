@@ -198,7 +198,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
     const md =
       'Intro.\n\n{% bookmark url="https://example.com/post" title="Native Bookmark" description="Inline metadata only." publisher="Example" %}\n\nOutro.';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card kg-width-regular">');
     expect(html).toContain('<a class="kg-bookmark-container" href="https://example.com/post">');
     expect(html).toContain('<div class="kg-bookmark-title">Native Bookmark</div>');
     expect(html).toContain('<div class="kg-bookmark-description">Inline metadata only.</div>');
@@ -210,7 +210,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
     const md =
       'Intro.\n\n{{< bookmark url="https://example.com/post" title="Title Here" description="A description." author="Jane" publisher="Example" icon="https://example.com/icon.png" thumbnail="https://example.com/thumb.jpg" />}}\n\nOutro.';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card kg-width-regular">');
     expect(html).toContain('<a class="kg-bookmark-container" href="https://example.com/post">');
     expect(html).toContain('<div class="kg-bookmark-title">Title Here</div>');
     expect(html).toContain('<div class="kg-bookmark-description">A description.</div>');
@@ -227,7 +227,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
   test('omits optional pieces when absent', async () => {
     const md = '{{< bookmark url="https://example.com/" title="Only Title" />}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card kg-width-regular">');
     expect(html).toContain('href="https://example.com/"');
     expect(html).toContain('<div class="kg-bookmark-title">Only Title</div>');
     expect(html).not.toContain('kg-bookmark-description');
@@ -256,7 +256,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
   test('renders optional figcaption when caption attr is present', async () => {
     const md = '{{< bookmark url="https://example.com/" title="T" caption="Source: Example" />}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-bookmark-card kg-card-hascaption"');
+    expect(html).toContain('class="kg-card kg-bookmark-card kg-width-regular kg-card-hascaption"');
     expect(html).toContain('<figcaption>Source: Example</figcaption>');
   });
 
@@ -285,7 +285,7 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     const md =
       'Intro.\n\n{{< toggle heading="Show details" >}}\nHidden paragraph.\n{{< /toggle >}}\n\nOutro.';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<details class="kg-card kg-toggle-card">');
+    expect(html).toContain('<details class="kg-card kg-toggle-card kg-width-regular">');
     expect(html).toContain('<summary class="kg-toggle-heading">');
     expect(html).toContain('<h4 class="kg-toggle-heading-text">Show details</h4>');
     expect(html).toContain('<div class="kg-toggle-content">');
@@ -306,7 +306,7 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
   test('omits the heading element when no heading attribute is provided', async () => {
     const md = '{{< toggle >}}\nBody only.\n{{< /toggle >}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<details class="kg-card kg-toggle-card">');
+    expect(html).toContain('<details class="kg-card kg-toggle-card kg-width-regular">');
     expect(html).toContain('<summary class="kg-toggle-heading">');
     expect(html).not.toContain('kg-toggle-heading-text');
     expect(html).toContain('Body only.');
@@ -343,7 +343,7 @@ describe('renderMarkdown — callout shortcode expansion', () => {
   test('expands into a kg-callout-card div with emoji + text wrappers', async () => {
     const md = '{{< callout emoji="💡" color="blue" >}}\nHeads up.\n{{< /callout >}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-callout-card kg-callout-card-blue"');
+    expect(html).toContain('class="kg-card kg-callout-card kg-width-regular kg-callout-card-blue"');
     expect(html).toContain('<div class="kg-callout-emoji">');
     expect(html).toContain('💡');
     expect(html).toContain('<div class="kg-callout-text">');
@@ -354,7 +354,7 @@ describe('renderMarkdown — callout shortcode expansion', () => {
   test('omits the color modifier class when color attr is absent', async () => {
     const md = '{{< callout emoji="i" >}}\nbody\n{{< /callout >}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-callout-card"');
+    expect(html).toContain('class="kg-card kg-callout-card kg-width-regular"');
     expect(html).not.toContain('kg-callout-card-');
   });
 
@@ -373,7 +373,7 @@ describe('renderMarkdown — button shortcode expansion', () => {
     const md =
       '{% button href="https://example.com/buy" text="Buy now" align="center" style="accent" %}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-button-card kg-align-center"');
+    expect(html).toContain('class="kg-card kg-button-card kg-width-regular kg-align-center"');
     expect(html).toContain('href="https://example.com/buy"');
     expect(html).toContain('class="kg-btn kg-btn-accent"');
     expect(html).toContain('>Buy now</a>');
@@ -403,7 +403,9 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
       '{{< /gallery >}}',
     ].join('\n');
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('<figure class="kg-card kg-gallery-card kg-card-hascaption">');
+    expect(html).toContain(
+      '<figure class="kg-card kg-gallery-card kg-width-regular kg-card-hascaption">',
+    );
     expect(html).toContain('<div class="kg-gallery-container">');
     expect((html.match(/kg-gallery-row/g) ?? []).length).toBe(2);
     expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
@@ -437,6 +439,105 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
 });
 
 describe('renderMarkdown — imported Koenig media/product shortcode expansion', () => {
+  test('applies Koenig width classes to every card shortcode and defaults to regular', async () => {
+    const wideCases = [
+      [
+        'bookmark',
+        '{{< bookmark url="https://example.com/post" title="Bookmark" width="wide" />}}',
+        'class="kg-card kg-bookmark-card kg-width-wide"',
+      ],
+      [
+        'figure',
+        '{{< figure src="https://cdn.test/hero.jpg" alt="Hero" width="wide" />}}',
+        'class="kg-card kg-image-card kg-width-wide"',
+      ],
+      [
+        'embed',
+        '{{< embed url="https://vimeo.com/76979871" provider="vimeo" width="wide" />}}',
+        'class="kg-card kg-embed-card kg-width-wide"',
+      ],
+      [
+        'toggle',
+        '{{< toggle heading="Details" width="wide" >}}Body{{< /toggle >}}',
+        'class="kg-card kg-toggle-card kg-width-wide"',
+      ],
+      [
+        'callout',
+        '{{< callout color="blue" width="wide" >}}Body{{< /callout >}}',
+        'class="kg-card kg-callout-card kg-width-wide kg-callout-card-blue"',
+      ],
+      [
+        'button',
+        '{{< button href="https://example.com/" width="wide" >}}Go{{< /button >}}',
+        'class="kg-card kg-button-card kg-width-wide"',
+      ],
+      [
+        'gallery',
+        [
+          '{{< gallery width="wide" >}}',
+          '{{< gallery-row >}}',
+          '{{< gallery-image src="https://cdn.test/a.jpg" alt="A" />}}',
+          '{{< /gallery-row >}}',
+          '{{< /gallery >}}',
+        ].join('\n'),
+        'class="kg-card kg-gallery-card kg-width-wide"',
+      ],
+      [
+        'file',
+        '{{< file src="https://cdn.test/resume.pdf" title="Resume" width="wide" />}}',
+        'class="kg-card kg-file-card kg-width-wide"',
+      ],
+      [
+        'audio',
+        '{{< audio src="https://cdn.test/audio.mp3" title="Episode" width="wide" />}}',
+        'class="kg-card kg-audio-card kg-width-wide"',
+      ],
+      [
+        'video',
+        '{{< video src="https://cdn.test/video.mp4" width="wide" />}}',
+        'class="kg-card kg-video-card kg-width-wide"',
+      ],
+      [
+        'product',
+        '{{< product title="Widget" button-href="https://example.com/buy" width="wide" />}}',
+        'class="kg-card kg-product-card kg-width-wide"',
+      ],
+    ] as const;
+
+    for (const [name, markdown, expectedClass] of wideCases) {
+      const { html } = await renderMarkdown(markdown);
+      expect(html, name).toContain(expectedClass);
+    }
+
+    const defaultCases = [
+      ['bookmark', '{{< bookmark url="https://example.com/post" title="Bookmark" />}}'],
+      ['figure', '{{< figure src="https://cdn.test/hero.jpg" alt="Hero" />}}'],
+      ['embed', '{{< embed url="https://vimeo.com/76979871" provider="vimeo" />}}'],
+      ['toggle', '{{< toggle heading="Details" >}}Body{{< /toggle >}}'],
+      ['callout', '{{< callout color="blue" >}}Body{{< /callout >}}'],
+      ['button', '{{< button href="https://example.com/" >}}Go{{< /button >}}'],
+      [
+        'gallery',
+        [
+          '{{< gallery >}}',
+          '{{< gallery-row >}}',
+          '{{< gallery-image src="https://cdn.test/a.jpg" alt="A" />}}',
+          '{{< /gallery-row >}}',
+          '{{< /gallery >}}',
+        ].join('\n'),
+      ],
+      ['file', '{{< file src="https://cdn.test/resume.pdf" title="Resume" />}}'],
+      ['audio', '{{< audio src="https://cdn.test/audio.mp3" title="Episode" />}}'],
+      ['video', '{{< video src="https://cdn.test/video.mp4" />}}'],
+      ['product', '{{< product title="Widget" button-href="https://example.com/buy" />}}'],
+    ] as const;
+
+    for (const [name, markdown] of defaultCases) {
+      const { html } = await renderMarkdown(markdown);
+      expect(html, name).toContain('kg-width-regular');
+    }
+  });
+
   test('expands figure shortcode into a Koenig image card with width layout classes', async () => {
     const md =
       '{{< figure src="https://cdn.test/hero.jpg" alt="Hero" width="1600" height="900" size="wide" caption="Hero caption" href="https://example.com" />}}';
@@ -458,7 +559,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     const invalid = await renderMarkdown(
       '{{< figure src="https://cdn.test/a.jpg" size="wide onclick=alert(1)" />}}',
     );
-    expect(invalid.html).toContain('class="kg-card kg-image-card"');
+    expect(invalid.html).toContain('class="kg-card kg-image-card kg-width-regular"');
     expect(invalid.html).not.toContain('kg-width-wide onclick');
     expect(invalid.html).not.toContain('onclick');
   });
@@ -467,7 +568,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     const md =
       '{{< file src="https://cdn.test/files/resume.pdf" title="Resume" caption="Short PDF download." name="resume.pdf" size="123 KB" />}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-file-card"');
+    expect(html).toContain('class="kg-card kg-file-card kg-width-regular"');
     expect(html).toContain('class="kg-file-card-container"');
     expect(html).toContain('href="https://cdn.test/files/resume.pdf"');
     expect(html).toContain('<div class="kg-file-card-title">Resume</div>');
@@ -481,7 +582,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     const md =
       '{{< audio src="https://cdn.test/audio/episode-1.mp3" title="Episode 1: pilot" duration="00:42:13" thumbnail="https://cdn.test/audio-thumb.jpg" />}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-audio-card"');
+    expect(html).toContain('class="kg-card kg-audio-card kg-width-regular"');
     expect(html).toContain('class="kg-audio-thumbnail"');
     expect(html).toContain('<audio src="https://cdn.test/audio/episode-1.mp3"');
     expect(html).toContain('preload="metadata"');
@@ -517,7 +618,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     const md =
       '{{< product title="Sample widget" description="A short product description." image="https://cdn.test/product.jpg" rating="5" button-href="https://example.com/buy" button-text="Buy now" />}}';
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-product-card"');
+    expect(html).toContain('class="kg-card kg-product-card kg-width-regular"');
     expect(html).toContain('class="kg-product-card-container"');
     expect(html).toContain('class="kg-product-card-image"');
     expect(html).toContain('src="https://cdn.test/product.jpg"');
