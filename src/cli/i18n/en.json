@@ -68,7 +68,7 @@
   "new.optionSlugKind": "--slug is only valid for \"post\" or \"page\" kind; for \"tag\" / \"author\" the positional is already the slug.",
   "new.requiredValue": "A {label} is required.",
   "new.refuseOverwrite": "Refusing to overwrite {path}. Pass --force to overwrite or --slug <other>.",
-  "new.warnEditorMissing": "Warning: --open was passed but $EDITOR is not set; skipping editor launch.",
+  "new.warnEditorMissing": "Warning: --open was passed but neither $VISUAL nor $EDITOR is set; open {path} manually.",
 
   "serve.buildRequested": "--build requested; running a build before serving ({distDir}).",
   "serve.initialBuildComplete": "Initial build complete: {routeCount} routes ({assetCount} assets) \u2192 {outputDir}",

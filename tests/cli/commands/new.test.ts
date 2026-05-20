@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,15 @@ async function runCli(args: string[], cwd: string): Promise<RunResult> {
 
 function expectLfOnly(bytes: Uint8Array): void {
   expect(bytes.includes(13)).toBe(false);
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 describe('cli new — slug collision handling', () => {
@@ -269,16 +278,17 @@ describe('cli new — frontmatter flags', () => {
     expect(bad.stderr).toContain('only valid for "post" kind');
   });
 
-  test('--open warns and continues when $EDITOR is unset', async () => {
+  test('--open logs the created path and continues when no editor is set', async () => {
     const proc = Bun.spawn(['bun', CLI_ENTRY, 'new', 'post', 'No Editor', '--open'], {
       cwd: dir,
       stdout: 'pipe',
       stderr: 'pipe',
-      env: { ...process.env, EDITOR: '' },
+      env: { ...process.env, EDITOR: '', VISUAL: '' },
     });
     const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('--open was passed but $EDITOR is not set');
+    expect(stderr).toContain('--open was passed but neither $VISUAL nor $EDITOR is set');
+    expect(stderr).toContain(join(dir, 'content/posts/no-editor.md'));
     const body = await readFile(join(dir, 'content/posts/no-editor.md'), 'utf8');
     expect(body).toContain('slug: no-editor');
   });
@@ -293,12 +303,34 @@ describe('cli new — frontmatter flags', () => {
       cwd: dir,
       stdout: 'pipe',
       stderr: 'pipe',
-      env: { ...process.env, EDITOR: editor },
+      env: { ...process.env, EDITOR: editor, VISUAL: '' },
     });
     const exitCode = await proc.exited;
     expect(exitCode).toBe(0);
     const captured = await readFile(marker, 'utf8');
     expect(captured).toBe(join(dir, 'content/posts/with-editor.md'));
+  });
+
+  test('--open prefers $VISUAL over $EDITOR', async () => {
+    const marker = join(dir, 'visual-was-called.txt');
+    const editorMarker = join(dir, 'editor-was-called.txt');
+    const visual = join(dir, 'fake-visual.sh');
+    const editor = join(dir, 'fake-editor.sh');
+    await Bun.write(visual, `#!/bin/sh\nprintf '%s' "$1" > '${marker}'\n`);
+    await Bun.write(editor, `#!/bin/sh\nprintf '%s' "$1" > '${editorMarker}'\n`);
+    await Bun.spawn(['chmod', '+x', visual, editor]).exited;
+
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'new', 'post', 'With Visual', '--open'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, EDITOR: editor, VISUAL: visual },
+    });
+    const exitCode = await proc.exited;
+    expect(exitCode).toBe(0);
+    const captured = await readFile(marker, 'utf8');
+    expect(captured).toBe(join(dir, 'content/posts/with-visual.md'));
+    expect(await fileExists(editorMarker)).toBe(false);
   });
 });
 

@@ -15,7 +15,7 @@ Options:
   --date <iso>        Override the published date with an ISO-8601 timestamp instead of the current time (post only)
   --tags <a,b,c>      Tag slugs to seed in frontmatter (post only); repeat or comma-separate
   --author <slug>     Author slug to seed in frontmatter (post only)
-  --open              Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset)
+  --open              Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set)
   -j, --json          Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line
   -h, --help          Show help for this command
 

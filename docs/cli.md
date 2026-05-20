@@ -233,7 +233,7 @@ Options:
 | `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
-| `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset) |
+| `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set) |
 | `-j, --json` | boolean | `NECTAR_NEW_JSON` | Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line |
 
 Examples:

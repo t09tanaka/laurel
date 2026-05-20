@@ -216,9 +216,9 @@ function titleFromSlug(slug: string): string {
 }
 
 async function openInEditor(path: string): Promise<number> {
-  const editor = process.env.EDITOR;
+  const editor = process.env.VISUAL || process.env.EDITOR;
   if (!editor) {
-    process.stderr.write(`${t('new.warnEditorMissing')}\n`);
+    process.stderr.write(`${t('new.warnEditorMissing', { path })}\n`);
     return 0;
   }
   const proc = Bun.spawn([editor, path], {

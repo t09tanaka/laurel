@@ -162,7 +162,7 @@ export const NEW_SPEC: CommandSpec = {
     open: {
       type: 'boolean',
       description:
-        'Open the created file in $EDITOR after writing it (warns and skips when $EDITOR is unset)',
+        'Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set)',
     },
     json: {
       type: 'boolean',
