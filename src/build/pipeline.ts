@@ -22,6 +22,7 @@ import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import { emitBuildManifest } from './build-manifest.ts';
+import { emitCaddyfile } from './caddy.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCloudflareRoutes } from './cloudflare-routes.ts';
 import { emitCname } from './cname.ts';
@@ -859,6 +860,14 @@ async function runBuild({
     rules: redirects,
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
+  });
+  await emitCaddyfile({
+    outputDir,
+    enabled: config.deploy.caddy.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
+    root: config.deploy.caddy.root,
+    siteAddress: config.deploy.caddy.site_address,
   });
 
   // Static passthrough runs as the final emit step so a file the user drops

@@ -254,6 +254,16 @@ Self-hosted nginx-specific deploy hints.
 | `deploy.nginx.root` | `string` | no | `"/var/www/nectar"` | Filesystem path nginx should serve from, emitted as the `root` directive in the generated server block. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host. |
 | `deploy.nginx.server_name` | `string` | no | `"_"` | Value of the `server_name` directive in the generated server block. Defaults to `_` (nginx's catch-all hostname) so the snippet drops onto a fresh VPS without editing. Override with the actual hostname when serving multiple sites from one nginx instance. |
 
+## `deploy.caddy`
+
+Self-hosted Caddy-specific deploy hints.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.caddy.enabled` | `boolean` | no | `false` | Emit a self-hosted Caddyfile at `<output>/.nectar/Caddyfile` folding both `deploy.headers` and `redirects.yaml` into a single site block. The file sets `root`, enables `encode zstd gzip`, serves pre-compressed `.br` / `.gz` sidecars with `file_server`, resolves Nectar's `slug/index.html` output with `try_files {path} {path}/index.html =404`, emits one path matcher per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches configured security headers globally, translates each `redirects.yaml` entry into a named matcher plus `redir`, and serves `/404.html` from `handle_errors`. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted Caddy. |
+| `deploy.caddy.root` | `string` | no | `"/var/www/nectar"` | Filesystem path Caddy should serve from, emitted as the `root *` directive in the generated Caddyfile. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host. |
+| `deploy.caddy.site_address` | `string` | no | `":80"` | Caddy site address for the generated site block. Use a hostname such as `example.com` when Caddy should provision HTTPS automatically, or leave the default `:80` for a plain HTTP listener behind another TLS terminator. |
+
 ## `deploy.cloudflare`
 
 Cloudflare Pages deploy target consumed by `nectar deploy cloudflare`. Wraps `wrangler pages deploy dist`.

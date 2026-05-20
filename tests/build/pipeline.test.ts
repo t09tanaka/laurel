@@ -100,6 +100,34 @@ describe('build pipeline strict mode wiring', () => {
     expect(readFileSync(nojekyll, 'utf8')).toBe('');
   });
 
+  test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[deploy.caddy]',
+        'enabled = true',
+        'root = "/srv/nectar"',
+        'site_address = "example.com"',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await writeFile(
+      join(cwd, 'redirects.yaml'),
+      ['- from: /old', '  to: /new', '  status: 308', ''].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const body = readFileSync(join(summary.outputDir, '.nectar', 'Caddyfile'), 'utf8');
+    expect(body).toContain('example.com {');
+    expect(body).toContain('root * /srv/nectar');
+    expect(body).toContain('redir @redirect_0 /new 308');
+    expect(body).toContain('try_files {path} {path}/index.html =404');
+  });
+
   test('emits dist/content/search.json with the post in the flat index', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });

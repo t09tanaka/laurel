@@ -604,6 +604,30 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Self-hosted nginx-specific deploy hints.'),
+        caddy: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                "Emit a self-hosted Caddyfile at `<output>/.nectar/Caddyfile` folding both `deploy.headers` and `redirects.yaml` into a single site block. The file sets `root`, enables `encode zstd gzip`, serves pre-compressed `.br` / `.gz` sidecars with `file_server`, resolves Nectar's `slug/index.html` output with `try_files {path} {path}/index.html =404`, emits one path matcher per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches configured security headers globally, translates each `redirects.yaml` entry into a named matcher plus `redir`, and serves `/404.html` from `handle_errors`. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted Caddy.",
+              ),
+            root: z
+              .string()
+              .default('/var/www/nectar')
+              .describe(
+                'Filesystem path Caddy should serve from, emitted as the `root *` directive in the generated Caddyfile. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host.',
+              ),
+            site_address: z
+              .string()
+              .default(':80')
+              .describe(
+                'Caddy site address for the generated site block. Use a hostname such as `example.com` when Caddy should provision HTTPS automatically, or leave the default `:80` for a plain HTTP listener behind another TLS terminator.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Self-hosted Caddy-specific deploy hints.'),
         cloudflare: z
           .object({
             project_name: z

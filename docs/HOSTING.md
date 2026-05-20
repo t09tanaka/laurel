@@ -63,6 +63,9 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
   for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
   the generated server block from the main nginx config.
+- [`docs/deploy/caddy.md`](./deploy/caddy.md) — self-hosted Caddy quickstart
+  for generating `dist/.nectar/Caddyfile`, syncing `dist/`, and importing
+  the generated site block from the main Caddyfile.
 - [`docs/deploy/docker.md`](./deploy/docker.md) — Docker quickstart for
   serving a pre-built `dist/` directory with an external nginx container.
   Nectar does not currently ship a Dockerfile or Docker-specific package
