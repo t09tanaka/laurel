@@ -1206,3 +1206,15 @@ describe('post_class helper', () => {
     expect(tokens).toContain('image');
   });
 });
+
+describe('body_class helper', () => {
+  test('ctx.body_class overrides the route-kind default', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{body_class}}')(
+      { body_class: 'custom' },
+      { data: { route: { kind: 'post' } } },
+    );
+    expect(out).toBe('custom');
+  });
+});
