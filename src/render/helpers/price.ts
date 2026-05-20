@@ -10,10 +10,9 @@ import type { NectarEngine } from '../engine.ts';
 // fractions are dropped so a $9 tier renders as `$9`, not `$9.00`, matching
 // Ghost's behaviour.
 //
-// The helper is forgiving: a plain number argument is treated as the major
-// unit and combined with `currencyCode="USD"`, so `{{price 9 currencyCode="USD"}}`
-// also renders `$9`. This keeps the helper usable in themes that pass a
-// hard-coded number rather than a tier object.
+// The helper also accepts a positional amount in minor units. That covers Ghost
+// account templates such as `{{price plan.amount}}`, where the sibling
+// `plan.currency` supplies the currency code.
 export function registerPriceHelpers(engine: NectarEngine): void {
   const intlLocale = resolveIntlLocale(engine.content.site.locale);
 
@@ -21,7 +20,7 @@ export function registerPriceHelpers(engine: NectarEngine): void {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const positional = args.slice(0, -1);
     const hash = options.hash as Record<string, unknown>;
-    const resolved = resolvePrice(positional[0], hash);
+    const resolved = resolvePrice(this, positional[0], hash);
     if (resolved === undefined) return '';
 
     const formatOptions: Intl.NumberFormatOptions = {
@@ -39,16 +38,23 @@ interface ResolvedPrice {
   currency: string;
 }
 
-function resolvePrice(input: unknown, hash: Record<string, unknown>): ResolvedPrice | undefined {
+function resolvePrice(
+  context: unknown,
+  input: unknown,
+  hash: Record<string, unknown>,
+): ResolvedPrice | undefined {
   const overrideCurrency = pickCurrencyCode(hash);
+  const contextCurrency = pickContextCurrency(context);
   if (typeof input === 'number' && Number.isFinite(input)) {
-    if (!overrideCurrency) return undefined;
-    return { amount: input, currency: overrideCurrency };
+    const currency = overrideCurrency ?? contextCurrency;
+    if (!currency) return undefined;
+    return { amount: input / 100, currency };
   }
   if (typeof input === 'string') {
     const parsed = Number(input.trim());
-    if (Number.isFinite(parsed) && overrideCurrency) {
-      return { amount: parsed, currency: overrideCurrency };
+    const currency = overrideCurrency ?? contextCurrency;
+    if (Number.isFinite(parsed) && currency) {
+      return { amount: parsed / 100, currency };
     }
     return undefined;
   }
@@ -83,6 +89,17 @@ function pickCurrencyCode(hash: Record<string, unknown>): string | undefined {
   return trimmed.length > 0 ? trimmed.toUpperCase() : undefined;
 }
 
+function pickContextCurrency(context: unknown): string | undefined {
+  if (!context || typeof context !== 'object') return undefined;
+  const record = context as Record<string, unknown>;
+  const plan = record.plan;
+  if (plan && typeof plan === 'object') {
+    const currency = toCurrency((plan as Record<string, unknown>).currency);
+    if (currency) return currency;
+  }
+  return toCurrency(record.currency);
+}
+
 function resolveIntlLocale(raw: string | undefined): string {
   if (!raw) return 'en';
   const normalized = raw.replace(/_/g, '-');
@@ -92,7 +109,8 @@ function resolveIntlLocale(raw: string | undefined): string {
   for (const tag of candidates) {
     try {
       const supported = Intl.NumberFormat.supportedLocalesOf([tag]);
-      if (supported.length > 0) return supported[0];
+      const first = supported[0];
+      if (first) return first;
     } catch {
       // ill-formed tag; try next candidate
     }

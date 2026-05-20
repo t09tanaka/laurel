@@ -65,10 +65,28 @@ describe('price helper', () => {
     expect(html).not.toContain('$');
   });
 
-  test('accepts a plain number plus currencyCode for themes that hard-code', () => {
+  test('accepts a positional amount in minor units plus currencyCode', () => {
     const engine = makeEngine();
     registerPriceHelpers(engine);
-    const html = engine.hb.compile('{{price 9 currencyCode="USD"}}')({});
+    const html = engine.hb.compile('{{price 900 currencyCode="USD"}}')({});
+    expect(html).toBe('$9');
+  });
+
+  test('formats plan.amount with sibling plan.currency from the current context', () => {
+    const engine = makeEngine();
+    registerPriceHelpers(engine);
+    const html = engine.hb.compile('{{price plan.amount}}')({
+      plan: { amount: 1299, currency: 'usd' },
+    });
+    expect(html).toBe('$12.99');
+  });
+
+  test('formats amount with sibling currency when the current context is the plan', () => {
+    const engine = makeEngine();
+    registerPriceHelpers(engine);
+    const html = engine.hb.compile('{{#with plan}}{{price amount}}{{/with}}')({
+      plan: { amount: 900, currency: 'USD' },
+    });
     expect(html).toBe('$9');
   });
 
@@ -78,6 +96,7 @@ describe('price helper', () => {
     expect(engine.hb.compile('{{price tier}}')({})).toBe('');
     expect(engine.hb.compile('{{price tier}}')({ tier: { amount: 100 } })).toBe('');
     expect(engine.hb.compile('{{price tier}}')({ tier: { currency: 'USD' } })).toBe('');
+    expect(engine.hb.compile('{{price plan.amount}}')({ plan: { amount: 900 } })).toBe('');
   });
 
   test('respects site locale when formatting', () => {
