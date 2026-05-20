@@ -10,7 +10,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 
 | Folder                     | Purpose                                                                 |
 |----------------------------|-------------------------------------------------------------------------|
-| `ci/github-pages.yml`      | GitHub Actions workflow that builds and publishes Nectar to GitHub Pages. Referenced from `docs/tutorials/04-deploy.md`. |
+| `ci/`                      | GitHub Actions workflow templates for shipping a Nectar build to popular static hosts (GitHub Pages, Cloudflare Pages, Netlify, Vercel, S3 + CloudFront, Fly.io, Render). See `ci/README.md` for the per-host setup matrix. |
 | `s3-cloudfront/append-index.js` | CloudFront Function (viewer-request) that rewrites `/about/` to `/about/index.html` so a private S3 origin behind CloudFront serves directory-style URLs. |
 
 These are deliberately tiny: a single file each, with the deploy-platform's
