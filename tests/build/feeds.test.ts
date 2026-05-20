@@ -806,12 +806,26 @@ describe('emitSitemap', () => {
     const pages = readFileSync(join(outputDir, 'sitemap-pages.xml'), 'utf8');
 
     expect(posts).toContain(
-      '<url><loc>https://example.com/hello-world/</loc><lastmod>2026-01-02T03:04:05.000Z</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>',
+      [
+        '  <url>',
+        '    <loc>https://example.com/hello-world/</loc>',
+        '    <lastmod>2026-01-02T03:04:05.000Z</lastmod>',
+        '    <changefreq>weekly</changefreq>',
+        '    <priority>0.7</priority>',
+        '  </url>',
+      ].join('\n'),
     );
     expect(pages).toContain(
-      '<url><loc>https://example.com/no-date/</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>',
+      [
+        '  <url>',
+        '    <loc>https://example.com/no-date/</loc>',
+        '    <changefreq>weekly</changefreq>',
+        '    <priority>0.6</priority>',
+        '  </url>',
+      ].join('\n'),
     );
     expect(posts).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
+    expect(posts).toContain('\n  <url>\n');
   });
 
   test('uses Ghost priorities: posts 0.7, pages 0.6, tags 0.6, authors 0.6', async () => {
@@ -914,12 +928,11 @@ describe('emitSitemap', () => {
     });
     const xml = readFileSync(join(outputDir, 'sitemap-pages.xml'), 'utf8');
 
-    expect(xml).toContain(
-      '<loc>https://example.com/hi/</loc><changefreq>weekly</changefreq><priority>1.0</priority>',
-    );
-    expect(xml).toContain(
-      '<loc>https://example.com/lo/</loc><changefreq>weekly</changefreq><priority>0.0</priority>',
-    );
+    expect(xml).toContain('    <loc>https://example.com/hi/</loc>');
+    expect(xml).toContain('    <changefreq>weekly</changefreq>');
+    expect(xml).toContain('    <priority>1.0</priority>');
+    expect(xml).toContain('    <loc>https://example.com/lo/</loc>');
+    expect(xml).toContain('    <priority>0.0</priority>');
   });
 
   test('above the 50k URL cap, per-kind sub-sitemaps split into -2.xml, -3.xml ...', async () => {

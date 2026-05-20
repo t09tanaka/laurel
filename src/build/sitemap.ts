@@ -106,37 +106,49 @@ async function writeXmlWithGzip(outputDir: string, filename: string, xml: string
 }
 
 function renderSitemapUrlset(entries: SitemapEntry[], base: string, basePath: string): string {
-  const body = entries
-    .map((entry) => {
-      const defaults = entry.kind
-        ? SITEMAP_KIND_DEFAULTS[entry.kind]
-        : SITEMAP_UNCLASSIFIED_DEFAULT;
-      const changefreq = entry.changefreq ?? defaults.changefreq;
-      const priority = entry.priority ?? defaults.priority;
-      // `entry.url` is the route-relative path (e.g. `/post-slug/`). Apply
-      // `base_path` here so the emitted `<loc>` is the actual deployed URL
-      // crawlers should follow, not the host-rooted shadow.
-      const loc = `<loc>${escapeXml(`${base}${withBasePath(basePath, entry.url)}`)}</loc>`;
-      const lastmod = entry.lastmod
-        ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
-        : '';
-      const cf = `<changefreq>${changefreq}</changefreq>`;
-      const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
-      return `<url>${loc}${lastmod}${cf}${pr}</url>`;
-    })
-    .join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`;
+  const urls = entries.map((entry) => {
+    const defaults = entry.kind ? SITEMAP_KIND_DEFAULTS[entry.kind] : SITEMAP_UNCLASSIFIED_DEFAULT;
+    const changefreq = entry.changefreq ?? defaults.changefreq;
+    const priority = entry.priority ?? defaults.priority;
+    // `entry.url` is the route-relative path (e.g. `/post-slug/`). Apply
+    // `base_path` here so the emitted `<loc>` is the actual deployed URL
+    // crawlers should follow, not the host-rooted shadow.
+    const loc = `<loc>${escapeXml(`${base}${withBasePath(basePath, entry.url)}`)}</loc>`;
+    const lastmod = entry.lastmod
+      ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
+      : '';
+    const cf = `<changefreq>${changefreq}</changefreq>`;
+    const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
+    return formatXmlBlock('url', [loc, lastmod, cf, pr].filter(Boolean));
+  });
+  return formatSitemapDocument('urlset', urls);
 }
 
 function renderSitemapIndex(entries: { loc: string; lastmod: string | undefined }[]): string {
-  const body = entries
-    .map((e) => {
-      const loc = `<loc>${escapeXml(e.loc)}</loc>`;
-      const lastmod = e.lastmod ? `<lastmod>${escapeXml(e.lastmod)}</lastmod>` : '';
-      return `<sitemap>${loc}${lastmod}</sitemap>`;
-    })
-    .join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</sitemapindex>`;
+  const sitemaps = entries.map((e) => {
+    const loc = `<loc>${escapeXml(e.loc)}</loc>`;
+    const lastmod = e.lastmod ? `<lastmod>${escapeXml(e.lastmod)}</lastmod>` : '';
+    return formatXmlBlock('sitemap', [loc, lastmod].filter(Boolean));
+  });
+  return formatSitemapDocument('sitemapindex', sitemaps);
+}
+
+function formatSitemapDocument(root: 'urlset' | 'sitemapindex', children: string[]): string {
+  const open = `<${root} xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+  const close = `</${root}>`;
+  if (children.length === 0) {
+    return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${close}\n`;
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${children.join('\n')}\n${close}\n`;
+}
+
+function formatXmlBlock(name: 'url' | 'sitemap', children: string[]): string {
+  const lines = [`  <${name}>`];
+  for (const child of children) {
+    lines.push(`    ${child}`);
+  }
+  lines.push(`  </${name}>`);
+  return lines.join('\n');
 }
 
 function bucketSitemapEntriesByKind(urls: SitemapEntry[]): Map<SitemapKind, SitemapEntry[]> {
