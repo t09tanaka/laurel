@@ -38,11 +38,23 @@ const sanitizeOptions: IOptions = {
     'track',
     'details',
     'summary',
+    'iframe',
   ],
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
     '*': ['id', 'class', 'lang', 'dir', 'title'],
     a: ['href', 'name', 'target', 'rel', 'hreflang'],
+    iframe: [
+      'src',
+      'width',
+      'height',
+      'allow',
+      'allowfullscreen',
+      'frameborder',
+      'title',
+      'loading',
+      'referrerpolicy',
+    ],
     img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
     source: ['src', 'srcset', 'type', 'media', 'sizes'],
     video: [
@@ -73,9 +85,17 @@ const sanitizeOptions: IOptions = {
     source: ['http', 'https'],
     video: ['http', 'https'],
     audio: ['http', 'https'],
+    iframe: ['https'],
   },
+  allowedIframeHostnames: [
+    'www.youtube.com',
+    'www.youtube-nocookie.com',
+    'player.vimeo.com',
+    'open.spotify.com',
+  ],
   allowProtocolRelative: false,
   disallowedTagsMode: 'discard',
+  exclusiveFilter: (frame) => frame.tag === 'iframe' && !frame.attribs.src,
 };
 
 export function sanitizeRenderedHtml(html: string): string {
@@ -190,6 +210,11 @@ function findMatchingDivClose(html: string, from: number): number {
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
+// Inline `{{< embed url="…" provider="…" />}}`. The import pipeline emits this
+// for Ghost `kg-embed-card` figures so renderMarkdown can rebuild the static
+// iframe providers that do not require per-post script injection.
+const EMBED_SHORTCODE_RE = /\{\{<\s+embed((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
 // Block-form shortcode: `{{< toggle heading="…" >}}body markdown{{< /toggle >}}`.
 // The body is non-greedy so consecutive toggles in the same document each get
 // their own match, and `[\s\S]` lets the body span line breaks.
@@ -239,6 +264,9 @@ export function expandKoenigShortcodes(markdown: string): string {
     .replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderBookmarkHtml(parseShortcodeAttrs(attrsStr)),
     )
+    .replace(EMBED_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderEmbedHtml(parseShortcodeAttrs(attrsStr)),
+    )
     .replace(TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
     )
@@ -275,7 +303,11 @@ function parseShortcodeAttrs(attrsStr: string): Record<string, string> {
   ATTR_RE.lastIndex = 0;
   let match: RegExpExecArray | null = ATTR_RE.exec(attrsStr);
   while (match !== null) {
-    attrs[match[1]] = unescapeShortcodeAttr(match[2]);
+    const key = match[1];
+    const value = match[2];
+    if (key !== undefined && value !== undefined) {
+      attrs[key] = unescapeShortcodeAttr(value);
+    }
     match = ATTR_RE.exec(attrsStr);
   }
   return attrs;
@@ -336,6 +368,145 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
 
   return `\n\n<figure class="kg-card kg-bookmark-card">${anchor}${figcaption}</figure>\n\n`;
+}
+
+type StaticEmbed = {
+  src: string;
+  title: string;
+  width: string;
+  height: string;
+  allow: string;
+};
+
+function renderEmbedHtml(attrs: Record<string, string>): string {
+  const url = attrs.url ?? '';
+  if (!url) return '';
+
+  const embed = staticEmbedFromUrl(url, attrs.provider);
+  const caption = attrs.caption ?? '';
+  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  if (!embed) {
+    return `\n\n<figure class="kg-card kg-embed-card"><a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(url)}</a>${figcaption}</figure>\n\n`;
+  }
+
+  const title = attrs.title || embed.title;
+  const width = attrs.width || embed.width;
+  const height = attrs.height || embed.height;
+  const iframe = `<iframe src="${escapeHtmlAttr(embed.src)}" title="${escapeHtmlAttr(title)}" width="${escapeHtmlAttr(width)}" height="${escapeHtmlAttr(height)}" loading="lazy" frameborder="0" allow="${escapeHtmlAttr(embed.allow)}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  return `\n\n<figure class="kg-card kg-embed-card">${iframe}${figcaption}</figure>\n\n`;
+}
+
+function staticEmbedFromUrl(rawUrl: string, providerHint: string | undefined): StaticEmbed | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:') return null;
+
+  const provider = normalizeEmbedProvider(providerHint) || providerFromUrl(url);
+  switch (provider) {
+    case 'youtube':
+      return youtubeEmbed(url);
+    case 'vimeo':
+      return vimeoEmbed(url);
+    case 'spotify':
+      return spotifyEmbed(url);
+    default:
+      return null;
+  }
+}
+
+function normalizeEmbedProvider(provider: string | undefined): string {
+  return (provider ?? '').trim().toLowerCase();
+}
+
+function providerFromUrl(url: URL): string {
+  const host = url.hostname.toLowerCase();
+  if (host === 'youtu.be' || host.endsWith('.youtube.com') || host === 'youtube.com') {
+    return 'youtube';
+  }
+  if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) return 'vimeo';
+  if (host === 'open.spotify.com') return 'spotify';
+  return '';
+}
+
+function youtubeEmbed(url: URL): StaticEmbed | null {
+  const id = youtubeVideoId(url);
+  if (!id) return null;
+  const start = youtubeStartSeconds(url.searchParams.get('start') || url.searchParams.get('t'));
+  const src = new URL(`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`);
+  if (start > 0) src.searchParams.set('start', String(start));
+  return {
+    src: src.toString(),
+    title: 'YouTube video',
+    width: '560',
+    height: '315',
+    allow:
+      'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+  };
+}
+
+function youtubeVideoId(url: URL): string {
+  const host = url.hostname.toLowerCase();
+  if (host === 'youtu.be')
+    return safeEmbedPathToken(url.pathname.split('/').filter(Boolean)[0] ?? '');
+  if (url.pathname.startsWith('/embed/')) {
+    return safeEmbedPathToken(url.pathname.split('/').filter(Boolean)[1] ?? '');
+  }
+  if (url.pathname.startsWith('/shorts/')) {
+    return safeEmbedPathToken(url.pathname.split('/').filter(Boolean)[1] ?? '');
+  }
+  return safeEmbedPathToken(url.searchParams.get('v') ?? '');
+}
+
+function youtubeStartSeconds(value: string | null): number {
+  if (!value) return 0;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const match = trimmed.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
+  if (!match) return 0;
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2] ?? 0);
+  const seconds = Number(match[3] ?? 0);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+function vimeoEmbed(url: URL): StaticEmbed | null {
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[0] === 'video' ? parts[1] : parts[0];
+  const safeId = safeEmbedPathToken(id ?? '');
+  if (!safeId) return null;
+  return {
+    src: `https://player.vimeo.com/video/${encodeURIComponent(safeId)}`,
+    title: 'Vimeo video',
+    width: '640',
+    height: '360',
+    allow: 'autoplay; fullscreen; picture-in-picture; clipboard-write',
+  };
+}
+
+function spotifyEmbed(url: URL): StaticEmbed | null {
+  const parts = url.pathname.split('/').filter(Boolean);
+  const embedIndex = parts[0] === 'embed' ? 1 : 0;
+  const type = safeEmbedPathToken(parts[embedIndex] ?? '');
+  const id = safeEmbedPathToken(parts[embedIndex + 1] ?? '');
+  if (!type || !id) return null;
+  const src = new URL(`https://open.spotify.com/embed/${type}/${id}`);
+  const theme = url.searchParams.get('theme');
+  if (theme === '0' || theme === '1') src.searchParams.set('theme', theme);
+  return {
+    src: src.toString(),
+    title: 'Spotify embed',
+    width: '100%',
+    height: type === 'track' || type === 'episode' ? '152' : '352',
+    allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture',
+  };
+}
+
+function safeEmbedPathToken(value: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : '';
 }
 
 // Render a Koenig toggle card as a native <details>/<summary> pair. Ghost's

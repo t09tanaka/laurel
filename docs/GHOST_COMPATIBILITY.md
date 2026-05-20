@@ -118,6 +118,33 @@ external contributors) and wants to bypass either layer, the right knob
 is `unsafe: true` on `renderMarkdown` — not widening the import-time
 allowlist, which would silently apply to every future re-import.
 
+## Embed cards
+
+Ghost exports rich embeds as `.kg-embed-card` figures. During import, Nectar
+turns those figures into `{{< embed ... />}}` shortcodes with the source URL
+and an inferred provider so the Markdown renderer can rebuild the card without
+requiring Source theme CSS beyond the top-level `.kg-embed-card` selector.
+
+Nectar renders static iframe embeds for providers whose public embed URL works
+without a per-page script loader:
+
+| Provider | Rendered output | Notes |
+|----------|-----------------|-------|
+| YouTube | `https://www.youtube-nocookie.com/embed/...` iframe | Uses YouTube's privacy-enhanced host, but loading the iframe still contacts YouTube/Google once the reader's browser requests it. |
+| Vimeo | `https://player.vimeo.com/video/...` iframe | No vendor script is injected by Nectar. Vimeo may still process reader IP/user-agent data when the iframe loads. |
+| Spotify | `https://open.spotify.com/embed/...` iframe | No vendor script is injected by Nectar. Spotify receives a third-party iframe request when loaded. |
+
+Twitter/X, Instagram, TikTok, and CodePen embeds are intentionally not hydrated
+by default. Their official embeds require third-party JavaScript (`widgets.js`,
+Instagram `embed.js`, TikTok embed scripts, or CodePen loaders) to transform
+blockquote/link markup into the final widget. Injecting those scripts from
+post content would create a larger privacy/GDPR surface: reader identifiers,
+IP addresses, cookies, consent state, and cross-site tracking behaviour are
+controlled by the provider rather than Nectar. For those providers, Nectar
+keeps a `.kg-embed-card` fallback link and caption. Site operators who accept
+that tradeoff can add the provider's script deliberately in their theme or
+plugin and document the consent/cookie implications for their jurisdiction.
+
 ## Theme runtime assets
 
 Ghost's official themes sometimes rely on client-side JavaScript that is not

@@ -102,6 +102,49 @@ describe('card fixture corpus', () => {
     expect(html).toContain('<figcaption>');
   });
 
+  test('embed shortcode renders YouTube as a static privacy-enhanced iframe', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://www.youtube.com/watch?v=abc123_DEF-4&t=1m5s" provider="youtube" title="A talk" caption="Talk transcript" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('src="https://www.youtube-nocookie.com/embed/abc123_DEF-4?start=65"');
+    expect(html).toContain('title="A talk"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('allowfullscreen');
+    expect(html).toContain('<figcaption>Talk transcript</figcaption>');
+    expect(html).not.toContain('{{< embed');
+  });
+
+  test('embed shortcode renders Vimeo player URLs as static iframes', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://vimeo.com/76979871" provider="vimeo" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('src="https://player.vimeo.com/video/76979871"');
+    expect(html).toContain('title="Vimeo video"');
+  });
+
+  test('embed shortcode renders Spotify URLs as static iframes', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://open.spotify.com/track/11dFghVXANMlKmJXsNCbNl" provider="spotify" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('src="https://open.spotify.com/embed/track/11dFghVXANMlKmJXsNCbNl"');
+    expect(html).toContain('height="152"');
+    expect(html).toContain('title="Spotify embed"');
+  });
+
+  test('embed shortcode leaves script-hydrated providers as fallback links', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card"');
+    expect(html).toContain('href="https://twitter.com/jack/status/20"');
+    expect(html).toContain('<figcaption>Open on Twitter</figcaption>');
+    expect(html).not.toContain('<iframe');
+    expect(html).not.toContain('<script');
+  });
+
   test('file card keeps the kg-file-card metadata rows', async () => {
     const html = await renderFixture('file');
     expect(html).toContain('class="kg-card kg-file-card"');
