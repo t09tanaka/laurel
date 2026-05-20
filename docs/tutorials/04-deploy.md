@@ -1,13 +1,13 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, GitHub Pages, S3 + CloudFront, nginx, or Docker
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, nginx, or Docker
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
-major free-tier host, plus AWS-native S3 + CloudFront and self-hosted nginx
-quickstarts. Docker is covered as a runtime wrapper around a pre-built
-`dist/` directory; Nectar does not currently ship a Dockerfile, compose file,
-or Docker-specific package script.
+major free-tier host, plus DigitalOcean App Platform, AWS-native S3 +
+CloudFront, and self-hosted nginx quickstarts. Docker is covered as a runtime
+wrapper around a pre-built `dist/` directory; Nectar does not currently ship a
+Dockerfile, compose file, or Docker-specific package script.
 
 **Universal pre-flight:**
 
@@ -282,6 +282,51 @@ Custom redirects go in `redirects.yaml`; Nectar emits them to
 
 For CI-driven deploys, Netlify CLI uploads, and header customization details,
 see [`docs/deploy/netlify.md`](../deploy/netlify.md).
+
+---
+
+## DigitalOcean App Platform
+
+**Recommended for:** teams already using DigitalOcean and wanting a managed
+Git-connected static site.
+
+For the focused App Platform guide, including the current no-App-Spec-emitter
+status, see
+[`docs/deploy/digitalocean-app-platform.md`](../deploy/digitalocean-app-platform.md).
+
+In DigitalOcean, create an App Platform app from your Git repository and
+configure the resource as a static site:
+
+| Field | Value |
+| --- | --- |
+| Source directory | `/` unless Nectar lives in a monorepo subdirectory |
+| Build command | `bunx nectar build` |
+| Output directory | `dist` |
+
+DigitalOcean can scan for common static output directories, including `dist`,
+but setting it explicitly makes the deploy contract clear. App Platform
+detects Bun from `bun.lock` / `bun.lockb`; set a build-time `BUN_VERSION`
+environment variable if you want to pin the builder. Nectar does not currently
+emit `.do/app.yaml`, DigitalOcean headers, or DigitalOcean redirects; keep any
+App Spec sample minimal and configure App Platform-owned behavior in
+DigitalOcean or an external edge layer.
+
+```yaml
+name: my-nectar-site
+static_sites:
+  - name: web
+    github:
+      repo: your-org/your-repo
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    build_command: bunx nectar build
+    output_dir: dist
+    envs:
+      - key: BUN_VERSION
+        value: "1.3.0"
+        scope: BUILD_TIME
+```
 
 ---
 

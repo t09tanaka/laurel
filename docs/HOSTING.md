@@ -35,6 +35,11 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/netlify.md`](./deploy/netlify.md) — Netlify-specific
   quickstart for Git builds and CI uploads, including Nectar's generated
   `_headers` / `_redirects` behavior.
+- [`docs/deploy/digitalocean-app-platform.md`](./deploy/digitalocean-app-platform.md)
+  — DigitalOcean App Platform quickstart for serving Nectar as a static site
+  with `bunx nectar build` and `dist/`. Nectar does not currently emit a
+  DigitalOcean App Spec, so this guide keeps any `.do/app.yaml` example
+  minimal.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and
