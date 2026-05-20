@@ -27,6 +27,9 @@ accordingly.
 
 **Recommended for:** global CDN edge, generous free tier, zero config.
 
+For the full Cloudflare-specific guide, including `nectar deploy cloudflare`,
+see [`docs/deploy/cloudflare-pages.md`](../deploy/cloudflare-pages.md).
+
 1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**.
 2. Pick your repo. In the build configuration screen:
 
@@ -43,11 +46,17 @@ accordingly.
 4. Save and deploy. First build takes ~1 minute; subsequent builds are cached.
 
 The `_redirects` and `_headers` files at the root of `dist/` are picked up by
-Cloudflare. Set `[deploy.cloudflare_pages] enabled = true` in `nectar.toml` and
-Nectar will write `_headers` with cache and security defaults on every build.
-Custom redirects go in a `redirects.yaml` at the project root and Nectar emits
-them to `dist/_redirects` (same gating). Supported status codes are 301, 302,
-307, and 308; the first rule per `from` wins on overlap.
+Cloudflare. Set `[deploy.cloudflare_pages].enabled = true` in `nectar.toml` and
+Nectar will write `_headers` plus `_routes.json` on every build. Custom
+redirects go in a `redirects.yaml` at the project root; the default
+`[components.redirects]` emitter writes them to `dist/_redirects`. Supported
+status codes are 301, 302, 307, and 308; the first rule per `from` wins on
+overlap.
+
+```toml
+[deploy.cloudflare_pages]
+enabled = true
+```
 
 ```yaml
 # redirects.yaml
@@ -56,6 +65,18 @@ them to `dist/_redirects` (same gating). Supported status codes are 301, 302,
   status: 301
 - from: /old-post
   to: /new-post
+```
+
+For direct deploys outside the Git-connected Pages build, configure the Pages
+project name and let Nectar call Wrangler:
+
+```toml
+[deploy.cloudflare]
+project_name = "my-blog"
+```
+
+```bash
+bunx nectar deploy cloudflare --build
 ```
 
 ---

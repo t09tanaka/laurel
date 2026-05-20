@@ -13,6 +13,12 @@ collects the operator-facing pieces of that contract in one place:
   build-time security model. Covers `build.allow_code_injection`,
   `codeinjection_head` / `codeinjection_foot`, `unsafe_html`, and other
   raw-HTML exits. Read this before flipping `allow_code_injection = true`.
+- [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) —
+  Cloudflare Pages quickstart covering the Git-connected build, generated
+  `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
+- [`docs/deploy/cloudflare-pages-r2-images.md`](./deploy/cloudflare-pages-r2-images.md)
+  — move image variants to R2 when a Pages deploy approaches the 25,000-file
+  limit.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages),
   without security headers wired in. Pair with `security/hosting.md` for the
@@ -41,6 +47,10 @@ If you just want a defensible default stack on a new deploy:
    [securityheaders.com](https://securityheaders.com/) or
    [Mozilla Observatory](https://observatory.mozilla.org/) to confirm the
    grade.
+
+For Cloudflare Pages specifically, start with
+[`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) before adding
+the stricter security header baseline.
 
 ## Code injection
 
