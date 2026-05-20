@@ -69,4 +69,34 @@ describe('t helper', () => {
       engine.hb.compile('{{t "A collection of {numberOfPosts} posts" numberOfPosts=3}}')({}),
     ).toBe('A collection of 3 posts');
   });
+
+  // Casper-family themes use Ghost's positional `%` placeholder with
+  // additional positional args: `{{t "Powered by %" "Ghost"}}`. The previous
+  // implementation only consulted `options.hash`, so positional invocations
+  // shipped a literal `%` to readers. Issue #1707.
+  test('substitutes the positional argument into a `%` placeholder', () => {
+    const engine = makeEngine({ en: { 'Powered by %': '' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Powered by %" "Ghost"}}')({})).toBe('Powered by Ghost');
+  });
+
+  test('positional `%` arg wins over a hash entry, but hash still fills {name} placeholders', () => {
+    const engine = makeEngine({ en: { 'By % about {topic}': '' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "By % about {topic}" "Alice" topic="cats"}}')({})).toBe(
+      'By Alice about cats',
+    );
+  });
+
+  test('Casper de.json placeholder is rendered when active locale is de', () => {
+    const engine = makeEngine(
+      {
+        en: { 'Powered by %': '' },
+        de: { 'Powered by %': 'Betrieben durch %' },
+      },
+      'de',
+    );
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Powered by %" "Casper"}}')({})).toBe('Betrieben durch Casper');
+  });
 });
