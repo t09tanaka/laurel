@@ -23,9 +23,9 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const options = args[args.length - 1] as HelperOptions;
     const raw = args[0];
     const items = toEntries(raw);
-    const limit = parseNum(options.hash.limit) ?? items.length;
     const from = parseNum(options.hash.from) ?? 1;
-    const to = parseNum(options.hash.to) ?? Math.min(items.length, from + limit - 1);
+    const to = parseNum(options.hash.to) ?? items.length;
+    const limit = parseNum(options.hash.limit) ?? Number.POSITIVE_INFINITY;
 
     let buffer = '';
     let renderedIndex = 0;
@@ -35,7 +35,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     // members posts are interleaved: `visibility="public" limit=3` must yield
     // the first three *public* items, not three positions from the raw input.
     const visible = items.filter((entry) => visibilityFilter(entry.value, options.hash.visibility));
-    const sliced = visible.slice(from - 1, to);
+    const sliced = visible.slice(from - 1, to).slice(0, limit);
     const columns = parseColumns(options.hash.columns);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const hasBlockParams = (fnAny?.blockParams ?? 0) > 0;

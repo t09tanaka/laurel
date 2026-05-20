@@ -68,6 +68,20 @@ describe('foreach helper', () => {
     expect(tpl({ items: ['a', 'b', 'c', 'd', 'e'] })).toBe('b|c|');
   });
 
+  test('from/to define a 1-indexed inclusive range before limit is applied', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items from=2 to=5 limit=2}}{{this}}|{{/foreach}}');
+    expect(tpl({ items: ['a', 'b', 'c', 'd', 'e', 'f'] })).toBe('b|c|');
+  });
+
+  test('omitted to iterates through the end before applying limit', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items from=3}}{{this}}|{{/foreach}}');
+    expect(tpl({ items: ['a', 'b', 'c', 'd', 'e'] })).toBe('c|d|e|');
+  });
+
   test('object iteration exposes @key for each map entry', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
