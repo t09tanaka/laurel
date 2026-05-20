@@ -5,8 +5,9 @@
 # "GitHub Actions". Push to main and the workflow publishes dist/ to Pages.
 #
 # If your site lives at https://<user>.github.io/<repo>/ (a project site),
-# also set [build].base_path = "/<repo>/" in nectar.toml so {{asset}} and
-# {{url}} emit correct URLs for the subdirectory.
+# the build step below sets GITHUB_PAGES=true so Nectar can derive
+# [build].base_path = "/<repo>/" from GITHUB_REPOSITORY. Set
+# [build].base_path manually only when you need to override that path.
 #
 # See docs/deploy/github-pages.md for the focused quickstart.
 
@@ -44,6 +45,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
+        env:
+          GITHUB_PAGES: "true"
         run: bunx nectar build
 
       - name: Upload Pages artifact

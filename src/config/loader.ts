@@ -289,6 +289,7 @@ function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unkno
   let target = applyNetlifyDeployUrlFallback(parsed, env);
   target = applyVercelEnvFallback(target, env);
   target = applyCloudflarePagesEnvFallback(target, env);
+  target = applyGitHubPagesBasePathFallback(target, env);
   target = applyBuildMetadataEnvFallbacks(target, env);
   return target;
 }
@@ -372,6 +373,31 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
   return target;
 }
 
+function applyGitHubPagesBasePathFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (env.GITHUB_PAGES !== 'true' && env.GITHUB_PAGES !== '1') return parsed;
+  if (hasConfigValue(parsed, ['build', 'base_path'])) return parsed;
+  if (firstNonEmptyEnv(env.NECTAR_BUILD_BASE_PATH) !== undefined) return parsed;
+  if (configuredGitHubPagesCustomDomain(parsed, env)) return parsed;
+
+  const repoName = githubRepositoryName(firstNonEmptyEnv(env.GITHUB_REPOSITORY));
+  if (repoName === undefined) return parsed;
+  return setDeep(parsed, ['build', 'base_path'], `/${repoName}/`);
+}
+
+function configuredGitHubPagesCustomDomain(parsed: unknown, env: NodeJS.ProcessEnv): boolean {
+  if (firstNonEmptyEnv(env.NECTAR_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN) !== undefined) return true;
+  const configured = getConfigValue(parsed, ['deploy', 'github_pages', 'custom_domain']);
+  return typeof configured === 'string' && configured.trim() !== '';
+}
+
+function githubRepositoryName(repository: string | undefined): string | undefined {
+  if (repository === undefined) return undefined;
+  const repoName = repository.split('/').pop()?.trim();
+  if (!repoName) return undefined;
+  if (repoName.toLowerCase().endsWith('.github.io')) return undefined;
+  return repoName;
+}
+
 function applyBuildMetadataEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   let target = parsed;
   const branch = firstNonEmptyEnv(
@@ -453,6 +479,20 @@ function firstNonEmptyEnv(...values: (string | undefined)[]): string | undefined
     if (value !== undefined && value.trim() !== '') return value;
   }
   return undefined;
+}
+
+function hasConfigValue(root: unknown, path: readonly string[]): boolean {
+  return getConfigValue(root, path) !== undefined;
+}
+
+function getConfigValue(root: unknown, path: readonly string[]): unknown {
+  let current = root;
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+    if (!Object.prototype.hasOwnProperty.call(current, key)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
 }
 
 // Env vars that look like `NECTAR_*` but address Nectar runtime knobs, not

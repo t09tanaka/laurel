@@ -44,8 +44,10 @@ line in the workflow you copy.
 ## Picking one
 
 - **Free + zero setup:** `github-pages.yml`. Works as soon as Pages is enabled
-  and Source is set to "GitHub Actions". Pair with `[build].base_path = "/<repo>/"`
-  in `nectar.toml` if you use a project site URL.
+  and Source is set to "GitHub Actions". The starter build step sets
+  `GITHUB_PAGES=true`, so project sites derive `[build].base_path = "/<repo>/"`
+  from `GITHUB_REPOSITORY` automatically unless you set `[build].base_path` or
+  `[deploy.github_pages].custom_domain` yourself.
 - **CDN-heavy + low cost:** `cloudflare-pages.yml`. Cloudflare's free tier
   covers most blogs. The provider-managed deploys keep preview URLs per branch.
 - **Marketing-site features (forms, redirects, edge functions):** Netlify or

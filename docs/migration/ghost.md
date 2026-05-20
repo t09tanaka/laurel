@@ -503,9 +503,11 @@ The simplest path if you already host code on GitHub.
    safer pattern is to ignore `dist/` and build in CI.
 2. In *Settings → Pages*, point Pages at the branch and path that contains
    the built site.
-3. If hosting under `https://<user>.github.io/<repo>/`, set
-   `[build].base_path = "/<repo>/"` in `nectar.toml` so internal links and
-   asset URLs include the subpath.
+3. If hosting under `https://<user>.github.io/<repo>/` from GitHub Actions,
+   run the build with `GITHUB_PAGES=true`; Nectar derives
+   `[build].base_path = "/<repo>/"` from `GITHUB_REPOSITORY` so internal links
+   and asset URLs include the subpath. Set `[build].base_path` manually only
+   when overriding that derived path.
 
 A minimal `.github/workflows/deploy.yml`:
 
@@ -526,6 +528,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bunx nectar build
+        env:
+          GITHUB_PAGES: "true"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -621,6 +621,8 @@ jobs:
           bun-version: 1.3.0
       - run: bun install --frozen-lockfile
       - run: bunx nectar build
+        env:
+          GITHUB_PAGES: "true"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -641,18 +643,17 @@ Then in the repo settings: **Pages → Build and deployment → Source = GitHub
 Actions**. Push to `main` and the action publishes the site.
 
 If your site lives at `https://<user>.github.io/<repo>/` (project pages, not
-a custom domain or user site), update `nectar.toml`:
+a custom domain or user site), set the deployed URL in `nectar.toml`:
 
 ```toml
 [site]
 url = "https://<user>.github.io/<repo>/"
-
-[build]
-base_path = "/<repo>/"
 ```
 
-`base_path` makes `{{asset}}`, `{{url}}`, and navigation links emit correct
-URLs for the subdirectory.
+In GitHub Actions, `GITHUB_PAGES=true` plus `GITHUB_REPOSITORY=<owner>/<repo>`
+lets Nectar derive `base_path = "/<repo>/"` automatically so `{{asset}}`,
+`{{url}}`, and navigation links emit correct URLs for the subdirectory. Set
+`[build].base_path` manually only if you need to override that derived path.
 
 Nectar also writes `dist/.nojekyll` on every successful build so GitHub Pages
 serves underscore-prefixed assets and directories instead of running them
@@ -843,8 +844,9 @@ rules into nginx `return` directives.
 - **`nginx -t` fails on `brotli_static`.** Your nginx build does not have the
   Brotli module loaded. Install an nginx package with Brotli support, load the
   module, or remove `brotli_static on;` from the deployed include.
-- **Assets 404 with `/<repo>/...` prefix on GitHub Pages.** You missed
-  `[build] base_path`. Set it to your subdirectory path with leading and
+- **Assets 404 with `/<repo>/...` prefix on GitHub Pages.** Confirm the build
+  ran with `GITHUB_PAGES=true` and `GITHUB_REPOSITORY=<owner>/<repo>`, or set
+  `[build] base_path` manually to your subdirectory path with leading and
   trailing slash, e.g. `"/my-blog/"`, and rebuild.
 - **GitHub Pages ignores your project-site 404 page.** Keep the generated file
   at `dist/404.html`. Do not move it to `dist/<repo>/404.html`; the repo name

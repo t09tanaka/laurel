@@ -789,6 +789,117 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('derives GitHub Pages project-site base_path from GITHUB_REPOSITORY', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/project-site',
+        },
+      });
+      expect(config.build.base_path).toBe('/project-site/');
+    });
+  });
+
+  test('keeps explicit build.base_path ahead of the GitHub Pages project-site fallback', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n[build]\nbase_path = "/manual/"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/project-site',
+        },
+      });
+      expect(config.build.base_path).toBe('/manual/');
+    });
+  });
+
+  test('keeps NECTAR_BUILD_BASE_PATH ahead of the GitHub Pages project-site fallback', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/project-site',
+          NECTAR_BUILD_BASE_PATH: '/env/',
+        },
+      });
+      expect(config.build.base_path).toBe('/env/');
+    });
+  });
+
+  test('does not derive GitHub Pages base_path when a custom domain is configured', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://blog.example.com/"\n[deploy.github_pages]\ncustom_domain = "blog.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/project-site',
+        },
+      });
+      expect(config.build.base_path).toBe('/');
+    });
+  });
+
+  test('does not derive GitHub Pages base_path when a custom domain env override is present', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://blog.example.com/"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/project-site',
+          NECTAR_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN: 'blog.example.com',
+        },
+      });
+      expect(config.build.base_path).toBe('/');
+      expect(config.deploy.github_pages.custom_domain).toBe('blog.example.com');
+    });
+  });
+
+  test('does not derive GitHub Pages base_path for user or organization Pages repositories', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          GITHUB_PAGES: 'true',
+          GITHUB_REPOSITORY: 'octo/octo.github.io',
+        },
+      });
+      expect(config.build.base_path).toBe('/');
+    });
+  });
+
   test('uses Vercel deployment URL and metadata when present', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

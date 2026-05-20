@@ -18,25 +18,29 @@ artifact with `actions/deploy-pages`.
    set **Source** to **GitHub Actions**.
 
 3. If this is a project site at `https://<user>.github.io/<repo>/`, set the
-   deployed URL and base path in `nectar.toml`:
+   deployed URL in `nectar.toml`:
 
    ```toml
    [site]
    url = "https://<user>.github.io/<repo>/"
-
-   [build]
-   base_path = "/<repo>/"
    ```
 
-   Skip `base_path` for user / organization sites such as
-   `https://<user>.github.io/`, and for custom domains served from `/`.
+   In GitHub Actions, when `GITHUB_PAGES=true` and `GITHUB_REPOSITORY` is
+   available, Nectar derives `[build].base_path = "/<repo>/"` automatically for
+   project sites. Set `[build].base_path` yourself only when you need to
+   override the repository-derived path. User / organization sites such as
+   `https://<user>.github.io/`, and custom domains served from `/`, keep
+   `base_path = "/"`.
 
 4. Build locally before the first push:
 
    ```sh
-   bunx nectar build
+   GITHUB_PAGES=true GITHUB_REPOSITORY=<owner>/<repo> bunx nectar build
    test -f dist/.nojekyll
    ```
+
+   For user / organization sites or custom domains, plain `bunx nectar build`
+   is enough because the site is served from `/`.
 
 5. Commit and push to `main`. The workflow publishes `dist/` to Pages.
 
@@ -154,8 +158,10 @@ artifact workflow.
 
 ## Troubleshooting
 
-- **CSS or assets 404 on project Pages:** set `[build].base_path` to the repo
-  path, including leading and trailing slashes, for example `"/my-blog/"`.
+- **CSS or assets 404 on project Pages:** confirm the build ran with
+  `GITHUB_PAGES=true` and `GITHUB_REPOSITORY=<owner>/<repo>`, or set
+  `[build].base_path` to the repo path manually, including leading and trailing
+  slashes, for example `"/my-blog/"`.
 - **Project Pages 404 page is not being used:** confirm the built artifact
   contains `dist/404.html`, not `dist/<repo>/404.html`. `base_path` should stay
   `"/<repo>/"`, but the file layout remains rooted at `dist/`.
