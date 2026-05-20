@@ -1,14 +1,15 @@
 Inspect the loaded nectar.toml config
 
 Usage:
-  nectar config [--config <path>] [--json] <subcommand...>
+  nectar config [--config <path>] [--json] [--format <json|toml>] <subcommand...>
 
 Arguments:
-  subcommand          `get <dotted.key>` (print the value at a dotted path, e.g. `site.url` or `build.base_path`) or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)
+  subcommand          `print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value, e.g. `site.url` or `build.base_path`), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found)
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
-  -j, --json          Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".
+  -j, --json          Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config".
+  --format <json|toml>  For `print`, choose the resolved config output format: `toml` (default) or `json`.
   -h, --help          Show help for this command
 
 Environment variables:
@@ -22,6 +23,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
+  nectar config print                          # resolved config as TOML
+  nectar config print --format json            # resolved config as JSON
   nectar config path                           # absolute path of the loaded toml
   nectar config get site.url
   nectar config get build.base_path --json

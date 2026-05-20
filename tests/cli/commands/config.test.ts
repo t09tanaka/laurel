@@ -3,6 +3,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import TOML from '@iarna/toml';
 import { lookupDotted } from '~/cli/commands/config.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
@@ -130,6 +131,72 @@ describe('cli config', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  test('config print dumps the resolved config as TOML by default', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['config', 'print'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      const parsed = TOML.parse(stdout) as {
+        site: { title: string; url: string };
+        content: { posts_dir: string };
+        build: { output_dir: string; base_path: string };
+      };
+      expect(parsed.site.title).toBe('Config Test');
+      expect(parsed.site.url).toBe('https://config.test');
+      expect(parsed.content.posts_dir).toBe('content/posts');
+      expect(parsed.build.output_dir).toBe('dist');
+      expect(parsed.build.base_path).toBe('/blog/');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config print --format json dumps merged config layers plus defaults', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'prod.toml'),
+        ['[site]', 'title = "Layered Config"', ''].join('\n'),
+      );
+      const { stdout, stderr, exitCode } = await runCli(
+        ['config', 'print', '--config', 'nectar.toml', '--config', 'prod.toml', '--format', 'json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      const parsed = JSON.parse(stdout) as {
+        site: { title: string; url: string };
+        content: { posts_dir: string };
+        components: { rss: { enabled: boolean }; search: { enabled: boolean } };
+      };
+      expect(parsed.site.title).toBe('Layered Config');
+      expect(parsed.site.url).toBe('https://config.test');
+      expect(parsed.content.posts_dir).toBe('content/posts');
+      expect(parsed.components.rss.enabled).toBe(false);
+      expect(parsed.components.search.enabled).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config print --json aliases JSON format', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['config', 'print', '--json'], dir);
+      expect(exitCode).toBe(0);
+      expect((JSON.parse(stdout) as { site: { title: string } }).site.title).toBe('Config Test');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config print rejects unknown formats', async () => {
+    const { stderr, exitCode } = await runCli(['config', 'print', '--format', 'yaml']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid config print format');
   });
 
   test('unknown subcommand exits with code 2', async () => {

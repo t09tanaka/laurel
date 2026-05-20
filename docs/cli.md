@@ -458,25 +458,28 @@ Inspect the loaded nectar.toml config
 Usage:
 
 ```
-nectar config [--config <path>] [--json] <subcommand...>
+nectar config [--config <path>] [--json] [--format <json|toml>] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `get <dotted.key>` (print the value at a dotted path, e.g. `site.url` or `build.base_path`) or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
+| `<subcommand...>` | required (variadic) | `print` (dump the fully resolved config after defaults, env overrides, and config layers), `get <dotted.key>` (print one value, e.g. `site.url` or `build.base_path`), or `path` (print the absolute path of the loaded config file, or nothing in plain mode / `null` in --json mode when no config was found) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONFIG_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+| `-j, --json` | boolean | `NECTAR_CONFIG_JSON` | Emit the value as JSON. For `print`: equivalent to `--format json`. For `get`: pretty-printed JSON of the value at the dotted path. For `path`: a `{ "config_path": "..." }` envelope so CI consumers can branch on `null` for "no config". |
+| `--format <json\|toml>` | string | `NECTAR_CONFIG_FORMAT` | For `print`, choose the resolved config output format: `toml` (default) or `json`. |
 
 Examples:
 
 ```
+nectar config print                          # resolved config as TOML
+nectar config print --format json            # resolved config as JSON
 nectar config path                           # absolute path of the loaded toml
 nectar config get site.url
 nectar config get build.base_path --json

@@ -1,11 +1,14 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
+import TOML from '@iarna/toml';
 import { loadConfig } from '~/config/loader.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { CONFIG_SPEC } from '../specs.ts';
 
 const CONFIG_CANDIDATES = ['nectar.toml', 'nectar.config.toml'];
+const CONFIG_PRINT_FORMATS = new Set(['json', 'toml']);
+type ConfigPrintFormat = 'json' | 'toml';
 
 export async function runConfig(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -28,6 +31,26 @@ export async function runConfig(args: string[]): Promise<number> {
   const asJson = parsed.values.json === true;
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const cwd = process.cwd();
+
+  if (sub === 'print') {
+    if (parsed.positionals.length > 1) {
+      process.stderr.write('`config print` takes no further arguments.\n');
+      return 2;
+    }
+    const formatResult = resolvePrintFormat(parsed.values.format, asJson);
+    if (formatResult.ok === false) {
+      process.stderr.write(`${formatResult.message}\n`);
+      return 2;
+    }
+    try {
+      const config = await loadConfig({ cwd, configPath });
+      process.stdout.write(renderResolvedConfig(config, formatResult.format));
+      return 0;
+    } catch (err) {
+      reportError(err, cwd);
+      return 1;
+    }
+  }
 
   if (sub === 'path') {
     if (parsed.positionals.length > 1) {
@@ -73,9 +96,28 @@ export async function runConfig(args: string[]): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`get <key>\` or \`path\`.\n`,
+    `Unknown subcommand: ${sub ?? '<missing>'}. Expected \`print\`, \`get <key>\`, or \`path\`.\n`,
   );
   return 2;
+}
+
+function resolvePrintFormat(
+  raw: string | boolean | undefined,
+  asJson: boolean,
+): { ok: true; format: ConfigPrintFormat } | { ok: false; message: string } {
+  if (raw === undefined) return { ok: true, format: asJson ? 'json' : 'toml' };
+  if (typeof raw !== 'string' || !CONFIG_PRINT_FORMATS.has(raw)) {
+    return { ok: false, message: 'Invalid config print format. Expected `json` or `toml`.' };
+  }
+  if (asJson && raw !== 'json') {
+    return { ok: false, message: '`--json` cannot be combined with `--format toml`.' };
+  }
+  return { ok: true, format: raw as ConfigPrintFormat };
+}
+
+function renderResolvedConfig(config: unknown, format: ConfigPrintFormat): string {
+  if (format === 'json') return `${JSON.stringify(config, null, 2)}\n`;
+  return TOML.stringify(config as Record<string, unknown>);
 }
 
 function resolveConfigPath(cwd: string, configPath: string | undefined): string | null {
