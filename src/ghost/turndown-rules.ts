@@ -51,6 +51,10 @@ function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
 }
 
+function html(el: DomNode | null): string {
+  return el?.innerHTML?.trim() ?? '';
+}
+
 function firstText(node: DomNode, selectors: readonly string[]): string {
   for (const selector of selectors) {
     const found = text(node.querySelector(selector));
@@ -684,11 +688,20 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   turndown.addRule('kg-callout-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-callout-card'),
     replacement: (_content, node) => {
-      const emoji = text(node.querySelector('.kg-callout-emoji'));
+      const emojiEl = node.querySelector('.kg-callout-emoji');
+      const emoji = text(emojiEl);
+      const emojiHtml = emoji ? '' : html(emojiEl);
+      const noIcon = hasClass(node, 'kg-callout-card-without-emoji') || (!emoji && !emojiHtml);
       const color = classByPrefix(node, 'kg-callout-card-');
       const textEl = node.querySelector('.kg-callout-text');
       const inner = textEl ? turndown.turndown(textEl.innerHTML).trim() : '';
-      return wrap(shortcodeBlock('callout', { emoji, color }, inner));
+      return wrap(
+        shortcodeBlock(
+          'callout',
+          { emoji, 'emoji-html': emojiHtml, 'no-icon': noIcon ? 'true' : '', color },
+          inner,
+        ),
+      );
     },
   });
 

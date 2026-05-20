@@ -1254,14 +1254,35 @@ function renderToggleHtml(attrs: Record<string, string>, body: string): string {
 // outside the alphabet is silently dropped.
 const KOENIG_TOKEN_RE = /^[a-z][a-z0-9-]*$/;
 
-function renderCalloutHtml(attrs: Record<string, string>, body: string): string {
+const calloutEmojiHtmlSanitizeOptions: IOptions = {
+  allowedTags: ['img', 'span'],
+  allowedAttributes: {
+    img: ['src', 'alt', 'title', 'width', 'height', 'class', 'loading', 'decoding'],
+    span: ['class', 'title'],
+  },
+  allowedSchemes: ['http', 'https'],
+  disallowedTagsMode: 'discard',
+};
+
+function calloutEmojiSlotHtml(attrs: Record<string, string>): string {
+  const emojiHtml = attrs['emoji-html']?.trim();
+  if (emojiHtml) {
+    return sanitizeHtml(emojiHtml, calloutEmojiHtmlSanitizeOptions).trim();
+  }
   const emoji = attrs.emoji ?? '';
+  return emoji ? escapeHtmlAttr(emoji) : '';
+}
+
+function renderCalloutHtml(attrs: Record<string, string>, body: string): string {
   const color = attrs.color ?? '';
   const colorClass = KOENIG_TOKEN_RE.test(color) ? ` kg-callout-card-${color}` : '';
-  const emojiHtml = emoji ? `<div class="kg-callout-emoji">${escapeHtmlAttr(emoji)}</div>` : '';
+  const emojiSlot = calloutEmojiSlotHtml(attrs);
+  const noIcon = attrs['no-icon'] === 'true' || emojiSlot === '';
+  const noIconClass = noIcon ? ' kg-callout-card-without-emoji' : '';
+  const emojiHtml = noIcon ? '' : `<div class="kg-callout-emoji">${emojiSlot}</div>`;
   const innerMarkdown = body.trim();
   const textHtml = `<div class="kg-callout-text">\n\n${innerMarkdown}\n\n</div>`;
-  return `\n\n<div class="kg-card kg-callout-card${koenigWidthClass(attrs)}${colorClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
+  return `\n\n<div class="kg-card kg-callout-card${koenigWidthClass(attrs)}${colorClass}${noIconClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
 }
 
 function renderButtonHtml(attrs: Record<string, string>, body: string): string {

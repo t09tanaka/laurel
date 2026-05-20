@@ -128,7 +128,8 @@ export function renderCalloutCardHtml(payload: unknown): string {
   const text = strProp(payload, 'calloutText');
   if (!text) return '';
   const emojiEl = emoji ? `<div class="kg-callout-emoji">${escapeHtml(emoji)}</div>` : '';
-  return `<div class="kg-card kg-callout-card kg-callout-card-${escapeAttr(color)}">${emojiEl}<div class="kg-callout-text">${text}</div></div>`;
+  const noIconClass = emoji ? '' : ' kg-callout-card-without-emoji';
+  return `<div class="kg-card kg-callout-card kg-callout-card-${escapeAttr(color)}${noIconClass}">${emojiEl}<div class="kg-callout-text">${text}</div></div>`;
 }
 
 export function renderButtonCardHtml(payload: unknown): string {

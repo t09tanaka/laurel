@@ -689,16 +689,35 @@ describe('Ghost Turndown rules — kg-callout-card', () => {
     expect(md).toContain('{{< /callout >}}');
   });
 
-  test('handles callout without emoji', () => {
+  test('preserves iconless callout state', () => {
     const html = `
-      <div class="kg-card kg-callout-card kg-callout-card-grey">
+      <div class="kg-card kg-callout-card kg-callout-card-grey kg-callout-card-without-emoji">
         <div class="kg-callout-text">Note: be careful.</div>
       </div>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< callout color="grey" >}}');
+    expect(md).toContain('{{< callout');
+    expect(md).toContain('no-icon="true"');
+    expect(md).toContain('color="grey"');
     expect(md).not.toContain('emoji=""');
+    expect(md).not.toContain('emoji-html=""');
     expect(md).toContain('Note: be careful.');
+  });
+
+  test('preserves custom callout emoji markup', () => {
+    const html = `
+      <div class="kg-card kg-callout-card kg-callout-card-pink">
+        <div class="kg-callout-emoji"><img class="kg-callout-emoji-image" src="https://example.com/icon.png" alt="Custom"></div>
+        <div class="kg-callout-text">Custom icon.</div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain(
+      'emoji-html="<img class=\\"kg-callout-emoji-image\\" src=\\"https://example.com/icon.png\\" alt=\\"Custom\\">"',
+    );
+    expect(md).toContain('color="pink"');
+    expect(md).not.toContain('no-icon="true"');
+    expect(md).toContain('Custom icon.');
   });
 });
 

@@ -265,6 +265,41 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('https://example.com');
   });
 
+  test('marks callout cards without an emoji as iconless', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'callout',
+          backgroundColor: 'grey',
+          calloutText: 'No icon.',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain(
+      'class="kg-card kg-callout-card kg-callout-card-grey kg-callout-card-without-emoji"',
+    );
+    expect(out).not.toContain('kg-callout-emoji');
+    expect(out).toContain('<div class="kg-callout-text">No icon.</div>');
+  });
+
+  test('keeps explicit callout emoji content', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'callout',
+          backgroundColor: 'pink',
+          calloutEmoji: '✨',
+          calloutText: 'Custom icon.',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-card kg-callout-card kg-callout-card-pink"');
+    expect(out).toContain('<div class="kg-callout-emoji">✨</div>');
+    expect(out).not.toContain('kg-callout-card-without-emoji');
+  });
+
   // Regression for backlog task #101: the Source theme grew `kg-video-*`
   // styling that consumes `--aspect-ratio` on `.kg-video-container`. The
   // renderer has to materialise that custom property from the card's

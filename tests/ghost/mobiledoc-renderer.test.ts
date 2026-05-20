@@ -158,6 +158,34 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toBe('<pre><code class="language-python">x = 1</code></pre>');
   });
 
+  test('marks callout cards without an emoji as iconless', () => {
+    const out = renderMobiledocToHtml(
+      mobi({
+        cards: [['callout', { backgroundColor: 'grey', calloutText: 'No icon.' }]],
+        sections: [[10, 0]],
+      }),
+    );
+    expect(out).toContain(
+      'class="kg-card kg-callout-card kg-callout-card-grey kg-callout-card-without-emoji"',
+    );
+    expect(out).not.toContain('kg-callout-emoji');
+    expect(out).toContain('<div class="kg-callout-text">No icon.</div>');
+  });
+
+  test('keeps explicit callout emoji content', () => {
+    const out = renderMobiledocToHtml(
+      mobi({
+        cards: [
+          ['callout', { backgroundColor: 'pink', calloutEmoji: '✨', calloutText: 'Custom icon.' }],
+        ],
+        sections: [[10, 0]],
+      }),
+    );
+    expect(out).toContain('class="kg-card kg-callout-card kg-callout-card-pink"');
+    expect(out).toContain('<div class="kg-callout-emoji">✨</div>');
+    expect(out).not.toContain('kg-callout-card-without-emoji');
+  });
+
   test('renders a blockquote markup section', () => {
     const out = renderMobiledocToHtml(
       mobi({

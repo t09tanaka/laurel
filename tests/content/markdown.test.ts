@@ -432,7 +432,29 @@ describe('renderMarkdown — callout shortcode expansion', () => {
     const md = '{{< callout emoji="i" >}}\nbody\n{{< /callout >}}';
     const { html } = await renderMarkdown(md);
     expect(html).toContain('class="kg-card kg-callout-card kg-width-regular"');
-    expect(html).not.toContain('kg-callout-card-');
+    expect(html).not.toContain('kg-callout-card-blue');
+    expect(html).not.toContain('kg-callout-card-without-emoji');
+  });
+
+  test('marks iconless callouts without rendering an empty emoji slot', async () => {
+    const md = '{{< callout color="grey" no-icon="true" >}}\nNo icon.\n{{< /callout >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain(
+      'class="kg-card kg-callout-card kg-width-regular kg-callout-card-grey kg-callout-card-without-emoji"',
+    );
+    expect(html).not.toContain('<div class="kg-callout-emoji">');
+    expect(html).toContain('No icon.');
+  });
+
+  test('preserves custom callout emoji markup through the emoji slot', async () => {
+    const md =
+      '{{< callout emoji-html="<img class=\\"kg-callout-emoji-image\\" src=\\"https://example.com/icon.png\\" alt=\\"Custom\\">" color="pink" >}}\nCustom icon.\n{{< /callout >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-callout-card kg-width-regular kg-callout-card-pink"');
+    expect(html).toContain('<div class="kg-callout-emoji">');
+    expect(html).toContain('src="https://example.com/icon.png"');
+    expect(html).toContain('alt="Custom"');
+    expect(html).not.toContain('kg-callout-card-without-emoji');
   });
 
   test('drops attacker-controlled color tokens (alphanumeric only)', async () => {
@@ -568,7 +590,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
       [
         'callout',
         '{{< callout color="blue" width="wide" >}}Body{{< /callout >}}',
-        'class="kg-card kg-callout-card kg-width-wide kg-callout-card-blue"',
+        'class="kg-card kg-callout-card kg-width-wide kg-callout-card-blue kg-callout-card-without-emoji"',
       ],
       [
         'button',
