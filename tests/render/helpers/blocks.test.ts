@@ -549,6 +549,22 @@ describe('has helper', () => {
     expect(tpl({ tags: [{ slug: 'a' }] })).toBe('MISS');
   });
 
+  test('tag="count:OPN" supports comparison operators on collection size', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const ctx = { tags: [{ slug: 'a' }, { slug: 'b' }] };
+    const gt = engine.hb.compile('{{#has tag="count:>1"}}HIT{{else}}MISS{{/has}}');
+    const gte = engine.hb.compile('{{#has tag="count:>=2"}}HIT{{else}}MISS{{/has}}');
+    const lt = engine.hb.compile('{{#has tag="count:<3"}}HIT{{else}}MISS{{/has}}');
+    const lte = engine.hb.compile('{{#has tag="count:<=2"}}HIT{{else}}MISS{{/has}}');
+    const eq = engine.hb.compile('{{#has tag="count:=2"}}HIT{{else}}MISS{{/has}}');
+    expect(gt(ctx)).toBe('HIT');
+    expect(gte(ctx)).toBe('HIT');
+    expect(lt(ctx)).toBe('HIT');
+    expect(lte(ctx)).toBe('HIT');
+    expect(eq(ctx)).toBe('HIT');
+  });
+
   test('tag="count:1" with no operator defaults to equality on collection size', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
@@ -556,6 +572,18 @@ describe('has helper', () => {
     expect(tpl({ tags: [{ slug: 'a' }] })).toBe('HIT');
     expect(tpl({ tags: [] })).toBe('MISS');
     expect(tpl({ tags: [{ slug: 'a' }, { slug: 'b' }] })).toBe('MISS');
+  });
+
+  // #726 — Liebling branches on co-authored posts with `author="count:>1"`.
+  // The value-side count syntax should evaluate the post authors array just
+  // like the existing tag form evaluates tags.
+  test('author="count:>1" matches when the author collection has more than one entry', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has author="count:>1"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ authors: [{ slug: 'a' }, { slug: 'b' }] })).toBe('HIT');
+    expect(tpl({ authors: [{ slug: 'a' }] })).toBe('MISS');
+    expect(tpl({})).toBe('MISS');
   });
 
   // #455 — `any=` / `all=` check the truthiness of a list of property paths on

@@ -516,12 +516,12 @@ function evaluateVisibilityAttr(raw: unknown, value: string): boolean {
   return visibility === expected;
 }
 
-// `{{#has tag="news, sports"}}` matches if any listed slug/name appears on the
-// context's tags array. Ghost also accepts a `count:` prefix on the value side
-// — `{{#has tag="count:>1"}}` — meaning "tags collection size matches the
-// inner comparison", which themes use to branch on "has multiple tags". We
-// route that form back through `evaluateCountAttr` so both syntaxes share the
-// same numeric comparator implementation.
+// `{{#has tag="news, sports"}}` / `{{#has author="jane"}}` match if any listed
+// slug/name appears on the context's tags/authors array. Ghost also accepts a
+// `count:` prefix on the value side — `{{#has tag="count:>1"}}` or
+// `{{#has author="count:>1"}}` — meaning "collection size matches the inner
+// comparison". We route that form back through `evaluateCountAttr` so both
+// syntaxes share the same numeric comparator implementation.
 function evaluateTagOrAuthorAttr(raw: unknown, value: string): boolean {
   const trimmed = value.trim();
   if (trimmed.startsWith('count:')) {
