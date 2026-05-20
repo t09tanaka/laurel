@@ -227,8 +227,9 @@ export function registerContentHelpers(engine: NectarEngine): void {
       }
       const cfg = engine.config?.components?.comments;
       const provider = cfg?.provider ?? 'off';
+      const hashAttrs = commentsHashAttrs(options.hash);
       if (!cfg || provider === 'off') {
-        return new engine.hb.SafeString('<div data-nectar-comments></div>');
+        return new engine.hb.SafeString(renderCommentsContainer(hashAttrs));
       }
       const route = options.data?.route as { url?: string } | undefined;
       const site = engine.content?.site as { url?: string } | undefined;
@@ -238,15 +239,17 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const nonce = engine.config?.build?.csp_nonce;
       switch (provider) {
         case 'giscus':
-          return new engine.hb.SafeString(renderGiscusComments(cfg));
+          return new engine.hb.SafeString(renderGiscusComments(cfg, hashAttrs));
         case 'utterances':
-          return new engine.hb.SafeString(renderUtterancesComments(cfg));
+          return new engine.hb.SafeString(renderUtterancesComments(cfg, hashAttrs));
         case 'disqus':
-          return new engine.hb.SafeString(renderDisqusComments(cfg, canonical, identifier, nonce));
+          return new engine.hb.SafeString(
+            renderDisqusComments(cfg, canonical, identifier, nonce, hashAttrs),
+          );
         case 'webmention.io':
-          return new engine.hb.SafeString(renderWebmentionComments(cfg, canonical));
+          return new engine.hb.SafeString(renderWebmentionComments(cfg, canonical, hashAttrs));
         default:
-          return new engine.hb.SafeString('<div data-nectar-comments></div>');
+          return new engine.hb.SafeString(renderCommentsContainer(hashAttrs));
       }
     },
   );
@@ -498,7 +501,22 @@ type CommentsConfig = {
   username?: string;
 };
 
-function renderGiscusComments(cfg: CommentsConfig): string {
+function commentsHashAttrs(hash: Record<string, unknown>): [string, string][] {
+  const attrs: [string, string][] = [];
+  if (Object.hasOwn(hash, 'title')) attrs.push(['data-comments-title', String(hash.title ?? '')]);
+  if (Object.hasOwn(hash, 'count')) attrs.push(['data-comments-count', String(hash.count ?? '')]);
+  return attrs;
+}
+
+function renderCommentsContainer(attrs: [string, string][] = []): string {
+  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
+  return `<div data-nectar-comments${rendered ? ` ${rendered}` : ''}></div>`;
+}
+
+function renderGiscusComments(
+  cfg: CommentsConfig,
+  containerAttrs: [string, string][] = [],
+): string {
   if (!cfg.repo) {
     return '<!-- nectar comments: giscus provider requires components.comments.repo -->';
   }
@@ -519,10 +537,13 @@ function renderGiscusComments(cfg: CommentsConfig): string {
   if (cfg.category) attrs.splice(3, 0, ['data-category', cfg.category]);
   if (cfg.category_id) attrs.splice(4, 0, ['data-category-id', cfg.category_id]);
   const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
-  return `<div data-nectar-comments></div>\n<script ${rendered} async></script>`;
+  return `${renderCommentsContainer(containerAttrs)}\n<script ${rendered} async></script>`;
 }
 
-function renderUtterancesComments(cfg: CommentsConfig): string {
+function renderUtterancesComments(
+  cfg: CommentsConfig,
+  containerAttrs: [string, string][] = [],
+): string {
   if (!cfg.repo) {
     return '<!-- nectar comments: utterances provider requires components.comments.repo -->';
   }
@@ -535,7 +556,7 @@ function renderUtterancesComments(cfg: CommentsConfig): string {
   ];
   if (cfg.label) attrs.splice(3, 0, ['label', cfg.label]);
   const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
-  return `<div data-nectar-comments></div>\n<script ${rendered} async></script>`;
+  return `${renderCommentsContainer(containerAttrs)}\n<script ${rendered} async></script>`;
 }
 
 function renderDisqusComments(
@@ -543,6 +564,7 @@ function renderDisqusComments(
   canonical: string,
   identifier: string,
   cspNonce: string | undefined,
+  containerAttrs: [string, string][] = [],
 ): string {
   if (!cfg.shortname) {
     return '<!-- nectar comments: disqus provider requires components.comments.shortname -->';
@@ -554,7 +576,7 @@ function renderDisqusComments(
   const idJson = escapeForScript(JSON.stringify(identifier));
   const shortAttr = escapeAttr(cfg.shortname);
   return [
-    '<div id="disqus_thread" data-nectar-comments></div>',
+    renderCommentsContainerWithId('disqus_thread', containerAttrs),
     `<script${nonceAttr(cspNonce)}>`,
     '(function() {',
     '  var disqus_config = function () {',
@@ -571,10 +593,20 @@ function renderDisqusComments(
   ].join('\n');
 }
 
-function renderWebmentionComments(cfg: CommentsConfig, canonical: string): string {
+function renderCommentsContainerWithId(id: string, attrs: [string, string][] = []): string {
+  const rendered = attrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`).join(' ');
+  return `<div id="${escapeAttr(id)}" data-nectar-comments${rendered ? ` ${rendered}` : ''}></div>`;
+}
+
+function renderWebmentionComments(
+  cfg: CommentsConfig,
+  canonical: string,
+  containerAttrs: [string, string][] = [],
+): string {
   const parts = [
     'class="webmentions"',
     'data-nectar-comments',
+    ...containerAttrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`),
     'data-nectar-webmentions',
     `data-target="${escapeAttr(canonical)}"`,
   ];

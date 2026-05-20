@@ -610,6 +610,27 @@ describe('comments helper', () => {
     expect(engine.hb.compile('{{comments}}')({})).toBe('<div data-nectar-comments></div>');
   });
 
+  test('hash params are exposed on the default comments container for client hooks', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments title="" count=false}}')({});
+    expect(out).toBe(
+      '<div data-nectar-comments data-comments-title="" data-comments-count="false"></div>',
+    );
+  });
+
+  test('hash params are HTML-escaped when rendered as comments data attributes', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments title=title count=count}}')({
+      title: '"<Comments>" & more',
+      count: '"><script>alert(1)</script>',
+    });
+    expect(out).toContain('data-comments-title="&quot;&lt;Comments&gt;&quot; &amp; more"');
+    expect(out).toContain('data-comments-count="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"');
+    expect(out).not.toContain('<script>');
+  });
+
   test('giscus renders the official script tag with sane defaults', () => {
     const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
     registerContentHelpers(engine);
@@ -622,6 +643,16 @@ describe('comments helper', () => {
     expect(out).toContain('data-reactions-enabled="1"');
     expect(out).toContain('crossorigin="anonymous"');
     expect(out).toContain('async');
+  });
+
+  test('configured providers receive comments hash params on their container', () => {
+    const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments title="Discussion" count=false}}')({});
+    expect(out).toContain(
+      '<div data-nectar-comments data-comments-title="Discussion" data-comments-count="false"></div>',
+    );
+    expect(out).toContain('src="https://giscus.app/client.js"');
   });
 
   test('giscus honors repo_id, category, category_id and overrides', () => {
@@ -790,6 +821,15 @@ describe('comments helper', () => {
     const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({ comments: false });
+    expect(out).toBe('');
+  });
+
+  test('post.comments === false suppresses hash-param comments output too', () => {
+    const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments title="Discussion" count=false}}')({
+      comments: false,
+    });
     expect(out).toBe('');
   });
 
