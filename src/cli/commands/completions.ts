@@ -4,6 +4,7 @@ import { COMMAND_NAMES, COMMAND_SPECS, COMPLETIONS_SPEC } from '../specs.ts';
 type Shell = 'bash' | 'zsh' | 'fish' | 'powershell';
 
 const SHELLS: readonly Shell[] = ['bash', 'zsh', 'fish', 'powershell'];
+const COMPLETION_COMMAND_ALIASES: Record<string, string> = { completion: 'completions' };
 
 export async function runCompletions(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -35,10 +36,10 @@ export async function runCompletions(args: string[]): Promise<number> {
     return 2;
   }
 
-  const commands = COMMAND_NAMES;
+  const commands = commandNamesWithCompletionAliases();
   const flags: Record<string, string[]> = {};
   for (const name of commands) {
-    const spec = COMMAND_SPECS[name];
+    const spec = COMMAND_SPECS[canonicalCompletionCommand(name)];
     if (!spec) continue;
     flags[name] = Object.keys(spec.options).map((flag) => `--${flag}`);
     flags[name].push('--help');
@@ -65,6 +66,15 @@ export async function runCompletions(args: string[]): Promise<number> {
 
 function isSupportedShell(s: string): s is Shell {
   return (SHELLS as readonly string[]).includes(s);
+}
+
+function commandNamesWithCompletionAliases(): string[] {
+  const aliases = Object.keys(COMPLETION_COMMAND_ALIASES);
+  return [...aliases, ...COMMAND_NAMES];
+}
+
+function canonicalCompletionCommand(name: string): string {
+  return COMPLETION_COMMAND_ALIASES[name] ?? name;
 }
 
 function renderBash(commands: string[], flags: Record<string, string[]>): string {
@@ -102,7 +112,7 @@ function renderZsh(commands: string[], flags: Record<string, string[]>): string 
     })
     .join('\n');
   const cmdList = commands.map((n) => {
-    const spec = COMMAND_SPECS[n];
+    const spec = COMMAND_SPECS[canonicalCompletionCommand(n)];
     const summary = (spec?.summary ?? '').replace(/'/g, "'\\''");
     return `    '${n}:${summary}'`;
   });
@@ -141,7 +151,7 @@ function renderFish(commands: string[], flags: Record<string, string[]>): string
     "complete -c nectar -n '__fish_use_subcommand' -a 'help version' -d 'Built-in command'",
   );
   for (const name of commands) {
-    const spec = COMMAND_SPECS[name];
+    const spec = COMMAND_SPECS[canonicalCompletionCommand(name)];
     const summary = (spec?.summary ?? '').replace(/'/g, "\\'");
     lines.push(`complete -c nectar -n '__fish_use_subcommand' -a '${name}' -d '${summary}'`);
   }

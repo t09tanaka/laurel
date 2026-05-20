@@ -16,6 +16,25 @@ async function runCli(
 }
 
 describe('cli completions', () => {
+  test.each([
+    ['bash', 'compgen'],
+    ['zsh', '#compdef nectar'],
+    ['fish', 'complete -c nectar'],
+  ])('singular completion alias prints %s shell completions', async (shell, marker) => {
+    const { stdout, stderr, exitCode } = await runCli(['completion', shell]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain(marker);
+  });
+
+  test('generated root command completions include the singular alias', async () => {
+    const { stdout, exitCode } = await runCli(['completions', 'bash']);
+    expect(exitCode).toBe(0);
+    const rootWords = stdout.match(/compgen -W "([^"]+)"/)?.[1]?.split(' ') ?? [];
+    expect(rootWords).toContain('completion');
+    expect(rootWords).toContain('completions');
+  });
+
   test('--help advertises the shell positional', async () => {
     const { stdout, exitCode } = await runCli(['completions', '--help']);
     expect(exitCode).toBe(0);

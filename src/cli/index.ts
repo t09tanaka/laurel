@@ -18,7 +18,7 @@ import { reportError } from './report.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 import { buildVersionJson } from './version.ts';
 
-const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
+const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
 
 // Crash hooks: a stray `await` or floating promise that rejects in the build
 // pipeline used to print a stack trace and leave the shell with a misleading

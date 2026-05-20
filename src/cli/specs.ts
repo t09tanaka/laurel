@@ -648,6 +648,7 @@ export const COMPLETIONS_SPEC: CommandSpec = {
     },
   ],
   examples: [
+    'nectar completion bash >> ~/.bashrc         # singular alias',
     'nectar completions bash >> ~/.bashrc',
     'nectar completions zsh > ~/.zsh/_nectar',
     'nectar completions fish > ~/.config/fish/completions/nectar.fish',
