@@ -48,6 +48,28 @@ function exportPayload(): string {
   });
 }
 
+function exportPayloadWithPosts(count: number): string {
+  return JSON.stringify({
+    db: [
+      {
+        data: {
+          posts: Array.from({ length: count }, (_, i) => {
+            const n = i + 1;
+            return {
+              id: `p${n}`,
+              title: `Post ${n}`,
+              slug: `post-${n}`,
+              html: `<p>Post ${n}</p>`,
+              status: 'published',
+              type: 'post',
+            };
+          }),
+        },
+      },
+    ],
+  });
+}
+
 describe('cli import-ghost — --on-conflict', () => {
   let dir: string;
   let exportFile: string;
@@ -141,12 +163,12 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
   });
 
   test('passing a folder ingests JSON and copies image/file assets', async () => {
-    const { stderr, exitCode } = await runCli(
+    const { stdout, exitCode } = await runCli(
       ['import-ghost', exportFolder, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('Copied 2 asset files');
+    expect(stdout).toContain('Copied 2 asset files');
     expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
     expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
@@ -184,12 +206,12 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     await proc.exited;
     expect(proc.exitCode).toBe(0);
 
-    const { exitCode, stderr } = await runCli(
+    const { exitCode, stdout } = await runCli(
       ['import-ghost', zipPath, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stderr).toContain('Copied 2 asset files');
+    expect(stdout).toContain('Copied 2 asset files');
     expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
     expect(await readFile(join(dir, 'content/images/2024/cover.jpg'), 'utf8')).toBe('COVER');
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
@@ -369,6 +391,64 @@ describe('cli import-ghost — --output (#265)', () => {
   });
 });
 
+describe('cli import-ghost — post progress (#810)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-progress-')));
+    exportFile = join(dir, 'large-export.json');
+    await writeFile(exportFile, exportPayloadWithPosts(120));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('prints progress every 50 processed posts for large imports', async () => {
+    const { stdout, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--on-conflict', 'overwrite'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Importing Ghost posts: 50/120 processed');
+    expect(stdout).toContain('Importing Ghost posts: 100/120 processed');
+  });
+
+  test('suppresses progress in quiet mode', async () => {
+    const { stdout, exitCode } = await runCli(['--quiet', 'import-ghost', exportFile], dir);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toContain('Importing Ghost posts:');
+  });
+
+  test('keeps json mode to a single machine-readable summary line', async () => {
+    const { stdout, exitCode } = await runCli(['--json', 'import-ghost', exportFile], dir);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout.trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const line = lines[0];
+    expect(line).toBeDefined();
+    if (!line) throw new Error('expected import-ghost --json to emit one line');
+    expect(line).not.toContain('Importing Ghost posts:');
+    expect(JSON.parse(line)).toMatchObject({
+      ok: true,
+      dryRun: false,
+      summary: { posts: 120 },
+    });
+  });
+
+  test('does not print progress during dry-run summaries', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', exportFile, '--dry-run'], dir);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Dry run: no files written.');
+    expect(stdout).not.toContain('Importing Ghost posts:');
+  });
+});
+
 describe('cli import-ghost — --max-size (#558)', () => {
   let dir: string;
   let exportFile: string;
@@ -499,12 +579,12 @@ describe('cli import-ghost — --keep-code-injection (#561)', () => {
   });
 
   test('default drops codeinjection fields and prints an audit summary', async () => {
-    const { stderr, exitCode } = await runCli(
+    const { stdout, exitCode } = await runCli(
       ['import-ghost', exportFile, '--on-conflict', 'overwrite'],
       dir,
     );
     expect(exitCode).toBe(0);
-    expect(stderr).toContain(
+    expect(stdout).toContain(
       'Skipped code injection in 1 posts. Re-run with --keep-code-injection to import them.',
     );
     const md = await readFile(join(dir, 'content/posts/pwn.md'), 'utf8');

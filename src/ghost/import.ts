@@ -185,6 +185,12 @@ export interface ImportSummary {
   plannedPaths: string[];
 }
 
+export interface ImportProgressEvent {
+  type: 'posts';
+  processedPosts: number;
+  totalPosts: number;
+}
+
 export interface ImportGhostOptions {
   cwd: string;
   // Path to either a Ghost export JSON file or a directory containing one.
@@ -235,6 +241,10 @@ export interface ImportGhostOptions {
   // land in <cwd>/content as before. When set, posts/pages/tags/authors and
   // copied assets land under this directory for review-first imports.
   outputDir?: string;
+  // Optional human-facing progress hook. Library callers opt in explicitly so
+  // JSON and dry-run CLI modes can stay quiet while normal imports still stream
+  // coarse progress for large exports.
+  onProgress?: (event: ImportProgressEvent) => void;
 }
 
 // Ghost subfolder names whose contents should be copied verbatim into
@@ -514,6 +524,12 @@ async function importFromResolvedInput(
   // detection still happens sequentially in Phase B so behavior is
   // deterministic regardless of which task finishes first here.
   const renderLimit = pLimit(IMPORT_CONCURRENCY);
+  let processedPosts = 0;
+  const reportPostProgress = (): void => {
+    processedPosts += 1;
+    if (processedPosts % 50 !== 0) return;
+    opts.onProgress?.({ type: 'posts', processedPosts, totalPosts: posts.length });
+  };
   const renderedPosts = await Promise.all(
     posts.map((post) =>
       renderLimit(() =>
@@ -526,7 +542,7 @@ async function importFromResolvedInput(
           tagSlugsForPost,
           authorSlugsForPost,
           tierSlugsForPost,
-        }),
+        }).finally(reportPostProgress),
       ),
     ),
   );

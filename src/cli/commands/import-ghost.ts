@@ -100,6 +100,16 @@ export async function runImportGhost(args: string[]): Promise<number> {
       maxFileSizeBytes,
       keepCodeInjection,
       outputDir,
+      onProgress:
+        asJson || dryRun
+          ? undefined
+          : (event) => {
+              if (event.type === 'posts') {
+                logger.info(
+                  `Importing Ghost posts: ${event.processedPosts}/${event.totalPosts} processed`,
+                );
+              }
+            },
     });
     if (asJson) {
       process.stdout.write(`${JSON.stringify({ ok: true, dryRun, summary })}\n`);
