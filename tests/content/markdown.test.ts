@@ -325,3 +325,81 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html.match(/<p>/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('renderMarkdown — callout shortcode expansion', () => {
+  test('expands into a kg-callout-card div with emoji + text wrappers', async () => {
+    const md = '{{< callout emoji="💡" color="blue" >}}\nHeads up.\n{{< /callout >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-callout-card kg-callout-card-blue"');
+    expect(html).toContain('<div class="kg-callout-emoji">');
+    expect(html).toContain('💡');
+    expect(html).toContain('<div class="kg-callout-text">');
+    expect(html).toContain('Heads up.');
+    expect(html).not.toContain('{{< callout');
+  });
+
+  test('omits the color modifier class when color attr is absent', async () => {
+    const md = '{{< callout emoji="i" >}}\nbody\n{{< /callout >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-callout-card"');
+    expect(html).not.toContain('kg-callout-card-');
+  });
+
+  test('drops attacker-controlled color tokens (alphanumeric only)', async () => {
+    const md = '{{< callout emoji="x" color="blue onclick=alert(1)" >}}\nbody\n{{< /callout >}}';
+    const { html } = await renderMarkdown(md);
+    // Allow-list rejected the colour token, so neither the modifier class nor
+    // the injection survives.
+    expect(html).not.toContain('kg-callout-card-blue onclick');
+    expect(html.toLowerCase()).not.toContain('onclick');
+  });
+});
+
+describe('renderMarkdown — button shortcode expansion', () => {
+  test('expands into a kg-button-card div with kg-btn anchor', async () => {
+    const md = '{{< button href="https://example.com/buy" align="center" >}}Buy now{{< /button >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-button-card kg-align-center"');
+    expect(html).toContain('href="https://example.com/buy"');
+    expect(html).toContain('class="kg-btn kg-btn-accent"');
+    expect(html).toContain('>Buy now</a>');
+  });
+
+  test('drops the shortcode silently when href is missing', async () => {
+    const md = 'before\n\n{{< button >}}label{{< /button >}}\n\nafter';
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-button-card');
+    expect(html).toContain('before');
+    expect(html).toContain('after');
+  });
+});
+
+describe('renderMarkdown — gallery shortcode expansion', () => {
+  test('expands into a kg-gallery-card with rows + images', async () => {
+    const md = [
+      '{{< gallery caption="Trio" >}}',
+      '{{< gallery-row >}}',
+      '{{< gallery-image src="https://cdn.test/a.jpg" alt="A" width="800" height="600" />}}',
+      '{{< gallery-image src="https://cdn.test/b.jpg" alt="B" width="800" height="600" />}}',
+      '{{< /gallery-row >}}',
+      '{{< gallery-row >}}',
+      '{{< gallery-image src="https://cdn.test/c.jpg" alt="C" width="800" height="600" />}}',
+      '{{< /gallery-row >}}',
+      '{{< /gallery >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figure class="kg-card kg-gallery-card">');
+    expect(html).toContain('<div class="kg-gallery-container">');
+    expect((html.match(/kg-gallery-row/g) ?? []).length).toBe(2);
+    expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
+    expect(html).toContain('src="https://cdn.test/a.jpg"');
+    expect(html).toContain('alt="C"');
+    expect(html).toContain('<figcaption>Trio</figcaption>');
+  });
+
+  test('emits nothing when no images are present (empty gallery)', async () => {
+    const md = '{{< gallery >}}{{< /gallery >}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).not.toContain('kg-gallery-card');
+  });
+});

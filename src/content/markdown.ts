@@ -108,8 +108,8 @@ export async function renderMarkdown(
 // Without an expansion step here, the shortcode survives as literal text in
 // the rendered HTML, the theme's `kg-bookmark-card` CSS never matches, and the
 // reader sees a meaningless `{{< bookmark ... />}}` paragraph instead of the
-// rich card. Expand bookmark shortcodes back into the HTML structure Ghost's
-// themes (Source, Casper, etc.) target.
+// rich card. Expand bookmark / callout / button shortcodes back into the
+// HTML structure Ghost's themes (Source, Casper, etc.) target.
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
@@ -119,6 +119,31 @@ const BOOKMARK_SHORTCODE_RE =
 const TOGGLE_SHORTCODE_RE =
   /\{\{<\s+toggle((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/toggle\s*>\}\}/g;
 
+// Block-form `{{< callout emoji="💡" color="blue" >}}body markdown{{< /callout >}}`.
+// Ghost themes (Casper, Source) target `kg-callout-card` + an optional
+// `kg-callout-card-{color}` modifier and an inner `.kg-callout-emoji` /
+// `.kg-callout-text` split.
+const CALLOUT_SHORTCODE_RE =
+  /\{\{<\s+callout((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/callout\s*>\}\}/g;
+
+// Block-form `{{< button href="…" align="center" style="accent" >}}Label{{< /button >}}`.
+// Themes target `kg-button-card` with optional `kg-align-{align}` on the card
+// and `kg-btn-{style}` on the anchor itself.
+const BUTTON_SHORTCODE_RE =
+  /\{\{<\s+button((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/button\s*>\}\}/g;
+
+// Block-form `{{< gallery caption="…" >}}{{< gallery-row >}}{{< gallery-image src=… />}}…{{< /gallery-row >}}…{{< /gallery >}}`.
+// We unwrap the gallery to a single `kg-gallery-card` figure containing one
+// `.kg-gallery-row` per row and `.kg-gallery-image` wrappers around each
+// `<img>`, matching Casper / Source's gallery layout CSS exactly. The caption
+// becomes a `<figcaption>` outside the container, as Ghost emits.
+const GALLERY_SHORTCODE_RE =
+  /\{\{<\s+gallery((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/gallery\s*>\}\}/g;
+const GALLERY_ROW_RE =
+  /\{\{<\s+gallery-row((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/gallery-row\s*>\}\}/g;
+const GALLERY_IMAGE_RE =
+  /\{\{<\s+gallery-image((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
 export function expandKoenigShortcodes(markdown: string): string {
   return markdown
     .replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
@@ -126,6 +151,15 @@ export function expandKoenigShortcodes(markdown: string): string {
     )
     .replace(TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderCalloutHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(BUTTON_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderButtonHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(GALLERY_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderGalleryHtml(parseShortcodeAttrs(attrsStr), body),
     );
 }
 
@@ -216,6 +250,68 @@ function renderToggleHtml(attrs: Record<string, string>, body: string): string {
   const innerMarkdown = body.trim();
   const contentBlock = `<div class="kg-toggle-content">\n\n${innerMarkdown}\n\n</div>`;
   return `\n\n<details class="kg-card kg-toggle-card">\n${summary}\n${contentBlock}\n</details>\n\n`;
+}
+
+// Restrict callout color tokens to the kebab-case set Ghost ships so attacker-
+// controlled frontmatter cannot inject arbitrary class names (e.g.
+// `color="foo onclick=alert"` -> `kg-callout-card-foo onclick=alert`). Anything
+// outside the alphabet is silently dropped.
+const KOENIG_TOKEN_RE = /^[a-z][a-z0-9-]*$/;
+
+function renderCalloutHtml(attrs: Record<string, string>, body: string): string {
+  const emoji = attrs.emoji ?? '';
+  const color = attrs.color ?? '';
+  const colorClass = KOENIG_TOKEN_RE.test(color) ? ` kg-callout-card-${color}` : '';
+  const emojiHtml = emoji ? `<div class="kg-callout-emoji">${escapeHtmlAttr(emoji)}</div>` : '';
+  const innerMarkdown = body.trim();
+  const textHtml = `<div class="kg-callout-text">\n\n${innerMarkdown}\n\n</div>`;
+  return `\n\n<div class="kg-card kg-callout-card${colorClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
+}
+
+function renderButtonHtml(attrs: Record<string, string>, body: string): string {
+  const href = attrs.href ?? '';
+  if (!href) return '';
+  const align = attrs.align ?? '';
+  const style = attrs.style ?? '';
+  const alignClass = KOENIG_TOKEN_RE.test(align) ? ` kg-align-${align}` : '';
+  const styleClass = KOENIG_TOKEN_RE.test(style) ? ` kg-btn-${style}` : 'kg-btn-accent';
+  const label = body.trim();
+  // Ghost's button card uses an explicit double-class on the anchor: `kg-btn`
+  // (layout / hover) + `kg-btn-{style}` (color). When style is missing the
+  // theme defaults to the accent variant, so keep that fallback inline.
+  const finalStyle = styleClass.trim() ? styleClass : 'kg-btn-accent';
+  return `\n\n<div class="kg-card kg-button-card${alignClass}"><a href="${escapeHtmlAttr(href)}" class="kg-btn ${finalStyle.trim()}">${escapeHtmlAttr(label)}</a></div>\n\n`;
+}
+
+function renderGalleryHtml(attrs: Record<string, string>, body: string): string {
+  const caption = attrs.caption ?? '';
+  const rows: string[] = [];
+  let rowMatch: RegExpExecArray | null;
+  const rowRe = new RegExp(GALLERY_ROW_RE.source, GALLERY_ROW_RE.flags);
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard exec loop
+  while ((rowMatch = rowRe.exec(body)) !== null) {
+    const rowBody = rowMatch[2] ?? '';
+    const images: string[] = [];
+    let imgMatch: RegExpExecArray | null;
+    const imgRe = new RegExp(GALLERY_IMAGE_RE.source, GALLERY_IMAGE_RE.flags);
+    // biome-ignore lint/suspicious/noAssignInExpressions: standard exec loop
+    while ((imgMatch = imgRe.exec(rowBody)) !== null) {
+      const ia = parseShortcodeAttrs(imgMatch[1] ?? '');
+      if (!ia.src) continue;
+      const widthAttr = ia.width ? ` width="${escapeHtmlAttr(ia.width)}"` : '';
+      const heightAttr = ia.height ? ` height="${escapeHtmlAttr(ia.height)}"` : '';
+      images.push(
+        `<div class="kg-gallery-image"><img src="${escapeHtmlAttr(ia.src)}" alt="${escapeHtmlAttr(ia.alt ?? '')}"${widthAttr}${heightAttr} loading="lazy" /></div>`,
+      );
+    }
+    if (images.length > 0) {
+      rows.push(`<div class="kg-gallery-row">${images.join('')}</div>`);
+    }
+  }
+  if (rows.length === 0) return '';
+  const container = `<div class="kg-gallery-container">${rows.join('')}</div>`;
+  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  return `\n\n<figure class="kg-card kg-gallery-card">${container}${figcaption}</figure>\n\n`;
 }
 
 function htmlToPlaintext(html: string): string {
