@@ -357,7 +357,7 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
     expect(summary.slugCollisions).toBe(0);
   });
 
-  test('preserves Ghost tag accent_color in tag frontmatter', async () => {
+  test('preserves Ghost tag theme fields in tag frontmatter', async () => {
     await writeFile(
       exportFile,
       JSON.stringify({
@@ -370,6 +370,14 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
                   slug: 'ruby',
                   name: 'Ruby',
                   accent_color: '#b6174b',
+                  og_title: 'Ruby OG',
+                  og_description: 'Ruby OG description',
+                  og_image: 'https://cdn.example.com/ruby-og.jpg',
+                  twitter_title: 'Ruby Twitter',
+                  twitter_description: 'Ruby Twitter description',
+                  twitter_image: 'https://cdn.example.com/ruby-twitter.jpg',
+                  codeinjection_head: '<meta name="tag-head" content="ruby">',
+                  codeinjection_foot: '<script>window.__tag = "ruby"</script>',
                 },
               ],
             },
@@ -378,11 +386,19 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
       }),
     );
 
-    const summary = await importGhostExport({ cwd, file: exportFile });
+    const summary = await importGhostExport({ cwd, file: exportFile, keepCodeInjection: true });
 
     expect(summary.tags).toBe(1);
     const tagMd = await readFile(join(cwd, 'content/tags/ruby.md'), 'utf8');
     expect(tagMd).toContain('accent_color: "#b6174b"');
+    expect(tagMd).toContain('og_title: "Ruby OG"');
+    expect(tagMd).toContain('og_description: "Ruby OG description"');
+    expect(tagMd).toContain('og_image: "https://cdn.example.com/ruby-og.jpg"');
+    expect(tagMd).toContain('twitter_title: "Ruby Twitter"');
+    expect(tagMd).toContain('twitter_description: "Ruby Twitter description"');
+    expect(tagMd).toContain('twitter_image: "https://cdn.example.com/ruby-twitter.jpg"');
+    expect(tagMd).toContain('codeinjection_head: "<meta name=\\"tag-head\\" content=\\"ruby\\">"');
+    expect(tagMd).toContain('codeinjection_foot: "<script>window.__tag = \\"ruby\\"</script>"');
   });
 });
 

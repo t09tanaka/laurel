@@ -275,6 +275,15 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.meta_title = route.meta.title;
     ctx.meta_description = route.meta.description;
     ctx.feature_image = data.tag.feature_image;
+    ctx.accent_color = data.tag.accent_color;
+    ctx.og_title = data.tag.og_title;
+    ctx.og_description = data.tag.og_description;
+    ctx.og_image = data.tag.og_image;
+    ctx.twitter_title = data.tag.twitter_title;
+    ctx.twitter_description = data.tag.twitter_description;
+    ctx.twitter_image = data.tag.twitter_image;
+    ctx.codeinjection_head = data.tag.codeinjection_head;
+    ctx.codeinjection_foot = data.tag.codeinjection_foot;
   }
   if (data.author) {
     ctx.author = data.author;

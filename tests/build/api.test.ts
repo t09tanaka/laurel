@@ -16,6 +16,14 @@ function makeTag(over: Partial<Tag> = {}): Tag {
     description: '',
     feature_image: undefined,
     accent_color: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     visibility: 'public',
     meta_title: undefined,
     meta_description: undefined,
@@ -252,6 +260,42 @@ describe('emitContentApiShadows', () => {
       id: 'nectar-content-api-404',
     });
     expect(notFound.errors[0].details).toBeNull();
+  });
+
+  test('tags serialize tag social and code injection fields', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-fields-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const tag = makeTag({
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
+    await emitContentApiShadows({
+      config,
+      content: {
+        ...makeGraph(),
+        tags: [tag],
+        posts: [makePost({ tags: [tag], primary_tag: tag })],
+      },
+      outputDir,
+    });
+
+    const tags = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8'));
+    expect(tags.tags[0]).toMatchObject({
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
   });
 
   test('serializes generated post excerpts as Ghost-style 50 plaintext words (#771)', async () => {

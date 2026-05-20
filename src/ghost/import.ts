@@ -116,6 +116,14 @@ interface GhostTag {
   visibility?: string;
   meta_title?: string | null;
   meta_description?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image?: string | null;
+  twitter_title?: string | null;
+  twitter_description?: string | null;
+  twitter_image?: string | null;
+  codeinjection_head?: string | null;
+  codeinjection_foot?: string | null;
 }
 
 interface GhostUser {
@@ -663,7 +671,28 @@ async function importFromResolvedInput(
   // same writeLimit so a 500-tag export doesn't pay 500*roundtrip serially.
   let tagCount = 0;
   for (const tag of tags) {
-    if (!tag.description && !tag.feature_image && !tag.accent_color && !tag.meta_title) continue;
+    const hasTagCodeInjection =
+      (typeof tag.codeinjection_head === 'string' && tag.codeinjection_head.length > 0) ||
+      (typeof tag.codeinjection_foot === 'string' && tag.codeinjection_foot.length > 0);
+    if (hasTagCodeInjection && !keepCodeInjection) {
+      counters.codeInjectionSkipped += 1;
+    }
+    if (
+      !tag.description &&
+      !tag.feature_image &&
+      !tag.accent_color &&
+      !tag.meta_title &&
+      !tag.meta_description &&
+      !tag.og_title &&
+      !tag.og_description &&
+      !tag.og_image &&
+      !tag.twitter_title &&
+      !tag.twitter_description &&
+      !tag.twitter_image &&
+      !(hasTagCodeInjection && keepCodeInjection)
+    ) {
+      continue;
+    }
     const tagSlug = safeSlug(tag.slug) || safeSlug(tag.name);
     if (!tagSlug) {
       logger.warn(
@@ -683,6 +712,21 @@ async function importFromResolvedInput(
       'feature_image',
       `tag ${JSON.stringify(tag.slug ?? tag.id ?? '')}`,
     );
+    const tagLabel = `tag ${JSON.stringify(tag.slug ?? tag.id ?? '')}`;
+    const ogImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(tag.og_image ?? undefined)
+        : (tag.og_image ?? undefined),
+      'og_image',
+      tagLabel,
+    );
+    const twitterImage = sanitizeImageUrl(
+      downloader
+        ? await downloader.rewriteField(tag.twitter_image ?? undefined)
+        : (tag.twitter_image ?? undefined),
+      'twitter_image',
+      tagLabel,
+    );
     const frontmatter = buildFrontmatter({
       slug: tagSlug,
       name: tag.name,
@@ -691,6 +735,14 @@ async function importFromResolvedInput(
       accent_color: tag.accent_color ?? undefined,
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
+      og_title: tag.og_title ?? undefined,
+      og_description: tag.og_description ?? undefined,
+      og_image: ogImage,
+      twitter_title: tag.twitter_title ?? undefined,
+      twitter_description: tag.twitter_description ?? undefined,
+      twitter_image: twitterImage,
+      codeinjection_head: keepCodeInjection ? (tag.codeinjection_head ?? undefined) : undefined,
+      codeinjection_foot: keepCodeInjection ? (tag.codeinjection_foot ?? undefined) : undefined,
     });
     if (!dryRun) await ensureDirOnce(baseDir);
     const written = await dispatchWrite(

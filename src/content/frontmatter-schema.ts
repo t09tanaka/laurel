@@ -146,6 +146,28 @@ export const tagFrontmatterSchema = z
       .describe('Tag accent color as a CSS hex color string, surfaced as tag.accent_color.'),
     meta_title: z.string().optional().describe('SEO title override.'),
     meta_description: z.string().optional().describe('SEO description override.'),
+    og_title: z.string().optional().describe('Open Graph title override for the tag archive.'),
+    og_description: z
+      .string()
+      .optional()
+      .describe('Open Graph description override for the tag archive.'),
+    og_image: z
+      .string()
+      .optional()
+      .describe('Open Graph image URL or content-relative path for the tag archive.'),
+    twitter_title: z
+      .string()
+      .optional()
+      .describe('Twitter card title override for the tag archive.'),
+    twitter_description: z
+      .string()
+      .optional()
+      .describe('Twitter card description override for the tag archive.'),
+    twitter_image: z
+      .string()
+      .optional()
+      .describe('Twitter card image URL or content-relative path for the tag archive.'),
+    ...codeInjectionFields,
   })
   .passthrough()
   .describe('Frontmatter for content/tags/*.md.');

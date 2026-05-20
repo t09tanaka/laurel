@@ -208,9 +208,15 @@ export function planRoutes(opts: {
           meta: defaultMeta(
             config,
             url,
-            tag.meta_title ?? `${tag.name} | ${config.site.title}`,
-            tag.meta_description ?? tag.description,
-            tag.feature_image,
+            tag.meta_title ??
+              tag.og_title ??
+              tag.twitter_title ??
+              `${tag.name} | ${config.site.title}`,
+            tag.og_description ??
+              tag.twitter_description ??
+              tag.meta_description ??
+              tag.description,
+            tag.og_image ?? tag.twitter_image ?? tag.feature_image,
           ),
         });
       });

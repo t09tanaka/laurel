@@ -77,6 +77,35 @@ describe('lintContent', () => {
     expect(unknown?.message).toContain("'tittle'");
   });
 
+  test('accepts tag social and code injection frontmatter keys', async () => {
+    const fx = await makeFixture({
+      'nectar.toml': [
+        '[site]',
+        'title = "Lint Test"',
+        '[build]',
+        'allow_code_injection = true',
+      ].join('\n'),
+      'content/tags/news.md': [
+        '---',
+        'name: News',
+        'accent_color: "#e91e63"',
+        'og_title: News OG',
+        'og_description: News OG description',
+        'og_image: /content/images/news-og.jpg',
+        'twitter_title: News Twitter',
+        'twitter_description: News Twitter description',
+        'twitter_image: /content/images/news-twitter.jpg',
+        'codeinjection_head: <meta name="tag-head" content="news">',
+        'codeinjection_foot: <script>window.__tag = "news"</script>',
+        '---',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content });
+    expect(report.warnings.filter((w) => w.code === 'unknown-frontmatter')).toEqual([]);
+  });
+
   test('malformed dates surface from the loader as a hard error before lint runs', async () => {
     // Unparseable frontmatter dates used to be a `malformed-date` lint
     // warning that the build silently absorbed by falling back to the epoch.

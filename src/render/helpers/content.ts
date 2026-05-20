@@ -525,10 +525,17 @@ function routeScopedMetaTitle(
 ): string | undefined {
   if (route.kind === 'tag') {
     const tagFromCtx = recordValue(ctx.tag);
-    if (tagFromCtx) return firstNonEmptyString(tagFromCtx.meta_title, tagFromCtx.name);
+    if (tagFromCtx) {
+      return firstNonEmptyString(
+        tagFromCtx.meta_title,
+        tagFromCtx.og_title,
+        tagFromCtx.twitter_title,
+        tagFromCtx.name,
+      );
+    }
     if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
     const tag = recordValue(route.data?.tag);
-    return firstNonEmptyString(tag?.meta_title, tag?.name);
+    return firstNonEmptyString(tag?.meta_title, tag?.og_title, tag?.twitter_title, tag?.name);
   }
   if (route.kind === 'author') {
     const authorFromCtx = recordValue(ctx.author);

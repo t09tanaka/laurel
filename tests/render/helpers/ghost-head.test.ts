@@ -1210,6 +1210,40 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
     );
   });
 
+  test('tag archive uses tag social image and code injection fields', () => {
+    const tag = {
+      name: 'News',
+      meta_title: 'News Meta',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      url: '/tag/news/',
+    };
+    const html = renderGhostHead(
+      {
+        tag,
+        og_image: tag.og_image,
+        twitter_image: tag.twitter_image,
+        codeinjection_head: tag.codeinjection_head,
+      },
+      '/tag/news/',
+      {
+        routeKind: 'tag',
+        routeData: { tag },
+      },
+    );
+
+    expect(html).toContain(
+      '<meta property="og:image" content="https://example.com/content/images/news-og.jpg">',
+    );
+    expect(html).toContain(
+      '<meta name="twitter:image" content="https://example.com/content/images/news-og.jpg">',
+    );
+    expect(html).toContain('<meta property="og:description" content="News OG description">');
+    expect(html).toContain('<meta name="tag-head" content="news">');
+  });
+
   test('author archive description falls back through author metadata before site defaults', () => {
     const html = renderGhostHead({}, '/author/jane/', {
       routeKind: 'author',

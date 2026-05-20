@@ -713,6 +713,14 @@ interface RawTag extends LocaleFields {
   visibility: 'public' | 'internal';
   meta_title: string | undefined;
   meta_description: string | undefined;
+  og_title: string | undefined;
+  og_description: string | undefined;
+  og_image: string | undefined;
+  twitter_title: string | undefined;
+  twitter_description: string | undefined;
+  twitter_image: string | undefined;
+  codeinjection_head: string | undefined;
+  codeinjection_foot: string | undefined;
   source: ContentSourceFingerprint;
 }
 
@@ -1435,6 +1443,13 @@ async function normalizeRawTag(
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
+    og_title: asString(data.og_title),
+    og_description: asString(data.og_description),
+    og_image: asString(data.og_image),
+    twitter_title: asString(data.twitter_title),
+    twitter_description: asString(data.twitter_description),
+    twitter_image: asString(data.twitter_image),
+    ...resolveCodeInjection(data, filePath, config),
     source: source ?? contentSourceFingerprint(filePath, dirname(filePath), await stat(filePath)),
   };
 }
@@ -1457,6 +1472,14 @@ function normalizeTag(
     visibility: raw.visibility,
     meta_title: raw.meta_title,
     meta_description: raw.meta_description,
+    og_title: raw.og_title,
+    og_description: raw.og_description,
+    og_image: raw.og_image,
+    twitter_title: raw.twitter_title,
+    twitter_description: raw.twitter_description,
+    twitter_image: raw.twitter_image,
+    codeinjection_head: raw.codeinjection_head,
+    codeinjection_foot: raw.codeinjection_foot,
     url: taxonomyArchiveUrl(
       basePath,
       taxonomies,
@@ -1730,6 +1753,14 @@ function resolveTagSlugs(
       visibility: slug.startsWith('hash-') ? 'internal' : 'public',
       meta_title: undefined,
       meta_description: undefined,
+      og_title: undefined,
+      og_description: undefined,
+      og_image: undefined,
+      twitter_title: undefined,
+      twitter_description: undefined,
+      twitter_image: undefined,
+      codeinjection_head: undefined,
+      codeinjection_foot: undefined,
       url: taxonomyArchiveUrl(basePath, taxonomies, 'tag', slug, trailingSlash, routePrefix),
       count: { posts: 0 },
     };

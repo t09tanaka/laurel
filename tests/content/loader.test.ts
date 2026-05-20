@@ -340,7 +340,7 @@ Body.
     expect(graph.postsByAuthor.get('pat')?.map((p) => p.slug)).toEqual(['pat-only', 'co-authored']);
   });
 
-  test('loads tag accent_color and exposes it on primary_tag', async () => {
+  test('loads tag theme fields and exposes them on primary_tag', async () => {
     const cwd = await fixture();
     await mkdir(join(cwd, 'content/tags'), { recursive: true });
     await writeFile(
@@ -348,16 +348,42 @@ Body.
       `---
 name: News
 accent_color: "#e91e63"
+og_title: "News OG"
+og_description: "News OG description"
+og_image: "/content/images/news-og.jpg"
+twitter_title: "News Twitter"
+twitter_description: "News Twitter description"
+twitter_image: "/content/images/news-twitter.jpg"
+codeinjection_head: "<meta name=\\"tag-head\\" content=\\"news\\">"
+codeinjection_foot: "<script>window.__tag='news'</script>"
 ---
 `,
       'utf8',
     );
 
-    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { allow_code_injection: true },
+    });
     const graph = await loadContent({ cwd, config });
 
-    expect(graph.bySlug.tags.get('news')?.accent_color).toBe('#e91e63');
-    expect(graph.bySlug.posts.get('hello')?.primary_tag?.accent_color).toBe('#e91e63');
+    const tag = graph.bySlug.tags.get('news');
+    expect(tag).toMatchObject({
+      accent_color: '#e91e63',
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: "<script>window.__tag='news'</script>",
+    });
+    expect(graph.bySlug.posts.get('hello')?.primary_tag).toMatchObject({
+      accent_color: '#e91e63',
+      og_image: '/content/images/news-og.jpg',
+      twitter_image: '/content/images/news-twitter.jpg',
+    });
   });
 
   test('reuses cached markdown render results until source content changes', async () => {

@@ -120,6 +120,14 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     description: '',
     feature_image: undefined,
     accent_color: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: undefined,
     meta_description: undefined,
@@ -529,6 +537,42 @@ describe('buildContext', () => {
     const authorTokens = String(buildContext(engine, authorRoute).body_class).split(' ');
     expect(authorTokens).toContain('author-template');
     expect(authorTokens).toContain('archive-template');
+  });
+
+  test('tag archive context exposes tag theme fields at root and under tag', () => {
+    const tag = makeTag({
+      slug: 'news',
+      accent_color: '#e91e63',
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
+    const route: RouteContext = {
+      kind: 'tag',
+      url: '/tag/news/',
+      outputPath: 'tag/news/index.html',
+      template: 'tag',
+      data: { tag },
+      meta: baseMeta,
+    };
+
+    expect(buildContext(engine, route)).toMatchObject({
+      tag,
+      accent_color: '#e91e63',
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
   });
 
   // Cross-theme post_class variants (issue #871). Casper / Source emit both

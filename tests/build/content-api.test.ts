@@ -17,6 +17,14 @@ function makeTag(over: Partial<Tag> = {}): Tag {
     description: '',
     feature_image: undefined,
     accent_color: undefined,
+    og_title: undefined,
+    og_description: undefined,
+    og_image: undefined,
+    twitter_title: undefined,
+    twitter_description: undefined,
+    twitter_image: undefined,
+    codeinjection_head: undefined,
+    codeinjection_foot: undefined,
     visibility: 'public',
     meta_title: undefined,
     meta_description: undefined,
@@ -347,6 +355,39 @@ name: News
     // prev / next link refs are explicitly NOT serialized.
     expect(Object.hasOwn(post, 'prev')).toBe(false);
     expect(Object.hasOwn(post, 'next')).toBe(false);
+  });
+
+  test('tags.json serializes tag social and code injection fields', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tag-fields-'));
+    const tag = makeTag({
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
+    await emitContentApiStubs({
+      content: makeGraph({
+        tags: [tag],
+        posts: [makePost({ tags: [tag], primary_tag: tag })],
+      }),
+      outputDir,
+    });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
+    expect(body.tags[0]).toMatchObject({
+      og_title: 'News OG',
+      og_description: 'News OG description',
+      og_image: '/content/images/news-og.jpg',
+      twitter_title: 'News Twitter',
+      twitter_description: 'News Twitter description',
+      twitter_image: '/content/images/news-twitter.jpg',
+      codeinjection_head: '<meta name="tag-head" content="news">',
+      codeinjection_foot: '<script>window.__tag = "news"</script>',
+    });
   });
 
   test('posts.json excludes draft and scheduled posts', async () => {

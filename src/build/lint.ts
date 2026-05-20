@@ -120,8 +120,17 @@ const TAG_KEYS: ReadonlySet<string> = new Set([
   'name',
   'description',
   'feature_image',
+  'accent_color',
   'meta_title',
   'meta_description',
+  'og_title',
+  'og_description',
+  'og_image',
+  'twitter_title',
+  'twitter_description',
+  'twitter_image',
+  'codeinjection_head',
+  'codeinjection_foot',
 ]);
 
 const DATE_KEYS: ReadonlyArray<string> = ['date', 'published_at', 'updated_at', 'created_at'];

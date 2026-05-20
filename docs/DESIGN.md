@@ -220,6 +220,17 @@ slug: news
 name: News
 description: "Site news"
 feature_image: /content/images/news.jpg
+accent_color: "#005f73"
+og_title: News from Nectar
+og_description: Product and release updates
+og_image: /content/images/news-share.jpg
+twitter_title: News from Nectar
+twitter_description: Product and release updates
+twitter_image: /content/images/news-twitter.jpg
+codeinjection_head: |
+  <meta name="tag-scope" content="news">
+codeinjection_foot: |
+  <!-- tag archive footer snippet -->
 ---
 ```
 
