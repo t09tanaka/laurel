@@ -103,7 +103,13 @@ export interface Post {
   created_at: string;
   reading_time: number;
   word_count: number;
-  visibility: 'public' | 'members' | 'paid';
+  // Ghost exposes additional visibility states beyond the simple public/members/paid
+  // tri-state when a post is gated to specific tiers or via a NQL filter. Nectar's
+  // static runtime has no tier-aware viewer, so `tiers` and `filter` are rendered
+  // and indexed the same as `members` (non-public, paywall-eligible). They are
+  // still typed distinctly so themes that branch on `post.visibility` get the
+  // exact upstream value instead of a coerced one. See #325.
+  visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   status: 'published' | 'draft' | 'scheduled';
   tags: Tag[];
   primary_tag: Tag | undefined;

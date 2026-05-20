@@ -28,7 +28,7 @@ import {
 import { type MarkdownPool, createMarkdownPool } from './markdown-pool.ts';
 import { sanitizeInlineCaptionHtml, truncateByWords } from './markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag, Tier } from './model.ts';
-import { buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
+import { type PaywallVisibility, buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 
 // Plugin-supplied transform applied to the raw markdown body (after
 // frontmatter is stripped) before `marked.parse` runs. The pipeline composes
@@ -414,7 +414,7 @@ interface RawPost {
   published_at: string;
   updated_at: string;
   created_at: string;
-  visibility: 'public' | 'members' | 'paid';
+  visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   status: 'published' | 'draft' | 'scheduled';
   tagSlugs: string[];
   authorSlugs: string[];
@@ -684,7 +684,7 @@ async function normalizePost(
   const updated = asDateISO(data.updated_at ?? data.date, published, `${dateContext} updated_at`);
   const created = asDateISO(data.created_at ?? data.date, published, `${dateContext} created_at`);
   const status = (asString(data.status) ?? 'published') as RawPost['status'];
-  const visibility = (asString(data.visibility) ?? 'public') as RawPost['visibility'];
+  const visibility = parsePostVisibility(asString(data.visibility), filePath);
   const customExcerpt = asString(data.custom_excerpt ?? data.excerpt);
 
   let html = rendered.html;
@@ -693,7 +693,7 @@ async function normalizePost(
   let reading_time = rendered.reading_time;
   let feedHtml = html;
   let feedPlaintext = plaintext;
-  if (config && (visibility === 'members' || visibility === 'paid')) {
+  if (config && isPaywallVisibility(visibility)) {
     const truncated = truncateMarkdownForPaywall(body, config.content.paywall_word_count);
     const reRendered = await pool.render(truncated, { unsafe: unsafeHtml, locale });
     feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
@@ -758,6 +758,38 @@ async function normalizePost(
     twitter_image: asString(data.twitter_image),
     ...resolveCodeInjection(data, filePath, config),
   };
+}
+
+// Frontmatter `visibility:` accepts Ghost's full vocabulary, not just the
+// public/members/paid tri-state. Ghost also gates a post to specific tiers
+// (`tiers`) or via a NQL filter expression (`filter`). Nectar's static runtime
+// has no tier-aware viewer, so `tiers` and `filter` render identically to
+// `members` (paywall stub in feeds, optional truncation in body) — but we keep
+// the exact value on `post.visibility` so themes that branch on it see the
+// upstream string. Unknown values fall back to `public` with a warning so a
+// typo doesn't silently gate a post. See #325.
+const POST_VISIBILITY_VALUES = ['public', 'members', 'paid', 'tiers', 'filter'] as const;
+type PostVisibility = (typeof POST_VISIBILITY_VALUES)[number];
+
+function parsePostVisibility(raw: string | undefined, filePath: string): PostVisibility {
+  if (raw === undefined) return 'public';
+  const value = raw.trim().toLowerCase();
+  if ((POST_VISIBILITY_VALUES as readonly string[]).includes(value)) {
+    return value as PostVisibility;
+  }
+  logger.warn(
+    `Unknown visibility '${raw}' in ${filePath}; falling back to 'public'. Allowed values: ${POST_VISIBILITY_VALUES.join(', ')}.`,
+  );
+  return 'public';
+}
+
+function isPaywallVisibility(visibility: PostVisibility): visibility is PaywallVisibility {
+  return (
+    visibility === 'members' ||
+    visibility === 'paid' ||
+    visibility === 'tiers' ||
+    visibility === 'filter'
+  );
 }
 
 // `codeinjection_head` / `codeinjection_foot` get spliced verbatim into every

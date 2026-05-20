@@ -371,7 +371,7 @@ function downshiftHeadings(html: string): string {
 // contains nested divs because `buildPaywallStub` controls the entire markup,
 // so a non-greedy match is safe even if multiple stubs were ever emitted.
 const PAYWALL_STUB_RE =
-  /<div class="gh-paywall-stub" data-paywall-visibility="(members|paid)">[\s\S]*?<\/div>/g;
+  /<div class="gh-paywall-stub" data-paywall-visibility="(members|paid|tiers|filter)">[\s\S]*?<\/div>/g;
 
 function replacePaywallStubWithPartial(
   engine: NectarEngine,

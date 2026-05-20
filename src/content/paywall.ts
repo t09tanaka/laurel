@@ -36,7 +36,15 @@ export function truncateMarkdownForPaywall(body: string, wordCount: number): str
   return kept.join('').trimEnd();
 }
 
-export function buildPaywallStub(visibility: 'members' | 'paid'): string {
+// `tiers` (visibility restricted to specific tiers) and `filter` (visibility
+// gated by a NQL filter expression) are both Ghost-side concepts that require a
+// signed-in viewer to evaluate. Nectar's static runtime has no such viewer, so
+// both are rendered as members-grade gating: the same paywall stub copy as
+// `members`. The `data-paywall-visibility` attribute still carries the exact
+// upstream value so theme JS or analytics can branch if they need to.
+export type PaywallVisibility = 'members' | 'paid' | 'tiers' | 'filter';
+
+export function buildPaywallStub(visibility: PaywallVisibility): string {
   const heading =
     visibility === 'paid'
       ? 'This post is for paying subscribers only'

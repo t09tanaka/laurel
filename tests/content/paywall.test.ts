@@ -54,11 +54,26 @@ describe('buildPaywallStub', () => {
     expect(html).toContain('data-paywall-visibility="paid"');
     expect(html).toContain('paying subscribers');
   });
+
+  // #325 — tiers/filter use the same subscribers-only copy as members but
+  // carry the upstream visibility on `data-paywall-visibility` so theme JS or
+  // analytics can branch on the exact gating mode.
+  test('emits tiers stub with subscribers-only copy', () => {
+    const html = buildPaywallStub('tiers');
+    expect(html).toContain('data-paywall-visibility="tiers"');
+    expect(html).toContain('subscribers only');
+  });
+
+  test('emits filter stub with subscribers-only copy', () => {
+    const html = buildPaywallStub('filter');
+    expect(html).toContain('data-paywall-visibility="filter"');
+    expect(html).toContain('subscribers only');
+  });
 });
 
 interface FixtureOptions {
   marker?: boolean;
-  visibility?: 'members' | 'paid' | 'public';
+  visibility?: 'members' | 'paid' | 'public' | 'tiers' | 'filter';
 }
 
 async function fixture(opts: FixtureOptions = {}): Promise<string> {
@@ -194,6 +209,59 @@ describe('visibility_policy', () => {
     const gated = graph.posts.find((p) => p.slug === 'gated');
     expect(gated?.html).toContain('data-paywall-visibility="paid"');
     expect(gated?.html).toContain('paying subscribers');
+  });
+
+  // #325 — Ghost exposes `tiers` (gated to specific tiers) and `filter` (NQL
+  // expression) on top of the public/members/paid tri-state. Both require a
+  // signed-in viewer to resolve, so Nectar treats them as members-grade
+  // gating end-to-end: paywall stub is injected, body is truncated under the
+  // default `truncate` policy, and `post.visibility` keeps the exact value
+  // for themes that branch on it.
+  test('tiers visibility is treated as members-grade gating with the upstream value preserved', async () => {
+    const cwd = await fixture({ marker: true, visibility: 'tiers' });
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.visibility).toBe('tiers');
+    expect(gated?.html).toContain('Free intro paragraph');
+    expect(gated?.html).not.toContain('Secret members-only paragraph');
+    expect(gated?.html).toContain('data-paywall-visibility="tiers"');
+    expect(gated?.feed_html).toContain('data-paywall-visibility="tiers"');
+  });
+
+  test('filter visibility is treated as members-grade gating with the upstream value preserved', async () => {
+    const cwd = await fixture({ marker: true, visibility: 'filter' });
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.visibility).toBe('filter');
+    expect(gated?.html).toContain('data-paywall-visibility="filter"');
+  });
+
+  test('unknown visibility value falls back to public with a warning', async () => {
+    const cwd = await fixture({ marker: true, visibility: 'public' });
+    // Overwrite with a typo'd visibility — fixture() only emits the four
+    // documented values, so we rewrite the file directly to inject the typo.
+    await writeFile(
+      join(cwd, 'content/posts/gated.md'),
+      `---\ntitle: "Gated"\ndate: 2026-01-01T00:00:00Z\nvisibility: membres\n---\n\nBody.\n`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.visibility).toBe('public');
+    expect(gated?.html).not.toContain('gh-paywall-stub');
+  });
+
+  test('skip visibility_policy drops tiers and filter posts the same as members/paid', async () => {
+    const cwd = await fixture({ marker: true, visibility: 'tiers' });
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      content: { visibility_policy: 'skip' },
+    });
+    const graph = await loadContent({ cwd, config });
+    expect(graph.posts.find((p) => p.slug === 'gated')).toBeUndefined();
   });
 
   // #208 — every post exposes `access: false` for the anonymous static viewer
