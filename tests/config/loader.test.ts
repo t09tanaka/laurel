@@ -58,6 +58,21 @@ url = "/"
     });
   });
 
+  test('parses post-build hook command from nectar.toml', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[hooks]
+post_build = "./scripts/notify-discord.sh"
+`,
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd });
+      expect(config.hooks.post_build).toBe('./scripts/notify-discord.sh');
+    });
+  });
+
   test('parses site.icon from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

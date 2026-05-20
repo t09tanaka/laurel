@@ -40,6 +40,7 @@ import { type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects } from './github-pages.ts';
+import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
 import {
   type ImageFormat,
@@ -997,6 +998,12 @@ async function runBuild({
     },
     { warnOnError: true },
   );
+
+  await runPostBuildHook({
+    cwd,
+    outputDir: finalOutputDir,
+    command: config.hooks.post_build,
+  });
 
   return {
     outputDir: finalOutputDir,

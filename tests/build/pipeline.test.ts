@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readdir, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { build } from '~/build/pipeline.ts';
@@ -81,6 +81,37 @@ describe('build pipeline strict mode wiring', () => {
     const message = (caught as Error).message;
     expect(message).toMatch(/Invalid date in frontmatter/);
     expect(message).toContain('not-a-real-date');
+  });
+
+  test('runs hooks.post_build after the final output is committed', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'scripts'), { recursive: true });
+    const hookPath = join(cwd, 'scripts/post-build.sh');
+    await writeFile(
+      hookPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'test -f "$NECTAR_OUTPUT_DIR/index.html"',
+        'printf "cwd=%s\\noutput=%s\\narg=%s\\n" "$PWD" "$NECTAR_OUTPUT_DIR" "$1" > "$PWD/hook.log"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await chmod(hookPath, 0o755);
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      ['', '[hooks]', 'post_build = "./scripts/post-build.sh newsletter-send"', ''].join('\n'),
+      { flag: 'a' },
+    );
+
+    const summary = await build({ cwd });
+    const body = readFileSync(join(cwd, 'hook.log'), 'utf8');
+    const realCwd = await realpath(cwd);
+
+    expect(body).toContain(`cwd=${realCwd}\n`);
+    expect(body).toContain(`output=${summary.outputDir}\n`);
+    expect(body).toContain('arg=newsletter-send\n');
   });
 
   test('emits dist/robots.txt with sitemap URL by default', async () => {

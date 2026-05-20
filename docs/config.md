@@ -58,6 +58,7 @@ must stay inside that root.
 | `theme` | `object` | Theme selection and `@custom` settings. |
 | `content` | `object` | Where Markdown content lives and how members-only posts are handled. |
 | `build` | `object` | Build pipeline options that shape the emitted site. |
+| `hooks` | `object` | Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery. |
 | `performance` | `object` | Resource-hint and HTML post-process knobs that shape network-time performance without touching theme markup. All toggles operate on already-rendered HTML so they compose with arbitrary `.hbs` templates. The defaults bias toward the LCP / Lighthouse-friendly behaviour modern Ghost themes already expect. |
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
@@ -165,6 +166,14 @@ Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Clo
 | `build.metadata.environment` | `"production" \| "preview" \| "development"` | no | — | Deploy environment for the current build. Netlify deploy-preview / branch-deploy builds set this to `preview`; Vercel copies `VERCEL_ENV`; Cloudflare Pages infers `production` for `main` / `master` (or `CF_PAGES_PRODUCTION_BRANCH`) and `preview` for other branches. |
 | `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_BRANCH`; Vercel builds populate this from `VERCEL_GIT_COMMIT_REF`. |
 | `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Cloudflare Pages builds populate this from `CF_PAGES_COMMIT_SHA`; Vercel builds populate this from `VERCEL_GIT_COMMIT_SHA`. |
+
+## `hooks`
+
+Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `hooks.post_build` | `string` | no | — | Shell command to run after a successful non-dry-run build has been fully written to `build.output_dir` (for example `./scripts/notify-discord.sh`). The command runs from the project root with `NECTAR_OUTPUT_DIR` set to the final output directory, so it is suitable for deployment notifications or a newsletter-send command that should fire only after fresh content has built. |
 
 ## `performance`
 

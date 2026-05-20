@@ -459,6 +459,21 @@ export const configSchema = z
       .strict()
       .default({})
       .describe('Build pipeline options that shape the emitted site.'),
+    hooks: z
+      .object({
+        post_build: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Shell command to run after a successful non-dry-run build has been fully written to `build.output_dir` (for example `./scripts/notify-discord.sh`). The command runs from the project root with `NECTAR_OUTPUT_DIR` set to the final output directory, so it is suitable for deployment notifications or a newsletter-send command that should fire only after fresh content has built.',
+          ),
+      })
+      .strict()
+      .default({})
+      .describe(
+        'Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery.',
+      ),
     performance: z
       .object({
         preload_lcp_image: z

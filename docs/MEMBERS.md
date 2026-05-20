@@ -18,6 +18,7 @@ This document covers:
 3. [How the portal adapter rewrites buttons and forms](#3-how-the-portal-adapter-rewrites-buttons-and-forms)
 4. [Wiring examples per provider](#4-wiring-examples-per-provider)
 5. [Known parity gaps](#5-known-parity-gaps)
+6. [Sending newsletters after a build](#6-sending-newsletters-after-a-build)
 
 For the underlying config schema, see
 [`docs/config.md` § `components.portal`](./config.md#componentsportal).
@@ -360,8 +361,42 @@ server:
   member identity.
 - **Newsletter sending is out of scope.** Ghost's email newsletter feature
   (cron-driven, per-post) is not implemented. Schedule sends from your
-  provider's dashboard.
+  provider's dashboard, or trigger your own provider-specific sender from
+  `[hooks].post_build` as described below.
 
 If you need any of the above on the static side itself, you are likely
 better served by running Ghost or a Ghost-compatible backend in parallel and
 using Nectar only for the public reading surface.
+
+---
+
+## 6. Sending newsletters after a build
+
+Ghost can emit webhooks such as `post.published` from Admin because Ghost owns
+the database and publishing event. Nectar's equivalent lifecycle point is build
+completion: Markdown has rendered, assets and manifests are on disk, and the
+output directory is ready for deploy or follow-up automation.
+
+Use `[hooks].post_build` for this flow:
+
+```toml
+[hooks]
+post_build = "./scripts/newsletter-send.sh"
+```
+
+The command runs from the project root after a successful non-dry-run build.
+Nectar sets `NECTAR_OUTPUT_DIR` to the final output directory, so the script can
+inspect emitted HTML, feeds, or `.nectar/build-manifest.json` before deciding
+what to send.
+
+For member-facing newsletter delivery, keep the provider-specific logic in your
+own command and call it from the hook:
+
+```toml
+[hooks]
+post_build = "bun run newsletter-send"
+```
+
+That keeps content publication explicit in CI: `nectar build` produces the
+site, then `newsletter-send` can publish through Buttondown, Beehiiv, Substack,
+or a custom members backend using the freshly built artifacts.
