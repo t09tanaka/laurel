@@ -7,9 +7,11 @@ them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
 Firebase Hosting, AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and
 self-hosted nginx quickstarts. Docker is covered as a runtime wrapper around a
-pre-built `dist/` directory. Fly.io is covered as a container runtime around
-that pre-built output, with static-only nginx sample files under
-[`examples/fly/`](../../examples/fly/).
+pre-built `dist/` directory; Nectar ships a slim
+[`examples/docker/Dockerfile`](../../examples/docker/Dockerfile) plus
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). Fly.io is
+covered as a container runtime around that pre-built output, with static-only
+nginx sample files under [`examples/fly/`](../../examples/fly/).
 
 **Universal pre-flight:**
 
@@ -33,8 +35,10 @@ accordingly.
 **Recommended for:** hosts that require a container image, or local smoke
 tests of the built static output.
 
-For the focused Docker guide, including the current no-Dockerfile/no-compose
-status and nginx config caveats, see
+For the focused Docker guide, including the sample
+[`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf), and nginx
+config caveats, see
 [`docs/deploy/docker.md`](../deploy/docker.md).
 
 Nectar does not build inside a container by default. Build first, then mount
@@ -51,7 +55,9 @@ docker run --rm \
 
 Open `http://localhost:8080/`. This minimal command uses nginx's stock config,
 so it does not apply Nectar-generated redirects, cache headers, or security
-headers.
+headers. For a reusable image, copy `examples/docker/Dockerfile` and
+`examples/docker/nginx.conf` into your project root after building `dist/`,
+then run `docker build`.
 
 For a closer self-hosted nginx setup, enable the existing nginx emitter:
 

@@ -15,6 +15,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 | `deploy/apache/.htaccess`  | Apache HTTPD `.htaccess` with Cache-Control, ETag, security headers, and pre-compressed-sidecar serving. Pairs with `docs/deploy/apache.md`. |
 | `deploy/caddy/Caddyfile`   | Caddy v2 server block with HTTPS, header pinning, and `/404.html` fallback. Pairs with `docs/deploy/caddy.md`. |
 | `deploy/cloudflare-pages/wrangler.toml` | Cloudflare Pages Wrangler config with `pages_build_output_dir = "./dist"` for CI flows that run `wrangler pages deploy dist --project-name=...`. Pairs with `docs/deploy/cloudflare-pages.md`. |
+| `examples/docker/Dockerfile` and `examples/docker/nginx.conf` | Slim `nginx:1.27-alpine` runtime image for an already-built `dist/`, with pretty URLs and `404.html` handling. Pairs with `docs/deploy/docker.md`. |
 | `deploy/netlify/netlify.toml` | Netlify build config with `bunx nectar build`, `dist` publishing, `BUN_VERSION`, and a commented Netlify build-plugin block. Pairs with `docs/deploy/netlify.md`. |
 | `cloudflare-workers/wrangler.toml` | Cloudflare Workers Static Assets config for serving `dist/` through a no-op worker that delegates to the `ASSETS` binding. Pairs with `docs/deploy/cloudflare-pages.md`. |
 | `render/render.yaml`       | Render Blueprint sample for a Static Site that runs `bun install && bun run build` and publishes `./dist`. Pairs with `docs/deploy/render.md`. |

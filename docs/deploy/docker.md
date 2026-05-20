@@ -1,9 +1,11 @@
 # Deploying Nectar with Docker
 
-Nectar does not ship a Dockerfile, docker-compose file, or Docker-specific
-package script today. The build output is still easy to run in Docker because
-`nectar build` emits plain static files under `dist/`. Treat Docker as the
-runtime wrapper around that already-built directory.
+Nectar ships a small nginx-alpine runtime sample under
+[`examples/docker/Dockerfile`](../../examples/docker/Dockerfile) and
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). It assumes CI
+or your host has already run `nectar build`, then serves the generated `dist/`
+directory as static files. Nectar still does not require Docker-specific
+package scripts or a compose file.
 
 ## Quickstart: local nginx container
 
@@ -34,6 +36,26 @@ This path is intentionally minimal: it proves the static output serves from a
 container, but it uses nginx's default config. That means Nectar's generated
 cache headers, security headers, pretty-URL fallback, and redirects are not
 applied unless you add an nginx config.
+
+## Build the sample image
+
+The checked-in sample is for hosts that require a Dockerfile but do not need to
+build the Nectar site inside the image. Build the site first, then copy the
+sample files into the build context:
+
+```sh
+bunx nectar build
+cp examples/docker/Dockerfile .
+cp examples/docker/nginx.conf .
+docker build -t nectar-static .
+docker run --rm --name nectar-static -p 8080:80 nectar-static
+```
+
+The Dockerfile uses `nginx:1.27-alpine`, copies `dist/` into
+`/usr/share/nginx/html/`, installs the sample nginx config, and exposes port
+80. The sample config keeps directory-style pretty URLs working with
+`try_files $uri $uri/ $uri/index.html =404;` and serves Nectar's generated
+`404.html` through `error_page 404 /404.html;`.
 
 ## Optional: generate a Nectar nginx config
 
@@ -78,18 +100,22 @@ for local smoke tests.
 ## Minimal Dockerfile for platforms that require one
 
 Some hosts, such as Fly.io, expect a Dockerfile even for static content.
-Nectar does not provide one in the repo, but a deploy-specific project can add
-this minimal runtime image after CI has already run `bunx nectar build`:
+You can copy the sample files from
+[`examples/docker/`](../../examples/docker/) after CI has already run
+`bunx nectar build`:
 
 ```Dockerfile
-FROM nginx:alpine
-COPY dist /usr/share/nginx/html
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/ /usr/share/nginx/html/
+EXPOSE 80
 ```
 
-That Dockerfile has the same limitation as the local quickstart: it serves the
-files but does not apply Nectar's generated nginx headers or redirects. For a
-production container, copy in a reviewed nginx config that matches your image's
-available modules.
+That Dockerfile applies the sample `examples/docker/nginx.conf`, which covers
+pretty URLs, `404.html`, long-lived cache headers for asset directories, and
+short-lived cache headers for HTML. For production deployments that need
+redirects, custom security headers, or a different document root, generate and
+review `dist/.nectar/nginx.conf` from `[deploy.nginx]` instead.
 
 For a Fly.io-specific workflow, including the matching `fly.toml` shape and
 GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
