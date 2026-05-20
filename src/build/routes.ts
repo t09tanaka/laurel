@@ -243,11 +243,6 @@ export function planRoutes(opts: {
     if (!customTemplate) {
       continue;
     }
-    if (entry.data !== undefined) {
-      logger.warn(
-        `routes.yaml: route '${entry.url}' uses 'data: ${entry.data}' which is parsed but not yet applied; the template will render without that data binding.`,
-      );
-    }
     if (entry.content_type !== 'html') {
       logger.warn(
         `routes.yaml: route '${entry.url}' requests content_type '${entry.content_type}' which is parsed but not yet applied; the route will be emitted as HTML.`,
@@ -263,6 +258,11 @@ export function planRoutes(opts: {
       const localeChannelPosts = channelPosts
         ? filterByLocale(channelPosts, localeRouting ? locale : undefined)
         : undefined;
+      const routeResourceData = resolveCustomRouteData(
+        entry,
+        content,
+        localeRouting ? locale : undefined,
+      );
       const pages = localeChannelPosts ? paginatePosts(localeChannelPosts, perPage) : undefined;
       const routePages = pages ?? [undefined];
       routePages.forEach((slice, idx) => {
@@ -281,6 +281,7 @@ export function planRoutes(opts: {
           indexable: slice ? idx === 0 : undefined,
           data: slice
             ? {
+                ...routeResourceData,
                 posts: slice,
                 pagination: paginationInfo(
                   idx,
@@ -293,11 +294,13 @@ export function planRoutes(opts: {
                   trailingSlash,
                 ),
               }
-            : {},
+            : routeResourceData,
           meta: defaultMeta(
             config,
             url,
-            idx === 0 ? config.site.title : `${config.site.title} - Page ${idx + 1}`,
+            customRouteMetaTitle(routeResourceData, config.site.title, idx),
+            customRouteMetaDescription(routeResourceData),
+            customRouteMetaImage(routeResourceData),
           ),
         });
       });
@@ -501,6 +504,82 @@ function resolveCustomChannelPosts(
   const collection = collections.find((candidate) => sameRouteUrl(candidate.url, entry.url));
   if (!collection) return [...posts];
   return posts.filter((post) => assignments.get(post.id)?.collection === collection);
+}
+
+function resolveCustomRouteData(
+  entry: ResolvedRouteEntry,
+  content: ContentGraph,
+  locale: string | undefined,
+): Pick<RouteContext['data'], 'post' | 'page'> {
+  if (entry.data === undefined) return {};
+  const ref = parseCustomRouteDataRef(entry.data);
+  if (!ref) {
+    logger.warn(
+      `routes.yaml: route '${entry.url}' uses unsupported data '${entry.data}'; expected 'post.<slug>' or 'page.<slug>'. The template will render without that data binding.`,
+    );
+    return {};
+  }
+  if (ref.kind === 'post') {
+    const post = findLocalizedResource(content.posts, ref.slug, locale);
+    if (!post) {
+      logger.warn(
+        `routes.yaml: route '${entry.url}' references data '${entry.data}' but no matching post was found. The template will render without that data binding.`,
+      );
+      return {};
+    }
+    return { post };
+  }
+  const page = findLocalizedResource(content.pages, ref.slug, locale);
+  if (!page) {
+    logger.warn(
+      `routes.yaml: route '${entry.url}' references data '${entry.data}' but no matching page was found. The template will render without that data binding.`,
+    );
+    return {};
+  }
+  return { page };
+}
+
+function parseCustomRouteDataRef(
+  value: string,
+): { kind: 'post' | 'page'; slug: string } | undefined {
+  const trimmed = value.trim();
+  const match = /^(post|page)\.([^\s.]+)$/.exec(trimmed);
+  if (!match) return undefined;
+  return { kind: match[1] as 'post' | 'page', slug: match[2] };
+}
+
+function findLocalizedResource<T extends { slug: string; locale?: string }>(
+  resources: readonly T[],
+  slug: string,
+  locale: string | undefined,
+): T | undefined {
+  if (locale !== undefined) {
+    return resources.find((resource) => resource.slug === slug && resource.locale === locale);
+  }
+  return resources.find((resource) => resource.slug === slug);
+}
+
+function customRouteMetaTitle(
+  data: Pick<RouteContext['data'], 'post' | 'page'>,
+  siteTitle: string,
+  pageIndex: number,
+): string {
+  const resource = data.post ?? data.page;
+  const title = resource?.meta_title ?? resource?.title ?? siteTitle;
+  return pageIndex === 0 ? title : `${title} - Page ${pageIndex + 1}`;
+}
+
+function customRouteMetaDescription(
+  data: Pick<RouteContext['data'], 'post' | 'page'>,
+): string | undefined {
+  const resource = data.post ?? data.page;
+  return resource?.meta_description ?? resource?.excerpt;
+}
+
+function customRouteMetaImage(
+  data: Pick<RouteContext['data'], 'post' | 'page'>,
+): string | undefined {
+  return (data.post ?? data.page)?.feature_image;
 }
 
 function isWaveBlogChannel(entry: ResolvedRouteEntry): boolean {

@@ -1098,6 +1098,57 @@ describe('planRoutes — routes.yaml routes section', () => {
     expect(customs.map((r) => r.url).sort()).toEqual(['/about/']);
   });
 
+  test('data: post.slug and data: page.slug inject a single resource into custom route renders', () => {
+    const config = makeConfig('https://example.com');
+    const post = makePost('source-news', {
+      title: 'Source News',
+      meta_title: 'Source SEO',
+      meta_description: 'Source summary',
+      feature_image: '/content/images/source.jpg',
+    });
+    const page = makePage('about-us', {
+      title: 'About Us',
+      meta_title: 'About SEO',
+      meta_description: 'About summary',
+      feature_image: '/content/images/about.jpg',
+    });
+    const content = makeGraph({ posts: [post], pages: [page] });
+    const theme = makeTheme();
+    theme.templates.landing = '{{title}}|{{post.slug}}|{{page.slug}}';
+
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({
+        '/campaign/': { template: 'landing', data: 'post.source-news' },
+        '/about-custom/': { template: 'landing', data: 'page.about-us' },
+      }),
+    });
+
+    const campaign = routes.find((r) => r.kind === 'custom' && r.url === '/campaign/');
+    const about = routes.find((r) => r.kind === 'custom' && r.url === '/about-custom/');
+    expect(campaign?.data.post).toBe(post);
+    expect(campaign?.meta).toMatchObject({
+      title: 'Source SEO',
+      description: 'Source summary',
+      image: '/content/images/source.jpg',
+      canonical: 'https://example.com/campaign/',
+    });
+    expect(about?.data.page).toBe(page);
+    expect(about?.meta).toMatchObject({
+      title: 'About SEO',
+      description: 'About summary',
+      image: '/content/images/about.jpg',
+      canonical: 'https://example.com/about-custom/',
+    });
+
+    const engine = createEngine({ config, content, theme });
+    if (!campaign || !about) throw new Error('Expected custom routes to be planned');
+    expect(engine.render(campaign)).toBe('Source News|source-news|');
+    expect(engine.render(about)).toBe('About Us||about-us');
+  });
+
   test('emits no custom routes when routes.yaml has no `routes:` section', () => {
     const config = makeConfig('https://example.com');
     const content = makeGraph({});

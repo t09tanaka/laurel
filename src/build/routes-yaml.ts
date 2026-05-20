@@ -47,7 +47,7 @@ const routeEntryObjectSchema = z
       .string()
       .optional()
       .describe(
-        'Optional `data` directive referencing a tag/author/page (e.g. `tag.featured`). Not yet applied to renders.',
+        'Optional `data` directive referencing a post/page (e.g. `post.hello-world`) to inject into the route render context.',
       ),
   })
   .strict();
