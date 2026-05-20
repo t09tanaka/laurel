@@ -22,6 +22,7 @@ import { type RedirectRule, type RedirectStatus, collapseRedirects } from './red
 
 const CATCH_ALL = '/*';
 const NOT_FOUND_PATH = '/404.html';
+const HEALTHCHECK_PATH = '/healthz';
 
 const SECURITY_HEADER_FIELDS: ReadonlyArray<{
   key: keyof Omit<HeadersConfig['security'], 'custom'>;
@@ -158,6 +159,13 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
       lines.push(`    ${head} { return ${nginxStatusFlag(r.status)} ${r.to}; }`);
     }
   }
+
+  lines.push('');
+  lines.push(`    location = ${HEALTHCHECK_PATH} {`);
+  lines.push('        access_log off;');
+  lines.push('        default_type text/plain;');
+  lines.push('        return 200 "ok\\n";');
+  lines.push('    }');
 
   lines.push('');
   lines.push(`    location = ${NOT_FOUND_PATH} {`);

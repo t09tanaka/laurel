@@ -13,6 +13,7 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('COPY nginx.conf /etc/nginx/conf.d/default.conf');
     expect(body).toContain('COPY dist/ /usr/share/nginx/html/');
     expect(body).toContain('EXPOSE 80');
+    expect(body).toContain('HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz');
   });
 
   test('builds Nectar inside a Bun stage before serving dist with nginx', async () => {
@@ -25,6 +26,7 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('COPY nginx.conf /etc/nginx/conf.d/default.conf');
     expect(body).toContain('COPY --from=build /app/dist/ /usr/share/nginx/html/');
     expect(body).toContain('EXPOSE 80');
+    expect(body).toContain('HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz');
   });
 
   test('serves Nectar static output with pretty URLs and the generated 404 page', async () => {
@@ -37,6 +39,9 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('location = /404.html {');
     expect(body).toContain('internal;');
     expect(body).toContain('try_files /404.html =404;');
+    expect(body).toContain('location = /healthz {');
+    expect(body).toContain('access_log off;');
+    expect(body).toContain('return 200 "ok\\n";');
   });
 
   test('is linked from the Docker deploy docs, deploy tutorial, and examples index', async () => {

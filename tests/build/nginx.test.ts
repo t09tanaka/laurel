@@ -89,6 +89,16 @@ describe('buildNginxServerBlock', () => {
     expect(notFoundBlock).toContain('        add_header X-Content-Type-Options "nosniff" always;');
   });
 
+  test('emits an exact healthcheck endpoint for container orchestrators', () => {
+    const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
+    const healthBlock = extractLocationBlock(out, 'location = /healthz');
+
+    expect(healthBlock).toContain('        access_log off;');
+    expect(healthBlock).toContain('        default_type text/plain;');
+    expect(healthBlock).toContain('        return 200 "ok\\n";');
+    expect(out.indexOf('location = /healthz')).toBeLessThan(out.indexOf('location / {'));
+  });
+
   test('emits try_files with trailing-slash variant for SPA-style index.html resolution inside every location', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
     // The `$uri/` trailing-slash variant must sit between `$uri` and
