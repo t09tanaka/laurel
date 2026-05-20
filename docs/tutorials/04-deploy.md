@@ -664,6 +664,20 @@ private S3 origin with the CloudFront Function at
 [`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
 so `/about/` resolves to Nectar's generated `/about/index.html` object.
 
+If your site has `redirects.yaml`, S3 + CloudFront will not read the generated
+`dist/_redirects` file. Generate a CloudFront Function from that YAML instead:
+
+```bash
+bun scripts/generate-cloudfront-redirects.ts \
+  --out cloudfront-redirects.generated.js
+```
+
+The output follows
+[`examples/deploy/s3-cloudfront/cloudfront-redirects.js`](../../examples/deploy/s3-cloudfront/cloudfront-redirects.js)
+and inlines an exact-URI redirect map for 301, 302, 307, and 308 responses.
+Publish the generated function on the viewer-request event before the request
+reaches the S3 origin.
+
 Also configure CloudFront custom error responses for both `403` and `404`
 origin errors. Point them at `/404.html` and keep the viewer response code as
 `404`. Private S3 origins can report a missing key as `403` or `404` depending
@@ -812,6 +826,10 @@ rules into nginx `return` directives.
   URLs request each page's generated `index.html`, and configure custom error
   responses for `403` and `404` so true misses serve `/404.html` with viewer
   status `404`.
+- **S3 + CloudFront ignores redirects.yaml.** Generate the CloudFront Function
+  sample from `examples/deploy/s3-cloudfront/cloudfront-redirects.js` with
+  `scripts/generate-cloudfront-redirects.ts`, then publish the generated
+  function on the viewer-request event.
 - **Render deploys but redirects or headers do not apply.** Render Static
   Sites do not consume Nectar's generated `_redirects` / `_headers` as a
   platform contract. Configure those rules in the Render dashboard until

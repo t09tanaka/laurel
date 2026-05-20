@@ -12,6 +12,13 @@ const terraformSample = join(
   'cloudfront-custom-errors.tf.example',
 );
 const terraformDir = join(root, 'examples', 'deploy', 's3-cloudfront', 'terraform');
+const cloudFrontRedirectSample = join(
+  root,
+  'examples',
+  'deploy',
+  's3-cloudfront',
+  'cloudfront-redirects.js',
+);
 
 describe('S3 + CloudFront deploy docs', () => {
   test('document 403 and 404 custom error responses for Nectar 404 pages', async () => {
@@ -41,9 +48,14 @@ describe('S3 + CloudFront deploy docs', () => {
     expect(guide).toContain('examples/deploy/s3-cloudfront/terraform/');
     expect(guide).toContain('Origin Access Control (OAC), not legacy');
     expect(guide).toContain('AWS:SourceArn');
+    expect(guide).toContain('cloudfront-redirects.js');
+    expect(guide).toContain('scripts/generate-cloudfront-redirects.ts');
+    expect(guide).toContain('CloudFront Function for redirects');
     expect(tutorial).toContain('keep the viewer response code as\n`404`');
+    expect(tutorial).toContain('cloudfront-redirects.js');
     expect(examples).toContain('cloudfront-custom-errors.tf.example');
     expect(examples).toContain('deploy/s3-cloudfront/terraform/');
+    expect(examples).toContain('cloudfront-redirects.js');
   });
 
   test('documents the build-emitted CloudFront invalidation path list', async () => {
@@ -113,5 +125,19 @@ describe('S3 + CloudFront deploy samples', () => {
     expect(outputs).toContain('output "cloudfront_distribution_id"');
     expect(readme).toContain('OAC, not the legacy Origin Access Identity (OAI)');
     expect(readme).toContain('../cloudfront-custom-errors.tf.example');
+  });
+
+  test('include a CloudFront Function sample for redirects generated from redirects.yaml', async () => {
+    expect(existsSync(cloudFrontRedirectSample)).toBe(true);
+
+    const body = await readFile(cloudFrontRedirectSample, 'utf8');
+
+    expect(body).toContain('CloudFront Function');
+    expect(body).toContain('viewer-request');
+    expect(body).toContain('const REDIRECTS =');
+    expect(body).toContain('function handler(event)');
+    expect(body).toContain('REDIRECTS[request.uri]');
+    expect(body).toContain('statusCode: rule.statusCode');
+    expect(body).toContain('location: { value: location }');
   });
 });

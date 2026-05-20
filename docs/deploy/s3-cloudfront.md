@@ -46,14 +46,30 @@ GitHub Pages have more managed defaults.
    object and redirects extensionless page URLs to the canonical trailing
    slash.
 
-4. Copy the starter workflow:
+4. If your site uses `redirects.yaml`, generate and publish a second
+   CloudFront Function for redirects:
+
+   ```sh
+   bun scripts/generate-cloudfront-redirects.ts \
+     --out cloudfront-redirects.generated.js
+   ```
+
+   The generated file follows the sample in
+   [`examples/deploy/s3-cloudfront/cloudfront-redirects.js`](../../examples/deploy/s3-cloudfront/cloudfront-redirects.js).
+   CloudFront behaviors normally have one CloudFront Function association per
+   viewer-request event, so merge the redirect check into your directory-style
+   URL Function when both behaviors must run on the same distribution behavior.
+   Run the redirect check first, then fall through to the `append-index`
+   rewrite when no redirect matches.
+
+5. Copy the starter workflow:
 
    ```sh
    mkdir -p .github/workflows
    cp examples/ci/s3-cloudfront.yml .github/workflows/s3-cloudfront.yml
    ```
 
-5. In the GitHub repo, add the values referenced by the workflow:
+6. In the GitHub repo, add the values referenced by the workflow:
 
    | Type | Name | Value |
    | --- | --- | --- |
@@ -74,14 +90,14 @@ GitHub Pages have more managed defaults.
      `aws s3 sync --delete`
    - `cloudfront:CreateInvalidation` on the target distribution
 
-6. Build locally before the first push:
+7. Build locally before the first push:
 
    ```sh
    bunx nectar build
    test -f dist/.nectar-manifest.json
    ```
 
-7. Commit and push to `main`. The workflow installs Bun, builds `dist/`,
+8. Commit and push to `main`. The workflow installs Bun, builds `dist/`,
    verifies `dist/.nectar-manifest.json`, syncs fingerprinted assets with long
    immutable caching, syncs HTML / XML / TXT with revalidation, then
    invalidates the paths listed in `dist/.nectar/changed-paths.txt` in
@@ -246,8 +262,24 @@ Nectar writes `dist/_redirects` when `[components.redirects]` is enabled, but
 S3 and CloudFront do not consume that file automatically. For S3 + CloudFront,
 choose one of these paths:
 
-- Model redirects in CloudFront, Lambda@Edge, CloudFront Functions, or another
-  AWS-owned routing layer.
+- Use the CloudFront Function for redirects sample in
+  [`examples/deploy/s3-cloudfront/cloudfront-redirects.js`](../../examples/deploy/s3-cloudfront/cloudfront-redirects.js).
+  Generate a site-specific copy during deploy so `redirects.yaml` is inlined
+  into the edge function:
+
+  ```sh
+  bun scripts/generate-cloudfront-redirects.ts \
+    --out cloudfront-redirects.generated.js
+  ```
+
+  The generator reads `redirects.yaml`, keeps the first rule for duplicate
+  `from` values, and emits an exact-URI redirect map with 301, 302, 307, and
+  308 responses. It preserves the request query string when the target URL has
+  no query string of its own. Publish the generated JavaScript as a CloudFront
+  Function on the viewer-request event; no S3 website redirects backend or
+  Lambda@Edge function is required.
+- Model redirects manually in CloudFront, Lambda@Edge, CloudFront Functions, or
+  another AWS-owned routing layer.
 - Enable HTML refresh fallback pages when HTTP status preservation is not
   required:
 
@@ -311,5 +343,7 @@ adapt the workflow's two-pass `aws s3 sync` commands.
   `examples/s3-cloudfront/append-index.js` to the viewer-request event, and
   confirm the object `about/index.html` exists in S3.
 - **Redirects in `redirects.yaml` do nothing:** S3 + CloudFront does not read
-  `dist/_redirects`. Move those rules into CloudFront or enable
-  `[components.redirects].emit_html` for client-side fallback pages.
+  `dist/_redirects`. Generate and publish `cloudfront-redirects.js` with
+  `scripts/generate-cloudfront-redirects.ts`, move those rules into CloudFront
+  manually, or enable `[components.redirects].emit_html` for client-side
+  fallback pages.
