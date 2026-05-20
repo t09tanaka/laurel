@@ -29,6 +29,9 @@ jobs:
         with:
           bun-version: ${{ matrix.bun }}
 
+      - name: Verify Bun tsconfig path alias runtime resolution
+        run: bun run verify:bun-path-alias
+
       - name: Cache Bun install store
         uses: actions/cache@v4
         with:

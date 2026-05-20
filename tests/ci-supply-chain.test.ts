@@ -23,6 +23,19 @@ describe('ci supply-chain', () => {
     expect(listWorkflows().length).toBeGreaterThan(0);
   });
 
+  test('CI verifies Bun runtime tsconfig path alias resolution before install', () => {
+    const ci = listWorkflows().find(({ name }) => name === 'ci.yml');
+    expect(ci).toBeDefined();
+
+    const content = ci?.content ?? '';
+    const aliasCheck = content.indexOf('bun run verify:bun-path-alias');
+    const install = content.indexOf('bun install --frozen-lockfile');
+
+    expect(aliasCheck).toBeGreaterThan(-1);
+    expect(install).toBeGreaterThan(-1);
+    expect(aliasCheck).toBeLessThan(install);
+  });
+
   test('every `bun install` invocation in workflows uses --frozen-lockfile', () => {
     const offenders: string[] = [];
     for (const { name, content } of listWorkflows()) {

@@ -85,6 +85,7 @@
     "format": "biome format --write src tests",
     "lint": "biome lint src tests",
     "lint:html": "html-validate \"example/dist/**/*.html\"",
+    "verify:bun-path-alias": "bun scripts/verify-bun-path-alias.ts",
     "lint:a11y": "bun run scripts/a11y-gate.ts"
   },
   "dependencies": {
