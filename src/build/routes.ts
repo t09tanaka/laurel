@@ -44,13 +44,16 @@ export function planRoutes(opts: {
   const localeRouting = content.localeRouting === true;
   const routeLocales = localeRouting ? (content.locales ?? [content.site.locale]) : [undefined];
 
-  const homeTemplate = theme.templates.home ? 'home' : 'index';
-  const indexTemplate = theme.templates.index ?? theme.templates.home;
-  if (indexTemplate) {
+  const homeTemplate = resolveHomeTemplate(theme);
+  const indexTemplate = resolveIndexTemplate(theme);
+  if (homeTemplate || indexTemplate) {
     for (const locale of routeLocales) {
       const localePosts = filterByLocale(content.posts, locale);
       const pages = paginatePosts(localePosts, perPage);
       pages.forEach((slice, idx) => {
+        const template =
+          idx === 0 ? (homeTemplate ?? indexTemplate) : (indexTemplate ?? homeTemplate);
+        if (!template) return;
         const url = canonicalRouteUrl(
           withLocaleRoutePrefix(locale, idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`),
           trailingSlash,
@@ -60,7 +63,7 @@ export function planRoutes(opts: {
           kind: idx === 0 ? 'home' : 'index',
           url,
           outputPath,
-          template: idx === 0 ? homeTemplate : 'index',
+          template,
           locale,
           lastmod: latestPostTimestamp(slice),
           // `/<prefix>/N/` is a paginated view of the same posts already reachable
@@ -386,6 +389,20 @@ export function planRoutes(opts: {
   assertNoRouteCollisions(routes);
 
   return routes;
+}
+
+function resolveHomeTemplate(theme: ThemeBundle): string | undefined {
+  return hasTemplate(theme, 'home') ? 'home' : resolveIndexTemplate(theme);
+}
+
+function resolveIndexTemplate(theme: ThemeBundle): string | undefined {
+  if (hasTemplate(theme, 'index')) return 'index';
+  if (hasTemplate(theme, 'home')) return 'home';
+  return undefined;
+}
+
+function hasTemplate(theme: ThemeBundle, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(theme.templates, name);
 }
 
 function filterByLocale<T extends { locale?: string }>(

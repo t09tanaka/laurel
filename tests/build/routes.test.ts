@@ -279,6 +279,23 @@ function makeTheme(): ThemeBundle {
   };
 }
 
+function makeDigestTheme(): ThemeBundle {
+  const theme = makeTheme();
+  theme.name = 'digest';
+  theme.rootDir = '/themes/digest';
+  theme.templates = {
+    ...theme.templates,
+    default: '{{{body}}}',
+    home: '{{!< default}}',
+    index: '{{!< default}}\n<main data-digest-index>{{#foreach posts}}{{title}}{{/foreach}}</main>',
+  };
+  theme.pkg = {
+    ...theme.pkg,
+    name: 'digest',
+  };
+  return theme;
+}
+
 describe('planRoutes — defaultMeta.canonical', () => {
   test('home canonical is the site root (not site.url verbatim, but resolved against it)', () => {
     const config = makeConfig('https://example.com');
@@ -526,6 +543,22 @@ describe('planRoutes — error-404 route', () => {
     const routes = planRoutes({ config, content, theme });
     const errorRoute = routes.find((r) => r.kind === 'error');
     expect(errorRoute?.template).toBe('error-404');
+  });
+});
+
+describe('planRoutes — home template precedence (#706)', () => {
+  test('Digest home.hbs overrides index.hbs for the root home route', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({
+      posts: Array.from({ length: 6 }, (_, idx) => makePost(`digest-${idx + 1}`)),
+    });
+    const routes = planRoutes({ config, content, theme: makeDigestTheme() });
+
+    const home = routes.find((route) => route.kind === 'home');
+    const page2 = routes.find((route) => route.kind === 'index' && route.url === '/page/2/');
+
+    expect(home?.template).toBe('home');
+    expect(page2?.template).toBe('index');
   });
 });
 
