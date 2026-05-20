@@ -144,7 +144,17 @@ primary_region = "sjc"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
 ```
+
+The Fly check targets nginx's lightweight `/healthz` endpoint, which the
+generated `dist/.nectar/nginx.conf` serves with `200 ok`.
 
 Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
 `.github/workflows/fly.yml`, add repository secret `FLY_API_TOKEN`, and push

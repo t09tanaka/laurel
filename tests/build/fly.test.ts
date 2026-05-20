@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import TOML from '@iarna/toml';
 
 const root = join(import.meta.dir, '..', '..');
 const sampleDir = join(root, 'examples', 'fly');
@@ -23,6 +24,25 @@ describe('Fly.io deploy sample', () => {
     expect(body).toContain('internal_port = 80');
     expect(body).toContain('auto_stop_machines = "stop"');
     expect(body).toContain('auto_start_machines = true');
+    expect(body).toContain('[[http_service.checks]]');
+    expect(body).toContain('path = "/healthz"');
+  });
+
+  test('parses Fly http_service health checks for the nginx health endpoint', async () => {
+    const body = await readFile(join(sampleDir, 'fly.toml'), 'utf8');
+    const config = TOML.parse(body) as {
+      http_service?: { checks?: Array<Record<string, unknown>> };
+    };
+
+    expect(config.http_service?.checks).toEqual([
+      {
+        interval: '30s',
+        timeout: '5s',
+        grace_period: '10s',
+        method: 'GET',
+        path: '/healthz',
+      },
+    ]);
   });
 
   test('copies Nectar dist output and generated nginx config into the image', async () => {
@@ -41,6 +61,9 @@ describe('Fly.io deploy sample', () => {
     expect(body).toContain('dist/.nectar/nginx.conf');
     expect(body).toContain('root /usr/share/nginx/html;');
     expect(body).toContain('error_page 404 /404.html;');
+    expect(body).toContain('location = /healthz {');
+    expect(body).toContain('access_log off;');
+    expect(body).toContain('return 200 "ok\\n";');
     expect(body).toContain('internal;');
     expect(body).toContain('try_files $uri $uri/ $uri/index.html =404;');
     expect(body).toContain('try_files /404.html =404;');
@@ -56,10 +79,12 @@ describe('Fly.io deploy sample', () => {
     expect(guide).toContain('examples/fly/nginx.conf');
     expect(guide).toContain('root = "/usr/share/nginx/html"');
     expect(guide).toContain('dist/.nectar/nginx.conf');
+    expect(guide).toContain('path = "/healthz"');
     expect(tutorial).toContain('examples/fly/fly.toml');
     expect(tutorial).toContain('examples/fly/Dockerfile');
     expect(tutorial).toContain('root = "/usr/share/nginx/html"');
     expect(tutorial).toContain('dist/.nectar/nginx.conf');
+    expect(tutorial).toContain('path = "/healthz"');
     expect(examples).toContain('examples/fly/fly.toml');
   });
 });

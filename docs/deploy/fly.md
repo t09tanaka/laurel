@@ -89,21 +89,23 @@ primary_region = "sjc"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
-```
 
-If `flyctl launch --no-deploy` generated extra sections for your app, keep the
-ones you need. This guide intentionally does not define a Nectar-specific
-healthcheck because Nectar ships static files and Fly/nginx already provide the
-runtime process. Add one only if your own operations policy requires it, for
-example:
-
-```toml
 [[http_service.checks]]
   interval = "30s"
   timeout = "5s"
+  grace_period = "10s"
   method = "GET"
-  path = "/"
+  path = "/healthz"
 ```
+
+Fly service-level HTTP checks gate traffic to Machines, so the sample checks
+the lightweight `/healthz` endpoint instead of a content page. Nectar's
+generated nginx config, and the static-only fallback
+[`examples/fly/nginx.conf`](../../examples/fly/nginx.conf), both answer
+`GET /healthz` with `200 ok`.
+
+If `flyctl launch --no-deploy` generated extra sections for your app, keep the
+ones you need.
 
 ## Deploy from GitHub Actions
 
@@ -143,6 +145,7 @@ After Fly reports a successful release, check the public URL:
 flyctl status
 curl -sI https://my-nectar-site.fly.dev/ | sort
 curl -sI https://my-nectar-site.fly.dev/404.html | sort
+curl -s https://my-nectar-site.fly.dev/healthz
 ```
 
 For custom domains, add the certificate in Fly first, then update `[site].url`
@@ -161,6 +164,10 @@ the production hostname.
 - **Redirects or headers are missing:** confirm Fly is using
   `dist/.nectar/nginx.conf`, not the static-only `examples/fly/nginx.conf`
   fallback. Stock nginx ignores `_redirects` and `_headers`.
+- **Machines stay unhealthy:** confirm `fly.toml` still has
+  `[[http_service.checks]] path = "/healthz"` and that the image uses either
+  Nectar's generated `dist/.nectar/nginx.conf` or the fallback nginx sample
+  that serves `/healthz`.
 - **`brotli_static` breaks nginx startup:** keep the sample Dockerfile's
   `sed -i '/brotli_static/d' ...` line when using stock `nginx:alpine`, or
   switch to an nginx image that loads the Brotli static module.
