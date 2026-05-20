@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { logger } from '~/util/logger.ts';
 
 // Cross-cutting `redirects.yaml` schema. Ghost exports persist custom redirects
 // as a JSON list with `{from, to, permanent}`; Nectar consumes the same idea as
@@ -83,4 +84,139 @@ export function collapseRedirects(rules: readonly RedirectRule[]): RedirectRule[
     out.push(r);
   }
   return out;
+}
+
+// Ghost-compat loader. Ghost persists custom redirects under
+// `<export>/content/data/redirects.{yaml,yml,json}`. Two on-disk shapes ship
+// in the wild:
+//
+//   1. Modern (Ghost 3+): a flat array of `{from, to, permanent?}` entries.
+//      `permanent: true` -> 301, otherwise 302.
+//
+//   2. Status-grouped (older admin tooling, also documented in Ghost's
+//      migration guide):
+//        301:
+//          - from: /old-url
+//            to: /new-url
+//        302:
+//          - from: /old-2
+//            to: /new-2
+//
+// Either shape is normalized to the same canonical `RedirectRule[]` the rest
+// of the build pipeline consumes. Invalid entries (missing `from`/`to`, bogus
+// status keys, non-array values) are warned and skipped instead of failing the
+// build — a single typo in a migrated export shouldn't break the whole site.
+const GHOST_REDIRECT_FILENAMES = ['redirects.yaml', 'redirects.yml', 'redirects.json'] as const;
+
+export async function loadGhostStyleRedirects(cwd: string): Promise<RedirectRule[]> {
+  for (const name of GHOST_REDIRECT_FILENAMES) {
+    const path = join(cwd, 'content', 'data', name);
+    let raw: string;
+    try {
+      raw = await readFile(path, 'utf8');
+    } catch {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = name.endsWith('.json') ? JSON.parse(raw) : Bun.YAML.parse(raw);
+    } catch (err) {
+      throw new Error(
+        `Failed to parse ${join('content', 'data', name)}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (parsed == null) return [];
+    return normalizeGhostRedirects(parsed, join('content', 'data', name));
+  }
+  return [];
+}
+
+interface RawGhostEntry {
+  from?: unknown;
+  to?: unknown;
+  permanent?: unknown;
+  status?: unknown;
+  force?: unknown;
+}
+
+export function normalizeGhostRedirects(parsed: unknown, source = 'redirects'): RedirectRule[] {
+  if (Array.isArray(parsed)) {
+    return parsed.flatMap((entry, i) => toCanonicalRule(entry, undefined, `${source}[${i}]`));
+  }
+  if (parsed && typeof parsed === 'object') {
+    const out: RedirectRule[] = [];
+    for (const [key, entries] of Object.entries(parsed as Record<string, unknown>)) {
+      const status = coerceStatus(key);
+      if (status == null) {
+        logger.warn(`Skipping unknown status key "${key}" in ${source}`);
+        continue;
+      }
+      if (!Array.isArray(entries)) {
+        logger.warn(`Skipping non-array value under "${key}" in ${source}`);
+        continue;
+      }
+      entries.forEach((entry, i) => {
+        out.push(...toCanonicalRule(entry, status, `${source}.${key}[${i}]`));
+      });
+    }
+    return out;
+  }
+  logger.warn(`Skipping ${source}: expected an array or status-keyed object`);
+  return [];
+}
+
+function coerceStatus(key: string): RedirectStatus | null {
+  const n = Number(key);
+  if (n === 301 || n === 302 || n === 307 || n === 308) return n;
+  return null;
+}
+
+function toCanonicalRule(
+  entry: unknown,
+  defaultStatus: RedirectStatus | undefined,
+  origin: string,
+): RedirectRule[] {
+  if (!entry || typeof entry !== 'object') {
+    logger.warn(`Skipping non-object entry at ${origin}`);
+    return [];
+  }
+  const e = entry as RawGhostEntry;
+  if (typeof e.from !== 'string' || e.from.length === 0) {
+    logger.warn(`Skipping entry at ${origin}: missing or empty "from"`);
+    return [];
+  }
+  if (typeof e.to !== 'string' || e.to.length === 0) {
+    logger.warn(`Skipping entry at ${origin}: missing or empty "to"`);
+    return [];
+  }
+  // `status` on the entry wins over the parent status key (e.g. the nested form
+  // explicitly opted out for one rule). Falls back to `permanent: bool` (Ghost
+  // legacy: true => 301, false => 302), then the parent status key, then 302
+  // (Ghost's default when neither is present).
+  let status: RedirectStatus;
+  if (e.status != null) {
+    const explicit = coerceStatus(String(e.status));
+    if (explicit == null) {
+      logger.warn(`Skipping entry at ${origin}: unsupported status ${String(e.status)}`);
+      return [];
+    }
+    status = explicit;
+  } else if (typeof e.permanent === 'boolean') {
+    status = e.permanent ? 301 : 302;
+  } else if (defaultStatus !== undefined) {
+    status = defaultStatus;
+  } else {
+    status = 302;
+  }
+  const force = typeof e.force === 'boolean' ? e.force : false;
+  return [{ from: e.from, to: e.to, status, force }];
+}
+
+// Aggregate loader: pull rules from both the canonical project-root file and
+// the Ghost-style `content/data/` location. Project-root rules win on `from`
+// collisions because `collapseRedirects` keeps the first occurrence; rules
+// authored by hand should override migrated ones from a Ghost export.
+export async function loadAllRedirects(cwd: string): Promise<RedirectRule[]> {
+  const [root, ghost] = await Promise.all([loadRedirects(cwd), loadGhostStyleRedirects(cwd)]);
+  return [...root, ...ghost];
 }

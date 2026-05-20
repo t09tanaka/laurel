@@ -66,7 +66,8 @@ import { preserveUserFiles } from './preserve.ts';
 import { type Profiler, createProfiler, writeProfile } from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
-import { loadRedirects } from './redirects.ts';
+import { emitRedirectsComponent } from './redirects-emit.ts';
+import { loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
 import { loadRoutesYaml, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
@@ -609,7 +610,18 @@ async function runBuild({
   // at the publish root; the Netlify emitter translates `force: true` into the
   // `!` status suffix Netlify needs. Vercel / Apache / nginx / S3 emitters
   // will read from the same parsed list when added.
-  const redirects = await loadRedirects(cwd);
+  const redirects = await loadAllRedirects(cwd);
+  // Component-level emit runs first so platform-specific emitters can layer
+  // their own files (`_headers`, `vercel.json`, …) on top. The component emit
+  // writes a baseline `_redirects` whenever rules exist and the toggle is on —
+  // independent of deploy-target gates — so a Ghost migration retains its
+  // redirect history regardless of which host the build targets.
+  await emitRedirectsComponent({
+    outputDir,
+    rules: redirects,
+    enabled: config.components.redirects.enabled,
+    emitHtml: config.components.redirects.emit_html,
+  });
   await emitCustomRedirects({
     outputDir,
     rules: redirects,

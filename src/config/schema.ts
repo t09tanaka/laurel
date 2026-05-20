@@ -816,6 +816,26 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Comments component. Field set used depends on `provider`.'),
+        redirects: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Load `redirects.yaml` (project root) and Ghost-style `content/data/redirects.{yaml,yml,json}` and emit a `_redirects` file at the publish root in the Netlify / Cloudflare Pages format (`<from>  <to>  <status>`). Independent of `[deploy.cloudflare_pages]` and `[deploy.netlify]`: those toggles still gate their own emitters which add platform-specific shape (e.g. Netlify `force` suffix), but this component runs unconditionally so a Ghost migration retains its redirect history regardless of which host the build targets. Set to `false` to suppress the component-level emit entirely.',
+              ),
+            emit_html: z
+              .boolean()
+              .default(false)
+              .describe(
+                'In addition to `_redirects`, write a static HTML `meta http-equiv="refresh"` page at `<from>/index.html` for every rule. Use this when deploying to a host that does NOT honor `_redirects` (GitHub Pages, S3 static-website without routing rules, plain Apache without mod_rewrite). HTTP status codes are NOT preserved by HTML refresh — every redirect becomes a 200 + client-side jump — so prefer the `_redirects` file whenever the host supports it.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Component-level redirects emitter. Loads Ghost-compatible `content/data/redirects.{yaml,yml,json}` (Ghost migration drop-in: flat `[{from,to,permanent}]` or status-keyed `{301: [...], 302: [...]}`) and the canonical project-root `redirects.yaml`, then emits a single `_redirects` file in Netlify / Cloudflare Pages format. Independent of deploy-target toggles so migrated redirect history survives regardless of host.',
+          ),
         portal: z
           .object({
             provider: z

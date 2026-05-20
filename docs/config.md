@@ -332,6 +332,15 @@ Comments component. Field set used depends on `provider`.
 | `components.comments.identifier` | `string` | no | — | Disqus: per-page identifier override. Defaults to the post slug. |
 | `components.comments.username` | `string` | no | — | webmention.io: account username receiving webmentions. |
 
+## `components.redirects`
+
+Component-level redirects emitter. Loads Ghost-compatible `content/data/redirects.{yaml,yml,json}` (Ghost migration drop-in: flat `[{from,to,permanent}]` or status-keyed `{301: [...], 302: [...]}`) and the canonical project-root `redirects.yaml`, then emits a single `_redirects` file in Netlify / Cloudflare Pages format. Independent of deploy-target toggles so migrated redirect history survives regardless of host.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.redirects.enabled` | `boolean` | no | `true` | Load `redirects.yaml` (project root) and Ghost-style `content/data/redirects.{yaml,yml,json}` and emit a `_redirects` file at the publish root in the Netlify / Cloudflare Pages format (`<from>  <to>  <status>`). Independent of `[deploy.cloudflare_pages]` and `[deploy.netlify]`: those toggles still gate their own emitters which add platform-specific shape (e.g. Netlify `force` suffix), but this component runs unconditionally so a Ghost migration retains its redirect history regardless of which host the build targets. Set to `false` to suppress the component-level emit entirely. |
+| `components.redirects.emit_html` | `boolean` | no | `false` | In addition to `_redirects`, write a static HTML `meta http-equiv="refresh"` page at `<from>/index.html` for every rule. Use this when deploying to a host that does NOT honor `_redirects` (GitHub Pages, S3 static-website without routing rules, plain Apache without mod_rewrite). HTTP status codes are NOT preserved by HTML refresh — every redirect becomes a 200 + client-side jump — so prefer the `_redirects` file whenever the host supports it. |
+
 ## `components.portal`
 
 Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.
