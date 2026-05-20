@@ -11,7 +11,8 @@ around a pre-built `dist/` directory and a multi-stage Bun build + nginx serve
 image; Nectar ships
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage),
-and [`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). Fly.io is
+[`examples/docker/.dockerignore`](../../examples/docker/.dockerignore), and
+[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). Fly.io is
 covered as a container runtime around that pre-built output, using Nectar's
 generated `dist/.nectar/nginx.conf` for redirects and headers.
 
@@ -40,6 +41,7 @@ tests of the built static output.
 For the focused Docker guide, including the sample
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage),
+[`examples/docker/.dockerignore`](../../examples/docker/.dockerignore),
 [`examples/docker/nginx.conf`](../../examples/docker/nginx.conf), and nginx
 config caveats, see
 [`docs/deploy/docker.md`](../deploy/docker.md).
@@ -65,8 +67,10 @@ then run `docker build`.
 If your host expects the Docker build itself to install dependencies and build
 the site, copy
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage)
+and [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore)
 instead. It runs `bun install`, `bunx nectar build`, then copies the generated
-`dist/` into the same nginx runtime image.
+`dist/` into the same nginx runtime image while leaving host-local `.git/`,
+`node_modules/`, and `dist/` out of the build context.
 
 For a closer self-hosted nginx setup, enable the existing nginx emitter:
 

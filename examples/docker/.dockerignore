@@ -1,0 +1,10 @@
+# For Dockerfile.multi-stage builds. The single-stage Dockerfile needs dist/.
+.git/
+node_modules/
+dist/
+
+.DS_Store
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

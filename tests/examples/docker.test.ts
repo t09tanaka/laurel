@@ -29,6 +29,18 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz');
   });
 
+  test('ships a multi-stage dockerignore that trims local build context bloat', async () => {
+    const body = await readFile(join(sampleDir, '.dockerignore'), 'utf8');
+    const entries = body
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+    expect(entries).toContain('.git/');
+    expect(entries).toContain('node_modules/');
+    expect(entries).toContain('dist/');
+  });
+
   test('serves Nectar static output with pretty URLs and the generated 404 page', async () => {
     const body = await readFile(join(sampleDir, 'nginx.conf'), 'utf8');
 
@@ -52,6 +64,7 @@ describe('examples/docker nginx-alpine sample', () => {
     for (const body of [dockerDocs, deployTutorial, examplesIndex]) {
       expect(body).toContain('examples/docker/Dockerfile');
       expect(body).toContain('examples/docker/Dockerfile.multi-stage');
+      expect(body).toContain('examples/docker/.dockerignore');
       expect(body).toContain('examples/docker/nginx.conf');
     }
   });

@@ -7,8 +7,11 @@ Nectar ships two nginx-alpine samples under
 [`Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage)
 runs `bun install` and `bunx nectar build` in an `oven/bun` build stage before
 copying `dist/` into an `nginx:1.27-alpine` runtime image. Both use the
-matching [`nginx.conf`](../../examples/docker/nginx.conf). Nectar still does
-not require Docker-specific package scripts or a compose file.
+matching [`nginx.conf`](../../examples/docker/nginx.conf). The multi-stage
+sample also pairs with
+[`examples/docker/.dockerignore`](../../examples/docker/.dockerignore) to keep
+local-only directories out of the Docker build context. Nectar still does not
+require Docker-specific package scripts or a compose file.
 
 ## Quickstart: local nginx container
 
@@ -68,6 +71,7 @@ dependencies and produce `dist/` during `docker build`:
 ```sh
 cp examples/docker/Dockerfile.multi-stage Dockerfile
 cp examples/docker/nginx.conf .
+cp examples/docker/.dockerignore .dockerignore
 docker build -t nectar-static .
 docker run --rm --name nectar-static -p 8080:80 nectar-static
 ```
@@ -76,7 +80,9 @@ The first stage starts from `oven/bun`, copies the site source, installs
 dependencies with `bun install`, and runs `bunx nectar build`. The final
 `nginx:1.27-alpine` stage contains only the sample nginx config and the
 generated `/app/dist/` files, so build tools and source files do not ship in
-the runtime layer.
+the runtime layer. The sample `.dockerignore` excludes `.git/`, `node_modules/`,
+and any host-built `dist/` from the build context; do not copy it for the
+single-stage `Dockerfile` unless you remove `dist/` from the ignore list.
 
 ## Optional: generate a Nectar nginx config
 
