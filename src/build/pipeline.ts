@@ -900,7 +900,7 @@ async function runBuild({
     outputDir,
     enabled: config.deploy.firebase.enabled,
     headers: config.deploy.headers,
-    rules: redirects,
+    rules: deployRedirects,
     trailingSlash: config.build.trailing_slash,
   });
   await emitApacheHtaccess({
