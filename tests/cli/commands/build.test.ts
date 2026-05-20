@@ -465,6 +465,66 @@ describe('nectar build base URL precedence', () => {
   });
 });
 
+describe('nectar build --config layering (#801)', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('deep-merges repeated --config files before building', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    await writeFile(
+      join(dir, 'base.toml'),
+      [
+        '[site]',
+        'title = "Layered Base"',
+        'description = "Base description survives"',
+        'url = "https://layered.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[build]',
+        'output_dir = "layered-dist"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'production.toml'),
+      ['[site]', 'title = "Layered Production"', '', '[build]', 'base_path = "/prod/"', ''].join(
+        '\n',
+      ),
+      'utf8',
+    );
+
+    const result = await runCli(
+      ['build', '--config', 'base.toml', '--config', 'production.toml'],
+      dir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(dir, 'layered-dist'))).toBe(true);
+    expect(existsSync(join(dir, 'dist'))).toBe(false);
+    const postHtml = readFileSync(join(dir, 'layered-dist/hello/index.html'), 'utf8');
+    expect(postHtml).toContain('Layered Production');
+    expect(postHtml).toContain('https://layered.test/prod/hello/');
+    const homeHtml = readFileSync(join(dir, 'layered-dist/index.html'), 'utf8');
+    expect(homeHtml).toContain('Base description survives');
+  });
+});
+
 describe('nectar build preview noindex protection', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
