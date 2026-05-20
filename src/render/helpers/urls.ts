@@ -69,8 +69,7 @@ function normaliseMastodon(handle: string): string {
     if (!isValidMastodonUser(user) || !isValidHostname(host)) return '';
     return `https://${host}/@${user}`;
   }
-  if (!isValidMastodonUser(clean)) return '';
-  return `https://mastodon.social/@${clean}`;
+  return '';
 }
 
 function isValidMastodonUser(user: string): boolean {

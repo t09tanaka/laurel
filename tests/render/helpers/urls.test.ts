@@ -119,11 +119,12 @@ describe('social_url helper', () => {
     expect(tpl({ mastodon: '@alice@hachyderm.io' })).toBe('https://hachyderm.io/@alice');
   });
 
-  test('Mastodon handle without a host falls back to mastodon.social', () => {
+  test('returns an empty string for a Mastodon handle without a host', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{social_url type="mastodon"}}');
-    expect(tpl({ mastodon: 'alice' })).toBe('https://mastodon.social/@alice');
+    expect(tpl({ mastodon: 'alice' })).toBe('');
+    expect(tpl({ mastodon: '@alice' })).toBe('');
   });
 
   test('returns an empty string when the requested handle is missing', () => {
