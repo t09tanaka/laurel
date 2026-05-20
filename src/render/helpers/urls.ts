@@ -14,20 +14,24 @@ const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
 };
 
 export function registerUrlHelpers(engine: NectarEngine): void {
-  engine.hb.registerHelper(
-    'url',
-    function urlHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const ctx = this as { url?: string };
-      const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
-      if (!ctx.url) return '';
-      if (!absolute) return ctx.url;
-      try {
-        return new URL(ctx.url, engine.content.site.url).toString();
-      } catch {
-        return ctx.url;
-      }
-    },
-  );
+  engine.hb.registerHelper('url', function urlHelper(this: unknown, ...args: unknown[]) {
+    const options = args[args.length - 1] as Handlebars.HelperOptions;
+    // Ghost's {{url}} accepts an optional positional argument so themes can
+    // write `{{url "/about/"}}` or `{{url post.url absolute=true}}` instead
+    // of having to switch context. When no positional argument is given,
+    // fall back to `this.url` (the standard `{{url}}` inside a post block).
+    const positional = args.length > 1 ? args[0] : undefined;
+    const ctx = this as { url?: string };
+    const candidate = typeof positional === 'string' ? positional : ctx.url;
+    const absolute = options.hash.absolute === true || options.hash.absolute === 'true';
+    if (!candidate) return '';
+    if (!absolute) return candidate;
+    try {
+      return new URL(candidate, engine.content.site.url).toString();
+    } catch {
+      return candidate;
+    }
+  });
 
   engine.hb.registerHelper(
     'social_url',

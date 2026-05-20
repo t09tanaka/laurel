@@ -47,6 +47,33 @@ describe('url helper', () => {
     const tpl = engine.hb.compile('{{url}}');
     expect(tpl({})).toBe('');
   });
+
+  // Issue #470: Ghost's {{url}} accepts an optional positional argument so a
+  // theme can write `{{url "/about/"}}` or `{{url post.url absolute=true}}`
+  // without switching context. When supplied, the positional value wins over
+  // `this.url`.
+  test('uses the positional argument when one is supplied', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url "/about/"}}');
+    expect(tpl({ url: '/ignored/' })).toBe('/about/');
+  });
+
+  test('absolute=true resolves the positional argument against the site origin', () => {
+    const engine = makeEngine('https://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url "/about/" absolute=true}}');
+    expect(tpl({})).toBe('https://blog.example.com/about/');
+  });
+
+  test('falls back to this.url when the positional argument resolves to undefined', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    // `{{url missing}}` resolves to `undefined`; treat that as "no positional"
+    // rather than empty so the context url still wins.
+    const tpl = engine.hb.compile('{{url missing}}');
+    expect(tpl({ url: '/fallback/' })).toBe('/fallback/');
+  });
 });
 
 describe('social_url helper', () => {
