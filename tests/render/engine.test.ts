@@ -1215,6 +1215,102 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     );
   });
 
+  test('partials included inside foreach authors resolve social_url against the author context (issue #1723)', () => {
+    const theme = makeTheme(
+      {
+        post: '{{#foreach authors}}{{> "author-box"}}{{/foreach}}',
+      },
+      {
+        'author-box': [
+          '<section data-author="{{slug}}">',
+          '<a data-kind="twitter" href="{{social_url type="twitter"}}">{{name}}</a>',
+          '<a data-kind="facebook" href="{{social_url type="facebook"}}"></a>',
+          '<a data-kind="linkedin" href="{{social_url type="linkedin"}}"></a>',
+          '<a data-kind="bluesky" href="{{social_url type="bluesky"}}"></a>',
+          '<a data-kind="mastodon" href="{{social_url type="mastodon"}}"></a>',
+          '<a data-kind="threads" href="{{social_url type="threads"}}"></a>',
+          '<a data-kind="tiktok" href="{{social_url type="tiktok"}}"></a>',
+          '<a data-kind="youtube" href="{{social_url type="youtube"}}"></a>',
+          '<a data-kind="instagram" href="{{social_url type="instagram"}}"></a>',
+          '</section>',
+        ].join(''),
+      },
+    );
+    const author = {
+      id: 'author-1',
+      slug: 'wave-author',
+      name: 'Wave Author',
+      bio: '',
+      profile_image: undefined,
+      cover_image: undefined,
+      website: undefined,
+      location: undefined,
+      twitter: '@wave_author',
+      facebook: 'wave.author',
+      linkedin: 'wave-author',
+      bluesky: 'wave-author.example',
+      mastodon: '@wave@author.example',
+      threads: 'wave_author',
+      tiktok: 'wave_author',
+      youtube: '@wave-author',
+      instagram: 'wave_author',
+      meta_title: undefined,
+      meta_description: undefined,
+      url: '/author/wave-author/',
+    };
+    const post = {
+      ...makePost({
+        authors: [author],
+        primary_author: author,
+      }),
+      twitter: '@post_account',
+      facebook: 'post.account',
+      linkedin: 'post-account',
+      bluesky: 'post-account.example',
+      mastodon: '@post@post.example',
+      threads: 'post_account',
+      tiktok: 'post_account',
+      youtube: '@post-account',
+      instagram: 'post_account',
+    } as Post & {
+      twitter: string;
+      facebook: string;
+      linkedin: string;
+      bluesky: string;
+      mastodon: string;
+      threads: string;
+      tiktok: string;
+      youtube: string;
+      instagram: string;
+    };
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const html = engine.render({
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    });
+
+    expect(html).toBe(
+      [
+        '<section data-author="wave-author">',
+        '<a data-kind="twitter" href="https://twitter.com/wave_author">Wave Author</a>',
+        '<a data-kind="facebook" href="https://facebook.com/wave.author"></a>',
+        '<a data-kind="linkedin" href="https://www.linkedin.com/in/wave-author"></a>',
+        '<a data-kind="bluesky" href="https://bsky.app/profile/wave-author.example"></a>',
+        '<a data-kind="mastodon" href="https://author.example/@wave"></a>',
+        '<a data-kind="threads" href="https://www.threads.net/@wave_author"></a>',
+        '<a data-kind="tiktok" href="https://www.tiktok.com/@wave_author"></a>',
+        '<a data-kind="youtube" href="https://www.youtube.com/wave-author"></a>',
+        '<a data-kind="instagram" href="https://www.instagram.com/wave_author"></a>',
+        '</section>',
+      ].join(''),
+    );
+  });
+
   // Issue #1305: themes (Edition, Source) use `{{> "content" width="wide"}}`
   // to pass layout flags down to the partial body. Handlebars supports this
   // natively as long as we call `hb.registerPartial` with the partial source
