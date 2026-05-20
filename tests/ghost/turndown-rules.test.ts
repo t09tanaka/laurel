@@ -412,6 +412,37 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     expect(md).toContain('url="https://twitter.com/jane/status/123456789"');
   });
 
+  test('preserves twitter blockquote class and dnt privacy metadata', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card kg-width-wide">
+        <blockquote class="twitter-tweet tw-align-center" data-dnt="true">
+          <p lang="en" dir="ltr">Private embed</p>
+          <a href="https://x.com/jane/status/123456789">May 1, 2024</a>
+        </blockquote>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< embed');
+    expect(md).toContain('url="https://x.com/jane/status/123456789"');
+    expect(md).toContain('provider="twitter"');
+    expect(md).toContain('blockquote-class="twitter-tweet tw-align-center"');
+    expect(md).toContain('dnt="true"');
+    expect(md).toContain('size="wide"');
+  });
+
+  test('preserves twitter dnt query parameter when data-dnt is absent', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <blockquote class="twitter-tweet">
+          <a href="https://twitter.com/jane/status/123456789?dnt=1">May 1, 2024</a>
+        </blockquote>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('url="https://twitter.com/jane/status/123456789?dnt=1"');
+    expect(md).toContain('dnt="true"');
+  });
+
   test('converts instagram blockquote using data-instgrm-permalink', () => {
     const html = `
       <figure class="kg-card kg-embed-card">

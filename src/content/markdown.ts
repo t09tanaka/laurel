@@ -1248,12 +1248,23 @@ function renderEmbedFallbackLink(
   figcaption: string,
 ): string {
   const provider = normalizeEmbedProvider(attrs.provider) || providerFromRawUrl(url);
+  const href = provider === 'twitter' && truthyShortcodeAttr(attrs.dnt) ? twitterDntUrl(url) : url;
   const providerName = embedProviderLabel(provider);
   const title = attrs.title || (providerName ? `${providerName} embed` : 'Embedded link');
   const description = providerName
     ? `Open this ${providerName} embed at its source URL.`
     : 'Open this unsupported embed at its source URL.';
-  return `\n\n<figure class="${cardClass}"><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(url)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="${cardClass}"><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(href)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
+}
+
+function twitterDntUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set('dnt', '1');
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
 }
 
 function providerFromRawUrl(rawUrl: string): string {

@@ -286,6 +286,17 @@ describe('card fixture corpus', () => {
     expect(html).not.toContain('<script');
   });
 
+  test('twitter embed fallback preserves dnt privacy as a source URL query', async () => {
+    const { html } = await renderMarkdown(
+      '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" dnt="true" blockquote-class="twitter-tweet" />}}',
+    );
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-regular"');
+    expect(html).toContain('href="https://twitter.com/jack/status/20?dnt=1"');
+    expect(html).toContain('Twitter/X embed');
+    expect(html).not.toContain('<iframe');
+    expect(html).not.toContain('<script');
+  });
+
   test('embed shortcode renders unsupported providers as bookmark-style source links', async () => {
     const { html } = await renderMarkdown(
       '{{< embed url="https://www.figma.com/file/abc/Design" provider="figma" />}}',

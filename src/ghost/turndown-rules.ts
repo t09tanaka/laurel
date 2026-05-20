@@ -222,6 +222,16 @@ function lastAnchorHref(node: DomNode): string {
   return '';
 }
 
+function twitterDnt(node: DomNode, rawUrl: string): string {
+  const dataDnt = attr(node, 'data-dnt').toLowerCase();
+  if (dataDnt === 'true' || dataDnt === '1') return 'true';
+  try {
+    return new URL(rawUrl).searchParams.get('dnt') === '1' ? 'true' : '';
+  } catch {
+    return '';
+  }
+}
+
 function backgroundImageUrlFromStyle(style: string): string {
   const match = style.match(
     /(?:^|;)\s*background-image\s*:\s*url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/i,
@@ -523,10 +533,13 @@ export function registerGhostCardRules(turndown: TurndownService): void {
 
       const twitter = node.querySelector('blockquote.twitter-tweet');
       if (twitter) {
+        const url = lastAnchorHref(twitter);
         return wrap(
           shortcode('embed', {
-            url: lastAnchorHref(twitter),
+            url,
             provider: 'twitter',
+            'blockquote-class': attr(twitter, 'class'),
+            dnt: twitterDnt(twitter, url),
             caption,
             size: classByPrefix(node, 'kg-width-'),
           }),
