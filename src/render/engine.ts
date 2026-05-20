@@ -162,6 +162,11 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   const layout = engine.templateLayoutNames?.get(route.template);
   const context = buildContext(engine, route);
   const data = buildRootData(engine, route);
+  // Per-render mutable bucket for `{{#contentFor "name"}}…{{/contentFor}}`
+  // written by the inner template and read by the layout via `{{{block
+  // "name"}}}`. Lives on the shared data frame so both renders see the same
+  // object; reset per route so blocks never leak across pages.
+  (data as { __blocks?: Record<string, string> }).__blocks = {};
   if (!layout) {
     return innerCompiled(context, { data });
   }

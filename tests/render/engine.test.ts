@@ -794,6 +794,65 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<section class="custom">');
     expect(html).toContain('<article class="post">Hello</article>');
   });
+
+  // Issue #435 / #185 / #186 / #187 / #192: child template `contentFor` →
+  // parent layout `block`. The engine seeds a per-render `__blocks` bucket on
+  // the shared data frame so the inner render writes and the layout reads
+  // from the same object.
+  test('contentFor in inner template flows through to {{{block}}} in layout', () => {
+    const theme = makeTheme({
+      default:
+        '<html><head>{{{block "head"}}}</head><body>{{{body}}}{{{block "scripts"}}}</body></html>',
+      post: [
+        '{{!< default}}',
+        '{{#contentFor "head"}}<meta name="x" content="y">{{/contentFor}}',
+        '{{#contentFor "scripts"}}<script src="a.js"></script>{{/contentFor}}',
+        '<article>{{post.title}}</article>',
+      ].join('\n'),
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const post: Post = makePost({ title: 'Hi' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hi/',
+      outputPath: 'hi/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const html = engine.render(route);
+    expect(html).toContain('<head><meta name="x" content="y"></head>');
+    expect(html).toContain('<article>Hi</article>');
+    expect(html).toContain('<script src="a.js"></script></body>');
+  });
+
+  test('contentFor blocks do not leak across routes', () => {
+    const theme = makeTheme({
+      default: '<html>{{{block "head"}}}|{{{body}}}</html>',
+      post: '{{!< default}}\n{{#contentFor "head"}}H={{post.title}}{{/contentFor}}P',
+      page: '{{!< default}}\nQ',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const first = engine.render({
+      kind: 'post',
+      url: '/a/',
+      outputPath: 'a/index.html',
+      template: 'post',
+      data: { post: makePost({ title: 'A' }) },
+      meta: baseMeta,
+    });
+    const second = engine.render({
+      kind: 'page',
+      url: '/b/',
+      outputPath: 'b/index.html',
+      template: 'page',
+      data: {},
+      meta: baseMeta,
+    });
+    expect(first).toContain('H=A|');
+    // Second render must not see the first render's "head" content.
+    expect(second).toBe('<html>|Q</html>');
+  });
 });
 
 // Issue #552: template-as-partial registration must not clobber a theme
