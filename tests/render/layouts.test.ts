@@ -23,6 +23,35 @@ describe('splitLayout', () => {
     expect(body.startsWith('{{!--')).toBeTrue();
   });
 
+  test('extracts a layout directive after a leading BOM and block comment', () => {
+    const tpl = '\uFEFF{{!-- theme metadata --}}\n{{!< default}}\n<main>Hi</main>';
+    const { layout, body } = splitLayout(tpl);
+    expect(layout).toBe('default');
+    expect(body.trim()).toBe('<main>Hi</main>');
+  });
+
+  test('skips multiple leading block comments before a layout directive', () => {
+    const tpl = [
+      '{{!-- first comment --}}',
+      '{{!--',
+      'second comment',
+      '--}}',
+      '{{!< custom/post}}',
+      '{{!-- body comment --}}',
+      '<article>Hi</article>',
+    ].join('\n');
+    const { layout, body } = splitLayout(tpl);
+    expect(layout).toBe('custom/post');
+    expect(body.trimStart().startsWith('{{!-- body comment --}}')).toBeTrue();
+  });
+
+  test('returns the original template when leading comments are not followed by a directive', () => {
+    const tpl = '{{!-- a comment --}}\n<main>Hi</main>';
+    const { layout, body } = splitLayout(tpl);
+    expect(layout).toBeUndefined();
+    expect(body).toBe(tpl);
+  });
+
   test('extracts relative layout paths', () => {
     const tpl = '{{!< ../default-wide}}\n<main>Account</main>';
     const { layout, body } = splitLayout(tpl);
