@@ -188,7 +188,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (paged.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    const results = applyGetIncludes(engine, resource, paged, include);
+    const results = exposeGetResource(resource, applyGetIncludes(engine, resource, paged, include));
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
     data.pagination = pagination;
@@ -219,6 +219,16 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     }
     return result;
   });
+}
+
+function exposeGetResource(resource: string, results: unknown[]): unknown[] {
+  Object.defineProperty(results, resource, {
+    configurable: true,
+    enumerable: false,
+    value: results,
+    writable: false,
+  });
+  return results;
 }
 
 // Ghost's `{{#get}}` exposes a `pagination` object to the block so themes can

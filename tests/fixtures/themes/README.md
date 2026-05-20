@@ -24,6 +24,9 @@ the smoke fixture site at `tests/fixtures/theme-smoke/site/`, built via
 - `alto/` — hand-trimmed Alto-shaped fixture that keeps the PhotoSwipe
   `pswp` partial behind `{{#is "post, page"}}`, locking the comma-separated
   route guard used by Alto's default layout.
+- `headline-mini/` — hand-trimmed Headline-shaped fixture that keeps the
+  secondary section guard `{{#if tags.[3]}}` under `{{#get "tags"}}`, locking
+  Handlebars built-in array-index path support without a custom helper.
 
 ## Adding a real release tarball
 

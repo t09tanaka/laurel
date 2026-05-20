@@ -1,0 +1,12 @@
+{
+  "name": "headline-mini",
+  "description": "Minimal Headline-shaped fixture theme used to pin {{#get \"tags\"}}{{#if tags.[3]}} array-index compatibility without a custom helper.",
+  "version": "0.0.0",
+  "engines": {
+    "ghost": ">=5.0.0",
+    "ghost-api": "v5"
+  },
+  "config": {
+    "posts_per_page": 5
+  }
+}

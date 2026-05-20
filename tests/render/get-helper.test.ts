@@ -165,6 +165,21 @@ describe('get helper pagination metadata', () => {
     expect(tpl({})).toBe('1/3 total=12 prev= next=2');
   });
 
+  test('exposes the named resource for built-in array-index paths', () => {
+    const tags = [
+      { slug: 'alpha', name: 'Alpha' },
+      { slug: 'bravo', name: 'Bravo' },
+      { slug: 'charlie', name: 'Charlie' },
+      { slug: 'delta', name: 'Delta' },
+    ];
+    const engine = buildEngine({ tags });
+    const tpl = engine.hb.compile(
+      `{{#get "tags" order="name asc"}}{{#if tags.[3]}}{{tags.[3].slug}}{{else}}missing{{/if}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('delta');
+  });
+
   test('exposes pagination via the second block param', () => {
     const engine = buildEngine({ posts: buildPosts(10) });
     const tpl = engine.hb.compile(

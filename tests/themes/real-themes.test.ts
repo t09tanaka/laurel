@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from '~/build/pipeline.ts';
 import { runSmoke } from '../fixtures/theme-smoke/run.ts';
 
 // Contract test for real-shaped Ghost themes (issue #176). Every theme under
@@ -75,6 +77,67 @@ describe('real Ghost theme contract', () => {
       }
     });
   }
+
+  test('headline-mini renders secondary sections with tags.[3] array-index syntax', async () => {
+    const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-headline-array-index-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    await cp(join(FIXTURE_DIR, 'headline-mini'), join(workDir, 'themes', 'headline-mini'), {
+      recursive: true,
+    });
+
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Headline Array Index"',
+        'description = "Smoke fixture for Headline tags.[3]"',
+        'url = "https://smoke.example.com"',
+        'locale = "en"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        '',
+        '[theme]',
+        'name = "headline-mini"',
+        'dir = "themes"',
+        '',
+        '[content]',
+        'posts_dir = "content/posts"',
+        'pages_dir = "content/pages"',
+        'authors_dir = "content/authors"',
+        'tags_dir = "content/tags"',
+        'assets_dir = "content/images"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 5',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const extraTags = [
+      ['alpha', 'Alpha'],
+      ['bravo', 'Bravo'],
+      ['charlie', 'Charlie'],
+      ['delta', 'Delta'],
+    ] as const;
+    for (const [slug, name] of extraTags) {
+      await writeFile(
+        join(workDir, 'content', 'tags', `${slug}.md`),
+        ['---', `slug: ${slug}`, `name: ${name}`, '---', ''].join('\n'),
+        'utf8',
+      );
+    }
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+    const indexHtml = readFileSync(join(workDir, 'dist', 'index.html'), 'utf8');
+    expect(indexHtml).toContain('data-headline-secondary');
+    expect(indexHtml).toContain('data-topic="delta"');
+  });
 });
 
 describe('casper-mini i18n contract (issue #1707)', () => {

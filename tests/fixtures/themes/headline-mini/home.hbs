@@ -1,0 +1,16 @@
+{{!< default}}
+<section class="headline-feed">
+  {{#foreach posts limit="7"}}
+    <article>{{title}}</article>
+  {{/foreach}}
+</section>
+
+{{#get "tags" include="count.posts" order="count.posts desc"}}
+  {{#if tags.[3]}}
+    <section class="headline-secondary" data-headline-secondary>
+      {{#foreach tags from="4" limit="3"}}
+        {{> "topic-minimal"}}
+      {{/foreach}}
+    </section>
+  {{/if}}
+{{/get}}
