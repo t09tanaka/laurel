@@ -77,6 +77,30 @@ describe('writeHtmlBatch', () => {
     expect(await readFile(join(dir, 'tag/foo/index.html'), 'utf8')).toContain('foo');
   });
 
+  test('preserves global SVG sprite symbols and xlink use references (#1703)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-svg-'));
+    const html = [
+      '<!doctype html>',
+      '<html>',
+      '<body>',
+      '<svg aria-hidden="true" style="display:none">',
+      '<symbol id="icon-search" viewBox="0 0 24 24">',
+      '<path d="M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"></path>',
+      '</symbol>',
+      '</svg>',
+      '<svg class="icon"><use xlink:href="#icon-search"></use></svg>',
+      '</body>',
+      '</html>',
+    ].join('');
+
+    await writeHtmlBatch(dir, [{ outputPath: 'index.html', html }]);
+
+    const body = await readFile(join(dir, 'index.html'), 'utf8');
+    expect(body).toContain('<symbol id="icon-search" viewBox="0 0 24 24">');
+    expect(body).toContain('<use xlink:href="#icon-search"></use>');
+    expect(body).not.toContain('href="/#icon-search"');
+  });
+
   test('refuses any output that escapes outputDir (#1102)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
     await expect(

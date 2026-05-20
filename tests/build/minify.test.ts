@@ -36,6 +36,33 @@ describe('minifyHtmlOutputs', () => {
     expect(outputs[0]?.html).toContain('<title>T</title>');
   });
 
+  test('preserves SVG sprite symbols and xlink use references (#1703)', async () => {
+    const outputs = [
+      {
+        outputPath: 'index.html',
+        html: [
+          '<!doctype html>',
+          '<html>',
+          '<body>',
+          '<svg aria-hidden="true" style="display:none">',
+          '<symbol id="icon-search" viewBox="0 0 24 24">',
+          '<path d="M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"></path>',
+          '</symbol>',
+          '</svg>',
+          '<svg class="icon"><use xlink:href="#icon-search"></use></svg>',
+          '</body>',
+          '</html>',
+        ].join(''),
+      },
+    ];
+
+    await minifyHtmlOutputs(outputs);
+
+    expect(outputs[0]?.html).toContain('<symbol id="icon-search" viewBox="0 0 24 24">');
+    expect(outputs[0]?.html).toContain('<use xlink:href="#icon-search"></use>');
+    expect(outputs[0]?.html).not.toContain('href="/#icon-search"');
+  });
+
   test('handles many outputs concurrently without dropping any (#1109)', async () => {
     const n = 50;
     const outputs = Array.from({ length: n }, (_, i) => ({
