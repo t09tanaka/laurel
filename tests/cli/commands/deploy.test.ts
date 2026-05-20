@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -104,6 +104,7 @@ describe('cli deploy', () => {
     expect(stdout).toContain('r2');
     expect(stdout).toContain('rsync');
     expect(stdout).toContain('--dry-run');
+    expect(stdout).toContain('--preflight');
     expect(stdout).toContain('--build');
   });
 
@@ -250,6 +251,78 @@ describe('cli deploy', () => {
       expect(stdout).toContain('aws s3 sync');
       expect(stdout).toContain('s3://my-bucket');
       expect(stdout).toContain('--region us-west-2');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('s3 --dry-run with --preflight prints the bucket policy status command', async () => {
+    const dir = await makeFixtureWithDist();
+    try {
+      const { stdout, exitCode } = await runCli(
+        [
+          'deploy',
+          's3',
+          '--dry-run',
+          '--preflight',
+          '--bucket',
+          'my-bucket',
+          '--region',
+          'us-west-2',
+        ],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('aws s3 sync');
+      expect(stdout).toContain('Preflight check: aws s3api get-bucket-policy-status');
+      expect(stdout).toContain('--bucket my-bucket');
+      expect(stdout).toContain('--region us-west-2');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('s3 --preflight warns when the bucket policy is public', async () => {
+    const dir = await makeFixtureWithDist();
+    const binDir = join(dir, 'bin');
+    const callsPath = join(dir, 'aws-calls.txt');
+    try {
+      await mkdir(binDir, { recursive: true });
+      const awsPath = join(binDir, 'aws');
+      await writeFile(
+        awsPath,
+        [
+          '#!/bin/sh',
+          'printf "%s\\n" "$*" >> "$NECTAR_AWS_CALLS"',
+          'if [ "$1" = "s3api" ]; then',
+          '  printf \'{"PolicyStatus":{"IsPublic":true}}\\n\'',
+          '  exit 0',
+          'fi',
+          'if [ "$1" = "s3" ]; then',
+          '  exit 0',
+          'fi',
+          'exit 64',
+          '',
+        ].join('\n'),
+      );
+      await chmod(awsPath, 0o755);
+      const { stderr, exitCode } = await runCli(
+        ['deploy', 's3', '--preflight', '--bucket', 'my-bucket', '--region', 'us-west-2'],
+        dir,
+        {
+          AWS_PROFILE: 'test',
+          NECTAR_AWS_CALLS: callsPath,
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('public bucket policy');
+      const calls = await readFile(callsPath, 'utf8');
+      expect(calls).toContain(
+        's3api get-bucket-policy-status --bucket my-bucket --output json --region us-west-2',
+      );
+      expect(calls).toContain('s3 sync');
+      expect(calls).toContain('s3://my-bucket');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

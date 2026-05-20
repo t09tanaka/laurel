@@ -192,6 +192,12 @@ interface DeployDryRunSummary {
   changedPaths: string[] | undefined;
 }
 
+interface DeployPreflightPlan {
+  command: string;
+  args: string[];
+  bucket: string;
+}
+
 export interface DeployPlan {
   target: DeployTarget;
   // The external command + argv that would be spawned. For multi-step targets
@@ -201,6 +207,9 @@ export interface DeployPlan {
   args: string[];
   // Optional follow-up commands (e.g. github-pages runs several git invocations).
   extra: Array<{ command: string; args: string[] }>;
+  // Optional pre-deploy validation command. It is only executed when the user
+  // explicitly passes --preflight so normal deploy behavior stays unchanged.
+  preflight?: DeployPreflightPlan;
   env: Record<string, string | undefined>;
   cwd: string;
   // What the operator should see in --dry-run output: a shell-quoted summary
@@ -259,7 +268,13 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   const target: DeployTarget = targetValue;
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const dryRun = parsed.values['dry-run'] === true;
+  const runPreflight = parsed.values.preflight === true;
   const runBuildFirst = parsed.values.build === true;
+
+  if (runPreflight && target !== 's3') {
+    process.stderr.write('deploy --preflight is currently supported only for the s3 target.\n');
+    return EXIT_CODES.usage;
+  }
 
   let config: NectarConfig;
   try {
@@ -335,8 +350,13 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
 
   if (dryRun) {
     const deploySummary = await collectDeployDryRunSummary(outputDir);
-    process.stdout.write(formatDeployDryRun(plan, deploySummary));
+    process.stdout.write(formatDeployDryRun(plan, deploySummary, runPreflight));
     return EXIT_CODES.ok;
+  }
+
+  if (runPreflight) {
+    const preflightCode = await executePreflight(plan);
+    if (preflightCode !== EXIT_CODES.ok) return preflightCode;
   }
 
   return await executePlan(plan);
@@ -393,10 +413,17 @@ function readChangedPaths(outputDir: string): string[] | undefined {
     .filter((line) => line.length > 0);
 }
 
-function formatDeployDryRun(plan: DeployPlan, summary: DeployDryRunSummary): string {
+function formatDeployDryRun(
+  plan: DeployPlan,
+  summary: DeployDryRunSummary,
+  includePreflight = false,
+): string {
   const lines: string[] = [
     plan.summary,
     '',
+    ...(includePreflight && plan.preflight
+      ? [`Preflight check: ${shellQuote([plan.preflight.command, ...plan.preflight.args])}`, '']
+      : []),
     `Files to deploy for ${plan.target} (${summary.files.length}):`,
   ];
   if (summary.files.length === 0) {
@@ -577,9 +604,23 @@ function planS3(args: PlanDeployArgs): DeployPlan {
     command: 'aws',
     args: argv,
     extra: [],
+    preflight: planS3PublicAccessPreflight(bucket, region),
     env: args.env,
     cwd: args.cwd,
     summary: shellQuote(['aws', ...argv]),
+  };
+}
+
+function planS3PublicAccessPreflight(
+  bucket: string,
+  region: string | undefined,
+): DeployPreflightPlan {
+  const argv = ['s3api', 'get-bucket-policy-status', '--bucket', bucket, '--output', 'json'];
+  if (region) argv.push('--region', region);
+  return {
+    command: 'aws',
+    args: argv,
+    bucket,
   };
 }
 
@@ -652,6 +693,61 @@ async function executePlan(plan: DeployPlan): Promise<number> {
     return EXIT_CODES.generic;
   }
   return EXIT_CODES.ok;
+}
+
+async function executePreflight(plan: DeployPlan): Promise<number> {
+  if (!plan.preflight) return EXIT_CODES.ok;
+  const preflight = plan.preflight;
+  logger.info(`Running preflight via ${preflight.command} ${preflight.args.join(' ')}`);
+  const proc = Bun.spawn([preflight.command, ...preflight.args], {
+    cwd: plan.cwd,
+    env: filterDefinedEnv(plan.env),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  const code = await proc.exited;
+  if (code !== 0) {
+    if (stderr.trim().length > 0)
+      process.stderr.write(stderr.endsWith('\n') ? stderr : `${stderr}\n`);
+    process.stderr.write(
+      `${preflight.command} ${preflight.args.join(' ')} exited with code ${code}\n`,
+    );
+    return EXIT_CODES.generic;
+  }
+
+  const isPublic = parseS3BucketPolicyIsPublic(stdout);
+  if (isPublic === undefined) {
+    process.stderr.write(
+      `${preflight.command} ${preflight.args.join(' ')} did not return PolicyStatus.IsPublic\n`,
+    );
+    return EXIT_CODES.generic;
+  }
+  if (isPublic) {
+    logger.warn(
+      `S3 bucket ${preflight.bucket} has a public bucket policy. For S3 + CloudFront, keep the bucket private and grant CloudFront access with Origin Access Control before deploying.`,
+    );
+  } else {
+    logger.info(`S3 bucket ${preflight.bucket} bucket policy status is not public.`);
+  }
+  return EXIT_CODES.ok;
+}
+
+function parseS3BucketPolicyIsPublic(stdout: string): boolean | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return undefined;
+  }
+  if (parsed === null || typeof parsed !== 'object') return undefined;
+  const policyStatus = (parsed as { PolicyStatus?: unknown }).PolicyStatus;
+  if (policyStatus === null || typeof policyStatus !== 'object') return undefined;
+  const isPublic = (policyStatus as { IsPublic?: unknown }).IsPublic;
+  return typeof isPublic === 'boolean' ? isPublic : undefined;
 }
 
 function pickString(v: string | boolean | undefined): string | undefined {

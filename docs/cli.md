@@ -887,7 +887,7 @@ Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel
 Usage:
 
 ```
-nectar deploy [--config <path>] [--build] [--target <target>] [--dry-run] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] [target]
+nectar deploy [--config <path>] [--build] [--target <target>] [--dry-run] [--preflight] [--project-name <name>] [--branch <name>] [--site-id <id>] [--prod] [--bucket <name>] [--region <region>] [--endpoint <url>] [--destination <user@host:path>] [--remote <name>] [--json] [target]
 ```
 
 Arguments:
@@ -904,6 +904,7 @@ Options:
 | `-b, --build` | boolean | `NECTAR_DEPLOY_BUILD` | Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step |
 | `--target <target>` | string | `NECTAR_DEPLOY_TARGET` | Hosting target as a flag form for CI templates that prefer named options. Equivalent to the positional <target> |
 | `--dry-run` | boolean | `NECTAR_DEPLOY_DRY_RUN` | Print the external command(s), files that would be deployed for the selected target, and the changed-path diff from the last build without spawning anything |
+| `--preflight` | boolean | `NECTAR_DEPLOY_PREFLIGHT` | s3 only: before syncing, run `aws s3api get-bucket-policy-status` and warn when the bucket policy is public |
 | `--project-name <name>` | string | `NECTAR_DEPLOY_PROJECT_NAME` | cloudflare only: Cloudflare Pages project name forwarded to `wrangler pages deploy --project-name=<name>`. Overrides `[deploy.cloudflare].project_name`. Required for cloudflare when not set in config |
 | `--branch <name>` | string | `NECTAR_DEPLOY_BRANCH` | cloudflare: branch label forwarded to `wrangler pages deploy --branch=<name>`. github-pages: branch to push the site to (defaults to `[deploy.github_pages].branch` or `gh-pages`) |
 | `--site-id <id>` | string | `NECTAR_DEPLOY_SITE_ID` | netlify only: Netlify site id forwarded to `netlify deploy --site=<id>`. Overrides `[deploy.netlify].site_id` |
@@ -924,6 +925,7 @@ nectar deploy vercel --prod
 nectar deploy github-pages --branch gh-pages
 nectar deploy rsync --destination user@host:/var/www/site/
 nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run
+nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight
 ```
 
 ### `nectar export`

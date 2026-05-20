@@ -1200,6 +1200,11 @@ export const DEPLOY_SPEC: CommandSpec = {
       description:
         'Print the external command(s), files that would be deployed for the selected target, and the changed-path diff from the last build without spawning anything',
     },
+    preflight: {
+      type: 'boolean',
+      description:
+        's3 only: before syncing, run `aws s3api get-bucket-policy-status` and warn when the bucket policy is public',
+    },
     'project-name': {
       type: 'string',
       description:
@@ -1273,6 +1278,7 @@ export const DEPLOY_SPEC: CommandSpec = {
     'nectar deploy github-pages --branch gh-pages',
     'nectar deploy rsync --destination user@host:/var/www/site/',
     'nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run',
+    'nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight',
   ],
 };
 
