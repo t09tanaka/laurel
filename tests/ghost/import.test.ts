@@ -1591,6 +1591,177 @@ describe('importGhostExport — --download-images (#128)', () => {
   });
 });
 
+describe('importGhostExport — --max-image-size (#239)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-maxsz-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  // Build a fetch that returns a body of `bodyBytes` length and an optional
+  // Content-Length header. Lets us exercise the upfront header check and the
+  // post-download body check independently.
+  function sizedFetch(
+    url: string,
+    bodyBytes: number,
+    opts: { advertisedLength?: number | 'omit' } = {},
+  ): typeof fetch {
+    return (async (input: string | URL | Request): Promise<Response> => {
+      const u = typeof input === 'string' ? input : input.toString();
+      if (u !== url) return new Response('not found', { status: 404 });
+      const body = new Uint8Array(bodyBytes);
+      const headers: Record<string, string> = { 'content-type': 'image/jpeg' };
+      const advertised = opts.advertisedLength ?? bodyBytes;
+      if (advertised !== 'omit') {
+        headers['content-length'] = String(advertised);
+      }
+      return new Response(body, { status: 200, headers });
+    }) as typeof fetch;
+  }
+
+  function singlePostExport(url: string): string {
+    return JSON.stringify({
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Big',
+                slug: 'big',
+                html: `<p><img src="${url}" alt="x" /></p>`,
+                feature_image: url,
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    });
+  }
+
+  test('rejects upfront when Content-Length exceeds the cap (no buffer allocated)', async () => {
+    const url = 'https://cdn.example.com/huge.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    // Advertised 20 MB, cap 5 MB. The body is small (we never read it because
+    // the header check trips first) but the test asserts the header path.
+    const fetcher = sizedFetch(url, 1, { advertisedLength: 20 * 1024 * 1024 });
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      maxImageSizeBytes: 5 * 1024 * 1024,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(1);
+    const md = await readFile(join(cwd, 'content/posts/big.md'), 'utf8');
+    expect(md).toContain(url);
+    expect(md).toContain(`feature_image: "${url}"`);
+  });
+
+  test('rejects after download when the server lied about Content-Length', async () => {
+    const url = 'https://cdn.example.com/lies.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    // Server says 100 bytes, actually streams 2 MiB. Body-length check must
+    // still refuse the image and not write it under content/images/.
+    const fetcher = sizedFetch(url, 2 * 1024 * 1024, { advertisedLength: 100 });
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      maxImageSizeBytes: 1024 * 1024,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(1);
+    const externalDir = join(cwd, 'content/images/external');
+    await expect(readdir(externalDir)).rejects.toThrow();
+  });
+
+  test('rejects after download when Content-Length header is missing', async () => {
+    const url = 'https://cdn.example.com/no-header.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    const fetcher = sizedFetch(url, 2 * 1024 * 1024, { advertisedLength: 'omit' });
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      maxImageSizeBytes: 1024 * 1024,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(1);
+  });
+
+  test('accepts an image exactly at the cap', async () => {
+    const url = 'https://cdn.example.com/edge.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    const cap = 1024;
+    const fetcher = sizedFetch(url, cap);
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      maxImageSizeBytes: cap,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.imagesFailed).toBe(0);
+  });
+
+  test('0 disables the cap and allows arbitrarily large images', async () => {
+    const url = 'https://cdn.example.com/unbounded.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    // 16 MiB body, no cap. With cap = 0 the downloader must skip both the
+    // header check and the post-body check.
+    const fetcher = sizedFetch(url, 16 * 1024 * 1024);
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      maxImageSizeBytes: 0,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.imagesFailed).toBe(0);
+  });
+
+  test('defaults to 10 MiB cap when maxImageSizeBytes is not set', async () => {
+    const url = 'https://cdn.example.com/just-over.jpg';
+    await writeFile(exportFile, singlePostExport(url));
+
+    // 11 MiB body with no explicit cap. Default 10 MiB cap should refuse it.
+    const fetcher = sizedFetch(url, 11 * 1024 * 1024);
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(1);
+  });
+});
+
 describe('importGhostExport — --source-url (#500)', () => {
   let cwd: string;
   let exportFile: string;

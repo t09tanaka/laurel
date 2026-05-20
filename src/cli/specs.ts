@@ -201,6 +201,12 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
       description:
         'Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths',
     },
+    'max-image-size': {
+      type: 'string',
+      description:
+        'Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.',
+      placeholder: '<size>',
+    },
     'source-url': {
       type: 'string',
       description:

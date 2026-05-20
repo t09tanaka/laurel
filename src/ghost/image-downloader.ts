@@ -4,11 +4,24 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
+// Default per-image size cap. A 10 MiB ceiling covers typical Ghost feature
+// images, hero shots, and even very large screenshots while still refusing
+// runaway downloads (multi-hundred-MB videos mislabeled as images, malicious
+// streams that never end, etc.). Operators can raise or disable via
+// `maxImageSizeBytes` / `--max-image-size`.
+export const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
 export interface GhostImageDownloaderOptions {
   // Project root. Downloaded files are written under <cwd>/content/images/.
   cwd: string;
   // Optional fetch override (test seam). Defaults to globalThis.fetch.
   fetcher?: typeof fetch;
+  // Maximum per-image size in bytes. Defaults to DEFAULT_MAX_IMAGE_SIZE_BYTES
+  // (10 MiB). 0 disables the cap. Enforced both via the Content-Length header
+  // (when present) and via the actual response body length (in case the
+  // server lies or omits the header), so a single oversize asset cannot
+  // exhaust memory or disk.
+  maxImageSizeBytes?: number;
 }
 
 interface CacheEntry {
@@ -54,6 +67,7 @@ export class GhostImageDownloader {
   private readonly cwd: string;
   private readonly fetcher: typeof fetch;
   private readonly imagesRoot: string;
+  private readonly maxBytes: number;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
   private readonly cache = new Map<string, CacheEntry | null>();
@@ -64,6 +78,10 @@ export class GhostImageDownloader {
     this.cwd = opts.cwd;
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
     this.imagesRoot = resolve(opts.cwd, 'content', 'images');
+    // A negative cap is meaningless; treat it the same as 0 (disabled) rather
+    // than silently rejecting every fetch.
+    const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
+    this.maxBytes = raw > 0 ? raw : 0;
   }
 
   get downloaded(): number {
@@ -93,8 +111,34 @@ export class GhostImageDownloader {
         this._failed += 1;
         return null;
       }
+      // Trust-but-verify Content-Length: refuse upfront when the server
+      // advertises an oversize payload so we never allocate the buffer. After
+      // download we re-check actual byte length because a hostile / broken
+      // server can lie or omit the header entirely.
+      if (this.maxBytes > 0) {
+        const cl = response.headers.get('content-length');
+        if (cl !== null) {
+          const advertised = Number.parseInt(cl, 10);
+          if (Number.isFinite(advertised) && advertised > this.maxBytes) {
+            logger.warn(
+              `Failed to download image ${url}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
+            );
+            this.cache.set(url, null);
+            this._failed += 1;
+            return null;
+          }
+        }
+      }
       const contentType = response.headers.get('content-type') ?? '';
       const buf = new Uint8Array(await response.arrayBuffer());
+      if (this.maxBytes > 0 && buf.byteLength > this.maxBytes) {
+        logger.warn(
+          `Failed to download image ${url}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
+        );
+        this.cache.set(url, null);
+        this._failed += 1;
+        return null;
+      }
       const { localPath, rewrittenUrl } = derivePaths(url, contentType);
       const absPath = join(this.cwd, localPath);
       // Defense in depth: pathname normalization in `URL` already strips

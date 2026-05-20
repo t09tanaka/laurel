@@ -197,6 +197,11 @@ export interface ImportGhostOptions {
   // fields, fetch them to <cwd>/content/images/, and rewrite the references
   // to site-relative paths. Defaults to false (URLs are written verbatim).
   downloadImages?: boolean;
+  // Maximum per-image size in bytes when `downloadImages` is true. Defaults
+  // to DEFAULT_MAX_IMAGE_SIZE_BYTES (10 MiB). 0 disables the cap. The CLI
+  // surface flag is `--max-image-size` and accepts the same size-spec syntax
+  // as `--max-size` (e.g. `20MB`, `1GB`, `0`).
+  maxImageSizeBytes?: number;
   // Absolute URL of the source Ghost site (e.g. https://oldblog.com). When
   // set, any link in post bodies whose hostname matches is rewritten to a
   // site-relative path. Internal hyperlinks (`<a href>` / `[text](url)`) keep
@@ -324,7 +329,11 @@ async function importFromResolvedInput(
   // local-only side effects rather than perform fetches.
   const downloader =
     opts.downloadImages && !dryRun
-      ? new GhostImageDownloader({ cwd: opts.cwd, fetcher: opts.fetcher })
+      ? new GhostImageDownloader({
+          cwd: opts.cwd,
+          fetcher: opts.fetcher,
+          maxImageSizeBytes: opts.maxImageSizeBytes,
+        })
       : undefined;
   const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;
 

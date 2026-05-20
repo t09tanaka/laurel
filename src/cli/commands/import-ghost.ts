@@ -46,6 +46,20 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const downloadImages = parsed.values['download-images'] === true;
 
+  const rawMaxImageSize = parsed.values['max-image-size'];
+  let maxImageSizeBytes: number | undefined;
+  if (typeof rawMaxImageSize === 'string') {
+    const parsedSize = parseSizeSpec(rawMaxImageSize);
+    if (parsedSize === null) {
+      process.stderr.write(
+        `Invalid --max-image-size value: ${rawMaxImageSize}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 10MB, 1GB, 0 to disable).\n\n`,
+      );
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
+    maxImageSizeBytes = parsedSize;
+  }
+
   const rawSourceUrl = parsed.values['source-url'];
   const sourceUrl = typeof rawSourceUrl === 'string' ? rawSourceUrl : undefined;
 
@@ -75,6 +89,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       onConflict,
       assetsDir,
       downloadImages,
+      maxImageSizeBytes,
       sourceUrl,
       dryRun,
       maxFileSizeBytes,

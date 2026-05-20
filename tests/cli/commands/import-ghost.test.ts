@@ -320,6 +320,47 @@ describe('cli import-ghost — --max-size (#558)', () => {
   });
 });
 
+describe('cli import-ghost — --max-image-size (#239)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maximg-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(exportFile, exportPayload());
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --max-image-size', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--max-image-size');
+  });
+
+  test('rejects a malformed --max-image-size value with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--max-image-size', 'huge'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --max-image-size value');
+  });
+
+  test('--max-image-size 0 is accepted (no per-image cap)', async () => {
+    // The payload has no remote images, so we only assert the flag parses
+    // and the import completes successfully. The downloader-level behavior
+    // is covered in tests/ghost/import.test.ts.
+    const { exitCode } = await runCli(
+      ['import-ghost', exportFile, '--download-images', '--max-image-size', '0'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+  });
+});
+
 describe('cli import-ghost — --keep-code-injection (#561)', () => {
   let dir: string;
   let exportFile: string;
