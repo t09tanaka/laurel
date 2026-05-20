@@ -75,7 +75,7 @@ interface GhostPost {
   featured?: boolean | 0 | 1;
   type?: 'post' | 'page';
   status?: string;
-  visibility?: 'public' | 'members' | 'paid';
+  visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   custom_excerpt?: string | null;
   published_at?: string | null;
   updated_at?: string | null;

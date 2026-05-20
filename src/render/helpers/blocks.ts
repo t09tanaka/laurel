@@ -110,7 +110,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
               matched = evaluateTagOrAuthorAttr(ctx.authors, value);
               break;
             case 'visibility': {
-              matched = String(ctx.visibility ?? '') === value;
+              matched = evaluateVisibilityAttr(ctx.visibility, value);
               break;
             }
             case 'slug': {
@@ -468,8 +468,8 @@ function parseColumns(value: unknown): number {
 
 // Ghost's `visibility=` hash on `{{#foreach}}` reads the iterated item's own
 // `visibility` field, which means the filter is polymorphic across resources:
-//   - Posts carry `'public' | 'members' | 'paid'`, so `visibility="public"`
-//     drops anything gated behind a tier.
+//   - Posts carry `'public' | 'members' | 'paid' | 'tiers' | 'filter'`, so
+//     `visibility="public"` drops anything gated behind membership or tiers.
 //   - Tags carry `'public' | 'internal'` (Nectar's loader marks `hash-`-prefixed
 //     slugs as `'internal'` to mirror Ghost's `#`-prefix convention), so
 //     `visibility="public"` drops internal tags via the `tag.visibility ===
@@ -488,6 +488,18 @@ function visibilityFilter(item: unknown, visibility: string | undefined): boolea
   if (!obj || typeof obj !== 'object') return true;
   if (visibility === 'public') return (obj.visibility ?? 'public') === 'public';
   return (obj.visibility ?? 'public') === visibility;
+}
+
+// Ghost has used both `tiers` and `filter` for tier-specific gating across
+// theme surfaces. Official themes such as Edition still branch on
+// `{{#has visibility="filter"}}` for tier CTA copy, while current Ghost core
+// templates use `visibility="tiers"`. Treat the filter branch as the
+// tier-specific alias without changing exact matches for public/members/paid.
+function evaluateVisibilityAttr(raw: unknown, value: string): boolean {
+  const visibility = String(raw ?? '').toLowerCase();
+  const expected = value.trim().toLowerCase();
+  if (expected === 'filter') return visibility === 'filter' || visibility === 'tiers';
+  return visibility === expected;
 }
 
 // `{{#has tag="news, sports"}}` matches if any listed slug/name appears on the

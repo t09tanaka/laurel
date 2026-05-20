@@ -416,6 +416,28 @@ describe('has helper', () => {
     expect(tpl({ visibility: 'members' })).toBe('gated');
   });
 
+  test('visibility="filter" matches filter visibility for tier CTA branches', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has visibility="filter"}}tier cta{{else}}default{{/has}}');
+    expect(tpl({ visibility: 'filter' })).toBe('tier cta');
+  });
+
+  test('visibility="filter" also matches tiers visibility for Edition-compatible tier CTA branches', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has visibility="filter"}}tier cta{{else}}default{{/has}}');
+    expect(tpl({ visibility: 'tiers' })).toBe('tier cta');
+  });
+
+  test('visibility="filter" does not match generic member or paid gating', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has visibility="filter"}}tier cta{{else}}default{{/has}}');
+    expect(tpl({ visibility: 'members' })).toBe('default');
+    expect(tpl({ visibility: 'paid' })).toBe('default');
+  });
+
   test('arbitrary hash keys fall through to context property comparison', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
