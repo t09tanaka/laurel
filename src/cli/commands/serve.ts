@@ -35,9 +35,21 @@ export async function runServe(args: string[]): Promise<number> {
 
   let port = DEFAULT_PORT;
   if (typeof parsed.values.port === 'string') {
-    const parsedPort = Number(parsed.values.port);
-    if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
-      process.stderr.write(`Invalid --port value: ${parsed.values.port}\n`);
+    const raw = parsed.values.port.trim();
+    // Insist on the `^\d+$` shape so typos like `--port 80.5` or `--port 80abc`
+    // fail loudly instead of being silently coerced to 80 by `Number()`. The
+    // 1..65535 bound matches POSIX port semantics (port 0 means "kernel picks
+    // one" which we never want for a long-running dev server).
+    const parsedPort = Number(raw);
+    if (
+      !/^\d+$/.test(raw) ||
+      !Number.isInteger(parsedPort) ||
+      parsedPort < 1 ||
+      parsedPort > 65535
+    ) {
+      process.stderr.write(
+        `Invalid --port value: ${parsed.values.port} (expected an integer in 1..65535)\n`,
+      );
       return 2;
     }
     port = parsedPort;
@@ -54,11 +66,23 @@ export async function runServe(args: string[]): Promise<number> {
   }
 
   const watchMode = parsed.values['no-watch'] !== true;
+  const forceBuild = parsed.values.build === true;
   const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
 
-  if (!existsSync(distDir)) {
+  if (forceBuild) {
+    logger.info(`--build requested; running a build before serving (${distDir}).`);
+    try {
+      const summary = await build({ cwd });
+      logger.info(
+        `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+      );
+    } catch (err) {
+      reportError(err, cwd);
+      return 1;
+    }
+  } else if (!existsSync(distDir)) {
     logger.info(`No build output at ${distDir}; running an initial build before serving.`);
     try {
       const summary = await build({ cwd });
@@ -131,7 +155,13 @@ export async function runServe(args: string[]): Promise<number> {
   }
 
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
-  logger.info(`Serving ${distDir} on http://${displayHost}:${port} (bound to ${hostname})`);
+  // Reflect `build.base_path` in the announced URL so deploys with a
+  // subpath (e.g. `/blog/`) point operators at the actual landing page
+  // instead of a 404 at the bare host:port root.
+  const basePath = config.build.base_path || '/';
+  logger.info(
+    `Serving ${distDir} on http://${displayHost}:${port}${basePath} (bound to ${hostname})`,
+  );
 
   if (!watchMode) return 0;
 
@@ -189,7 +219,7 @@ export async function runServe(args: string[]): Promise<number> {
   }
   logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
 
-  await waitForShutdownSignal();
+  const signal = await waitForShutdownSignal();
 
   for (const w of watchers) {
     try {
@@ -206,6 +236,13 @@ export async function runServe(args: string[]): Promise<number> {
     }
   }
   server.stop(true);
+  // SIGINT (Ctrl-C) is a user-driven abort; POSIX convention is exit 128+SIGNUM
+  // = 130. Surfacing it lets shell loops (`until nectar serve; do …; done`) and
+  // CI runners distinguish "user cancelled" from a clean shutdown, and matches
+  // the behaviour of common dev servers (vite, next dev, hugo server).
+  if (signal === 'SIGINT') {
+    process.exit(130);
+  }
   return 0;
 }
 
@@ -244,15 +281,18 @@ export function injectLiveReloadScript(html: string): string {
   return html.slice(0, idx) + CLIENT_SCRIPT + html.slice(idx);
 }
 
-function waitForShutdownSignal(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const handler = (): void => {
-      process.removeListener('SIGINT', handler);
-      process.removeListener('SIGTERM', handler);
-      resolve();
+function waitForShutdownSignal(): Promise<'SIGINT' | 'SIGTERM'> {
+  return new Promise<'SIGINT' | 'SIGTERM'>((resolve) => {
+    const onInt = (): void => {
+      process.removeListener('SIGTERM', onTerm);
+      resolve('SIGINT');
     };
-    process.once('SIGINT', handler);
-    process.once('SIGTERM', handler);
+    const onTerm = (): void => {
+      process.removeListener('SIGINT', onInt);
+      resolve('SIGTERM');
+    };
+    process.once('SIGINT', onInt);
+    process.once('SIGTERM', onTerm);
   });
 }
 

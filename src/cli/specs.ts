@@ -136,7 +136,7 @@ export const SERVE_SPEC: CommandSpec = {
   options: {
     port: {
       type: 'string',
-      description: 'Port to listen on (defaults to 4321)',
+      description: 'Port to listen on (1..65535 integer; defaults to 4321)',
       placeholder: '<n>',
     },
     host: {
@@ -148,6 +148,12 @@ export const SERVE_SPEC: CommandSpec = {
       type: 'boolean',
       description:
         'Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot',
+    },
+    build: {
+      type: 'boolean',
+      short: 'b',
+      description:
+        'Run a full build before starting the server, regardless of whether dist/ already exists',
     },
   },
   positionals: [],
@@ -308,6 +314,143 @@ export const DOCTOR_SPEC: CommandSpec = {
   positionals: [],
 };
 
+export const CLEAN_SPEC: CommandSpec = {
+  name: 'clean',
+  summary: 'Remove dist/ and .nectar-cache build artifacts',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    yes: {
+      type: 'boolean',
+      short: 'y',
+      description: 'Skip the confirmation prompt and delete immediately (non-interactive use)',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Print the paths that would be removed without actually deleting them. Implies non-interactive.',
+    },
+    keep: {
+      type: 'string',
+      description:
+        'Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries',
+      placeholder: '<path[,path...]>',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the deletion summary as JSON (paths, kept, bytes) for CI consumption',
+    },
+  },
+  positionals: [],
+};
+
+export const COMPLETIONS_SPEC: CommandSpec = {
+  name: 'completions',
+  summary: 'Print a shell completion script for the given shell',
+  options: {},
+  positionals: [
+    {
+      name: 'shell',
+      description: 'Target shell: bash, zsh, fish, or powershell',
+      required: true,
+    },
+  ],
+};
+
+export const CONTENT_SPEC: CommandSpec = {
+  name: 'content',
+  summary: 'Inspect content in the project (posts, pages)',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    kind: {
+      type: 'string',
+      description: 'Filter by content kind: posts (default) or pages',
+      placeholder: '<posts|pages>',
+    },
+    draft: {
+      type: 'boolean',
+      description: 'Include draft posts/pages in the listing (default: only published)',
+    },
+    tag: {
+      type: 'string',
+      description: 'Show only entries that have the given tag slug',
+      placeholder: '<slug>',
+    },
+    author: {
+      type: 'string',
+      description: 'Show only entries that have the given author slug',
+      placeholder: '<slug>',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the listing as JSON (one array of objects) for CI consumption',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: 'Currently only `list` is supported',
+      required: true,
+    },
+  ],
+};
+
+export const INFO_SPEC: CommandSpec = {
+  name: 'info',
+  summary: 'Print Nectar, Bun, and project environment information',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the report as JSON for CI consumption',
+    },
+  },
+  positionals: [],
+};
+
+export const TAGS_SPEC: CommandSpec = {
+  name: 'tags',
+  summary: 'Inspect tags in the project',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Path to nectar.toml (defaults to ./nectar.toml)',
+      placeholder: '<path>',
+    },
+    orphaned: {
+      type: 'boolean',
+      description:
+        'Show only tags that are defined under content/tags/ but referenced by zero posts',
+    },
+    unused: {
+      type: 'boolean',
+      description: 'Alias for --orphaned',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the listing as JSON (slug, name, post_count) for CI consumption',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: 'Currently only `list` is supported',
+      required: true,
+    },
+  ],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
@@ -315,6 +458,11 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   serve: SERVE_SPEC,
   check: CHECK_SPEC,
   doctor: DOCTOR_SPEC,
+  clean: CLEAN_SPEC,
+  completions: COMPLETIONS_SPEC,
+  content: CONTENT_SPEC,
+  info: INFO_SPEC,
+  tags: TAGS_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };

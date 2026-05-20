@@ -225,6 +225,149 @@ describe('injectLiveReloadScript', () => {
   });
 });
 
+describe('cli serve — --port validation', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('rejects non-integer --port with exit code 2', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', '80.5', '--no-watch'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --port');
+    expect(stderr).toContain('1..65535');
+  });
+
+  test('rejects negative / zero --port with exit code 2', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', '0', '--no-watch'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --port');
+  });
+
+  test('rejects out-of-range --port (>65535) with exit code 2', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', '70000', '--no-watch'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --port');
+  });
+
+  test('rejects non-numeric --port with exit code 2', async () => {
+    const { stderr, exitCode } = await runCli(['serve', '--port', 'abc', '--no-watch'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --port');
+  });
+});
+
+describe('cli serve — base_path in startup log', () => {
+  async function makeFixtureWithBasePath(basePath: string): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-bp-')));
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      `[site]\ntitle = "x"\n\n[build]\nbase_path = "${basePath}"\n`,
+    );
+    await Bun.write(join(dir, 'dist/index.html'), '<!doctype html>ok');
+    return dir;
+  }
+
+  test('subpath base_path appears in the announced URL', async () => {
+    const dir = await makeFixtureWithBasePath('/blog/');
+    try {
+      const { stderr, exitCode } = await runCli(['serve', '--port', '52030', '--no-watch'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('http://localhost:52030/blog/');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('root base_path keeps the trailing slash', async () => {
+    const dir = await makeFixtureWithBasePath('/');
+    try {
+      const { stderr, exitCode } = await runCli(['serve', '--port', '52031', '--no-watch'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('http://localhost:52031/');
+      expect(stderr).not.toContain('http://localhost:52031/blog');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cli serve — --build', () => {
+  async function makeFixtureWithBuiltSite(): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-build-')));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Force Build Test"',
+        'url = "https://forcebuild.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(dir, 'content/posts/hello.md'),
+      '---\ntitle: "Hello"\ndate: 2026-01-01T00:00:00Z\n---\n\nBody\n',
+      'utf8',
+    );
+    await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
+    const themeSrc = join(process.cwd(), 'example/themes/source');
+    await cp(themeSrc, join(dir, 'themes/source'), { recursive: true });
+    // Pre-create dist/ with a stale marker so we can confirm `--build` regenerates.
+    await mkdir(join(dir, 'dist'), { recursive: true });
+    await writeFile(join(dir, 'dist/index.html'), 'STALE');
+    return dir;
+  }
+
+  test('--build triggers a fresh build even when dist/ already exists', async () => {
+    const dir = await makeFixtureWithBuiltSite();
+    try {
+      const { stderr, exitCode } = await runCli(
+        ['serve', '--port', '52040', '--no-watch', '--build'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('--build requested');
+      expect(stderr).toContain('Initial build complete');
+      const rebuilt = await Bun.file(join(dir, 'dist/index.html')).text();
+      expect(rebuilt).not.toBe('STALE');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('-b short form also triggers a build', async () => {
+    const dir = await makeFixtureWithBuiltSite();
+    try {
+      const { stderr, exitCode } = await runCli(
+        ['serve', '--port', '52041', '--no-watch', '-b'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('--build requested');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('cli serve — port collision', () => {
   let dir: string;
 

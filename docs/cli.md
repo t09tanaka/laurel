@@ -52,6 +52,11 @@ Each command section below lists the env-var name for every flag in its
 | [`nectar serve`](#nectar-serve) | Serve the built site locally |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
+| [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
+| [`nectar completions`](#nectar-completions) | Print a shell completion script for the given shell |
+| [`nectar content`](#nectar-content) | Inspect content in the project (posts, pages) |
+| [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
+| [`nectar tags`](#nectar-tags) | Inspect tags in the project |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
@@ -137,16 +142,17 @@ Serve the built site locally
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--no-watch]
+nectar serve [--port <n>] [--host <host>] [--no-watch] [--build]
 ```
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
-| `--port <n>` | string | `NECTAR_SERVE_PORT` | Port to listen on (defaults to 4321) |
+| `--port <n>` | string | `NECTAR_SERVE_PORT` | Port to listen on (1..65535 integer; defaults to 4321) |
 | `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
 | `--no-watch` | boolean | `NECTAR_SERVE_NO_WATCH` | Disable the default rebuild-on-change loop; serve the existing dist/ as a static snapshot |
+| `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
 
 ### `nectar check`
 
@@ -184,6 +190,116 @@ Options:
 | `--config <path>` | string | `NECTAR_DOCTOR_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
 | `--json` | boolean | `NECTAR_DOCTOR_JSON` | Emit results as JSON (for CI consumption) |
 | `--no-network` | boolean | `NECTAR_DOCTOR_NO_NETWORK` | Skip the network reachability check |
+
+### `nectar clean`
+
+Remove dist/ and .nectar-cache build artifacts
+
+Usage:
+
+```
+nectar clean [--config <path>] [--yes] [--dry-run] [--keep <path[,path...]>] [--json]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_CLEAN_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `-y, --yes` | boolean | `NECTAR_CLEAN_YES` | Skip the confirmation prompt and delete immediately (non-interactive use) |
+| `--dry-run` | boolean | `NECTAR_CLEAN_DRY_RUN` | Print the paths that would be removed without actually deleting them. Implies non-interactive. |
+| `--keep <path[,path...]>` | string | `NECTAR_CLEAN_KEEP` | Path (relative to cwd) to preserve inside the targets. Repeat the flag is not supported; pass a comma-separated list (e.g. "dist/.well-known,dist/uploads") to keep multiple entries |
+| `--json` | boolean | `NECTAR_CLEAN_JSON` | Emit the deletion summary as JSON (paths, kept, bytes) for CI consumption |
+
+### `nectar completions`
+
+Print a shell completion script for the given shell
+
+Usage:
+
+```
+nectar completions <shell>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<shell>` | required | Target shell: bash, zsh, fish, or powershell |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+
+### `nectar content`
+
+Inspect content in the project (posts, pages)
+
+Usage:
+
+```
+nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | Currently only `list` is supported |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_CONTENT_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | Filter by content kind: posts (default) or pages |
+| `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published) |
+| `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have the given tag slug |
+| `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have the given author slug |
+| `--json` | boolean | `NECTAR_CONTENT_JSON` | Emit the listing as JSON (one array of objects) for CI consumption |
+
+### `nectar info`
+
+Print Nectar, Bun, and project environment information
+
+Usage:
+
+```
+nectar info [--config <path>] [--json]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_INFO_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--json` | boolean | `NECTAR_INFO_JSON` | Emit the report as JSON for CI consumption |
+
+### `nectar tags`
+
+Inspect tags in the project
+
+Usage:
+
+```
+nectar tags [--config <path>] [--orphaned] [--unused] [--json] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | Currently only `list` is supported |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--config <path>` | string | `NECTAR_TAGS_CONFIG` | Path to nectar.toml (defaults to ./nectar.toml) |
+| `--orphaned` | boolean | `NECTAR_TAGS_ORPHANED` | Show only tags that are defined under content/tags/ but referenced by zero posts |
+| `--unused` | boolean | `NECTAR_TAGS_UNUSED` | Alias for --orphaned |
+| `--json` | boolean | `NECTAR_TAGS_JSON` | Emit the listing as JSON (slug, name, post_count) for CI consumption |
 
 ### `nectar import-ghost`
 

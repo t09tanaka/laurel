@@ -66,6 +66,26 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runDoctor } = await import('./commands/doctor.ts');
       return runDoctor(rest);
     }
+    case 'clean': {
+      const { runClean } = await import('./commands/clean.ts');
+      return runClean(rest);
+    }
+    case 'completions': {
+      const { runCompletions } = await import('./commands/completions.ts');
+      return runCompletions(rest);
+    }
+    case 'content': {
+      const { runContent } = await import('./commands/content.ts');
+      return runContent(rest);
+    }
+    case 'info': {
+      const { runInfo } = await import('./commands/info.ts');
+      return runInfo(rest);
+    }
+    case 'tags': {
+      const { runTags } = await import('./commands/tags.ts');
+      return runTags(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }
@@ -111,7 +131,13 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
-  if (!(command in COMMAND_SPECS)) {
+  // `env` is an alias for `info` so the second-nature `nectar env` lands on
+  // the same renderer without duplicating the spec in COMMAND_SPECS (which
+  // would re-render the help block twice in `docs/cli.md`).
+  const COMMAND_ALIASES: Record<string, string> = { env: 'info' };
+  const canonical = COMMAND_ALIASES[command] ?? command;
+
+  if (!(canonical in COMMAND_SPECS)) {
     process.stderr.write(`Unknown command: ${command}\n`);
     const suggestion = suggestCommand(command, COMMAND_NAMES);
     if (suggestion) {
@@ -122,7 +148,7 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  return dispatch(command, rest);
+  return dispatch(canonical, rest);
 }
 
 const code = await main(process.argv);
