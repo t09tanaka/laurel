@@ -813,8 +813,26 @@ date: 2026-01-01T00:00:00Z
     const summary = await build({ cwd });
     const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
     expect(body).toContain('User-agent: *');
-    expect(body).toContain('Allow: /');
     expect(body).toContain('Sitemap: https://strict.test/sitemap.xml');
+    expect(body).toContain('Disallow: /ghost/');
+    expect(body).toContain('Disallow: /email/');
+    expect(body).toContain('Disallow: /members/api/comments/counts/');
+    expect(body).toContain('Disallow: /r/');
+    expect(body).toContain('Disallow: /webmentions/receive/');
+    expect(body).toContain('Disallow: /.ghost/analytics/api/');
+  });
+
+  test('copies theme-root robots.txt over the generated default', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const override = ['User-agent: *', 'Disallow: /members-only/', ''].join('\n');
+    await writeFile(join(cwd, 'themes/source/robots.txt'), override, 'utf8');
+
+    const summary = await build({ cwd });
+
+    const body = readFileSync(join(summary.outputDir, 'robots.txt'), 'utf8');
+    expect(body).toBe(override);
+    expect(body).not.toContain('Sitemap: https://strict.test/sitemap.xml');
+    expect(body).not.toContain('Disallow: /ghost/');
   });
 
   test('emits dist/humans.txt with site metadata by default', async () => {

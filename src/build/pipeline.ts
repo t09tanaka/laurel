@@ -1169,7 +1169,7 @@ async function runBuild({
   }
   if (config.components.robots.enabled) {
     keepOutput('robots.txt');
-    await timed(profiler, 'robots', () => emitRobots({ cwd, config, outputDir }));
+    await timed(profiler, 'robots', () => emitRobots({ cwd, config, outputDir, theme }));
   }
   if (config.components.humans.enabled) {
     keepOutput('humans.txt');

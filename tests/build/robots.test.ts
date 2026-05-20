@@ -15,7 +15,7 @@ async function makeCwd(): Promise<string> {
 }
 
 describe('emitRobots', () => {
-  test('writes default Allow body with absolute sitemap URL', async () => {
+  test('writes Ghost-compatible default body with absolute sitemap URL', async () => {
     const outputDir = await makeOutputDir();
     const cwd = await makeCwd();
     const config = configSchema.parse({
@@ -26,7 +26,17 @@ describe('emitRobots', () => {
 
     const body = readFileSync(join(outputDir, 'robots.txt'), 'utf8');
     expect(body).toBe(
-      ['User-agent: *', 'Allow: /', 'Sitemap: https://robots.test/sitemap.xml', ''].join('\n'),
+      [
+        'User-agent: *',
+        'Sitemap: https://robots.test/sitemap.xml',
+        'Disallow: /ghost/',
+        'Disallow: /email/',
+        'Disallow: /members/api/comments/counts/',
+        'Disallow: /r/',
+        'Disallow: /webmentions/receive/',
+        'Disallow: /.ghost/analytics/api/',
+        '',
+      ].join('\n'),
     );
   });
 
@@ -82,6 +92,29 @@ describe('emitRobots', () => {
 
     const body = readFileSync(join(outputDir, 'robots.txt'), 'utf8');
     expect(body).toBe(override);
+  });
+
+  test('copies theme-root robots.txt verbatim when the theme override exists', async () => {
+    const outputDir = await makeOutputDir();
+    const cwd = await makeCwd();
+    const themeRoot = join(cwd, 'themes', 'source');
+    await mkdir(themeRoot, { recursive: true });
+    const override = [
+      'User-agent: *',
+      'Disallow: /preview/',
+      'Sitemap: https://robots.test/custom-sitemap.xml',
+      '',
+    ].join('\n');
+    await writeFile(join(themeRoot, 'robots.txt'), override, 'utf8');
+    const config = configSchema.parse({
+      site: { title: 'Robots Test', url: 'https://robots.test' },
+    });
+
+    await emitRobots({ cwd, config, outputDir, theme: { rootDir: themeRoot } });
+
+    const body = readFileSync(join(outputDir, 'robots.txt'), 'utf8');
+    expect(body).toBe(override);
+    expect(body).not.toContain('Disallow: /ghost/');
   });
 
   test('override wins over the disallow shortcut so the file on disk is the single source of truth', async () => {
