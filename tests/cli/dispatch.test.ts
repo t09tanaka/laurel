@@ -87,6 +87,19 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('--strict');
   });
 
+  test.each([
+    ['build', '-h'],
+    ['build', 'help'],
+    ['schema', 'help'],
+  ])('%s %s prints subcommand help', async (command, helpArg) => {
+    const { stdout, stderr, exitCode } = await runCli([command, helpArg]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage:');
+    expect(stdout).toContain(`nectar ${command}`);
+    expect(stdout).toContain('-h, --help');
+  });
+
   test('build --concurrency rejects non-numeric values with exit 2', async () => {
     const { stderr, exitCode } = await runCli(['build', '--concurrency', 'abc']);
     expect(exitCode).toBe(2);

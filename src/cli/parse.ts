@@ -39,6 +39,12 @@ export class CliUsageError extends Error {
   }
 }
 
+type ParseArgToken = {
+  kind: string;
+  name?: string;
+  value?: string;
+};
+
 const HELP_OPTION: OptionSpec = {
   type: 'boolean',
   short: 'h',
@@ -68,7 +74,7 @@ export function parseCommand(
   }
 
   let result: ReturnType<typeof nodeParseArgs> & {
-    tokens?: { kind: string; name?: string }[];
+    tokens?: ParseArgToken[];
   };
   try {
     result = nodeParseArgs({
@@ -82,8 +88,10 @@ export function parseCommand(
     throw new CliUsageError(formatParseArgsError(err, spec));
   }
 
-  const positionals = result.positionals as string[];
-  const helpRequested = result.values.help === true;
+  const rawPositionals = result.positionals as string[];
+  const positionalHelpRequested = firstPositionalBeforeTerminator(result.tokens ?? []) === 'help';
+  const positionals = positionalHelpRequested ? rawPositionals.slice(1) : rawPositionals;
+  const helpRequested = result.values.help === true || positionalHelpRequested;
   if (!helpRequested) {
     validatePositionals(spec, positionals);
   }
@@ -99,9 +107,17 @@ export function parseCommand(
   };
 }
 
+function firstPositionalBeforeTerminator(tokens: ParseArgToken[]): string | undefined {
+  for (const token of tokens) {
+    if (token.kind === 'option-terminator') return undefined;
+    if (token.kind === 'positional') return token.value;
+  }
+  return undefined;
+}
+
 function applyNegativeAliases(
   values: Record<string, string | boolean | undefined>,
-  tokens: { kind: string; name?: string }[],
+  tokens: ParseArgToken[],
   negativeAliases: ReadonlyMap<string, string>,
 ): void {
   if (negativeAliases.size === 0) return;

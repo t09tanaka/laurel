@@ -64,6 +64,30 @@ describe('parseCommand', () => {
     expect(parseCommand(SAMPLE_SPEC, ['-h']).helpRequested).toBe(true);
   });
 
+  test('flags a leading help positional as command help', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['help']);
+    expect(result.helpRequested).toBe(true);
+    expect(result.positionals).toEqual([]);
+  });
+
+  test('does not treat option values named help as command help', () => {
+    const result = parseCommand(SAMPLE_SPEC, ['--config', 'help']);
+    expect(result.helpRequested).toBe(false);
+    expect(result.values.config).toBe('help');
+  });
+
+  test('treats help as command help before required positional validation', () => {
+    const result = parseCommand(POSITIONAL_SPEC, ['help']);
+    expect(result.helpRequested).toBe(true);
+    expect(result.positionals).toEqual([]);
+  });
+
+  test('does not treat help after -- as command help', () => {
+    expect(() => parseCommand(POSITIONAL_SPEC, ['--', 'help'])).toThrow(
+      /Missing required argument/,
+    );
+  });
+
   test('throws CliUsageError on unknown option', () => {
     expect(() => parseCommand(SAMPLE_SPEC, ['--unknown'])).toThrow(CliUsageError);
   });
