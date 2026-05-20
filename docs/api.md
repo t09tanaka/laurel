@@ -103,6 +103,30 @@ URLs that are already absolute (`http://`, `https://`, `//`, `data:`,
 Default is `false`. The query parameter form `?absolute_urls=true` is not
 implemented — the rewrite happens at build time, not at request time.
 
+## `post.html` body markup
+
+`posts[].html` and `pages[].html` are generated from Nectar's Markdown renderer.
+They are suitable for public reader-facing HTML, but they are not a byte-for-byte
+copy of Ghost's internal Koenig serializer.
+
+Nectar preserves the stable class hooks for supported Koenig cards when content
+was imported from Ghost or authored with Nectar's card shortcodes. For example,
+image, bookmark, gallery, callout, button, toggle, file, audio, video, product,
+header, signup, recommendations, and NFT cards may expose `kg-card` and
+card-specific classes so Ghost-theme CSS can still match them.
+
+Nectar does not preserve Ghost editor control comments in API output. Markers
+such as `<!--kg-card-begin: markdown-->`, `<!--kg-card-end: markdown-->`,
+`<!--kg-card-begin: html-->`, and `<!--kg-card-begin: paywall-->` are consumed
+by import, sanitisation, or paywall handling. Likewise, members/email-only card
+content and Ghost's server-side member paywall split DOM are not serialized into
+public `post.html`.
+
+Consumers should treat `html` as sanitized display HTML and key off documented
+reader-facing classes rather than exact Ghost serializer bytes. See
+[`GHOST_COMPATIBILITY.md` §Content API `post.html` serialization](./GHOST_COMPATIBILITY.md#content-api-posthtml-serialization)
+for the compatibility contract and current card matrix.
+
 ## `?key=` and other SDK init params
 
 The Ghost Content API SDK requires a `key` parameter at init time and

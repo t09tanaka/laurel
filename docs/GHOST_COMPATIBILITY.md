@@ -89,6 +89,47 @@ build emits usable reader-facing HTML without a Ghost server.
 | Email / email CTA | No | No | Members/newsletter-only email cards are stripped so a public static build does not expose email-only content. |
 | Paywall | Partial | Partial | The paywall marker is used by the content loader to cut gated content; visible server-side member access behaviour is out of scope. |
 
+## Content API `post.html` serialization
+
+Nectar's Content API exposes `post.html` and `page.html` from the same
+Markdown renderer that feeds `{{content}}`. It is Ghost-shaped, but it is not
+a byte-for-byte Ghost serializer.
+
+The current contract is:
+
+- Imported or shortcode-authored Koenig cards that Nectar understands render
+  with their public `kg-card` class hooks (`kg-image-card`, `kg-bookmark-card`,
+  `kg-gallery-card`, `kg-callout-card`, and the other rows in the matrix
+  above).
+- Plain Markdown stays plain Markdown HTML. A normal paragraph, heading, list,
+  quote, or fenced code block is not wrapped in a Ghost card container just
+  because Ghost's editor may have stored it as a Markdown or code card.
+- Ghost editor fence comments such as `<!--kg-card-begin: markdown-->`,
+  `<!--kg-card-end: markdown-->`, `<!--kg-card-begin: html-->`, and
+  `<!--kg-card-begin: paywall-->` are import/render control markers. They are
+  consumed or stripped and are not preserved in API `post.html`.
+- Members-only email cards are stripped, and paywall markers are converted into
+  Nectar's static public/preview behaviour (`feed_html` plus configured
+  visibility policy). Nectar does not emit Ghost's full member paywall split
+  markup or server-side member access wrappers in `post.html`.
+- Raw Ghost-compatible card scaffolds that survive sanitisation, such as
+  `kg-signup-card`, `kg-recommendations-card`, or `kg-nft-card`, may pass
+  through for theme/plugin hydration, but Nectar does not guarantee every
+  Ghost-internal wrapper, comment, or runtime hook.
+
+The practical impact is that consumers should target stable reader-facing
+markup (`.kg-card` classes and documented child structures) rather than Ghost
+editor comments or exact serializer byte output. Themes that only need card
+layout CSS usually work; tooling that parses `kg-card-begin` comments,
+reconstructs Lexical/Mobiledoc state from `post.html`, or expects Ghost's
+member paywall DOM should read the original Ghost export during migration or
+implement a Nectar-specific adapter.
+
+An opt-in compatibility mode such as `[components.markdown] emit_kg_classes =
+true` may be added later if a narrow Markdown block can be safely decorated
+without changing existing output. It should not try to reimplement Ghost's full
+serializer unless Nectar gains a first-class Lexical/Koenig render path.
+
 ### `error`
 
 The root `error` context is only populated for Nectar's static `/404.html`

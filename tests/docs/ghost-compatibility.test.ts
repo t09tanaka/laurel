@@ -62,6 +62,23 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('does not wrap every card in an extra layout container');
   });
 
+  test('documents Content API post.html serialization divergence', async () => {
+    const compatibility = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+    const api = await readFile(join(ROOT, 'docs', 'api.md'), 'utf8');
+
+    expect(compatibility).toContain("Nectar's Content API exposes `post.html`");
+    expect(compatibility).toContain('byte-for-byte Ghost serializer');
+    expect(compatibility).toContain('`kg-card` class hooks');
+    expect(compatibility).toContain('Ghost editor fence comments');
+    expect(compatibility).toContain('member paywall DOM');
+    expect(compatibility).toContain('[components.markdown] emit_kg_classes =');
+
+    expect(api).toContain('## `post.html` body markup');
+    expect(api).toContain('byte-for-byte');
+    expect(api).toContain('`<!--kg-card-begin: paywall-->`');
+    expect(api).toContain('./GHOST_COMPATIBILITY.md#content-api-posthtml-serialization');
+  });
+
   test('documents Wave jquery CDN as a theme limitation', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 
