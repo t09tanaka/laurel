@@ -367,6 +367,14 @@ describe('has helper', () => {
     expect(tpl(ctx)).toBe('HIT');
   });
 
+  test('matches when the author slug is present on the context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has author="jane"}}yes{{else}}no{{/has}}');
+    const ctx = { authors: [{ slug: 'jane', name: 'Jane' }] };
+    expect(tpl(ctx)).toBe('yes');
+  });
+
   test('falls through to inverse when the requested tag is absent', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
