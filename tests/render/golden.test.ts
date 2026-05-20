@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
 // Golden-master test for the example site (#172). Re-renders the example
@@ -14,19 +14,37 @@ const GOLDEN_DIR = join(import.meta.dir, '..', 'fixtures', 'golden');
 
 const GOLDEN_FILES = [
   'index.html',
+  // Additional post bodies catch regressions in markdown rendering, code
+  // blocks, embeds, and `post.html` ↔ `feed_html` divergence (#175).
   'hello-nectar/index.html',
+  'markdown-meets-git/index.html',
+  'ghost-theme-compatibility/index.html',
+  // Tag archives (canonical + a second tag) ensure tag layout, post-card
+  // partial, and tag-meta helpers stay stable.
   'tag/news/index.html',
+  'tag/getting-started/index.html',
+  // Author archives (primary + secondary) ensure author bio block and
+  // related-posts ordering stay stable.
   'author/casper/index.html',
+  'author/honeybee/index.html',
+  // Static page exercises the `page.hbs` template + `meta_title` fallback.
   'about/index.html',
+  // Error page renders through the theme's error-404.hbs; check the layout
+  // and the year-stamped footer (normalized below).
   '404.html',
   // Ghost-style sitemap split (#105/#519/#537): index references four sub-sitemaps
   // for posts/pages/tags/authors, each capped at 50k URLs before -2.xml overflow.
+  // Also exercises the #781 indexable filter — pagination tails and 404 are
+  // excluded from sub-sitemaps even when the files exist on disk.
   'sitemap.xml',
   'sitemap-posts.xml',
   'sitemap-pages.xml',
   'sitemap-tags.xml',
   'sitemap-authors.xml',
   'rss.xml',
+  // robots.txt locks down the sitemap URL + crawl policy emitted by the
+  // build pipeline so config drift surfaces in diff review.
+  'robots.txt',
 ] as const;
 
 // Strip moving parts so unrelated edits don't churn the snapshot:
@@ -53,6 +71,10 @@ describe('example build — golden HTML (#172)', () => {
       const goldenPath = join(GOLDEN_DIR, file);
 
       if (process.env.UPDATE_GOLDEN === '1') {
+        // Materialize the parent directory for first-time captures of nested
+        // routes (e.g. `tag/getting-started/index.html`). Existing dirs
+        // resolve as a no-op.
+        await mkdir(dirname(goldenPath), { recursive: true });
         await writeFile(goldenPath, actual, 'utf8');
         return;
       }
