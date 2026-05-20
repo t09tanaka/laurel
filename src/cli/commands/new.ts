@@ -7,7 +7,7 @@ import { t } from '../i18n/index.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
-import { slugifyCliValue } from '../slug.ts';
+import { isValidCliSlug, slugifyCliValue } from '../slug.ts';
 import { NEW_SPEC } from '../specs.ts';
 
 type Kind = 'post' | 'page' | 'tag' | 'author';
@@ -88,9 +88,15 @@ export async function runNew(args: string[]): Promise<number> {
     isoDate = parsedDate.toISOString();
   }
 
-  const slugSource = isPostOrPage ? slugOverrideRaw || remainder : remainder;
-  const slug = slugifyCliValue(slugSource);
-  if (!slug) {
+  if (slugOverrideRaw && !isValidCliSlug(slugOverrideRaw)) {
+    process.stderr.write(
+      `${t('new.invalidSlugValue', { label: '--slug', value: slugOverrideRaw })}\n`,
+    );
+    return 2;
+  }
+
+  const slug = isPostOrPage && slugOverrideRaw ? slugOverrideRaw : slugifyCliValue(remainder);
+  if (!isValidCliSlug(slug)) {
     process.stderr.write(`${t('new.invalidSlug')}\n`);
     return 2;
   }

@@ -134,7 +134,7 @@ export const NEW_SPEC: CommandSpec = {
     slug: {
       type: 'string',
       description:
-        'Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug)',
+        'Use this lowercase ASCII slug instead of one derived from the title (post/page only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug)',
       placeholder: '<slug>',
     },
     draft: {
@@ -182,6 +182,7 @@ export const NEW_SPEC: CommandSpec = {
   ],
   examples: [
     'nectar new post "Hello World"               # content/posts/hello-world.md',
+    'nectar new post "日本語タイトル" --slug japanese-title',
     'nectar new post "Draft Idea" --draft        # status: draft so the build skips it',
     'nectar new post "Tagged" --tags news,tech --author jane',
     'nectar new tag releases                      # content/tags/releases.md',

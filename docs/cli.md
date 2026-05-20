@@ -228,7 +228,7 @@ Options:
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_NEW_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--force` | boolean | `NECTAR_NEW_FORCE` | Overwrite the destination file if it already exists |
-| `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this slug instead of one derived from the title (post/page only; for tag/author the positional already is the slug) |
+| `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this lowercase ASCII slug instead of one derived from the title (post/page only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug) |
 | `--draft` | boolean | `NECTAR_NEW_DRAFT` | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
 | `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
@@ -240,6 +240,7 @@ Examples:
 
 ```
 nectar new post "Hello World"               # content/posts/hello-world.md
+nectar new post "日本語タイトル" --slug japanese-title
 nectar new post "Draft Idea" --draft        # status: draft so the build skips it
 nectar new post "Tagged" --tags news,tech --author jane
 nectar new tag releases                      # content/tags/releases.md

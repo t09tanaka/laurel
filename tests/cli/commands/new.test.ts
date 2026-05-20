@@ -71,19 +71,17 @@ describe('cli new — slug collision handling', () => {
     expect(body).toContain('# Windows\nLine Ending');
   });
 
-  test('creates a post from a Japanese title without deriving an empty slug', async () => {
-    const { exitCode } = await runCli(['new', 'post', '日本語タイトル'], dir);
-    expect(exitCode).toBe(0);
-    const body = await readFile(join(dir, 'content/posts/日本語タイトル.md'), 'utf8');
-    expect(body).toContain('title: "日本語タイトル"');
-    expect(body).toContain('slug: 日本語タイトル');
+  test('rejects a title that cannot derive an ASCII slug without --slug', async () => {
+    const { stderr, exitCode } = await runCli(['new', 'post', '日本語タイトル'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Expected /^[a-z0-9][a-z0-9-]*$/.');
   });
 
-  test('preserves CJK words when a title also contains ASCII words', async () => {
+  test('derives an ASCII slug when a title mixes Unicode and ASCII words', async () => {
     const { exitCode } = await runCli(['new', 'post', '東京 Update'], dir);
     expect(exitCode).toBe(0);
-    const body = await readFile(join(dir, 'content/posts/東京-update.md'), 'utf8');
-    expect(body).toContain('slug: 東京-update');
+    const body = await readFile(join(dir, 'content/posts/update.md'), 'utf8');
+    expect(body).toContain('slug: update');
   });
 
   test('refuses to overwrite an existing file and exits 1 with guidance', async () => {
@@ -142,6 +140,28 @@ describe('cli new — slug collision handling', () => {
 
     const body = await readFile(alt, 'utf8');
     expect(body).toBe('OTHER CONTENT');
+  });
+
+  test('--slug lets Unicode titles use a custom canonical slug', async () => {
+    const { exitCode } = await runCli(
+      ['new', 'post', '日本語タイトル', '--slug', 'japanese-title'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+
+    const body = await readFile(join(dir, 'content/posts/japanese-title.md'), 'utf8');
+    expect(body).toContain('title: "日本語タイトル"');
+    expect(body).toContain('slug: japanese-title');
+  });
+
+  test('--slug rejects values outside lowercase ASCII kebab form', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['new', 'post', 'Hello World', '--slug', 'Bad_Slug'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --slug value: Bad_Slug.');
+    expect(stderr).toContain('Expected /^[a-z0-9][a-z0-9-]*$/.');
   });
 
   test('pages honor the same overwrite protection', async () => {
@@ -356,12 +376,11 @@ describe('cli new — tag and author kinds', () => {
     expect(body).not.toContain('tags:');
   });
 
-  test('"new tag <slug>" accepts a Japanese slug', async () => {
-    const { exitCode } = await runCli(['new', 'tag', 'ニュース'], dir);
-    expect(exitCode).toBe(0);
-    const body = await readFile(join(dir, 'content/tags/ニュース.md'), 'utf8');
-    expect(body).toContain('slug: ニュース');
-    expect(body).toContain('name: "ニュース"');
+  test('"new tag <slug>" rejects a slug outside lowercase ASCII kebab form', async () => {
+    const { stderr, exitCode } = await runCli(['new', 'tag', 'ニュース'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Could not derive a valid slug from the provided positional value.');
+    expect(stderr).toContain('Expected /^[a-z0-9][a-z0-9-]*$/.');
   });
 
   test('"new author <slug>" writes into content.authors_dir with slug + name + bio', async () => {
