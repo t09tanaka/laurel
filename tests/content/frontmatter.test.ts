@@ -127,3 +127,55 @@ body
     expect(body.trim()).toBe('World');
   });
 });
+
+describe('parseFrontmatter security hardening (FAILSAFE_SCHEMA)', () => {
+  test('rejects non-YAML fence languages (---js)', () => {
+    const raw = '---js\nmodule.exports = { title: "x" }\n---\nbody\n';
+    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(NectarError);
+    try {
+      parseFrontmatter(raw, { filePath: '/x.md' });
+    } catch (err) {
+      const ne = err as NectarError;
+      expect(ne.code).toBe('content');
+      expect(ne.message).toContain('unsupported frontmatter language');
+      expect(ne.message).toContain('js');
+    }
+  });
+
+  test('rejects --- coffee fence language', () => {
+    const raw = '---coffee\ntitle: "x"\n---\nbody\n';
+    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(NectarError);
+  });
+
+  test('accepts the plain --- fence (defaults to YAML)', () => {
+    const { data } = parseFrontmatter('---\ntitle: Hello\n---\nbody\n', { filePath: '/x.md' });
+    expect(data.title).toBe('Hello');
+  });
+
+  test('accepts an explicit ---yaml fence', () => {
+    const { data } = parseFrontmatter('---yaml\ntitle: Hello\n---\nbody\n', { filePath: '/x.md' });
+    expect(data.title).toBe('Hello');
+  });
+
+  test('FAILSAFE_SCHEMA keeps date strings as strings (not JS Date)', () => {
+    // Under DEFAULT_SCHEMA, `published_at: 2026-05-19` parses to a JS Date.
+    // FAILSAFE_SCHEMA collapses every scalar to a string so downstream
+    // `asDateISO` is the single place that normalises dates.
+    const { data } = parseFrontmatter('---\npublished_at: 2026-05-19\n---\nbody\n', {
+      filePath: '/x.md',
+    });
+    expect(typeof data.published_at).toBe('string');
+    expect(data.published_at).toBe('2026-05-19');
+  });
+
+  test('FAILSAFE_SCHEMA keeps boolean-looking values as strings', () => {
+    // YAML 1.1 normally coerces `yes`/`true`/`on` to boolean true; FAILSAFE
+    // keeps the literal string so themes that rely on truthiness still work
+    // (non-empty string is truthy) and exact-value matching remains stable.
+    const { data } = parseFrontmatter('---\nfeatured: true\n---\nbody\n', {
+      filePath: '/x.md',
+    });
+    expect(typeof data.featured).toBe('string');
+    expect(data.featured).toBe('true');
+  });
+});
