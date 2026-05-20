@@ -203,6 +203,15 @@ describe('img_url helper', () => {
     );
   });
 
+  test('extracts url from a generic media object', () => {
+    const engine = makeEngine({});
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url obj}}');
+    expect(tpl({ obj: { url: 'https://cdn.example.com/x.png' } })).toBe(
+      'https://cdn.example.com/x.png',
+    );
+  });
+
   test('returns empty string when no image source is available', () => {
     const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
     registerAssetHelpers(engine);
