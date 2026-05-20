@@ -389,6 +389,13 @@ describe('has helper', () => {
     expect(tpl({ tags: [] })).toBe('MISS');
   });
 
+  test('renders the inverse block when the requested tag is absent from an empty tags array', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has tag="news"}}yes{{else}}no{{/has}}');
+    expect(tpl({ tags: [] })).toBe('no');
+  });
+
   test('falls through to inverse when none of the context tags match the requested tag', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
