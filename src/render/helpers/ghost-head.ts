@@ -147,6 +147,20 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
           parts.push(`<meta name="twitter:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
         }
       }
+      // Twitter Card site / creator attribution. Ghost normalises bare handles
+      // and full URLs to `@handle` in its own ghost_head emit; we mirror that
+      // so themes that read `@site.twitter` / `post.primary_author.twitter`
+      // get the same attribution markup regardless of how the value was
+      // configured (handle, URL, or `@handle` form).
+      const twitterSiteHandle = formatTwitterHandle(site.twitter);
+      if (twitterSiteHandle) {
+        parts.push(`<meta name="twitter:site" content="${escapeAttr(twitterSiteHandle)}">`);
+      }
+      const primaryAuthor = ctx.primary_author as { twitter?: unknown } | undefined;
+      const twitterCreatorHandle = formatTwitterHandle(primaryAuthor?.twitter);
+      if (twitterCreatorHandle) {
+        parts.push(`<meta name="twitter:creator" content="${escapeAttr(twitterCreatorHandle)}">`);
+      }
 
       // RSS autodiscovery: browsers and feed readers look for <link rel="alternate">.
       if (engine.config?.components?.rss?.enabled !== false) {
@@ -362,6 +376,8 @@ function buildJsonLd(
     logo?: string;
     logo_width?: number;
     logo_height?: number;
+    twitter?: string | undefined;
+    facebook?: string | undefined;
   },
   meta: ComputedMeta,
   basePath: string,
@@ -380,6 +396,41 @@ function buildJsonLd(
     const datePublishedIso = toIso8601(ctx.published_at);
     const dateModifiedIso =
       ctx.updated_at !== ctx.published_at ? toIso8601(ctx.updated_at) : undefined;
+    // `wordCount` lets Google Rich Results estimate reading effort. The
+    // loader already computes `word_count` from the plaintext body, so we
+    // surface that directly. Fall back to undefined (field omitted) when
+    // the value is missing or non-numeric.
+    const wordCount = numericField(ctx.word_count);
+    // `sameAs` is the Schema.org pointer to authoritative profiles. We
+    // collect social URLs for the author (Person) from the post's
+    // `primary_author` so consumer crawlers can disambiguate by linking
+    // back to the author's Twitter / Mastodon / etc. The site-level
+    // `sameAs` belongs on the Organization (publisher) entity.
+    const primaryAuthor = ctx.primary_author as Record<string, unknown> | undefined;
+    const authorSameAs = primaryAuthor ? collectSocialUrls(primaryAuthor) : [];
+    const publisherSameAs = collectSocialUrls(site);
+    const authors = Array.isArray(ctx.authors)
+      ? (ctx.authors as { name: string; url?: string }[]).map((a) => {
+          const entity: Record<string, unknown> = {
+            '@type': 'Person',
+            name: a.name,
+            url: a.url,
+          };
+          // Only the primary author carries the post's social attribution.
+          // Co-authors fall back to the Person/url pairing without sameAs.
+          if (primaryAuthor && a.name === primaryAuthor.name && authorSameAs.length > 0) {
+            entity.sameAs = authorSameAs;
+          }
+          return entity;
+        })
+      : undefined;
+    const publisher: Record<string, unknown> = {
+      '@type': 'Organization',
+      name: site.title,
+      url: site.url,
+      logo: buildPublisherLogo(site, basePath),
+    };
+    if (publisherSameAs.length > 0) publisher.sameAs = publisherSameAs;
     entities.push({
       '@context': 'https://schema.org',
       '@type': 'Article',
@@ -393,19 +444,9 @@ function buildJsonLd(
       // Emitting an identical dateModified signals "never updated" to Google,
       // so suppress it unless the post was genuinely revised.
       dateModified: dateModifiedIso,
-      author: Array.isArray(ctx.authors)
-        ? (ctx.authors as { name: string; url?: string }[]).map((a) => ({
-            '@type': 'Person',
-            name: a.name,
-            url: a.url,
-          }))
-        : undefined,
-      publisher: {
-        '@type': 'Organization',
-        name: site.title,
-        url: site.url,
-        logo: buildPublisherLogo(site, basePath),
-      },
+      wordCount,
+      author: authors,
+      publisher,
     });
   } else if (kind === 'tag' || kind === 'author' || kind === 'index') {
     entities.push(buildCollectionPage(route, site, meta));
@@ -580,6 +621,101 @@ function buildPublisherLogo(
 
 function numericField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+// Normalise a Twitter handle / URL into the `@handle` form expected by the
+// twitter:site / twitter:creator meta tags. Accepts bare handles ("nectar"),
+// `@`-prefixed handles, and full twitter.com / x.com profile URLs. Returns
+// undefined when the value is missing, non-string, or doesn't look like a
+// well-formed handle (so a stray URL fragment doesn't end up rendered as
+// `@/path/foo`).
+function formatTwitterHandle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  let trimmed = value.trim();
+  if (!trimmed) return undefined;
+  // Strip protocol + host for `https://twitter.com/foo` / `https://x.com/foo`.
+  const urlMatch = trimmed.match(/^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/(.+)$/i);
+  if (urlMatch) {
+    trimmed = urlMatch[1].replace(/[/?#].*$/, '');
+  }
+  trimmed = trimmed.replace(/^@/, '');
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(trimmed)) return undefined;
+  return `@${trimmed}`;
+}
+
+// Collect Schema.org `sameAs`-compatible profile URLs from a record that may
+// expose any of Ghost's documented social fields. Each field is normalised
+// through the same SOCIAL_PATTERNS-style logic used by `{{social_url}}` so a
+// bare handle ("@nectar") becomes a full URL ("https://twitter.com/nectar")
+// without depending on the helper being invoked. Values that are already
+// absolute http(s) URLs are passed through unchanged. The site `url` field
+// is intentionally excluded — `Organization.url` already carries it, and
+// duplicating into `sameAs` would break Google's validation guidance.
+const SOCIAL_FIELDS_FOR_SAMEAS: readonly string[] = [
+  'twitter',
+  'facebook',
+  'linkedin',
+  'bluesky',
+  'mastodon',
+  'threads',
+  'tiktok',
+  'youtube',
+  'instagram',
+  'website',
+];
+function collectSocialUrls(source: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const field of SOCIAL_FIELDS_FOR_SAMEAS) {
+    const value = source[field];
+    if (typeof value !== 'string' || !value) continue;
+    const url = normaliseSocialUrl(field, value);
+    if (!url) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
+}
+
+function normaliseSocialUrl(field: string, value: string): string | undefined {
+  if (/^https?:\/\//i.test(value)) return value;
+  const handle = value.replace(/^@/, '');
+  if (!handle) return undefined;
+  switch (field) {
+    case 'twitter':
+      return `https://twitter.com/${handle}`;
+    case 'facebook':
+      return `https://facebook.com/${handle}`;
+    case 'linkedin':
+      return `https://www.linkedin.com/in/${handle}`;
+    case 'bluesky':
+      return `https://bsky.app/profile/${handle}`;
+    case 'threads':
+      return `https://www.threads.net/@${handle}`;
+    case 'tiktok':
+      return `https://www.tiktok.com/@${handle}`;
+    case 'youtube':
+      return `https://www.youtube.com/${handle}`;
+    case 'instagram':
+      return `https://www.instagram.com/${handle}`;
+    case 'mastodon': {
+      // `user@host` form -> https://host/@user. Bare handle has no canonical
+      // host without configuration, so we skip it for sameAs (vs. {{social_url}}
+      // which defaults to mastodon.social — we don't want to emit a profile
+      // pointer to a host the author may not actually live on).
+      if (!handle.includes('@')) return undefined;
+      const [user, host] = handle.split('@');
+      if (!user || !host) return undefined;
+      return `https://${host}/@${user}`;
+    }
+    case 'website':
+      // `website` without a protocol is ambiguous; only emit when the value
+      // is already absolute http(s), which the early return above handles.
+      return undefined;
+    default:
+      return undefined;
+  }
 }
 
 // Read prev_url / next_url off route.data.pagination if the current route is a

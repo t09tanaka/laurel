@@ -281,6 +281,64 @@ describe('is helper', () => {
     const tpl = engine.hb.compile('{{#is "post,  page tag"}}HIT{{else}}MISS{{/is}}');
     expect(tpl({}, { data: { route: { kind: 'tag' } } })).toBe('HIT');
   });
+
+  // Cross-theme regression coverage (issue #866). Casper, Source, and Edition
+  // all branch on `{{#is "home"}}` vs `{{#is "index"}}` vs `{{#is "paged"}}`
+  // with subtly different intents:
+  //   - `home`  -> home root only (page 1 of the home archive)
+  //   - `index` -> any home archive page (page 1 + paginated /page/2/ + ...)
+  //   - `paged` -> any paginated archive (page > 1) regardless of route kind
+  // The current implementation already aliases home<->index at the kind
+  // level and reads `pagination.page` for `paged`. Lock the cross-theme
+  // expectations in tests so future tweaks to the alias map can't regress.
+  test('"home" matches the home route on page 1 (issue #866)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "home"}}HIT{{else}}MISS{{/is}}');
+    const route = { kind: 'home', data: { pagination: { page: 1 } } };
+    expect(tpl({}, { data: { route } })).toBe('HIT');
+  });
+
+  test('"index" matches the home route across pagination (issue #866)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "index"}}HIT{{else}}MISS{{/is}}');
+    const page1 = { kind: 'home', data: { pagination: { page: 1 } } };
+    const page2 = { kind: 'home', data: { pagination: { page: 2 } } };
+    expect(tpl({}, { data: { route: page1 } })).toBe('HIT');
+    expect(tpl({}, { data: { route: page2 } })).toBe('HIT');
+  });
+
+  test('"paged" matches paginated archives regardless of route kind (issue #866)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "paged"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'home', data: { pagination: { page: 2 } } } } })).toBe(
+      'HIT',
+    );
+    expect(tpl({}, { data: { route: { kind: 'tag', data: { pagination: { page: 3 } } } } })).toBe(
+      'HIT',
+    );
+    expect(tpl({}, { data: { route: { kind: 'home', data: { pagination: { page: 1 } } } } })).toBe(
+      'MISS',
+    );
+  });
+
+  test('"home" and "paged" form complementary partitions of the home archive (issue #866)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const home = engine.hb.compile('{{#is "home"}}HIT{{else}}MISS{{/is}}');
+    const paged = engine.hb.compile('{{#is "paged"}}HIT{{else}}MISS{{/is}}');
+    const page1 = { kind: 'home', data: { pagination: { page: 1 } } };
+    const page2 = { kind: 'home', data: { pagination: { page: 2 } } };
+    expect(home({}, { data: { route: page1 } })).toBe('HIT');
+    expect(paged({}, { data: { route: page1 } })).toBe('MISS');
+    // On page 2 the route still has kind 'home' so `home` itself still
+    // matches the kind alias — themes pair `{{#is "home"}}` with
+    // `{{^is "paged"}}` (or a body-class check) to scope hero markup to
+    // the root. Confirm `paged` flips on so that idiom works.
+    expect(paged({}, { data: { route: page2 } })).toBe('HIT');
+  });
 });
 
 describe('has helper', () => {

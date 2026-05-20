@@ -365,7 +365,169 @@ describe('buildContext', () => {
     const ctx = buildContext(engine, route);
     expect(ctx.access).toBe(true);
   });
+
+  // Cross-theme body_class variants (issue #862). Ghost emits route-kind
+  // template tokens that themes hook for layout; Source ships separate CSS
+  // for the home root, paginated archives, the error page, and aggregated
+  // listings. We mirror that scoping so a single CSS rule like
+  // `body.home-template .gh-head` only fires on the home root, not on
+  // `/page/2/` which is structurally an archive.
+  test('home route page 1 carries `home-template` and not `archive-template` (issue #862)', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: { pagination: makePagination(1) },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).toContain('home-template');
+    expect(tokens).not.toContain('archive-template');
+    expect(tokens).not.toContain('paged');
+  });
+
+  test('home route page > 1 swaps `home-template` for `archive-template` + `paged` (issue #862)', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/page/2/',
+      outputPath: 'page/2/index.html',
+      template: 'home',
+      data: { pagination: makePagination(2) },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).not.toContain('home-template');
+    expect(tokens).toContain('archive-template');
+    expect(tokens).toContain('paged');
+  });
+
+  test('home route without a pagination object still emits `home-template` (issue #862)', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).toContain('home-template');
+  });
+
+  test('error routes emit `error-template` for theme-side 404 styling (issue #862)', () => {
+    const route: RouteContext = {
+      kind: 'error',
+      url: '/404.html',
+      outputPath: '404.html',
+      template: 'error-404',
+      data: { error: { statusCode: 404, message: 'Not found' } },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).toContain('error-template');
+  });
+
+  test('tag and author archive routes still carry `archive-template` (issue #862)', () => {
+    const tagRoute: RouteContext = {
+      kind: 'tag',
+      url: '/tag/news/',
+      outputPath: 'tag/news/index.html',
+      template: 'tag',
+      data: { tag: makeTag({ slug: 'news' }) },
+      meta: baseMeta,
+    };
+    const tagTokens = String(buildContext(engine, tagRoute).body_class).split(' ');
+    expect(tagTokens).toContain('tag-template');
+    expect(tagTokens).toContain('archive-template');
+
+    const authorRoute: RouteContext = {
+      kind: 'author',
+      url: '/author/jane/',
+      outputPath: 'author/jane/index.html',
+      template: 'author',
+      data: {
+        author: {
+          id: 'a1',
+          slug: 'jane',
+          name: 'Jane',
+          bio: '',
+          profile_image: undefined,
+          cover_image: undefined,
+          website: undefined,
+          location: undefined,
+          twitter: undefined,
+          facebook: undefined,
+          linkedin: undefined,
+          bluesky: undefined,
+          mastodon: undefined,
+          threads: undefined,
+          tiktok: undefined,
+          youtube: undefined,
+          instagram: undefined,
+          meta_title: undefined,
+          meta_description: undefined,
+          url: '/author/jane/',
+        },
+      },
+      meta: baseMeta,
+    };
+    const authorTokens = String(buildContext(engine, authorRoute).body_class).split(' ');
+    expect(authorTokens).toContain('author-template');
+    expect(authorTokens).toContain('archive-template');
+  });
+
+  // Cross-theme post_class variants (issue #871). Casper / Source emit both
+  // the legacy `image` token and the newer `feature-image` / `image-cover`
+  // tokens together so theme CSS can hook either selector.
+  test('post_class with a feature image emits all three image markers together (issue #871)', () => {
+    const post = makePost({ feature_image: '/img.jpg', html: '<p>hi</p>' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).post_class).split(' ');
+    expect(tokens).toContain('image');
+    expect(tokens).toContain('feature-image');
+    expect(tokens).toContain('image-cover');
+    expect(tokens).not.toContain('no-image');
+  });
+
+  test('post_class without a feature image emits `no-image` and no feature-image variants (issue #871)', () => {
+    const post = makePost({ html: '<p>hi</p>' });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).post_class).split(' ');
+    expect(tokens).toContain('no-image');
+    expect(tokens).not.toContain('image');
+    expect(tokens).not.toContain('feature-image');
+    expect(tokens).not.toContain('image-cover');
+  });
 });
+
+function makePagination(page: number): RouteContext['data']['pagination'] {
+  return {
+    page,
+    prev: page > 1 ? page - 1 : undefined,
+    next: undefined,
+    pages: Math.max(page, 1),
+    total: 0,
+    limit: 10,
+    prev_url: undefined,
+    next_url: undefined,
+    base_url: '/',
+  };
+}
 
 describe('buildRootData', () => {
   function makeEngine(pkg: Partial<ThemePackage> = {}): NectarEngine {

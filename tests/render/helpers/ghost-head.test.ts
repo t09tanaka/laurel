@@ -400,6 +400,175 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
     expect(parsed.datePublished).toBe('2026-01-01T00:00:00.000Z');
     expect(parsed.dateModified).toBe('2026-02-15T10:30:00.000Z');
   });
+
+  // JSON-LD enrichment (issue #867). Schema.org Article surfaces a few extra
+  // fields beyond the basics that Google's Rich Results validator and other
+  // crawlers consume to rank / disambiguate. Locking these into ghost_head
+  // saves themes from having to inject their own JSON-LD shim.
+  test('emits wordCount from the post `word_count` field (issue #867)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      word_count: 1234,
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { wordCount?: number };
+    expect(parsed.wordCount).toBe(1234);
+  });
+
+  test('omits wordCount when the post has no numeric word_count (issue #867)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as { wordCount?: number };
+    expect(parsed.wordCount).toBeUndefined();
+  });
+
+  test('emits publisher.sameAs from site-level social fields (issue #867)', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/p1/',
+      {
+        site: { twitter: '@nectar_ssg', facebook: 'nectarssg' },
+      },
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      publisher: { sameAs?: string[] };
+    };
+    expect(parsed.publisher.sameAs).toContain('https://twitter.com/nectar_ssg');
+    expect(parsed.publisher.sameAs).toContain('https://facebook.com/nectarssg');
+  });
+
+  test('emits author.sameAs on the primary_author entity (issue #867)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+      authors: [{ name: 'Jane Doe', url: 'https://example.com/author/jane/' }],
+      primary_author: {
+        name: 'Jane Doe',
+        url: 'https://example.com/author/jane/',
+        twitter: '@jane',
+        mastodon: 'jane@hachyderm.io',
+      },
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      author: { '@type': string; name: string; sameAs?: string[] }[];
+    };
+    expect(parsed.author).toHaveLength(1);
+    expect(parsed.author[0].sameAs).toContain('https://twitter.com/jane');
+    expect(parsed.author[0].sameAs).toContain('https://hachyderm.io/@jane');
+  });
+
+  test('co-authors past the primary do not carry sameAs duplicated from the primary (issue #867)', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+      authors: [
+        { name: 'Jane', url: 'https://example.com/author/jane/' },
+        { name: 'Bob', url: 'https://example.com/author/bob/' },
+      ],
+      primary_author: {
+        name: 'Jane',
+        url: 'https://example.com/author/jane/',
+        twitter: 'jane',
+      },
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      author: { name: string; sameAs?: string[] }[];
+    };
+    expect(parsed.author).toHaveLength(2);
+    expect(parsed.author[0].sameAs).toBeDefined();
+    expect(parsed.author[1].sameAs).toBeUndefined();
+  });
+
+  test('mainEntityOfPage continues to point at the canonical URL after enrichment (issue #867)', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        word_count: 800,
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/a-post/',
+    );
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      mainEntityOfPage: { '@type': string; '@id': string };
+    };
+    expect(parsed.mainEntityOfPage).toEqual({
+      '@type': 'WebPage',
+      '@id': 'https://example.com/a-post/',
+    });
+  });
+});
+
+describe('ghost_head twitter:site / twitter:creator (issue #868)', () => {
+  test('emits twitter:site from @site.twitter as a normalised @handle', () => {
+    const html = renderGhostHead(
+      {
+        id: 'p1',
+        title: 'A post',
+        published_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+      '/p1/',
+      { site: { twitter: 'nectar_ssg' } },
+    );
+    expect(html).toContain('<meta name="twitter:site" content="@nectar_ssg">');
+  });
+
+  test('emits twitter:creator from post.primary_author.twitter', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+      primary_author: { name: 'Jane', twitter: '@jane_writes' },
+    });
+    expect(html).toContain('<meta name="twitter:creator" content="@jane_writes">');
+  });
+
+  test('accepts full twitter.com / x.com profile URLs for twitter:site', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 'A post', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      { site: { twitter: 'https://twitter.com/nectar_ssg' } },
+    );
+    expect(html).toContain('<meta name="twitter:site" content="@nectar_ssg">');
+  });
+
+  test('drops malformed twitter handles instead of rendering @/path/foo', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 'A post', published_at: '2026-01-01', updated_at: '2026-01-01' },
+      '/p1/',
+      { site: { twitter: 'https://example.com/not-twitter' } },
+    );
+    expect(html).not.toContain('twitter:site');
+  });
+
+  test('omits twitter:site / twitter:creator when neither value is configured', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'A post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).not.toContain('twitter:site');
+    expect(html).not.toContain('twitter:creator');
+  });
 });
 
 describe('ghost_head og:image supplementary tags', () => {

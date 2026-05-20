@@ -363,13 +363,32 @@ function buildCustom(engine: NectarEngine): Record<string, unknown> {
 
 function computeBodyClass(route: RouteContext): string {
   const tokens = [`nectar-route-${route.kind}`];
-  if (route.kind === 'home' || route.kind === 'index') {
+  const paginationPage = route.data.pagination?.page ?? 1;
+  // Ghost limits `home-template` to the actual home root (page 1 of the home
+  // index). Paginated home archives switch to `paged` + `archive-template`
+  // instead so theme CSS that targets `body.home-template` (the index hero)
+  // does not bleed onto `/page/2/`. The bare `home` route kind without
+  // pagination still counts as page 1 here so themes that build the home
+  // route without a pagination object (synthetic tests, custom routes) keep
+  // the home-template marker.
+  if ((route.kind === 'home' || route.kind === 'index') && paginationPage === 1) {
     tokens.push('home-template');
   }
   if (route.kind === 'post') tokens.push('post-template');
   if (route.kind === 'page') tokens.push('page-template');
   if (route.kind === 'tag') tokens.push('tag-template', 'archive-template');
   if (route.kind === 'author') tokens.push('author-template', 'archive-template');
+  // Paginated home / index archives are aggregated listings too; Ghost's
+  // Source theme styles `body.archive-template` regardless of which archive
+  // kind it is. Surface the marker on every page > 1 of a home archive so
+  // theme CSS picks up consistent layout for both tag/author archives and
+  // paginated home archives.
+  if ((route.kind === 'home' || route.kind === 'index') && paginationPage > 1) {
+    tokens.push('archive-template');
+  }
+  // Ghost emits `error-template` for 404 / 500 / generic error routes so
+  // themes can style the error page without inspecting the status code.
+  if (route.kind === 'error') tokens.push('error-template');
   if (route.data.pagination && route.data.pagination.page > 1) {
     tokens.push('paged');
   }
@@ -407,7 +426,16 @@ export function computePostClass(post: {
   const tokens = ['post'];
   for (const t of post.tags ?? []) tokens.push(`tag-${t.slug}`);
   if (post.featured) tokens.push('featured');
-  tokens.push(post.feature_image ? 'image' : 'no-image');
+  // Both `image` (Ghost legacy) and `feature-image` (Casper / Source variant)
+  // markers are emitted together so theme CSS that hooks either selector
+  // keeps working. `image-cover` is the Source-specific layout hook for
+  // posts that should fill the hero band. Posts without a feature image
+  // fall back to `no-image` so themes can collapse the cover slot.
+  if (post.feature_image) {
+    tokens.push('image', 'feature-image', 'image-cover');
+  } else {
+    tokens.push('no-image');
+  }
   if (!post.html || post.html.trim() === '') tokens.push('no-content');
   if (post.page) tokens.push('page');
   return tokens.join(' ');

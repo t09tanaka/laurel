@@ -471,6 +471,57 @@ describe('meta_title helper pagination', () => {
     expect(out).toBe('News | Site（4ページ目）');
   });
 
+  // Issue #869: lock in the canonical `{{meta_title page=(t " (Page %)")}}`
+  // call shape themes use to opt into pagination-aware titles. The subexpr
+  // form ensures the page= hash receives the *translated* suffix string,
+  // not the literal "(Page %)". Wire a real i18n helper through so the
+  // integration is end-to-end rather than asserting on the helper alone.
+  test('`{{meta_title page=(t " (Page %)")}}` resolves to the translated suffix (issue #869)', () => {
+    const engine = makeEngine({
+      content: { site: { locale: 'ja' } } as unknown as NectarEngine['content'],
+      theme: {
+        locales: {
+          en: { ' (Page %)': ' (Page %)' },
+          ja: { ' (Page %)': '（%ページ目）' },
+        },
+      } as unknown as NectarEngine['theme'],
+    });
+    registerContentHelpers(engine);
+    // Hand-register a minimal `t` helper mirroring the production lookup so
+    // we don't pull every helper module into this test just for the suffix.
+    engine.hb.registerHelper('t', function (this: unknown, key: unknown) {
+      const k = String(key ?? '');
+      const active = engine.theme.locales[engine.content.site.locale] ?? {};
+      const fallback = engine.theme.locales.en ?? {};
+      return active[k] || fallback[k] || k;
+    });
+    const out = engine.hb.compile('{{meta_title page=(t " (Page %)")}}')(
+      { meta_title: 'News | Site' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 2 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News | Site（2ページ目）');
+  });
+
+  test('page hash without a `%` is appended verbatim regardless of pagination shape (issue #869)', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{meta_title page=" -- archive"}}')(
+      { meta_title: 'News' },
+      {
+        data: {
+          route: { kind: 'tag', data: { pagination: { page: 3 } } },
+          site: { title: 'Site' },
+        },
+      },
+    );
+    expect(out).toBe('News -- archive');
+  });
+
   test('falls back to site title when neither meta_title nor title is set on a paginated archive', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
