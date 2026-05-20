@@ -329,6 +329,17 @@ describe('content helper', () => {
   });
 });
 
+describe('excerpt helper', () => {
+  test('characters=N truncates the selected excerpt by characters', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{excerpt characters=50}}')({
+      custom_excerpt: '01234567890123456789012345678901234567890123456789tail',
+    });
+    expect(out).toBe('01234567890123456789012345678901234567890123456789');
+  });
+});
+
 describe('meta_title helper pagination', () => {
   test('post route returns the explicit post title and ignores pagination hash', () => {
     const engine = makeEngine();
