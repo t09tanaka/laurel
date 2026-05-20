@@ -248,6 +248,16 @@ For figure-based cards, `size="regular|wide|full"` round-trips to
 post bodies inside `gh-content gh-canvas` and rely on those Koenig width classes
 to place media on the `main`, `wide`, or `full` grid tracks.
 
+The body wrapper is a hard compatibility requirement for Source and
+Casper-family spacing: post/page templates must keep rendered content inside
+one wrapper with both classes, for example
+`<section class="gh-content gh-canvas">{{content}}</section>`. Koenig cards
+must remain direct children of that wrapper (`.gh-content.gh-canvas > .kg-card`)
+so Source/Casper grid selectors can span regular, wide, and full-width cards
+correctly. Nectar's renderer deliberately emits the card scaffolds only; it
+does not wrap every card in an extra layout container or rewrite arbitrary theme
+templates to add `gh-content` / `gh-canvas`.
+
 | Shortcode/input | Rendered wrapper contract |
 |-----------------|---------------------------|
 | `{{< figure />}}` | `<figure class="kg-card kg-image-card kg-width-*">` with a `.kg-image` image, optional wrapping link, and caption. |

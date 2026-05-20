@@ -18,9 +18,11 @@ the smoke fixture site at `tests/fixtures/theme-smoke/site/`, built via
   (`{{> "card" width="wide"}}`), Ghost i18n keys (`{{t "Sign in"}}`,
   positional `{{t "Powered by %" "X"}}`), and a ruby-style
   `{{#get "posts" filter="tag:[{{post.tags}}]+id:-{{post.id}}"}}` related-posts
-  block. Locale files for `en`, `de`, and `ja` so the i18n contract test can
-  flip `[site].locale` and observe placeholder swap. Not a real Casper
-  release; just enough HBS to exercise the contract.
+  block. Its post/page body templates use `gh-content gh-canvas`, matching the
+  Casper-family grid wrapper that keeps Koenig cards as direct grid children.
+  Locale files for `en`, `de`, and `ja` so the i18n contract test can flip
+  `[site].locale` and observe placeholder swap. Not a real Casper release;
+  just enough HBS to exercise the contract.
 - `alto/` — hand-trimmed Alto-shaped fixture that keeps the PhotoSwipe
   `pswp` partial behind `{{#is "post, page"}}`, locking the comma-separated
   route guard used by Alto's default layout.

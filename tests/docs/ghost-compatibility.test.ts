@@ -53,6 +53,15 @@ describe('Ghost compatibility docs', () => {
     expect(doc).toContain('CSS alone cannot make an inert custom play button');
   });
 
+  test('documents the gh-content gh-canvas Koenig card wrapper contract', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain('Casper-family spacing');
+    expect(doc).toContain('<section class="gh-content gh-canvas">{{content}}</section>');
+    expect(doc).toContain('.gh-content.gh-canvas > .kg-card');
+    expect(doc).toContain('does not wrap every card in an extra layout container');
+  });
+
   test('documents Wave jquery CDN as a theme limitation', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 

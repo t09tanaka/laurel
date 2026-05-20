@@ -5,7 +5,7 @@
     {{#if primary_author}}<p class="byline">{{t "By %" primary_author.name}}</p>{{/if}}
     {{#if reading_time}}<p class="reading-time">{{reading_time minute=(t "1 min read") minutes=(t "% min read")}}</p>{{/if}}
   </header>
-  <div class="gh-content">
+  <div class="gh-content gh-canvas">
     {{content}}
   </div>
   {{!-- Ruby-style "more like this" using interpolated tags --}}

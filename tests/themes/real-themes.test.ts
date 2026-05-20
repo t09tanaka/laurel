@@ -198,6 +198,79 @@ describe('real Ghost theme contract', () => {
     expect(css).not.toContain('.canvas');
     expect(css).not.toContain('.content');
   });
+
+  test('casper-mini keeps Koenig cards as direct gh-content gh-canvas children', async () => {
+    const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-gh-content-card-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    await cp(join(FIXTURE_DIR, 'casper-mini'), join(workDir, 'themes', 'casper-mini'), {
+      recursive: true,
+    });
+
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Casper Card Wrapper"',
+        'description = "Smoke fixture for Casper Koenig card grid wrappers"',
+        'url = "https://smoke.example.com"',
+        'locale = "en"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        '',
+        '[theme]',
+        'name = "casper-mini"',
+        'dir = "themes"',
+        '',
+        '[content]',
+        'posts_dir = "content/posts"',
+        'pages_dir = "content/pages"',
+        'authors_dir = "content/authors"',
+        'tags_dir = "content/tags"',
+        'assets_dir = "content/images"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 5',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await writeFile(
+      join(workDir, 'content', 'posts', 'card-wrapper-contract.md'),
+      [
+        '---',
+        'title: "Card wrapper contract"',
+        'slug: card-wrapper-contract',
+        'date: 2026-01-20T09:00:00Z',
+        'authors: [nectar-bot]',
+        'tags: [general]',
+        '---',
+        '',
+        '{{< bookmark url="https://example.com/wrapper" title="Wrapper contract" />}}',
+        '',
+        'The card above must stay on the Casper-family content grid.',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+
+    const postHtml = readFileSync(
+      join(workDir, 'dist', 'card-wrapper-contract', 'index.html'),
+      'utf8',
+    );
+    expect(postHtml).toContain('class="gh-content gh-canvas"');
+    expect(postHtml).toMatch(
+      /<div class="gh-content gh-canvas">\s*<figure class="kg-card kg-bookmark-card">/,
+    );
+    expect(postHtml).not.toContain('<div class="kg-card-wrapper"><figure class="kg-card');
+  });
 });
 
 describe('casper-mini i18n contract (issue #1707)', () => {
