@@ -8,8 +8,10 @@
 #   - VERCEL_PROJECT_ID
 #
 # Push to main = production deploy. Other branches and PRs = preview deploys.
-# We build locally (faster cache, full control over Bun version) and use
-# `vercel deploy --prebuilt` so Vercel uploads the prebuilt dist/ as-is.
+# The workflow uses Vercel CLI prebuilt deploys:
+#   vercel pull -> vercel build -> vercel deploy --prebuilt
+# Keep the Vercel project Build Command set to `bunx nectar build` and Output
+# Directory set to `dist`, matching docs/deploy/vercel.md.
 
 name: Deploy to Vercel
 
@@ -51,16 +53,8 @@ jobs:
       - name: Pull Vercel environment
         run: bunx vercel@latest pull --yes --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Build site
-        run: bunx nectar build
-
-      - name: Stage prebuilt output for Vercel
-        run: |
-          mkdir -p .vercel/output/static
-          cp -R dist/. .vercel/output/static/
-          cat > .vercel/output/config.json <<'JSON'
-          { "version": 3 }
-          JSON
+      - name: Build Vercel output
+        run: bunx vercel@latest build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel
         run: |

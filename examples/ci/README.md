@@ -34,7 +34,7 @@ line in the workflow you copy.
 | `cloudflare-pages.yml`| Cloudflare Pages    | Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Edit `CLOUDFLARE_PROJECT_NAME` in the workflow env block.    |
 | `netlify.yml`         | Netlify             | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Also deploys PR previews.                                            |
 | `netlify-cli.yml`     | Netlify CLI upload  | Secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`. Use when Netlify is not connected to Git and Actions uploads `dist/`. |
-| `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses `vercel deploy --prebuilt`.                        |
+| `vercel.yml`          | Vercel              | Secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Uses Vercel CLI prebuilt deploys (`pull`, `build`, `deploy --prebuilt`). |
 | `azure-static-web-apps.yml` | Azure Static Web Apps | Secret `AZURE_STATIC_WEB_APPS_API_TOKEN` from the SWA resource. PR previews land in named slots automatically.       |
 | `s3-cloudfront.yml`   | AWS S3 + CloudFront | Secret `AWS_ROLE_TO_ASSUME` (OIDC), `CLOUDFRONT_DISTRIBUTION_ID`. Variables `AWS_REGION`, `S3_BUCKET`.                |
 | `fly.yml`             | Fly.io              | Secret `FLY_API_TOKEN`. Needs a `Dockerfile` + `fly.toml` in the repo (sample in the file header).                   |

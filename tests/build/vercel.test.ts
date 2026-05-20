@@ -228,3 +228,19 @@ describe('emitVercelJson', () => {
     expect(existsSync(join(outputDir, 'vercel.json'))).toBe(true);
   });
 });
+
+describe('examples/ci/vercel.yml', () => {
+  test('documents the Vercel CLI prebuilt deploy flow', async () => {
+    const workflowPath = join(import.meta.dir, '..', '..', 'examples', 'ci', 'vercel.yml');
+    const body = await readFile(workflowPath, 'utf8');
+
+    expect(body).toContain('oven-sh/setup-bun@v2');
+    expect(body).toContain('bun install --frozen-lockfile');
+    expect(body).toContain('VERCEL_TOKEN');
+    expect(body).toContain('VERCEL_ORG_ID');
+    expect(body).toContain('VERCEL_PROJECT_ID');
+    expect(body).toContain('vercel@latest pull');
+    expect(body).toContain('vercel@latest build');
+    expect(body).toContain('vercel@latest deploy --prebuilt');
+  });
+});

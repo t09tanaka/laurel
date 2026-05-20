@@ -8,9 +8,10 @@ directory from CI. Nectar has two Vercel-specific pieces:
 - `nectar deploy vercel` shells out to the Vercel CLI for manual or CI-driven
   uploads of an already-built `dist/`.
 
-Use the Git-connected Vercel flow for normal production deploys. Use
-`nectar deploy vercel` when CI already built the site and should run the final
-upload explicitly.
+Use the Git-connected Vercel flow when Vercel should build every push from the
+repository. Use the prebuilt GitHub Actions workflow when GitHub Actions should
+own the build, preview, and production promotion flow. Use `nectar deploy
+vercel` for manual or custom CI uploads of an already-built `dist/`.
 
 ## Quickstart: Vercel builds from Git
 
@@ -144,17 +145,37 @@ integration for the project, then copy
 [`examples/ci/vercel.yml`](../../examples/ci/vercel.yml) to
 `.github/workflows/vercel.yml`.
 
+Keep the linked Vercel project settings aligned with the Git-connected
+quickstart:
+
+| Field | Value |
+| --- | --- |
+| Framework Preset | `Other` |
+| Build Command | `bunx nectar build` |
+| Output Directory | `dist` |
+| Install Command | leave blank unless your repo needs a custom install step |
+
 Add repository secrets:
 
 | Secret | Value |
 | --- | --- |
 | `VERCEL_TOKEN` | Personal token from Vercel account settings |
-| `VERCEL_ORG_ID` | From `.vercel/project.json` after `vercel link` |
-| `VERCEL_PROJECT_ID` | From `.vercel/project.json` after `vercel link` |
+| `VERCEL_ORG_ID` | From `.vercel/project.json` after `vercel link` or `vercel pull` |
+| `VERCEL_PROJECT_ID` | From `.vercel/project.json` after `vercel link` or `vercel pull` |
 
-That workflow builds with Bun, stages `dist/` into Vercel's prebuilt output
-format, publishes `main` with `vercel deploy --prebuilt --prod`, and publishes
-other branches / pull requests as Vercel previews.
+That workflow uses `oven-sh/setup-bun@v2`, installs with `bun install
+--frozen-lockfile`, runs `vercel pull` for the matching production or preview
+environment, runs `vercel build` so the Vercel CLI turns `bunx nectar build`
+and `dist/` into `.vercel/output`, then publishes `main` with `vercel deploy
+--prebuilt --prod`. Other branches and pull requests publish preview deploys
+with `vercel deploy --prebuilt`.
+
+This workflow is different from `nectar deploy vercel`: the sample delegates
+the build packaging to Vercel CLI's prebuilt pipeline, while `nectar deploy
+vercel --build` runs `nectar build` directly and then calls `vercel deploy
+dist --prod`. Prefer the sample when you want GitHub Actions parity with
+Vercel preview/production environments; prefer `nectar deploy vercel` for a
+small manual command or bespoke CI script.
 
 ## Preview deploys
 
