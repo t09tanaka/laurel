@@ -270,6 +270,14 @@ Sitemap component.
 | --- | --- | --- | --- | --- |
 | `components.sitemap.enabled` | `boolean` | no | `true` | Emit `sitemap.xml`. |
 
+## `components.pagination`
+
+Pagination knobs for archive routes. Currently only the URL prefix; per-page count lives at `[build].posts_per_page`.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `components.pagination.prefix` | `string` | no | `"page"` | URL segment used for paginated archive tails. Defaults to `page`, mirroring Ghost (`/page/2/`, `/tag/foo/page/2/`, `/author/bar/page/2/`). Override to localize the slug (e.g. `seite` for German, `pagina` for Italian) or to match a legacy URL scheme — every paginated route at `/<prefix>/N/` is rebuilt against the new value, including the rel="prev"/"next" hints emitted by `{{ghost_head}}`. Restricted to a single URL segment of `[A-Za-z0-9_-]` so the value can be dropped into the path safely without escaping. |
+
 ## `components.opengraph`
 
 Open Graph and Twitter Card metadata component.

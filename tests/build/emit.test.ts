@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { copyAssets, copyContentAssets, writeHtml, writeHtmlBatch } from '~/build/emit.ts';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
+import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 
 function makeThemeAsset(
   overrides: Partial<ThemeAsset> & Pick<ThemeAsset, 'sourcePath'>,
@@ -423,5 +424,42 @@ describe('copyContentAssets', () => {
     const second = await stat(dst);
     expect(await readFile(dst, 'utf8')).toBe('BBB');
     expect(second.mtimeMs).not.toBe(firstMtime);
+  });
+
+  test('missing content/files and content/media are silently skipped without a warning (#776)', async () => {
+    // ENOENT on the optional dirs is the expected hot path — the loader
+    // already documents `content/files` and `content/media` as optional. A
+    // warning on every site that does not use them would be log noise.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-quiet-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-quiet-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/only.png'), 'X');
+
+    resetWarningCount();
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+    expect(count).toBe(1);
+    expect(getWarningCount()).toBe(0);
+  });
+
+  test('non-ENOENT scan failure surfaces a warning instead of silent skip (#776)', async () => {
+    // Plant a regular file where `content/files` should be a directory. The
+    // glob walker treats that as a non-ENOENT failure (NotADirectory /
+    // ENOTDIR depending on the platform), which used to be swallowed by
+    // `catch {}` and produce a deceptively-quiet "0 files copied" result.
+    // With the #776 fix the operator gets a warning so the broken layout
+    // is visible at build time.
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-warn-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-warn-'));
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/ok.png'), 'OK');
+    // `content/files` exists, but as a regular file — scan will trip.
+    await writeFile(join(cwd, 'content/files'), 'this should have been a dir');
+
+    resetWarningCount();
+    const count = await copyContentAssets(cwd, 'content/images', outputDir);
+    // The healthy `content/images` tree still copies; the bad sibling is
+    // surfaced as a warning instead of a thrown error.
+    expect(count).toBe(1);
+    expect(getWarningCount()).toBeGreaterThanOrEqual(1);
   });
 });

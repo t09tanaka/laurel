@@ -192,8 +192,19 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
   let rels: string[] = [];
   try {
     rels = await scanGlob('**/*', { cwd: source, onlyFiles: true });
-  } catch {
-    // optional: directory may not exist
+  } catch (err) {
+    // ENOENT is the expected "directory not present" path (content/files and
+    // content/media are optional). Anything else (EACCES, EIO, EMFILE, a
+    // malformed path) means the operator's content tree is partly unreadable
+    // — surface it as a warning so a missing copy doesn't silently ship a
+    // half-empty `dist/`. We still continue rather than throwing so a single
+    // permission glitch on `content/media` does not block a build whose
+    // `content/images` is fine.
+    if (!isFsErrnoCode(err, 'ENOENT')) {
+      logger.warn(
+        `copyContentAssets: failed to scan ${source}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
   for (const rel of rels) {
     if (pathContainsSymlink(source, rel)) {
@@ -205,9 +216,17 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
     try {
       const s = await stat(src);
       srcStat = { size: s.size, mtimeMs: s.mtimeMs };
-    } catch {
-      // race: file vanished between scan and stat. Skip silently — the glob
-      // result is a snapshot, the actual fs is the source of truth.
+    } catch (err) {
+      // ENOENT here is the race window: the file vanished between scan and
+      // stat. The glob result is a snapshot and the actual fs is the source
+      // of truth, so skipping silently is correct. Any other code (EACCES,
+      // EIO, …) is a real read failure the operator probably wants to know
+      // about; warn and move on so the build still produces what it can.
+      if (!isFsErrnoCode(err, 'ENOENT')) {
+        logger.warn(
+          `copyContentAssets: failed to stat ${src}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       continue;
     }
     if (opts.maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
@@ -237,8 +256,17 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
         try {
           const dstStat = await stat(t.dst);
           if (dstStat.size === t.size && dstStat.mtimeMs === t.mtimeMs) return;
-        } catch {
-          // missing destination is the normal first-build path
+        } catch (err) {
+          // ENOENT is the normal first-build path (no destination yet). Any
+          // other error here means we couldn't tell whether the file already
+          // exists, so we fall through to copyFile anyway and let it surface
+          // a real failure if there is one — but we still warn so the
+          // operator notices the unhealthy fs state.
+          if (!isFsErrnoCode(err, 'ENOENT')) {
+            logger.warn(
+              `copyContentAssets: failed to stat existing destination ${t.dst}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
         }
         await copyFile(t.src, t.dst);
         // copyFile does not preserve mtime, so stamp the destination with
@@ -247,14 +275,31 @@ async function copyTree(source: string, target: string, opts: CopyTreeOptions): 
         try {
           const mtime = new Date(t.mtimeMs);
           await utimes(t.dst, mtime, mtime);
-        } catch {
-          // utimes failing (read-only fs, permission) is non-fatal: the file
-          // is correct, only the rebuild fast-path won't kick in next time.
+        } catch (err) {
+          // utimes failing (read-only fs, permission, unsupported on this
+          // platform) is non-fatal: the file is correct, only the
+          // rebuild fast-path won't kick in next time. Log so the operator
+          // can investigate persistent slowdowns.
+          logger.warn(
+            `copyContentAssets: failed to stamp mtime on ${t.dst}: ${err instanceof Error ? err.message : String(err)} (rebuilds will recopy this file unnecessarily)`,
+          );
         }
       }),
     ),
   );
   return tasks.length;
+}
+
+// Narrow `unknown` to a Node fs error and check its `code`. Node fs APIs
+// throw `Error & { code: string }` for almost all failures; this guard keeps
+// the read-side ergonomics tight without importing `NodeJS.ErrnoException`.
+function isFsErrnoCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === code
+  );
 }
 
 function formatBytes(n: number): string {

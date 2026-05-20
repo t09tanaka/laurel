@@ -1765,3 +1765,79 @@ describe('ghost_head preconnect to external image origins (#530)', () => {
     expect(html).not.toContain('rel="preconnect"');
   });
 });
+
+describe('ghost_head JSON-LD ISO 8601 date normalization (#778)', () => {
+  test('normalizes a bare-date published_at to a full ISO 8601 timestamp', () => {
+    // Without #778 the field landed in the JSON payload as the raw
+    // "2026-01-01" string, which Google Rich Results flags as an incomplete
+    // Date / DateTime value.
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Hi',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished: string;
+      dateModified?: string;
+    };
+    expect(parsed.datePublished).toBe('2026-01-01T00:00:00.000Z');
+    // updated_at === published_at -> dateModified is suppressed.
+    expect(parsed.dateModified).toBeUndefined();
+  });
+
+  test('normalizes RFC 2822 strings to ISO 8601', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Hi',
+      published_at: 'Tue, 12 Feb 2026 09:30:00 GMT',
+      updated_at: 'Wed, 13 Feb 2026 10:30:00 GMT',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished: string;
+      dateModified: string;
+    };
+    expect(parsed.datePublished).toBe('2026-02-12T09:30:00.000Z');
+    expect(parsed.dateModified).toBe('2026-02-13T10:30:00.000Z');
+  });
+
+  test('passes Date instances through as ISO 8601', () => {
+    // The frontmatter parser sometimes hands the helper a Date object (YAML
+    // `2026-03-01T00:00:00Z` deserialises that way). Without the normaliser
+    // JSON.stringify would still emit ISO 8601, but the OG `article:*_time`
+    // path already uses the same helper, so going through toIso8601 here
+    // keeps both surfaces aligned.
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Hi',
+      published_at: new Date('2026-03-15T08:00:00Z'),
+      updated_at: new Date('2026-03-20T08:00:00Z'),
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished: string;
+      dateModified: string;
+    };
+    expect(parsed.datePublished).toBe('2026-03-15T08:00:00.000Z');
+    expect(parsed.dateModified).toBe('2026-03-20T08:00:00.000Z');
+  });
+
+  test('drops unparseable date values rather than emitting malformed JSON-LD', () => {
+    // #313's frontmatter loader throws on truly broken dates, but the helper
+    // is also called from hand-built test contexts and from theme partials
+    // that can hand it surprise values. The safer default is "omit the
+    // field" so Google sees a Date-less Article rather than an invalid one.
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Hi',
+      // Intentionally garbage: not a Date, not a parseable string.
+      published_at: 'not-a-date',
+      updated_at: 'still-not-a-date',
+    });
+    const parsed = JSON.parse(extractJsonLd(html)) as {
+      datePublished?: string;
+      dateModified?: string;
+    };
+    expect(parsed.datePublished).toBeUndefined();
+    expect(parsed.dateModified).toBeUndefined();
+  });
+});

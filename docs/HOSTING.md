@@ -1,0 +1,61 @@
+# Hosting Nectar sites
+
+Nectar emits plain static files. Anything served at request time — TLS,
+HTTP response headers, redirects, cache rules — is the host's job. This page
+collects the operator-facing pieces of that contract in one place:
+
+- [`docs/security/hosting.md`](./security/hosting.md) — copy-pasteable
+  **security header** snippets (HSTS, CSP, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`) for
+  Cloudflare Pages, Vercel, Netlify, and GitHub Pages. Start here for any new
+  deploy.
+- [`docs/security/threat-model.md`](./security/threat-model.md) —
+  build-time security model. Covers `build.allow_code_injection`,
+  `codeinjection_head` / `codeinjection_foot`, `unsafe_html`, and other
+  raw-HTML exits. Read this before flipping `allow_code_injection = true`.
+- [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
+  deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, GitHub Pages),
+  without security headers wired in. Pair with `security/hosting.md` for the
+  full set.
+- [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
+  trust model for content contributors.
+
+## Quick start
+
+If you just want a defensible default stack on a new deploy:
+
+1. Pick your host's section in
+   [`docs/security/hosting.md`](./security/hosting.md) and drop the
+   `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root.
+2. Verify with `curl -sI https://your-site.example/ | sort` after the next
+   deploy — you should see `Strict-Transport-Security`,
+   `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
+   `Referrer-Policy`, and `Permissions-Policy`.
+3. Run the deployed URL through
+   [securityheaders.com](https://securityheaders.com/) or
+   [Mozilla Observatory](https://observatory.mozilla.org/) to confirm the
+   grade.
+
+## Code injection
+
+`build.allow_code_injection` is **off by default**. When off, per-post
+`codeinjection_head` / `codeinjection_foot` frontmatter and site-level
+`[site].codeinjection_head` / `[site].codeinjection_foot` config are dropped
+at config / content load time, with a warning. When on, those values ship
+verbatim into `{{ghost_head}}` / `{{ghost_foot}}` — including any inline
+`<script>`. Combine that with a baseline CSP that allows `'unsafe-inline'`
+(the default for Ghost-theme compatibility) and a single PR can ship
+site-wide JS once merged.
+
+If you flip the flag on, treat every PR that touches `content/` like a code
+review of the inlined HTML. See
+[`security/threat-model.md` § Render-side raw-HTML exits](./security/threat-model.md#render-side-raw-html-exits--ghost_head--ghost_foot).
+
+## What this page is not
+
+- A general "how to host static sites" tutorial — the deploy walkthroughs
+  under `tutorials/` are the right starting point if you've never shipped a
+  Nectar build.
+- A platform comparison — the four hosts covered are the ones whose
+  configuration files Nectar (and most Ghost-theme operators) actually
+  recognise.

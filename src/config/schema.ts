@@ -696,6 +696,24 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Sitemap component.'),
+        pagination: z
+          .object({
+            prefix: z
+              .string()
+              .regex(
+                /^[A-Za-z0-9][A-Za-z0-9_-]*$/,
+                'pagination.prefix must be a single URL segment of letters, digits, `-`, or `_` (no slashes, no dots, no spaces).',
+              )
+              .default('page')
+              .describe(
+                'URL segment used for paginated archive tails. Defaults to `page`, mirroring Ghost (`/page/2/`, `/tag/foo/page/2/`, `/author/bar/page/2/`). Override to localize the slug (e.g. `seite` for German, `pagina` for Italian) or to match a legacy URL scheme — every paginated route at `/<prefix>/N/` is rebuilt against the new value, including the rel="prev"/"next" hints emitted by `{{ghost_head}}`. Restricted to a single URL segment of `[A-Za-z0-9_-]` so the value can be dropped into the path safely without escaping.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Pagination knobs for archive routes. Currently only the URL prefix; per-page count lives at `[build].posts_per_page`.',
+          ),
         opengraph: z
           .object({
             enabled: z

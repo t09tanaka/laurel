@@ -370,6 +370,16 @@ function buildJsonLd(
   const kind = route?.kind;
 
   if (meta.ogType === 'article' && ctx.id) {
+    // Schema.org Article requires ISO 8601 for Date / DateTime fields.
+    // Normalise through `toIso8601` so frontmatter values that landed as
+    // `Date` objects, RFC-2822 strings, or any other parseable shape still
+    // emit valid JSON-LD; unparseable values resolve to `undefined` so the
+    // field is omitted rather than ending up as malformed metadata that
+    // breaks Google Rich Results validation. The OG `article:*_time` tags
+    // already use the same normaliser, keeping both surfaces in lockstep.
+    const datePublishedIso = toIso8601(ctx.published_at);
+    const dateModifiedIso =
+      ctx.updated_at !== ctx.published_at ? toIso8601(ctx.updated_at) : undefined;
     entities.push({
       '@context': 'https://schema.org',
       '@type': 'Article',
@@ -378,11 +388,11 @@ function buildJsonLd(
       headline: meta.title,
       description: meta.description,
       image: buildImageObject(meta.image, ctx),
-      datePublished: ctx.published_at,
+      datePublished: datePublishedIso,
       // Loader defaults updated_at to published_at when frontmatter omits it.
       // Emitting an identical dateModified signals "never updated" to Google,
       // so suppress it unless the post was genuinely revised.
-      dateModified: ctx.updated_at !== ctx.published_at ? ctx.updated_at : undefined,
+      dateModified: dateModifiedIso,
       author: Array.isArray(ctx.authors)
         ? (ctx.authors as { name: string; url?: string }[]).map((a) => ({
             '@type': 'Person',

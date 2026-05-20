@@ -32,28 +32,37 @@ export function planRoutes(opts: {
   const routes: RouteContext[] = [];
   const perPage = config.build.posts_per_page || theme.pkg.posts_per_page;
   const basePath = config.build.base_path || '/';
+  const paginationPrefix = config.components?.pagination?.prefix ?? 'page';
 
   const homeTemplate = theme.templates.home ? 'home' : 'index';
   const indexTemplate = theme.templates.index ?? theme.templates.home;
   if (indexTemplate) {
     const pages = paginatePosts(content.posts, perPage);
     pages.forEach((slice, idx) => {
-      const url = idx === 0 ? '/' : `/page/${idx + 1}/`;
-      const outputPath = idx === 0 ? 'index.html' : `page/${idx + 1}/index.html`;
+      const url = idx === 0 ? '/' : `/${paginationPrefix}/${idx + 1}/`;
+      const outputPath = idx === 0 ? 'index.html' : `${paginationPrefix}/${idx + 1}/index.html`;
       routes.push({
         kind: idx === 0 ? 'home' : 'index',
         url,
         outputPath,
         template: idx === 0 ? homeTemplate : 'index',
         lastmod: latestPostTimestamp(slice),
-        // `/page/N/` is a paginated view of the same posts already reachable
+        // `/<prefix>/N/` is a paginated view of the same posts already reachable
         // from `/`; listing it in the sitemap duplicates the index without
         // giving crawlers a canonical landing target. Only the first slice
         // (the home itself) is indexable. See #781.
         indexable: idx === 0,
         data: {
           posts: slice,
-          pagination: paginationInfo(idx, pages, perPage, content.posts.length, '/', basePath),
+          pagination: paginationInfo(
+            idx,
+            pages,
+            perPage,
+            content.posts.length,
+            '/',
+            basePath,
+            paginationPrefix,
+          ),
         },
         meta: defaultMeta(
           config,
@@ -117,7 +126,7 @@ export function planRoutes(opts: {
       const pages = paginatePosts(tagPosts, perPage);
       const base = applyTaxonomyTemplate(tagTemplate, tag.slug);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? base : `${base}page/${idx + 1}/`;
+        const url = idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`;
         const outputPath = routeUrlToOutputPath(url);
         routes.push({
           kind: 'tag',
@@ -125,14 +134,22 @@ export function planRoutes(opts: {
           outputPath,
           template: 'tag',
           lastmod: latestPostTimestamp(slice),
-          // Tag archive pagination tails (`/tag/<slug>/page/N/`) are
+          // Tag archive pagination tails (`/tag/<slug>/<prefix>/N/`) are
           // duplicates of the canonical tag landing with offset posts; keep
           // only the first slice in sitemap to avoid crawl-budget churn. See #781.
           indexable: idx === 0,
           data: {
             tag,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, tagPosts.length, base, basePath),
+            pagination: paginationInfo(
+              idx,
+              pages,
+              perPage,
+              tagPosts.length,
+              base,
+              basePath,
+              paginationPrefix,
+            ),
           },
           meta: defaultMeta(
             config,
@@ -214,7 +231,7 @@ export function planRoutes(opts: {
       const pages = paginatePosts(authorPosts, perPage);
       const base = applyTaxonomyTemplate(authorTemplate, author.slug);
       pages.forEach((slice, idx) => {
-        const url = idx === 0 ? base : `${base}page/${idx + 1}/`;
+        const url = idx === 0 ? base : `${base}${paginationPrefix}/${idx + 1}/`;
         const outputPath = routeUrlToOutputPath(url);
         routes.push({
           kind: 'author',
@@ -222,14 +239,22 @@ export function planRoutes(opts: {
           outputPath,
           template: 'author',
           lastmod: latestPostTimestamp(slice),
-          // Author archive pagination tails (`/author/<slug>/page/N/`) are
+          // Author archive pagination tails (`/author/<slug>/<prefix>/N/`) are
           // duplicates of the canonical author landing with offset posts;
           // keep only the first slice in sitemap. See #781.
           indexable: idx === 0,
           data: {
             author,
             posts: slice,
-            pagination: paginationInfo(idx, pages, perPage, authorPosts.length, base, basePath),
+            pagination: paginationInfo(
+              idx,
+              pages,
+              perPage,
+              authorPosts.length,
+              base,
+              basePath,
+              paginationPrefix,
+            ),
           },
           meta: defaultMeta(
             config,
@@ -347,6 +372,7 @@ function paginationInfo(
   total: number,
   baseUrl: string,
   basePath: string,
+  paginationPrefix: string,
 ): PaginationInfo {
   const page = index + 1;
   const numPages = pages.length;
@@ -355,7 +381,7 @@ function paginationInfo(
   // `prev_url` / `next_url` / `base_url` are emitted as raw `href` attributes
   // by the `{{pagination}}` helper (and `<link rel="prev/next">` from
   // ghost-head), so they must already include the configured `base_path`.
-  // The slug-relative shape (`/tag/foo/`, `/page/2/`) survives across base
+  // The slug-relative shape (`/tag/foo/`, `/<prefix>/2/`) survives across base
   // paths because `withBasePath` strips the leading slash before joining.
   const prefixed = (raw: string): string => withBasePath(basePath, raw);
   const prevUrl =
@@ -363,8 +389,9 @@ function paginationInfo(
       ? undefined
       : prev === 1
         ? prefixed(baseUrl)
-        : prefixed(`${baseUrl}page/${prev}/`);
-  const nextUrl = next === undefined ? undefined : prefixed(`${baseUrl}page/${next}/`);
+        : prefixed(`${baseUrl}${paginationPrefix}/${prev}/`);
+  const nextUrl =
+    next === undefined ? undefined : prefixed(`${baseUrl}${paginationPrefix}/${next}/`);
   return {
     page,
     pages: numPages,

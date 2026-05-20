@@ -1022,3 +1022,88 @@ describe('planRoutes — indexable flag (#781)', () => {
     expect(page?.indexable).toBeUndefined();
   });
 });
+
+describe('planRoutes — pagination URL prefix (#788)', () => {
+  function makePosts(n: number): Post[] {
+    return Array.from({ length: n }, (_, i) => makePost(`p${i + 1}`));
+  }
+
+  test('default prefix "page" matches Ghost: /page/N/, /tag/foo/page/N/, /author/bar/page/N/', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    const tag = makeTag('news');
+    const author = makeAuthor('alice');
+    const posts = makePosts(5).map((p) =>
+      makePost(p.slug, {
+        tags: [tag],
+        primary_tag: tag,
+        authors: [author],
+        primary_author: author,
+      }),
+    );
+    const content = makeGraph({ posts, tags: [tag], authors: [author] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+
+    const indexUrls = routes.filter((r) => r.kind === 'index').map((r) => r.url);
+    const tagUrls = routes.filter((r) => r.kind === 'tag').map((r) => r.url);
+    const authorUrls = routes.filter((r) => r.kind === 'author').map((r) => r.url);
+
+    expect(indexUrls).toEqual(['/page/2/', '/page/3/']);
+    expect(tagUrls).toContain('/tag/news/page/2/');
+    expect(authorUrls).toContain('/author/alice/page/2/');
+  });
+
+  test('configured prefix swaps every paginated tail (index + tag + author)', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    config.components = {
+      ...(config.components ?? {}),
+      pagination: { prefix: 'seite' },
+    } as NectarConfig['components'];
+    const tag = makeTag('news');
+    const author = makeAuthor('alice');
+    const posts = makePosts(5).map((p) =>
+      makePost(p.slug, {
+        tags: [tag],
+        primary_tag: tag,
+        authors: [author],
+        primary_author: author,
+      }),
+    );
+    const content = makeGraph({ posts, tags: [tag], authors: [author] });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+
+    const indexUrls = routes.filter((r) => r.kind === 'index').map((r) => r.url);
+    const tagUrls = routes.filter((r) => r.kind === 'tag').map((r) => r.url);
+    const authorUrls = routes.filter((r) => r.kind === 'author').map((r) => r.url);
+    const indexOutputs = routes.filter((r) => r.kind === 'index').map((r) => r.outputPath);
+
+    expect(indexUrls).toEqual(['/seite/2/', '/seite/3/']);
+    expect(indexOutputs).toEqual(['seite/2/index.html', 'seite/3/index.html']);
+    expect(tagUrls).toContain('/tag/news/seite/2/');
+    expect(authorUrls).toContain('/author/alice/seite/2/');
+    // No leftover `/page/` URLs anywhere.
+    for (const r of routes) {
+      expect(r.url).not.toContain('/page/');
+    }
+  });
+
+  test('pagination prev_url / next_url honor the configured prefix', () => {
+    const config = makeConfig('https://example.com');
+    config.build.posts_per_page = 2;
+    config.components = {
+      ...(config.components ?? {}),
+      pagination: { prefix: 'p' },
+    } as NectarConfig['components'];
+    const content = makeGraph({ posts: makePosts(5) });
+    const theme = makeTheme();
+    const routes = planRoutes({ config, content, theme });
+    const middle = routes.find((r) => r.url === '/p/2/');
+    expect(middle).toBeDefined();
+    const pagination = middle?.data?.pagination as { prev_url?: string; next_url?: string };
+    expect(pagination.prev_url).toBe('/');
+    expect(pagination.next_url).toBe('/p/3/');
+  });
+});
