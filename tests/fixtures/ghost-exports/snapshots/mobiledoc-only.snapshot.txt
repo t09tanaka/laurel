@@ -1,0 +1,39 @@
+# summary
+posts: 1
+pages: 0
+tags: 0
+authors: 0
+skipped: 0
+overwritten: 0
+renamed: 0
+assetsCopied: 0
+imagesDownloaded: 0
+imagesFailed: 0
+dryRun: false
+drafts: 0
+statusFiltered: 0
+bodiesEmpty: 0
+redirectsImported: 0
+slugRedirects: 0
+codeInjectionSkipped: 0
+slugCollisions: 0
+
+# tree
+=== content/posts/mobiledoc-only.md ===
+---
+slug: "mobiledoc-only"
+title: "Mobiledoc Only Post"
+date: "2020-03-01T09:00:00.000Z"
+updated_at: "2020-03-01T09:00:00.000Z"
+featured: false
+visibility: "public"
+status: "published"
+---
+
+This post comes from a Ghost 1.x mobiledoc export with **bold** and _italic_ runs.
+
+{{< figure src="/content/images/legacy.jpg" alt="Legacy cover" />}}
+
+*   alpha
+*   beta
+

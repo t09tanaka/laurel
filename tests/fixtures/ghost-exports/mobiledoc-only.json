@@ -1,0 +1,28 @@
+{
+  "db": [
+    {
+      "data": {
+        "posts": [
+          {
+            "id": "p-md-1",
+            "uuid": "bbbbbbbb-2222-2222-2222-222222222222",
+            "title": "Mobiledoc Only Post",
+            "slug": "mobiledoc-only",
+            "html": null,
+            "mobiledoc": "{\"version\":\"0.3.1\",\"atoms\":[],\"cards\":[[\"image\",{\"src\":\"/content/images/legacy.jpg\",\"alt\":\"Legacy cover\"}]],\"markups\":[[\"strong\"],[\"em\"]],\"sections\":[[1,\"p\",[[0,[],0,\"This post comes from a Ghost 1.x mobiledoc export with \"],[0,[0],1,\"bold\"],[0,[],0,\" and \"],[0,[1],1,\"italic\"],[0,[],0,\" runs.\"]]],[10,0],[3,\"ul\",[[[0,[],0,\"alpha\"]],[[0,[],0,\"beta\"]]]]]}",
+            "type": "post",
+            "status": "published",
+            "visibility": "public",
+            "published_at": "2020-03-01T09:00:00.000Z",
+            "created_at": "2020-03-01T08:00:00.000Z",
+            "updated_at": "2020-03-01T09:00:00.000Z"
+          }
+        ],
+        "tags": [],
+        "users": [],
+        "posts_tags": [],
+        "posts_authors": []
+      }
+    }
+  ]
+}

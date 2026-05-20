@@ -1,0 +1,28 @@
+{
+  "db": [
+    {
+      "data": {
+        "posts": [
+          {
+            "id": "p-lex-1",
+            "uuid": "aaaaaaaa-1111-1111-1111-111111111111",
+            "title": "Lexical Only Post",
+            "slug": "lexical-only",
+            "html": null,
+            "lexical": "{\"root\":{\"type\":\"root\",\"version\":1,\"children\":[{\"type\":\"paragraph\",\"version\":1,\"children\":[{\"type\":\"extended-text\",\"text\":\"Welcome from a \",\"format\":0,\"version\":1},{\"type\":\"extended-text\",\"text\":\"lexical-only\",\"format\":1,\"version\":1},{\"type\":\"extended-text\",\"text\":\" export.\",\"format\":0,\"version\":1}]},{\"type\":\"heading\",\"tag\":\"h2\",\"version\":1,\"children\":[{\"type\":\"extended-text\",\"text\":\"Why this matters\",\"format\":0,\"version\":1}]},{\"type\":\"paragraph\",\"version\":1,\"children\":[{\"type\":\"extended-text\",\"text\":\"Ghost 5.x exports often ship the post body in the lexical column with html set to null. The importer must materialise this content to Markdown.\",\"format\":0,\"version\":1}]},{\"type\":\"list\",\"listType\":\"bullet\",\"version\":1,\"children\":[{\"type\":\"listitem\",\"version\":1,\"children\":[{\"type\":\"extended-text\",\"text\":\"first item\",\"format\":0,\"version\":1}]},{\"type\":\"listitem\",\"version\":1,\"children\":[{\"type\":\"extended-text\",\"text\":\"second item\",\"format\":0,\"version\":1}]}]}]}}",
+            "type": "post",
+            "status": "published",
+            "visibility": "public",
+            "published_at": "2024-06-01T09:00:00.000Z",
+            "created_at": "2024-06-01T08:00:00.000Z",
+            "updated_at": "2024-06-01T09:00:00.000Z"
+          }
+        ],
+        "tags": [],
+        "users": [],
+        "posts_tags": [],
+        "posts_authors": []
+      }
+    }
+  ]
+}

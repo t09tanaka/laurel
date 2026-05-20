@@ -76,7 +76,7 @@ describe('importGhostExport — realistic export fixtures (#504)', () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  for (const fixture of ['small', 'medium', 'large'] as const) {
+  for (const fixture of ['small', 'medium', 'large', 'lexical-only', 'mobiledoc-only'] as const) {
     test(`${fixture}.json produces the captured markdown tree`, async () => {
       const actual = await buildActualSnapshot(fixture, cwd);
       const snapshotPath = join(SNAPSHOTS_DIR, `${fixture}.snapshot.txt`);
@@ -88,6 +88,44 @@ describe('importGhostExport — realistic export fixtures (#504)', () => {
 
       const expected = await readFile(snapshotPath, 'utf8');
       expect(actual).toBe(expected.replace(/\n$/, ''));
+    });
+  }
+
+  // Regression guard for #441 / #75: lexical-only and mobiledoc-only exports
+  // must produce non-empty post bodies. The snapshot tests above pin the exact
+  // output, but a small explicit assertion makes the intent obvious if someone
+  // ever regenerates the snapshots without inspecting them.
+  for (const { fixture, slug, expectFragment } of [
+    {
+      fixture: 'lexical-only',
+      slug: 'lexical-only',
+      expectFragment: '**lexical-only**',
+    },
+    {
+      fixture: 'mobiledoc-only',
+      slug: 'mobiledoc-only',
+      expectFragment: '**bold**',
+    },
+  ] as const) {
+    test(`${fixture}.json renders a non-empty body and reports bodiesEmpty=0`, async () => {
+      const originalWrite = process.stderr.write.bind(process.stderr);
+      process.stderr.write = (() => true) as typeof process.stderr.write;
+      try {
+        const summary = await importGhostExport({
+          cwd,
+          file: join(FIXTURES_DIR, `${fixture}.json`),
+          onConflict: 'overwrite',
+        });
+        expect(summary.posts).toBe(1);
+        expect(summary.bodiesEmpty).toBe(0);
+        const body = await readFile(join(cwd, 'content', 'posts', `${slug}.md`), 'utf8');
+        // Frontmatter must be followed by an actual body section.
+        const afterFrontmatter = body.split(/^---$/m)[2] ?? '';
+        expect(afterFrontmatter.trim()).not.toBe('');
+        expect(body).toContain(expectFragment);
+      } finally {
+        process.stderr.write = originalWrite;
+      }
     });
   }
 
