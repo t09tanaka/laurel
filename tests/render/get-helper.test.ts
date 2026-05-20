@@ -216,6 +216,32 @@ describe('get helper pagination metadata', () => {
 });
 
 describe('get helper include= parameter', () => {
+  test('include="tags,authors" is accepted for posts and preserves the result data', () => {
+    const posts = [
+      {
+        id: 'p1',
+        title: 'One',
+        published_at: '2026-05-20T00:00:00.000Z',
+        tags: [{ slug: 'news' }],
+        authors: [{ slug: 'alice' }],
+      },
+      {
+        id: 'p2',
+        title: 'Two',
+        published_at: '2026-05-19T00:00:00.000Z',
+        tags: [{ slug: 'notes' }],
+        authors: [{ slug: 'bob' }],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" include="tags,authors" as |items|}}{{#foreach items}}{{id}}:{{tags.0.slug}}/{{authors.0.slug}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(() => tpl({})).not.toThrow();
+    expect(tpl({})).toBe('p1:news/alice,p2:notes/bob,');
+  });
+
   test('include="count.posts" exposes tag counts populated by the loader', () => {
     const tags = [
       { id: 't1', slug: 'news', name: 'News', count: { posts: 4 } },
