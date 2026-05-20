@@ -47,7 +47,7 @@ describe('renderCliReference', () => {
   test('includes the supplied global options', () => {
     const md = renderCliReference();
     for (const g of DEFAULT_GLOBAL_OPTIONS) {
-      expect(md).toContain(g.flag);
+      expect(md).toContain(g.flag.replace(/\|/g, '\\|'));
       expect(md).toContain(g.description);
     }
   });

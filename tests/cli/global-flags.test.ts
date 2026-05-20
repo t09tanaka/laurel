@@ -8,6 +8,7 @@ describe('extractGlobalFlags', () => {
       quiet: false,
       verboseCount: 0,
       json: false,
+      logFormat: undefined,
       noColor: false,
       debug: false,
     });
@@ -124,6 +125,7 @@ describe('extractGlobalFlags env var fallbacks', () => {
       quiet: false,
       verboseCount: 0,
       json: false,
+      logFormat: undefined,
       noColor: false,
       debug: false,
     });
@@ -132,6 +134,7 @@ describe('extractGlobalFlags env var fallbacks', () => {
   test('--json sets the global flag and is stripped from argv', () => {
     const { flags, rest } = extractGlobalFlags(['config', '--json', 'path']);
     expect(flags.json).toBe(true);
+    expect(flags.logFormat).toBe('json');
     // Stripped at the global level; the CLI entrypoint forwards it back
     // into the dispatched subcommand's argv, so per-command parsers still
     // see it via parsed.values.json.
@@ -142,7 +145,25 @@ describe('extractGlobalFlags env var fallbacks', () => {
   test('-j sets the global json flag and is stripped from argv', () => {
     const { flags, rest } = extractGlobalFlags(['config', '-j', 'path']);
     expect(flags.json).toBe(true);
+    expect(flags.logFormat).toBe('json');
     expect(rest).toEqual(['config', 'path']);
+  });
+
+  test('--log-format=json sets logger format without enabling command json', () => {
+    const { flags, rest } = extractGlobalFlags(['build', '--log-format=json']);
+    expect(flags.json).toBe(false);
+    expect(flags.logFormat).toBe('json');
+    expect(rest).toEqual(['build']);
+  });
+
+  test('--log-format pretty accepts a separated value', () => {
+    const { flags, rest } = extractGlobalFlags(['--log-format', 'pretty', 'build']);
+    expect(flags.logFormat).toBe('pretty');
+    expect(rest).toEqual(['build']);
+  });
+
+  test('throws on invalid --log-format', () => {
+    expect(() => extractGlobalFlags(['--log-format=xml', 'build'])).toThrow(/log-format/);
   });
 
   test('leaves lower -v for the top-level version command', () => {
@@ -181,6 +202,25 @@ describe('extractGlobalFlags env var fallbacks', () => {
   test('NECTAR_JSON=1 sets json mode', () => {
     const { flags } = extractGlobalFlags(['build'], { NECTAR_JSON: '1' });
     expect(flags.json).toBe(true);
+    expect(flags.logFormat).toBe('json');
+  });
+
+  test('NECTAR_LOG_FORMAT sets logger format without enabling command json', () => {
+    const { flags } = extractGlobalFlags(['build'], { NECTAR_LOG_FORMAT: 'json' });
+    expect(flags.json).toBe(false);
+    expect(flags.logFormat).toBe('json');
+  });
+
+  test('CLI --log-format overrides NECTAR_JSON logger mode while keeping command json', () => {
+    const { flags } = extractGlobalFlags(['--log-format=pretty', 'build'], { NECTAR_JSON: '1' });
+    expect(flags.json).toBe(true);
+    expect(flags.logFormat).toBe('pretty');
+  });
+
+  test('throws on invalid NECTAR_LOG_FORMAT', () => {
+    expect(() => extractGlobalFlags(['build'], { NECTAR_LOG_FORMAT: 'compact' })).toThrow(
+      /NECTAR_LOG_FORMAT/,
+    );
   });
 
   test('NECTAR_DEBUG=true sets debug mode', () => {

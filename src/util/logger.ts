@@ -23,7 +23,8 @@ let warningCount = 0;
 // warning/error output on stderr.
 // `json` switches to one JSON object per line ({ts,level,msg,fields?}) so CI
 // pipelines and log aggregators can consume nectar output without parsing
-// the surface text. Toggled by `--json` (global) or env `NECTAR_JSON=1`.
+// the surface text. Toggled by `--log-format=json` (global), legacy `--json`,
+// env `NECTAR_LOG_FORMAT=json`, or legacy env `NECTAR_JSON=1`.
 export type LogOutputMode = 'text' | 'json';
 let outputMode: LogOutputMode = parseInitialJsonMode(process.env);
 
@@ -38,6 +39,9 @@ let outputMode: LogOutputMode = parseInitialJsonMode(process.env);
 let colorEnabled: boolean = detectColorEnabled(process.env);
 
 function parseInitialJsonMode(env: NodeJS.ProcessEnv): LogOutputMode {
+  const format = env.NECTAR_LOG_FORMAT;
+  if (format === 'json') return 'json';
+  if (format === 'pretty') return 'text';
   const raw = env.NECTAR_JSON;
   if (raw === undefined || raw === '') return 'text';
   if (/^(1|true|yes|on)$/i.test(raw.trim())) return 'json';

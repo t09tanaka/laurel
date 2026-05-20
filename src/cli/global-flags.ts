@@ -4,6 +4,7 @@ export interface GlobalFlags {
   quiet: boolean;
   verboseCount: number;
   json: boolean;
+  logFormat: 'json' | 'pretty' | undefined;
   noColor: boolean;
   debug: boolean;
 }
@@ -16,6 +17,7 @@ export interface ExtractResult {
 const QUIET_ENV = globalEnvVarName('quiet');
 const VERBOSE_ENV = globalEnvVarName('verbose');
 const JSON_ENV = globalEnvVarName('json');
+const LOG_FORMAT_ENV = globalEnvVarName('log-format');
 const NO_COLOR_ENV_NECTAR = globalEnvVarName('no-color');
 const DEBUG_ENV = globalEnvVarName('debug');
 
@@ -23,7 +25,8 @@ const DEBUG_ENV = globalEnvVarName('debug');
 // parsers (which run node:util `parseArgs` in strict mode) don't choke on
 // them. Flags may appear anywhere before `--`; after `--`, tokens are passed
 // through untouched. CLI flags take priority over env-var fallbacks
-// (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_JSON / NECTAR_NO_COLOR / NECTAR_DEBUG).
+// (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_LOG_FORMAT / NECTAR_JSON /
+// NECTAR_NO_COLOR / NECTAR_DEBUG).
 // We also recognise the conventional `NO_COLOR` (any non-empty value disables
 // color) so nectar matches the rest of the CLI ecosystem out of the box.
 export function extractGlobalFlags(
@@ -36,13 +39,16 @@ export function extractGlobalFlags(
   let verboseCount = 0;
   let json = false;
   let jsonFromCli = false;
+  let logFormat: GlobalFlags['logFormat'];
+  let logFormatFromCli = false;
   let noColor = false;
   let noColorFromCli = false;
   let debug = false;
   let debugFromCli = false;
   let passthrough = false;
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] ?? '';
     if (passthrough) {
       rest.push(arg);
       continue;
@@ -64,10 +70,29 @@ export function extractGlobalFlags(
     if (arg === '--json' || arg === '-j') {
       json = true;
       jsonFromCli = true;
+      if (!logFormatFromCli) {
+        logFormat = 'json';
+        logFormatFromCli = true;
+      }
       // `--json` is stripped here so the dispatcher doesn't see it as a
       // command name. The CLI entrypoint forwards the global flag back into
       // the subcommand argv after dispatch resolves so commands that declare
       // `json` in their spec still parse it through `parsed.values.json`.
+      continue;
+    }
+    if (arg === '--log-format') {
+      const value = argv[i + 1];
+      if (value === undefined) {
+        throw new CliUsageError('Missing value for --log-format (expected json or pretty)');
+      }
+      logFormat = parseLogFormat(value, '--log-format');
+      logFormatFromCli = true;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--log-format=')) {
+      logFormat = parseLogFormat(arg.slice('--log-format='.length), '--log-format');
+      logFormatFromCli = true;
       continue;
     }
     if (arg === '--no-color') {
@@ -104,6 +129,11 @@ export function extractGlobalFlags(
   const jsonRaw = env[JSON_ENV];
   if (!jsonFromCli && jsonRaw !== undefined) {
     json = parseBooleanEnv(jsonRaw, JSON_ENV);
+    if (json && !logFormatFromCli) logFormat = 'json';
+  }
+  const logFormatRaw = env[LOG_FORMAT_ENV];
+  if (!logFormatFromCli && logFormatRaw !== undefined && logFormatRaw !== '') {
+    logFormat = parseLogFormat(logFormatRaw, LOG_FORMAT_ENV);
   }
   // `NO_COLOR` (conventional) → off whenever set to a non-empty value.
   // `NECTAR_NO_COLOR` (project-specific) parses the usual boolean spelling so
@@ -123,5 +153,12 @@ export function extractGlobalFlags(
     debug = parseBooleanEnv(debugRaw, DEBUG_ENV);
   }
 
-  return { flags: { quiet, verboseCount, json, noColor, debug }, rest };
+  return { flags: { quiet, verboseCount, json, logFormat, noColor, debug }, rest };
+}
+
+function parseLogFormat(raw: string, source: string): NonNullable<GlobalFlags['logFormat']> {
+  if (raw === 'json' || raw === 'pretty') return raw;
+  throw new CliUsageError(
+    `Invalid ${source}: ${JSON.stringify(raw)} (expected "json" or "pretty")`,
+  );
 }

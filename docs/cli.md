@@ -23,9 +23,10 @@ treated as a positional argument, even when it looks like a flag.
 
 | Flag | Env var | Description |
 | --- | --- | --- |
-| `-q, --quiet` | `NECTAR_QUIET` | Suppress info/debug output (keeps warn/error) |
+| `-q, --quiet` | `NECTAR_QUIET` | Suppress non-error log output |
 | `-V, --verbose` | `NECTAR_VERBOSE` | Increase verbosity to debug (stack `-VV` for trace) |
 | `-j, --json` | `NECTAR_JSON` | Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`. |
+| `--log-format <json\|pretty>` | `NECTAR_LOG_FORMAT` | Choose logger output format without changing command output. Use `json` for JSON Lines logs in CI, or `pretty` for human-readable logs. |
 | `--no-color` | `NECTAR_NO_COLOR` | Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides. |
 | `--debug` | `NECTAR_DEBUG` | Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env. |
 | `-h, --help` | — | Show help for the top-level CLI or any subcommand |
@@ -47,7 +48,8 @@ command line. Useful for `docker-compose`, CI, devcontainers, and `.env` files.
 - **Naming:** `NECTAR_<COMMAND>_<FLAG>`, uppercased, with dashes turned into
   underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,
   and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.
-  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`.
+  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,
+  `NECTAR_LOG_FORMAT`.
 - **Precedence:** CLI flag → env var → config file → built-in default.
 - **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,
   `off`, and the empty string are false (case-insensitive). Anything else is

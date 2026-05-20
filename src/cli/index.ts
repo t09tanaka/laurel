@@ -52,16 +52,22 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
   lines.push('');
   lines.push('Global options:');
-  lines.push(`  ${'-q, --quiet'.padEnd(width)}Suppress info/debug output (keeps warn/error)`);
-  lines.push(`  ${'-V, --verbose'.padEnd(width)}Increase verbosity to debug (stack -VV for trace)`);
+  const globalOptionWidth = '--log-format <json|pretty>'.length + 2;
+  lines.push(`  ${'-q, --quiet'.padEnd(globalOptionWidth)}Suppress non-error log output`);
   lines.push(
-    `  ${'-j, --json'.padEnd(width)}Emit one JSON object per log line + JSON-shaped command output where supported`,
+    `  ${'-V, --verbose'.padEnd(globalOptionWidth)}Increase verbosity to debug (stack -VV for trace)`,
   );
   lines.push(
-    `  ${'--no-color'.padEnd(width)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,
+    `  ${'-j, --json'.padEnd(globalOptionWidth)}Emit one JSON object per log line + JSON-shaped command output where supported`,
   );
   lines.push(
-    `  ${'--debug'.padEnd(width)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
+    `  ${'--log-format <json|pretty>'.padEnd(globalOptionWidth)}Choose logger output format without changing command output`,
+  );
+  lines.push(
+    `  ${'--no-color'.padEnd(globalOptionWidth)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,
+  );
+  lines.push(
+    `  ${'--debug'.padEnd(globalOptionWidth)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
   );
   lines.push('');
   lines.push('Run `nectar help <command>` or `nectar <command> --help` for more details.');
@@ -241,17 +247,19 @@ function applyGlobalFlags(flags: GlobalFlags): void {
     throw new Error('--quiet and --verbose cannot be used together');
   }
   if (flags.quiet) {
-    setLogLevel('warn');
+    setLogLevel('error');
   } else if (flags.verboseCount === 1) {
     setLogLevel('debug');
   } else if (flags.verboseCount >= 2) {
     setLogLevel('trace');
   }
-  if (flags.json) {
+  if (flags.logFormat === 'json') {
     setOutputMode('json');
     // JSON consumers can't read ANSI; flip color off so a json stream stays
     // 7-bit clean even when stderr is a TTY (e.g. piped through `jq`).
     setColorEnabled(false);
+  } else if (flags.logFormat === 'pretty') {
+    setOutputMode('text');
   }
   if (flags.noColor) {
     setColorEnabled(false);

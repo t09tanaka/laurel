@@ -419,6 +419,7 @@ describe('envVarName / globalEnvVarName', () => {
   test('globalEnvVarName drops the command segment', () => {
     expect(globalEnvVarName('quiet')).toBe('NECTAR_QUIET');
     expect(globalEnvVarName('verbose')).toBe('NECTAR_VERBOSE');
+    expect(globalEnvVarName('log-format')).toBe('NECTAR_LOG_FORMAT');
   });
 });
 

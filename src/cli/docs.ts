@@ -18,7 +18,7 @@ export interface GlobalOptionDoc {
 export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
   {
     flag: '-q, --quiet',
-    description: 'Suppress info/debug output (keeps warn/error)',
+    description: 'Suppress non-error log output',
     envVar: globalEnvVarName('quiet'),
   },
   {
@@ -31,6 +31,12 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     description:
       'Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`.',
     envVar: globalEnvVarName('json'),
+  },
+  {
+    flag: '--log-format <json|pretty>',
+    description:
+      'Choose logger output format without changing command output. Use `json` for JSON Lines logs in CI, or `pretty` for human-readable logs.',
+    envVar: globalEnvVarName('log-format'),
   },
   {
     flag: '--no-color',
@@ -126,7 +132,8 @@ export function renderCliReference(
     '- **Naming:** `NECTAR_<COMMAND>_<FLAG>`, uppercased, with dashes turned into',
     '  underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,',
     '  and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.',
-    '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`.',
+    '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,',
+    '  `NECTAR_LOG_FORMAT`.',
     '- **Precedence:** CLI flag → env var → config file → built-in default.',
     '- **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,',
     '  `off`, and the empty string are false (case-insensitive). Anything else is',

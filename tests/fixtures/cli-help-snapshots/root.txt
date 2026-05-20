@@ -34,10 +34,11 @@ Commands:
   help              Show this help or help for a command
 
 Global options:
-  -q, --quiet       Suppress info/debug output (keeps warn/error)
-  -V, --verbose     Increase verbosity to debug (stack -VV for trace)
-  -j, --json        Emit one JSON object per log line + JSON-shaped command output where supported
-  --no-color        Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)
-  --debug           Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)
+  -q, --quiet                 Suppress non-error log output
+  -V, --verbose               Increase verbosity to debug (stack -VV for trace)
+  -j, --json                  Emit one JSON object per log line + JSON-shaped command output where supported
+  --log-format <json|pretty>  Choose logger output format without changing command output
+  --no-color                  Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)
+  --debug                     Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)
 
 Run `nectar help <command>` or `nectar <command> --help` for more details.

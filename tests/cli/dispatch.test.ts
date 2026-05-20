@@ -225,6 +225,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('--quiet');
     expect(stdout).toContain('-V, --verbose');
+    expect(stdout).toContain('--log-format <json|pretty>');
   });
 
   test('--quiet is stripped before subcommand parsing', async () => {
@@ -257,6 +258,18 @@ describe('cli dispatch', () => {
     expect(stderr).toContain('--quiet and --verbose cannot be used together');
   });
 
+  test('invalid --log-format is rejected with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(['--log-format=xml', 'build']);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --log-format');
+  });
+
+  test('--log-format=json switches logs without forcing command json output', async () => {
+    const { stdout, exitCode } = await runCli(['--log-format=json', 'version']);
+    expect(exitCode).toBe(0);
+    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
   test('build --help footer documents the env var convention', async () => {
     const { stdout, exitCode } = await runCli(['build', '--help']);
     expect(exitCode).toBe(0);
@@ -280,6 +293,7 @@ describe('cli dispatch', () => {
   test('top-level --help advertises the new global flags', async () => {
     const { stdout } = await runCli(['--help']);
     expect(stdout).toContain('--json');
+    expect(stdout).toContain('--log-format');
     expect(stdout).toContain('--no-color');
     expect(stdout).toContain('--debug');
   });
