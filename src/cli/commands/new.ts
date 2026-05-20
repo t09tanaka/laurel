@@ -3,6 +3,7 @@ import { access } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { resolveThemeRoot } from '~/theme/loader.ts';
 import { loadThemePackage } from '~/theme/pkg.ts';
 import { ensureDir } from '~/util/fs.ts';
@@ -13,6 +14,7 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { reportError } from '../report.ts';
 import { isValidCliSlug, slugifyCliValue } from '../slug.ts';
 import { NEW_SPEC } from '../specs.ts';
+import { readStdinText } from '../stdin.ts';
 
 type BuiltInKind = 'post' | 'page' | 'tag' | 'author';
 type KindModel = BuiltInKind | 'custom';
@@ -57,6 +59,7 @@ export async function runNew(args: string[]): Promise<number> {
   const openEditor = parsed.values.open === true;
   const force = parsed.values.force === true;
   const slugOverrideRaw = typeof parsed.values.slug === 'string' ? parsed.values.slug.trim() : '';
+  const useStdin = parsed.values.stdin === true;
 
   const cwd = process.cwd();
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
@@ -80,7 +83,31 @@ export async function runNew(args: string[]): Promise<number> {
 
   const kind = kindDef.kind;
   const remainder = rest.join(' ').trim();
-  if (!remainder) {
+  let stdinInput: ParsedStdinMarkdown | undefined;
+  if (useStdin) {
+    try {
+      stdinInput = parseStdinMarkdown(
+        await readStdinText('Pipe Markdown into `nectar new <kind> --stdin`.'),
+      );
+    } catch (err) {
+      if (err instanceof CliUsageError) {
+        process.stderr.write(`${err.message}\n\n`);
+        process.stderr.write(formatCommandHelp(NEW_SPEC));
+        return 2;
+      }
+      reportError(err, cwd);
+      return 1;
+    }
+    if (stdinInput.body.trim().length === 0) {
+      process.stderr.write('No Markdown content was read from stdin.\n\n');
+      process.stderr.write(formatCommandHelp(NEW_SPEC));
+      return 2;
+    }
+  }
+
+  const stdinTitle = stdinInput ? titleFromStdin(stdinInput) : '';
+  const titleOrValue = remainder || stdinTitle;
+  if (!titleOrValue) {
     if (usesTitle(kindDef)) {
       process.stderr.write(`${t('new.emptyTitle')}\n\n`);
     } else {
@@ -127,7 +154,20 @@ export async function runNew(args: string[]): Promise<number> {
     return 2;
   }
 
-  const slug = isPostPageOrCustom && slugOverrideRaw ? slugOverrideRaw : slugifyCliValue(remainder);
+  const stdinSlug =
+    isPostPageOrCustom && !slugOverrideRaw && stdinInput ? slugFromStdin(stdinInput) : '';
+  if (stdinSlug && !isValidCliSlug(stdinSlug)) {
+    process.stderr.write(
+      `${t('new.invalidSlugValue', { label: 'stdin slug', value: stdinSlug })}\n`,
+    );
+    return 2;
+  }
+
+  const slugSource =
+    isPostPageOrCustom && (slugOverrideRaw || stdinSlug)
+      ? slugOverrideRaw || stdinSlug
+      : slugifyCliValue(titleOrValue);
+  const slug = slugSource;
   if (!isValidCliSlug(slug)) {
     process.stderr.write(`${t('new.invalidSlug')}\n`);
     return 2;
@@ -145,12 +185,13 @@ export async function runNew(args: string[]): Promise<number> {
   const tagList = parseCsvList(tagsRaw);
   const body = renderFrontmatter({
     kind: kindDef,
-    title: usesTitle(kindDef) ? remainder : titleFromSlug(slug),
+    title: usesTitle(kindDef) ? titleOrValue : titleFromSlug(slug),
     slug,
     date: isPost ? (isoDate ?? new Date().toISOString()) : undefined,
     draft: isPostOrPage ? draft : false,
     tags: tagList,
     author: authorRaw,
+    stdinBody: stdinInput?.body,
   });
 
   await writeGeneratedTextFile(dest, body);
@@ -237,10 +278,11 @@ interface FrontmatterInput {
   draft: boolean;
   tags: string[];
   author: string;
+  stdinBody?: string | undefined;
 }
 
 function renderFrontmatter(input: FrontmatterInput): string {
-  const { kind, title, slug, date, draft, tags, author } = input;
+  const { kind, title, slug, date, draft, tags, author, stdinBody } = input;
   const lines: string[] = ['---'];
 
   if (kind.model === 'post' || kind.model === 'page') {
@@ -266,6 +308,12 @@ function renderFrontmatter(input: FrontmatterInput): string {
   }
 
   lines.push('---', '');
+  if (stdinBody !== undefined) {
+    const normalizedBody = normalizePipedMarkdownBody(stdinBody);
+    lines.push(normalizedBody);
+    if (!normalizedBody.endsWith('\n')) lines.push('');
+    return lines.join('\n');
+  }
   if (kind.model === 'post' || kind.model === 'page') {
     lines.push(`# ${title}`, '', 'Write your content here.', '');
   } else {
@@ -273,6 +321,35 @@ function renderFrontmatter(input: FrontmatterInput): string {
     lines.push(`Describe this ${noun} here.`, '');
   }
   return lines.join('\n');
+}
+
+interface ParsedStdinMarkdown {
+  data: Record<string, unknown>;
+  body: string;
+}
+
+function parseStdinMarkdown(raw: string): ParsedStdinMarkdown {
+  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const parsed = parseFrontmatter(normalized, { filePath: '<stdin>' });
+  return { data: parsed.data, body: parsed.body };
+}
+
+function titleFromStdin(input: ParsedStdinMarkdown): string {
+  const frontmatterTitle = input.data.title;
+  if (typeof frontmatterTitle === 'string' && frontmatterTitle.trim()) {
+    return frontmatterTitle.trim();
+  }
+  const heading = /^#\s+(.+?)\s*#*\s*$/m.exec(input.body);
+  return heading?.[1]?.trim() ?? '';
+}
+
+function slugFromStdin(input: ParsedStdinMarkdown): string {
+  const frontmatterSlug = input.data.slug;
+  return typeof frontmatterSlug === 'string' ? frontmatterSlug.trim() : '';
+}
+
+function normalizePipedMarkdownBody(raw: string): string {
+  return raw.replace(/^(?:[ \t]*\n)+/, '').replace(/[ \t\n]*$/, '\n');
 }
 
 function formatYamlSlugList(items: string[]): string {

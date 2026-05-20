@@ -12,9 +12,10 @@ interface RunResult {
   exitCode: number;
 }
 
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
+async function runCli(args: string[], cwd: string, stdinInput?: string): Promise<RunResult> {
   const proc = Bun.spawn(['bun', CLI_ENTRY, ...args], {
     cwd,
+    stdin: stdinInput !== undefined ? new Blob([stdinInput]) : 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -152,6 +153,41 @@ describe('cli new — slug collision handling', () => {
     const body = await readFile(join(dir, 'content/posts/japanese-title.md'), 'utf8');
     expect(body).toContain('title: "日本語タイトル"');
     expect(body).toContain('slug: japanese-title');
+  });
+
+  test('--stdin uses piped Markdown body and derives title and slug from frontmatter', async () => {
+    const input = [
+      '---',
+      'title: Piped Post',
+      'slug: piped-post',
+      '---',
+      '',
+      'Intro from stdin.',
+      '',
+    ].join('\n');
+
+    const { exitCode } = await runCli(['new', 'post', '--stdin'], dir, input);
+
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/piped-post.md'), 'utf8');
+    expect(body).toContain('title: "Piped Post"');
+    expect(body).toContain('slug: piped-post');
+    expect(body).toContain('Intro from stdin.');
+    expect(body).not.toContain('Write your content here.');
+  });
+
+  test('--stdin can derive a missing title from the first H1 and honor --slug', async () => {
+    const { exitCode } = await runCli(
+      ['new', 'post', '--stdin', '--slug', 'heading-post'],
+      dir,
+      '# Heading Post\n\nBody from stdin.\n',
+    );
+
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/heading-post.md'), 'utf8');
+    expect(body).toContain('title: "Heading Post"');
+    expect(body).toContain('# Heading Post');
+    expect(body).toContain('Body from stdin.');
   });
 
   test('--slug rejects values outside lowercase ASCII kebab form', async () => {

@@ -122,6 +122,15 @@ and the Markdown/YAML frontmatter files they create. If scaffold input
 contains CRLF or bare CR characters, Nectar normalizes those characters
 before writing so generated files do not mix CRLF and LF endings.
 
+## Standard input
+
+Most Nectar commands do not consume piped stdin: they read files, config,
+or command-line arguments explicitly. The exceptions are narrow and opt-in:
+`nectar new <kind> --stdin` reads Markdown body content from stdin, and
+`nectar import-ghost -` reads a Ghost JSON export from stdin. Interactive
+`nectar init` and `nectar clean` may also read prompt answers from stdin
+when prompts are enabled.
+
 ## Commands
 
 | Command | Summary |
@@ -237,7 +246,7 @@ Scaffold a new Markdown content file
 Usage:
 
 ```
-nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--json] <kind> <title...>
+nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--stdin] [--json] <kind> [title...]
 ```
 
 Arguments:
@@ -245,7 +254,7 @@ Arguments:
 | Name | Required | Description |
 | --- | --- | --- |
 | `<kind>` | required | Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest. |
-| `<title...>` | required (variadic) | Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles |
+| `[title...]` | optional (variadic) | Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles. Optional for post/page/custom when --stdin provides a frontmatter title or first H1. |
 
 Options:
 
@@ -259,6 +268,7 @@ Options:
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set) |
+| `--stdin` | boolean | `NECTAR_NEW_STDIN` | Read Markdown body content from stdin. If the title positional is omitted for post/page/custom kinds, derive it from stdin frontmatter title or the first H1; frontmatter slug is used when --slug is omitted. |
 | `-j, --json` | boolean | `NECTAR_NEW_JSON` | Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line |
 
 Examples:
@@ -268,6 +278,7 @@ nectar new post "Hello World"               # content/posts/hello-world.md
 nectar new post "日本語タイトル" --slug japanese-title
 nectar new post "Draft Idea" --draft        # status: draft so the build skips it
 nectar new post "Tagged" --tags news,tech --author jane
+cat post.md | nectar new post --stdin       # derive title/body from Markdown stdin
 nectar new tag releases                      # content/tags/releases.md
 nectar new author jane                       # content/authors/jane.md
 nectar new event "Launch Party"              # custom kind from config/theme manifest
@@ -982,7 +993,7 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<file>` | required | Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json) |
+| `<file>` | required | Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json) |
 
 Options:
 
@@ -1008,6 +1019,7 @@ Examples:
 
 ```
 nectar import-ghost ghost-export.json
+nectar import-ghost - < ghost-export.json   # read JSON from stdin
 nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
 nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
 nectar import-ghost export.json --output review-import

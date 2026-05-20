@@ -225,6 +225,18 @@ export function renderCliReference(
   );
   lines.push('');
 
+  lines.push('## Standard input');
+  lines.push('');
+  lines.push(
+    'Most Nectar commands do not consume piped stdin: they read files, config,',
+    'or command-line arguments explicitly. The exceptions are narrow and opt-in:',
+    '`nectar new <kind> --stdin` reads Markdown body content from stdin, and',
+    '`nectar import-ghost -` reads a Ghost JSON export from stdin. Interactive',
+    '`nectar init` and `nectar clean` may also read prompt answers from stdin',
+    'when prompts are enabled.',
+  );
+  lines.push('');
+
   lines.push('## Commands');
   lines.push('');
   lines.push(...renderCommandIndex(specs, order));

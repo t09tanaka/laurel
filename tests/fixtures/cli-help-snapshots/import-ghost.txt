@@ -4,7 +4,7 @@ Usage:
   nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 
 Arguments:
-  file                Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
+  file                Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
 
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
@@ -36,6 +36,7 @@ Repeated flags:
 
 Examples:
   nectar import-ghost ghost-export.json
+  nectar import-ghost - < ghost-export.json   # read JSON from stdin
   nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
   nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
   nectar import-ghost export.json --output review-import

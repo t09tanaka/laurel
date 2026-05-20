@@ -13,9 +13,10 @@ interface RunResult {
   exitCode: number;
 }
 
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
+async function runCli(args: string[], cwd: string, stdinInput?: string): Promise<RunResult> {
   const proc = Bun.spawn(['bun', CLI_ENTRY, ...args], {
     cwd,
+    stdin: stdinInput !== undefined ? new Blob([stdinInput]) : 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -210,6 +211,19 @@ describe('cli import-ghost — --on-conflict', () => {
     expect(stderr).toContain(`Renamed (conflict with ${dest}): ${renamed}`);
     expect(await readFile(dest, 'utf8')).toBe('EXISTING');
     expect(await readFile(renamed, 'utf8')).toContain('slug: "hello"');
+  });
+
+  test('dash path reads a Ghost JSON export from stdin', async () => {
+    const { exitCode } = await runCli(
+      ['import-ghost', '-', '--on-conflict', 'overwrite'],
+      dir,
+      exportPayload(),
+    );
+
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+    expect(body).toContain('title: "Hello"');
+    expect(body).toContain('slug: "hello"');
   });
 });
 

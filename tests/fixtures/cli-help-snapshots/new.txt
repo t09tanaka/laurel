@@ -1,11 +1,11 @@
 Scaffold a new Markdown content file
 
 Usage:
-  nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--json] <kind> <title...>
+  nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--stdin] [--json] <kind> [title...]
 
 Arguments:
   kind                Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest.
-  title               Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles
+  title               Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles. Optional for post/page/custom when --stdin provides a frontmatter title or first H1.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -16,6 +16,7 @@ Options:
   --tags <a,b,c>      Tag slugs to seed in frontmatter (post only); repeat or comma-separate
   --author <slug>     Author slug to seed in frontmatter (post only)
   --open              Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set)
+  --stdin             Read Markdown body content from stdin. If the title positional is omitted for post/page/custom kinds, derive it from stdin frontmatter title or the first H1; frontmatter slug is used when --slug is omitted.
   -j, --json          Emit the result (created path, slug, kind) as JSON on stdout instead of the human "Created ..." line
   -h, --help          Show help for this command
 
@@ -34,6 +35,7 @@ Examples:
   nectar new post "日本語タイトル" --slug japanese-title
   nectar new post "Draft Idea" --draft        # status: draft so the build skips it
   nectar new post "Tagged" --tags news,tech --author jane
+  cat post.md | nectar new post --stdin       # derive title/body from Markdown stdin
   nectar new tag releases                      # content/tags/releases.md
   nectar new author jane                       # content/authors/jane.md
   nectar new event "Launch Party"              # custom kind from config/theme manifest

@@ -1,4 +1,6 @@
-import { relative } from 'node:path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 import {
   ON_CONFLICT_VALUES,
   type OnConflict,
@@ -10,6 +12,7 @@ import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { IMPORT_GHOST_SPEC } from '../specs.ts';
+import { readStdinText } from '../stdin.ts';
 
 export async function runImportGhost(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -116,10 +119,24 @@ export async function runImportGhost(args: string[]): Promise<number> {
   const asJson = parsed.values.json === true;
 
   const cwd = process.cwd();
+  let stdinTempRoot: string | undefined;
+  let inputFile = file;
   try {
+    if (file === '-') {
+      const raw = await readStdinText('Pipe a Ghost JSON export into `nectar import-ghost -`.');
+      if (raw.trim().length === 0) {
+        process.stderr.write('No Ghost export JSON was read from stdin.\n\n');
+        process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+        return 2;
+      }
+      stdinTempRoot = await mkdtemp(join(tmpdir(), 'nectar-import-ghost-stdin-'));
+      inputFile = join(stdinTempRoot, 'stdin.json');
+      await writeFile(inputFile, raw, 'utf8');
+    }
+
     const summary = await importGhostExport({
       cwd,
-      file,
+      file: inputFile,
       onConflict,
       assetsDir,
       downloadImages,
@@ -211,8 +228,17 @@ export async function runImportGhost(args: string[]): Promise<number> {
     }
     return 0;
   } catch (err) {
+    if (err instanceof CliUsageError) {
+      process.stderr.write(`${err.message}\n\n`);
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
     reportError(err, cwd);
     return 1;
+  } finally {
+    if (stdinTempRoot) {
+      await rm(stdinTempRoot, { recursive: true, force: true });
+    }
   }
 }
 

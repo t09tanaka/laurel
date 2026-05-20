@@ -172,6 +172,11 @@ export const NEW_SPEC: CommandSpec = {
       description:
         'Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set)',
     },
+    stdin: {
+      type: 'boolean',
+      description:
+        'Read Markdown body content from stdin. If the title positional is omitted for post/page/custom kinds, derive it from stdin frontmatter title or the first H1; frontmatter slug is used when --slug is omitted.',
+    },
     json: {
       type: 'boolean',
       description:
@@ -188,8 +193,8 @@ export const NEW_SPEC: CommandSpec = {
     {
       name: 'title',
       description:
-        'Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles',
-      required: true,
+        'Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles. Optional for post/page/custom when --stdin provides a frontmatter title or first H1.',
+      required: false,
       variadic: true,
     },
   ],
@@ -198,6 +203,7 @@ export const NEW_SPEC: CommandSpec = {
     'nectar new post "日本語タイトル" --slug japanese-title',
     'nectar new post "Draft Idea" --draft        # status: draft so the build skips it',
     'nectar new post "Tagged" --tags news,tech --author jane',
+    'cat post.md | nectar new post --stdin       # derive title/body from Markdown stdin',
     'nectar new tag releases                      # content/tags/releases.md',
     'nectar new author jane                       # content/authors/jane.md',
     'nectar new event "Launch Party"              # custom kind from config/theme manifest',
@@ -433,12 +439,13 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     {
       name: 'file',
       description:
-        'Path to a Ghost export: the JSON file (.json), an unzipped folder, or the .zip archive itself. The file extension is optional; format is sniffed by magic bytes (PK\\x03\\x04 → zip, leading "{" / "[" → json)',
+        'Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\\x03\\x04 → zip, leading "{" / "[" → json)',
       required: true,
     },
   ],
   examples: [
     'nectar import-ghost ghost-export.json',
+    'nectar import-ghost - < ghost-export.json   # read JSON from stdin',
     'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
     'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
     'nectar import-ghost export.json --output review-import',

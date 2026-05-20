@@ -33,8 +33,8 @@ describe('renderCliReference', () => {
   test('renders positionals with their required/variadic markers', () => {
     const md = renderCliReference();
     expect(md).toContain('`<kind>`');
-    expect(md).toContain('`<title...>`');
-    expect(md).toContain('required (variadic)');
+    expect(md).toContain('`[title...]`');
+    expect(md).toContain('optional (variadic)');
   });
 
   test('documents interleaved flag and positional parsing', () => {
@@ -64,6 +64,14 @@ describe('renderCliReference', () => {
     expect(md).toContain('## Generated text file line endings');
     expect(md).toContain('LF (`\\n`) line endings');
     expect(md).toContain('do not mix CRLF and LF endings');
+  });
+
+  test('documents standard input support and exclusions', () => {
+    const md = renderCliReference();
+    expect(md).toContain('## Standard input');
+    expect(md).toContain('nectar new <kind> --stdin');
+    expect(md).toContain('nectar import-ghost -');
+    expect(md).toContain('Most Nectar commands do not consume piped stdin');
   });
 
   test('escapes pipe characters inside option descriptions', () => {
