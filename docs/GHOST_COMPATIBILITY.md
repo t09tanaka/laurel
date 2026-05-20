@@ -73,7 +73,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Callout | Yes | Yes | Renders the static `kg-callout-card` wrapper, color modifier, emoji, and text body. |
 | Button | Yes | Yes | Renders a static `kg-button-card` anchor with alignment and button style classes. |
 | Toggle | Yes | Yes | Renders as native `<details>` / `<summary>` with `kg-toggle-card` hooks; no Ghost toggle JavaScript is required. |
-| File | Yes | Yes | Renders a static download link with `kg-file-card` metadata rows. |
+| File | Yes | Yes | Renders a static download link with `kg-file-card-contents`, metadata rows, and icon hooks. |
 | Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks; Ghost's custom player runtime is not hydrated. |
 | Video | Yes | Yes | Renders native `<video controls>`, poster, captions/tracks, width modifier classes, and sanitized `--aspect-ratio` metadata for theme CSS. |
 | Product | Yes | Yes | Renders the static product-card scaffold, image/title/description/rating/CTA fields that survived import. |
@@ -286,7 +286,7 @@ templates to add `gh-content` / `gh-canvas`.
 | `{{< callout >}}` | `<div class="kg-card kg-callout-card kg-width-* ...">` with `.kg-callout-emoji` and `.kg-callout-text`. |
 | `{{< button >}}` | `<div class="kg-card kg-button-card kg-width-* ...">` with an `.kg-btn` anchor. |
 | `{{< toggle >}}` | `<details class="kg-card kg-toggle-card kg-width-*">` plus native `<summary>` behaviour. |
-| `{{< file />}}` | `<div class="kg-card kg-file-card kg-width-*">` with `.kg-file-card-container` and metadata rows. |
+| `{{< file />}}` | `<div class="kg-card kg-file-card kg-width-*">` with a `download` `.kg-file-card-container`, `.kg-file-card-contents`, `.kg-file-card-metadata`, and `.kg-file-card-icon`. |
 | `{{< audio />}}` | `<div class="kg-card kg-audio-card kg-width-*">` with an `<audio controls>` element and metadata rows. |
 | `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card kg-width-*">` with image, title, description, optional rating, and CTA scaffold. |

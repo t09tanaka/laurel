@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { renderMarkdown, sanitizeRenderedHtml, truncateByWords } from '~/content/markdown.ts';
 
+function normalizeIntertagWhitespace(html: string): string {
+  return html.replace(/>\s+</g, '><').trim();
+}
+
 describe('renderMarkdown (default sanitisation)', () => {
   test('strips <script> tags from raw HTML in markdown', async () => {
     const { html } = await renderMarkdown('Hello\n\n<script>alert(1)</script>');
@@ -596,6 +600,34 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain('<div class="kg-file-card-caption">Short PDF download.</div>');
     expect(html).toContain('<div class="kg-file-card-filename">resume.pdf</div>');
     expect(html).toContain('<div class="kg-file-card-filesize">123 KB</div>');
+  });
+
+  test('matches Ghost file card DOM order for Source theme CSS hooks', async () => {
+    const md =
+      '{{< file src="https://cdn.test/files/resume.pdf" title="Resume" caption="Short PDF download." name="resume.pdf" size="123 KB" />}}';
+    const { html } = await renderMarkdown(md);
+
+    expect(normalizeIntertagWhitespace(html)).toBe(
+      normalizeIntertagWhitespace(`
+        <div class="kg-card kg-file-card kg-width-regular">
+          <a class="kg-file-card-container" href="https://cdn.test/files/resume.pdf" download>
+            <div class="kg-file-card-contents">
+              <div class="kg-file-card-title">Resume</div>
+              <div class="kg-file-card-caption">Short PDF download.</div>
+              <div class="kg-file-card-metadata">
+                <div class="kg-file-card-filename">resume.pdf</div>
+                <div class="kg-file-card-filesize">123 KB</div>
+              </div>
+            </div>
+            <div class="kg-file-card-icon">
+              <svg viewbox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </div>
+          </a>
+        </div>
+      `),
+    );
   });
 
   test('expands audio shortcode into a kg-audio-card with player metadata', async () => {

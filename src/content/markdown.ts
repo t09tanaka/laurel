@@ -31,6 +31,9 @@ export interface RenderMarkdownOptions {
 }
 
 const sanitizeOptions: IOptions = {
+  nonBooleanAttributes: sanitizeHtml.defaults.nonBooleanAttributes.filter(
+    (attribute) => attribute !== 'download',
+  ),
   allowedTags: [
     ...sanitizeHtml.defaults.allowedTags,
     'img',
@@ -44,11 +47,13 @@ const sanitizeOptions: IOptions = {
     'details',
     'summary',
     'iframe',
+    'svg',
+    'path',
   ],
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
     '*': ['id', 'class', 'lang', 'dir', 'title'],
-    a: ['href', 'name', 'target', 'rel', 'hreflang'],
+    a: ['href', 'name', 'target', 'rel', 'hreflang', 'download'],
     iframe: [
       'src',
       'width',
@@ -79,6 +84,8 @@ const sanitizeOptions: IOptions = {
     code: ['class', 'style'],
     span: ['class', 'style'],
     div: ['style', 'data-rating'],
+    svg: ['viewbox', 'aria-hidden', 'focusable'],
+    path: ['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'],
     th: ['scope', 'colspan', 'rowspan'],
     td: ['colspan', 'rowspan'],
   },
@@ -866,7 +873,14 @@ function renderFileHtml(attrs: Record<string, string>): string {
   const filesizeHtml = attrs.size
     ? `<div class="kg-file-card-filesize">${escapeHtmlAttr(attrs.size)}</div>`
     : '';
-  return `\n\n<div class="kg-card kg-file-card${koenigWidthClass(attrs)}"><a class="kg-file-card-container" href="${escapeHtmlAttr(src)}">${titleHtml}${captionHtml}${filenameHtml}${filesizeHtml}</a></div>\n\n`;
+  const metadataHtml =
+    filenameHtml || filesizeHtml
+      ? `<div class="kg-file-card-metadata">${filenameHtml}${filesizeHtml}</div>`
+      : '';
+  const contentsHtml = `<div class="kg-file-card-contents">${titleHtml}${captionHtml}${metadataHtml}</div>`;
+  const iconHtml =
+    '<div class="kg-file-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>';
+  return `\n\n<div class="kg-card kg-file-card${koenigWidthClass(attrs)}"><a class="kg-file-card-container" href="${escapeHtmlAttr(src)}" download>${contentsHtml}${iconHtml}</a></div>\n\n`;
 }
 
 function renderAudioHtml(attrs: Record<string, string>): string {
