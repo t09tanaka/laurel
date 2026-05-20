@@ -107,6 +107,8 @@ describe('cli integration — import-ghost (#663/#692)', () => {
       dir,
     );
     expect(exitCode).toBe(1);
-    expect(stderr.toLowerCase()).toMatch(/no such file|not found|enoent|cannot|failed/);
+    expect(stderr.toLowerCase()).toMatch(
+      /does not exist|no such file|not found|enoent|cannot|failed/,
+    );
   });
 });

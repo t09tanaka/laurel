@@ -402,7 +402,13 @@ async function importFromResolvedInput(
   const resolved = await resolveInput(inputFile, opts.assetsDir);
   await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
   const raw = await readFile(resolved.jsonFile, 'utf8');
-  const parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
+  let parsed: GhostExport;
+  try {
+    parsed = stripGhostUrlPlaceholder(JSON.parse(raw) as GhostExport);
+  } catch (err) {
+    const reason = err instanceof Error ? `: ${err.message}` : '';
+    throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
+  }
   const { posts, tags, users, postsTags, postsAuthors } = mergeGhostDbEntries(parsed.db);
 
   // Image download requires network and writes to content/images. In dry-run
@@ -764,6 +770,9 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
   try {
     st = await stat(file);
   } catch (err) {
+    if (isErrnoException(err) && err.code === 'ENOENT') {
+      throw new Error(`Ghost export file does not exist: ${file}`);
+    }
     throw new Error(
       `Cannot read Ghost export at ${file}: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -833,10 +842,14 @@ async function findExportJson(dir: string): Promise<string> {
     .map((e) => e.name);
   const fallback = jsonFiles[0];
   if (!fallback) {
-    throw new Error(`No .json export file found in ${dir}`);
+    throw new Error(`Ghost export directory does not contain a .json export file: ${dir}`);
   }
   const ghosty = jsonFiles.find((n) => /ghost/i.test(n));
   return join(dir, ghosty ?? fallback);
+}
+
+function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && 'code' in err;
 }
 
 async function isDirectory(p: string): Promise<boolean> {

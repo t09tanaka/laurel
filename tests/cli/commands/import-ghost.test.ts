@@ -196,6 +196,48 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
   });
 });
 
+describe('cli import-ghost — input validation', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-validate-')));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('missing export path exits 1 with a clear file-not-found error', async () => {
+    const missing = join(dir, 'missing.json');
+    const { stderr, exitCode } = await runCli(['import-ghost', missing], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain(`Ghost export file does not exist: ${missing}`);
+  });
+
+  test('directory without an export JSON exits 1 with a clear error', async () => {
+    const emptyExportDir = join(dir, 'empty-export');
+    await Bun.write(join(emptyExportDir, 'content/images/cover.jpg'), 'COVER');
+
+    const { stderr, exitCode } = await runCli(['import-ghost', emptyExportDir], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain(
+      `Ghost export directory does not contain a .json export file: ${emptyExportDir}`,
+    );
+  });
+
+  test('invalid JSON export exits 1 with a clear parse error', async () => {
+    const invalidJson = join(dir, 'invalid.json');
+    await writeFile(invalidJson, '{ not valid json');
+
+    const { stderr, exitCode } = await runCli(['import-ghost', invalidJson], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain(`Invalid JSON in Ghost export: ${invalidJson}`);
+  });
+});
+
 describe('cli import-ghost — --dry-run (#502)', () => {
   let dir: string;
 

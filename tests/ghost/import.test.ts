@@ -662,7 +662,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
     try {
       await expect(importGhostExport({ cwd, file: exportDir })).rejects.toThrow(
-        /No \.json export file found in/,
+        /Ghost export directory does not contain a \.json export file:/,
       );
     } finally {
       await rm(cwd, { recursive: true, force: true });
