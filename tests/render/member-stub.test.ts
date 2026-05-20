@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import { isMemberStubLeaf, wrapMemberStub } from '~/render/member-stub.ts';
+import {
+  createUnauthenticatedMember,
+  isMemberStubLeaf,
+  wrapMemberStub,
+} from '~/render/member-stub.ts';
 
 describe('wrapMemberStub (issues #489, #490)', () => {
   test('configured keys pass through verbatim', () => {
@@ -44,5 +48,29 @@ describe('wrapMemberStub (issues #489, #490)', () => {
       '[{{member.paid}}][{{member.name}}][{{member.tier.name}}][{{member.subscriptions.0.status}}]',
     );
     expect(tpl({ member: wrapped })).toBe('[true][Alice][][]');
+  });
+});
+
+describe('createUnauthenticatedMember (issue #974)', () => {
+  test('returns a safe falsy stub for missing member path access', () => {
+    const member = createUnauthenticatedMember() as unknown as Record<string, unknown> & {
+      paid: unknown;
+      tier: { name: unknown };
+    };
+
+    expect(isMemberStubLeaf(member)).toBe(true);
+    expect(() => member.paid).not.toThrow();
+    expect(() => member.tier.name).not.toThrow();
+    expect(isMemberStubLeaf(member.paid)).toBe(true);
+    expect(isMemberStubLeaf(member.tier.name)).toBe(true);
+  });
+
+  test('direct and chained Handlebars output stays empty in strict mode', () => {
+    const member = createUnauthenticatedMember();
+    const hb = Handlebars.create();
+    const tpl = hb.compile('[{{member}}][{{member.paid}}][{{member.tier.name}}]', {
+      strict: true,
+    });
+    expect(tpl({ member })).toBe('[][][]');
   });
 });

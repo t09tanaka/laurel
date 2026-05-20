@@ -1,11 +1,11 @@
 // Defensive Proxy wrapper for the @member data frame.
 //
-// Nectar is members-out-of-scope: a static build has no logged-in viewer, so
-// `@member` is `undefined` on every route. Source-style themes idiomatically
-// branch with `{{#unless @member}}signin{{/unless}}` / `{{@member.paid}}`,
-// which Handlebars resolves against `undefined` to "empty" / falsy — exactly
-// the unauthenticated render we want, so the default `undefined` member is
-// kept (see engine.ts `buildRootData`).
+// Nectar is members-out-of-scope: a static build has no logged-in viewer.
+// Source-style themes idiomatically branch with
+// `{{#unless @member}}signin{{/unless}}` / `{{@member.paid}}`. The default
+// unauthenticated member is therefore a safe falsy stub: path access never
+// throws, direct rendering stays empty, and Nectar's flow helpers treat it as
+// falsy so the unauthenticated render remains what every visitor sees.
 //
 // `[components.preview].member` is the opt-in escape hatch that injects a
 // synthetic member (e.g. `{paid: true, name: "Preview User"}`) so designers
@@ -25,10 +25,10 @@
 // safety net.
 //
 // Design notes:
-// - The Proxy is intentionally truthy as a JS object. We do not try to make
-//   it falsy in `{{#if @member}}`: a preview member is meant to opt INTO the
-//   signed-in branch, so `{{#if @member}}` must fire. For the unauthenticated
-//   default we keep `@member = undefined` (see engine.ts).
+// - The Proxy is truthy as a JS object, so the render flow helpers explicitly
+//   recognise the unauthenticated stub as Handlebars-falsy. Preview members
+//   are wrapped separately and remain truthy so `{{#if @member}}` still opts
+//   into the signed-in branch.
 // - Missing-key access returns a nested Proxy whose `[[Default]]` coerces to
 //   `false` / `null` / `""` / `0`. Handlebars renders it as empty, JS-side
 //   `if (member.tier)` evaluates to true (it's still an object), but
@@ -118,10 +118,12 @@ function makeFalsyStub(): MemberStubInternal {
       }
       return self.stub;
     },
-    has() {
-      // Reporting `false` for `in` checks keeps `'tier' in stub` honest:
-      // the stub has no real keys, only safe defaults.
-      return false;
+    has(_t, prop) {
+      // Handlebars strict mode checks `name in obj` before reading every path
+      // segment. The unauthenticated stub intentionally accepts arbitrary
+      // string keys so `@member.paid` and deeper paths resolve to the same
+      // empty stub instead of throwing.
+      return typeof prop === 'string';
     },
     ownKeys() {
       return [];
@@ -145,6 +147,10 @@ function makeFalsyStub(): MemberStubInternal {
     },
   }) as unknown as MemberStubInternal;
   return self.stub;
+}
+
+export function createUnauthenticatedMember(): Member {
+  return makeFalsyStub() as unknown as Member;
 }
 
 // Wraps an opt-in preview-member object so missing-key access returns the
@@ -258,3 +264,5 @@ export function isMemberStubLeaf(value: unknown): boolean {
     return false;
   }
 }
+
+export const isUnauthenticatedMember = isMemberStubLeaf;

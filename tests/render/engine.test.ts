@@ -4,6 +4,8 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
 import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
+import { registerFlowHelpers } from '~/render/helpers/flow.ts';
+import { isMemberStubLeaf } from '~/render/member-stub.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle, ThemePackage } from '~/theme/types.ts';
 
@@ -1157,12 +1159,11 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('p0,p1,p2,');
   });
 
-  // Issue #122: Source theme reads `@member` in header / footer / CTA / nav /
-  // post-list. Nectar has no logged-in viewer, so `@member` must be undefined
-  // on every route. The data frame must still ship the key so themes don't see
-  // a missing-property warning under strict mode and so the falsy-branch
-  // semantics are deterministic across routes.
-  test('@member is undefined on every route kind (issue #122)', () => {
+  // Issue #122 / #974: Source theme reads `@member` in header / footer / CTA /
+  // nav / post-list. Nectar has no logged-in viewer, so `@member` must behave
+  // falsy on every route while still allowing strict path access such as
+  // `@member.paid`.
+  test('@member is a safe unauthenticated stub on every route kind (issues #122, #974)', () => {
     const engine = makeEngine();
     const routes: RouteContext['kind'][] = ['home', 'post', 'page', 'tag', 'author', 'index'];
     for (const kind of routes) {
@@ -1176,7 +1177,7 @@ describe('buildRootData', () => {
       };
       const data = buildRootData(engine, route);
       expect(data).toHaveProperty('member');
-      expect(data.member).toBeUndefined();
+      expect(isMemberStubLeaf(data.member)).toBe(true);
     }
   });
 
@@ -1192,6 +1193,7 @@ describe('buildRootData', () => {
     };
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
+    registerFlowHelpers({ hb } as NectarEngine);
     const tpl = hb.compile(
       [
         '{{#unless @member}}signin{{/unless}}',
@@ -1203,7 +1205,33 @@ describe('buildRootData', () => {
     expect(tpl({}, { data })).toBe('signin||name:|upsell');
   });
 
-  test('Journal-style {{^if @member.paid}} renders inverse branch when @member is undefined', () => {
+  test('strict @member.paid paths render empty without losing unauthenticated branches (issue #974)', () => {
+    const engine = makeEngine();
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+    const data = buildRootData(engine, route);
+    const hb = Handlebars.create();
+    registerFlowHelpers({ hb } as NectarEngine);
+    const tpl = hb.compile(
+      [
+        '{{#unless @member}}signin{{else}}account{{/unless}}',
+        '|paid:[{{@member.paid}}]',
+        '|tier:[{{@member.tier.name}}]',
+        '|{{#if @member}}yes{{else}}no{{/if}}',
+        '|with:{{#with @member}}yes{{else}}no{{/with}}',
+      ].join(''),
+      { strict: true },
+    );
+    expect(tpl({}, { data })).toBe('signin|paid:[]|tier:[]|no|with:no');
+  });
+
+  test('Journal-style {{^if @member.paid}} renders inverse branch for the safe member stub', () => {
     const engine = makeEngine();
     const route: RouteContext = {
       kind: 'index',
@@ -1215,6 +1243,7 @@ describe('buildRootData', () => {
     };
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
+    registerFlowHelpers({ hb } as NectarEngine);
     const tpl = hb.compile('{{^if @member.paid}}upsell{{/if}}');
     expect(tpl({}, { data })).toBe('upsell');
   });

@@ -14,7 +14,12 @@ import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { resolveLayoutName, splitLayout } from './layouts.ts';
-import { type Member, type MemberSubscription, wrapMemberStub } from './member-stub.ts';
+import {
+  type Member,
+  type MemberSubscription,
+  createUnauthenticatedMember,
+  wrapMemberStub,
+} from './member-stub.ts';
 import { withTrustedCaptionHtml, withTrustedCaptionHtmlArray } from './safe-context.ts';
 import {
   compileThemeSource,
@@ -361,20 +366,19 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     route,
     locale: routeLocale,
     labs: {},
-    // Static builds have no logged-in viewer, so `@member` is always undefined.
-    // Source-style themes branch on `{{#unless @member}}` (header/footer/CTA)
-    // and probe `{{@member.paid}}` / `{{@member.name}}`. Handlebars treats
-    // undefined as falsy and yields empty for missing property access, so the
-    // unauthenticated branch is what every visitor sees. Keep this key present
-    // (set to undefined) so the data frame is shaped the same across every
-    // route — never absent, never partially populated. Docs: docs/MEMBERS.md
-    // §2 "@member.*" and §5 "No per-user state".
+    // Static builds have no logged-in viewer, so default `@member` is a safe
+    // falsy stub. Source-style themes branch on `{{#unless @member}}`
+    // (header/footer/CTA) and probe `{{@member.paid}}` / `{{@member.name}}`.
+    // The stub preserves that unauthenticated branch while avoiding
+    // property-of-undefined failures in strict/theme helper contexts. Keep the
+    // key present so the data frame is shaped the same across every route.
+    // Docs: docs/MEMBERS.md §2 "@member.*" and §5 "No per-user state".
     //
     // `[components.preview].member` is the documented opt-in override: when set
     // we inject a synthetic member so designers can preview Casper / Edition
     // signed-in / paid branches against a static build. Production builds leave
-    // it unset and `@member` stays undefined.
-    member: buildPreviewMember(engine),
+    // it unset and `@member` stays an unauthenticated safe stub.
+    member: buildPreviewMember(engine) ?? createUnauthenticatedMember(),
     text_color_class: textColorClass,
   };
 }
