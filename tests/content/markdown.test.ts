@@ -478,6 +478,36 @@ describe('renderMarkdown — callout shortcode expansion', () => {
     expect(html).toContain('No icon.');
   });
 
+  test('parses rich markdown inside imported callout blocks', async () => {
+    const md = [
+      '{{< callout emoji="💡" color="blue" >}}',
+      'Read the **bold note** and [guide](https://example.com/guide).',
+      '{{< /callout >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-callout-card kg-width-regular kg-callout-card-blue"');
+    expect(html).toContain('<div class="kg-callout-text">');
+    expect(html).toContain('<strong>bold note</strong>');
+    expect(html).toContain('<a href="https://example.com/guide">guide</a>');
+    expect(html).not.toContain('**bold note**');
+    expect(html).not.toContain('{{< callout');
+  });
+
+  test('supports liquid callout blocks for rich body content', async () => {
+    const md = [
+      '{% callout color="grey" no-icon="true" %}',
+      'A [nested link](https://example.com) stays clickable.',
+      '{% /callout %}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain(
+      'class="kg-card kg-callout-card kg-width-regular kg-callout-card-grey kg-callout-card-without-emoji"',
+    );
+    expect(html).not.toContain('<div class="kg-callout-emoji">');
+    expect(html).toContain('<a href="https://example.com">nested link</a>');
+    expect(html).not.toContain('{% callout');
+  });
+
   test('preserves custom callout emoji markup through the emoji slot', async () => {
     const md =
       '{{< callout emoji-html="<img class=\\"kg-callout-emoji-image\\" src=\\"https://example.com/icon.png\\" alt=\\"Custom\\">" color="pink" >}}\nCustom icon.\n{{< /callout >}}';

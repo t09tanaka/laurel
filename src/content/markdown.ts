@@ -269,7 +269,8 @@ export async function renderMarkdown(
   }
   const expanded = expandKoenigShortcodes(stripped);
   const raw = await marked.parse(expanded);
-  const highlighted = await highlightCodeBlocks(raw);
+  const calloutsRestored = restoreKoenigCalloutDirectives(raw);
+  const highlighted = await highlightCodeBlocks(calloutsRestored);
   const promoted = promoteImagesToFigures(highlighted, {
     prioritizeFirstImage: options.prioritizeFirstImage === true,
   });
@@ -597,6 +598,10 @@ const TOGGLE_SHORTCODE_RE =
 // `.kg-callout-text` split.
 const CALLOUT_SHORTCODE_RE =
   /\{\{<\s+callout((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/callout\s*>\}\}/g;
+const LIQUID_CALLOUT_SHORTCODE_RE =
+  /\{%\s+callout((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}([\s\S]*?)\{%\s*\/callout\s*%\}/g;
+const CALLOUT_DIRECTIVE_COMMENT_RE =
+  /<!--NECTAR-KOENIG-CALLOUT-OPEN:([^>]*)-->|<!--NECTAR-KOENIG-CALLOUT-CLOSE-->/g;
 
 const CODE_SHORTCODE_RE =
   /\{\{<\s+code((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/code\s*>\}\}/g;
@@ -925,7 +930,10 @@ export function expandKoenigShortcodes(markdown: string): string {
       renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
     )
     .replace(CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
-      renderCalloutHtml(parseShortcodeAttrs(attrsStr), body),
+      renderCalloutDirective(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(LIQUID_CALLOUT_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
+      renderCalloutDirective(parseShortcodeAttrs(attrsStr), body),
     )
     .replace(CODE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderCodeHtml(parseShortcodeAttrs(attrsStr), body),
@@ -1405,16 +1413,52 @@ function calloutEmojiSlotHtml(attrs: Record<string, string>): string {
   return emoji ? escapeHtmlAttr(emoji) : '';
 }
 
-function renderCalloutHtml(attrs: Record<string, string>, body: string): string {
+function renderCalloutDirective(attrs: Record<string, string>, body: string): string {
+  const encodedAttrs = encodeURIComponent(JSON.stringify(attrs));
+  const innerMarkdown = body.trim();
+  return `\n\n<!--NECTAR-KOENIG-CALLOUT-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--NECTAR-KOENIG-CALLOUT-CLOSE-->\n\n`;
+}
+
+function restoreKoenigCalloutDirectives(html: string): string {
+  if (!html.includes('NECTAR-KOENIG-CALLOUT')) return html;
+  let openCallouts = 0;
+  return html.replace(CALLOUT_DIRECTIVE_COMMENT_RE, (match, encodedAttrs: string | undefined) => {
+    if (encodedAttrs === undefined) {
+      if (openCallouts === 0) return match;
+      openCallouts -= 1;
+      return '</div>\n</div>';
+    }
+
+    const attrs = decodeCalloutDirectiveAttrs(encodedAttrs);
+    if (!attrs) return match;
+    openCallouts += 1;
+    return renderCalloutOpenHtml(attrs);
+  });
+}
+
+function decodeCalloutDirectiveAttrs(encodedAttrs: string): Record<string, string> | undefined {
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encodedAttrs)) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[0] === 'string' && typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function renderCalloutOpenHtml(attrs: Record<string, string>): string {
   const color = attrs.color ?? '';
   const colorClass = KOENIG_TOKEN_RE.test(color) ? ` kg-callout-card-${color}` : '';
   const emojiSlot = calloutEmojiSlotHtml(attrs);
   const noIcon = attrs['no-icon'] === 'true' || emojiSlot === '';
   const noIconClass = noIcon ? ' kg-callout-card-without-emoji' : '';
   const emojiHtml = noIcon ? '' : `<div class="kg-callout-emoji">${emojiSlot}</div>`;
-  const innerMarkdown = body.trim();
-  const textHtml = `<div class="kg-callout-text">\n\n${innerMarkdown}\n\n</div>`;
-  return `\n\n<div class="kg-card kg-callout-card${koenigWidthClass(attrs)}${colorClass}${noIconClass}">\n${emojiHtml}\n${textHtml}\n</div>\n\n`;
+  return `<div class="kg-card kg-callout-card${koenigWidthClass(attrs)}${colorClass}${noIconClass}">\n${emojiHtml}\n<div class="kg-callout-text">`;
 }
 
 function renderButtonHtml(attrs: Record<string, string>, body: string): string {
