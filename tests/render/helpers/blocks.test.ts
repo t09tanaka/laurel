@@ -667,6 +667,13 @@ describe('match helper', () => {
     expect(tpl({ foo: '' })).toBe('no');
   });
 
+  test('three-argument block form honours the endsWith operator', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match "foobar" "~$" "bar"}}yes{{else}}no{{/match}}');
+    expect(tpl({})).toBe('yes');
+  });
+
   test('numeric comparators handle string operands lexicographically', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
