@@ -244,6 +244,14 @@ Vercel-specific deploy hints.
 | `deploy.vercel.project` | `string` | no | — | Optional Vercel project slug forwarded as `--scope=<project>` when running `nectar deploy vercel`. Leave unset to let the Vercel CLI infer the project from the linked `.vercel/project.json`. |
 | `deploy.vercel.prod` | `boolean` | no | `true` | Pass `--prod` to `vercel deploy` when running `nectar deploy vercel`. Default `true` so the command ships to the production alias; set `false` for preview-only deploys. |
 
+## `deploy.apache`
+
+Apache HTTPD-specific deploy hints.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.apache.enabled` | `boolean` | no | `false` | Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support. |
+
 ## `deploy.nginx`
 
 Self-hosted nginx-specific deploy hints.
@@ -304,7 +312,7 @@ rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist
 
 ## `deploy.headers`
 
-Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`) into their native `_headers` format.
+Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.
 
 
 ## `deploy.headers.security`

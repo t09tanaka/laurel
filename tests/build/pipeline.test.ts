@@ -128,6 +128,44 @@ describe('build pipeline strict mode wiring', () => {
     expect(body).toContain('try_files {path} {path}/index.html =404');
   });
 
+  test('emits dist/.htaccess when deploy.apache is enabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Apache Test"',
+        'url = "https://apache.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[deploy.apache]',
+        'enabled = true',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'redirects.yaml'),
+      '- from: /old\n  to: /new\n  status: 301\n',
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const body = readFileSync(join(summary.outputDir, '.htaccess'), 'utf8');
+
+    expect(body).toContain('ErrorDocument 404 /404.html');
+    expect(body).toContain('RewriteRule ^old$ /new [R=301,L]');
+  });
+
   test('emits dist/content/search.json with the post in the flat index', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });

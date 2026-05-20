@@ -17,6 +17,7 @@ import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
+import { emitApacheHtaccess } from './apache.ts';
 import { emitContentApiShadows } from './api.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
@@ -823,8 +824,8 @@ async function runBuild({
   // Load `redirects.yaml` once and hand the canonical rules to every emitter
   // that consumes them. Cloudflare Pages and Netlify both consume `_redirects`
   // at the publish root; the Netlify emitter translates `force: true` into the
-  // `!` status suffix Netlify needs. Vercel / Apache / nginx / S3 emitters
-  // will read from the same parsed list when added.
+  // `!` status suffix Netlify needs. Vercel / Apache / nginx emitters read
+  // from the same parsed list.
   const redirects = await loadAllRedirects(cwd);
   // Component-level emit runs first so platform-specific emitters can layer
   // their own files (`_headers`, `vercel.json`, …) on top. The component emit
@@ -850,6 +851,12 @@ async function runBuild({
   await emitVercelJson({
     outputDir,
     enabled: config.deploy.vercel.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
+  });
+  await emitApacheHtaccess({
+    outputDir,
+    enabled: config.deploy.apache.enabled,
     headers: config.deploy.headers,
     rules: redirects,
   });

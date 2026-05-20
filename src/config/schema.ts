@@ -580,6 +580,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Vercel-specific deploy hints.'),
+        apache: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Apache HTTPD-specific deploy hints.'),
         nginx: z
           .object({
             enabled: z
@@ -828,7 +840,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`) into their native `_headers` format.',
+            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.',
           ),
       })
       .strict()

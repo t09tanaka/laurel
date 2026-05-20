@@ -1,8 +1,9 @@
 # Deploying Nectar to Apache HTTPD
 
 Nectar builds a fully static site. Apache serves it as plain files. This guide
-covers the quickstart, the `.htaccess` that turns on Cache-Control / ETag, and
-the gotchas that bite Ghost migrations.
+covers the quickstart, the generated `.htaccess` that turns on redirects,
+Cache-Control, MIME hints, and ETag, plus the gotchas that bite Ghost
+migrations.
 
 ## Quickstart
 
@@ -29,11 +30,21 @@ the gotchas that bite Ghost migrations.
    sudo systemctl reload apache2
    ```
 
-4. Drop the example `.htaccess` (see
-   [`examples/deploy/apache/.htaccess`](../../examples/deploy/apache/.htaccess))
-   into your document root. The example file pins fingerprinted assets to a
-   year of immutable caching, forces HTML to revalidate, sets a short list of
-   security headers, and enables `mod_expires` + ETag for everything else.
+4. Enable the Apache emitter in `nectar.toml`, then rebuild:
+
+   ```toml
+   [deploy.apache]
+   enabled = true
+   ```
+
+   Nectar writes `dist/.htaccess`. The generated file pins fingerprinted assets
+   to a year of immutable caching, forces HTML to revalidate, translates
+   `redirects.yaml` into `RewriteRule` redirects, sets configured security
+   headers, adds common static MIME types, enables pre-compressed sidecar hints,
+   and wires Apache to `dist/404.html`.
+
+   For a hand-written baseline instead, see
+   [`examples/deploy/apache/.htaccess`](../../examples/deploy/apache/.htaccess).
 
 ## Why the bundled `.htaccess` matters
 
@@ -48,7 +59,7 @@ Nectar already did on the build side:
 - Without `FileETag MTime Size` (or `None`), Apache's default `INode MTime Size`
   ETag changes between filesystems, breaking conditional GETs across hosts.
 
-The example `.htaccess` fixes both. The cache rules mirror what nectar's
+The generated `.htaccess` fixes both. The cache rules mirror what nectar's
 `_headers` emitter ships for Netlify / Cloudflare Pages so the same site
 behaves the same on every host:
 
@@ -65,17 +76,17 @@ correctly out of the box thanks to the default `DirectoryIndex index.html`.
 No `mod_rewrite` rules needed for the canonical case.
 
 If you have redirects from a Ghost migration, drop a `redirects.yaml` into the
-project root before building and use a `mod_rewrite` rule to honor them. The
-example `.htaccess` includes a `RewriteRule` that maps the `_redirects` file
-nectar emits into Apache `RewriteRule` directives at the document root.
+project root before building. With `[deploy.apache].enabled = true`, Nectar
+translates the canonical redirect list into Apache `RewriteRule` directives in
+`dist/.htaccess`, preserving the configured 301 / 302 / 307 / 308 status code.
 
 ## Gzip / Brotli
 
 Enable `[build].precompress = true` in `nectar.toml` so the build emits
-`.br` + `.gz` sidecars next to every text artifact. Apache serves them with
-the `AddEncoding` directives in the example `.htaccess` (the
-`mod_negotiation` / `mod_brotli` integration), avoiding per-request
-compression on the server.
+`.br` + `.gz` sidecars next to every text artifact. The generated `.htaccess`
+includes `AddEncoding` directives for those sidecars; pair that with
+`mod_negotiation` / `mod_brotli` on the server to avoid per-request
+compression work.
 
 ## Logs and the 404 page
 
@@ -85,7 +96,7 @@ Nectar emits `404.html`. Tell Apache to use it:
 ErrorDocument 404 /404.html
 ```
 
-The example `.htaccess` already includes this line. Without it Apache serves
+The generated `.htaccess` already includes this line. Without it Apache serves
 its built-in "Not Found" page and the operator loses the themed 404.
 
 ## Troubleshooting

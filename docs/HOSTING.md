@@ -84,13 +84,14 @@ If you just want a defensible default stack on a new deploy:
 1. Pick your host's section in
    [`docs/security/hosting.md`](./security/hosting.md) and drop the
    `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root, or
-   set `[deploy.headers].security` for nginx. Also enable the generated
-   platform output where available (`[deploy.cloudflare_pages]`,
-   `[deploy.vercel]`, or `[deploy.netlify]`). GitHub Pages and Render are the
-   exceptions here: GitHub Pages ignores arbitrary header files, and Nectar
-   does not currently emit Render-native header config. Use each host's
-   dashboard / fronting layer, or move to Cloudflare Pages, Vercel, Netlify,
-   or nginx when generated custom headers are required.
+   set `[deploy.headers].security` for Apache / nginx. Also enable the
+   generated platform output where available (`[deploy.cloudflare_pages]`,
+   `[deploy.vercel]`, `[deploy.netlify]`, `[deploy.apache]`, or
+   `[deploy.nginx]`). GitHub Pages and Render are the exceptions here: GitHub
+   Pages ignores arbitrary header files, and Nectar does not currently emit
+   Render-native header config. Use each host's dashboard / fronting layer, or
+   move to Cloudflare Pages, Vercel, Netlify, Apache, or nginx when generated
+   custom headers are required.
 2. Verify with `curl -sI https://your-site.example/ | sort` after the next
    deploy — you should see `Strict-Transport-Security`,
    `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
