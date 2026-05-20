@@ -172,14 +172,18 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const requestedPage = Math.max(1, Math.trunc(parseNum(hash.page) ?? 1));
     const order = String(hash.order ?? 'published_at desc');
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
+    const slugFilter = parseSlugHashFilter(hash);
     const include = parseIncludeTokens(hash.include);
     const fields = parseFieldsTokens(hash.fields);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
-    const filtered: unknown[] = filter
-      ? applyGetFilter(engine, resource, sorted, filter, this, options.data?.route)
+    const slugFiltered = slugFilter
+      ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
       : sorted.slice();
+    const filtered: unknown[] = filter
+      ? applyGetFilter(engine, resource, slugFiltered, filter, this, options.data?.route)
+      : slugFiltered;
     const total = filtered.length;
     const pagination = computeGetPagination(total, requestedPage, limit);
     const paged =
@@ -311,6 +315,16 @@ function parseFieldsTokens(raw: unknown): readonly string[] {
     tokens.push(token);
   }
   return tokens;
+}
+
+function parseSlugHashFilter(hash: Record<string, unknown>): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(hash, 'slug')) return undefined;
+  const slug = String(hash.slug ?? '');
+  return `slug:${quoteGetFilterValue(slug)}`;
+}
+
+function quoteGetFilterValue(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
 function applyGetFields(results: readonly unknown[], fields: readonly string[]): unknown[] {

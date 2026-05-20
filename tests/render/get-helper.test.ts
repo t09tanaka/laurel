@@ -149,6 +149,53 @@ describe('get helper memoization', () => {
   });
 });
 
+describe('get helper slug= hash', () => {
+  test('filters posts by slug before rendering the block', () => {
+    const posts = [
+      { id: 'home', slug: 'home', title: 'Home', published_at: '2026-05-20T00:00:00.000Z' },
+      {
+        id: 'contact',
+        slug: 'contact',
+        title: 'Contact',
+        published_at: '2026-05-19T00:00:00.000Z',
+      },
+      {
+        id: 'about',
+        slug: 'about',
+        title: 'About',
+        published_at: '2026-05-18T00:00:00.000Z',
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" slug="contact" as |contact|}}{{#foreach contact}}{{title}}{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('Contact');
+  });
+
+  test.each([
+    [
+      'pages',
+      'page-contact',
+      [{ id: 'p1', slug: 'page-contact', title: 'Page Contact' }],
+      'Page Contact',
+    ],
+    ['tags', 'news', [{ id: 't1', slug: 'news', name: 'News' }], 'News'],
+    ['authors', 'alice', [{ id: 'a1', slug: 'alice', name: 'Alice' }], 'Alice'],
+    ['tiers', 'premium', [{ id: 'tier1', slug: 'premium', name: 'Premium' }], 'Premium'],
+  ] as const)('filters %s by slug', (resource, slug, matching, label) => {
+    const engine = buildEngine({
+      [resource]: [{ id: 'other', slug: 'other', title: 'Other', name: 'Other' }, ...matching],
+    });
+    const tpl = engine.hb.compile(
+      `{{#get "${resource}" slug="${slug}" as |items|}}{{#each items}}{{slug}}:{{name}}{{title}};{{/each}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe(`${slug}:${label};`);
+  });
+});
+
 describe('get helper pagination metadata', () => {
   function buildPosts(n: number): { id: string; published_at: string }[] {
     return Array.from({ length: n }, (_, i) => ({
