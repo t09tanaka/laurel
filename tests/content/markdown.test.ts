@@ -194,6 +194,18 @@ describe('truncateByWords', () => {
 });
 
 describe('renderMarkdown — bookmark shortcode expansion', () => {
+  test('expands author-facing liquid bookmark shortcode syntax', async () => {
+    const md =
+      'Intro.\n\n{% bookmark url="https://example.com/post" title="Native Bookmark" description="Inline metadata only." publisher="Example" %}\n\nOutro.';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<figure class="kg-card kg-bookmark-card">');
+    expect(html).toContain('<a class="kg-bookmark-container" href="https://example.com/post">');
+    expect(html).toContain('<div class="kg-bookmark-title">Native Bookmark</div>');
+    expect(html).toContain('<div class="kg-bookmark-description">Inline metadata only.</div>');
+    expect(html).toContain('<span class="kg-bookmark-publisher">Example</span>');
+    expect(html).not.toContain('{% bookmark');
+  });
+
   test('expands full kg-bookmark-card metadata', async () => {
     const md =
       'Intro.\n\n{{< bookmark url="https://example.com/post" title="Title Here" description="A description." author="Jane" publisher="Example" icon="https://example.com/icon.png" thumbnail="https://example.com/thumb.jpg" />}}\n\nOutro.';

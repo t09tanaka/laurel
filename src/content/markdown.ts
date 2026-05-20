@@ -293,6 +293,8 @@ function findMatchingDivClose(html: string, from: number): number {
 // HTML structure Ghost's themes (Source, Casper, etc.) target.
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const LIQUID_BOOKMARK_SHORTCODE_RE =
+  /\{%\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 
 // Inline `{{< embed url="…" provider="…" />}}`. The import pipeline emits this
 // for Ghost `kg-embed-card` figures so renderMarkdown can rebuild the static
@@ -348,6 +350,9 @@ const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\
 export function expandKoenigShortcodes(markdown: string): string {
   return markdown
     .replace(BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderBookmarkHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(LIQUID_BOOKMARK_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderBookmarkHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(EMBED_SHORTCODE_RE, (_match, attrsStr: string) =>
