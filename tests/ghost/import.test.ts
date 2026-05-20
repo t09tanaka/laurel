@@ -885,10 +885,8 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
 
       const postMd = await readFile(join(cwd, 'content/posts/header.md'), 'utf8');
       expect(postMd).not.toContain('__GHOST_URL__');
-      expect(postMd).toContain(
-        'style="background-image: url(&quot;/content/images/2024/01/header.jpg&quot;)"',
-      );
-      expect(postMd).toContain('data-background-image="/content/images/2024/01/header.jpg"');
+      expect(postMd).toContain('background="/content/images/2024/01/header.jpg"');
+      expect(postMd).toContain('title="Hero"');
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1619,8 +1617,8 @@ describe('importGhostExport — --download-images (#128)', () => {
 
     const md = await readFile(join(cwd, 'content/posts/header.md'), 'utf8');
     expect(md).not.toContain(headerUrl);
-    expect(md).toContain('class="kg-card kg-header-card kg-style-dark kg-size-large"');
-    expect(md).toContain('style="background-image: url(/content/images/2024/01/header.jpg)"');
+    expect(md).toContain('background="/content/images/2024/01/header.jpg"');
+    expect(md).toContain('title="Hero"');
   });
 
   test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {

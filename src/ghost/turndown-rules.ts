@@ -51,6 +51,14 @@ function text(el: DomNode | null): string {
   return el?.textContent?.trim() ?? '';
 }
 
+function firstText(node: DomNode, selectors: readonly string[]): string {
+  for (const selector of selectors) {
+    const found = text(node.querySelector(selector));
+    if (found) return found;
+  }
+  return '';
+}
+
 function classTokens(node: DomNode | null): string[] {
   return (node?.getAttribute('class') ?? '').split(/\s+/).filter((cls) => cls !== '');
 }
@@ -140,6 +148,13 @@ function lastAnchorHref(node: DomNode): string {
     if (href) return href;
   }
   return '';
+}
+
+function backgroundImageUrlFromStyle(style: string): string {
+  const match = style.match(
+    /(?:^|;)\s*background-image\s*:\s*url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/i,
+  );
+  return (match?.[1] ?? match?.[2] ?? match?.[3] ?? '').trim();
 }
 
 function escapeAttr(v: string): string {
@@ -685,6 +700,36 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
+  // Header card v1: <div class="kg-card kg-header-card kg-style-dark" ...>
+  // Ghost's older header card predates `kg-v2`; default Turndown flattens it
+  // to bare headings / links and loses the background image plus style
+  // variant. Keep those card-level fields in a statement shortcode.
+  turndown.addRule('kg-header-card-v1', {
+    filter: (node) =>
+      node.nodeName === 'DIV' && hasClass(node, 'kg-header-card') && !hasClass(node, 'kg-v2'),
+    replacement: (_content, node) => {
+      const cta = node.querySelector('a.kg-header-card-button') ?? node.querySelector('a');
+      return wrap(
+        liquidShortcode('header', {
+          style: classByPrefix(node, 'kg-style-'),
+          background:
+            attr(node, 'data-kg-background-image') ||
+            backgroundImageUrlFromStyle(attr(node, 'style')),
+          title: firstText(node, ['.kg-header-card-heading', '.kg-header-card-header', 'h2', 'h1']),
+          subtitle: firstText(node, [
+            '.kg-header-card-subheading',
+            '.kg-header-card-subheader',
+            'h3',
+            'p',
+          ]),
+          'cta-text': text(cta),
+          'cta-href': attr(cta, 'href'),
+          'card-size': classByPrefix(node, 'kg-size-'),
+        }),
+      );
+    },
+  });
+
   // HTML card: <div class="kg-card kg-html-card">...raw HTML...</div>
   // Preserve the inner HTML so handcrafted layouts survive, but pass it
   // through `sanitizeImportedHtmlCard` first to strip the stored-XSS surface
@@ -726,7 +771,8 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   // downstream renderMarkdown can keep the Ghost DOM contract and the image
   // downloader can rewrite url(...) references in style / data attributes.
   turndown.addRule('kg-header-card', {
-    filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-header-card'),
+    filter: (node) =>
+      node.nodeName === 'DIV' && hasClass(node, 'kg-header-card') && hasClass(node, 'kg-v2'),
     replacement: (_content, node) => {
       const attrs = [
         ['class', attr(node, 'class')],

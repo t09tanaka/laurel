@@ -77,7 +77,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks; Ghost's custom player runtime is not hydrated. |
 | Video | Yes | Yes | Renders native `<video controls>`, poster, captions/tracks, width modifier classes, and sanitized `--aspect-ratio` metadata for theme CSS. |
 | Product | Yes | Yes | Renders the static product-card scaffold, image/title/description/rating/CTA fields that survived import. |
-| Header | Partial | Partial | Raw `kg-header-card` HTML scaffolds survive sanitisation and Source has matching CSS hooks, but Nectar does not yet emit a first-class header-card shortcode from Lexical nodes. |
+| Header | Yes | Yes | Ghost v1 `kg-header-card` HTML converts to a `{% header %}` shortcode and renders the static header-card scaffold with style, background, title, subtitle, and CTA fields. |
 | NFT | Partial | Partial | Static link, image, and metadata scaffolds survive; no blockchain wallet, marketplace, or live ownership runtime is provided. |
 | Signup | Partial | Partial | The `kg-signup-card` wrapper can survive for portal/member plugins, but raw form fields are stripped by default and Nectar has no members backend. |
 | Recommendations | Partial | Partial | Static `kg-recommendations-card` markup can survive sanitisation for plugin/theme hydration; Ghost's server-side recommendations service is not implemented. |
@@ -290,6 +290,7 @@ templates to add `gh-content` / `gh-canvas`.
 | `{{< audio />}}` | `<div class="kg-card kg-audio-card kg-width-*">` with an `<audio controls>` element and metadata rows. |
 | `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card kg-width-*">` with image, title, description, optional rating, and CTA scaffold. |
+| `{% header %}` | `<div class="kg-card kg-header-card ...">` with optional `kg-style-*`, `kg-size-*`, background image metadata, heading/subheading, and CTA anchor. |
 
 Bookmark cards intentionally pin Ghost's Source/Casper DOM contract. The outer
 element is always a `figure.kg-card.kg-bookmark-card` plus the resolved
@@ -322,12 +323,11 @@ bookmark link tracking. A theme or analytics plugin that needs click tracking
 must attach its own listener to `.kg-bookmark-container`; Nectar only guarantees
 the static DOM and class contract above.
 
-Raw Ghost-compatible HTML scaffolds for `kg-header-card`, `kg-nft-card`, and
-`kg-signup-card` are preserved through sanitisation so theme CSS hooks and
-optional hydration code can still target them. Nectar does not currently build
-those cards from first-class Markdown shortcodes: header cards remain static
-decorative HTML, NFT cards keep their static link/image/metadata scaffold
-without blockchain runtime integration, and signup cards keep the
+Raw Ghost-compatible HTML scaffolds for `kg-nft-card` and `kg-signup-card` are
+preserved through sanitisation so theme CSS hooks and optional hydration code
+can still target them. Nectar does not currently build those cards from
+first-class Markdown shortcodes: NFT cards keep their static link/image/metadata
+scaffold without blockchain runtime integration, and signup cards keep the
 `kg-signup-card` wrapper while raw form fields are stripped unless a portal or
 members plugin rehydrates the card.
 

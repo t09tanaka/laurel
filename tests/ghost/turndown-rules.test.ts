@@ -669,6 +669,39 @@ describe('Ghost Turndown rules — kg-button-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — kg-header-card v1', () => {
+  test('preserves style, background, title, subtitle, and CTA as a header shortcode', () => {
+    const html = `
+      <div class="kg-card kg-header-card kg-style-dark" data-kg-background-image="https://cdn.test/header.jpg" style="background-image: url(https://cdn.test/header.jpg)">
+        <h2 class="kg-header-card-header">Launch notes</h2>
+        <h3 class="kg-header-card-subheader">Everything that changed.</h3>
+        <a href="https://example.com/start" class="kg-header-card-button">Get Started</a>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{% header');
+    expect(md).toContain('style="dark"');
+    expect(md).toContain('background="https://cdn.test/header.jpg"');
+    expect(md).toContain('title="Launch notes"');
+    expect(md).toContain('subtitle="Everything that changed."');
+    expect(md).toContain('cta-text="Get Started"');
+    expect(md).toContain('cta-href="https://example.com/start"');
+    expect(md).toContain('%}');
+    expect(md).not.toContain('# Launch notes');
+    expect(md).not.toContain('[Get Started](https://example.com/start)');
+  });
+
+  test('does not claim kg-v2 header cards', () => {
+    const html = `
+      <div class="kg-card kg-header-card kg-v2 kg-style-dark">
+        <h2 class="kg-header-card-heading">Modern header</h2>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).not.toContain('{% header');
+  });
+});
+
 describe('Ghost Turndown rules — kg-html-card', () => {
   test('preserves the inner HTML verbatim', () => {
     const html = `
@@ -751,13 +784,13 @@ describe('Ghost Turndown rules — picture element', () => {
 describe('Ghost Turndown rules — kg-header-card', () => {
   test('preserves wrapper classes and background image style as raw HTML', () => {
     const html = `
-      <div class="kg-card kg-header-card kg-style-dark kg-size-large" style="background-image: url(https://cdn.example.com/header.jpg)" data-background-image="https://cdn.example.com/header.jpg">
+      <div class="kg-card kg-header-card kg-v2 kg-style-dark kg-size-large" style="background-image: url(https://cdn.example.com/header.jpg)" data-background-image="https://cdn.example.com/header.jpg">
         <h2 class="kg-header-card-heading">Hero</h2>
         <h3 class="kg-header-card-subheading">Subheading</h3>
       </div>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('class="kg-card kg-header-card kg-style-dark kg-size-large"');
+    expect(md).toContain('class="kg-card kg-header-card kg-v2 kg-style-dark kg-size-large"');
     expect(md).toContain('style="background-image: url(https://cdn.example.com/header.jpg)"');
     expect(md).toContain('data-background-image="https://cdn.example.com/header.jpg"');
     expect(md).toContain('<h2 class="kg-header-card-heading">Hero</h2>');

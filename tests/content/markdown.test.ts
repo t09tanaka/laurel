@@ -401,6 +401,23 @@ describe('renderMarkdown — button shortcode expansion', () => {
   });
 });
 
+describe('renderMarkdown — header shortcode expansion', () => {
+  test('expands imported Ghost header card metadata into a kg-header-card div', async () => {
+    const md =
+      '{% header style="dark" background="https://cdn.test/header.jpg" title="Launch notes" subtitle="Everything that changed." cta-text="Get Started" cta-href="https://example.com/start" %}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('class="kg-card kg-header-card kg-style-dark"');
+    expect(html).toContain('data-kg-background-image="https://cdn.test/header.jpg"');
+    expect(html).toContain('style="background-image:url(https://cdn.test/header.jpg)"');
+    expect(html).toContain('<h2 class="kg-header-card-heading">Launch notes</h2>');
+    expect(html).toContain('<h3 class="kg-header-card-subheading">Everything that changed.</h3>');
+    expect(html).toContain(
+      '<a class="kg-header-card-button" href="https://example.com/start">Get Started</a>',
+    );
+    expect(html).not.toContain('{% header');
+  });
+});
+
 describe('renderMarkdown — gallery shortcode expansion', () => {
   test('expands into a kg-gallery-card with rows + images', async () => {
     const md = [

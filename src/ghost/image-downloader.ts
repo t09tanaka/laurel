@@ -45,8 +45,10 @@ const HEADER_IMAGE_DATA_ATTR_RE =
   /\b(data-[a-zA-Z0-9:_-]*(?:background|image)[a-zA-Z0-9:_-]*)\s*=\s*(["'])([^"']+)\2/gi;
 const BOOKMARK_SHORTCODE_RE =
   /\{\{<\s+bookmark((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const HEADER_SHORTCODE_RE = /\{%\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
 const BOOKMARK_IMAGE_ATTRS = new Set(['icon', 'thumbnail']);
+const HEADER_IMAGE_ATTRS = new Set(['background']);
 
 const KNOWN_IMAGE_EXTS = new Set([
   '.jpg',
@@ -185,6 +187,9 @@ export class GhostImageDownloader {
       if (url) urls.add(url);
     }
     for (const m of text.matchAll(HEADER_IMAGE_DATA_ATTR_RE)) urls.add(m[3]);
+    for (const url of collectShortcodeImageUrls(text, HEADER_SHORTCODE_RE, HEADER_IMAGE_ATTRS)) {
+      urls.add(url);
+    }
     const bookmarkUrls = collectBookmarkImageUrls(text);
     if (urls.size === 0 && bookmarkUrls.size === 0) return text;
 
@@ -228,8 +233,11 @@ export class GhostImageDownloader {
         const rep = replacements.get(value);
         return rep ? `${name}=${quote}${rep}${quote}` : full;
       })
+      .replace(HEADER_SHORTCODE_RE, (full, attrs: string) =>
+        rewriteShortcodeImageAttrs(full, attrs, replacements, HEADER_IMAGE_ATTRS),
+      )
       .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>
-        rewriteBookmarkImageAttrs(full, attrs, bookmarkReplacements),
+        rewriteShortcodeImageAttrs(full, attrs, bookmarkReplacements, BOOKMARK_IMAGE_ATTRS),
       );
   }
 
@@ -293,29 +301,38 @@ function cssUrlMatchValue(match: RegExpMatchArray): string {
 }
 
 function collectBookmarkImageUrls(text: string): Set<string> {
+  return collectShortcodeImageUrls(text, BOOKMARK_SHORTCODE_RE, BOOKMARK_IMAGE_ATTRS);
+}
+
+function collectShortcodeImageUrls(
+  text: string,
+  shortcodeRe: RegExp,
+  imageAttrs: Set<string>,
+): Set<string> {
   const urls = new Set<string>();
-  for (const shortcode of text.matchAll(BOOKMARK_SHORTCODE_RE)) {
+  for (const shortcode of text.matchAll(shortcodeRe)) {
     const attrs = shortcode[1];
     SHORTCODE_ATTR_RE.lastIndex = 0;
     let attr: RegExpExecArray | null = SHORTCODE_ATTR_RE.exec(attrs);
     while (attr !== null) {
       const name = attr[1];
       const value = attr[2];
-      if (BOOKMARK_IMAGE_ATTRS.has(name) && isHttpUrl(value)) urls.add(value);
+      if (imageAttrs.has(name) && isHttpUrl(value)) urls.add(value);
       attr = SHORTCODE_ATTR_RE.exec(attrs);
     }
   }
   return urls;
 }
 
-function rewriteBookmarkImageAttrs(
+function rewriteShortcodeImageAttrs(
   full: string,
   attrs: string,
   replacements: Map<string, string>,
+  imageAttrs: Set<string>,
 ): string {
   if (replacements.size === 0) return full;
   const rewrittenAttrs = attrs.replace(SHORTCODE_ATTR_RE, (match, name: string, value: string) => {
-    if (!BOOKMARK_IMAGE_ATTRS.has(name)) return match;
+    if (!imageAttrs.has(name)) return match;
     const rep = replacements.get(value);
     return rep ? `${name}="${rep}"` : match;
   });

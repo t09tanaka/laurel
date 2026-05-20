@@ -19,7 +19,7 @@ describe('Ghost compatibility docs', () => {
       '| Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks',
     );
     expect(doc).toContain(
-      '| Header | Partial | Partial | Raw `kg-header-card` HTML scaffolds survive sanitisation',
+      '| Header | Yes | Yes | Ghost v1 `kg-header-card` HTML converts to a `{% header %}` shortcode',
     );
     expect(doc).toContain(
       '| Email / email CTA | No | No | Members/newsletter-only email cards are stripped',

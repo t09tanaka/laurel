@@ -83,7 +83,7 @@ const sanitizeOptions: IOptions = {
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
     span: ['class', 'style'],
-    div: ['style', 'data-rating'],
+    div: ['style', 'data-rating', 'data-kg-background-image'],
     svg: ['viewbox', 'aria-hidden', 'focusable'],
     path: ['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'],
     th: ['scope', 'colspan', 'rowspan'],
@@ -107,6 +107,7 @@ const sanitizeOptions: IOptions = {
     },
     div: {
       '--aspect-ratio': [/^\d+(?:\.\d+)?$/],
+      'background-image': [/^url\((?:https?:\/\/|\/(?!\/))[^)]+\)$/],
     },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel'],
@@ -434,6 +435,8 @@ const CALLOUT_SHORTCODE_RE =
 const BUTTON_SHORTCODE_RE =
   /\{\{<\s+button((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/button\s*>\}\}/g;
 const BUTTON_STATEMENT_RE = /\{%\s+button((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
+const HEADER_SHORTCODE_RE = /\{\{<\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+const HEADER_STATEMENT_RE = /\{%\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 
 // Block-form `{{< gallery caption="…" >}}{{< gallery-row >}}{{< gallery-image src=… />}}…{{< /gallery-row >}}…{{< /gallery >}}`.
 // We unwrap the gallery to a single `kg-gallery-card` figure containing one
@@ -486,6 +489,12 @@ export function expandKoenigShortcodes(markdown: string): string {
     })
     .replace(BUTTON_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderButtonHtml(parseShortcodeAttrs(attrsStr), body),
+    )
+    .replace(HEADER_STATEMENT_RE, (_match, attrsStr: string) =>
+      renderHeaderHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(HEADER_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderHeaderHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(GALLERY_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderGalleryHtml(parseShortcodeAttrs(attrsStr), body),
@@ -829,6 +838,46 @@ function renderButtonHtml(attrs: Record<string, string>, body: string): string {
   // theme defaults to the accent variant, so keep that fallback inline.
   const finalStyle = styleClass.trim() ? styleClass : 'kg-btn-accent';
   return `\n\n<div class="kg-card kg-button-card${koenigWidthClass(attrs)}${alignClass}"><a href="${escapeHtmlAttr(href)}" class="kg-btn ${finalStyle.trim()}">${escapeHtmlAttr(label)}</a></div>\n\n`;
+}
+
+function renderHeaderHtml(attrs: Record<string, string>): string {
+  const title = attrs.title ?? '';
+  const subtitle = attrs.subtitle ?? '';
+  const ctaText = attrs['cta-text'] ?? attrs.cta_text ?? '';
+  const ctaHref = attrs['cta-href'] ?? attrs.cta_href ?? '';
+  const style = attrs.style ?? '';
+  const cardSize = attrs['card-size'] ?? attrs.card_size ?? '';
+  const background = attrs.background ?? '';
+  if (!title && !subtitle && !ctaText && !background) return '';
+
+  const styleClass = KOENIG_TOKEN_RE.test(style) ? ` kg-style-${style}` : '';
+  const cardSizeClass = KOENIG_TOKEN_RE.test(cardSize) ? ` kg-size-${cardSize}` : '';
+  const safeBackground = safeHeaderBackgroundUrl(background) ? background : '';
+  const backgroundAttrs = safeBackground
+    ? ` data-kg-background-image="${escapeHtmlAttr(safeBackground)}" style="background-image:url(${escapeHtmlAttr(safeBackground)})"`
+    : '';
+  const headingHtml = title
+    ? `<h2 class="kg-header-card-heading">${escapeHtmlAttr(title)}</h2>`
+    : '';
+  const subheadingHtml = subtitle
+    ? `<h3 class="kg-header-card-subheading">${escapeHtmlAttr(subtitle)}</h3>`
+    : '';
+  const ctaHtml =
+    ctaHref && ctaText
+      ? `<a class="kg-header-card-button" href="${escapeHtmlAttr(ctaHref)}">${escapeHtmlAttr(ctaText)}</a>`
+      : '';
+  return `\n\n<div class="kg-card kg-header-card${styleClass}${cardSizeClass}"${backgroundAttrs}>${headingHtml}${subheadingHtml}${ctaHtml}</div>\n\n`;
+}
+
+function safeHeaderBackgroundUrl(value: string): boolean {
+  if (!/^(?:https?:\/\/|\/(?!\/))/.test(value)) return false;
+  if (/[\s"'()<>]/.test(value)) return false;
+  try {
+    const url = new URL(value, 'https://example.invalid');
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function renderGalleryHtml(attrs: Record<string, string>, body: string): string {
