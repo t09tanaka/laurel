@@ -1,11 +1,14 @@
 # Deploying Nectar with Docker
 
-Nectar ships a small nginx-alpine runtime sample under
-[`examples/docker/Dockerfile`](../../examples/docker/Dockerfile) and
-[`examples/docker/nginx.conf`](../../examples/docker/nginx.conf). It assumes CI
-or your host has already run `nectar build`, then serves the generated `dist/`
-directory as static files. Nectar still does not require Docker-specific
-package scripts or a compose file.
+Nectar ships two nginx-alpine samples under
+[`examples/docker/`](../../examples/docker/):
+[`Dockerfile`](../../examples/docker/Dockerfile) serves an already-built
+`dist/`, while
+[`Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage)
+runs `bun install` and `bunx nectar build` in an `oven/bun` build stage before
+copying `dist/` into an `nginx:1.27-alpine` runtime image. Both use the
+matching [`nginx.conf`](../../examples/docker/nginx.conf). Nectar still does
+not require Docker-specific package scripts or a compose file.
 
 ## Quickstart: local nginx container
 
@@ -56,6 +59,24 @@ The Dockerfile uses `nginx:1.27-alpine`, copies `dist/` into
 80. The sample config keeps directory-style pretty URLs working with
 `try_files $uri $uri/ $uri/index.html =404;` and serves Nectar's generated
 `404.html` through `error_page 404 /404.html;`.
+
+## Build the site inside Docker
+
+Use the multi-stage sample when your platform expects Docker to install
+dependencies and produce `dist/` during `docker build`:
+
+```sh
+cp examples/docker/Dockerfile.multi-stage Dockerfile
+cp examples/docker/nginx.conf .
+docker build -t nectar-static .
+docker run --rm --name nectar-static -p 8080:80 nectar-static
+```
+
+The first stage starts from `oven/bun`, copies the site source, installs
+dependencies with `bun install`, and runs `bunx nectar build`. The final
+`nginx:1.27-alpine` stage contains only the sample nginx config and the
+generated `/app/dist/` files, so build tools and source files do not ship in
+the runtime layer.
 
 ## Optional: generate a Nectar nginx config
 
@@ -146,4 +167,6 @@ GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
   it from `nectar.toml`.
 - **No Docker command in `package.json`:** this is expected. Use
   `bunx nectar build` or the existing `build` script, then run Docker against
-  the resulting `dist/` directory.
+  the resulting `dist/` directory, or use
+  `examples/docker/Dockerfile.multi-stage` when the image build should run
+  `bunx nectar build` itself.
