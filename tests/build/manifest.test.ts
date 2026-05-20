@@ -4,11 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MANIFEST_VERSION,
+  computeRouteHash,
   loadManifest,
   manifestPath,
   saveManifest,
   stableStringify,
 } from '~/build/manifest.ts';
+import type { RouteContext } from '~/render/types.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
 
 describe('build manifest serialization', () => {
   test('stableStringify sorts object keys recursively', () => {
@@ -62,5 +65,40 @@ describe('build manifest serialization', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  test('computeRouteHash includes parent-directory layout sources', () => {
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/account/',
+      outputPath: 'account/index.html',
+      template: 'members/account',
+      data: {},
+      meta: { title: '', description: '', canonical: '', image: undefined },
+    };
+    const theme = {
+      templates: {
+        'members/account': '{{!< ../default-wide}}\n<main>Account</main>',
+        'default-wide': '<body data-layout="wide">{{{body}}}</body>',
+      },
+      partials: {},
+      assets: new Map(),
+      pkg: { name: 'fixture', version: '0.0.0', customDefaults: {} },
+    } as unknown as ThemeBundle;
+
+    const baseHash = computeRouteHash({ globalHash: 'g', route, theme });
+    const changedHash = computeRouteHash({
+      globalHash: 'g',
+      route,
+      theme: {
+        ...theme,
+        templates: {
+          ...theme.templates,
+          'default-wide': '<body data-layout="wide-v2">{{{body}}}</body>',
+        },
+      },
+    });
+
+    expect(changedHash).not.toBe(baseHash);
   });
 });

@@ -1722,6 +1722,27 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toContain('<article class="kg-width-wide kg-tone-dark">Hash</article>');
   });
 
+  test('nested templates resolve parent-directory layout directives (issue #721)', () => {
+    const theme = makeTheme({
+      'default-wide': '<!doctype html><body data-layout="wide">{{{body}}}</body>',
+      'members/account': '{{!< ../default-wide}}\n<main data-template="account">Account</main>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/account/',
+      outputPath: 'account/index.html',
+      template: 'members/account',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(engine.templateLayoutNames?.get('members/account')).toBe('default-wide');
+    expect(engine.render(route)).toBe(
+      '<!doctype html><body data-layout="wide"><main data-template="account">Account</main></body>',
+    );
+  });
+
   test('parent-directory partial includes fail with a policy error', () => {
     const theme = makeTheme({
       home: '{{> "../components/header"}}',

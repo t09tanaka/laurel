@@ -11,7 +11,7 @@ import { DEFAULT_PARTIALS } from './default-partials.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
 import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
-import { splitLayout } from './layouts.ts';
+import { resolveLayoutName, splitLayout } from './layouts.ts';
 import { type Member, type MemberSubscription, wrapMemberStub } from './member-stub.ts';
 import {
   compileThemeSource,
@@ -88,12 +88,13 @@ export function createEngine(opts: {
       split.body,
       templateSourceInfo(opts.theme, name, bodyOffset),
     );
-    templateLayoutNames.set(name, split.layout);
-    if (split.layout) {
+    const layout = split.layout ? resolveLayoutName(split.layout, name) : undefined;
+    templateLayoutNames.set(name, layout);
+    if (layout) {
       // mark for later resolution
       templates[`${name}__layout`] = compileThemeSource(
         hb,
-        `{{__layout '${split.layout}'}}`,
+        `{{__layout '${layout}'}}`,
         templateSourceInfo(opts.theme, name, bodyOffset),
       );
     }

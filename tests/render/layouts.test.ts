@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { splitLayout } from '~/render/layouts.ts';
+import { resolveLayoutName, splitLayout } from '~/render/layouts.ts';
 
 describe('splitLayout', () => {
   test('extracts the layout directive and returns the rest of the template', () => {
@@ -21,5 +21,26 @@ describe('splitLayout', () => {
     const { layout, body } = splitLayout(tpl);
     expect(layout).toBe('default');
     expect(body.startsWith('{{!--')).toBeTrue();
+  });
+
+  test('extracts relative layout paths', () => {
+    const tpl = '{{!< ../default-wide}}\n<main>Account</main>';
+    const { layout, body } = splitLayout(tpl);
+    expect(layout).toBe('../default-wide');
+    expect(body.trim()).toBe('<main>Account</main>');
+  });
+});
+
+describe('resolveLayoutName', () => {
+  test('keeps root layout names unchanged', () => {
+    expect(resolveLayoutName('default-wide', 'members/account')).toBe('default-wide');
+  });
+
+  test('resolves parent layout paths relative to the template path', () => {
+    expect(resolveLayoutName('../default-wide', 'members/account')).toBe('default-wide');
+  });
+
+  test('resolves sibling layout paths relative to the template path', () => {
+    expect(resolveLayoutName('./account-wide', 'members/account')).toBe('members/account-wide');
   });
 });

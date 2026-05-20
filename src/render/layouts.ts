@@ -1,4 +1,6 @@
-const LAYOUT_DIRECTIVE = /^\s*\{\{!<\s*([\w-]+)\s*\}\}\s*/;
+import { posix as path } from 'node:path';
+
+const LAYOUT_DIRECTIVE = /^\s*\{\{!<\s*([^}\s]+)\s*\}\}\s*/;
 
 export interface LayoutSplit {
   layout: string | undefined;
@@ -13,4 +15,13 @@ export function splitLayout(template: string): LayoutSplit {
   const layout = match[1];
   const body = template.slice(match.index + match[0].length);
   return { layout, body };
+}
+
+export function resolveLayoutName(layout: string, templateName: string): string {
+  const normalizedLayout = layout.replaceAll('\\', '/');
+  if (!normalizedLayout.startsWith('.')) {
+    return path.normalize(normalizedLayout);
+  }
+  const templateDir = path.dirname(templateName.replaceAll('\\', '/'));
+  return path.normalize(path.join(templateDir, normalizedLayout));
 }

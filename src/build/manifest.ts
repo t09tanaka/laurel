@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
-import { splitLayout } from '~/render/layouts.ts';
+import { resolveLayoutName, splitLayout } from '~/render/layouts.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
@@ -93,7 +93,8 @@ export function computeRouteHash(opts: {
   const { globalHash, route, theme } = opts;
   const templateSource = theme.templates[route.template] ?? '';
   const { layout } = splitLayout(templateSource);
-  const layoutSource = layout ? (theme.templates[layout] ?? '') : '';
+  const layoutName = layout ? resolveLayoutName(layout, route.template) : undefined;
+  const layoutSource = layoutName ? (theme.templates[layoutName] ?? '') : '';
   const payload = {
     g: globalHash,
     kind: route.kind,
