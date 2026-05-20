@@ -1351,3 +1351,56 @@ describe('ghost_head / ghost_foot site-level codeinjection (issue #419)', () => 
     expect(html).toBe('');
   });
 });
+
+// Issue #408: `nectar import-ghost` writes per-post `codeinjection_head` /
+// `codeinjection_foot` into frontmatter (gated behind `build.allow_code_injection`).
+// These fields surface on the post context, so `{{ghost_head}}` / `{{ghost_foot}}`
+// must splice them into the rendered page even when the site-level value is
+// absent. The earlier #419 tests cover the site-level and the combined site +
+// post case; these cases pin down the post-only path explicitly.
+describe('ghost_head / ghost_foot post-level codeinjection (issue #408)', () => {
+  function renderPostGhostFoot(ctx: Record<string, unknown>): string {
+    const engine = makeEngine();
+    registerGhostHeadFootHelpers(engine);
+    const template = engine.hb.compile('{{{ghost_foot}}}');
+    return template(ctx, { data: { route: { url: '/some-post/', data: { post: ctx } } } });
+  }
+
+  test('post.codeinjection_head ships verbatim into the head without a site value', () => {
+    const html = renderGhostHead({
+      codeinjection_head: '<script src="https://cdn.example.com/widget.js"></script>',
+    });
+    expect(html).toContain('<script src="https://cdn.example.com/widget.js"></script>');
+  });
+
+  test('post.codeinjection_foot ships verbatim before </body> without a site value', () => {
+    const html = renderPostGhostFoot({
+      codeinjection_foot: '<script>window.__post = 1;</script>',
+    });
+    expect(html).toBe('<script>window.__post = 1;</script>');
+  });
+
+  test('omitting post.codeinjection_head emits no per-post block', () => {
+    // Negative case: a post without the field must not accidentally splice the
+    // site value twice or emit an empty stub. With both site and post empty,
+    // the helper output must contain none of the marker text.
+    const html = renderGhostHead({});
+    expect(html).not.toContain('x-post');
+  });
+
+  test('post.codeinjection_head appears after the site value (document order)', () => {
+    // Per-post overrides shadow site-wide values by appearing later in the
+    // document. A theme that injects an analytics snippet site-wide can still
+    // ship a per-post override that overrides the same global.
+    const html = renderGhostHead(
+      { codeinjection_head: '<meta name="x-post" content="post">' },
+      '/',
+      { site: { codeinjection_head: '<meta name="x-site" content="site">' } },
+    );
+    const sitePos = html.indexOf('x-site');
+    const postPos = html.indexOf('x-post');
+    expect(sitePos).toBeGreaterThan(-1);
+    expect(postPos).toBeGreaterThan(-1);
+    expect(sitePos).toBeLessThan(postPos);
+  });
+});

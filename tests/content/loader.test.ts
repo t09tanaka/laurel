@@ -661,6 +661,88 @@ body
     expect(post?.codeinjection_foot).toBe('<script>ok()</script>');
   });
 
+  // Issue #322: Ghost HTML cards embed `<script>` / `<style>` blocks that
+  // themes assume `{{content}}` will splice verbatim into `post.html`. The
+  // post-loader gates raw HTML behind frontmatter `unsafe_html: true` (the
+  // same opt-in used elsewhere), so an author who needs an HTML card to keep
+  // its `<script>` payload — e.g. a third-party embed pulled forward from
+  // Ghost via `nectar import-ghost` — can preserve it by flipping the flag.
+  // Without the flag, sanitisation strips both for XSS defence.
+  test('preserves <script> from HTML card content when unsafe_html: true (issue #322)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-script-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/embed.md'),
+      `---
+title: Embed
+date: 2026-01-01T00:00:00Z
+unsafe_html: true
+---
+
+Intro paragraph.
+
+<script src="https://embed.example.com/widget.js"></script>
+
+Outro paragraph.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const html = graph.posts[0]?.html ?? '';
+    expect(html).toContain('<script src="https://embed.example.com/widget.js"></script>');
+  });
+
+  test('preserves <style> from HTML card content when unsafe_html: true (issue #322)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-style-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/styled.md'),
+      `---
+title: Styled
+date: 2026-01-01T00:00:00Z
+unsafe_html: true
+---
+
+<style>.custom-card { color: rebeccapurple; }</style>
+
+<div class="custom-card">Hello</div>
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const html = graph.posts[0]?.html ?? '';
+    expect(html).toContain('<style>.custom-card { color: rebeccapurple; }</style>');
+    expect(html).toContain('<div class="custom-card">');
+  });
+
+  test('still strips <script>/<style> when unsafe_html is not set (issue #322 XSS guard)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-default-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/untrusted.md'),
+      `---
+title: Untrusted
+date: 2026-01-01T00:00:00Z
+---
+
+<script>alert(1)</script>
+
+<style>body { display: none }</style>
+
+Body.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const html = graph.posts[0]?.html ?? '';
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('<style');
+    expect(html).not.toContain('alert(1)');
+  });
+
   test('surfaces malformed YAML frontmatter as a NectarError with the offending file path', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-yaml-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
