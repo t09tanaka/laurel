@@ -192,4 +192,50 @@ describe('loadThemeAssets parallel hashing', () => {
     expect(map.get('assets/built/big.bin')?.hash).toBe(oneShot(big));
     expect(map.get('assets/built/small.css')?.hash).toBe(oneShot(small));
   });
+
+  test('streams asset files instead of requesting whole-file buffers', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-stream-only-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+
+    const big = Buffer.alloc(1024 * 256);
+    for (let i = 0; i < big.length; i++) big[i] = (i * 17) & 0xff;
+    await writeFile(join(assetsDir, 'screen.css'), big);
+
+    const originalFile = Bun.file;
+    let streamCalls = 0;
+    let wholeFileReads = 0;
+
+    const patchedFile = ((...args: Parameters<typeof Bun.file>): ReturnType<typeof Bun.file> => {
+      const file = originalFile(...args);
+      return new Proxy(file, {
+        get(target, prop, receiver) {
+          if (prop === 'stream') {
+            return () => {
+              streamCalls++;
+              return target.stream();
+            };
+          }
+          if (prop === 'arrayBuffer' || prop === 'text' || prop === 'json' || prop === 'bytes') {
+            return () => {
+              wholeFileReads++;
+              throw new Error(`loadThemeAssets should stream assets, not call ${String(prop)}()`);
+            };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }) as typeof Bun.file;
+
+    (Bun as unknown as { file: typeof Bun.file }).file = patchedFile;
+    try {
+      const map = await loadThemeAssets(themeDir);
+      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
+      expect(streamCalls).toBeGreaterThan(0);
+      expect(wholeFileReads).toBe(0);
+    } finally {
+      (Bun as unknown as { file: typeof Bun.file }).file = originalFile;
+    }
+  });
 });

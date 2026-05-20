@@ -47,8 +47,8 @@ export async function loadThemeAssets(
   const next: Record<string, AssetCacheEntry> = {};
 
   // Collect candidate relative paths up front. glob.scan is inherently
-  // sequential; doing the readFile + hash work in a Promise.all fan-out below
-  // is what unlocks the actual speedup on themes with hundreds of assets.
+  // sequential; doing the stat + streaming hash work in a Promise.all fan-out
+  // below is what unlocks the actual speedup on themes with hundreds of assets.
   const allRels = await scanGlob('**/*', { cwd: assetsDir, onlyFiles: true });
   const rels = allRels.filter((rel) => {
     if (pathContainsSymlink(assetsDir, rel)) {
