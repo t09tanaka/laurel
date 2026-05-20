@@ -165,10 +165,34 @@ function renderPagination(pagination: {
   pages: number;
   prev_url: string | undefined;
   next_url: string | undefined;
+  base_url?: string | undefined;
 }): string {
   const engine = makeEngine();
   registerNavigationHelpers(engine);
   const template = engine.hb.compile('{{pagination}}');
+  return template(
+    {},
+    {
+      data: {
+        route: { data: { pagination } },
+      },
+    },
+  );
+}
+
+function renderPaginationTemplate(
+  source: string,
+  pagination: {
+    page: number;
+    pages: number;
+    prev_url: string | undefined;
+    next_url: string | undefined;
+    base_url?: string | undefined;
+  },
+): string {
+  const engine = makeEngine();
+  registerNavigationHelpers(engine);
+  const template = engine.hb.compile(source);
   return template(
     {},
     {
@@ -241,6 +265,33 @@ describe('pagination helper href sanitisation', () => {
     for (const href of hrefs) {
       expect(href).toBe('href="#"');
     }
+  });
+});
+
+describe('pagination helper block form', () => {
+  test('exposes current page_url on the block context', () => {
+    const html = renderPaginationTemplate('{{#pagination}}{{this.page_url}}{{/pagination}}', {
+      page: 2,
+      pages: 3,
+      prev_url: '/',
+      next_url: '/page/3/',
+      base_url: '/',
+    });
+    expect(html).toBe('/page/2/');
+  });
+
+  test('exposes pagination as the first block param', () => {
+    const html = renderPaginationTemplate(
+      '{{#pagination as |pager|}}{{pager.page_url}}{{/pagination}}',
+      {
+        page: 1,
+        pages: 3,
+        prev_url: undefined,
+        next_url: '/page/2/',
+        base_url: '/',
+      },
+    );
+    expect(html).toBe('/');
   });
 });
 

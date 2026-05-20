@@ -82,9 +82,23 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'pagination',
     function paginationHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const route = options.data?.route as { data?: { pagination?: PaginationLike } } | undefined;
+      const route = options.data?.route as
+        | { url?: string; data?: { pagination?: PaginationLike } }
+        | undefined;
       const pagination = route?.data?.pagination;
       if (!pagination || pagination.pages <= 1) return new engine.hb.SafeString('');
+
+      if (options.fn) {
+        const blockContext = {
+          ...pagination,
+          page_url: currentPaginationPageUrl(pagination, route?.url),
+        };
+        const html = options.fn(blockContext, {
+          data: options.data,
+          blockParams: [blockContext],
+        });
+        return new engine.hb.SafeString(html);
+      }
 
       // Theme override: if the theme ships `partials/pagination.hbs`, render
       // it with the pagination context so theme authors can supply custom
@@ -176,6 +190,20 @@ interface PaginationLike {
   pages: number;
   prev_url: string | undefined;
   next_url: string | undefined;
+  base_url?: string | undefined;
+  page_url?: string | undefined;
+}
+
+function currentPaginationPageUrl(
+  pagination: PaginationLike,
+  routeUrl: string | undefined,
+): string {
+  if (pagination.page_url) return pagination.page_url;
+  if (routeUrl) return routeUrl;
+  const baseUrl = pagination.base_url;
+  if (!baseUrl) return '';
+  if (pagination.page <= 1) return baseUrl;
+  return `${baseUrl.replace(/\/?$/, '/')}page/${pagination.page}/`;
 }
 
 function slugify(text: string): string {
