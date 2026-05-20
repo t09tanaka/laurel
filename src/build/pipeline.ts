@@ -1118,11 +1118,17 @@ async function runBuild({
           // indexable. See #781.
           urls: routes
             .filter((r) => r.indexable !== false)
-            .map((r) => ({
-              url: r.url,
-              lastmod: r.lastmod,
-              kind: routeKindToSitemapKind(r.kind),
-            })),
+            .map((r) => {
+              const post = r.kind === 'post' ? r.data.post : undefined;
+              return {
+                url: r.url,
+                lastmod: r.lastmod,
+                kind: routeKindToSitemapKind(r.kind),
+                images: post?.feature_image
+                  ? [{ url: post.feature_image, caption: post.feature_image_caption }]
+                  : undefined,
+              };
+            }),
         }),
       );
     }

@@ -2,7 +2,7 @@ import { gzipSync } from 'node:zlib';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { writeBytes, writeHtml } from './emit.ts';
-import { absoluteUrl } from './url.ts';
+import { absoluteContentUrl, absoluteUrl } from './url.ts';
 
 export type SitemapKind = 'posts' | 'pages' | 'tags' | 'authors';
 
@@ -21,6 +21,12 @@ export interface SitemapEntry {
   kind?: SitemapKind | undefined;
   changefreq?: SitemapChangefreq | undefined;
   priority?: number | undefined;
+  images?: SitemapImage[] | undefined;
+}
+
+export interface SitemapImage {
+  url: string;
+  caption?: string | undefined;
 }
 
 // Sitemap protocol caps each file at 50,000 URLs and 50 MiB uncompressed.
@@ -100,19 +106,22 @@ async function writeXmlWithGzip(outputDir: string, filename: string, xml: string
 }
 
 function renderSitemapUrlset(entries: SitemapEntry[], config: NectarConfig): string {
+  let hasImages = false;
   const urls = entries.map((entry) => {
     const defaults = entry.kind ? SITEMAP_KIND_DEFAULTS[entry.kind] : SITEMAP_UNCLASSIFIED_DEFAULT;
     const changefreq = entry.changefreq ?? defaults.changefreq;
     const priority = entry.priority ?? defaults.priority;
     const loc = `<loc>${escapeXml(absoluteUrl(entry.url, config))}</loc>`;
+    const images = renderSitemapImages(entry.images ?? [], config);
+    if (images.length > 0) hasImages = true;
     const lastmod = entry.lastmod
       ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
       : '';
     const cf = `<changefreq>${changefreq}</changefreq>`;
     const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
-    return formatXmlBlock('url', [loc, lastmod, cf, pr].filter(Boolean));
+    return formatXmlBlock('url', [loc, ...images, lastmod, cf, pr].filter(Boolean));
   });
-  return formatSitemapDocument('urlset', urls);
+  return formatSitemapDocument('urlset', urls, { imageNamespace: hasImages });
 }
 
 function renderSitemapIndex(entries: { loc: string; lastmod: string | undefined }[]): string {
@@ -124,8 +133,56 @@ function renderSitemapIndex(entries: { loc: string; lastmod: string | undefined 
   return formatSitemapDocument('sitemapindex', sitemaps);
 }
 
-function formatSitemapDocument(root: 'urlset' | 'sitemapindex', children: string[]): string {
-  const open = `<${root} xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+function renderSitemapImages(images: SitemapImage[], config: NectarConfig): string[] {
+  const blocks: string[] = [];
+  for (const image of images) {
+    const loc = normalizeSitemapImageUrl(image.url, config);
+    if (!loc) continue;
+    const children = [`<image:loc>${escapeXml(loc)}</image:loc>`];
+    const caption = normalizeSitemapImageCaption(image.caption);
+    if (caption) {
+      children.push(`<image:caption>${escapeXml(caption)}</image:caption>`);
+    }
+    blocks.push(formatXmlBlock('image:image', children));
+  }
+  return blocks;
+}
+
+function normalizeSitemapImageUrl(url: string, config: NectarConfig): string | undefined {
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) return undefined;
+  return absoluteContentUrl(trimmed, config);
+}
+
+function normalizeSitemapImageCaption(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const stripped = value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return stripped || undefined;
+}
+
+function formatSitemapDocument(
+  root: 'urlset' | 'sitemapindex',
+  children: string[],
+  opts: { imageNamespace?: boolean } = {},
+): string {
+  const namespaces = ['xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'];
+  if (opts.imageNamespace) {
+    namespaces.push('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
+  }
+  const open = `<${root} ${namespaces.join(' ')}>`;
   const close = `</${root}>`;
   if (children.length === 0) {
     return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${close}\n`;
@@ -133,10 +190,12 @@ function formatSitemapDocument(root: 'urlset' | 'sitemapindex', children: string
   return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${children.join('\n')}\n${close}\n`;
 }
 
-function formatXmlBlock(name: 'url' | 'sitemap', children: string[]): string {
+function formatXmlBlock(name: 'url' | 'sitemap' | 'image:image', children: string[]): string {
   const lines = [`  <${name}>`];
   for (const child of children) {
-    lines.push(`    ${child}`);
+    for (const line of child.split('\n')) {
+      lines.push(`    ${line}`);
+    }
   }
   lines.push(`  </${name}>`);
   return lines.join('\n');

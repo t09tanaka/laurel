@@ -1129,6 +1129,46 @@ describe('build pipeline baseUrl override (#250)', () => {
     expect(posts).not.toContain('prod.example.com');
   });
 
+  test('retargets post feature images into sitemap-posts image entries', async () => {
+    const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/images/cover.png'),
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/azir6cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      [
+        '---',
+        'title: "Hello"',
+        'date: 2026-01-01T00:00:00Z',
+        'feature_image: /content/images/cover.png',
+        'feature_image_alt: "Cover"',
+        'feature_image_caption: "Photo by <strong>Ada &amp; Bob</strong>"',
+        '---',
+        '',
+        'Body',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com' });
+    const posts = readFileSync(join(summary.outputDir, 'sitemap-posts.xml'), 'utf8');
+
+    expect(posts).toContain(
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+    );
+    expect(posts).toContain(
+      '<image:loc>https://pr-42.example.com/content/images/cover.png</image:loc>',
+    );
+    expect(posts).toContain('<image:caption>Photo by Ada &amp; Bob</image:caption>');
+    expect(posts).not.toContain('prod.example.com');
+  });
+
   test('strips a trailing slash on the override so URL joins do not double-up', async () => {
     const cwd = await makeSiteWithFeeds({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd, baseUrl: 'https://pr-42.example.com/' });

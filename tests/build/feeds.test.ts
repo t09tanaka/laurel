@@ -966,6 +966,79 @@ describe('emitSitemap', () => {
     expect(posts).toContain('\n  <url>\n');
   });
 
+  test('post sub-sitemap emits image extension entries for feature images', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [
+        {
+          url: '/hello-world/',
+          lastmod: '2026-01-02T03:04:05.000Z',
+          kind: 'posts',
+          images: [
+            {
+              url: '/content/images/cover.jpg',
+              caption: 'Photo by <a href="https://credit.test">Ada &amp; Bob</a>',
+            },
+          ],
+        },
+        { url: '/no-image/', kind: 'posts' },
+      ],
+    });
+
+    const posts = readFileSync(join(outputDir, 'sitemap-posts.xml'), 'utf8');
+    const pages = readFileSync(join(outputDir, 'sitemap-pages.xml'), 'utf8');
+
+    expect(posts).toContain(
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+    );
+    expect(posts).toContain(
+      [
+        '  <url>',
+        '    <loc>https://example.com/hello-world/</loc>',
+        '      <image:image>',
+        '        <image:loc>https://example.com/content/images/cover.jpg</image:loc>',
+        '        <image:caption>Photo by Ada &amp; Bob</image:caption>',
+        '      </image:image>',
+        '    <lastmod>2026-01-02T03:04:05.000Z</lastmod>',
+        '    <changefreq>weekly</changefreq>',
+        '    <priority>0.7</priority>',
+        '  </url>',
+      ].join('\n'),
+    );
+    expect(posts).toContain('<loc>https://example.com/no-image/</loc>');
+    expect(pages).not.toContain('xmlns:image=');
+  });
+
+  test('post sub-sitemap skips feature image URLs that cannot be sitemap image loc values', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [
+        {
+          url: '/inline/',
+          kind: 'posts',
+          images: [{ url: 'data:image/png;base64,AAAA', caption: 'Inline data URI' }],
+        },
+      ],
+    });
+
+    const posts = readFileSync(join(outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts).not.toContain('xmlns:image=');
+    expect(posts).not.toContain('<image:image>');
+    expect(posts).toContain('<loc>https://example.com/inline/</loc>');
+  });
+
   test('canonicalizes sitemap route URLs with trailing_slash = never', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-canonical-never-'));
     const config = configSchema.parse({
