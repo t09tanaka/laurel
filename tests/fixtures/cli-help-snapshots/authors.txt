@@ -1,0 +1,28 @@
+Inspect authors in the project
+
+Usage:
+  nectar authors [--config <path>] [--orphaned] [--json] <subcommand...>
+
+Arguments:
+  subcommand          `list` (show authors and post counts)
+
+Options:
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
+  --orphaned          Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only)
+  -j, --json          Emit results as JSON for CI consumption (`list` only)
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_AUTHORS_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar authors list                          # all authors + post counts
+  nectar authors list --orphaned               # authors defined but unused by posts
+  nectar authors list --json                   # machine-readable author inventory

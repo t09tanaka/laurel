@@ -118,6 +118,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
 | [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
+| [`nectar authors`](#nectar-authors) | Inspect authors in the project |
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
@@ -633,6 +634,38 @@ nectar tags list                             # all tags + post counts
 nectar tags list --orphaned                  # tags defined but unused
 nectar tags rename old-tag new-tag
 nectar tags rename old new --dry-run         # preview files that would change
+```
+
+### `nectar authors`
+
+Inspect authors in the project
+
+Usage:
+
+```
+nectar authors [--config <path>] [--orphaned] [--json] <subcommand...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand...>` | required (variadic) | `list` (show authors and post counts) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_AUTHORS_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `--orphaned` | boolean | `NECTAR_AUTHORS_ORPHANED` | Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only) |
+| `-j, --json` | boolean | `NECTAR_AUTHORS_JSON` | Emit results as JSON for CI consumption (`list` only) |
+
+Examples:
+
+```
+nectar authors list                          # all authors + post counts
+nectar authors list --orphaned               # authors defined but unused by posts
+nectar authors list --json                   # machine-readable author inventory
 ```
 
 ### `nectar theme`

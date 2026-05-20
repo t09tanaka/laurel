@@ -715,6 +715,40 @@ export const TAGS_SPEC: CommandSpec = {
   ],
 };
 
+export const AUTHORS_SPEC: CommandSpec = {
+  name: 'authors',
+  summary: 'Inspect authors in the project',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    orphaned: {
+      type: 'boolean',
+      description:
+        'Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only)',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit results as JSON for CI consumption (`list` only)',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`list` (show authors and post counts)',
+      required: true,
+      variadic: true,
+    },
+  ],
+  examples: [
+    'nectar authors list                          # all authors + post counts',
+    'nectar authors list --orphaned               # authors defined but unused by posts',
+    'nectar authors list --json                   # machine-readable author inventory',
+  ],
+};
+
 export const CONFIG_SPEC: CommandSpec = {
   name: 'config',
   summary: 'Inspect the loaded nectar.toml config',
@@ -1123,6 +1157,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   info: INFO_SPEC,
   lint: LINT_SPEC,
   tags: TAGS_SPEC,
+  authors: AUTHORS_SPEC,
   theme: THEME_SPEC,
   migrate: MIGRATE_SPEC,
   deploy: DEPLOY_SPEC,

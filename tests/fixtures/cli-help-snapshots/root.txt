@@ -20,6 +20,7 @@ Commands:
   info              Print Nectar, Bun, and project environment information
   lint              Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
   tags              Inspect or modify tags in the project
+  authors           Inspect authors in the project
   theme             Manage themes in the project. `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials
   migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
   deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync

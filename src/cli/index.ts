@@ -187,6 +187,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runTags } = await import('./commands/tags.js');
       return runTags(rest);
     }
+    case 'authors': {
+      const { runAuthors } = await import('./commands/authors.js');
+      return runAuthors(rest);
+    }
     case 'config': {
       const { runConfig } = await import('./commands/config.js');
       return runConfig(rest);
