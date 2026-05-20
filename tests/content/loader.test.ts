@@ -486,6 +486,52 @@ codeinjection_foot: "<script>window.__tag='news'</script>"
     });
   });
 
+  test('tag frontmatter visibility overrides the hash-slug heuristic (#1018)', async () => {
+    const cwd = await fixture();
+    await writeFile(
+      join(cwd, 'content/tags/hash-news.md'),
+      `---
+name: Hash News
+visibility: public
+---
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/tags/ops.md'),
+      `---
+name: Ops
+visibility: internal
+---
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/visibility.md'),
+      `---
+title: Visibility
+date: 2026-03-01T00:00:00Z
+tags: [hash-news, ops]
+---
+
+Body
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.bySlug.tags.get('hash-news')?.visibility).toBe('public');
+    expect(graph.bySlug.tags.get('ops')?.visibility).toBe('internal');
+    expect(
+      graph.bySlug.posts.get('visibility')?.tags.map((tag) => [tag.slug, tag.visibility]),
+    ).toEqual([
+      ['hash-news', 'public'],
+      ['ops', 'internal'],
+    ]);
+  });
+
   test('loads author archive SEO fields and exposes them on primary_author', async () => {
     const cwd = await fixture();
     await writeFile(

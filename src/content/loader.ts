@@ -1277,6 +1277,8 @@ async function normalizePost(
 // typo doesn't silently gate a post. See #325.
 const POST_VISIBILITY_VALUES = ['public', 'members', 'paid', 'tiers', 'filter'] as const;
 type PostVisibility = (typeof POST_VISIBILITY_VALUES)[number];
+const TAG_VISIBILITY_VALUES = ['public', 'internal'] as const;
+type TagVisibility = (typeof TAG_VISIBILITY_VALUES)[number];
 
 function parsePostVisibility(raw: string | undefined, filePath: string): PostVisibility {
   if (raw === undefined) return 'public';
@@ -1288,6 +1290,23 @@ function parsePostVisibility(raw: string | undefined, filePath: string): PostVis
     `Unknown visibility '${raw}' in ${filePath}; falling back to 'public'. Allowed values: ${POST_VISIBILITY_VALUES.join(', ')}.`,
   );
   return 'public';
+}
+
+function parseTagVisibility(
+  raw: string | undefined,
+  slug: string,
+  filePath: string,
+): TagVisibility {
+  const fallback = slug.startsWith('hash-') ? 'internal' : 'public';
+  if (raw === undefined) return fallback;
+  const value = raw.trim().toLowerCase();
+  if ((TAG_VISIBILITY_VALUES as readonly string[]).includes(value)) {
+    return value as TagVisibility;
+  }
+  logger.warn(
+    `Unknown tag visibility '${raw}' in ${filePath}; falling back to '${fallback}'. Allowed values: ${TAG_VISIBILITY_VALUES.join(', ')}.`,
+  );
+  return fallback;
 }
 
 function isPaywallVisibility(visibility: PostVisibility): visibility is PaywallVisibility {
@@ -1558,7 +1577,7 @@ async function normalizeRawTag(
     description: asString(data.description) ?? '',
     feature_image: asString(data.feature_image),
     accent_color: asString(data.accent_color),
-    visibility: slug.startsWith('hash-') ? 'internal' : 'public',
+    visibility: parseTagVisibility(asString(data.visibility), slug, filePath),
     canonical_url: asString(data.canonical_url),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
