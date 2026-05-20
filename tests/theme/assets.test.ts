@@ -84,3 +84,81 @@ describe('loadThemeAssets fingerprint cache', () => {
     expect(map.get('assets/a.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
   });
 });
+
+describe('loadThemeAssets parallel hashing', () => {
+  // Hash work fans out via Promise.all with a concurrency limit. Iteration
+  // order of the returned Map must still be deterministic so downstream code
+  // (cache writes, build summaries) doesn't see flaky ordering, and every
+  // file must end up with a well-formed sha1 prefix regardless of how the
+  // parallel scheduler interleaves them.
+  test('hashes many assets in parallel without losing or reordering entries', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-parallel-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+
+    const N = 40;
+    const expectedRels: string[] = [];
+    await Promise.all(
+      Array.from({ length: N }, (_, i) => {
+        const rel = `built/file-${String(i).padStart(3, '0')}.bin`;
+        expectedRels.push(`assets/${rel}`);
+        // Distinct contents per file so any accidental cross-talk between
+        // parallel tasks (e.g. hasher reuse, swapped buffers) would surface
+        // as a duplicate or mis-ordered hash.
+        return writeFile(
+          join(themeDir, 'assets', rel),
+          Buffer.from(`payload-${i}-${'x'.repeat((i % 7) * 11)}`),
+        );
+      }),
+    );
+
+    const map = await loadThemeAssets(themeDir);
+    const seenLogical = Array.from(map.keys()).filter((k) => k.startsWith('assets/'));
+    expect(seenLogical.length).toBe(N);
+
+    // Two runs must produce the same iteration order and the same hashes,
+    // regardless of which parallel task happened to finish first.
+    const map2 = await loadThemeAssets(themeDir);
+    const seenLogical2 = Array.from(map2.keys()).filter((k) => k.startsWith('assets/'));
+    expect(seenLogical2).toEqual(seenLogical);
+    for (const k of seenLogical) {
+      const a = map.get(k);
+      const b = map2.get(k);
+      expect(a?.hash).toMatch(/^[0-9a-f]{10}$/);
+      expect(b?.hash).toBe(a?.hash as string);
+    }
+
+    // Hashes across distinct content must be distinct (sanity: streaming
+    // hash isn't accidentally hashing empty input for everyone).
+    const hashes = new Set(seenLogical.map((k) => map.get(k)?.hash));
+    expect(hashes.size).toBe(N);
+  });
+
+  // The hash is computed by streaming the file through CryptoHasher rather
+  // than buffering the full payload first. The result must match the
+  // equivalent one-shot sha1 of the same bytes, otherwise fingerprinted
+  // URLs would shift across implementations and break long-lived caches.
+  test('streaming sha1 matches the equivalent one-shot sha1', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-stream-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+
+    // Use payloads that span multiple stream chunks so the test would catch
+    // a bug where only the first chunk gets fed to the hasher.
+    const big = Buffer.alloc(1024 * 256);
+    for (let i = 0; i < big.length; i++) big[i] = (i * 31) & 0xff;
+    const small = Buffer.from('body{color:red}');
+    await writeFile(join(assetsDir, 'big.bin'), big);
+    await writeFile(join(assetsDir, 'small.css'), small);
+
+    const map = await loadThemeAssets(themeDir);
+
+    const oneShot = (buf: Buffer): string => {
+      const h = new Bun.CryptoHasher('sha1');
+      h.update(buf);
+      return h.digest('hex').slice(0, 10);
+    };
+    expect(map.get('assets/built/big.bin')?.hash).toBe(oneShot(big));
+    expect(map.get('assets/built/small.css')?.hash).toBe(oneShot(small));
+  });
+});

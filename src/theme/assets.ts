@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
+import { pLimit } from '~/util/concurrency.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import type { ThemeAsset } from './types.ts';
@@ -25,6 +26,12 @@ interface AssetCacheFile {
 
 const CACHE_VERSION = 1;
 const CACHE_FILENAME = 'asset-cache.json';
+// Bounded concurrency for the per-file stat + sha1 fan-out. 16 is well under
+// the typical soft fd limit (1024) and large enough to saturate disk
+// throughput on real themes (hundreds of small fonts/CSS/JS assets) while
+// keeping memory bounded — combined with streaming sha1 below, peak heap is
+// HASH_CONCURRENCY x chunk size rather than scaling with asset size or count.
+const HASH_CONCURRENCY = 16;
 
 export async function loadThemeAssets(
   rootDir: string,
@@ -38,39 +45,65 @@ export async function loadThemeAssets(
   const cache = cacheFile ? await readCache(cacheFile) : {};
   const next: Record<string, AssetCacheEntry> = {};
 
+  // Collect candidate relative paths up front. glob.scan is inherently
+  // sequential; doing the readFile + hash work in a Promise.all fan-out below
+  // is what unlocks the actual speedup on themes with hundreds of assets.
+  const rels: string[] = [];
   const glob = new Bun.Glob('**/*');
   for await (const rel of glob.scan({ cwd: assetsDir, onlyFiles: true })) {
     if (pathContainsSymlink(assetsDir, rel)) {
       logger.warn(`Skipping symlinked theme asset: ${join(assetsDir, rel)}`);
       continue;
     }
-    const file = join(assetsDir, rel);
-    const stat = statSync(file);
-    const mtimeMs = stat.mtimeMs;
-    const size = stat.size;
-    const cached = cache[file];
-    let hash: string;
-    if (cached && cached.mtimeMs === mtimeMs && cached.size === size) {
-      hash = cached.hash;
-    } else {
-      const buf = await readFile(file);
-      hash = await sha1Short(buf);
-    }
-    next[file] = { mtimeMs, size, hash };
-    const logical = `assets/${rel.replaceAll('\\', '/')}`;
-    const ext = extname(rel);
+    rels.push(rel);
+  }
+
+  interface Processed {
+    rel: string;
+    file: string;
+    mtimeMs: number;
+    size: number;
+    hash: string;
+  }
+
+  const limit = pLimit(HASH_CONCURRENCY);
+  const processed = await Promise.all(
+    rels.map((rel) =>
+      limit(async (): Promise<Processed> => {
+        const file = join(assetsDir, rel);
+        const stat = statSync(file);
+        const mtimeMs = stat.mtimeMs;
+        const size = stat.size;
+        const cached = cache[file];
+        let hash: string;
+        if (cached && cached.mtimeMs === mtimeMs && cached.size === size) {
+          hash = cached.hash;
+        } else {
+          hash = await sha1ShortStream(file);
+        }
+        return { rel, file, mtimeMs, size, hash };
+      }),
+    ),
+  );
+
+  // Apply results in glob order so the Map iteration order stays deterministic
+  // across runs regardless of which task finished first.
+  for (const p of processed) {
+    next[p.file] = { mtimeMs: p.mtimeMs, size: p.size, hash: p.hash };
+    const logical = `assets/${p.rel.replaceAll('\\', '/')}`;
+    const ext = extname(p.rel);
     const base = logical.slice(0, logical.length - ext.length);
-    const fingerprinted = shouldFingerprint(ext) ? `${base}.${hash}${ext}` : logical;
+    const fingerprinted = shouldFingerprint(ext) ? `${base}.${p.hash}${ext}` : logical;
     const entry = {
       logicalPath: logical,
       fingerprintedPath: fingerprinted,
-      sourcePath: file,
-      hash,
-      size,
+      sourcePath: p.file,
+      hash: p.hash,
+      size: p.size,
     };
     out.set(logical, entry);
     // Also let bare references (e.g. "built/screen.css") resolve without the assets/ prefix.
-    out.set(rel.replaceAll('\\', '/'), entry);
+    out.set(p.rel.replaceAll('\\', '/'), entry);
   }
 
   if (cacheFile) await writeCache(cacheFile, next);
@@ -140,9 +173,15 @@ function shouldFingerprint(ext: string): boolean {
   return ['.css', '.js', '.mjs'].includes(dotted);
 }
 
-async function sha1Short(buf: Buffer): Promise<string> {
+// Stream the file through Bun.CryptoHasher instead of buffering the whole
+// payload into a Buffer first. For a 40MB asset this keeps memory at the
+// stream's chunk size (tens of KB) instead of 40MB resident per file.
+async function sha1ShortStream(file: string): Promise<string> {
   const hash = new Bun.CryptoHasher('sha1');
-  hash.update(buf);
+  const stream = Bun.file(file).stream();
+  for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+    hash.update(chunk);
+  }
   const digest = hash.digest('hex');
   return digest.slice(0, 10);
 }
