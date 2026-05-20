@@ -16,3 +16,35 @@ coverageSkipTestFiles = true
 [test.coverageThreshold]
 lines = 0.85
 functions = 0.85
+
+# ---------------------------------------------------------------------------
+# Supply-chain security scanner (#484, #568).
+#
+# Bun >= 1.2.x supports running an external "security scanner" before any
+# package is downloaded. The scanner is a Bun package that exports a function
+# matching the shape documented at:
+#   https://bun.sh/docs/install/security-scanner-api
+#
+# When configured, the scanner is invoked at install time with the set of
+# packages bun is about to materialize. It can mark a package as `fatal`
+# (install aborts) or `warn` (install continues with a printed advisory). This
+# is the layer that catches known-malicious / typosquatted / advisory-flagged
+# packages BEFORE they touch node_modules.
+#
+# Nectar does not ship a scanner of its own; the field below is intentionally
+# left commented out so contributors can opt in to an organization-approved
+# scanner without forking the repo. Candidates as of 2026-05:
+#
+#   - "@aikidosec/safe-chain"     community scanner; advisory feed + heuristics
+#   - "@socketsecurity/bunfig"    Socket's bun-native scanner (requires API key)
+#
+# To activate, `bun add -d <scanner>` and uncomment:
+#
+# [install.security]
+# scanner = "@aikidosec/safe-chain"
+#
+# CI also runs `bun pm scan` (see .github/workflows/security.yml) which uses
+# whichever scanner is configured here. With no scanner configured, `bun pm
+# scan` still provides defense in depth alongside osv-scanner, bun audit, and
+# CodeQL by verifying lockfile integrity.
+# ---------------------------------------------------------------------------
