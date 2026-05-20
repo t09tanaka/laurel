@@ -215,6 +215,8 @@ const BOOKMARK_SHORTCODE_RE =
 // iframe providers that do not require per-post script injection.
 const EMBED_SHORTCODE_RE = /\{\{<\s+embed((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
+const FIGURE_SHORTCODE_RE = /\{\{<\s+figure((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+
 // Block-form shortcode: `{{< toggle heading="…" >}}body markdown{{< /toggle >}}`.
 // The body is non-greedy so consecutive toggles in the same document each get
 // their own match, and `[\s\S]` lets the body span line breaks.
@@ -266,6 +268,9 @@ export function expandKoenigShortcodes(markdown: string): string {
     )
     .replace(EMBED_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderEmbedHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(FIGURE_SHORTCODE_RE, (_match, attrsStr: string) =>
+      renderFigureHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(TOGGLE_SHORTCODE_RE, (_match, attrsStr: string, body: string) =>
       renderToggleHtml(parseShortcodeAttrs(attrsStr), body),
@@ -332,6 +337,14 @@ function hasCaptionClass(caption: string): string {
   return caption ? ' kg-card-hascaption' : '';
 }
 
+const KOENIG_WIDTHS = new Set(['regular', 'wide', 'full']);
+
+function koenigWidthClass(attrs: Record<string, string>, defaultWidth = ''): string {
+  const raw = attrs.size ?? attrs.cardWidth ?? defaultWidth;
+  const normalized = raw.replace(/^kg-width-/, '');
+  return KOENIG_WIDTHS.has(normalized) ? ` kg-width-${normalized}` : '';
+}
+
 function renderBookmarkHtml(attrs: Record<string, string>): string {
   const url = attrs.url ?? '';
   if (!url) return '';
@@ -374,6 +387,27 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
   return `\n\n<figure class="kg-card kg-bookmark-card${hasCaptionClass(caption)}">${anchor}${figcaption}</figure>\n\n`;
 }
 
+function renderFigureHtml(attrs: Record<string, string>): string {
+  const src = attrs.src ?? '';
+  if (!src) return '';
+  const caption = attrs.caption ?? '';
+  const imgAttrs = [
+    'class="kg-image"',
+    `src="${escapeHtmlAttr(src)}"`,
+    `alt="${escapeHtmlAttr(attrs.alt ?? '')}"`,
+    attrs.width ? `width="${escapeHtmlAttr(attrs.width)}"` : '',
+    attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
+    attrs.srcset ? `srcset="${escapeHtmlAttr(attrs.srcset)}"` : '',
+    attrs.sizes ? `sizes="${escapeHtmlAttr(attrs.sizes)}"` : '',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  const image = `<img ${imgAttrs} />`;
+  const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${image}</a>` : image;
+  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs, 'regular')}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+}
+
 type StaticEmbed = {
   src: string;
   title: string;
@@ -389,15 +423,16 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
   const embed = staticEmbedFromUrl(url, attrs.provider);
   const caption = attrs.caption ?? '';
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const cardClass = `kg-card kg-embed-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}`;
   if (!embed) {
-    return `\n\n<figure class="kg-card kg-embed-card${hasCaptionClass(caption)}"><a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(url)}</a>${figcaption}</figure>\n\n`;
+    return `\n\n<figure class="${cardClass}"><a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(url)}</a>${figcaption}</figure>\n\n`;
   }
 
   const title = attrs.title || embed.title;
   const width = attrs.width || embed.width;
   const height = attrs.height || embed.height;
   const iframe = `<iframe src="${escapeHtmlAttr(embed.src)}" title="${escapeHtmlAttr(title)}" width="${escapeHtmlAttr(width)}" height="${escapeHtmlAttr(height)}" loading="lazy" frameborder="0" allow="${escapeHtmlAttr(embed.allow)}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
-  return `\n\n<figure class="kg-card kg-embed-card${hasCaptionClass(caption)}">${iframe}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="${cardClass}">${iframe}${figcaption}</figure>\n\n`;
 }
 
 function staticEmbedFromUrl(rawUrl: string, providerHint: string | undefined): StaticEmbed | null {
@@ -591,7 +626,7 @@ function renderGalleryHtml(attrs: Record<string, string>, body: string): string 
   if (rows.length === 0) return '';
   const container = `<div class="kg-gallery-container">${rows.join('')}</div>`;
   const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
-  return `\n\n<figure class="kg-card kg-gallery-card${hasCaptionClass(caption)}">${container}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-gallery-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${container}${figcaption}</figure>\n\n`;
 }
 
 function renderFileHtml(attrs: Record<string, string>): string {
@@ -651,7 +686,7 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
   const figcaption = attrs.caption
     ? `<figcaption>${escapeHtmlAttr(attrs.caption)}</figcaption>`
     : '';
-  return `\n\n<figure class="kg-card kg-video-card${hasCaptionClass(attrs.caption ?? '')}"><div class="kg-video-container"${aspectStyle}><video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-video-card${koenigWidthClass(attrs)}${hasCaptionClass(attrs.caption ?? '')}"><div class="kg-video-container"${aspectStyle}><video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
 }
 
 function renderVideoTracksHtml(body: string): string {

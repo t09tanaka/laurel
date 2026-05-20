@@ -13,7 +13,7 @@ describe('Ghost compatibility docs', () => {
       '| Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape',
     );
     expect(doc).toContain(
-      '| Embed | Yes | Partial | Converts to `{{< embed />}}`. YouTube, Vimeo, and Spotify render static iframes',
+      '| Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes',
     );
     expect(doc).toContain(
       '| Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks',

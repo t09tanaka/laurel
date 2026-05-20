@@ -64,9 +64,9 @@ build emits usable reader-facing HTML without a Ghost server.
 | Card | Migrates | Renders | Notes |
 |------|----------|---------|-------|
 | Image | Yes | Yes | Preserves `kg-image-card`, image link, caption, width/height, and width modifier classes where exported. |
-| Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape with intrinsic image dimensions; Nectar does not inject Ghost's legacy gallery bootstrap script. |
+| Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape, intrinsic image dimensions, and width modifier classes; Nectar does not inject Ghost's legacy gallery bootstrap script. |
 | Bookmark | Yes | Yes | Converts to a `{{< bookmark />}}` shortcode and renders the static `kg-bookmark-card` scaffold with best-effort metadata. |
-| Embed | Yes | Partial | Converts to `{{< embed />}}`. YouTube, Vimeo, and Spotify render static iframes; Twitter/X, Instagram, TikTok, and CodePen stay fallback links unless a site deliberately loads provider scripts. |
+| Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes; Twitter/X, Instagram, TikTok, and CodePen stay fallback links unless a site deliberately loads provider scripts. |
 | HTML | Yes | Partial | Imports through the HTML-card sanitizer and renders allowed raw HTML. Script/style loaders and dangerous URL schemes are removed. |
 | Markdown | Yes | Yes | Ghost's rendered Markdown-card HTML is converted back through Turndown and then rendered as normal Markdown/HTML. |
 | Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost-specific code-card wrapper and caption parity is limited. |
@@ -75,7 +75,7 @@ build emits usable reader-facing HTML without a Ghost server.
 | Toggle | Yes | Yes | Renders as native `<details>` / `<summary>` with `kg-toggle-card` hooks; no Ghost toggle JavaScript is required. |
 | File | Yes | Yes | Renders a static download link with `kg-file-card` metadata rows. |
 | Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks; Ghost's custom player runtime is not hydrated. |
-| Video | Yes | Yes | Renders native `<video controls>`, poster, captions/tracks, and sanitized `--aspect-ratio` metadata for theme CSS. |
+| Video | Yes | Yes | Renders native `<video controls>`, poster, captions/tracks, width modifier classes, and sanitized `--aspect-ratio` metadata for theme CSS. |
 | Product | Yes | Yes | Renders the static product-card scaffold, image/title/description/rating/CTA fields that survived import. |
 | Header | Partial | Partial | Raw `kg-header-card` HTML scaffolds survive sanitisation and Source has matching CSS hooks, but Nectar does not yet emit a first-class header-card shortcode from Lexical nodes. |
 | NFT | Partial | Partial | Static link, image, and metadata scaffolds survive; no blockchain wallet, marketplace, or live ownership runtime is provided. |
@@ -243,16 +243,23 @@ plain paragraphs or bare media tags.
 The current Markdown renderer expands these Ghost-import shortcodes back to
 theme-compatible HTML scaffolds:
 
+For figure-based cards, `size="regular|wide|full"` round-trips to
+`kg-width-regular|kg-width-wide|kg-width-full`. Themes such as Source place
+post bodies inside `gh-content gh-canvas` and rely on those Koenig width classes
+to place media on the `main`, `wide`, or `full` grid tracks.
+
 | Shortcode/input | Rendered wrapper contract |
 |-----------------|---------------------------|
+| `{{< figure />}}` | `<figure class="kg-card kg-image-card kg-width-*">` with a `.kg-image` image, optional wrapping link, and caption. |
 | `{{< bookmark />}}` | `<figure class="kg-card kg-bookmark-card">` with `.kg-bookmark-container` children. |
-| `{{< gallery >}}` | `<figure class="kg-card kg-gallery-card">` with `.kg-gallery-container`, `.kg-gallery-row`, and `.kg-gallery-image`. |
+| `{{< embed />}}` | `<figure class="kg-card kg-embed-card kg-width-*">` with a static supported-provider iframe or fallback link. |
+| `{{< gallery >}}` | `<figure class="kg-card kg-gallery-card kg-width-*">` with `.kg-gallery-container`, `.kg-gallery-row`, and `.kg-gallery-image`. |
 | `{{< callout >}}` | `<div class="kg-card kg-callout-card ...">` with `.kg-callout-emoji` and `.kg-callout-text`. |
 | `{{< button >}}` | `<div class="kg-card kg-button-card ...">` with an `.kg-btn` anchor. |
 | `{{< toggle >}}` | `<details class="kg-card kg-toggle-card">` plus native `<summary>` behaviour. |
 | `{{< file />}}` | `<div class="kg-card kg-file-card">` with `.kg-file-card-container` and metadata rows. |
 | `{{< audio />}}` | `<div class="kg-card kg-audio-card">` with an `<audio controls>` element and metadata rows. |
-| `{{< video />}}` | `<figure class="kg-card kg-video-card">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
+| `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card">` with image, title, description, optional rating, and CTA scaffold. |
 
 Raw Ghost-compatible HTML scaffolds for `kg-header-card`, `kg-nft-card`, and

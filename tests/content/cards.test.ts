@@ -104,9 +104,9 @@ describe('card fixture corpus', () => {
 
   test('embed shortcode renders YouTube as a static privacy-enhanced iframe', async () => {
     const { html } = await renderMarkdown(
-      '{{< embed url="https://www.youtube.com/watch?v=abc123_DEF-4&t=1m5s" provider="youtube" title="A talk" caption="Talk transcript" />}}',
+      '{{< embed url="https://www.youtube.com/watch?v=abc123_DEF-4&t=1m5s" provider="youtube" title="A talk" size="wide" caption="Talk transcript" />}}',
     );
-    expect(html).toContain('class="kg-card kg-embed-card kg-card-hascaption"');
+    expect(html).toContain('class="kg-card kg-embed-card kg-width-wide kg-card-hascaption"');
     expect(html).toContain('src="https://www.youtube-nocookie.com/embed/abc123_DEF-4?start=65"');
     expect(html).toContain('title="A talk"');
     expect(html).toContain('loading="lazy"');

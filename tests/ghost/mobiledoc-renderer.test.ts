@@ -125,6 +125,29 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toContain('<figcaption>cap</figcaption>');
   });
 
+  test('preserves Koenig cardWidth on card sections', () => {
+    const out = renderMobiledocToHtml(
+      mobi({
+        cards: [
+          ['image', { src: '/x.jpg', cardWidth: 'wide' }],
+          ['gallery', { cardWidth: 'full', images: [{ src: '/g.jpg', alt: 'G' }] }],
+          ['embed', { url: 'https://example.com/embed', cardWidth: 'regular' }],
+          ['video', { src: '/clip.mp4', cardWidth: 'wide' }],
+        ],
+        sections: [
+          [10, 0],
+          [10, 1],
+          [10, 2],
+          [10, 3],
+        ],
+      }),
+    );
+    expect(out).toContain('class="kg-card kg-image-card kg-width-wide"');
+    expect(out).toContain('class="kg-card kg-gallery-card kg-width-full"');
+    expect(out).toContain('class="kg-card kg-embed-card kg-width-regular"');
+    expect(out).toContain('class="kg-card kg-video-card kg-width-wide"');
+  });
+
   test('renders a code card from a card section', () => {
     const out = renderMobiledocToHtml(
       mobi({

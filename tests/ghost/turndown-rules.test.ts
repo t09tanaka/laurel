@@ -158,7 +158,7 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
       </figure>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< gallery caption="Roll one" >}}');
+    expect(md).toContain('{{< gallery caption="Roll one" size="wide" >}}');
     expect(md).toContain('{{< gallery-row >}}');
     expect(md).toContain('{{< /gallery-row >}}');
     expect(md).toContain(
@@ -245,7 +245,7 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
 describe('Ghost Turndown rules — kg-embed-card', () => {
   test('preserves iframe url, caption, and dimensions', () => {
     const html = `
-      <figure class="kg-card kg-embed-card">
+      <figure class="kg-card kg-embed-card kg-width-wide">
         <iframe src="https://www.youtube.com/embed/abc123" title="A talk" width="560" height="315"></iframe>
         <figcaption>Talk transcript</figcaption>
       </figure>
@@ -258,6 +258,7 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     expect(md).toContain('width="560"');
     expect(md).toContain('height="315"');
     expect(md).toContain('caption="Talk transcript"');
+    expect(md).toContain('size="wide"');
   });
 
   test('detects vimeo provider from player.vimeo.com', () => {
@@ -410,6 +411,7 @@ describe('Ghost Turndown rules — kg-video-card', () => {
     expect(md).toContain('playsinline="true"');
     expect(md).toContain('preload="metadata"');
     expect(md).toContain('caption="Demo"');
+    expect(md).toContain('size="regular"');
   });
 
   // Aspect/loop/playsinline must NOT appear when their source attributes are

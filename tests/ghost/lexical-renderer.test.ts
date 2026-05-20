@@ -170,6 +170,58 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('<figcaption>My caption</figcaption>');
   });
 
+  test('preserves Koenig cardWidth on figure-based cards', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'image',
+          src: '/content/images/2024/01/x.jpg',
+          cardWidth: 'full',
+          version: 1,
+        },
+        {
+          type: 'gallery',
+          cardWidth: 'wide',
+          images: [{ src: '/content/images/a.jpg', alt: 'A' }],
+          version: 1,
+        },
+        {
+          type: 'embed',
+          url: 'https://example.com/embed',
+          cardWidth: 'regular',
+          caption: 'Embed caption',
+          version: 1,
+        },
+        {
+          type: 'video',
+          src: '/content/media/clip.mp4',
+          cardWidth: 'wide',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-card kg-image-card kg-width-full"');
+    expect(out).toContain('class="kg-card kg-gallery-card kg-width-wide"');
+    expect(out).toContain('class="kg-card kg-embed-card kg-width-regular kg-card-hascaption"');
+    expect(out).toContain('class="kg-card kg-video-card kg-width-wide"');
+  });
+
+  test('drops invalid Koenig cardWidth tokens', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'image',
+          src: '/content/images/2024/01/x.jpg',
+          cardWidth: 'wide onclick=alert(1)',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-card kg-image-card"');
+    expect(out).not.toContain('kg-width-wide onclick');
+    expect(out).not.toContain('onclick');
+  });
+
   test('renders a code card with language and caption', () => {
     const out = renderLexicalToHtml(
       lex([

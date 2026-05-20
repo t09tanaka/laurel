@@ -401,6 +401,20 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     expect(html).toContain('<figcaption>Trio</figcaption>');
   });
 
+  test('preserves explicit Koenig width modifiers on gallery cards', async () => {
+    const md = [
+      '{{< gallery size="full" caption="Wide roll" >}}',
+      '{{< gallery-row >}}',
+      '{{< gallery-image src="https://cdn.test/a.jpg" alt="A" />}}',
+      '{{< /gallery-row >}}',
+      '{{< /gallery >}}',
+    ].join('\n');
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain(
+      '<figure class="kg-card kg-gallery-card kg-width-full kg-card-hascaption">',
+    );
+  });
+
   test('emits nothing when no images are present (empty gallery)', async () => {
     const md = '{{< gallery >}}{{< /gallery >}}';
     const { html } = await renderMarkdown(md);
@@ -409,6 +423,32 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
 });
 
 describe('renderMarkdown — imported Koenig media/product shortcode expansion', () => {
+  test('expands figure shortcode into a Koenig image card with width layout classes', async () => {
+    const md =
+      '{{< figure src="https://cdn.test/hero.jpg" alt="Hero" width="1600" height="900" size="wide" caption="Hero caption" href="https://example.com" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain(
+      '<figure class="kg-card kg-image-card kg-width-wide kg-card-hascaption">',
+    );
+    expect(html).toContain('<a href="https://example.com"><img class="kg-image"');
+    expect(html).toContain('src="https://cdn.test/hero.jpg"');
+    expect(html).toContain('width="1600"');
+    expect(html).toContain('height="900"');
+    expect(html).toContain('<figcaption>Hero caption</figcaption>');
+  });
+
+  test('defaults imported figure shortcodes to regular width and rejects unknown widths', async () => {
+    const regular = await renderMarkdown('{{< figure src="https://cdn.test/a.jpg" />}}');
+    expect(regular.html).toContain('class="kg-card kg-image-card kg-width-regular"');
+
+    const invalid = await renderMarkdown(
+      '{{< figure src="https://cdn.test/a.jpg" size="wide onclick=alert(1)" />}}',
+    );
+    expect(invalid.html).toContain('class="kg-card kg-image-card"');
+    expect(invalid.html).not.toContain('kg-width-wide onclick');
+    expect(invalid.html).not.toContain('onclick');
+  });
+
   test('expands file shortcode into a kg-file-card download scaffold', async () => {
     const md =
       '{{< file src="https://cdn.test/files/resume.pdf" title="Resume" caption="Short PDF download." name="resume.pdf" size="123 KB" />}}';
@@ -439,12 +479,12 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
 
   test('expands video shortcode into a kg-video-card with track children', async () => {
     const md = [
-      '{{< video src="https://cdn.test/video/clip.mp4" poster="https://cdn.test/video/clip-poster.jpg" width="1280" height="720" aspect="1.7777777777777777" preload="metadata" controls="true" caption="Sample video caption." >}}',
+      '{{< video src="https://cdn.test/video/clip.mp4" poster="https://cdn.test/video/clip-poster.jpg" width="1280" height="720" aspect="1.7777777777777777" preload="metadata" controls="true" size="full" caption="Sample video caption." >}}',
       '{{< video-track src="https://cdn.test/video/captions.vtt" kind="captions" srclang="en" label="English" default="true" />}}',
       '{{< /video >}}',
     ].join('\n');
     const { html } = await renderMarkdown(md);
-    expect(html).toContain('class="kg-card kg-video-card kg-card-hascaption"');
+    expect(html).toContain('class="kg-card kg-video-card kg-width-full kg-card-hascaption"');
     expect(html).toContain('class="kg-video-container"');
     expect(html).toContain('style="--aspect-ratio:1.7777777777777777"');
     expect(html).toContain('<video src="https://cdn.test/video/clip.mp4"');

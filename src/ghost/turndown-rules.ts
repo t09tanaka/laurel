@@ -310,7 +310,10 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       return wrap(
         shortcodeBlock(
           'gallery',
-          { caption: text(node.querySelector('figcaption')) },
+          {
+            caption: text(node.querySelector('figcaption')),
+            size: classByPrefix(node, 'kg-width-'),
+          },
           rows.join('\n'),
         ),
       );
@@ -344,6 +347,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
             width: attr(iframe, 'width'),
             height: attr(iframe, 'height'),
             caption,
+            size: classByPrefix(node, 'kg-width-'),
           }),
         );
       }
@@ -355,6 +359,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
             url: lastAnchorHref(twitter),
             provider: 'twitter',
             caption,
+            size: classByPrefix(node, 'kg-width-'),
           }),
         );
       }
@@ -367,6 +372,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
             url: permalink || lastAnchorHref(instagram),
             provider: 'instagram',
             caption,
+            size: classByPrefix(node, 'kg-width-'),
           }),
         );
       }
@@ -379,6 +385,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
             url,
             provider: providerFromUrl(url),
             caption,
+            size: classByPrefix(node, 'kg-width-'),
           }),
         );
       }
@@ -435,6 +442,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
         playsinline: booleanAttr(video, 'playsinline'),
         preload: attr(video, 'preload'),
         caption: text(node.querySelector('figcaption')),
+        size: classByPrefix(node, 'kg-width-'),
       };
       const trackEls = video
         ? Array.from(video.querySelectorAll('track') as ArrayLike<DomNode>)
@@ -628,6 +636,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           alt,
           width: attr(img, 'width'),
           height: attr(img, 'height'),
+          size: classByPrefix(node, 'kg-width-'),
           caption,
         }),
       );

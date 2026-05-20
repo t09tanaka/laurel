@@ -34,7 +34,10 @@ function strDeep(obj: unknown, ...keys: string[]): string {
 
 function widthClass(payload: unknown): string {
   const w = strProp(payload, 'cardWidth');
-  return w && w !== 'regular' ? ` kg-width-${w}` : '';
+  const normalized = w.replace(/^kg-width-/, '');
+  return normalized === 'regular' || normalized === 'wide' || normalized === 'full'
+    ? ` kg-width-${normalized}`
+    : '';
 }
 
 function hasCaptionClass(caption: string): string {
@@ -138,7 +141,7 @@ export function renderEmbedCardHtml(payload: unknown): string {
   if (!html && !url) return '';
   const inner = html || `<a href="${escapeAttr(url)}">${escapeHtml(url)}</a>`;
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-embed-card${hasCaptionClass(caption)}">${inner}${figcap}</figure>`;
+  return `<figure class="kg-card kg-embed-card${widthClass(payload)}${hasCaptionClass(caption)}">${inner}${figcap}</figure>`;
 }
 
 export function renderFileCardHtml(payload: unknown): string {
@@ -183,7 +186,7 @@ export function renderGalleryCardHtml(payload: unknown): string {
   }
   if (rowsHtml.length === 0) return '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-gallery-card${hasCaptionClass(caption)}"><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-gallery-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcap}</figure>`;
 }
 
 export function renderAudioCardHtml(payload: unknown): string {
@@ -226,7 +229,7 @@ export function renderVideoCardHtml(payload: unknown): string {
       ? ` style="--aspect-ratio: ${wNum / hNum}"`
       : '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-video-card${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-video-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
 }
 
 function dimensionProp(obj: unknown, key: string): string {
