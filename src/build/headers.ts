@@ -2,8 +2,83 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { logger } from '~/util/logger.ts';
 
 export type HeadersConfig = NectarConfig['deploy']['headers'];
+
+// Chrome's HSTS preload list (hstspreload.org) refuses any submission whose
+// max-age is below one year (31_536_000 seconds), and silently *removes*
+// already-listed sites whose header later drops below that threshold. So a
+// host that ships `Strict-Transport-Security: max-age=600; preload` is not
+// merely ineligible — it is actively unsafe to publish, because once an
+// operator submits the apex to the list, a subsequent build that drops the
+// max-age below a year triggers eviction with no recourse for users whose
+// browsers already cached the entry. Validate at emit time and warn loudly.
+const HSTS_PRELOAD_MIN_MAX_AGE_SECONDS = 31_536_000;
+
+interface HstsParts {
+  maxAge: number | undefined;
+  includeSubDomains: boolean;
+  preload: boolean;
+}
+
+function parseHstsHeader(value: string): HstsParts {
+  const parts: HstsParts = {
+    maxAge: undefined,
+    includeSubDomains: false,
+    preload: false,
+  };
+  for (const rawDirective of value.split(';')) {
+    const directive = rawDirective.trim().toLowerCase();
+    if (directive === '') continue;
+    if (directive === 'includesubdomains') {
+      parts.includeSubDomains = true;
+      continue;
+    }
+    if (directive === 'preload') {
+      parts.preload = true;
+      continue;
+    }
+    if (directive.startsWith('max-age=')) {
+      const raw = directive.slice('max-age='.length).replace(/"/g, '').trim();
+      const num = Number.parseInt(raw, 10);
+      if (Number.isFinite(num) && num >= 0) parts.maxAge = num;
+    }
+  }
+  return parts;
+}
+
+/**
+ * Validate `Strict-Transport-Security` against the Chrome preload-list rules
+ * when the operator opts into `preload`. Returns the (possibly normalized)
+ * header value to emit, or `null` to skip emission. Warnings surface through
+ * `logger.warn` so `--strict` flags them up in CI.
+ *
+ * Rules (mirroring hstspreload.org):
+ * - `preload` requires `max-age >= 31_536_000` (1 year).
+ * - `preload` requires `includeSubDomains`.
+ *
+ * On violation we still emit the header (silently dropping `preload` would
+ * be more surprising than warning + passing through), but the operator sees
+ * a clear message naming both the directive and the missing condition.
+ */
+export function validateHstsForPreload(value: string): string {
+  const parts = parseHstsHeader(value);
+  if (!parts.preload) return value;
+  if (parts.maxAge === undefined || parts.maxAge < HSTS_PRELOAD_MIN_MAX_AGE_SECONDS) {
+    const reported = parts.maxAge ?? 'unset';
+    logger.warn(
+      `Strict-Transport-Security includes 'preload' but max-age=${reported} is below the preload-list minimum (${HSTS_PRELOAD_MIN_MAX_AGE_SECONDS} = 1 year). hstspreload.org will reject submission; raise max-age before opting into preload.`,
+    );
+  }
+  if (!parts.includeSubDomains) {
+    logger.warn(
+      "Strict-Transport-Security includes 'preload' but is missing 'includeSubDomains'. " +
+        'hstspreload.org requires both directives; add includeSubDomains before submitting.',
+    );
+  }
+  return value;
+}
 
 // Cloudflare Pages and Netlify both read `_headers` at the publish-dir root
 // with the same syntax (a URL pattern on its own line, then any number of
@@ -81,7 +156,8 @@ function collectSecurityLines(security: HeadersConfig['security']): string[] {
   for (const { key, name } of SECURITY_HEADER_FIELDS) {
     const value = security[key];
     if (typeof value === 'string' && value.length > 0) {
-      lines.push(`${name}: ${value}`);
+      const emitted = name === 'Strict-Transport-Security' ? validateHstsForPreload(value) : value;
+      lines.push(`${name}: ${emitted}`);
     }
   }
   for (const [name, value] of Object.entries(security.custom)) {

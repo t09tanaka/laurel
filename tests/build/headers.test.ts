@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'bun:test';
-import { buildHeadersBody } from '~/build/headers.ts';
+import { describe, expect, spyOn, test } from 'bun:test';
+import { buildHeadersBody, validateHstsForPreload } from '~/build/headers.ts';
 import { configSchema } from '~/config/schema.ts';
+import { logger } from '~/util/logger.ts';
 
 function defaultHeaders() {
   return configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -119,5 +120,68 @@ describe('buildHeadersBody', () => {
     });
 
     expect(buildHeadersBody(headers)).toBe('');
+  });
+});
+
+describe('validateHstsForPreload', () => {
+  test('passes through a value without preload directive unchanged', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const value = 'max-age=63072000; includeSubDomains';
+      expect(validateHstsForPreload(value)).toBe(value);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('warns when preload is set but max-age is below 1 year', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      validateHstsForPreload('max-age=600; includeSubDomains; preload');
+      const calls = warn.mock.calls.flat().join('\n');
+      expect(calls).toContain('preload-list minimum');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('warns when preload is set but includeSubDomains is missing', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      validateHstsForPreload('max-age=63072000; preload');
+      const calls = warn.mock.calls.flat().join('\n');
+      expect(calls).toContain('includeSubDomains');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('accepts a fully eligible preload value without warning', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const value = 'max-age=63072000; includeSubDomains; preload';
+      expect(validateHstsForPreload(value)).toBe(value);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('routes Strict-Transport-Security through validation when emitted', () => {
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const headers = parseConfig({
+        security: {
+          strict_transport_security: 'max-age=600; preload',
+        },
+      });
+      const body = buildHeadersBody(headers);
+      expect(body).toContain('Strict-Transport-Security: max-age=600; preload');
+      const calls = warn.mock.calls.flat().join('\n');
+      expect(calls).toContain('preload-list minimum');
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
