@@ -4,10 +4,11 @@
 # many teams prefer driving the build from GitHub Actions for consistent Bun
 # versions and shared caches. This workflow builds dist/ here, uploads it as
 # an artifact, and triggers a Render deploy hook so Render pulls the latest
-# commit and serves it. Required setup:
+# commit, rebuilds it, and serves dist/. Required setup:
 #
 #   - in Render, create a Static Site pointing at this repo with build command
-#     `bunx nectar build` and publish dir `dist`
+#     `bun install --frozen-lockfile && bunx nectar build` and publish dir `dist`
+#   - add BUN_VERSION=1.3.0 to the Render service environment
 #   - turn on a Deploy Hook in the Render service settings
 #   - add the hook URL as repository secret RENDER_DEPLOY_HOOK_URL
 #

@@ -1,13 +1,14 @@
-# 4. Deploy to Cloudflare Pages, Vercel, Netlify, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, nginx, or Docker
+# 4. Deploy to Cloudflare Pages, Vercel, Netlify, Render, DigitalOcean App Platform, GitHub Pages, S3 + CloudFront, nginx, or Docker
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
 Nectar emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
-major free-tier host, plus DigitalOcean App Platform, AWS-native S3 +
-CloudFront, and self-hosted nginx quickstarts. Docker is covered as a runtime
-wrapper around a pre-built `dist/` directory; Nectar does not currently ship a
-Dockerfile, compose file, or Docker-specific package script.
+major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
+AWS-native S3 + CloudFront, and self-hosted nginx quickstarts. Docker is
+covered as a runtime wrapper around a pre-built `dist/` directory; Nectar does
+not currently ship a Dockerfile, compose file, or Docker-specific package
+script.
 
 **Universal pre-flight:**
 
@@ -330,6 +331,38 @@ static_sites:
 
 ---
 
+## Render Static Sites
+
+**Recommended for:** simple Git-connected static hosting on Render, especially
+when the site lives next to other Render services.
+
+For the focused Render guide, including the optional deploy-hook workflow and
+current header / redirect limitations, see
+[`docs/deploy/render.md`](../deploy/render.md).
+
+1. Render dashboard -> **New -> Static Site**.
+2. Connect the Git repo that contains the Nectar project.
+3. In the service settings:
+
+   | Field             | Value                                                  |
+   | ----------------- | ------------------------------------------------------ |
+   | Build command     | `bun install --frozen-lockfile && bunx nectar build`   |
+   | Publish directory | `dist`                                                 |
+   | Root directory    | *(blank, unless monorepo)*                             |
+
+4. Environment variables -> add **`BUN_VERSION` = `1.3.0`**.
+5. Save and deploy.
+
+Render serves the generated `dist/` directory directly. Nectar does not
+currently emit a Render-specific `render.yaml`, nor does it translate
+`[deploy.headers]` or `redirects.yaml` into Render-native dashboard rules.
+Configure custom headers and redirects in Render for now. The optional
+[`examples/ci/render.yml`](../../examples/ci/render.yml) workflow can build
+`dist/` in GitHub Actions before calling a Render deploy hook, but Render still
+performs the final checkout, build, and publish.
+
+---
+
 ## GitHub Pages
 
 **Recommended for:** repos already on GitHub, no extra account needed.
@@ -518,7 +551,8 @@ turns redirect rules into nginx `return` directives.
 
 - **Build runs locally, fails in CI.** Usually a missing Bun. Confirm the
   host installed Bun ≥ 1.3 (Cloudflare/Netlify need `BUN_VERSION` env;
-  Vercel auto-detects from `bun.lock`; GitHub Actions needs `setup-bun@v2`).
+  Render needs `BUN_VERSION`; Vercel auto-detects from `bun.lock`; GitHub
+  Actions needs `setup-bun@v2`).
 - **404 on direct page loads in production.** Your host is stripping
   trailing slashes. Add a redirect rule (`netlify.toml`, `vercel.json`,
   `_redirects`) or configure "Always append trailing slash" in the host's
@@ -534,6 +568,10 @@ turns redirect rules into nginx `return` directives.
   default root object only covers `/`. Attach the CloudFront Function from
   `examples/s3-cloudfront/append-index.js` so directory-style URLs request
   each page's generated `index.html`.
+- **Render deploys but redirects or headers do not apply.** Render Static
+  Sites do not consume Nectar's generated `_redirects` / `_headers` as a
+  platform contract. Configure those rules in the Render dashboard until
+  Nectar has a Render-specific emitter.
 - **Site builds but RSS / sitemap missing.** Check `nectar.toml` — those are
   optional components; they default to enabled but can be turned off:
   ```toml

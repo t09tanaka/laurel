@@ -8,7 +8,7 @@ something running locally. Pick the one that matches what you are trying to do.
 | 1   | [Start a blog from scratch](./01-start-a-blog.md)                 | A brand-new blog running locally, with one post and the Source theme. |
 | 2   | [Migrate from Ghost in 10 minutes](./02-migrate-from-ghost.md)    | Your existing Ghost export rendered as a static Nectar site.          |
 | 3   | [Customise the Source theme](./03-customise-source-theme.md)      | Branding, navigation, layout tweaks against the vendored theme.       |
-| 4   | [Deploy to Cloudflare / Vercel / Netlify / GitHub Pages](./04-deploy.md) | Your `dist/` shipping on the host of your choice.               |
+| 4   | [Deploy to Cloudflare / Vercel / Netlify / Render / GitHub Pages](./04-deploy.md) | Your `dist/` shipping on the host of your choice.      |
 | 5   | [Write your first plugin](./05-write-your-first-plugin.md)        | A typed plugin module plus the working extension points today.        |
 
 **Prerequisites for every tutorial:** [Bun](https://bun.sh) ≥ 1.3 (`bun --version`)

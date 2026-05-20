@@ -40,6 +40,10 @@ collects the operator-facing pieces of that contract in one place:
   with `bunx nectar build` and `dist/`. Nectar does not currently emit a
   DigitalOcean App Spec, so this guide keeps any `.do/app.yaml` example
   minimal.
+- [`docs/deploy/render.md`](./deploy/render.md) — Render Static Sites
+  quickstart for Git-connected builds, `dist/` publish settings, the optional
+  deploy-hook workflow, and the current lack of Render-specific generated
+  headers / redirects.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and
@@ -63,10 +67,11 @@ If you just want a defensible default stack on a new deploy:
    `_headers` / `vercel.json` / `netlify.toml` snippet into the repo root, or
    set `[deploy.headers].security` for nginx. Also enable the generated
    platform output where available (`[deploy.cloudflare_pages]`,
-   `[deploy.vercel]`, or `[deploy.netlify]`). GitHub Pages is the exception:
-   it ignores arbitrary header files, so use a fronting CDN / reverse proxy or
-   move to Cloudflare Pages, Vercel, Netlify, or nginx when custom headers are
-   required.
+   `[deploy.vercel]`, or `[deploy.netlify]`). GitHub Pages and Render are the
+   exceptions here: GitHub Pages ignores arbitrary header files, and Nectar
+   does not currently emit Render-native header config. Use each host's
+   dashboard / fronting layer, or move to Cloudflare Pages, Vercel, Netlify,
+   or nginx when generated custom headers are required.
 2. Verify with `curl -sI https://your-site.example/ | sort` after the next
    deploy — you should see `Strict-Transport-Security`,
    `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
@@ -116,4 +121,6 @@ review of the inlined HTML. See
   Nectar build.
 - A platform comparison — the hosts covered are the ones whose deploy
   conventions Nectar documents or emits first-class static artifacts for,
-  including self-hosted nginx.
+  including self-hosted nginx. Some documented hosts, such as Render, may
+  still require dashboard-managed headers or redirects until a dedicated
+  emitter exists.
