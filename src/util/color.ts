@@ -1,6 +1,8 @@
 export type TextColorClass = 'has-light-text' | 'has-dark-text';
+export type ContrastTextColor = 'light' | 'dark';
+export type RgbColor = [number, number, number];
 
-const NAMED_COLORS: Record<string, [number, number, number]> = {
+const NAMED_COLORS: Record<string, RgbColor> = {
   black: [0, 0, 0],
   white: [255, 255, 255],
   transparent: [255, 255, 255],
@@ -14,7 +16,21 @@ export function textColorClassFor(color: string | undefined | null): TextColorCl
   return yiq >= 128 ? 'has-dark-text' : 'has-light-text';
 }
 
-function parseColorToRgb(input: string | undefined | null): [number, number, number] | null {
+export function contrastTextColorFor(color: string | undefined | null): ContrastTextColor {
+  return textColorClassFor(color) === 'has-dark-text' ? 'dark' : 'light';
+}
+
+export function colorToRgba(
+  color: string | undefined | null,
+  alpha: string | number | undefined | null = 1,
+): string {
+  const rgb = parseColorToRgb(color);
+  if (!rgb) return '';
+  const [r, g, b] = rgb;
+  return `rgba(${r}, ${g}, ${b}, ${formatAlpha(alpha)})`;
+}
+
+export function parseColorToRgb(input: string | undefined | null): RgbColor | null {
   if (!input) return null;
   const value = input.trim().toLowerCase();
   if (!value) return null;
@@ -30,7 +46,22 @@ function parseColorToRgb(input: string | undefined | null): [number, number, num
   return null;
 }
 
-function parseHex(hex: string): [number, number, number] | null {
+function formatAlpha(input: string | number | undefined | null): string {
+  if (typeof input === 'string' && input.trim().endsWith('%')) {
+    const pct = Number.parseFloat(input);
+    if (Number.isFinite(pct)) return formatFiniteAlpha(pct / 100);
+  }
+  const alpha = typeof input === 'number' ? input : Number.parseFloat(String(input ?? 1));
+  return formatFiniteAlpha(alpha);
+}
+
+function formatFiniteAlpha(input: number): string {
+  if (!Number.isFinite(input)) return '1';
+  const clamped = Math.max(0, Math.min(1, input));
+  return Number.isInteger(clamped) ? String(clamped) : String(Number(clamped.toFixed(3)));
+}
+
+function parseHex(hex: string): RgbColor | null {
   let normalized = hex;
   if (normalized.length === 3 || normalized.length === 4) {
     normalized = normalized
@@ -50,7 +81,7 @@ function parseHex(hex: string): [number, number, number] | null {
   return [r, g, b];
 }
 
-function parseRgbArgs(args: string): [number, number, number] | null {
+function parseRgbArgs(args: string): RgbColor | null {
   const parts = args
     .split(/[,\s/]+/)
     .map((p) => p.trim())
@@ -64,7 +95,7 @@ function parseRgbArgs(args: string): [number, number, number] | null {
     if (channel === null) return null;
     channels.push(channel);
   }
-  return [channels[0], channels[1], channels[2]] as [number, number, number];
+  return [channels[0], channels[1], channels[2]] as RgbColor;
 }
 
 function parseChannel(token: string): number | null {
