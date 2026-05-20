@@ -71,9 +71,9 @@ export function registerContentHelpers(engine: NectarEngine): void {
         for (const author of list) out += options.fn(author);
         return out;
       }
-      const separator = typeof options.hash.separator === 'string' ? options.hash.separator : ', ';
-      const prefix = typeof options.hash.prefix === 'string' ? options.hash.prefix : '';
-      const suffix = typeof options.hash.suffix === 'string' ? options.hash.suffix : '';
+      const separator = hashString(options.hash.separator) ?? ', ';
+      const prefix = hashString(options.hash.prefix) ?? '';
+      const suffix = hashString(options.hash.suffix) ?? '';
       const fallback =
         typeof options.hash.fallback === 'string' ? options.hash.fallback : undefined;
       // Ghost treats only the string 'false' (not the empty/missing hash) as
@@ -483,6 +483,17 @@ function parseNum(value: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
+}
+
+function hashString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (isHandlebarsSafeString(value)) return value.toHTML();
+  return undefined;
+}
+
+function isHandlebarsSafeString(value: unknown): value is { toHTML(): string } {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof (value as { toHTML?: unknown }).toHTML === 'function';
 }
 
 function parseVisibility(value: unknown): 'all' | Set<string> {

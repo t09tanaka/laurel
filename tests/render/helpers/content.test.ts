@@ -3,6 +3,7 @@ import Handlebars from 'handlebars';
 import type { HelperDelegate, HelperOptions } from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerContentHelpers } from '~/render/helpers/content.ts';
+import { registerI18nHelpers } from '~/render/helpers/i18n.ts';
 
 function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
   const hb = Handlebars.create();
@@ -989,6 +990,29 @@ describe('authors helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{authors prefix="By " suffix="." autolink=false}}')(ctx);
     expect(out).toBe('By Ada, Grace, Linus.');
+  });
+
+  test('supports Liebling-style translated prefix with string from= hash', () => {
+    const engine = makeEngine({
+      content: { site: { locale: 'en' } } as unknown as NectarEngine['content'],
+      theme: {
+        locales: { en: { 'Among with...': 'Among with ' } },
+      } as unknown as NectarEngine['theme'],
+    });
+    registerI18nHelpers(engine);
+    registerContentHelpers(engine);
+    const out = engine.hb.compile(
+      '{{authors separator=", " prefix=(t "Among with...") from="2" autolink=false}}',
+    )(ctx);
+    expect(out).toBe('Among with Grace, Linus');
+  });
+
+  test('preserves SafeString hash output from subexpressions', () => {
+    const engine = makeEngine();
+    engine.hb.registerHelper('safePrefix', () => new engine.hb.SafeString('<span>By</span> '));
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors prefix=(safePrefix) autolink=false}}')(ctx);
+    expect(out).toBe('<span>By</span> Ada, Grace, Linus');
   });
 
   test('prefix/suffix do not render against an empty list', () => {
