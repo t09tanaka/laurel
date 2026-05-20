@@ -2010,6 +2010,60 @@ describe('ghost_head preconnect to external image origins (#530)', () => {
   });
 });
 
+describe('ghost_head component head hints (#1726)', () => {
+  test('emits giscus preconnect when comments can render its script', () => {
+    const html = renderGhostHead({ id: 'p1', comments: true }, '/some-post/', {
+      routeKind: 'post',
+      config: {
+        components: { comments: { provider: 'giscus', repo: 'acme/site' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain('<link rel="preconnect" href="https://giscus.app" crossorigin>');
+  });
+
+  test('emits utterances preconnect when comments can render its script', () => {
+    const html = renderGhostHead({ id: 'p1' }, '/some-post/', {
+      routeKind: 'post',
+      config: {
+        components: { comments: { provider: 'utterances', repo: 'acme/site' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain('<link rel="preconnect" href="https://utteranc.es" crossorigin>');
+  });
+
+  test('emits disqus preconnect to the configured shortname origin', () => {
+    const html = renderGhostHead({ id: 'p1' }, '/some-post/', {
+      routeKind: 'post',
+      config: {
+        components: { comments: { provider: 'disqus', shortname: 'mysite' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).toContain('<link rel="preconnect" href="https://mysite.disqus.com">');
+  });
+
+  test('omits comments hints when provider config cannot emit a script', () => {
+    const html = renderGhostHead({ id: 'p1' }, '/some-post/', {
+      routeKind: 'post',
+      config: {
+        components: { comments: { provider: 'disqus', shortname: 'bad/name' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('bad/name.disqus.com');
+    expect(html).not.toContain('giscus.app');
+    expect(html).not.toContain('utteranc.es');
+  });
+
+  test('post.comments=false suppresses configured comments hints', () => {
+    const html = renderGhostHead({ id: 'p1', comments: false }, '/some-post/', {
+      routeKind: 'post',
+      config: {
+        components: { comments: { provider: 'giscus', repo: 'acme/site' } },
+      } as unknown as Partial<NectarEngine['config']>,
+    });
+    expect(html).not.toContain('giscus.app');
+  });
+});
+
 describe('ghost_head JSON-LD ISO 8601 date normalization (#778)', () => {
   test('normalizes a bare-date published_at to a full ISO 8601 timestamp', () => {
     // Without #778 the field landed in the JSON payload as the raw

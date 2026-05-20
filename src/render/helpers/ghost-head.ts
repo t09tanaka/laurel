@@ -1,6 +1,7 @@
 import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
+import { type HeadHint, collectComponentHeadHints } from '~/render/component-head-hints.ts';
 import { joinPath } from '~/theme/assets.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
@@ -44,6 +45,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
             parts.push(`<link rel="preconnect" href="${escapeAttr(origin)}" crossorigin>`);
           }
         }
+      }
+      for (const hint of collectComponentHeadHints({ config: engine.config, page: ctx })) {
+        parts.push(renderHeadHint(hint));
       }
       // LCP preload for the post/page feature image. Pairs with the theme-side
       // `<img fetchpriority="high">` so the preload scan starts the LCP fetch
@@ -830,6 +834,12 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderHeadHint(hint: HeadHint): string {
+  const attrs = [`rel="${hint.rel}"`, `href="${escapeAttr(hint.href)}"`];
+  if (hint.crossorigin) attrs.push('crossorigin');
+  return `<link ${attrs.join(' ')}>`;
 }
 
 // Escape characters that could break out of a <script> block or be misparsed as JS.
