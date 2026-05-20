@@ -15,6 +15,10 @@ For every target:
 5. After the first deploy, check the live URL, RSS feed, sitemap, 404 page,
    and any Ghost redirect imports.
 
+For migrated redirect history, compare the generated provider syntax in
+[`redirect-syntax-matrix.md`](./redirect-syntax-matrix.md) before moving the
+same `dist/` output between hosts.
+
 | Target | Use when | Recipe |
 | --- | --- | --- |
 | Apache | You already operate Apache and want checked-in `.htaccess` output. | [apache.md](./apache.md) |
@@ -33,6 +37,12 @@ For every target:
 | Render | You want Render Static Sites with `dist/` as the publish directory. | [render.md](./render.md) |
 | S3 + CloudFront | You want an AWS-native private bucket and CloudFront distribution. | [s3-cloudfront.md](./s3-cloudfront.md) |
 | Vercel | You want Vercel previews, production deploys, and generated `vercel.json`. | [vercel.md](./vercel.md) |
+
+Cross-cutting references:
+
+| Topic | Use when | Reference |
+| --- | --- | --- |
+| Redirect syntax matrix | You need to map `redirects.yaml` to `_redirects`, `vercel.json`, `firebase.json`, `.htaccess`, nginx, or static HTML redirect fallbacks. | [redirect-syntax-matrix.md](./redirect-syntax-matrix.md) |
 
 For the broader hosting and security checklist, see
 [`docs/HOSTING.md`](../HOSTING.md) and

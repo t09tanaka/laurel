@@ -16,6 +16,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deployment/index.md`](./deployment/index.md) — one-page deployment
   recipes for Ghost migrators who already know their host and want the short
   checklist before opening the detailed target guide.
+- [`docs/deployment/redirect-syntax-matrix.md`](./deployment/redirect-syntax-matrix.md)
+  — cross-target redirect syntax matrix for `redirects.yaml`, `_redirects`,
+  `vercel.json`, `firebase.json`, `.htaccess`, nginx, Caddy, GitHub Pages,
+  and hosts where Nectar does not emit a native redirect artifact.
 - [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) —
   Cloudflare Pages quickstart covering the Git-connected build, generated
   `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
