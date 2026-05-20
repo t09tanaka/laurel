@@ -1,5 +1,5 @@
 import type { NectarConfig } from '~/config/schema.ts';
-import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
+import type { Author, ContentGraph, ListPost, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
 export interface PaginationInfo {
@@ -38,7 +38,14 @@ export interface RouteContext {
   // #781. The build pipeline reads this when populating sitemap URLs.
   indexable?: boolean;
   data: {
-    posts?: Post[];
+    // Aggregate list of posts for `home` / `index` / `tag` / `author` routes.
+    // Narrowed to `ListPost[]` so callers don't accidentally reach for the
+    // heavy per-post body fields (`html`, `plaintext`, `feed_html`,
+    // `feed_excerpt`) in list-card contexts — those only render correctly
+    // for the dedicated `post` / `page` routes. Themes that genuinely need
+    // the body in a list context should iterate `content.posts` directly.
+    // See `ListPost` in `~/content/model.ts` for the rationale and #524.
+    posts?: ListPost[];
     pagination?: PaginationInfo;
     post?: Post;
     page?: Page;

@@ -228,3 +228,54 @@ export interface ContentGraph {
   postsByAuthor: Map<string, Post[]>;
   site: SiteData;
 }
+
+// Subset of `Post` that aggregate routes (home / index / tag archive /
+// author archive) expose through `RouteContext.data.posts`. These routes
+// render their items through post-card partials (`{{#foreach posts}} ... {{/foreach}}`)
+// that only need metadata + the pre-computed `excerpt`; the heavy
+// per-post fields (`html`, `plaintext`, `feed_html`, `feed_excerpt`) are
+// only required by the dedicated `post` / `page` routes that render the
+// full body. Narrowing the list shape at the type level keeps plugin
+// authors and downstream code from accidentally pulling the full HTML
+// bodies into long-lived references when iterating a list slice, and
+// documents what an aggregate list-card actually consumes.
+//
+// At runtime the references are still the same `Post` objects — this is
+// purely a compile-time restriction. A future change can swap the
+// underlying storage for a lazily-materialised body (see #524) without
+// touching call sites that already use `ListPost`. Themes that
+// genuinely need the body in a list context (rare; e.g. RSS-style "full
+// post on home page" layouts) should iterate `content.posts` directly
+// instead of `route.data.posts`.
+export type ListPost = Omit<Post, 'html' | 'plaintext' | 'feed_html' | 'feed_excerpt'>;
+
+// Even leaner shape for "card-only" use cases (recommendations, related
+// posts, sidebar widgets) where the renderer only needs the link, the
+// title, the cover image, and the excerpt blurb. Provided so plugins
+// can type their card APIs against the minimum surface and stay forward
+// compatible when more list-only optimisations land.
+export type CardPost = Pick<
+  Post,
+  | 'id'
+  | 'slug'
+  | 'title'
+  | 'excerpt'
+  | 'custom_excerpt'
+  | 'feature_image'
+  | 'feature_image_alt'
+  | 'feature_image_caption'
+  | 'feature_image_width'
+  | 'feature_image_height'
+  | 'url'
+  | 'published_at'
+  | 'updated_at'
+  | 'reading_time'
+  | 'primary_tag'
+  | 'primary_author'
+  | 'tags'
+  | 'authors'
+  | 'visibility'
+  | 'featured'
+  | 'access'
+  | 'page'
+>;
