@@ -651,7 +651,7 @@ export const CONTENT_SPEC: CommandSpec = {
     kind: {
       type: 'string',
       description:
-        'For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead)',
+        'For `list`: filter by content kind (posts or pages). For `rename` and `delete`: which kind to look up the slug under (defaults to posts; pass `pages` for page slugs)',
       placeholder: '<posts|pages>',
     },
     draft: {
@@ -675,19 +675,24 @@ export const CONTENT_SPEC: CommandSpec = {
     },
     json: {
       type: 'boolean',
-      description: 'Emit results as JSON for CI consumption (both `list` and `rename`)',
+      description: 'Emit results as JSON for CI consumption (`list`, `rename`, and `delete`)',
     },
     redirect: {
       type: 'boolean',
       description:
         'On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component',
     },
+    purge: {
+      type: 'boolean',
+      description:
+        'On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files',
+    },
   },
   positionals: [
     {
       name: 'subcommand',
       description:
-        '`list` (show posts/pages) or `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter)',
+        '`list` (show posts/pages), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata)',
       required: true,
       variadic: true,
     },
@@ -697,6 +702,8 @@ export const CONTENT_SPEC: CommandSpec = {
     'nectar content list --kind pages',
     'nectar content list --tag changelog --json',
     'nectar content rename old-slug new-slug --redirect',
+    'nectar content delete old-slug',
+    'nectar content delete --purge old-slug',
   ],
 };
 

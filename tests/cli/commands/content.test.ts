@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -217,6 +218,130 @@ describe('cli content rename', () => {
       const { stderr, exitCode } = await runCli(['content', 'rename', 'hello', 'Bad Slug'], dir);
       expect(exitCode).toBe(2);
       expect(stderr).toContain('Invalid new slug');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cli content delete', () => {
+  test('moves a post to .nectar/trash and writes restore metadata', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['content', 'delete', 'hello', '--json'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as {
+        slug: string;
+        kind: string;
+        original_path: string;
+        trash_path: string;
+        metadata_path: string;
+      };
+      expect(parsed.slug).toBe('hello');
+      expect(parsed.kind).toBe('posts');
+      expect(parsed.original_path).toBe(join(dir, 'content/posts/hello.md'));
+      expect(existsSync(join(dir, 'content/posts/hello.md'))).toBe(false);
+      expect(existsSync(parsed.trash_path)).toBe(true);
+      expect(await readFile(parsed.trash_path, 'utf8')).toContain('title: Hello');
+
+      const metadata = JSON.parse(await readFile(parsed.metadata_path, 'utf8')) as {
+        original_path: string;
+        trash_path: string;
+        slug: string;
+      };
+      expect(metadata).toMatchObject({
+        slug: 'hello',
+        original_path: 'content/posts/hello.md',
+      });
+      expect(metadata.trash_path).toMatch(/^\.nectar\/trash\/.+\/hello\.md$/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('uses page kind hint when deleting a page slug', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(
+        ['content', 'delete', 'about', '--kind', 'pages', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { kind: string; original_path: string };
+      expect(parsed.kind).toBe('pages');
+      expect(parsed.original_path).toBe(join(dir, 'content/pages/about.md'));
+      expect(existsSync(join(dir, 'content/pages/about.md'))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('falls back to slug frontmatter when the filename differs', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/custom-file.md'),
+        '---\ntitle: Custom\nslug: custom-slug\ndate: 2026-01-04T00:00:00Z\n---\n\nBody\n',
+      );
+      const { stdout, exitCode } = await runCli(
+        ['content', 'delete', 'custom-slug', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { original_path: string; trash_path: string };
+      expect(parsed.original_path).toBe(join(dir, 'content/posts/custom-file.md'));
+      expect(parsed.trash_path).toMatch(/custom-slug\.md$/);
+      expect(existsSync(join(dir, 'content/posts/custom-file.md'))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--purge only deletes matching aged trash entries and keeps current content', async () => {
+    const dir = await makeFixture();
+    try {
+      const oldTrash = join(dir, '.nectar/trash/2000-01-01T00-00-00-000Z');
+      const freshTrash = join(dir, '.nectar/trash/2999-01-01T00-00-00-000Z');
+      await mkdir(oldTrash, { recursive: true });
+      await mkdir(freshTrash, { recursive: true });
+      await writeFile(join(oldTrash, 'hello.md'), 'old');
+      await writeFile(
+        join(oldTrash, 'hello.meta.json'),
+        JSON.stringify({ slug: 'hello', original_path: 'content/posts/hello.md' }),
+      );
+      await writeFile(join(freshTrash, 'hello.md'), 'fresh');
+      await writeFile(
+        join(freshTrash, 'hello.meta.json'),
+        JSON.stringify({ slug: 'hello', original_path: 'content/posts/hello.md' }),
+      );
+
+      const { stdout, exitCode } = await runCli(
+        ['content', 'delete', 'hello', '--purge', '--json'],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { purged: number };
+      expect(parsed.purged).toBe(1);
+      expect(existsSync(oldTrash)).toBe(false);
+      expect(existsSync(freshTrash)).toBe(true);
+      expect(existsSync(join(dir, 'content/posts/hello.md'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--purge without a slug purges all aged trash entries', async () => {
+    const dir = await makeFixture();
+    try {
+      const oldTrash = join(dir, '.nectar/trash/2000-01-01T00-00-00-000Z');
+      await mkdir(oldTrash, { recursive: true });
+      await writeFile(join(oldTrash, 'about.md'), 'old');
+
+      const { stdout, exitCode } = await runCli(['content', 'delete', '--purge', '--json'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { purged: number };
+      expect(parsed.purged).toBe(1);
+      expect((await readdir(join(dir, '.nectar/trash'))).length).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

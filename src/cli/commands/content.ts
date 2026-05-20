@@ -1,16 +1,24 @@
 import { existsSync } from 'node:fs';
-import { readFile, unlink, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { basename, join, relative } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import type { Page, Post } from '~/content/model.ts';
 import { logger } from '~/util/logger.ts';
+import {
+  CONTENT_KINDS,
+  type ContentKind,
+  absolutise,
+  resolveContentSlugPath,
+} from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { CONTENT_SPEC } from '../specs.ts';
 
-type Kind = 'posts' | 'pages';
+type Kind = ContentKind;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const TRASH_RETENTION_DAYS = 30;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 interface ContentRow {
   slug: string;
@@ -45,9 +53,12 @@ export async function runContent(args: string[]): Promise<number> {
   if (sub === 'rename') {
     return runRename({ parsed, cwd, configPath });
   }
+  if (sub === 'delete') {
+    return runDelete({ parsed, cwd, configPath, now: new Date() });
+  }
   if (sub !== 'list') {
     process.stderr.write(
-      `Unknown subcommand: ${sub ?? ''}. Expected \`list\` or \`rename <old-slug> <new-slug>\`.\n`,
+      `Unknown subcommand: ${sub ?? ''}. Expected \`list\`, \`rename <old-slug> <new-slug>\`, or \`delete <slug>\`.\n`,
     );
     return 2;
   }
@@ -89,6 +100,212 @@ export async function runContent(args: string[]): Promise<number> {
     reportError(err, cwd);
     return 1;
   }
+}
+
+interface DeleteOpts {
+  parsed: ParsedCommand;
+  cwd: string;
+  configPath: string | undefined;
+  now: Date;
+}
+
+interface TrashMetadata {
+  slug: string;
+  kind: Kind | null;
+  original_path: string;
+  trash_path: string;
+  trashed_at: string;
+  purge_after: string;
+}
+
+async function runDelete({ parsed, cwd, configPath, now }: DeleteOpts): Promise<number> {
+  const slug = parsed.positionals[1]?.trim();
+  if (parsed.positionals.length > 2) {
+    process.stderr.write('`content delete` takes at most one <slug> positional.\n');
+    return 2;
+  }
+  const asJson = parsed.values.json === true;
+  const purge = parsed.values.purge === true;
+
+  if (purge) {
+    return purgeTrash({ cwd, slug, now, asJson });
+  }
+  if (!slug) {
+    process.stderr.write('`content delete` requires <slug> unless --purge is set.\n');
+    return 2;
+  }
+
+  const kindHint = parseKindHint(parsed);
+  if (kindHint === false) return 2;
+
+  try {
+    const config = await loadConfig({ cwd, configPath });
+    const dirs: Record<Kind, string> = {
+      posts: absolutise(cwd, config.content.posts_dir),
+      pages: absolutise(cwd, config.content.pages_dir),
+    };
+    const search: Kind[] = kindHint ? [kindHint] : [...CONTENT_KINDS];
+    const sourcePath = await resolveContentSlugPath(slug, search, dirs);
+    if (!sourcePath) {
+      process.stderr.write(`No post or page found with slug "${slug}".\n`);
+      return 1;
+    }
+
+    const kind = detectKind(sourcePath, dirs);
+    const trashedAt = now.toISOString();
+    const purgeAfter = new Date(now.getTime() + TRASH_RETENTION_MS).toISOString();
+    const trashDir = resolveUniqueTrashDir(cwd, now);
+    const trashPath = join(trashDir, `${slug}.md`);
+    const metadataPath = join(trashDir, `${slug}.meta.json`);
+
+    await mkdir(trashDir, { recursive: true });
+    await rename(sourcePath, trashPath);
+    const metadata: TrashMetadata = {
+      slug,
+      kind,
+      original_path: relative(cwd, sourcePath),
+      trash_path: relative(cwd, trashPath),
+      trashed_at: trashedAt,
+      purge_after: purgeAfter,
+    };
+    await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+
+    if (asJson) {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            slug,
+            kind,
+            original_path: sourcePath,
+            trash_path: trashPath,
+            metadata_path: metadataPath,
+            purge_after: purgeAfter,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      logger.info(`Moved ${sourcePath} to ${trashPath}`);
+      logger.info(`Wrote restore metadata to ${metadataPath}`);
+    }
+    return 0;
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+}
+
+function parseKindHint(parsed: ParsedCommand): Kind | undefined | false {
+  const kindRaw = typeof parsed.values.kind === 'string' ? parsed.values.kind : '';
+  if (!kindRaw) return undefined;
+  if (kindRaw !== 'posts' && kindRaw !== 'pages') {
+    process.stderr.write(`Invalid --kind value: ${kindRaw} (expected "posts" or "pages")\n`);
+    return false;
+  }
+  return kindRaw;
+}
+
+function detectKind(filePath: string, dirs: Record<Kind, string>): Kind | null {
+  for (const kind of CONTENT_KINDS) {
+    const rel = relative(dirs[kind], filePath);
+    if (rel && !rel.startsWith('..')) return kind;
+  }
+  return null;
+}
+
+function timestampForPath(now: Date): string {
+  return now.toISOString().replaceAll(':', '-').replaceAll('.', '-');
+}
+
+function resolveUniqueTrashDir(cwd: string, now: Date): string {
+  const trashRoot = join(cwd, '.nectar', 'trash');
+  for (let offsetMs = 0; offsetMs < 1000; offsetMs += 1) {
+    const candidate = join(trashRoot, timestampForPath(new Date(now.getTime() + offsetMs)));
+    if (!existsSync(candidate)) return candidate;
+  }
+  throw new Error('could not allocate a unique trash directory');
+}
+
+interface PurgeOpts {
+  cwd: string;
+  slug: string | undefined;
+  now: Date;
+  asJson: boolean;
+}
+
+async function purgeTrash({ cwd, slug, now, asJson }: PurgeOpts): Promise<number> {
+  const trashRoot = join(cwd, '.nectar', 'trash');
+  const cutoff = now.getTime() - TRASH_RETENTION_MS;
+  if (!existsSync(trashRoot)) {
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ purged: 0, entries: [] }, null, 2)}\n`);
+    } else {
+      logger.info('No trash entries to purge.');
+    }
+    return 0;
+  }
+
+  const purged: Array<{ slug: string | null; path: string; trashed_at: string | null }> = [];
+  const entries = await readdir(trashRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const entryDir = join(trashRoot, entry.name);
+    const trashedAt = parseTrashTimestamp(entry.name);
+    if (!trashedAt || trashedAt.getTime() > cutoff) continue;
+
+    const target = await findTrashTarget(entryDir, slug);
+    if (!target) continue;
+    await rm(entryDir, { recursive: true, force: true });
+    purged.push({
+      slug: target.slug,
+      path: entryDir,
+      trashed_at: trashedAt.toISOString(),
+    });
+  }
+
+  if (asJson) {
+    process.stdout.write(
+      `${JSON.stringify({ purged: purged.length, entries: purged }, null, 2)}\n`,
+    );
+  } else if (purged.length === 0) {
+    logger.info('No trash entries older than 30 days matched.');
+  } else {
+    logger.info(`Purged ${purged.length} trash entr${purged.length === 1 ? 'y' : 'ies'}.`);
+  }
+  return 0;
+}
+
+function parseTrashTimestamp(name: string): Date | null {
+  const iso = name.replace(/^(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})-(\d{3}Z)$/, '$1:$2:$3.$4');
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function findTrashTarget(
+  entryDir: string,
+  slug: string | undefined,
+): Promise<{ slug: string | null } | null> {
+  const entries = await readdir(entryDir, { withFileTypes: true });
+  const meta = entries.find((entry) => entry.isFile() && entry.name.endsWith('.meta.json'));
+  if (meta) {
+    let parsed: Partial<TrashMetadata>;
+    try {
+      const raw = await readFile(join(entryDir, meta.name), 'utf8');
+      parsed = JSON.parse(raw) as Partial<TrashMetadata>;
+    } catch {
+      return null;
+    }
+    const metadataSlug = typeof parsed.slug === 'string' ? parsed.slug : null;
+    if (!slug || metadataSlug === slug) return { slug: metadataSlug };
+    return null;
+  }
+
+  const markdown = entries.find((entry) => entry.isFile() && entry.name.endsWith('.md'));
+  if (!markdown) return null;
+  const inferredSlug = basename(markdown.name, '.md');
+  if (!slug || inferredSlug === slug) return { slug: inferredSlug };
+  return null;
 }
 
 function parseCsvList(raw: string): string[] {
@@ -189,7 +406,7 @@ async function runRename({ parsed, cwd, configPath }: RenameOpts): Promise<numbe
   try {
     const config = await loadConfig({ cwd, configPath });
     const baseDir = kind === 'posts' ? config.content.posts_dir : config.content.pages_dir;
-    const baseAbs = isAbsolute(baseDir) ? baseDir : resolve(cwd, baseDir);
+    const baseAbs = absolutise(cwd, baseDir);
     const oldFile = join(baseAbs, `${oldSlug}.md`);
     const newFile = join(baseAbs, `${newSlug}.md`);
 

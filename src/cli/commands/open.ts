@@ -1,14 +1,14 @@
-import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { logger } from '~/util/logger.ts';
+import {
+  CONTENT_KINDS,
+  type ContentKind,
+  absolutise,
+  resolveContentSlugPath,
+} from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { OPEN_SPEC } from '../specs.ts';
-
-type Kind = 'posts' | 'pages';
-const KINDS: readonly Kind[] = ['posts', 'pages'];
 
 export async function runOpen(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -36,7 +36,7 @@ export async function runOpen(args: string[]): Promise<number> {
 
   const kindHintRaw =
     typeof parsed.values.kind === 'string' ? parsed.values.kind.trim().toLowerCase() : '';
-  let kindHint: Kind | undefined;
+  let kindHint: ContentKind | undefined;
   if (kindHintRaw) {
     if (kindHintRaw !== 'posts' && kindHintRaw !== 'pages') {
       process.stderr.write(`Invalid --kind value: ${kindHintRaw} (expected "posts" or "pages")\n`);
@@ -55,15 +55,15 @@ export async function runOpen(args: string[]): Promise<number> {
     return 1;
   }
 
-  const dirs: Record<Kind, string> = {
+  const dirs: Record<ContentKind, string> = {
     posts: absolutise(cwd, config.content.posts_dir),
     pages: absolutise(cwd, config.content.pages_dir),
   };
 
-  const search: Kind[] = kindHint ? [kindHint] : [...KINDS];
+  const search: ContentKind[] = kindHint ? [kindHint] : [...CONTENT_KINDS];
   let resolvedPath: string | undefined;
   try {
-    resolvedPath = await resolveSlugPath(slug, search, dirs);
+    resolvedPath = await resolveContentSlugPath(slug, search, dirs);
   } catch (err) {
     reportError(err, cwd);
     return 1;
@@ -86,60 +86,4 @@ export async function runOpen(args: string[]): Promise<number> {
     process.stderr.write(`Editor "${editor}" exited with code ${code}.\n`);
   }
   return code;
-}
-
-function absolutise(cwd: string, dir: string): string {
-  return isAbsolute(dir) ? dir : resolve(cwd, dir);
-}
-
-// Resolve a slug to a Markdown file path. Fast path: `<dir>/<slug>.md` (the
-// convention `nectar new` writes). Fallback: scan every `.md` under the
-// candidate dirs and parse the leading YAML frontmatter for an explicit
-// `slug: <value>` line. The scan only fires when the fast path misses, so
-// the common case stays a single `existsSync` call. Returns the first match
-// in the order given by `search`, so `--kind posts` is honoured deterministically.
-async function resolveSlugPath(
-  slug: string,
-  search: readonly Kind[],
-  dirs: Record<Kind, string>,
-): Promise<string | undefined> {
-  for (const kind of search) {
-    const fast = join(dirs[kind], `${slug}.md`);
-    if (existsSync(fast)) return fast;
-  }
-  for (const kind of search) {
-    const hit = await scanForFrontmatterSlug(dirs[kind], slug);
-    if (hit) return hit;
-  }
-  return undefined;
-}
-
-async function scanForFrontmatterSlug(dir: string, slug: string): Promise<string | undefined> {
-  if (!existsSync(dir)) return undefined;
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return undefined;
-  }
-  for (const entry of entries) {
-    if (!entry.endsWith('.md')) continue;
-    const filePath = join(dir, entry);
-    const raw = await readFile(filePath, 'utf8');
-    if (extractFrontmatterSlug(raw) === slug) return filePath;
-  }
-  return undefined;
-}
-
-function extractFrontmatterSlug(raw: string): string | undefined {
-  const lines = raw.split('\n');
-  if (lines[0]?.trim() !== '---') return undefined;
-  for (let i = 1; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line === undefined) break;
-    if (line.trim() === '---') return undefined;
-    const match = line.match(/^\s*slug\s*:\s*["']?([^"'\s#]+)["']?\s*(?:#.*)?$/);
-    if (match) return match[1];
-  }
-  return undefined;
 }

@@ -564,26 +564,27 @@ Inspect or modify content in the project (posts, pages)
 Usage:
 
 ```
-nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] <subcommand...>
+nectar content [--config <path>] [--kind <posts|pages>] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `list` (show posts/pages) or `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter) |
+| `<subcommand...>` | required (variadic) | `list` (show posts/pages), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), or `delete <slug>` (move content into `.nectar/trash/` with restore metadata) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_CONTENT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `rename`: which kind to look up the slug under (defaults to posts; pass `pages` to rename a page slug instead) |
+| `--kind <posts\|pages>` | string | `NECTAR_CONTENT_KIND` | For `list`: filter by content kind (posts or pages). For `rename` and `delete`: which kind to look up the slug under (defaults to posts; pass `pages` for page slugs) |
 | `--draft` | boolean | `NECTAR_CONTENT_DRAFT` | Include draft posts/pages in the listing (default: only published; `list` only) |
 | `--tag <slug>` | string | `NECTAR_CONTENT_TAG` | Show only entries that have any given tag slug (`list` only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_CONTENT_AUTHOR` | Show only entries that have any given author slug (`list` only); repeat or comma-separate |
-| `-j, --json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (both `list` and `rename`) |
+| `-j, --json` | boolean | `NECTAR_CONTENT_JSON` | Emit results as JSON for CI consumption (`list`, `rename`, and `delete`) |
 | `--redirect` | boolean | `NECTAR_CONTENT_REDIRECT` | On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component |
+| `--purge` | boolean | `NECTAR_CONTENT_PURGE` | On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files |
 
 Examples:
 
@@ -592,6 +593,8 @@ nectar content list                          # posts + pages with status/date
 nectar content list --kind pages
 nectar content list --tag changelog --json
 nectar content rename old-slug new-slug --redirect
+nectar content delete old-slug
+nectar content delete --purge old-slug
 ```
 
 ### `nectar info`
