@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emitContentApiShadows } from '~/build/api.ts';
 import { configSchema } from '~/config/schema.ts';
+import { loadContent } from '~/content/loader.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 function makeTag(over: Partial<Tag> = {}): Tag {
@@ -145,6 +146,10 @@ function makePage(over: Partial<Page> = {}): Page {
   };
 }
 
+function numberedWords(count: number, start = 1): string[] {
+  return Array.from({ length: count }, (_, i) => `w${String(start + i).padStart(2, '0')}`);
+}
+
 function makeGraph(): ContentGraph {
   const tag = makeTag();
   const author = makeAuthor();
@@ -247,6 +252,40 @@ describe('emitContentApiShadows', () => {
       id: 'nectar-content-api-404',
     });
     expect(notFound.errors[0].details).toBeNull();
+  });
+
+  test('serializes generated post excerpts as Ghost-style 50 plaintext words (#771)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-out-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await mkdir(join(cwd, 'content/pages'), { recursive: true });
+    await mkdir(join(cwd, 'content/authors'), { recursive: true });
+    await mkdir(join(cwd, 'content/tags'), { recursive: true });
+
+    await writeFile(
+      join(cwd, 'content/posts/generated.md'),
+      `---
+title: Generated excerpt
+date: 2026-01-01T00:00:00Z
+unsafe_html: true
+---
+
+<p>w01 <strong>w02</strong></p>
+
+${numberedWords(53, 3).join(' ')}
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = await loadContent({ cwd, config });
+    await emitContentApiShadows({ config, content, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0].custom_excerpt).toBeNull();
+    expect(body.posts[0].excerpt).toBe(numberedWords(50).join(' '));
+    expect(body.posts[0].excerpt).not.toContain('<strong>');
+    expect(body.posts[0].excerpt.split(/\s+/)).toHaveLength(50);
   });
 
   test('writes per-slug single-resource files under ghost/api/content/<resource>/slug/<slug>.json', async () => {
