@@ -15,6 +15,15 @@ async function makeOutputDir(): Promise<string> {
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
+const NETLIFY_TOML_SAMPLE = join(
+  import.meta.dir,
+  '..',
+  '..',
+  'examples',
+  'deploy',
+  'netlify',
+  'netlify.toml',
+);
 
 describe('emitNetlifyHeaders', () => {
   test('does not emit _headers when disabled', async () => {
@@ -256,5 +265,29 @@ describe('emitNetlifyRedirects', () => {
     });
 
     expect(existsSync(join(outputDir, '_redirects'))).toBe(true);
+  });
+});
+
+describe('netlify.toml sample', () => {
+  test('exists under examples/deploy/netlify', () => {
+    expect(existsSync(NETLIFY_TOML_SAMPLE)).toBe(true);
+  });
+
+  test('documents the current Nectar build command, publish directory, and Bun version', async () => {
+    const body = await readFile(NETLIFY_TOML_SAMPLE, 'utf8');
+
+    expect(body).toContain('[build]');
+    expect(body).toContain('command = "bunx nectar build"');
+    expect(body).toContain('publish = "dist"');
+    expect(body).toContain('[build.environment]');
+    expect(body).toContain('BUN_VERSION = "1.3.0"');
+  });
+
+  test('keeps Netlify build plugins separate from Nectar build-time plugins', async () => {
+    const body = await readFile(NETLIFY_TOML_SAMPLE, 'utf8');
+
+    expect(body).toContain('[[plugins]]');
+    expect(body).toContain('@netlify/plugin-lighthouse');
+    expect(body).toContain("nectar.toml's top-level `plugins` array");
   });
 });

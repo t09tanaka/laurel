@@ -23,7 +23,9 @@ Netlify site that is not connected to Git.
    publish root. If `redirects.yaml` exists, Nectar also writes `_redirects`
    using Netlify's `301!` force syntax for rules with `force: true`.
 
-2. Add `netlify.toml` at the repo root:
+2. Copy
+   [`examples/deploy/netlify/netlify.toml`](../../examples/deploy/netlify/netlify.toml)
+   to `netlify.toml` at the repo root:
 
    ```toml
    [build]
@@ -35,7 +37,9 @@ Netlify site that is not connected to Git.
    ```
 
    Netlify installs Bun when `BUN_VERSION` is set. Without it, the build image
-   runs Node and `bunx nectar build` will fail.
+   runs Node and `bunx nectar build` will fail. The sample also includes a
+   commented `[[plugins]]` block for Netlify build plugins; keep Nectar
+   build-time plugins in `nectar.toml`'s top-level `plugins` array.
 
 3. In Netlify, choose **Add new site -> Import from Git**, pick the repo, and
    deploy. The checked-in `netlify.toml` should fill the build command and

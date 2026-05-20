@@ -247,7 +247,9 @@ Enable the Netlify emitter in `nectar.toml` so builds include the generated
 enabled = true
 ```
 
-Then add `netlify.toml` at the repo root:
+Then copy
+[`examples/deploy/netlify/netlify.toml`](../../examples/deploy/netlify/netlify.toml)
+to `netlify.toml` at the repo root:
 
 ```toml
 [build]
@@ -262,7 +264,9 @@ Then **Netlify dashboard → Add new site → Import from Git → pick repo →
 Deploy**. The `netlify.toml` overrides any guesses Netlify makes.
 
 Netlify's Bun support is via the `BUN_VERSION` build environment variable —
-without it, the build runs Node and `bunx` will fail.
+without it, the build runs Node and `bunx` will fail. The sample also shows
+where optional Netlify build plugin blocks belong; Nectar build-time plugins
+stay in `nectar.toml`'s top-level `plugins` array.
 
 Custom redirects go in `redirects.yaml`; Nectar emits them to
 `dist/_redirects` when `[deploy.netlify].enabled = true`. Netlify's
