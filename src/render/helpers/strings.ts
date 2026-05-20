@@ -5,7 +5,7 @@ export function registerStringHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('concat', function concatHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const separator = String(options.hash.separator ?? '');
-    return args.slice(0, -1).map(String).join(separator);
+    return new engine.hb.SafeString(args.slice(0, -1).map(String).join(separator));
   });
 
   engine.hb.registerHelper('encode', function encodeHelper(value: unknown) {

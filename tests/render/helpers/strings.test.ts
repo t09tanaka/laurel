@@ -33,6 +33,13 @@ describe('concat helper', () => {
     const tpl = engine.hb.compile('{{concat a b c separator=", "}}');
     expect(tpl({ a: 1, b: true, c: 'x' })).toBe('1, true, x');
   });
+
+  test('returns a SafeString so Ghost-compatible HTML fragments are not escaped', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{concat "<b>" "hi" "</b>"}}');
+    expect(tpl({})).toBe('<b>hi</b>');
+  });
 });
 
 describe('encode helper', () => {
