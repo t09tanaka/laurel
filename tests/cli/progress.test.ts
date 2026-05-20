@@ -108,8 +108,10 @@ describe('createBuildProgressDisplay', () => {
 
   test('renders interactive phase and route progress in-place', () => {
     const chunks: string[] = [];
+    let now = 0;
     const display = createBuildProgressDisplay({
       mode: 'interactive',
+      now: () => now,
       stream: {
         write(chunk: string) {
           chunks.push(chunk);
@@ -124,12 +126,19 @@ describe('createBuildProgressDisplay', () => {
       label: 'Rendering routes',
       totalRoutes: 2,
     });
+    now = 30_000;
     display?.onProgress({
       type: 'route-rendered',
       completedRoutes: 1,
       totalRoutes: 2,
-      route: '/hello/',
+      route: '/posts/hello/',
       reused: false,
+    });
+    display?.onProgress({
+      type: 'asset-step',
+      step: 2,
+      totalSteps: 5,
+      label: 'Content assets',
     });
     display?.onProgress({
       type: 'route-rendered',
@@ -148,8 +157,9 @@ describe('createBuildProgressDisplay', () => {
 
     const output = chunks.join('');
     expect(output).toContain('\r\x1b[2K');
-    expect(output).toContain('Rendering routes 1/2 /hello/');
-    expect(output).toContain('Rendering routes 2/2 /');
+    expect(output).toContain('Rendering routes [1/2] posts/hello (ETA 30s)');
+    expect(output).toContain('Copying assets [2/5] Content assets');
+    expect(output).toContain('Rendering routes [2/2] / cached');
     expect(output).toContain('done Rendering routes 2/2\n');
   });
 });

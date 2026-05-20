@@ -17,6 +17,7 @@ export interface BuildProgressDisplayOptions {
   mode?: CliProgressMode | undefined;
   enabled?: boolean | undefined;
   stream?: ProgressWritable | undefined;
+  now?: (() => number) | undefined;
 }
 
 export interface ProgressDetectionInput {
@@ -75,18 +76,22 @@ export function createBuildProgressDisplay(
   if (options.enabled === false) return undefined;
   const mode = options.mode ?? getCliProgressMode();
   if (mode === 'interactive') {
-    return createInteractiveBuildProgressDisplay(options.stream ?? process.stderr);
+    return createInteractiveBuildProgressDisplay(options.stream ?? process.stderr, options.now);
   }
-  return createPlainBuildProgressDisplay();
+  return createPlainBuildProgressDisplay(options.now);
 }
 
-function createInteractiveBuildProgressDisplay(stream: ProgressWritable): BuildProgressDisplay {
+function createInteractiveBuildProgressDisplay(
+  stream: ProgressWritable,
+  now: () => number = Date.now,
+): BuildProgressDisplay {
   const frames = ['-', '\\', '|', '/'];
   let frameIndex = 0;
   let activeLine = false;
   let lastLine = '';
   let renderTotal = 0;
   let renderDone = 0;
+  let renderStartedAt: number | undefined;
 
   const writeLine = (line: string): void => {
     lastLine = line;
@@ -115,6 +120,7 @@ function createInteractiveBuildProgressDisplay(stream: ProgressWritable): BuildP
       if (event.phase === 'render') {
         renderTotal = event.totalRoutes ?? renderTotal;
         renderDone = 0;
+        renderStartedAt = now();
       }
       writeLine(`${spinner()} ${formatPhaseLabel(event)}...`);
       return;
@@ -127,7 +133,13 @@ function createInteractiveBuildProgressDisplay(stream: ProgressWritable): BuildP
     if (event.type === 'route-rendered') {
       renderDone = event.completedRoutes;
       renderTotal = event.totalRoutes;
-      writeLine(`${spinner()} Rendering routes ${renderDone}/${renderTotal} ${event.route}`);
+      writeLine(
+        `${spinner()} Rendering routes ${formatRouteProgress(event, renderStartedAt, now)}`,
+      );
+      return;
+    }
+    if (event.type === 'asset-step') {
+      writeLine(`${spinner()} Copying assets [${event.step}/${event.totalSteps}] ${event.label}`);
       return;
     }
     if (event.type === 'phase-end') {
@@ -150,11 +162,13 @@ function createInteractiveBuildProgressDisplay(stream: ProgressWritable): BuildP
   };
 }
 
-function createPlainBuildProgressDisplay(): BuildProgressDisplay {
+function createPlainBuildProgressDisplay(now: () => number = Date.now): BuildProgressDisplay {
   let lastPlainRoute = 0;
+  let renderStartedAt: number | undefined;
 
   const onProgress = (event: BuildProgressEvent): void => {
     if (event.type === 'phase-start') {
+      if (event.phase === 'render') renderStartedAt = now();
       logger.info(`Build: ${formatPhaseLabel(event)}...`);
       return;
     }
@@ -165,8 +179,12 @@ function createPlainBuildProgressDisplay(): BuildProgressDisplay {
     if (event.type === 'route-rendered') {
       if (shouldLogPlainRouteProgress(event, lastPlainRoute)) {
         lastPlainRoute = event.completedRoutes;
-        logger.info(`Build: rendered ${event.completedRoutes}/${event.totalRoutes} routes`);
+        logger.info(`Build: rendered ${formatRouteProgress(event, renderStartedAt, now)}`);
       }
+      return;
+    }
+    if (event.type === 'asset-step') {
+      logger.info(`Build: assets [${event.step}/${event.totalSteps}] ${event.label}`);
       return;
     }
     if (event.type === 'phase-end') {
@@ -201,4 +219,43 @@ function formatPhaseLabel(
     return `${event.label} (${event.totalRoutes} routes)`;
   }
   return event.label;
+}
+
+function formatRouteProgress(
+  event: Extract<BuildProgressEvent, { type: 'route-rendered' }>,
+  startedAt: number | undefined,
+  now: () => number,
+): string {
+  const route = formatRouteLabel(event.route);
+  const cacheLabel = event.reused ? ' cached' : '';
+  const eta = formatEta(event.completedRoutes, event.totalRoutes, startedAt, now);
+  return `[${event.completedRoutes}/${event.totalRoutes}] ${route}${cacheLabel}${eta}`;
+}
+
+function formatRouteLabel(route: string): string {
+  if (route === '/') return '/';
+  const trimmed = route.replace(/^\/+/, '').replace(/\/+$/, '');
+  return trimmed === '' ? route : trimmed;
+}
+
+function formatEta(
+  completed: number,
+  total: number,
+  startedAt: number | undefined,
+  now: () => number,
+): string {
+  if (startedAt === undefined || completed <= 0 || total <= 0 || completed >= total) return '';
+  const elapsedMs = Math.max(0, now() - startedAt);
+  if (elapsedMs < 1000) return ' (ETA <1s)';
+  const remaining = total - completed;
+  const etaMs = (elapsedMs / completed) * remaining;
+  return ` (ETA ${formatDuration(etaMs)})`;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }

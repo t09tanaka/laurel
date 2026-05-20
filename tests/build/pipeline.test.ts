@@ -4,6 +4,7 @@ import { chmod, cp, mkdir, mkdtemp, readdir, realpath, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
+import type { BuildProgressEvent } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
@@ -66,6 +67,39 @@ describe('build pipeline strict mode wiring', () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
     expect(summary.warningCount).toBe(0);
+  });
+
+  test('reports asset copy substeps through build progress events', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      ['', '[build]', 'copy_content_assets = false', ''].join('\n'),
+      {
+        flag: 'a',
+      },
+    );
+    const events: BuildProgressEvent[] = [];
+
+    await build({
+      cwd,
+      progress: (event) => {
+        events.push(event);
+      },
+    });
+
+    const assetEvents = events.filter((event) => event.type === 'asset-step');
+    expect(assetEvents.map((event) => event.label)).toEqual([
+      'Theme assets',
+      'Ghost card assets',
+      'Favicons',
+      'Portal runtime',
+    ]);
+    expect(assetEvents.map((event) => `${event.step}/${event.totalSteps}`)).toEqual([
+      '1/4',
+      '2/4',
+      '3/4',
+      '4/4',
+    ]);
   });
 
   test('throws a NectarError when frontmatter date is unparseable', async () => {

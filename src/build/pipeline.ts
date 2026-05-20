@@ -179,6 +179,12 @@ export type BuildProgressEvent =
       totalRoutes: number;
       route: string;
       reused: boolean;
+    }
+  | {
+      type: 'asset-step';
+      step: number;
+      totalSteps: number;
+      label: string;
     };
 
 export type BuildProgressReporter = (event: BuildProgressEvent) => void;
@@ -815,20 +821,49 @@ async function runBuild({
   }
 
   const assetCount = await withProgressPhase(progress, 'assets', 'Copying assets', async () => {
-    const assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
-    await timed(profiler, 'card_assets', () =>
-      emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
-    );
-    await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
-    await timed(profiler, 'portal_runtime', () =>
-      emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
-    );
+    let assetCount = 0;
+    const assetSteps: Array<{ label: string; run: () => Promise<void> }> = [
+      {
+        label: 'Theme assets',
+        run: async () => {
+          assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+        },
+      },
+      {
+        label: 'Ghost card assets',
+        run: async () => {
+          await timed(profiler, 'card_assets', () =>
+            emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
+          );
+        },
+      },
+      {
+        label: 'Favicons',
+        run: async () => {
+          await timed(profiler, 'copy_favicons', () => copyFavicons(favicons, outputDir));
+        },
+      },
+      {
+        label: 'Portal runtime',
+        run: async () => {
+          await timed(profiler, 'portal_runtime', () =>
+            emitPortalRuntime({ outputDir, enabled: content.site.members_enabled }),
+          );
+        },
+      },
+    ];
+
     if (config.build.copy_content_assets) {
-      await timed(profiler, 'copy_content_assets', () =>
-        copyContentAssets(cwd, config.content.assets_dir, outputDir, {
-          maxImageBytes: config.build.max_image_bytes,
-        }),
-      );
+      assetSteps.push({
+        label: 'Content assets',
+        run: async () => {
+          await timed(profiler, 'copy_content_assets', () =>
+            copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+              maxImageBytes: config.build.max_image_bytes,
+            }),
+          );
+        },
+      });
       // `[components.images].resize` (default true) is the kill-switch for the
       // sharp-backed resize pipeline. When false we still emit srcset URLs
       // pointing at `/content/images/size/wXXX/...`, but no actual variants
@@ -836,13 +871,23 @@ async function runBuild({
       // the right choice when the project does not want a sharp dependency or
       // when image variants are produced by another step in the toolchain.
       if (imagesCfg.resize) {
-        await timed(profiler, 'image_variants', () =>
-          generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-        );
+        assetSteps.push({
+          label: 'Responsive image variants',
+          run: async () => {
+            await timed(profiler, 'image_variants', () =>
+              generateImageVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+            );
+          },
+        });
         if (formatVariants.length > 0) {
-          await timed(profiler, 'image_format_variants', () =>
-            generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
-          );
+          assetSteps.push({
+            label: 'Image format variants',
+            run: async () => {
+              await timed(profiler, 'image_format_variants', () =>
+                generateImageFormatVariants({ cwd, config, outputDir, plan: imageVariantPlan }),
+              );
+            },
+          });
         }
         // Materialise the variants referenced by `{{img_url ... size="<key>"}}`
         // and `{{img_url ... size="<key>" format="<fmt>"}}` (e.g. Source's
@@ -850,19 +895,36 @@ async function runBuild({
         // pass so an `m: { width: 600 }` and the default 600w variant share one
         // file. Cache is keyed by source content hash; format variants are emitted
         // only when sharp is available and at least one format is configured.
-        await timed(profiler, 'theme_image_size_variants', () =>
-          generateThemeImageSizeVariants({
-            cwd,
-            config,
-            outputDir,
-            themeImageSizes: theme.pkg.image_sizes,
-            cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
-            formats: formatVariants,
-            webpQuality: imagesCfg.webp_quality,
-            avifQuality: imagesCfg.avif_quality,
-          }),
-        );
+        assetSteps.push({
+          label: 'Theme image size variants',
+          run: async () => {
+            await timed(profiler, 'theme_image_size_variants', () =>
+              generateThemeImageSizeVariants({
+                cwd,
+                config,
+                outputDir,
+                themeImageSizes: theme.pkg.image_sizes,
+                cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
+                formats: formatVariants,
+                webpQuality: imagesCfg.webp_quality,
+                avifQuality: imagesCfg.avif_quality,
+              }),
+            );
+          },
+        });
       }
+    }
+
+    for (let i = 0; i < assetSteps.length; i++) {
+      const step = assetSteps[i];
+      if (step === undefined) throw new Error('asset step missing');
+      notifyProgress(progress, {
+        type: 'asset-step',
+        step: i + 1,
+        totalSteps: assetSteps.length,
+        label: step.label,
+      });
+      await step.run();
     }
     return assetCount;
   });
