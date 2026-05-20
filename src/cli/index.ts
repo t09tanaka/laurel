@@ -267,9 +267,14 @@ async function main(argv: string[]): Promise<number> {
   const [command, ...restInitial] = filtered;
   const rest = [...restInitial];
 
-  if (command === undefined || command === '--help' || command === '-h') {
+  if (command === undefined) {
+    printTopUsage(version, process.stderr);
+    return EXIT_CODES.usage;
+  }
+
+  if (command === '--help' || command === '-h') {
     printTopUsage(version);
-    return 0;
+    return EXIT_CODES.ok;
   }
 
   if (command === 'help') {

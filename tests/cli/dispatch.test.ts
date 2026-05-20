@@ -35,9 +35,19 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('import-ghost');
   });
 
-  test('no args prints usage', async () => {
-    const { stdout, exitCode } = await runCli([]);
+  test('no args prints usage and exits 2', async () => {
+    const { stdout, stderr, exitCode } = await runCli([]);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('Usage:');
+    expect(stderr).toContain('nectar <command>');
+  });
+
+  test.each([['-h'], ['help']])('%s prints top-level help and exits 0', async (arg) => {
+    const { stdout, stderr, exitCode } = await runCli([arg]);
     expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage:');
     expect(stdout).toContain('nectar <command>');
   });
 
