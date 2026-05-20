@@ -173,6 +173,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const order = String(hash.order ?? 'published_at desc');
     const filter = typeof hash.filter === 'string' ? hash.filter : '';
     const include = parseIncludeTokens(hash.include);
+    const fields = parseFieldsTokens(hash.fields);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     const sorted = getSortedResource(engine, resource, order);
@@ -188,7 +189,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (paged.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    const results = exposeGetResource(resource, applyGetIncludes(engine, resource, paged, include));
+    const included = applyGetIncludes(engine, resource, paged, include);
+    const results = exposeGetResource(resource, applyGetFields(included, fields));
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
     data.pagination = pagination;
@@ -296,6 +298,34 @@ function parseIncludeTokens(raw: unknown): readonly string[] {
     if (token) tokens.push(token);
   }
   return tokens;
+}
+
+function parseFieldsTokens(raw: unknown): readonly string[] {
+  if (typeof raw !== 'string') return [];
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const part of raw.split(',')) {
+    const token = part.trim();
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function applyGetFields(results: readonly unknown[], fields: readonly string[]): unknown[] {
+  if (fields.length === 0) return results.slice();
+  return results.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+    const projected: Record<string, unknown> = {};
+    const record = item as Record<string, unknown>;
+    for (const field of fields) {
+      if (Object.prototype.hasOwnProperty.call(record, field)) {
+        projected[field] = record[field];
+      }
+    }
+    return projected;
+  });
 }
 
 // Ghost's `include=` query string surfaces relations / counts that aren't part

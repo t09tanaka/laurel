@@ -245,6 +245,39 @@ describe('get helper pagination metadata', () => {
   });
 });
 
+describe('get helper fields= projection', () => {
+  function buildPosts(
+    n: number,
+  ): { id: string; title: string; slug: string; published_at: string }[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `p${i}`,
+      title: `Post ${i}`,
+      slug: `post-${i}`,
+      published_at: `2026-05-${String(n - i).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+  }
+
+  test('projects requested fields after applying the page offset', () => {
+    const engine = buildEngine({ posts: buildPosts(12) });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" fields="id" limit="5" page="2" as |items meta|}}page={{meta.page}} total={{meta.total}};{{#foreach items}}{{id}}:{{title}}|{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('page=2 total=12;p5:|p6:|p7:|p8:|p9:|');
+  });
+
+  test('accepts comma-separated fields without mutating the source content', () => {
+    const posts = buildPosts(3);
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" fields="id, slug" as |items|}}{{#foreach items}}{{id}}/{{slug}}/{{title}}|{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('p0/post-0/|p1/post-1/|p2/post-2/|');
+    expect(posts[0]?.title).toBe('Post 0');
+  });
+});
+
 describe('get helper include= parameter', () => {
   test('include="authors" is a no-op for implicit posts blocks and preserves authors', () => {
     const posts = [
