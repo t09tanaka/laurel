@@ -46,6 +46,16 @@ describe('t helper', () => {
     expect(engine.hb.compile('{{t "Menu"}}')({})).toBe('Menu');
   });
 
+  // Issue #469: lookup chain uses `||` semantics so an empty active-locale
+  // value falls through to the fallback. Pin down the active-empty,
+  // fallback-set path explicitly so a future regression to `??` is caught
+  // here, not in downstream theme renders.
+  test('empty active-locale value falls through to the English fallback value', () => {
+    const engine = makeEngine({ en: { Subscribe: 'Subscribe' }, fr: { Subscribe: '' } }, 'fr');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Subscribe"}}')({})).toBe('Subscribe');
+  });
+
   test('falls back to the key when the key is not in any locale', () => {
     const engine = makeEngine({ en: {} }, 'en');
     registerI18nHelpers(engine);
