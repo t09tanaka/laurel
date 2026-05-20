@@ -6,6 +6,7 @@ import {
   parseImportSinceTimestamp,
 } from '~/ghost/import.ts';
 import { logger } from '~/util/logger.ts';
+import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { IMPORT_GHOST_SPEC } from '../specs.ts';
@@ -29,7 +30,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
 
   const file = parsed.positionals[0];
   if (!file) {
-    process.stderr.write('A file path is required.\n\n');
+    process.stderr.write(`${t('importGhost.requiredFile')}\n\n`);
     process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
     return 2;
   }
@@ -39,7 +40,10 @@ export async function runImportGhost(args: string[]): Promise<number> {
   if (typeof rawOnConflict === 'string') {
     if (!(ON_CONFLICT_VALUES as readonly string[]).includes(rawOnConflict)) {
       process.stderr.write(
-        `Invalid --on-conflict value: ${rawOnConflict}. Expected one of: ${ON_CONFLICT_VALUES.join(', ')}.\n\n`,
+        `${t('importGhost.invalidOnConflict', {
+          value: rawOnConflict,
+          values: ON_CONFLICT_VALUES.join(', '),
+        })}\n\n`,
       );
       process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
       return 2;
@@ -61,7 +65,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
     const parsedSize = parseSizeSpec(rawMaxImageSize);
     if (parsedSize === null) {
       process.stderr.write(
-        `Invalid --max-image-size value: ${rawMaxImageSize}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 10MB, 1GB, 0 to disable).\n\n`,
+        `${t('importGhost.invalidMaxImageSize', { value: rawMaxImageSize })}\n\n`,
       );
       process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
       return 2;
@@ -79,9 +83,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
   if (typeof rawMaxSize === 'string') {
     const parsedSize = parseSizeSpec(rawMaxSize);
     if (parsedSize === null) {
-      process.stderr.write(
-        `Invalid --max-size value: ${rawMaxSize}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 256MB, 1GB, 0 to disable).\n\n`,
-      );
+      process.stderr.write(`${t('importGhost.invalidMaxSize', { value: rawMaxSize })}\n\n`);
       process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
       return 2;
     }
@@ -95,9 +97,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
   const rawOnlyTags = parsed.values['only-tags'];
   const onlyTags = typeof rawOnlyTags === 'string' ? parseOnlyTags(rawOnlyTags) : undefined;
   if (onlyTags && onlyTags.length === 0) {
-    process.stderr.write(
-      `Invalid --only-tags value: ${rawOnlyTags}. Expected one or more comma-separated tag slugs (e.g. news,blog).\n\n`,
-    );
+    process.stderr.write(`${t('importGhost.invalidOnlyTags', { value: rawOnlyTags })}\n\n`);
     process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
     return 2;
   }
@@ -140,7 +140,10 @@ export async function runImportGhost(args: string[]): Promise<number> {
           : (event) => {
               if (event.type === 'posts') {
                 logger.info(
-                  `Importing Ghost posts: ${event.processedPosts}/${event.totalPosts} processed`,
+                  t('importGhost.progressPosts', {
+                    processed: event.processedPosts,
+                    total: event.totalPosts,
+                  }),
                 );
               }
             },
@@ -154,41 +157,57 @@ export async function runImportGhost(args: string[]): Promise<number> {
       return 0;
     }
     logger.info(
-      `Imported ${summary.posts} posts, ${summary.pages} pages, ${summary.tags} tags, ${summary.authors} authors`,
+      t('importGhost.imported', {
+        posts: summary.posts,
+        pages: summary.pages,
+        tags: summary.tags,
+        authors: summary.authors,
+      }),
     );
     if (summary.assetsCopied > 0) {
-      logger.info(`Copied ${summary.assetsCopied} asset files into ${outputDir ?? 'content/'}`);
+      logger.info(
+        t('importGhost.assetsCopied', {
+          count: summary.assetsCopied,
+          target: outputDir ?? 'content/',
+        }),
+      );
     }
     if (summary.imagesDownloaded > 0 || summary.imagesFailed > 0) {
       logger.info(
-        `Downloaded ${summary.imagesDownloaded} remote images into content/images/ (${summary.imagesFailed} failed)`,
+        t('importGhost.downloadedImages', {
+          downloaded: summary.imagesDownloaded,
+          failed: summary.imagesFailed,
+        }),
       );
     }
     if (summary.skipped > 0 || summary.overwritten > 0 || summary.renamed > 0) {
       logger.info(
-        `Conflicts: ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.renamed} renamed`,
+        t('importGhost.conflicts', {
+          skipped: summary.skipped,
+          overwritten: summary.overwritten,
+          renamed: summary.renamed,
+        }),
       );
     }
     if (hasFilteredItems(summary)) {
       logger.info(formatFilteredItems(summary));
     }
     if (summary.slugCollisions > 0) {
-      logger.warn(
-        `Detected ${summary.slugCollisions} intra-export slug collision(s). The first entity to claim each path was kept; later duplicates were refused. Audit the export for tampered or malformed slug data.`,
-      );
+      logger.warn(t('importGhost.slugCollisions', { count: summary.slugCollisions }));
     }
     if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
       logger.info(
-        `Wrote migration/redirects/ snippets (${summary.redirectsImported} custom, ${summary.slugRedirects} from slug changes): _redirects, vercel.json, nginx.conf`,
+        t('importGhost.redirectsWritten', {
+          custom: summary.redirectsImported,
+          slugChanges: summary.slugRedirects,
+        }),
       );
     }
     if (summary.codeInjectionSkipped > 0 && !keepCodeInjection) {
-      logger.info(
-        `Skipped code injection in ${summary.codeInjectionSkipped} posts. Re-run with --keep-code-injection to import them.`,
-      );
+      logger.info(t('importGhost.codeInjectionSkipped', { count: summary.codeInjectionSkipped }));
     }
     if (summary.htmlPreserved > 0) {
-      logger.info(`Preserved rendered HTML for ${summary.htmlPreserved} posts/pages`);
+      logger.info(t('importGhost.htmlPreserved', { count: summary.htmlPreserved }));
     }
     return 0;
   } catch (err) {
@@ -208,85 +227,85 @@ function formatDryRunSummary(
   ctx: { cwd: string; downloadImages: boolean; outputDir?: string },
 ): string {
   const rows: DryRunSummaryRow[] = [
-    { label: 'Posts to import', value: summary.posts },
-    { label: 'Pages to import', value: summary.pages },
+    { label: t('importGhost.dryRun.posts'), value: summary.posts },
+    { label: t('importGhost.dryRun.pages'), value: summary.pages },
     {
-      label: 'Drafts (included above)',
+      label: t('importGhost.dryRun.drafts'),
       value: summary.drafts,
       note: 'imported alongside published; pass --on-conflict to control writes',
     },
     {
-      label: 'Status-filtered',
+      label: t('importGhost.dryRun.statusFiltered'),
       value: summary.statusFiltered,
       note: 'status not in {published, draft}; not imported',
     },
     {
-      label: 'Drafts filtered',
+      label: t('importGhost.dryRun.draftsFiltered'),
       value: summary.draftsFiltered,
       note: 'partial import without --include-drafts',
     },
     {
-      label: 'Pages filtered',
+      label: t('importGhost.dryRun.pagesFiltered'),
       value: summary.pagesFiltered,
       note: 'partial import without --include-pages',
     },
     {
-      label: 'Tag-filtered',
+      label: t('importGhost.dryRun.tagFiltered'),
       value: summary.tagFiltered,
       note: 'post tags did not match --only-tags',
     },
     {
-      label: 'Date-filtered',
+      label: t('importGhost.dryRun.dateFiltered'),
       value: summary.dateFiltered,
       note: 'published_at/created_at before --since or unavailable',
     },
     {
-      label: 'Empty bodies',
+      label: t('importGhost.dryRun.emptyBodies'),
       value: summary.bodiesEmpty,
       note: 'lexical/mobiledoc rendered to empty markdown',
     },
-    { label: 'Tags', value: summary.tags },
-    { label: 'Authors', value: summary.authors },
+    { label: t('importGhost.dryRun.tags'), value: summary.tags },
+    { label: t('importGhost.dryRun.authors'), value: summary.authors },
     {
-      label: 'Assets to copy',
+      label: t('importGhost.dryRun.assets'),
       value: summary.assetsCopied,
       note: 'images/files/media into the target output',
     },
     {
-      label: 'Conflicts (would skip)',
+      label: t('importGhost.dryRun.conflictsSkip'),
       value: summary.skipped,
       note: 'existing files; default policy is skip',
     },
     {
-      label: 'Conflicts (would overwrite)',
+      label: t('importGhost.dryRun.conflictsOverwrite'),
       value: summary.overwritten,
     },
     {
-      label: 'Conflicts (would rename)',
+      label: t('importGhost.dryRun.conflictsRename'),
       value: summary.renamed,
     },
     {
-      label: 'Slug collisions (in export)',
+      label: t('importGhost.dryRun.slugCollisions'),
       value: summary.slugCollisions,
       note: 'duplicate slugs within the same export; refused regardless of --on-conflict',
     },
     {
-      label: 'Redirects (custom)',
+      label: t('importGhost.dryRun.redirectsCustom'),
       value: summary.redirectsImported,
       note: 'from content/data/redirects.json',
     },
     {
-      label: 'Redirects (slug changes)',
+      label: t('importGhost.dryRun.redirectsSlugChanges'),
       value: summary.slugRedirects,
       note: 'auto-generated for slugs rewritten by safeSlug',
     },
     {
-      label: 'Code injection skipped',
+      label: t('importGhost.dryRun.codeInjectionSkipped'),
       value: summary.codeInjectionSkipped,
       note: 'posts whose codeinjection_head/foot were dropped; pass --keep-code-injection to import',
     },
     {
-      label: 'Rendered HTML preserved',
+      label: t('importGhost.dryRun.htmlPreserved'),
       value: summary.htmlPreserved,
       note: 'sibling .md.html files; pass --keep-html to write them',
     },
@@ -294,11 +313,7 @@ function formatDryRunSummary(
   const labelWidth = Math.max(...rows.map((r) => r.label.length));
   const valueWidth = Math.max(...rows.map((r) => String(r.value).length));
   const target = ctx.outputDir ?? 'content/';
-  const lines = [
-    'Dry run: no files written. Summary of what would land:',
-    `Target output: ${target}`,
-    '',
-  ];
+  const lines = [t('importGhost.dryRun.header'), t('importGhost.dryRun.target', { target }), ''];
   for (const r of rows) {
     const padLabel = r.label.padEnd(labelWidth);
     const padValue = String(r.value).padStart(valueWidth);
@@ -306,17 +321,15 @@ function formatDryRunSummary(
   }
   if (ctx.downloadImages) {
     lines.push('');
-    lines.push('  Note: --download-images is set, but no images were fetched in dry-run mode.');
+    lines.push(`  ${t('importGhost.dryRun.imagesNote')}`);
   }
   if (summary.redirectsImported > 0 || summary.slugRedirects > 0) {
     lines.push('');
-    lines.push(
-      '  Note: redirect snippets (_redirects, vercel.json, nginx.conf) would land under the target migration/redirects/.',
-    );
+    lines.push(`  ${t('importGhost.dryRun.redirectsNote')}`);
   }
   if (summary.plannedPaths.length > 0) {
     lines.push('');
-    lines.push(`  Planned paths (${summary.plannedPaths.length}):`);
+    lines.push(`  ${t('importGhost.dryRun.paths', { count: summary.plannedPaths.length })}`);
     for (const path of summary.plannedPaths) {
       const rel = relative(ctx.cwd, path);
       lines.push(`    ${rel.startsWith('..') ? path : rel}`);
@@ -349,7 +362,19 @@ function hasFilteredItems(summary: Awaited<ReturnType<typeof importGhostExport>>
 }
 
 function formatFilteredItems(summary: Awaited<ReturnType<typeof importGhostExport>>): string {
-  return `Filtered out ${summary.statusFiltered + summary.draftsFiltered + summary.pagesFiltered + summary.tagFiltered + summary.dateFiltered} items (${summary.statusFiltered} status, ${summary.draftsFiltered} drafts, ${summary.pagesFiltered} pages, ${summary.tagFiltered} tag mismatches, ${summary.dateFiltered} before --since)`;
+  return t('importGhost.filteredItems', {
+    total:
+      summary.statusFiltered +
+      summary.draftsFiltered +
+      summary.pagesFiltered +
+      summary.tagFiltered +
+      summary.dateFiltered,
+    status: summary.statusFiltered,
+    drafts: summary.draftsFiltered,
+    pages: summary.pagesFiltered,
+    tag: summary.tagFiltered,
+    date: summary.dateFiltered,
+  });
 }
 
 // Parse a human-readable size spec (e.g. "256MB", "1GB", "512KB", "1024") into
@@ -363,7 +388,9 @@ export function parseSizeSpec(input: string): number | null {
   if (s.length === 0) return null;
   const m = /^(\d+(?:\.\d+)?)\s*([kmgt]?b)?$/i.exec(s);
   if (!m) return null;
-  const value = Number.parseFloat(m[1]);
+  const numeric = m[1];
+  if (numeric === undefined) return null;
+  const value = Number.parseFloat(numeric);
   if (!Number.isFinite(value) || value < 0) return null;
   const unit = (m[2] ?? 'B').toUpperCase();
   const multipliers: Record<string, number> = {

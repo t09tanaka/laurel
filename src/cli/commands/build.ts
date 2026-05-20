@@ -7,6 +7,7 @@ import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
 import { ensureContentDirs } from '../ensure-content-dirs.ts';
+import { t } from '../i18n/index.ts';
 import {
   CliUsageError,
   type ParsedCommand,
@@ -79,7 +80,7 @@ export async function runBuild(args: string[]): Promise<number> {
   const cwd = process.cwd();
 
   if (watch && dryRun) {
-    process.stderr.write('--watch and --dry-run are mutually exclusive\n\n');
+    process.stderr.write(`${t('build.usage.watchDryRun')}\n\n`);
     process.stderr.write(formatCommandHelp(BUILD_SPEC));
     return EXIT_CODES.usage;
   }
@@ -106,7 +107,7 @@ export async function runBuild(args: string[]): Promise<number> {
     typeof emitContentApiRaw === 'boolean' ? emitContentApiRaw : undefined;
 
   if (configPath === undefined && !(await hasProjectConfig(cwd))) {
-    process.stderr.write(`No nectar.toml found in ${cwd}\n`);
+    process.stderr.write(`${t('build.config.notFound', { cwd })}\n`);
     return EXIT_CODES.generic;
   }
 
@@ -163,12 +164,17 @@ export async function runBuild(args: string[]): Promise<number> {
       return;
     }
     if (!progress) return;
-    const prefix = opts.prefix ?? (summary.dryRun ? 'Dry run: would build' : 'Built');
+    const prefix = opts.prefix ?? (summary.dryRun ? t('build.dryRun.prefix') : 'Built');
     logger.info(
-      `${prefix} ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+      t('build.summary', {
+        prefix,
+        routeCount: summary.routeCount,
+        assetCount: summary.assetCount,
+        outputDir: summary.outputDir,
+      }),
     );
     if (summary.profilePath) {
-      logger.info(`Build stats: ${summary.profilePath}`);
+      logger.info(t('build.stats', { profilePath: summary.profilePath }));
     }
     if (summary.dryRun && summary.routes && isVerbose()) {
       logger.info(formatDryRunRouteTable(summary.routes));
@@ -192,16 +198,17 @@ export async function runBuild(args: string[]): Promise<number> {
     reportSummary(initialSummary);
     if (!watch && strict && initialSummary.warningCount > 0) {
       logger.error(
-        `Strict mode: build emitted ${initialSummary.warningCount} warning${
-          initialSummary.warningCount === 1 ? '' : 's'
-        }`,
+        t('build.strict.failed', {
+          count: initialSummary.warningCount,
+          plural: initialSummary.warningCount === 1 ? '' : 's',
+        }),
       );
       return EXIT_CODES.generic;
     }
   } catch (err) {
     reportError(err, cwd);
     if (!watch) return exitCodeForError(err);
-    logger.warn('Initial build failed; staying in watch mode so the next change can retry');
+    logger.warn(t('build.error.initialWatchFailed'));
   }
 
   if (!watch) return EXIT_CODES.ok;
@@ -214,9 +221,10 @@ export async function runBuild(args: string[]): Promise<number> {
       reportSummary(summary, { prefix: 'Rebuilt' });
       if (strict && summary.warningCount > 0) {
         logger.warn(
-          `Strict mode: build emitted ${summary.warningCount} warning${
-            summary.warningCount === 1 ? '' : 's'
-          } (watch mode keeps running)`,
+          t('build.strict.watchWarning', {
+            count: summary.warningCount,
+            plural: summary.warningCount === 1 ? '' : 's',
+          }),
         );
       }
     },
@@ -304,10 +312,12 @@ async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): P
       });
       watchers.push(w);
     } catch (err) {
-      logger.warn(`Failed to watch ${p}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn(
+        t('watch.failed', { path: p, message: err instanceof Error ? err.message : String(err) }),
+      );
     }
   }
-  logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
+  logger.info(t('watch.enabled', { count: watchers.length }));
 
   await cleanup.waitForSignal({ signals: ['SIGINT', 'SIGTERM'] });
   return EXIT_CODES.ok;

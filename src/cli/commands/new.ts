@@ -4,6 +4,7 @@ import slugify from 'slugify';
 import { loadConfig } from '~/config/loader.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { t } from '../i18n/index.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -32,7 +33,7 @@ export async function runNew(args: string[]): Promise<number> {
   const [kindArg, ...rest] = parsed.positionals;
   if (!kindArg || !VALID_KINDS.includes(kindArg as Kind)) {
     process.stderr.write(
-      `Invalid kind: ${kindArg ?? '<missing>'}. Expected one of: ${VALID_KINDS.join(', ')}.\n\n`,
+      `${t('new.invalidKind', { kind: kindArg ?? '<missing>', kinds: VALID_KINDS.join(', ') })}\n\n`,
     );
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
@@ -41,7 +42,7 @@ export async function runNew(args: string[]): Promise<number> {
   const remainder = rest.join(' ').trim();
   if (!remainder) {
     const label = kind === 'post' || kind === 'page' ? 'title' : 'slug';
-    process.stderr.write(`A ${label} is required.\n\n`);
+    process.stderr.write(`${t('new.requiredValue', { label })}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
@@ -57,19 +58,17 @@ export async function runNew(args: string[]): Promise<number> {
   const slugOverrideRaw = typeof parsed.values.slug === 'string' ? parsed.values.slug.trim() : '';
 
   if (!isPost && (dateRaw || tagsRaw || authorRaw)) {
-    process.stderr.write('--date, --tags, and --author are only valid for "post" kind.\n\n');
+    process.stderr.write(`${t('new.optionPostOnly')}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
   if (!isPostOrPage && draft) {
-    process.stderr.write('--draft is only valid for "post" or "page" kind.\n\n');
+    process.stderr.write(`${t('new.optionDraftKind')}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
   if (!isPostOrPage && slugOverrideRaw) {
-    process.stderr.write(
-      '--slug is only valid for "post" or "page" kind; for "tag" / "author" the positional is already the slug.\n\n',
-    );
+    process.stderr.write(`${t('new.optionSlugKind')}\n\n`);
     process.stderr.write(formatCommandHelp(NEW_SPEC));
     return 2;
   }
@@ -78,7 +77,7 @@ export async function runNew(args: string[]): Promise<number> {
   if (dateRaw) {
     const parsedDate = new Date(dateRaw);
     if (Number.isNaN(parsedDate.getTime())) {
-      process.stderr.write(`Invalid --date value: ${dateRaw}. Expected an ISO-8601 timestamp.\n`);
+      process.stderr.write(`${t('new.invalidDate', { value: dateRaw })}\n`);
       return 2;
     }
     isoDate = parsedDate.toISOString();
@@ -87,7 +86,7 @@ export async function runNew(args: string[]): Promise<number> {
   const slugSource = isPostOrPage ? slugOverrideRaw || remainder : remainder;
   const slug = slugifyNewValue(slugSource);
   if (!slug) {
-    process.stderr.write('Could not derive a slug from the provided positional or --slug value.\n');
+    process.stderr.write(`${t('new.invalidSlug')}\n`);
     return 2;
   }
 
@@ -106,9 +105,7 @@ export async function runNew(args: string[]): Promise<number> {
   await ensureDir(dirname(dest));
 
   if (!force && (await fileExists(dest))) {
-    process.stderr.write(
-      `Refusing to overwrite ${dest}. Pass --force to overwrite or --slug <other>.\n`,
-    );
+    process.stderr.write(`${t('new.refuseOverwrite', { path: dest })}\n`);
     return 1;
   }
 
@@ -129,7 +126,7 @@ export async function runNew(args: string[]): Promise<number> {
   if (asJson) {
     process.stdout.write(`${JSON.stringify({ ok: true, kind, slug, path: dest })}\n`);
   } else {
-    logger.info(`Created ${dest}`);
+    logger.info(t('new.created', { path: dest }));
   }
 
   if (openEditor) {
@@ -257,9 +254,7 @@ function titleFromSlug(slug: string): string {
 async function openInEditor(path: string): Promise<number> {
   const editor = process.env.EDITOR;
   if (!editor) {
-    process.stderr.write(
-      'Warning: --open was passed but $EDITOR is not set; skipping editor launch.\n',
-    );
+    process.stderr.write(`${t('new.warnEditorMissing')}\n`);
     return 0;
   }
   const proc = Bun.spawn([editor, path], {
@@ -269,7 +264,7 @@ async function openInEditor(path: string): Promise<number> {
   });
   const code = await proc.exited;
   if (code !== 0) {
-    process.stderr.write(`Editor "${editor}" exited with code ${code}.\n`);
+    process.stderr.write(`${t('new.editorExited', { editor, code })}\n`);
   }
   return code;
 }

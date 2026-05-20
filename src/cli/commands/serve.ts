@@ -13,6 +13,7 @@ import {
   injectLiveReload,
 } from '~/dev/livereload.ts';
 import { logger } from '~/util/logger.ts';
+import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { SERVE_SPEC } from '../specs.ts';
@@ -71,9 +72,7 @@ export async function runServe(args: string[]): Promise<number> {
       parsedPort < 1 ||
       parsedPort > 65535
     ) {
-      process.stderr.write(
-        `Invalid --port value: ${parsed.values.port} (expected an integer in 1..65535)\n`,
-      );
+      process.stderr.write(`${t('serve.invalidPort', { value: parsed.values.port })}\n`);
       return 2;
     }
     port = parsedPort;
@@ -83,7 +82,7 @@ export async function runServe(args: string[]): Promise<number> {
   if (typeof parsed.values.host === 'string') {
     const trimmed = parsed.values.host.trim();
     if (trimmed.length === 0) {
-      process.stderr.write('Invalid --host value: cannot be empty\n');
+      process.stderr.write(`${t('serve.invalidHost')}\n`);
       return 2;
     }
     hostname = trimmed;
@@ -93,9 +92,7 @@ export async function runServe(args: string[]): Promise<number> {
   if (typeof parsed.values.simulate === 'string') {
     simulateTarget = parseServeSimulationTarget(parsed.values.simulate);
     if (simulateTarget === undefined) {
-      process.stderr.write(
-        `Invalid --simulate value: ${parsed.values.simulate} (expected netlify, cloudflare-pages, or vercel)\n`,
-      );
+      process.stderr.write(`${t('serve.invalidSimulate', { value: parsed.values.simulate })}\n`);
       return 2;
     }
   }
@@ -107,22 +104,30 @@ export async function runServe(args: string[]): Promise<number> {
   const distDir = join(cwd, config.build.output_dir);
 
   if (forceBuild) {
-    logger.info(`--build requested; running a build before serving (${distDir}).`);
+    logger.info(t('serve.buildRequested', { distDir }));
     try {
       const summary = await build({ cwd });
       logger.info(
-        `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+        t('serve.initialBuildComplete', {
+          routeCount: summary.routeCount,
+          assetCount: summary.assetCount,
+          outputDir: summary.outputDir,
+        }),
       );
     } catch (err) {
       reportError(err, cwd);
       return 1;
     }
   } else if (!existsSync(distDir)) {
-    logger.info(`No build output at ${distDir}; running an initial build before serving.`);
+    logger.info(t('serve.noBuildOutput', { distDir }));
     try {
       const summary = await build({ cwd });
       logger.info(
-        `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
+        t('serve.initialBuildComplete', {
+          routeCount: summary.routeCount,
+          assetCount: summary.assetCount,
+          outputDir: summary.outputDir,
+        }),
       );
     } catch (err) {
       reportError(err, cwd);
@@ -134,7 +139,11 @@ export async function runServe(args: string[]): Promise<number> {
     simulateTarget !== undefined ? await loadServeSimulation(distDir, simulateTarget) : null;
   if (simulation !== null) {
     logger.info(
-      `Simulating ${simulation.target} deploy artifacts: ${simulation.headers.length} header rule(s), ${simulation.redirects.length} redirect rule(s)`,
+      t('serve.simulating', {
+        target: simulation.target,
+        headers: simulation.headers.length,
+        redirects: simulation.redirects.length,
+      }),
     );
   }
 
@@ -221,7 +230,7 @@ export async function runServe(args: string[]): Promise<number> {
     });
   } catch (err) {
     if (isAddrInUseError(err)) {
-      process.stderr.write(`Port ${port} is in use; try --port ${port + 1}\n`);
+      process.stderr.write(`${t('serve.portInUse', { port, nextPort: port + 1 })}\n`);
       return 2;
     }
     throw err;
@@ -232,9 +241,7 @@ export async function runServe(args: string[]): Promise<number> {
   // subpath (e.g. `/blog/`) point operators at the actual landing page
   // instead of a 404 at the bare host:port root.
   const basePath = config.build.base_path || '/';
-  logger.info(
-    `Serving ${distDir} on http://${displayHost}:${port}${basePath} (bound to ${hostname})`,
-  );
+  logger.info(t('serve.serving', { distDir, host: displayHost, port, basePath, hostname }));
 
   if (!watchMode) return 0;
 
@@ -248,7 +255,11 @@ export async function runServe(args: string[]): Promise<number> {
     try {
       const summary = await build({ cwd });
       logger.info(
-        `Rebuilt ${summary.routeCount} routes (${summary.assetCount} assets); pushing reload to ${clients.size} client(s)`,
+        t('serve.rebuilt', {
+          routeCount: summary.routeCount,
+          assetCount: summary.assetCount,
+          clientCount: clients.size,
+        }),
       );
       // JSON wire format leaves room for non-reload signals (CSS hot-swap,
       // error overlays) without breaking the legacy `'reload'` string path:
@@ -291,10 +302,12 @@ export async function runServe(args: string[]): Promise<number> {
       });
       watchers.push(w);
     } catch (err) {
-      logger.warn(`Failed to watch ${p}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn(
+        t('watch.failed', { path: p, message: err instanceof Error ? err.message : String(err) }),
+      );
     }
   }
-  logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
+  logger.info(t('watch.enabled', { count: watchers.length }));
 
   const signal = await waitForShutdownSignal();
 

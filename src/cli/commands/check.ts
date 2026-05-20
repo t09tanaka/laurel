@@ -10,6 +10,7 @@ import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { type FrontmatterIssue, checkFrontmatterSchemas } from '../check-frontmatter.ts';
 import { type TemplateIssue, checkThemeTemplates } from '../check-templates.ts';
 import { ensureContentDirs } from '../ensure-content-dirs.ts';
+import { t } from '../i18n/index.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { CHECK_SPEC } from '../specs.ts';
@@ -69,7 +70,7 @@ export async function runCheck(args: string[]): Promise<number> {
 
   try {
     const config = await loadConfig({ cwd, configPath });
-    if (!asJson) logger.info(`Config OK (site: ${config.site.title})`);
+    if (!asJson) logger.info(t('check.configOk', { title: config.site.title }));
 
     // Auto-create missing content dirs with a warning so a fresh checkout
     // doesn't get a hard ENOENT on `nectar check`. The warning lands in
@@ -80,7 +81,12 @@ export async function runCheck(args: string[]): Promise<number> {
     const content = await loadContent({ cwd, config, routesYaml });
     if (!asJson) {
       logger.info(
-        `Content OK: ${content.posts.length} posts, ${content.pages.length} pages, ${content.tags.length} tags, ${content.authors.length} authors`,
+        t('check.contentOk', {
+          posts: content.posts.length,
+          pages: content.pages.length,
+          tags: content.tags.length,
+          authors: content.authors.length,
+        }),
       );
     }
 
@@ -90,7 +96,12 @@ export async function runCheck(args: string[]): Promise<number> {
       errors.push({
         file: issue.file,
         code: 'theme/compile',
-        message: `Theme ${issue.kind} '${issue.name}' (${issue.file}) failed to compile: ${issue.message}`,
+        message: t('check.themeCompileFailed', {
+          kind: issue.kind,
+          name: issue.name,
+          file: issue.file,
+          message: issue.message,
+        }),
       });
     }
     if (compileIssues.length > 0 && !asJson) {
@@ -100,7 +111,11 @@ export async function runCheck(args: string[]): Promise<number> {
     }
     if (!asJson) {
       logger.info(
-        `Theme OK: ${theme.name} (${Object.keys(theme.templates).length} templates, ${Object.keys(theme.partials).length} partials compiled)`,
+        t('check.themeOk', {
+          name: theme.name,
+          templates: Object.keys(theme.templates).length,
+          partials: Object.keys(theme.partials).length,
+        }),
       );
     }
     validateThemeCustom({ config, pkg: theme.pkg });
@@ -155,7 +170,12 @@ export async function runCheck(args: string[]): Promise<number> {
 
     if (errors.length > 0) {
       if (!asJson) {
-        logger.error(`Check found ${errors.length} error${errors.length === 1 ? '' : 's'}`);
+        logger.error(
+          t('check.errorsFound', {
+            count: errors.length,
+            plural: errors.length === 1 ? '' : 's',
+          }),
+        );
       }
       return finalize(errors, warnings, summary, asJson, false);
     }
@@ -164,7 +184,12 @@ export async function runCheck(args: string[]): Promise<number> {
       const w = getWarningCount();
       if (w > 0) {
         if (!asJson) {
-          logger.error(`Strict mode: check emitted ${w} warning${w === 1 ? '' : 's'}`);
+          logger.error(
+            t('check.strict.failed', {
+              count: w,
+              plural: w === 1 ? '' : 's',
+            }),
+          );
         }
         return finalize(errors, warnings, summary, asJson, false);
       }
