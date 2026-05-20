@@ -149,8 +149,8 @@ function walkParent(
 // surface stays opt-in (#852).
 function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   const map = buildEnvVarMap(configSchema);
-  if (map.size === 0) return parsed;
-  let target = parsed;
+  let target = applyNetlifyDeployUrlFallback(parsed, env);
+  if (map.size === 0) return target;
   for (const [name, raw] of Object.entries(env)) {
     if (!name.startsWith('NECTAR_')) continue;
     if (raw === undefined) continue;
@@ -162,6 +162,23 @@ function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
     target = setDeep(target, entry.path, value);
   }
   return target;
+}
+
+function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (env.NETLIFY !== 'true' && env.NETLIFY !== '1') return parsed;
+  if (env.CONTEXT !== 'deploy-preview' && env.CONTEXT !== 'branch-deploy') return parsed;
+  if (env.NECTAR_SITE_URL !== undefined) return parsed;
+
+  const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
+  if (deployUrl === undefined) return parsed;
+  return setDeep(parsed, ['site', 'url'], deployUrl);
+}
+
+function firstNonEmptyEnv(...values: (string | undefined)[]): string | undefined {
+  for (const value of values) {
+    if (value !== undefined && value.trim() !== '') return value;
+  }
+  return undefined;
 }
 
 // Env vars that look like `NECTAR_*` but address Nectar runtime knobs, not

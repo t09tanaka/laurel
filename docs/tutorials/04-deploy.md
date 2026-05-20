@@ -399,6 +399,14 @@ to `netlify.toml` at the repo root:
 Then **Netlify dashboard → Add new site → Import from Git → pick repo →
 Deploy**. The `netlify.toml` overrides any guesses Netlify makes.
 
+For deploy previews and branch deploys, Netlify sets `DEPLOY_PRIME_URL`.
+Nectar uses that value automatically as `site.url` for the build, falling back
+to `DEPLOY_URL` and then `URL` if needed. Canonical links, `og:url`, RSS,
+robots, and sitemap output therefore point at the preview hostname. Explicit
+overrides still win: `--base-url` takes precedence over `NECTAR_BUILD_BASE_URL`,
+then `NECTAR_SITE_URL`, then the Netlify deploy URL, then the configured
+`[site] url`.
+
 Nectar emits `dist/404.html` on every build. If your theme provides
 `error-404.hbs`, that template becomes the file; otherwise Nectar writes a
 default branded noindex page. Netlify automatically uses a publish-root

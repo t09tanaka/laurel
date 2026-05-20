@@ -66,6 +66,13 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   );
   lines.push('');
   lines.push(
+    'On Netlify `deploy-preview` and `branch-deploy` builds, `DEPLOY_PRIME_URL`',
+    'is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar',
+    'falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and',
+    '`NECTAR_BUILD_BASE_URL` still override that loaded config value.',
+  );
+  lines.push('');
+  lines.push(
     'Most relative project paths in the config, including `theme.dir` and the',
     '`content.*_dir` fields, are anchored to the directory containing the loaded',
     'config file when that file is outside `cwd`. `build.output_dir` is the',

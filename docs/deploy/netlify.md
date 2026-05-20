@@ -167,8 +167,19 @@ The catch-all route also receives the baseline security headers from
 
 ## Preview deploys
 
-For PR previews that need canonical URLs to point at the preview hostname,
-build with `--base-url`:
+On Netlify Git builds, Nectar automatically uses `DEPLOY_PRIME_URL` as
+`site.url` during `deploy-preview` and `branch-deploy` builds. If
+`DEPLOY_PRIME_URL` is not present, it falls back to `DEPLOY_URL`, then `URL`.
+That retargets canonical links, `og:url`, RSS, robots, and sitemap URLs to the
+published preview hostname without editing `nectar.toml`.
+
+The precedence is:
+
+```text
+--base-url > NECTAR_BUILD_BASE_URL > NECTAR_SITE_URL > Netlify deploy URL > site.url
+```
+
+Use `--base-url` when you need to force a different host:
 
 ```sh
 bunx nectar build --base-url https://deploy-preview-42--your-site.netlify.app

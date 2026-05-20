@@ -29,6 +29,11 @@ command-specific env var, then config file, then schema default. Separately,
 `nectar.toml` keys after the file is parsed, for example
 `NECTAR_SITE_URL=https://preview.example`.
 
+On Netlify `deploy-preview` and `branch-deploy` builds, `DEPLOY_PRIME_URL`
+is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar
+falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and
+`NECTAR_BUILD_BASE_URL` still override that loaded config value.
+
 Most relative project paths in the config, including `theme.dir` and the
 `content.*_dir` fields, are anchored to the directory containing the loaded
 config file when that file is outside `cwd`. `build.output_dir` is the
@@ -68,7 +73,7 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | --- | --- | --- | --- | --- |
 | `site.title` | `string` | yes | — | Display title of the site, used by themes and feeds. |
 | `site.description` | `string` | no | `""` | Short tagline rendered alongside the title in many themes and in feed metadata. |
-| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). |
+| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, Netlify deploy URL, configured `site.url`. |
 | `site.locale` | `string` | no | `"en"` | BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping. |
 | `site.timezone` | `string` | no | `"UTC"` | IANA timezone used when formatting dates in templates via `{{date}}`. |
 | `site.cover_image` | `string` | no | — | Optional URL or content-relative path to a site-wide cover image. |

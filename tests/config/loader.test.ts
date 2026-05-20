@@ -355,6 +355,96 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('uses Netlify DEPLOY_PRIME_URL for preview deploy site.url', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'deploy-preview',
+          DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app/',
+          DEPLOY_URL: 'https://fallback-deploy.netlify.app',
+          URL: 'https://fallback-site.netlify.app',
+        },
+      });
+      expect(config.site.url).toBe('https://deploy-preview-42--site.netlify.app');
+    });
+  });
+
+  test('falls back to Netlify DEPLOY_URL and URL for branch deploy site.url', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const deployConfig = await loadConfig({
+        cwd,
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'branch-deploy',
+          DEPLOY_URL: 'https://branch-deploy.netlify.app',
+          URL: 'https://fallback-site.netlify.app',
+        },
+      });
+      expect(deployConfig.site.url).toBe('https://branch-deploy.netlify.app');
+
+      const urlConfig = await loadConfig({
+        cwd,
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'branch-deploy',
+          URL: 'https://branch-url.netlify.app',
+        },
+      });
+      expect(urlConfig.site.url).toBe('https://branch-url.netlify.app');
+    });
+  });
+
+  test('keeps explicit NECTAR_SITE_URL ahead of the Netlify deploy URL fallback', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'deploy-preview',
+          DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app',
+          NECTAR_SITE_URL: 'https://explicit-env.example',
+        },
+      });
+      expect(config.site.url).toBe('https://explicit-env.example');
+    });
+  });
+
+  test('does not apply Netlify deploy URLs outside preview or branch deploy context', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
+        'utf8',
+      );
+      const config = await loadConfig({
+        cwd,
+        env: {
+          NETLIFY: 'true',
+          CONTEXT: 'production',
+          DEPLOY_PRIME_URL: 'https://production-deploy.netlify.app',
+        },
+      });
+      expect(config.site.url).toBe('https://prod.example.com');
+    });
+  });
+
   test('env overrides coerce boolean strings (true/false/0/1)', async () => {
     await withTempDir(async (cwd) => {
       const config = await loadConfig({

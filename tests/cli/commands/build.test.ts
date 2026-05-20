@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -143,6 +143,57 @@ describe('nectar build --dry-run (#252)', () => {
     expect(result.stderr).toContain('TEMPLATE');
     expect(result.stderr).toContain('URL');
     expect(result.stderr).toContain('/hello/');
+  });
+});
+
+describe('nectar build base URL precedence', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('uses Netlify preview URL below --base-url and above configured site.url', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const netlify = {
+      NETLIFY: 'true',
+      CONTEXT: 'deploy-preview',
+      DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app',
+    };
+    const automatic = await runCli(['build'], dir, netlify);
+    expect(automatic.exitCode).toBe(0);
+    const automaticHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(automaticHtml).toContain('https://deploy-preview-42--site.netlify.app/hello/');
+    expect(automaticHtml).not.toContain('https://dryrun.test/hello/');
+
+    const explicit = await runCli(
+      ['build', '--base-url', 'https://cli-preview.example'],
+      dir,
+      netlify,
+    );
+    expect(explicit.exitCode).toBe(0);
+    const explicitHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(explicitHtml).toContain('https://cli-preview.example/hello/');
+    expect(explicitHtml).not.toContain('deploy-preview-42--site.netlify.app');
+  });
+
+  test('keeps NECTAR_BUILD_BASE_URL ahead of Netlify preview URL', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+    const result = await runCli(['build'], dir, {
+      NETLIFY: 'true',
+      CONTEXT: 'branch-deploy',
+      DEPLOY_PRIME_URL: 'https://branch--site.netlify.app',
+      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
+    });
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(html).toContain('https://build-env.example/hello/');
+    expect(html).not.toContain('branch--site.netlify.app');
   });
 });
 
