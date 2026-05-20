@@ -15,7 +15,14 @@ export function registerContentHelpers(engine: NectarEngine): void {
       if (typeof words === 'number') {
         return new engine.hb.SafeString(truncateWords(html, words, siteLocale(options)));
       }
-      return new engine.hb.SafeString(downshiftHeadings(html));
+      // If the post body carries a loader-injected paywall stub *and* the
+      // active theme ships a `partials/paywall.hbs` (override of the built-in
+      // default partial), swap the stub for the rendered partial so the
+      // theme's copy/markup wins. Without an override we keep the existing
+      // `gh-paywall-stub` HTML so existing themes/CSS that hook
+      // `.gh-paywall-stub` continue to work end-to-end (issue #207).
+      const swapped = replacePaywallStubWithPartial(engine, html, this, options);
+      return new engine.hb.SafeString(downshiftHeadings(swapped));
     },
   );
 
@@ -346,6 +353,44 @@ function sliceByCharacters(text: string, characters: number): string {
 // html-validate flags as heading-level skip).
 function downshiftHeadings(html: string): string {
   return html.replace(/<(\/?)h1\b/gi, (_match, slash: string) => `<${slash}h2`);
+}
+
+// Matches the loader-injected paywall stub block emitted by `buildPaywallStub`.
+// We anchor on the opening `<div class="gh-paywall-stub" …>` (plus its
+// `data-paywall-visibility` attr so we can recover the original visibility for
+// the partial context) and the matching closing `</div>`. The body never
+// contains nested divs because `buildPaywallStub` controls the entire markup,
+// so a non-greedy match is safe even if multiple stubs were ever emitted.
+const PAYWALL_STUB_RE =
+  /<div class="gh-paywall-stub" data-paywall-visibility="(members|paid)">[\s\S]*?<\/div>/g;
+
+function replacePaywallStubWithPartial(
+  engine: NectarEngine,
+  html: string,
+  postCtx: unknown,
+  options: Handlebars.HelperOptions,
+): string {
+  if (!html.includes('gh-paywall-stub')) return html;
+  // Only swap when the theme ships its own `partials/paywall.hbs` — otherwise
+  // we leave the loader stub alone so the long-standing `.gh-paywall-stub`
+  // markup (with its `data-portal="signup"` portal hook) stays intact for
+  // themes that style it directly.
+  const themePartials = engine.theme?.partials;
+  if (!themePartials || !('paywall' in themePartials)) return html;
+  const partial = engine.hb.partials.paywall;
+  if (!partial) return html;
+  const compiled = typeof partial === 'function' ? partial : engine.hb.compile(partial as string);
+  return html.replace(PAYWALL_STUB_RE, (_, visibility: string) => {
+    const merged = {
+      ...(typeof postCtx === 'object' && postCtx !== null ? (postCtx as object) : {}),
+      visibility,
+    };
+    try {
+      return compiled(merged, { data: options.data });
+    } catch {
+      return _;
+    }
+  });
 }
 
 export function renderRecommendationListItem(item: RecommendationItem): string {

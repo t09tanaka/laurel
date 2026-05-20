@@ -309,7 +309,7 @@ export const configSchema = z
           .nonnegative()
           .default(0)
           .describe(
-            'Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no `<!-- members -->` marker. Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview.',
+            'Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no paywall marker (`<!-- members -->`, `<!-- members-only -->`, or `<!--kg-card-begin: paywall-->`). Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview.',
           ),
         max_markdown_bytes: z
           .number()

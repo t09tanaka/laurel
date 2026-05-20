@@ -257,6 +257,46 @@ describe('content helper', () => {
     });
     expect(out).toBe('LOCKED');
   });
+
+  // #207 — a theme-provided `partials/paywall.hbs` wins over the loader stub
+  // when the body carries one. Without a theme override, the original stub
+  // markup stays intact so existing CSS hooks keep working.
+  test('swaps the loader stub for a theme-provided partials/paywall.hbs when present', () => {
+    const engine = makeEngine({
+      theme: {
+        partials: {
+          paywall: '<aside class="theme-paywall" data-vis="{{visibility}}">THEME CTA</aside>',
+        },
+      } as unknown as NectarEngine['theme'],
+    });
+    engine.hb.registerPartial(
+      'paywall',
+      '<aside class="theme-paywall" data-vis="{{visibility}}">THEME CTA</aside>',
+    );
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{{content}}}')({
+      visibility: 'members',
+      html: '<p>Free preview.</p><div class="gh-paywall-stub" data-paywall-visibility="members"><h2 class="gh-paywall-stub-title">Subscribe</h2></div>',
+    });
+    expect(out).toContain('<p>Free preview.</p>');
+    expect(out).toContain('class="theme-paywall"');
+    expect(out).toContain('data-vis="members"');
+    expect(out).toContain('THEME CTA');
+    expect(out).not.toContain('gh-paywall-stub');
+  });
+
+  test('leaves the loader stub untouched when the theme has no paywall partial', () => {
+    const engine = makeEngine({
+      theme: { partials: {} } as unknown as NectarEngine['theme'],
+    });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{{content}}}')({
+      visibility: 'members',
+      html: '<p>Free preview.</p><div class="gh-paywall-stub" data-paywall-visibility="members"><h2 class="gh-paywall-stub-title">Subscribe</h2></div>',
+    });
+    expect(out).toContain('class="gh-paywall-stub"');
+    expect(out).toContain('data-paywall-visibility="members"');
+  });
 });
 
 describe('meta_title helper pagination', () => {

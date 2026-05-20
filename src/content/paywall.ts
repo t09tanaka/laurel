@@ -1,9 +1,24 @@
-const PAYWALL_MARKER = '<!-- members -->';
+// Markdown paywall split markers. We accept three spellings:
+//   - `<!-- members -->`   Nectar's own convention (the original; still works).
+//   - `<!-- members-only -->`  Mirrors the documented #206 convention.
+//   - `<!--kg-card-begin: paywall-->`  Matches Ghost's Koenig editor output so
+//     posts pasted from a Ghost export keep their split point.
+// All three are matched as a regex so optional whitespace inside the comment
+// (`<!--kg-card-begin:paywall-->` with no space) is tolerated. The first
+// occurrence wins so we cut at the earliest possible split, never leaking the
+// rest of the body.
+const PAYWALL_MARKER_RE = /<!--\s*(?:members(?:-only)?|kg-card-begin:\s*paywall)\s*-->/i;
+
+export function findPaywallMarker(body: string): { index: number; length: number } | null {
+  const match = PAYWALL_MARKER_RE.exec(body);
+  if (!match) return null;
+  return { index: match.index, length: match[0].length };
+}
 
 export function truncateMarkdownForPaywall(body: string, wordCount: number): string {
-  const markerIdx = body.indexOf(PAYWALL_MARKER);
-  if (markerIdx >= 0) {
-    return body.slice(0, markerIdx).trimEnd();
+  const marker = findPaywallMarker(body);
+  if (marker) {
+    return body.slice(0, marker.index).trimEnd();
   }
   if (wordCount <= 0) return '';
   const words = body.split(/(\s+)/);

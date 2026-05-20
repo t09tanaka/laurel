@@ -952,6 +952,11 @@ function resolvePostRelations(
     codeinjection_head: raw.codeinjection_head,
     codeinjection_foot: raw.codeinjection_foot,
     comments: true,
+    // Anonymous viewer in a static build: the current reader never has access
+    // to gated content, so themes branching on `{{#unless this.access}}` take
+    // the locked branch. See `Post.access` doc comment for the helper /
+    // `ctx.access` split.
+    access: false,
     prev: undefined,
     next: undefined,
     feed_html: raw.feed_html,
@@ -1013,6 +1018,7 @@ function resolvePageRelations(
     codeinjection_foot: raw.codeinjection_foot,
     show_title_and_feature_image: raw.show_title_and_feature_image,
     custom_template: raw.custom_template,
+    access: false,
   };
 }
 

@@ -28,4 +28,17 @@ export const DEFAULT_PARTIALS: Record<string, string> = {
   <ul class="nectar-search__results" role="listbox" data-nectar-search-results></ul>
 </form>
 `,
+  // Default paywall CTA used in place of members-only / paid content that has
+  // been truncated at a paywall marker. Themes that want their own copy or
+  // layout can drop `partials/paywall.hbs` in their theme and the theme
+  // version wins via `registerPartials` (issue #207). The block is rendered
+  // both via the loader-injected stub (the `gh-paywall-stub` class kept for
+  // backward compatibility with the existing `truncate` policy CSS) and by
+  // any theme that calls `{{> paywall}}` directly to compose a richer
+  // members landing page.
+  paywall: `<aside class="gh-paywall" data-nectar-paywall>
+  <p>{{t "Subscribe to read the rest."}}</p>
+  <button type="button" data-portal="signup">{{t "Subscribe"}}</button>
+</aside>
+`,
 };

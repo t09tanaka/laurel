@@ -117,6 +117,15 @@ export interface Post {
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
   comments: boolean;
+  // Ghost exposes `post.access` as a boolean telling the theme whether the
+  // *current viewer* may read the gated body. Nectar's static build has no
+  // signed-in viewer, so every render targets an anonymous reader and
+  // `access` is always `false`. Themes that branch on `{{#if this.access}}` /
+  // `{{#unless this.access}}` (Source's lock-icon flow, members-only badges)
+  // therefore take the anonymous branch. The standalone `{{access}}` helper
+  // and root-level `ctx.access` cover the *site* access policy and are
+  // intentionally separate — see #208.
+  access: false;
   prev: Post | undefined;
   next: Post | undefined;
   feed_html: string;
@@ -162,6 +171,10 @@ export interface Page {
   codeinjection_foot: string | undefined;
   show_title_and_feature_image: boolean;
   custom_template: string | undefined;
+  // Pages are always public in Nectar (no gated pages), but Ghost still
+  // exposes `page.access` so themes can branch uniformly across posts/pages.
+  // The anonymous-viewer rule from `Post.access` applies; see #208.
+  access: false;
 }
 
 // Shape that mirrors Ghost's `Tier` resource closely enough for themes that

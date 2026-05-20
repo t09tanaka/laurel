@@ -12,6 +12,24 @@ describe('truncateMarkdownForPaywall', () => {
     expect(truncateMarkdownForPaywall(body, 999)).toBe('Public intro.');
   });
 
+  test('truncates at the <!-- members-only --> marker (issue #206 convention)', () => {
+    const body = 'Public intro.\n\n<!-- members-only -->\n\nSecret body that should not leak.';
+    expect(truncateMarkdownForPaywall(body, 999)).toBe('Public intro.');
+  });
+
+  test('truncates at the Ghost editor <!--kg-card-begin: paywall--> marker (issue #443)', () => {
+    const body =
+      'Public intro.\n\n<!--kg-card-begin: paywall-->\n\nSecret body that should not leak.';
+    expect(truncateMarkdownForPaywall(body, 999)).toBe('Public intro.');
+  });
+
+  test('tolerates extra inner whitespace around the marker keyword', () => {
+    expect(truncateMarkdownForPaywall('hi.\n\n<!--members-only-->\nsecret', 999)).toBe('hi.');
+    expect(truncateMarkdownForPaywall('hi.\n\n<!--kg-card-begin:paywall-->\nsecret', 999)).toBe(
+      'hi.',
+    );
+  });
+
   test('truncates by word count when no marker present', () => {
     const body = 'one two three four five six seven eight nine ten eleven twelve';
     expect(truncateMarkdownForPaywall(body, 5)).toBe('one two three four five');
@@ -176,5 +194,83 @@ describe('visibility_policy', () => {
     const gated = graph.posts.find((p) => p.slug === 'gated');
     expect(gated?.html).toContain('data-paywall-visibility="paid"');
     expect(gated?.html).toContain('paying subscribers');
+  });
+
+  // #208 — every post exposes `access: false` for the anonymous static viewer
+  // so `{{#unless this.access}}` themes hit the locked branch uniformly.
+  test('exposes post.access = false on every post (anonymous viewer)', async () => {
+    const cwd = await fixture({ visibility: 'public' });
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const publicPost = graph.posts.find((p) => p.slug === 'public');
+    const members = graph.posts.find((p) => p.slug === 'gated');
+    expect(publicPost?.access).toBe(false);
+    expect(members?.access).toBe(false);
+  });
+
+  test('exposes page.access = false on every page (anonymous viewer)', async () => {
+    const cwd = await fixture({ visibility: 'public' });
+    // Materialize a sibling page so the loader walks `content/pages/`.
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      `---\ntitle: "About"\ndate: 2026-01-01T00:00:00Z\n---\n\nAbout body.\n`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const page = graph.pages.find((p) => p.slug === 'about');
+    expect(page?.access).toBe(false);
+  });
+
+  async function markerFixture(body: string, visibility: 'public' | 'members' = 'members') {
+    const tmp = await mkdtemp(join(tmpdir(), 'nectar-paywall-marker-'));
+    await mkdir(join(tmp, 'content/posts'), { recursive: true });
+    await mkdir(join(tmp, 'content/pages'), { recursive: true });
+    await mkdir(join(tmp, 'content/authors'), { recursive: true });
+    await writeFile(
+      join(tmp, 'content/posts/gated.md'),
+      `---\ntitle: "Gated"\ndate: 2026-01-01T00:00:00Z\nvisibility: ${visibility}\n---\n\n${body}\n`,
+      'utf8',
+    );
+    return tmp;
+  }
+
+  // #443 / #206 — both alternate paywall markers split the body so the
+  // members-only paragraph never lands in `post.html`.
+  test('respects <!-- members-only --> marker end-to-end through the loader', async () => {
+    const cwd = await markerFixture(
+      'Free intro paragraph.\n\n<!-- members-only -->\n\nSecret paragraph behind the wall.',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.html).toContain('Free intro paragraph');
+    expect(gated?.html).not.toContain('Secret paragraph behind the wall');
+    expect(gated?.html).toContain('gh-paywall-stub');
+  });
+
+  test('respects the Ghost <!--kg-card-begin: paywall--> marker end-to-end', async () => {
+    const cwd = await markerFixture(
+      'Free intro paragraph.\n\n<!--kg-card-begin: paywall-->\n\nSecret paragraph behind the wall.',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const gated = graph.posts.find((p) => p.slug === 'gated');
+    expect(gated?.html).toContain('Free intro paragraph');
+    expect(gated?.html).not.toContain('Secret paragraph behind the wall');
+    expect(gated?.html).toContain('gh-paywall-stub');
+  });
+
+  test('paywall marker has no effect on public-visibility posts', async () => {
+    const cwd = await markerFixture(
+      'Intro.\n\n<!-- members-only -->\n\nStill public body — the marker is a no-op on public posts.',
+      'public',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const free = graph.posts.find((p) => p.slug === 'gated');
+    expect(free?.html).toContain('Intro');
+    expect(free?.html).toContain('Still public body');
+    expect(free?.html).not.toContain('gh-paywall-stub');
   });
 });

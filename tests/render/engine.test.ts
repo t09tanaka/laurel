@@ -873,6 +873,33 @@ describe('createEngine — default search partial (issue #1135)', () => {
     expect(engine.hb.partials.search).toBe('<!-- theme search override -->');
     expect(engine.hb.partials['partials/search']).toBe('<!-- theme search override -->');
   });
+
+  // Issue #207: Nectar also ships a default `{{> paywall}}` partial used in
+  // place of gated content. Same override semantics as the search partial.
+  test('registers a default `paywall` partial themes can include via {{> paywall}}', () => {
+    const theme = makeTheme({});
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const partial = engine.hb.partials.paywall;
+    expect(typeof partial).toBe('string');
+    const source = partial as string;
+    expect(source).toContain('data-portal="signup"');
+    expect(source).toContain('gh-paywall');
+  });
+
+  test('the default `paywall` partial is also reachable as `partials/paywall`', () => {
+    const theme = makeTheme({});
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials['partials/paywall']).toBe(engine.hb.partials.paywall);
+  });
+
+  test('theme-supplied `partials/paywall.hbs` overrides the built-in default', () => {
+    const theme = makeTheme({
+      partials: { paywall: '<!-- theme paywall override -->' },
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    expect(engine.hb.partials.paywall).toBe('<!-- theme paywall override -->');
+    expect(engine.hb.partials['partials/paywall']).toBe('<!-- theme paywall override -->');
+  });
 });
 
 // Issue #150: renderRoute() must reuse the precompiled inner+layout delegates
