@@ -27,6 +27,7 @@ Commands:
   migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
   deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
   export            Dump the loaded content as JSON or regenerate the RSS feed without running a full build
+  upgrade           Upgrade the installed Nectar CLI when the install method supports it
   import-ghost      Convert a Ghost JSON export into Markdown content
   import-wordpress  Convert a WordPress WXR XML export into Markdown content
   version           Print the version, optionally as JSON, or check for updates

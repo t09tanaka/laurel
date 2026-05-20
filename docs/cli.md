@@ -127,6 +127,7 @@ before writing so generated files do not mix CRLF and LF endings.
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
+| [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 
@@ -908,6 +909,31 @@ nectar export json > content.json
 nectar export json --pretty -o snapshot.json
 nectar export ghost-json -o ghost-backup.json
 nectar export rss -o feed.xml
+```
+
+### `nectar upgrade`
+
+Upgrade the installed Nectar CLI when the install method supports it
+
+Usage:
+
+```
+nectar upgrade [--dry-run] [--json]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--dry-run` | boolean | `NECTAR_UPGRADE_DRY_RUN` | Print the detected upgrade command without running it |
+| `-j, --json` | boolean | `NECTAR_UPGRADE_JSON` | Emit the upgrade plan or result as JSON |
+
+Examples:
+
+```
+nectar upgrade
+nectar upgrade --dry-run
+NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions
 ```
 
 ### `nectar import-ghost`

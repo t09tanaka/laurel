@@ -1266,6 +1266,27 @@ export const EXPORT_SPEC: CommandSpec = {
   ],
 };
 
+export const UPGRADE_SPEC: CommandSpec = {
+  name: 'upgrade',
+  summary: 'Upgrade the installed Nectar CLI when the install method supports it',
+  options: {
+    'dry-run': {
+      type: 'boolean',
+      description: 'Print the detected upgrade command without running it',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the upgrade plan or result as JSON',
+    },
+  },
+  positionals: [],
+  examples: [
+    'nectar upgrade',
+    'nectar upgrade --dry-run',
+    'NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions',
+  ],
+};
+
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
@@ -1290,6 +1311,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   migrate: MIGRATE_SPEC,
   deploy: DEPLOY_SPEC,
   export: EXPORT_SPEC,
+  upgrade: UPGRADE_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
 };

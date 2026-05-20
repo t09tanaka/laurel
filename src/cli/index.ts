@@ -227,6 +227,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runExport } = await import('./commands/export.js');
       return runExport(rest);
     }
+    case 'upgrade': {
+      const { runUpgrade } = await import('./commands/upgrade.js');
+      return runUpgrade(rest);
+    }
     default:
       throw new Error(`Unhandled command: ${command}`);
   }

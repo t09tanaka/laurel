@@ -1,0 +1,24 @@
+Upgrade the installed Nectar CLI when the install method supports it
+
+Usage:
+  nectar upgrade [--dry-run] [--json]
+
+Options:
+  --dry-run           Print the detected upgrade command without running it
+  -j, --json          Emit the upgrade plan or result as JSON
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --dry-run → NECTAR_UPGRADE_DRY_RUN
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar upgrade
+  nectar upgrade --dry-run
+  NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions
