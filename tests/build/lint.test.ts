@@ -166,6 +166,27 @@ describe('lintContent', () => {
     expect(report.warnings.some((w) => w.code === 'missing-asset')).toBe(false);
   });
 
+  test('reports missing site-relative feature image assets', async () => {
+    const fx = await makeFixture({
+      'content/posts/with-image.md': [
+        '---',
+        'title: With Image',
+        'date: 2026-01-01',
+        'feature_image: content/images/nope.png',
+        '---',
+        'body',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content });
+    const missing = report.warnings.find((w) => w.code === 'missing-asset');
+    expect(missing).toBeDefined();
+    expect(missing?.message).toContain('Post');
+    expect(missing?.message).toContain('feature_image');
+    expect(missing?.message).toContain('nope.png');
+  });
+
   test('skips remote image URLs', async () => {
     const fx = await makeFixture({
       'content/posts/remote.md': [
@@ -173,6 +194,23 @@ describe('lintContent', () => {
         'title: Remote',
         'date: 2026-01-01',
         'feature_image: https://example.com/content/images/foo.png',
+        '---',
+        'body',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content });
+    expect(report.warnings.some((w) => w.code === 'missing-asset')).toBe(false);
+  });
+
+  test('skips data image URLs', async () => {
+    const fx = await makeFixture({
+      'content/posts/data-url.md': [
+        '---',
+        'title: Data URL',
+        'date: 2026-01-01',
+        'feature_image: data:image/png;base64,AAAA',
         '---',
         'body',
       ].join('\n'),

@@ -6,6 +6,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
+import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 
 export type LintLevel = 'error' | 'warning';
 
@@ -320,61 +321,11 @@ function checkAssetReferences(
   config: NectarConfig,
   content: ContentGraph,
 ): LintIssue[] {
-  const issues: LintIssue[] = [];
-  const assetsRoot = resolve(cwd, config.content.assets_dir);
-
-  const report = (url: string | undefined, owner: string): void => {
-    if (!isLocalContentImage(url)) return;
-    const rel = stripImageMarker(url);
-    if (rel === undefined) return;
-    const file = join(assetsRoot, rel);
-    if (existsSync(file)) return;
-    issues.push({
-      level: 'warning',
-      code: 'missing-asset',
-      message: `${owner} references image '${url}' but ${file} is missing on disk.`,
-    });
-  };
-
-  for (const post of content.posts) {
-    report(post.feature_image, `Post '${post.slug}'`);
-    report(post.og_image, `Post '${post.slug}' og_image`);
-    report(post.twitter_image, `Post '${post.slug}' twitter_image`);
-  }
-  for (const page of content.pages) {
-    report(page.feature_image, `Page '${page.slug}'`);
-    report(page.og_image, `Page '${page.slug}' og_image`);
-    report(page.twitter_image, `Page '${page.slug}' twitter_image`);
-  }
-  for (const author of content.authors) {
-    report(author.profile_image, `Author '${author.slug}' profile_image`);
-    report(author.cover_image, `Author '${author.slug}' cover_image`);
-  }
-  for (const tag of content.tags) {
-    report(tag.feature_image, `Tag '${tag.slug}' feature_image`);
-  }
-  report(content.site.cover_image, "Site 'cover_image'");
-  report(content.site.logo, "Site 'logo'");
-  report(content.site.icon, "Site 'icon'");
-
-  return issues;
-}
-
-function isLocalContentImage(url: string | undefined): boolean {
-  if (!url) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return false;
-  if (url.startsWith('//')) return false;
-  return url.includes('/content/images/');
-}
-
-function stripImageMarker(url: string | undefined): string | undefined {
-  if (!url) return undefined;
-  const marker = '/content/images/';
-  const idx = url.indexOf(marker);
-  if (idx < 0) return undefined;
-  const rest = url.slice(idx + marker.length).split(/[?#]/)[0] ?? '';
-  if (rest === '' || rest.includes('..')) return undefined;
-  return rest;
+  return findMissingAssetReferences({ cwd, config, content }).map((ref) => ({
+    level: 'warning',
+    code: 'missing-asset',
+    message: formatMissingAssetReference(ref),
+  }));
 }
 
 // Navigation URLs that look like site-internal paths (start with `/`, not `//`,

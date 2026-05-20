@@ -21,6 +21,7 @@ import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitApacheHtaccess } from './apache.ts';
 import { emitContentApiShadows } from './api.ts';
 import { emitAssetManifest } from './asset-manifest.ts';
+import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
@@ -530,6 +531,10 @@ async function runBuild({
   await invokeHook(pluginSet, 'afterContentLoad', async (plugin) => {
     if (plugin.afterContentLoad) await plugin.afterContentLoad(pluginCtx, content);
   });
+
+  for (const ref of findMissingAssetReferences({ cwd, config, content })) {
+    logger.warn(formatMissingAssetReference(ref));
+  }
 
   const routes = await withProgressPhase(progress, 'routes', 'Planning routes', async () => {
     const baseRoutes = planRoutes({ config, content, theme, routesYaml });

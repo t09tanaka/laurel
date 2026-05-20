@@ -69,6 +69,27 @@ describe('build pipeline strict mode wiring', () => {
     expect(summary.warningCount).toBe(0);
   });
 
+  test('warns but still builds when feature_image points at a missing local asset', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: /content/images/missing.jpg
+---
+
+Body
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    expect(summary.routeCount).toBeGreaterThan(0);
+    expect(summary.warningCount).toBe(1);
+  });
+
   test('reports asset copy substeps through build progress events', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

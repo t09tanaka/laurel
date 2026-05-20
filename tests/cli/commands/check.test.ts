@@ -84,6 +84,31 @@ describe('cli check', () => {
     expect(exitCode).toBe(0);
   });
 
+  test('reports missing local feature_image assets in the check report', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'content/posts/missing-image.md'),
+      [
+        '---',
+        'title: Missing Image',
+        'date: 2026-01-01',
+        'feature_image: /content/images/missing.jpg',
+        '---',
+        '',
+        'body',
+      ].join('\n'),
+    );
+
+    const { stdout, exitCode } = await runCli(['check', '--json'], dir);
+    const report = JSON.parse(stdout) as { warnings: Array<{ code: string; message: string }> };
+
+    expect(exitCode).toBe(0);
+    expect(report.warnings.some((w) => w.code === 'missing-asset')).toBe(true);
+    expect(report.warnings.find((w) => w.code === 'missing-asset')?.message).toContain(
+      'missing.jpg',
+    );
+  });
+
   test('exits non-zero on an unparseable post date even without --strict', async () => {
     dir = await makeFixture();
     await Bun.write(
