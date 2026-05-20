@@ -144,7 +144,6 @@ Build pipeline options that shape the emitted site.
 | --- | --- | --- | --- | --- |
 | `build.output_dir` | `string` | no | `"dist"` | Directory to emit the built site into, relative to the project root. |
 | `build.base_path` | `string` | no | `"/"` | URL prefix the site is served from (e.g. `/` for a root deployment, `/blog/` for a subpath). All generated links and asset URLs respect this prefix. |
-| `build.trailing_slash` | `"always" \| "never"` | no | `"always"` | Trailing-slash policy exposed to deploy emitters that need explicit URL canonicalization. `always` matches Nectar's directory-index output (`/about/`) and lets Vercel safely emit both `cleanUrls: true` and `trailingSlash: true`; `never` tells Vercel to keep `cleanUrls: true` but set `trailingSlash: false` so Vercel does not combine extension stripping with forced slash redirects. |
 | `build.posts_per_page` | `number` | no | `12` | Posts per paginated index / archive page. |
 | `build.trailing_slash` | `"always" \| "never" \| "preserve"` | no | `"always"` | Controls clean HTML route shape. `always` keeps Ghost-style `/slug/` URLs and writes `slug/index.html`; `never` emits slashless `/slug` canonicals and writes `slug.html`; `preserve` follows each route's authored URL shape. |
 | `build.copy_content_assets` | `boolean` | no | `true` | When true, copy `content.assets_dir` into the output as `content/images/` so post-relative image URLs resolve. |
