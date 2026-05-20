@@ -144,3 +144,27 @@ describe('access helper', () => {
     expect(tpl({})).toBe('OPEN');
   });
 });
+
+describe('lookup helper', () => {
+  test('resolves a dynamic property name on an object', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{lookup post field}}');
+    expect(tpl({ field: 'title', post: { title: 'Dynamic title' } })).toBe('Dynamic title');
+  });
+
+  test('resolves a dynamic array index', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{lookup tags index}}');
+    expect(tpl({ index: 1, tags: ['news', 'featured'] })).toBe('featured');
+  });
+
+  test('keeps Handlebars prototype access guard for unsafe keys', () => {
+    const engine = makeEngine();
+    registerFlowHelpers(engine);
+    const tpl = engine.hb.compile('{{lookup obj key}}');
+    expect(tpl({ key: '__proto__', obj: { title: 'safe' } })).toBe('');
+    expect(tpl({ key: 'constructor', obj: {} })).toBe('');
+  });
+});
