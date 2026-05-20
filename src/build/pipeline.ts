@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
 import { validatePortalConfig } from '~/members/portal-validation.ts';
@@ -787,9 +788,12 @@ async function runBuild({
     outputDir,
     customDomain: config.deploy.github_pages.custom_domain,
   });
+  const autoNoindexProvider = isNonProductionBuild(config)
+    ? config.build.metadata.provider
+    : undefined;
   await emitCloudflarePagesHeaders({
     outputDir,
-    enabled: config.deploy.cloudflare_pages.enabled,
+    enabled: config.deploy.cloudflare_pages.enabled || autoNoindexProvider === 'cloudflare_pages',
     headers: config.deploy.headers,
   });
   // Cloudflare Pages Functions exclusion descriptor. Gated on the same flag
@@ -809,7 +813,7 @@ async function runBuild({
   await emitAzureStaticWebAppConfig({ outputDir });
   await emitNetlifyHeaders({
     outputDir,
-    enabled: config.deploy.netlify.enabled,
+    enabled: config.deploy.netlify.enabled || autoNoindexProvider === 'netlify',
     headers: config.deploy.headers,
   });
   await emitCloudFrontResponseHeadersPolicy({
@@ -874,7 +878,7 @@ async function runBuild({
   });
   await emitVercelJson({
     outputDir,
-    enabled: config.deploy.vercel.enabled,
+    enabled: config.deploy.vercel.enabled || autoNoindexProvider === 'vercel',
     headers: config.deploy.headers,
     rules: redirects,
     trailingSlash: config.build.trailing_slash,

@@ -4,6 +4,7 @@ import TOML from '@iarna/toml';
 import { ZodError, type ZodTypeAny, z } from 'zod';
 import { NectarError, suggestClosest } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
+import { applyNoindexHeaderForNonProduction } from './deploy-environment.ts';
 import { type NectarConfig, configSchema } from './schema.ts';
 
 const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml'];
@@ -42,6 +43,7 @@ export async function loadConfig({
   } catch (err) {
     throw wrapZodError(err, resolved ?? join(cwd, 'nectar.toml'));
   }
+  config = applyNoindexHeaderForNonProduction(config);
   // Anchor relative content/theme paths to the config file's directory
   // rather than the process cwd. Only kicks in when the config lives outside
   // cwd (e.g. `nectar --config /elsewhere/n.toml` from a different shell),
@@ -174,11 +176,25 @@ function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unkno
 function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   if (env.NETLIFY !== 'true' && env.NETLIFY !== '1') return parsed;
   if (env.CONTEXT !== 'deploy-preview' && env.CONTEXT !== 'branch-deploy') return parsed;
-  if (env.NECTAR_SITE_URL !== undefined) return parsed;
 
-  const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
-  if (deployUrl === undefined) return parsed;
-  return setDeep(parsed, ['site', 'url'], deployUrl);
+  let target = parsed;
+  if (env.NECTAR_SITE_URL === undefined) {
+    const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
+    if (deployUrl !== undefined) {
+      target = setDeep(target, ['site', 'url'], deployUrl);
+    }
+  }
+  target = setDeep(target, ['build', 'metadata', 'provider'], 'netlify');
+  target = setDeep(target, ['build', 'metadata', 'environment'], 'preview');
+  const branch = firstNonEmptyEnv(env.BRANCH, env.HEAD);
+  if (branch !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'branch'], branch);
+  }
+  const commitSha = firstNonEmptyEnv(env.COMMIT_REF);
+  if (commitSha !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
+  }
+  return target;
 }
 
 function applyVercelEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
@@ -193,6 +209,10 @@ function applyVercelEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknow
   }
 
   target = setDeep(target, ['build', 'metadata', 'provider'], 'vercel');
+  const environment = normalizeDeployEnvironment(firstNonEmptyEnv(env.VERCEL_ENV));
+  if (environment !== undefined) {
+    target = setDeep(target, ['build', 'metadata', 'environment'], environment);
+  }
   const branch = firstNonEmptyEnv(env.VERCEL_GIT_COMMIT_REF);
   if (branch !== undefined) {
     target = setDeep(target, ['build', 'metadata', 'branch'], branch);
@@ -219,12 +239,33 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
   const branch = firstNonEmptyEnv(env.CF_PAGES_BRANCH);
   if (branch !== undefined) {
     target = setDeep(target, ['build', 'metadata', 'branch'], branch);
+    target = setDeep(
+      target,
+      ['build', 'metadata', 'environment'],
+      inferCloudflarePagesEnvironment(branch, env),
+    );
   }
   const commitSha = firstNonEmptyEnv(env.CF_PAGES_COMMIT_SHA);
   if (commitSha !== undefined) {
     target = setDeep(target, ['build', 'metadata', 'commit_sha'], commitSha);
   }
   return target;
+}
+
+function normalizeDeployEnvironment(value: string | undefined): string | undefined {
+  if (value === 'production' || value === 'preview' || value === 'development') return value;
+  return undefined;
+}
+
+function inferCloudflarePagesEnvironment(
+  branch: string,
+  env: NodeJS.ProcessEnv,
+): 'production' | 'preview' {
+  const productionBranch = firstNonEmptyEnv(env.CF_PAGES_PRODUCTION_BRANCH);
+  if (productionBranch !== undefined) {
+    return branch === productionBranch ? 'production' : 'preview';
+  }
+  return branch === 'main' || branch === 'master' ? 'production' : 'preview';
 }
 
 function vercelUrlFallback(value: string | undefined): string | undefined {

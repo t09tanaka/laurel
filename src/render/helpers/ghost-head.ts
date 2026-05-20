@@ -1,5 +1,6 @@
 import type Handlebars from 'handlebars';
 import type { FaviconLink } from '~/build/favicons.ts';
+import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { joinPath } from '~/theme/assets.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
@@ -25,6 +26,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
       const parts: string[] = [];
       parts.push(`<meta name="generator" content="Nectar">`);
+      if (isNonProductionBuild(engine.config)) {
+        parts.push(`<meta name="robots" content="noindex">`);
+      }
       // Preconnect to external image origins referenced on this route. Emitted
       // early in the head so the TCP/TLS handshake overlaps the rest of the
       // critical-CSS parse. Capped at performance.max_preconnect_origins

@@ -81,10 +81,16 @@ const tierItemSchema = z
 const buildMetadataSchema = z
   .object({
     provider: z
-      .enum(['cloudflare_pages', 'vercel'])
+      .enum(['cloudflare_pages', 'netlify', 'vercel'])
       .optional()
       .describe(
-        'Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Vercel builds set this to `vercel`.',
+        'Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Netlify preview builds set this to `netlify`; Vercel builds set this to `vercel`.',
+      ),
+    environment: z
+      .enum(['production', 'preview', 'development'])
+      .optional()
+      .describe(
+        'Deploy environment for the current build. Netlify deploy-preview / branch-deploy builds set this to `preview`; Vercel copies `VERCEL_ENV`; Cloudflare Pages infers `production` for `main` / `master` (or `CF_PAGES_PRODUCTION_BRANCH`) and `preview` for other branches.',
       ),
     branch: z
       .string()
@@ -447,7 +453,7 @@ export const configSchema = z
         metadata: buildMetadataSchema
           .default({})
           .describe(
-            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Vercel populates the same fields from `VERCEL`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win.',
+            'Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Cloudflare Pages populates `provider`, `environment`, `branch`, and `commit_sha` from `CF_PAGES`, `CF_PAGES_BRANCH`, and `CF_PAGES_COMMIT_SHA`; Netlify preview deploys populate `provider` and `environment`; Vercel populates `provider`, `environment`, `branch`, and `commit_sha` from `VERCEL`, `VERCEL_ENV`, `VERCEL_GIT_COMMIT_REF`, and `VERCEL_GIT_COMMIT_SHA`; explicit `NECTAR_BUILD_METADATA_*` env overrides still win. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.',
           ),
       })
       .strict()

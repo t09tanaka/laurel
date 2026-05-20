@@ -445,6 +445,7 @@ csp_nonce = "rAnd0m+Nonce/=="
       expect(config.site.url).toBe('https://feature-docs.example.pages.dev');
       expect(config.build.metadata).toEqual({
         provider: 'cloudflare_pages',
+        environment: 'preview',
         branch: 'feature/docs',
         commit_sha: 'abc123def456',
       });

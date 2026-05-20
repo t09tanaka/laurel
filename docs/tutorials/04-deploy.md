@@ -181,6 +181,12 @@ redirects go in a `redirects.yaml` at the project root; the default
 status codes are 301, 302, 307, and 308; the first rule per `from` wins on
 overlap.
 
+For branch preview builds, Cloudflare Pages sets `CF_PAGES_BRANCH`. Nectar
+marks non-`main` / non-`master` branches (or branches other than
+`CF_PAGES_PRODUCTION_BRANCH` when set) as preview builds, injects
+`<meta name="robots" content="noindex">`, and emits `X-Robots-Tag: noindex`
+through `dist/_headers` so crawlers do not index the preview URL.
+
 Nectar also emits `dist/404.html` on every build. Because the Cloudflare Pages
 build output directory is `dist`, that file is deployed at the publish root as
 `404.html`; Pages automatically uses it as the custom 404 page for unmatched
@@ -321,6 +327,12 @@ enabled = true
 Vercel reads `bun.lock` and uses Bun automatically. No environment variable
 required for the default Git-connected build.
 
+For preview deployments, Vercel sets `VERCEL_ENV=preview`. Nectar injects
+`<meta name="robots" content="noindex">` and emits `X-Robots-Tag: noindex`
+through `dist/vercel.json`, even when `[deploy.vercel].enabled` is not set, so
+preview URLs are not indexed. `VERCEL_ENV=production` does not get these
+markers.
+
 Nectar is not a Next.js project; it builds static files into `dist/` directly.
 Do not add Next.js `output: 'export'`, `next.config.js`, or Vercel adapter
 settings for this deploy path. Use Vercel's `Other` preset with the `dist`
@@ -436,6 +448,12 @@ robots, and sitemap output therefore point at the preview hostname. Explicit
 overrides still win: `--base-url` takes precedence over `NECTAR_BUILD_BASE_URL`,
 then `NECTAR_SITE_URL`, then the Netlify deploy URL, then the configured
 `[site] url`.
+
+Nectar also treats Netlify `deploy-preview` and `branch-deploy` contexts as
+preview builds: it injects `<meta name="robots" content="noindex">` and emits
+`X-Robots-Tag: noindex` through `dist/_headers`, even when
+`[deploy.netlify].enabled` is not set. Netlify `production` context is left
+indexable.
 
 Nectar emits `dist/404.html` on every build. If your theme provides
 `error-404.hbs`, that template becomes the file; otherwise Nectar writes a

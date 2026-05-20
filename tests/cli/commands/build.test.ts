@@ -358,6 +358,94 @@ describe('nectar build base URL precedence', () => {
   });
 });
 
+describe('nectar build preview noindex protection', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('injects robots noindex meta and Netlify-compatible headers on deploy previews', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build'], dir, {
+      NETLIFY: 'true',
+      CONTEXT: 'deploy-preview',
+      DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app',
+    });
+
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(html).toContain('<meta name="robots" content="noindex">');
+
+    const headers = readFileSync(join(dir, 'dist/_headers'), 'utf8');
+    expect(headers).toContain('/*\n');
+    expect(headers).toContain('X-Robots-Tag: noindex');
+  });
+
+  test('injects robots noindex meta and Vercel headers on Vercel previews', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build'], dir, {
+      VERCEL: '1',
+      VERCEL_ENV: 'preview',
+      VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
+      VERCEL_GIT_COMMIT_REF: 'feature/docs',
+    });
+
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(html).toContain('<meta name="robots" content="noindex">');
+
+    const vercel = JSON.parse(readFileSync(join(dir, 'dist/vercel.json'), 'utf8')) as {
+      headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    };
+    const catchAll = vercel.headers?.find((rule) => rule.source === '/(.*)');
+    expect(catchAll?.headers).toContainEqual({ key: 'X-Robots-Tag', value: 'noindex' });
+  });
+
+  test('injects robots noindex meta and Cloudflare Pages headers on branch previews', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build'], dir, {
+      CF_PAGES: '1',
+      CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
+      CF_PAGES_BRANCH: 'feature/docs',
+    });
+
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(html).toContain('<meta name="robots" content="noindex">');
+
+    const headers = readFileSync(join(dir, 'dist/_headers'), 'utf8');
+    expect(headers).toContain('/*\n');
+    expect(headers).toContain('X-Robots-Tag: noindex');
+  });
+
+  test('does not inject noindex markers for production Netlify builds', async () => {
+    const dir = await makeDryRunFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build'], dir, {
+      NETLIFY: 'true',
+      CONTEXT: 'production',
+      DEPLOY_PRIME_URL: 'https://production-deploy.netlify.app',
+    });
+
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
+    expect(html).not.toContain('<meta name="robots" content="noindex">');
+
+    const headers = readFileSync(join(dir, 'dist/_headers'), 'utf8');
+    expect(headers).not.toContain('X-Robots-Tag');
+  });
+});
+
 describe('formatDryRunRouteTable', () => {
   test('renders aligned columns including a header row', () => {
     const out = formatDryRunRouteTable([
