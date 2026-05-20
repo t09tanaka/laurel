@@ -147,6 +147,7 @@ export async function runBuild(args: string[]): Promise<number> {
       // CI consumers can `tail -f | jq` the stream. The payload mirrors the
       // BuildSummary surface without leaking internal types.
       const payload = {
+        event: 'build.done',
         ok: true,
         prefix: opts.prefix ?? (summary.dryRun ? 'dry-run' : 'built'),
         routeCount: summary.routeCount,
@@ -154,6 +155,8 @@ export async function runBuild(args: string[]): Promise<number> {
         outputDir: summary.outputDir,
         profilePath: summary.profilePath,
         warningCount: summary.warningCount,
+        renderedCount: summary.renderedCount,
+        skippedCount: summary.skippedCount,
         dryRun: summary.dryRun === true,
       };
       process.stdout.write(`${JSON.stringify(payload)}\n`);

@@ -201,8 +201,25 @@ describe('nectar build --dry-run (#252)', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).not.toContain('Build:');
     expect(result.stderr).not.toContain('Dry run: would build');
-    const payload = JSON.parse(result.stdout) as { ok: boolean; dryRun: boolean };
+    const payload = JSON.parse(result.stdout) as {
+      event: string;
+      ok: boolean;
+      routeCount: number;
+      assetCount: number;
+      outputDir: string;
+      warningCount: number;
+      renderedCount: number;
+      skippedCount: number;
+      dryRun: boolean;
+    };
+    expect(payload.event).toBe('build.done');
     expect(payload.ok).toBe(true);
+    expect(payload.routeCount).toBeGreaterThan(0);
+    expect(payload.assetCount).toBeGreaterThan(0);
+    expect(payload.outputDir).toBe(join(dir, 'dist'));
+    expect(payload.warningCount).toBe(0);
+    expect(payload.renderedCount).toBe(payload.routeCount);
+    expect(payload.skippedCount).toBe(0);
     expect(payload.dryRun).toBe(true);
   });
 

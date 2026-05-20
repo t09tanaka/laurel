@@ -103,7 +103,7 @@ export const BUILD_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit the build summary as one final JSON line ({ routeCount, assetCount, outputDir, warningCount, dryRun, durationMs }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them',
+        'Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Per-route progress lines still go to stderr; use --quiet to silence them',
     },
   },
   positionals: [],
