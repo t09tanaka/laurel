@@ -1094,6 +1094,7 @@ async function normalizePost(
     unsafe: unsafeHtml,
     locale: contentLocale.locale,
     additionalImages: featureImage ? 1 : 0,
+    prioritizeFirstImage: !featureImage,
   };
   const rendered = await renderMarkdownWithCache({
     cwd,
@@ -1145,6 +1146,7 @@ async function normalizePost(
     const reRenderOptions = {
       unsafe: unsafeHtml,
       locale: contentLocale.locale,
+      prioritizeFirstImage: !featureImage,
     };
     const reRendered = await renderMarkdownWithCache({
       cwd,

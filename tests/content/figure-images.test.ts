@@ -23,6 +23,20 @@ describe('promoteImagesToFigures', () => {
     expect(out).toContain('height="800"');
   });
 
+  test('marks only the first promoted image as high priority when requested', () => {
+    const out = promoteImagesToFigures(
+      '<p><img src="/a.png" alt="a"></p><p><img src="/b.png" alt="b"></p>',
+      { prioritizeFirstImage: true },
+    );
+
+    const first = out.match(/<img\b[^>]*src="\/a\.png"[^>]*>/)?.[0] ?? '';
+    const second = out.match(/<img\b[^>]*src="\/b\.png"[^>]*>/)?.[0] ?? '';
+    expect(first).toContain('loading="eager"');
+    expect(first).toContain('fetchpriority="high"');
+    expect(second).toContain('loading="lazy"');
+    expect(second).not.toContain('fetchpriority="high"');
+  });
+
   test('does not override an explicit loading attr on promoted images', () => {
     const out = promoteImagesToFigures('<p><img src="/a.png" alt="x" loading="eager"></p>');
     expect(out).toContain('loading="eager"');
@@ -131,6 +145,20 @@ describe('renderMarkdown — image figure promotion', () => {
     expect(html).toContain('src="https://cdn.test/x.png"');
     expect(html).toContain('alt="alt text"');
     expect(html).toContain('loading="lazy"');
+  });
+
+  test('can prioritize the first promoted in-body image for routes without a feature image', async () => {
+    const { html } = await renderMarkdown(
+      '![first](https://cdn.test/first.jpg)\n\n![second](https://cdn.test/second.jpg)',
+      { prioritizeFirstImage: true },
+    );
+
+    const first = html.match(/<img\b[^>]*src="https:\/\/cdn\.test\/first\.jpg"[^>]*>/)?.[0] ?? '';
+    const second = html.match(/<img\b[^>]*src="https:\/\/cdn\.test\/second\.jpg"[^>]*>/)?.[0] ?? '';
+    expect(first).toContain('loading="eager"');
+    expect(first).toContain('fetchpriority="high"');
+    expect(second).toContain('loading="lazy"');
+    expect(second).not.toContain('fetchpriority="high"');
   });
 
   test('keeps responsive attrs and adds lazy loading for figure shortcode images', async () => {

@@ -18,11 +18,19 @@ const FOLLOWING_BLOCKQUOTE_CAPTION_RE = /^\s*<blockquote>\s*<p>([\s\S]*?)<\/p>\s
 
 const FOLLOWING_EM_CAPTION_RE = /^\s*<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/i;
 
-export function promoteImagesToFigures(html: string): string {
+export interface PromoteImagesToFiguresOptions {
+  prioritizeFirstImage?: boolean;
+}
+
+export function promoteImagesToFigures(
+  html: string,
+  options: PromoteImagesToFiguresOptions = {},
+): string {
   if (!html.includes('<img')) return html;
 
   let result = '';
   let cursor = 0;
+  let promotedImageCount = 0;
   SINGLE_IMG_PARAGRAPH_RE.lastIndex = 0;
   while (true) {
     const match = SINGLE_IMG_PARAGRAPH_RE.exec(html);
@@ -40,9 +48,11 @@ export function promoteImagesToFigures(html: string): string {
       continue;
     }
 
-    const imgWithClass = addDefaultLazyLoading(
+    const isPriorityImage = options.prioritizeFirstImage === true && promotedImageCount === 0;
+    const imgWithClass = addDefaultImageLoading(
       addKgImageClass(imgTag),
       lazyOverride !== undefined && /\bfalse\b/i.test(lazyOverride),
+      isPriorityImage,
     );
     const inner = aOpen ? `${aOpen}${imgWithClass}${aClose}` : imgWithClass;
 
@@ -52,6 +62,7 @@ export function promoteImagesToFigures(html: string): string {
     const hasCaptionClass = caption ? ' kg-card-hascaption' : '';
     const figcaption = caption ? `<figcaption>${caption.text}</figcaption>` : '';
     result += `<figure class="kg-card kg-image-card kg-width-regular${hasCaptionClass}">${inner}${figcaption}</figure>`;
+    promotedImageCount += 1;
 
     cursor = match.index + full.length + (caption?.consumed ?? 0);
     SINGLE_IMG_PARAGRAPH_RE.lastIndex = cursor;
@@ -79,8 +90,22 @@ function addKgImageClass(imgTag: string): string {
   return imgTag.replace(/^<img\b/i, '<img class="kg-image"');
 }
 
-function addDefaultLazyLoading(imgTag: string, disabled: boolean): string {
-  if (disabled || /\sloading\s*=/i.test(imgTag)) return imgTag;
-  if (/\/\s*>$/.test(imgTag)) return imgTag.replace(/\s*\/\s*>$/, ' loading="lazy" />');
-  return imgTag.replace(/\s*>$/, ' loading="lazy">');
+function addDefaultImageLoading(imgTag: string, disabled: boolean, priority: boolean): string {
+  if (disabled) return imgTag;
+  if (priority) {
+    return addOrReplaceAttr(addOrReplaceAttr(imgTag, 'loading', 'eager'), 'fetchpriority', 'high');
+  }
+  if (/\sloading\s*=/i.test(imgTag)) return imgTag;
+  return addOrReplaceAttr(imgTag, 'loading', 'lazy');
+}
+
+function addOrReplaceAttr(imgTag: string, name: string, value: string): string {
+  const attrRe = new RegExp(`(\\s${name}\\s*=\\s*)(?:"[^"]*"|'[^']*')`, 'i');
+  if (attrRe.test(imgTag)) {
+    return imgTag.replace(attrRe, `$1"${value}"`);
+  }
+  if (/\/\s*>$/.test(imgTag)) {
+    return imgTag.replace(/\s*\/\s*>$/, ` ${name}="${value}" />`);
+  }
+  return imgTag.replace(/\s*>$/, ` ${name}="${value}">`);
 }

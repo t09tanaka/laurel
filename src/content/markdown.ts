@@ -31,6 +31,9 @@ export interface RenderMarkdownOptions {
   // Extra images outside the HTML body. Ghost's reading_time helper counts
   // feature_image in addition to inline body images.
   additionalImages?: number;
+  // When there is no feature_image, the first promoted in-body image is the
+  // likely LCP candidate and should not inherit the below-the-fold lazy default.
+  prioritizeFirstImage?: boolean;
 }
 
 const sanitizeOptions: IOptions = {
@@ -70,7 +73,18 @@ const sanitizeOptions: IOptions = {
       'loading',
       'referrerpolicy',
     ],
-    img: ['src', 'srcset', 'sizes', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+    img: [
+      'src',
+      'srcset',
+      'sizes',
+      'alt',
+      'title',
+      'width',
+      'height',
+      'loading',
+      'fetchpriority',
+      'decoding',
+    ],
     source: ['src', 'srcset', 'type', 'media', 'sizes'],
     video: [
       'src',
@@ -219,7 +233,9 @@ export async function renderMarkdown(
   const expanded = expandKoenigShortcodes(stripGhostUrlPlaceholder(body));
   const raw = await marked.parse(expanded);
   const highlighted = await highlightCodeBlocks(raw);
-  const promoted = promoteImagesToFigures(highlighted);
+  const promoted = promoteImagesToFigures(highlighted, {
+    prioritizeFirstImage: options.prioritizeFirstImage === true,
+  });
   const newsletterStripped = stripEmailCtaCards(promoted);
   const membersFormNormalised = normaliseSignupCardMembersFormHooks(newsletterStripped);
   const sanitized = options.unsafe

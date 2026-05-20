@@ -69,6 +69,14 @@ async function prependTomlTopLevel(cwd: string, snippet: string): Promise<void> 
   await writeFile(tomlPath, `${snippet}\n${existing}`, 'utf8');
 }
 
+function imageTagForSrc(html: string, src: string): string {
+  return html.match(new RegExp(`<img\\b[^>]*src="${escapeRegExp(src)}"[^>]*>`))?.[0] ?? '';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 describe('build pipeline strict mode wiring', () => {
   test('reports zero warnings for a clean build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
@@ -427,6 +435,67 @@ date: 2026-01-01T00:00:00Z
       'src="/.netlify/images?url=%2Fcontent%2Fimages%2Fghost-upload.jpg&amp;w=640&amp;q=75"',
     );
     expect(postHtml).not.toContain('src="/content/images/ghost-upload.jpg"');
+  });
+
+  test('keeps feature images eager while leaving body images lazy', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+feature_image: https://cdn.test/cover.jpg
+feature_image_alt: "Cover"
+---
+
+![First body image](https://cdn.test/first.jpg)
+
+![Second body image](https://cdn.test/second.jpg)
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    const articleImage =
+      postHtml.match(/<figure class="gh-article-image">[\s\S]*?<\/figure>/)?.[0] ?? '';
+    const firstBodyImage = imageTagForSrc(postHtml, 'https://cdn.test/first.jpg');
+    const secondBodyImage = imageTagForSrc(postHtml, 'https://cdn.test/second.jpg');
+
+    expect(articleImage).toContain('loading="eager"');
+    expect(articleImage).toContain('fetchpriority="high"');
+    expect(firstBodyImage).toContain('loading="lazy"');
+    expect(firstBodyImage).not.toContain('fetchpriority="high"');
+    expect(secondBodyImage).toContain('loading="lazy"');
+    expect(secondBodyImage).not.toContain('fetchpriority="high"');
+  });
+
+  test('prioritizes only the first in-body image when no feature image exists', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+![First body image](https://cdn.test/first.jpg)
+
+![Second body image](https://cdn.test/second.jpg)
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+    const firstBodyImage = imageTagForSrc(postHtml, 'https://cdn.test/first.jpg');
+    const secondBodyImage = imageTagForSrc(postHtml, 'https://cdn.test/second.jpg');
+
+    expect(postHtml).not.toContain('<figure class="gh-article-image">');
+    expect(firstBodyImage).toContain('loading="eager"');
+    expect(firstBodyImage).toContain('fetchpriority="high"');
+    expect(secondBodyImage).toContain('loading="lazy"');
+    expect(secondBodyImage).not.toContain('fetchpriority="high"');
   });
 
   test('throws a NectarError when frontmatter date is unparseable', async () => {
