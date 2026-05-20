@@ -310,6 +310,7 @@ function serializeTag(tag: Tag): Record<string, unknown> {
     name: tag.name,
     description: tag.description,
     feature_image: tag.feature_image ?? null,
+    accent_color: tag.accent_color ?? null,
     visibility: tag.visibility,
     url: tag.url,
     count: tag.count,

@@ -110,6 +110,26 @@ describe('loadContent', () => {
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
   });
 
+  test('loads tag accent_color and exposes it on primary_tag', async () => {
+    const cwd = await fixture();
+    await mkdir(join(cwd, 'content/tags'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/tags/news.md'),
+      `---
+name: News
+accent_color: "#e91e63"
+---
+`,
+      'utf8',
+    );
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.bySlug.tags.get('news')?.accent_color).toBe('#e91e63');
+    expect(graph.bySlug.posts.get('hello')?.primary_tag?.accent_color).toBe('#e91e63');
+  });
+
   test('reuses cached markdown render results until source content changes', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });

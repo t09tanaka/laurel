@@ -136,6 +136,14 @@ export const tagFrontmatterSchema = z
     slug: slugSchema.optional(),
     description: z.string().optional().describe('Tag description.'),
     feature_image: z.string().optional().describe('Tag cover image URL or content-relative path.'),
+    accent_color: z
+      .string()
+      .regex(
+        /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/,
+        'tag.accent_color must be a CSS hex color (e.g. `#222`, `#222222`, `#22222288`)',
+      )
+      .optional()
+      .describe('Tag accent color as a CSS hex color string, surfaced as tag.accent_color.'),
     meta_title: z.string().optional().describe('SEO title override.'),
     meta_description: z.string().optional().describe('SEO description override.'),
   })

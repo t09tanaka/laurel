@@ -112,6 +112,7 @@ interface GhostTag {
   name: string;
   description?: string | null;
   feature_image?: string | null;
+  accent_color?: string | null;
   visibility?: string;
   meta_title?: string | null;
   meta_description?: string | null;
@@ -568,7 +569,7 @@ async function importFromResolvedInput(
   // same writeLimit so a 500-tag export doesn't pay 500*roundtrip serially.
   let tagCount = 0;
   for (const tag of tags) {
-    if (!tag.description && !tag.feature_image && !tag.meta_title) continue;
+    if (!tag.description && !tag.feature_image && !tag.accent_color && !tag.meta_title) continue;
     const tagSlug = safeSlug(tag.slug) || safeSlug(tag.name);
     if (!tagSlug) {
       logger.warn(
@@ -592,6 +593,7 @@ async function importFromResolvedInput(
       name: tag.name,
       description: tag.description ?? undefined,
       feature_image: tagFeatureImage,
+      accent_color: tag.accent_color ?? undefined,
       meta_title: tag.meta_title ?? undefined,
       meta_description: tag.meta_description ?? undefined,
     });

@@ -356,6 +356,34 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
     expect(summary.tags).toBe(1);
     expect(summary.slugCollisions).toBe(0);
   });
+
+  test('preserves Ghost tag accent_color in tag frontmatter', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              tags: [
+                {
+                  id: 't1',
+                  slug: 'ruby',
+                  name: 'Ruby',
+                  accent_color: '#b6174b',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.tags).toBe(1);
+    const tagMd = await readFile(join(cwd, 'content/tags/ruby.md'), 'utf8');
+    expect(tagMd).toContain('accent_color: "#b6174b"');
+  });
 });
 
 describe('importGhostExport — slug sanitization (#160)', () => {

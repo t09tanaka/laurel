@@ -14,6 +14,7 @@ function makeTag(over: Partial<Tag> = {}): Tag {
     name: 'News',
     description: '',
     feature_image: undefined,
+    accent_color: undefined,
     visibility: 'public',
     meta_title: undefined,
     meta_description: undefined,

@@ -104,6 +104,7 @@ export interface Tag {
   name: string;
   description: string;
   feature_image: string | undefined;
+  accent_color: string | undefined;
   visibility: 'public' | 'internal';
   meta_title: string | undefined;
   meta_description: string | undefined;

@@ -119,6 +119,7 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     name: slug,
     description: '',
     feature_image: undefined,
+    accent_color: undefined,
     visibility: slug.startsWith('hash-') ? 'internal' : 'public',
     meta_title: undefined,
     meta_description: undefined,
@@ -1398,6 +1399,26 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect((partial as { __nectarSource?: string }).__nectarSource).toBe(
       '<section>{{@site.title}}</section>',
     );
+  });
+
+  test('renders primary_tag.accent_color in Ruby-style post CSS variables', () => {
+    const tag = makeTag({ slug: 'ruby', name: 'Ruby', accent_color: '#b6174b' });
+    const post = makePost({ tags: [tag], primary_tag: tag });
+    const theme = makeTheme({
+      post: '<style>.gh-article{--tag-color: {{primary_tag.accent_color}};}</style>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+
+    const html = engine.render({
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    });
+
+    expect(html).toContain('--tag-color: #b6174b');
   });
 
   test('Dawn-style match on pagination.page falls through on non-paginated routes (issue #1709)', () => {

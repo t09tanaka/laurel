@@ -174,6 +174,7 @@ function makeTag(slug: string): Tag {
     name: slug,
     description: '',
     feature_image: undefined,
+    accent_color: undefined,
     visibility: 'public',
     meta_title: undefined,
     meta_description: undefined,
