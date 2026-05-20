@@ -114,6 +114,27 @@ That command syncs the configured build output directory, normally `dist/`, to
 the bucket root. It does not currently have a flag for syncing only
 `dist/content/images/`.
 
+When R2 hosts the complete `dist/` tree behind a Worker, copy
+[`examples/r2/worker.ts`](../../examples/r2/worker.ts) and
+[`examples/r2/wrangler.toml`](../../examples/r2/wrangler.toml) into your site
+repo. The sample maps `/` to `index.html` and `<slug>/` to
+`<slug>/index.html`, then reads `dist/_routes-manifest.json` from R2 so the
+same `[deploy.headers]` security/cache headers and `redirects.yaml` rules can
+apply at the Worker edge. Generate that manifest by enabling:
+
+```toml
+[deploy.cloudflare_workers]
+enabled = true
+```
+
+Then rebuild before syncing to R2:
+
+```sh
+bunx nectar build
+bunx nectar deploy r2 --dry-run
+bunx nectar deploy r2
+```
+
 ### 3. Strip images from the Pages upload
 
 The Pages deploy should *exclude* `dist/content/images/` so the file count

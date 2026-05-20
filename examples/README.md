@@ -18,6 +18,7 @@ vendored Ghost Source theme renders end-to-end. Treat `example/` as the
 | `examples/docker/Dockerfile`, `examples/docker/Dockerfile.multi-stage`, and `examples/docker/nginx.conf` | Slim `nginx:1.27-alpine` runtime image for an already-built `dist/`, plus a multi-stage Bun build + nginx serve variant. Both keep pretty URLs and `404.html` handling. Pairs with `docs/deploy/docker.md`. |
 | `deploy/netlify/netlify.toml` | Netlify build config with `bunx nectar build`, `dist` publishing, `BUN_VERSION`, and a commented Netlify build-plugin block. Pairs with `docs/deploy/netlify.md`. |
 | `cloudflare-workers/wrangler.toml` | Cloudflare Workers Static Assets config for serving `dist/` through a no-op worker that delegates to the `ASSETS` binding. Pairs with `docs/deploy/cloudflare-pages.md`. |
+| `examples/r2/worker.ts`      | Cloudflare Worker sample for serving a full `dist/` tree from a private R2 bucket, including directory `index.html` lookup plus Nectar `_routes-manifest.json` redirects and headers. Pairs with `docs/deploy/cloudflare-pages-r2-images.md`. |
 | `render/render.yaml`       | Render Blueprint sample for a Static Site that runs `bun install && bun run build` and publishes `./dist`. Pairs with `docs/deploy/render.md`. |
 | `s3-cloudfront/append-index.js` | CloudFront Function (viewer-request) that rewrites `/about/` to `/about/index.html` so a private S3 origin behind CloudFront serves directory-style URLs. |
 
