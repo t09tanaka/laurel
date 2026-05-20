@@ -82,6 +82,17 @@ describe('S3 + CloudFront deploy docs', () => {
     expect(guide).toContain('deploy.headers.cache_rules');
     expect(guide).toContain('Response Headers Policy applies uniformly');
   });
+
+  test('short recipe documents S3 lifecycle controls', async () => {
+    const recipe = await readFile(join(root, 'docs', 'deployment', 's3-cloudfront.md'), 'utf8');
+
+    expect(recipe).toContain('Lifecycle controls');
+    expect(recipe).toContain('assets/built/');
+    expect(recipe).toContain('expire non-current versions');
+    expect(recipe).toContain('after 30 days');
+    expect(recipe).toContain('access logs');
+    expect(recipe).toContain('Glacier storage class');
+  });
 });
 
 describe('S3 + CloudFront deploy samples', () => {
