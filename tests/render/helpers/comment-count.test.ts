@@ -23,10 +23,7 @@ describe('comment_count helper', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count plural="comments"}}')({});
-    // Without singular/empty overrides Ghost uses plural ("0 comments" via %),
-    // but Casper templates pass literal text; we mirror that and emit plural
-    // verbatim when there is no `%` placeholder.
-    expect(out).toBe('<span data-ghost-comment-count>comments</span>');
+    expect(out).toBe('<span data-ghost-comment-count>0 comments</span>');
   });
 
   test('honors class= hash and escapes it for attribute context', () => {
@@ -35,14 +32,14 @@ describe('comment_count helper', () => {
     const out = engine.hb.compile('{{comment_count class="post-card-comments" plural="comments"}}')(
       {},
     );
-    expect(out).toBe('<span class="post-card-comments" data-ghost-comment-count>comments</span>');
+    expect(out).toBe('<span class="post-card-comments" data-ghost-comment-count>0 comments</span>');
   });
 
   test('autowrap=false emits bare text without a wrapper span', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count autowrap=false plural="comments"}}')({});
-    expect(out).toBe('comments');
+    expect(out).toBe('0 comments');
   });
 
   test('selects singular when count is 1', () => {
@@ -51,7 +48,7 @@ describe('comment_count helper', () => {
     const out = engine.hb.compile('{{comment_count singular="comment" plural="comments"}}')({
       comment_count: 1,
     });
-    expect(out).toBe('<span data-ghost-comment-count>comment</span>');
+    expect(out).toBe('<span data-ghost-comment-count>1 comment</span>');
   });
 
   test('selects plural when count is >= 2', () => {
@@ -60,7 +57,7 @@ describe('comment_count helper', () => {
     const out = engine.hb.compile('{{comment_count singular="comment" plural="comments"}}')({
       comment_count: 5,
     });
-    expect(out).toBe('<span data-ghost-comment-count>comments</span>');
+    expect(out).toBe('<span data-ghost-comment-count>5 comments</span>');
   });
 
   test('uses empty when count is 0 and empty is provided', () => {
@@ -83,7 +80,18 @@ describe('comment_count helper', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count plural="comments"}}')({});
-    expect(out).toBe('<span data-ghost-comment-count>comments</span>');
+    expect(out).toBe('<span data-ghost-comment-count>0 comments</span>');
+  });
+
+  test('supports Ghost theme empty/singular/plural labels from issue #992', () => {
+    const engine = makeEngine();
+    registerCommentCountHelper(engine);
+    const tmpl = engine.hb.compile(
+      '{{comment_count empty="" singular="comment" plural="comments"}}',
+    );
+    expect(tmpl({ comment_count: 0 })).toBe('<span data-ghost-comment-count></span>');
+    expect(tmpl({ comment_count: 1 })).toBe('<span data-ghost-comment-count>1 comment</span>');
+    expect(tmpl({ comment_count: 3 })).toBe('<span data-ghost-comment-count>3 comments</span>');
   });
 
   test('substitutes the % placeholder in singular/plural with the count', () => {
@@ -99,7 +107,7 @@ describe('comment_count helper', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count autowrap="false" plural="comments"}}')({});
-    expect(out).toBe('comments');
+    expect(out).toBe('0 comments');
   });
 
   test('escapes plural text against accidental HTML injection in the wrapper', () => {
@@ -108,7 +116,7 @@ describe('comment_count helper', () => {
     const out = engine.hb.compile('{{comment_count plural=p}}')({
       p: '<script>x</script>',
     });
-    expect(out).toBe('<span data-ghost-comment-count>&lt;script&gt;x&lt;/script&gt;</span>');
+    expect(out).toBe('<span data-ghost-comment-count>0 &lt;script&gt;x&lt;/script&gt;</span>');
   });
 
   test('coerces a string comment_count on the context to a number', () => {

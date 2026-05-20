@@ -12,12 +12,12 @@ import type { NectarEngine } from '../engine.ts';
 //   class     — extra classes on the wrapper span (default empty)
 //   autowrap  — wrap the text in a span (default true; false emits bare text)
 //   empty     — text shown when count is 0 (default falls back to `plural`)
-//   singular  — text used when count is 1 (Ghost replaces "%" with the number)
-//   plural    — text used when count is 0 or N (>= 2) (default empty string)
+//   singular  — label used when count is 1
+//   plural    — label used when count is 0 or N (>= 2) (default empty string)
 //
-// When `singular`/`plural` contain a literal `%`, Ghost substitutes the count;
-// we follow the same substitution so themes that write
-// `singular="% comment"` still render "0 comment" / "1 comment" as expected.
+// Ghost themes commonly pass labels (`singular="comment" plural="comments"`)
+// and expect the helper to add the number. If a label contains a literal `%`,
+// use it as the number placeholder instead.
 export function registerCommentCountHelper(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'comment_count',
@@ -30,16 +30,16 @@ export function registerCommentCountHelper(engine: NectarEngine): void {
       const plural = pickString(hash.plural);
       // Ghost falls back to `plural` when `empty` is omitted, so a single
       // hash like `plural="comments"` renders "0 comments" rather than nothing.
-      const emptyRaw = hash.empty;
-      const empty = emptyRaw === undefined ? plural : pickString(emptyRaw);
+      const hasEmpty = hash.empty !== undefined;
+      const empty = hasEmpty ? pickString(hash.empty) : plural;
 
       let text: string;
       if (count === 0) {
-        text = substituteCount(empty, count);
+        text = hasEmpty ? formatEmpty(empty, count) : formatCountLabel(empty, count);
       } else if (count === 1) {
-        text = substituteCount(singular, count);
+        text = formatCountLabel(singular, count);
       } else {
-        text = substituteCount(plural, count);
+        text = formatCountLabel(plural, count);
       }
 
       if (!shouldAutowrap(hash.autowrap)) {
@@ -70,12 +70,16 @@ function pickString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-// Ghost lets themes write `singular="% reply"` so the count appears inline; we
-// honour the same `%` placeholder and otherwise emit the text verbatim.
-function substituteCount(template: string, count: number): string {
+function formatEmpty(template: string, count: number): string {
   if (template.length === 0) return '';
   if (template.includes('%')) return template.replace(/%/g, String(count));
   return template;
+}
+
+function formatCountLabel(template: string, count: number): string {
+  if (template.length === 0) return '';
+  if (template.includes('%')) return template.replace(/%/g, String(count));
+  return `${count} ${template}`;
 }
 
 function shouldAutowrap(value: unknown): boolean {
