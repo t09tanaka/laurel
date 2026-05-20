@@ -356,6 +356,13 @@ describe('reading_time helper', () => {
     const out = engine.hb.compile('{{reading_time}}')({ reading_time: 1 });
     expect(out).toBe('1 min read');
   });
+
+  test('uses the plural template for an n-minute post', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{reading_time}}')({ reading_time: 7 });
+    expect(out).toBe('7 min read');
+  });
 });
 
 describe('meta_title helper pagination', () => {
