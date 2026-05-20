@@ -3,7 +3,7 @@ import { dirname, join, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
-import { ensureDir } from '~/util/fs.ts';
+import { ensureDir, scanGlob } from '~/util/fs.ts';
 import { stableStringify } from './manifest.ts';
 
 // Subdirectory inside the build output that holds Nectar-emitted metadata for
@@ -102,9 +102,9 @@ async function collectOutputFiles(
   outputDir: string,
   excludeRelPath: string,
 ): Promise<BuildManifestFile[]> {
-  const glob = new Bun.Glob('**/*');
+  const allRels = await scanGlob('**/*', { cwd: outputDir, onlyFiles: true });
   const relPaths: string[] = [];
-  for await (const rel of glob.scan({ cwd: outputDir, onlyFiles: true })) {
+  for (const rel of allRels) {
     const normalized = toPosix(rel);
     if (normalized === excludeRelPath) continue;
     relPaths.push(normalized);

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import { NectarError } from '~/util/errors.ts';
-import { pathContainsSymlink } from '~/util/fs.ts';
+import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
@@ -26,15 +26,18 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   const templates: Record<string, string> = {};
   const partials: Record<string, string> = {};
 
-  const glob = new Bun.Glob('**/*.hbs');
-  const relPaths: string[] = [];
-  for await (const rel of glob.scan({ cwd: rootDir })) {
+  // Collect every `.hbs` path up front so the per-file `readFile` fan-out can
+  // start immediately under `Promise.all`. Streaming the glob entry-by-entry
+  // would serialise the I/O behind scan progress for no gain — Bun's glob is
+  // sequential either way, and themes routinely ship 100+ partials.
+  const allRels = await scanGlob('**/*.hbs', { cwd: rootDir });
+  const relPaths = allRels.filter((rel) => {
     if (pathContainsSymlink(rootDir, rel)) {
       logger.warn(`Skipping symlinked theme template: ${join(rootDir, rel)}`);
-      continue;
+      return false;
     }
-    relPaths.push(rel);
-  }
+    return true;
+  });
 
   const sources = await Promise.all(relPaths.map((rel) => readFile(join(rootDir, rel), 'utf8')));
 
@@ -81,15 +84,24 @@ function stripExt(p: string): string {
 async function loadLocales(rootDir: string): Promise<Record<string, Record<string, string>>> {
   const dir = join(rootDir, 'locales');
   if (!existsSync(dir)) return {};
-  const glob = new Bun.Glob('*.json');
-  const out: Record<string, Record<string, string>> = {};
-  for await (const rel of glob.scan({ cwd: dir })) {
+  const allRels = await scanGlob('*.json', { cwd: dir });
+  const rels = allRels.filter((rel) => {
     if (pathContainsSymlink(dir, rel)) {
       logger.warn(`Skipping symlinked locale file: ${join(dir, rel)}`);
-      continue;
+      return false;
     }
+    return true;
+  });
+  // Read every locale JSON in parallel; the typical theme ships a few dozen
+  // tiny files, so the readFile fan-out keeps the load phase a single tick of
+  // I/O instead of one round-trip per locale.
+  const raws = await Promise.all(rels.map((rel) => readFile(join(dir, rel), 'utf8')));
+  const out: Record<string, Record<string, string>> = {};
+  for (let i = 0; i < rels.length; i += 1) {
+    const rel = rels[i];
+    const raw = raws[i];
+    if (rel === undefined || raw === undefined) continue;
     const code = rel.slice(0, rel.length - 5);
-    const raw = await readFile(join(dir, rel), 'utf8');
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);

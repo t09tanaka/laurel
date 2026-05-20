@@ -1,7 +1,7 @@
 import { copyFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
-import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
+import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
 // Bounded fan-out for per-file fs copies. Matches EMIT_CONCURRENCY in emit.ts so
@@ -24,18 +24,19 @@ export async function copyStaticDir(opts: {
   if (staticDir.length === 0) return 0;
 
   const source = join(cwd, staticDir);
-  const glob = new Bun.Glob('**/*');
   const tasks: Array<{ src: string; dst: string }> = [];
+  let rels: string[] = [];
   try {
-    for await (const rel of glob.scan({ cwd: source, onlyFiles: true, dot: true })) {
-      if (pathContainsSymlink(source, rel)) {
-        logger.warn(`Skipping symlinked static passthrough file: ${join(source, rel)}`);
-        continue;
-      }
-      tasks.push({ src: join(source, rel), dst: join(outputDir, rel) });
-    }
+    rels = await scanGlob('**/*', { cwd: source, onlyFiles: true, dot: true });
   } catch {
     // Directory may not exist — passthrough is optional, so swallow.
+  }
+  for (const rel of rels) {
+    if (pathContainsSymlink(source, rel)) {
+      logger.warn(`Skipping symlinked static passthrough file: ${join(source, rel)}`);
+      continue;
+    }
+    tasks.push({ src: join(source, rel), dst: join(outputDir, rel) });
   }
   if (tasks.length === 0) return 0;
 

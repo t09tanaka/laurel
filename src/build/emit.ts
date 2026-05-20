@@ -3,7 +3,7 @@ import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { NectarError } from '~/util/errors.ts';
-import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
+import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
 // Raster formats the size cap applies to. SVG is intrinsically scalable so a
@@ -185,28 +185,29 @@ interface CopyTreeOptions {
 }
 
 async function copyTree(source: string, target: string, opts: CopyTreeOptions): Promise<number> {
-  const glob = new Bun.Glob('**/*');
   const tasks: Array<{ src: string; dst: string }> = [];
+  let rels: string[] = [];
   try {
-    for await (const rel of glob.scan({ cwd: source, onlyFiles: true })) {
-      if (pathContainsSymlink(source, rel)) {
-        logger.warn(`Skipping symlinked content asset: ${join(source, rel)}`);
-        continue;
-      }
-      const src = join(source, rel);
-      if (opts.maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
-        const size = Bun.file(src).size;
-        if (size > opts.maxImageBytes) {
-          logger.warn(
-            `Skipping oversized image ${src}: ${formatBytes(size)} exceeds build.max_image_bytes=${formatBytes(opts.maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
-          );
-          continue;
-        }
-      }
-      tasks.push({ src, dst: join(target, rel) });
-    }
+    rels = await scanGlob('**/*', { cwd: source, onlyFiles: true });
   } catch {
     // optional: directory may not exist
+  }
+  for (const rel of rels) {
+    if (pathContainsSymlink(source, rel)) {
+      logger.warn(`Skipping symlinked content asset: ${join(source, rel)}`);
+      continue;
+    }
+    const src = join(source, rel);
+    if (opts.maxImageBytes > 0 && RASTER_IMAGE_EXTS.has(extname(rel).toLowerCase())) {
+      const size = Bun.file(src).size;
+      if (size > opts.maxImageBytes) {
+        logger.warn(
+          `Skipping oversized image ${src}: ${formatBytes(size)} exceeds build.max_image_bytes=${formatBytes(opts.maxImageBytes)}. Resize the source (e.g. to 2400px max width) or raise build.max_image_bytes.`,
+        );
+        continue;
+      }
+    }
+    tasks.push({ src, dst: join(target, rel) });
   }
   if (tasks.length === 0) return 0;
 

@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import slugify from 'slugify';
-import { ensureDir, pathContainsSymlink } from '~/util/fs.ts';
+import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { GhostImageDownloader } from './image-downloader.ts';
 import { renderLexicalToHtml } from './lexical-renderer.ts';
@@ -814,8 +814,8 @@ async function copyGhostAssets(
       continue;
     }
     const dst = join(cwd, 'content', name);
-    const glob = new Bun.Glob('**/*');
-    for await (const rel of glob.scan({ cwd: src, onlyFiles: true })) {
+    const rels = await scanGlob('**/*', { cwd: src, onlyFiles: true });
+    for (const rel of rels) {
       if (pathContainsSymlink(src, rel)) {
         logger.warn(`Skipping symlinked Ghost asset: ${join(src, rel)}`);
         continue;

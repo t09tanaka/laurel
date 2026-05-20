@@ -4,6 +4,7 @@ import { dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
+import { scanGlob } from '~/util/fs.ts';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -200,8 +201,8 @@ export async function planImageVariants(opts: PlanImageVariantsOptions): Promise
   const plan: ImageVariantPlan = new Map();
   if (!existsSync(assetsRoot)) return plan;
 
-  const glob = new Bun.Glob('**/*');
-  for await (const rel of glob.scan({ cwd: assetsRoot, onlyFiles: true })) {
+  const rels = await scanGlob('**/*', { cwd: assetsRoot, onlyFiles: true });
+  for (const rel of rels) {
     const ext = extname(rel).toLowerCase();
     if (!RASTER_EXTS.has(ext)) continue;
     const segments = rel.split(sep);
@@ -587,8 +588,8 @@ export async function generateThemeImageSizeVariants(
 
   let count = 0;
 
-  const glob = new Bun.Glob('**/*');
-  for await (const rel of glob.scan({ cwd: assetsRoot, onlyFiles: true })) {
+  const rels = await scanGlob('**/*', { cwd: assetsRoot, onlyFiles: true });
+  for (const rel of rels) {
     const ext = extname(rel).toLowerCase();
     if (!RASTER_EXTS.has(ext)) continue;
     const segments = rel.split(sep);

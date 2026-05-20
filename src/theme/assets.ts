@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
-import { pathContainsSymlink } from '~/util/fs.ts';
+import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import type { ThemeAsset } from './types.ts';
 
@@ -48,15 +48,14 @@ export async function loadThemeAssets(
   // Collect candidate relative paths up front. glob.scan is inherently
   // sequential; doing the readFile + hash work in a Promise.all fan-out below
   // is what unlocks the actual speedup on themes with hundreds of assets.
-  const rels: string[] = [];
-  const glob = new Bun.Glob('**/*');
-  for await (const rel of glob.scan({ cwd: assetsDir, onlyFiles: true })) {
+  const allRels = await scanGlob('**/*', { cwd: assetsDir, onlyFiles: true });
+  const rels = allRels.filter((rel) => {
     if (pathContainsSymlink(assetsDir, rel)) {
       logger.warn(`Skipping symlinked theme asset: ${join(assetsDir, rel)}`);
-      continue;
+      return false;
     }
-    rels.push(rel);
-  }
+    return true;
+  });
 
   interface Processed {
     rel: string;

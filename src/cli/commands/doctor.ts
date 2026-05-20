@@ -7,6 +7,7 @@ import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadTheme } from '~/theme/loader.ts';
+import { scanGlob } from '~/util/fs.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { DOCTOR_SPEC } from '../specs.ts';
 
@@ -219,15 +220,21 @@ async function checkOrphanedDrafts(cwd: string, config: NectarConfig): Promise<C
   for (const dir of dirs) {
     const absDir = join(cwd, dir);
     if (!existsSync(absDir)) continue;
-    const glob = new Bun.Glob('**/*.md');
-    for await (const rel of glob.scan({ cwd: absDir })) {
+    const rels = await scanGlob('**/*.md', { cwd: absDir });
+    const raws = await Promise.all(
+      rels.map(async (rel) => {
+        try {
+          return await readFile(join(absDir, rel), 'utf8');
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (let i = 0; i < rels.length; i += 1) {
+      const rel = rels[i];
+      const raw = raws[i];
+      if (rel === undefined || raw === null || raw === undefined) continue;
       const file = join(absDir, rel);
-      let raw: string;
-      try {
-        raw = await readFile(file, 'utf8');
-      } catch {
-        continue;
-      }
       let data: Record<string, unknown>;
       try {
         ({ data } = parseFrontmatter(raw, { filePath: file }));

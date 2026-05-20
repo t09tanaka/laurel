@@ -11,7 +11,7 @@ import {
 } from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { NectarError, toNectarError } from '~/util/errors.ts';
-import { pathContainsSymlink } from '~/util/fs.ts';
+import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
@@ -455,9 +455,9 @@ const MARKDOWN_LOAD_CONCURRENCY = 32;
 // workers for sites that wouldn't amortise the spawn cost.
 async function countMarkdownFiles(dir: string): Promise<number> {
   if (!existsSync(dir)) return 0;
-  const glob = new Bun.Glob('**/*.md');
+  const rels = await scanGlob('**/*.md', { cwd: dir });
   let count = 0;
-  for await (const rel of glob.scan({ cwd: dir })) {
+  for (const rel of rels) {
     if (pathContainsSymlink(dir, rel)) continue;
     count += 1;
   }
@@ -470,9 +470,9 @@ async function loadMarkdownDir<T>(
   maxBytes: number,
 ): Promise<T[]> {
   if (!existsSync(dir)) return [];
-  const glob = new Bun.Glob('**/*.md');
+  const rels = await scanGlob('**/*.md', { cwd: dir });
   const files: string[] = [];
-  for await (const rel of glob.scan({ cwd: dir })) {
+  for (const rel of rels) {
     if (pathContainsSymlink(dir, rel)) {
       logger.warn(`Skipping symlinked content path: ${join(dir, rel)}`);
       continue;

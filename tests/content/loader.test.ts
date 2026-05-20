@@ -1207,3 +1207,35 @@ Secret.
     expect(graph.posts).toHaveLength(0);
   });
 });
+
+describe('loadContent parallel markdown loading is deterministic', () => {
+  // Reading every post body in parallel makes finish order non-deterministic.
+  // The graph's `posts` array still has to be sorted by `published_at desc`
+  // every run, so the bug we are guarding against is the post body being
+  // attached to the wrong slug — which would happen if the parallel results
+  // were spliced back in iteration order rather than index order. We exercise
+  // both rendering paths (regular + paywalled re-render) across 60 posts so
+  // the chunking layer (32-wide) is forced to do at least two batches.
+  test('every slug ends up with its own body across many posts', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-parallel-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    const POST_COUNT = 60;
+    for (let i = 0; i < POST_COUNT; i += 1) {
+      const slug = `post-${i.toString().padStart(3, '0')}`;
+      // Stagger published_at so the post order is fully determined and we can
+      // map graph index -> source slug without ambiguity.
+      const date = new Date(2026, 0, 1, 0, 0, i).toISOString();
+      await writeFile(
+        join(dir, 'content/posts', `${slug}.md`),
+        `---\ntitle: "Post ${i}"\ndate: ${date}\n---\n\nBody for ${slug}.\n`,
+        'utf8',
+      );
+    }
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd: dir, config });
+    expect(graph.posts).toHaveLength(POST_COUNT);
+    for (const post of graph.posts) {
+      expect(post.html).toContain(`Body for ${post.slug}.`);
+    }
+  });
+});

@@ -5,7 +5,7 @@ import slugify from 'slugify';
 import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import type { ContentGraph } from '~/content/model.ts';
-import { pathContainsSymlink } from '~/util/fs.ts';
+import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 
 export type LintLevel = 'error' | 'warning';
 
@@ -181,17 +181,27 @@ function splitIssues(issues: LintIssue[]): LintReport {
 async function collectFrontmatter(cwd: string, dir: string): Promise<FrontmatterFile[]> {
   const absDir = join(cwd, dir);
   if (!existsSync(absDir)) return [];
-  const glob = new Bun.Glob('**/*.md');
+  const allRels = await scanGlob('**/*.md', { cwd: absDir });
+  const files = allRels
+    .filter((rel) => !pathContainsSymlink(absDir, rel))
+    .map((rel) => join(absDir, rel));
+  // Read every markdown body in parallel; lint runs alongside the loader on the
+  // same content tree so matching the loader's batching keeps the CLI's lint
+  // command from being I/O-bound on large sites.
+  const raws = await Promise.all(
+    files.map(async (file) => {
+      try {
+        return await readFile(file, 'utf8');
+      } catch {
+        return null;
+      }
+    }),
+  );
   const out: FrontmatterFile[] = [];
-  for await (const rel of glob.scan({ cwd: absDir })) {
-    if (pathContainsSymlink(absDir, rel)) continue;
-    const file = join(absDir, rel);
-    let raw: string;
-    try {
-      raw = await readFile(file, 'utf8');
-    } catch {
-      continue;
-    }
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    const raw = raws[i];
+    if (file === undefined || raw === null || raw === undefined) continue;
     let data: Record<string, unknown>;
     let body: string;
     try {
