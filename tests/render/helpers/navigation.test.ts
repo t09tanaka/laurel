@@ -365,11 +365,16 @@ describe('pagination helper block form', () => {
   });
 });
 
-function renderLink(hash: string, inner = 'Click'): string {
+function renderLink(hash: string, inner = 'Click', routeUrl?: string): string {
   const engine = makeEngine();
   registerNavigationHelpers(engine);
   const template = engine.hb.compile(`{{#link ${hash}}}${inner}{{/link}}`);
-  return template({}, { data: {} });
+  return template(
+    {},
+    {
+      data: routeUrl === undefined ? {} : { route: { url: routeUrl } },
+    },
+  );
 }
 
 describe('link helper href sanitisation', () => {
@@ -489,6 +494,32 @@ describe('link helper data attributes', () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain('data-label="Join &quot;now&quot; &amp; &lt;go&gt;"');
+  });
+});
+
+describe('link helper active class handling', () => {
+  test('adds the default active class when href matches the current route', () => {
+    const html = renderLink('href="/about/"', 'About', '/about/');
+    expect(html).toBe('<a href="/about/" class="nav-current">About</a>');
+  });
+
+  test('respects custom activeClass and merges it with an existing class hash', () => {
+    const html = renderLink(
+      'href="/about/" class="nav-link" activeClass="current"',
+      'About',
+      '/about/',
+    );
+    expect(html).toBe('<a href="/about/" class="nav-link current">About</a>');
+  });
+
+  test('uses link_class parent-route matching for directory-style hrefs', () => {
+    const html = renderLink('href="/tag/news/" class="tag-link"', 'News', '/tag/news/page/2/');
+    expect(html).toBe('<a href="/tag/news/" class="tag-link nav-current">News</a>');
+  });
+
+  test('does not add an active class when href does not match the current route', () => {
+    const html = renderLink('href="/about/" class="nav-link"', 'About', '/contact/');
+    expect(html).toBe('<a href="/about/" class="nav-link">About</a>');
   });
 });
 

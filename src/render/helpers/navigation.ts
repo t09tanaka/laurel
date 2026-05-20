@@ -159,7 +159,10 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     function linkHelper(this: unknown, options: Handlebars.HelperOptions) {
       const rawHref = String(options.hash.href ?? '#');
       const href = sanitizeHref(rawHref, '{{link}} helper');
-      const cls = String(options.hash.class ?? '');
+      const cls = mergeClassNames(
+        String(options.hash.class ?? ''),
+        currentRouteClass(options, { target: href }),
+      );
       const targetVal = options.hash.target ? String(options.hash.target) : '';
       const target = targetVal ? ` target="${escapeAttr(targetVal)}"` : '';
       const relVal = buildLinkRel(targetVal, options.hash.rel);
@@ -265,6 +268,11 @@ function normaliseUrl(url: string): string {
   return url.replace(/\/+$/, '') || '/';
 }
 
+function mergeClassNames(...values: string[]): string {
+  const tokens = values.flatMap((value) => value.split(/\s+/).filter(Boolean));
+  return Array.from(new Set(tokens)).join(' ');
+}
+
 const URL_SCHEME_RE = /^[a-z][a-z0-9+.\-]*:/i;
 
 function navigationHref(value: string, basePath: string | undefined): string {
@@ -279,10 +287,13 @@ function shouldApplyBasePath(href: string): boolean {
   return href.startsWith('/') || /^[A-Za-z0-9._~-]/.test(href);
 }
 
-function currentRouteClass(options: Handlebars.HelperOptions): string {
+function currentRouteClass(
+  options: Handlebars.HelperOptions,
+  override: { target?: string } = {},
+): string {
   const route = options.data?.route as { url?: string } | undefined;
   const routeUrl = route?.url;
-  const target = String(options.hash.for ?? '');
+  const target = override.target ?? String(options.hash.for ?? '');
   const active = String(options.hash.activeClass ?? 'nav-current');
   if (!routeUrl || !target) return '';
   if (isCurrentRouteTarget(routeUrl, target)) return active;
