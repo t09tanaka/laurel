@@ -1188,6 +1188,29 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     },
   });
 
+  // `bookmark`: some Ghost exports preserve only the card fence around the
+  // auto-linked URL. Without a dedicated rule, Turndown unwraps the region as
+  // a plain Markdown link and the later renderer has no signal to rebuild the
+  // `kg-bookmark-card` DOM.
+  turndown.addRule('kg-card-fence-bookmark', {
+    filter: (node) => isDataKgCard(node, 'bookmark'),
+    replacement: (_content, node) => {
+      const anchor = node.querySelector('a.kg-bookmark-container') ?? node.querySelector('a');
+      return wrap(
+        shortcode('bookmark', {
+          url: attr(anchor, 'href') || text(node),
+          title: text(node.querySelector('.kg-bookmark-title')),
+          description: text(node.querySelector('.kg-bookmark-description')),
+          author: text(node.querySelector('.kg-bookmark-author')),
+          publisher: text(node.querySelector('.kg-bookmark-publisher')),
+          icon: attr(node.querySelector('.kg-bookmark-icon'), 'src'),
+          thumbnail: attr(node.querySelector('.kg-bookmark-thumbnail img'), 'src'),
+          caption: text(node.querySelector('figcaption')),
+        }),
+      );
+    },
+  });
+
   // `markdown` cards intentionally have no rule: Ghost has already rendered
   // the user's markdown to HTML before export, so the default `<div>`
   // walk-through behaviour converts the children back to markdown — and any

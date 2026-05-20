@@ -1670,8 +1670,17 @@ async function nextAvailablePath(dest: string, writtenThisRun?: Set<string>): Pr
 
 function renderPostHtml(post: GhostPost): string {
   if (post.html?.trim()) {
-    return stripGhostUrlPlaceholder(post.html);
+    const html = stripGhostUrlPlaceholder(post.html);
+    const structuredHtml = renderStructuredPostHtml(post);
+    if (!hasBookmarkCardMarkup(html) && hasBookmarkCardMarkup(structuredHtml)) {
+      return structuredHtml;
+    }
+    return html;
   }
+  return renderStructuredPostHtml(post);
+}
+
+function renderStructuredPostHtml(post: GhostPost): string {
   // Ghost exports written by ≥ 5.x typically carry only the `lexical` column;
   // older 1.x–4.x exports carry `mobiledoc`. Materialise to HTML so the same
   // kg-card-aware turndown pipeline can convert to Markdown (#127).
@@ -1688,6 +1697,10 @@ function renderPostHtml(post: GhostPost): string {
     }
   }
   return '';
+}
+
+function hasBookmarkCardMarkup(html: string): boolean {
+  return /\bkg-bookmark-card\b|<!--\s*kg-card-begin:\s*bookmark\s*-->/i.test(html);
 }
 
 function renderPostBody(post: GhostPost, html = renderPostHtml(post)): string {

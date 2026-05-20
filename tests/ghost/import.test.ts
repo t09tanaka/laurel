@@ -1578,6 +1578,92 @@ describe('importGhostExport — Koenig card comment fences', () => {
     expect(md).toContain('Body paragraph.');
   });
 
+  test('preserves comment-fenced bookmark cards instead of importing a bare link', async () => {
+    const postHtml = [
+      '<p>Intro.</p>',
+      '<!--kg-card-begin: bookmark--><a href="https://example.com/post">https://example.com/post</a><!--kg-card-end: bookmark-->',
+      '<p>Outro.</p>',
+    ].join('\n');
+
+    await writeFile(
+      exportFile,
+      makeExport([{ slug: 'bookmark-fence', title: 'Bookmark', html: postHtml }]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/bookmark-fence.md'), 'utf8');
+    expect(md).toContain('Intro.');
+    expect(md).toContain('Outro.');
+    expect(md).toContain('{{< bookmark url="https://example.com/post" />}}');
+    expect(md).not.toContain('[https://example.com/post](https://example.com/post)');
+  });
+
+  test('uses structured Lexical bookmark cards when the html column is a bare link', async () => {
+    const lexical = JSON.stringify({
+      root: {
+        type: 'root',
+        version: 1,
+        children: [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'extended-text', text: 'Intro.', format: 0, version: 1 }],
+          },
+          {
+            type: 'bookmark',
+            url: 'https://example.com/post',
+            metadata: {
+              title: 'Bookmark Title',
+              description: 'Generated card metadata.',
+              publisher: 'Example',
+            },
+            version: 1,
+          },
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'extended-text', text: 'Outro.', format: 0, version: 1 }],
+          },
+        ],
+      },
+    });
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'post-lexical-bookmark',
+                title: 'Lexical Bookmark',
+                slug: 'lexical-bookmark',
+                html: '<p>Intro.</p><p><a href="https://example.com/post">https://example.com/post</a></p><p>Outro.</p>',
+                lexical,
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/lexical-bookmark.md'), 'utf8');
+    expect(md).toContain('Intro.');
+    expect(md).toContain('Outro.');
+    expect(md).toContain('url="https://example.com/post"');
+    expect(md).toContain('title="Bookmark Title"');
+    expect(md).toContain('description="Generated card metadata."');
+    expect(md).toContain('publisher="Example"');
+    expect(md).not.toContain('[https://example.com/post](https://example.com/post)');
+  });
+
   test('preserves Ghost members-only paywall comments as markdown split markers', async () => {
     const postHtml = [
       '<p>Public intro.</p>',

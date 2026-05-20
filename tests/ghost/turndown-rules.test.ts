@@ -56,6 +56,15 @@ describe('Ghost Turndown rules — kg-bookmark-card', () => {
     expect(md).not.toContain('thumbnail=""');
     expect(md).not.toContain('author=""');
   });
+
+  test('preserves comment-fenced bookmark cards that only carry a bare link', () => {
+    const html =
+      '<!--kg-card-begin: bookmark--><a href="https://example.com/post">https://example.com/post</a><!--kg-card-end: bookmark-->';
+    const md = td.turndown(preprocessKoenigCardFences(html));
+    expect(md).toContain('{{< bookmark');
+    expect(md).toContain('url="https://example.com/post"');
+    expect(md).not.toContain('[https://example.com/post](https://example.com/post)');
+  });
 });
 
 describe('Ghost Turndown rules — kg-header-card', () => {
