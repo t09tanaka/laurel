@@ -809,9 +809,11 @@ export const configSchema = z
         subscribe: z
           .object({
             provider: z
-              .enum(['none', 'buttondown', 'mailchimp', 'custom'])
+              .enum(['none', 'buttondown', 'beehiiv', 'mailchimp', 'custom'])
               .default('none')
-              .describe('Subscribe form provider. `none` hides the form entirely.'),
+              .describe(
+                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`.",
+              ),
             action: z
               .string()
               .optional()
@@ -824,10 +826,28 @@ export const configSchema = z
               .describe(
                 'Provider username (e.g. Buttondown username, Mailchimp list u/id segment).',
               ),
+            publication_id: z
+              .string()
+              .optional()
+              .describe(
+                'Beehiiv publication id (UUID). The form action is rewritten to `https://api.beehiiv.com/v2/publications/<publication_id>/subscriptions`. Falls back to `username` when omitted for back-compat with operators who only have a slug.',
+              ),
             email_field_name: z
               .string()
               .optional()
               .describe('Name of the email input field. Defaults to a provider-appropriate value.'),
+            field_map: z
+              .record(z.string())
+              .optional()
+              .describe(
+                'Custom provider only. Map of logical field name -> form field name. Today only the `email` key is consulted (it overrides `email_field_name` when set); reserved for future hidden / honeypot fields without a schema bump.',
+              ),
+            strip_selectors: z
+              .array(z.string())
+              .optional()
+              .describe(
+                '`provider = "none"` only. CSS selectors of wrapping elements to remove from the rendered HTML (e.g. `.gh-footer-signup`, `.gh-cta`). Supports `.class`, `#id`, and `tag` selectors. Use to delete CTA blocks that would otherwise advertise a signup flow that does nothing.',
+              ),
           })
           .strict()
           .default({})

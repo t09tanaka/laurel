@@ -57,6 +57,27 @@ describe('resolveSubscribeForm', () => {
   test('throws when custom provider is missing action', () => {
     expect(() => resolveSubscribeForm({ provider: 'custom' })).toThrow(/action/);
   });
+
+  test('uses Beehiiv subscriptions API endpoint with publication_id', () => {
+    const r = resolveSubscribeForm({ provider: 'beehiiv', publication_id: 'pub_123' });
+    expect(r.action).toBe('https://api.beehiiv.com/v2/publications/pub_123/subscriptions');
+    expect(r.emailFieldName).toBe('email');
+    expect(r.disabled).toBe(false);
+  });
+
+  test('throws when beehiiv provider is missing publication_id', () => {
+    expect(() => resolveSubscribeForm({ provider: 'beehiiv' })).toThrow(/publication_id/);
+  });
+
+  test('custom provider field_map.email overrides email_field_name', () => {
+    const r = resolveSubscribeForm({
+      provider: 'custom',
+      action: 'https://example.com/sub',
+      email_field_name: 'fallback',
+      field_map: { email: 'your_email_field' },
+    });
+    expect(r.emailFieldName).toBe('your_email_field');
+  });
 });
 
 describe('transformSubscribeForms', () => {
@@ -136,5 +157,43 @@ describe('transformSubscribeForms', () => {
     const html = '<form action="/search"><input name="q" /></form>';
     const out = transformSubscribeForms(html, { provider: 'buttondown', username: 'j' });
     expect(out).toBe(html);
+  });
+
+  test('with beehiiv provider, rewrites action to the publications API', () => {
+    const out = transformSubscribeForms(SAMPLE_FORM, {
+      provider: 'beehiiv',
+      publication_id: 'pub_abc',
+    });
+    expect(out).toContain('action="https://api.beehiiv.com/v2/publications/pub_abc/subscriptions"');
+    expect(out).toMatch(/<input[^>]*\bname="email"/);
+    expect(out).not.toMatch(/onsubmit=/);
+  });
+
+  test('with custom provider and field_map, rewrites input name to mapped value', () => {
+    const out = transformSubscribeForms(SAMPLE_FORM, {
+      provider: 'custom',
+      action: 'https://hooks.example.com/subscribe',
+      field_map: { email: 'your_email_field' },
+    });
+    expect(out).toContain('action="https://hooks.example.com/subscribe"');
+    expect(out).toMatch(/<input[^>]*\bname="your_email_field"/);
+  });
+
+  test('with provider=none and strip_selectors, removes wrapping CTA elements', () => {
+    const html = [
+      '<header>keep</header>',
+      '<div class="gh-footer-signup">',
+      SAMPLE_FORM,
+      '</div>',
+      '<footer>tail</footer>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'none',
+      strip_selectors: ['.gh-footer-signup'],
+    });
+    expect(out).not.toContain('gh-footer-signup');
+    expect(out).not.toContain('data-members-form');
+    expect(out).toContain('<header>keep</header>');
+    expect(out).toContain('<footer>tail</footer>');
   });
 });

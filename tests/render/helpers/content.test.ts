@@ -149,7 +149,10 @@ describe('subscribe_form helper', () => {
     const html = engine.hb.compile('{{subscribe_form}}')({});
     expect(html).toContain('data-members-form="subscribe"');
     expect(html).toContain('data-members-email');
-    expect(html).not.toContain('data-nectar-subscribe');
+    // The `data-nectar-subscribe` marker lets optional client-side scripts
+    // hook onto the form without disturbing the Ghost `data-members-form`
+    // contract.
+    expect(html).toContain('data-nectar-subscribe');
   });
 
   test('includes documented data-members-label hidden input so themes can tag subscribers', () => {
@@ -185,6 +188,24 @@ describe('subscribe_form helper', () => {
     const html = engine.hb.compile('{{subscribe_form}}')({});
     expect(html).toMatch(/<form\b[^>]*\bdata-members-form\b/);
     expect(html).toMatch(/<input\b[^>]*\bdata-members-email\b/);
+  });
+});
+
+describe('input_email helper', () => {
+  test('emits a default name="email" attribute so the bare input is a valid form field', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{input_email}}')({});
+    expect(html).toMatch(/<input\b[^>]*\bname="email"/);
+    expect(html).toMatch(/<input\b[^>]*\bdata-members-email\b/);
+    expect(html).toMatch(/<input\b[^>]*\btype="email"/);
+  });
+
+  test('honors placeholder hash option and escapes it as an attribute', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{input_email placeholder="jamie@example.com"}}')({});
+    expect(html).toContain('placeholder="jamie@example.com"');
   });
 });
 

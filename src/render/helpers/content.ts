@@ -280,8 +280,13 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const placeholder = String(options.hash.placeholder ?? 'Your email address');
       const buttonText = String(options.hash.button_text ?? 'Subscribe');
       const label = options.hash.label != null ? String(options.hash.label) : '';
+      // `action="#"` is the placeholder Ghost themes ship with — the
+      // build-time subscribe adapter (`transformSubscribeForms`) rewrites it
+      // to the provider endpoint. The `data-nectar-subscribe` marker lets
+      // optional client-side scripts (e.g. an AJAX submitter) hook onto the
+      // form without disturbing the Ghost `data-members-form` contract.
       return new engine.hb.SafeString(
-        `<form data-members-form="subscribe" action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
+        `<form data-members-form="subscribe" data-nectar-subscribe action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
       );
     },
   );
@@ -290,8 +295,12 @@ export function registerContentHelpers(engine: NectarEngine): void {
     'input_email',
     function inputEmailHelper(this: unknown, options: Handlebars.HelperOptions) {
       const placeholder = String(options.hash.placeholder ?? 'Your email address');
+      // `name="email"` is included by default so the bare input is a valid
+      // form field even when the surrounding form is not rewritten by an
+      // adapter. Provider adapters overwrite the attribute downstream when
+      // they need a non-default field name (e.g. Mailchimp wants `EMAIL`).
       return new engine.hb.SafeString(
-        `<input data-members-email type="email" required placeholder="${escapeAttr(placeholder)}">`,
+        `<input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}">`,
       );
     },
   );

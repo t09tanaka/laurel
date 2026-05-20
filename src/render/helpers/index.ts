@@ -10,6 +10,7 @@ import { registerImageDimensionHelpers } from './image-dimensions.ts';
 import { registerNavigationHelpers } from './navigation.ts';
 import { registerNumberHelpers } from './numbers.ts';
 import { registerPageUrlHelper } from './page-url.ts';
+import { registerPriceHelpers } from './price.ts';
 import { registerStringHelpers } from './strings.ts';
 import { registerUrlHelpers } from './urls.ts';
 
@@ -25,6 +26,7 @@ export function registerHelpers(engine: NectarEngine): void {
   registerNavigationHelpers(engine);
   registerNumberHelpers(engine);
   registerPageUrlHelper(engine);
+  registerPriceHelpers(engine);
   registerStringHelpers(engine);
   registerUrlHelpers(engine);
 }
