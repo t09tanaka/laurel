@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { absoluteUrl, withBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 
@@ -22,14 +23,17 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   const absoluteUrls = config.components?.content_api?.absolute_urls ?? false;
   const postsPerPage = config.components?.content_api?.posts_per_page ?? 15;
   const urlBase = absoluteUrls ? buildUrlBase(content.site.url, config.build.base_path) : undefined;
+  const tagUrlContext = { siteUrl: content.site.url, basePath: config.build.base_path };
 
   const publishedPosts = content.posts.filter((p) => p.status === 'published');
   const publishedPages = content.pages.filter((p) => p.status === 'published');
 
-  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
-  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
+  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, tagUrlContext));
+  const serializedPages = publishedPages.map((p) => serializePage(p, urlBase, tagUrlContext));
   const publicTags = selectPublicTags(content.tags, publishedPosts);
-  const serializedTags = publicTags.map(({ tag, countPosts }) => serializeTag(tag, countPosts));
+  const serializedTags = publicTags.map(({ tag, countPosts }) =>
+    serializeTag(tag, tagUrlContext, countPosts),
+  );
   const serializedAuthors = content.authors.map(serializeAuthor);
 
   await Promise.all([
@@ -39,7 +43,7 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
     writeResourceWith(outputDir, 'tags', serializedTags),
     writeSettings(outputDir, content.site),
     writePaginated(outputDir, 'posts', serializedPosts, postsPerPage),
-    writePerTag(outputDir, content.tags, publishedPosts, urlBase),
+    writePerTag(outputDir, content.tags, publishedPosts, urlBase, tagUrlContext),
     writeContentApi404(outputDir),
   ]);
 
@@ -68,7 +72,9 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
       }),
     ),
     ...publicTags.map(({ tag, countPosts }) =>
-      writeBySlug(outputDir, 'tags', tag.slug, { tags: [serializeTag(tag, countPosts)] }),
+      writeBySlug(outputDir, 'tags', tag.slug, {
+        tags: [serializeTag(tag, tagUrlContext, countPosts)],
+      }),
     ),
   ]);
 
@@ -121,11 +127,12 @@ async function writePerTag(
   tags: Tag[],
   posts: Post[],
   urlBase: string | undefined,
+  tagUrlContext: TagUrlContext,
 ): Promise<void> {
   await Promise.all(
     tags.map((tag) => {
       const matching = posts.filter((post) => post.tags.some((t) => t.id === tag.id));
-      const serialized = matching.map((p) => serializePost(p, urlBase));
+      const serialized = matching.map((p) => serializePost(p, urlBase, tagUrlContext));
       const body = {
         posts: serialized,
         meta: {
@@ -246,7 +253,16 @@ async function writeJson(dest: string, body: unknown): Promise<void> {
   await writeFile(dest, `${JSON.stringify(body)}\n`, 'utf8');
 }
 
-function serializePost(post: Post, urlBase: string | undefined): Record<string, unknown> {
+interface TagUrlContext {
+  siteUrl: string | undefined;
+  basePath: string;
+}
+
+function serializePost(
+  post: Post,
+  urlBase: string | undefined,
+  tagUrlContext: TagUrlContext,
+): Record<string, unknown> {
   const isPublic = post.visibility === 'public';
   return {
     id: post.id,
@@ -270,8 +286,8 @@ function serializePost(post: Post, urlBase: string | undefined): Record<string, 
     // `access: 'public'` marks the payload as the public anonymous view.
     // See docs/api-stability.md and content-api.ts for the rationale.
     access: 'public',
-    tags: post.tags.map(serializeTag),
-    primary_tag: post.primary_tag ? serializeTag(post.primary_tag) : null,
+    tags: post.tags.map((tag) => serializeTag(tag, tagUrlContext)),
+    primary_tag: post.primary_tag ? serializeTag(post.primary_tag, tagUrlContext) : null,
     authors: post.authors.map((a) => serializeAuthorBare(a)),
     primary_author: post.primary_author ? serializeAuthorBare(post.primary_author) : null,
     url: post.url,
@@ -290,7 +306,11 @@ function serializePost(post: Post, urlBase: string | undefined): Record<string, 
   };
 }
 
-function serializePage(page: Page, urlBase: string | undefined): Record<string, unknown> {
+function serializePage(
+  page: Page,
+  urlBase: string | undefined,
+  tagUrlContext: TagUrlContext,
+): Record<string, unknown> {
   return {
     id: page.id,
     uuid: page.id,
@@ -310,8 +330,8 @@ function serializePage(page: Page, urlBase: string | undefined): Record<string, 
     reading_time: page.reading_time,
     visibility: page.visibility,
     access: 'public',
-    tags: page.tags.map(serializeTag),
-    primary_tag: page.primary_tag ? serializeTag(page.primary_tag) : null,
+    tags: page.tags.map((tag) => serializeTag(tag, tagUrlContext)),
+    primary_tag: page.primary_tag ? serializeTag(page.primary_tag, tagUrlContext) : null,
     authors: page.authors.map((a) => serializeAuthorBare(a)),
     primary_author: page.primary_author ? serializeAuthorBare(page.primary_author) : null,
     url: page.url,
@@ -342,7 +362,11 @@ function selectPublicTags(
     .sort((a, b) => a.tag.name.localeCompare(b.tag.name));
 }
 
-function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<string, unknown> {
+function serializeTag(
+  tag: Tag,
+  tagUrlContext: TagUrlContext,
+  countPosts = tag.count?.posts ?? 0,
+): Record<string, unknown> {
   return {
     id: tag.id,
     slug: tag.slug,
@@ -353,9 +377,25 @@ function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<stri
     visibility: tag.visibility,
     meta_title: tag.meta_title ?? null,
     meta_description: tag.meta_description ?? null,
-    url: tag.url,
+    url: serializeTagUrl(tag.url, tagUrlContext),
     count: { ...tag.count, posts: countPosts },
   };
+}
+
+function serializeTagUrl(url: string, { siteUrl, basePath }: TagUrlContext): string {
+  if (url.length === 0) return url;
+  const withSlash = url.endsWith('/') ? url : `${url}/`;
+  if (/^https?:/i.test(withSlash)) return withSlash;
+  const normalizedBasePath = normalizeBasePath(basePath);
+  const path = pathHasBasePath(withSlash, normalizedBasePath)
+    ? withSlash
+    : withBasePath(basePath, withSlash);
+  return absoluteUrl(siteUrl, path);
+}
+
+function pathHasBasePath(path: string, basePath: string): boolean {
+  if (basePath.length === 0) return true;
+  return path === `${basePath}/` || path.startsWith(`${basePath}/`);
 }
 
 function serializeAuthor(author: Author): Record<string, unknown> {

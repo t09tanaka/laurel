@@ -478,6 +478,29 @@ describe('emitContentApiStubs', () => {
     expect(body.meta.pagination.total).toBe(2);
   });
 
+  test('emits absolute tag.url in tags.json with base_path and custom taxonomy path (#773)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tag-url-'));
+    const news = makeTag({
+      id: 'tag-news',
+      slug: 'news',
+      name: 'News',
+      url: '/category/news/',
+      count: { posts: 0 },
+    });
+    await emitContentApiStubs({
+      content: makeGraph({
+        site: { ...makeGraph().site, url: 'https://example.com' },
+        tags: [news],
+        posts: [makePost({ tags: [news], primary_tag: news })],
+      }),
+      outputDir,
+      basePath: '/blog/',
+    });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
+    expect(body.tags[0].url).toBe('https://example.com/blog/category/news/');
+  });
+
   test('emits per-slug public tag shards and skips internal tags (#753)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tags-'));
     const news = makeTag({ id: 'tag-news', slug: 'news', name: 'News', count: { posts: 0 } });

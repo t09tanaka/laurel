@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { absoluteUrl, withBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './headers.ts';
@@ -61,11 +62,14 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
   const urlBase = absoluteUrls ? buildUrlBase(content.site.url, basePath) : undefined;
 
   const publishedPosts = content.posts.filter((p) => p.status === 'published');
-  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase));
+  const tagUrlContext = { siteUrl: content.site.url, basePath };
+  const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, tagUrlContext));
   const publishedPages = content.pages.filter((p) => p.status === 'published');
   const serializedPages = publishedPages.map((p) => serializePage(p, urlBase));
   const publicTags = selectPublicTags(content.tags, publishedPosts);
-  const serializedTags = publicTags.map(({ tag, countPosts }) => serializeTag(tag, countPosts));
+  const serializedTags = publicTags.map(({ tag, countPosts }) =>
+    serializeTag(tag, tagUrlContext, countPosts),
+  );
   const serializedAuthors = content.authors.map(serializeAuthor);
 
   await Promise.all([
@@ -79,8 +83,8 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writePerIdPosts(outputDir, serializedPosts),
     writePerSlugPages(outputDir, serializedPages),
     writePerIdPages(outputDir, serializedPages),
-    writePerSlugTags(outputDir, publicTags),
-    writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase),
+    writePerSlugTags(outputDir, publicTags, tagUrlContext),
+    writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase, tagUrlContext),
     writeContentApi404(outputDir),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
@@ -204,10 +208,11 @@ async function writePerIdPages(
 async function writePerSlugTags(
   outputDir: string,
   tags: Array<{ tag: Tag; countPosts: number }>,
+  tagUrlContext: TagUrlContext,
 ): Promise<void> {
   await Promise.all(
     tags.map(({ tag, countPosts }) => {
-      const serialized = serializeTag(tag, countPosts);
+      const serialized = serializeTag(tag, tagUrlContext, countPosts);
       const body = { tags: [serialized] };
       const flat = join(outputDir, 'content', 'tags', 'slug', `${tag.slug}.json`);
       const dirIndex = join(outputDir, 'content', 'tags', 'slug', tag.slug, 'index.json');
@@ -221,11 +226,12 @@ async function writePerTagPosts(
   tags: Tag[],
   posts: Post[],
   urlBase: string | undefined,
+  tagUrlContext: TagUrlContext,
 ): Promise<void> {
   await Promise.all(
     tags.map((tag) => {
       const matching = posts.filter((post) => post.tags.some((t) => t.id === tag.id));
-      const serialized = matching.map((p) => serializePost(p, urlBase));
+      const serialized = matching.map((p) => serializePost(p, urlBase, tagUrlContext));
       const body = {
         posts: serialized,
         meta: {
@@ -367,7 +373,16 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
   };
 }
 
-function serializePost(post: Post, urlBase: string | undefined): Record<string, unknown> {
+interface TagUrlContext {
+  siteUrl: string | undefined;
+  basePath: string;
+}
+
+function serializePost(
+  post: Post,
+  urlBase: string | undefined,
+  tagUrlContext: TagUrlContext,
+): Record<string, unknown> {
   // Public JSON omits all members-only body content. For non-public posts
   // (visibility != 'public') we strip the paywalled body fields so the
   // static dump cannot be used to bypass a paywall configured upstream.
@@ -399,8 +414,8 @@ function serializePost(post: Post, urlBase: string | undefined): Record<string, 
     // members-only entries; the `access` field marks the payload itself,
     // not the underlying gating, as public. See docs/api-stability.md.
     access: 'public',
-    tags: post.tags.map(serializeTag),
-    primary_tag: post.primary_tag ? serializeTag(post.primary_tag) : null,
+    tags: post.tags.map((tag) => serializeTag(tag, tagUrlContext)),
+    primary_tag: post.primary_tag ? serializeTag(post.primary_tag, tagUrlContext) : null,
     authors: post.authors.map((a) => serializeAuthorBare(a)),
     primary_author: post.primary_author ? serializeAuthorBare(post.primary_author) : null,
     url: post.url,
@@ -432,7 +447,11 @@ function selectPublicTags(
     .sort((a, b) => a.tag.name.localeCompare(b.tag.name));
 }
 
-function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<string, unknown> {
+function serializeTag(
+  tag: Tag,
+  tagUrlContext: TagUrlContext,
+  countPosts = tag.count?.posts ?? 0,
+): Record<string, unknown> {
   return {
     id: tag.id,
     slug: tag.slug,
@@ -443,9 +462,30 @@ function serializeTag(tag: Tag, countPosts = tag.count?.posts ?? 0): Record<stri
     visibility: tag.visibility,
     meta_title: tag.meta_title ?? null,
     meta_description: tag.meta_description ?? null,
-    url: tag.url,
+    url: serializeTagUrl(tag.url, tagUrlContext),
     count: { ...tag.count, posts: countPosts },
   };
+}
+
+function serializeTagUrl(url: string, { siteUrl, basePath }: TagUrlContext): string {
+  if (url.length === 0) return url;
+  const withSlash = url.endsWith('/') ? url : `${url}/`;
+  if (/^https?:/i.test(withSlash)) return withSlash;
+  const normalizedBasePath = normalizeApiBasePath(basePath);
+  const path = pathHasBasePath(withSlash, normalizedBasePath)
+    ? withSlash
+    : withBasePath(basePath, withSlash);
+  return absoluteUrl(siteUrl, path);
+}
+
+function normalizeApiBasePath(basePath: string): string {
+  if (basePath === '/' || basePath === '') return '';
+  return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function pathHasBasePath(path: string, basePath: string): boolean {
+  if (basePath.length === 0) return true;
+  return path === `${basePath}/` || path.startsWith(`${basePath}/`);
 }
 
 function serializeAuthor(author: Author): Record<string, unknown> {

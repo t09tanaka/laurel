@@ -541,6 +541,41 @@ ${numberedWords(53, 3).join(' ')}
     expect(tags.meta.pagination.total).toBe(2);
   });
 
+  test('tag responses emit absolute tag.url with base_path and custom taxonomy path (#773)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-url-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      build: { base_path: '/blog/' },
+    });
+    const news = makeTag({
+      id: 'tag-news',
+      slug: 'news',
+      name: 'News',
+      url: '/category/news/',
+      count: { posts: 0 },
+    });
+    await emitContentApiShadows({
+      config,
+      content: {
+        ...makeGraph(),
+        site: { ...makeGraph().site, url: 'https://example.com' },
+        tags: [news],
+        posts: [makePost({ tags: [news], primary_tag: news })],
+      },
+      outputDir,
+    });
+
+    const collection = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8'),
+    );
+    expect(collection.tags[0].url).toBe('https://example.com/blog/category/news/');
+
+    const single = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/tags/slug/news.json'), 'utf8'),
+    );
+    expect(single.tags[0].url).toBe('https://example.com/blog/category/news/');
+  });
+
   test('tag slug shadows are public-only and carry count.posts (#753)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-slug-'));
     const config = configSchema.parse({ site: { title: 'T' } });
