@@ -1,6 +1,7 @@
 import type { NectarEngine } from '../engine.ts';
 import { registerAssetHelpers } from './assets.ts';
 import { registerBlockHelpers } from './blocks.ts';
+import { registerCommentCountHelper } from './comment-count.ts';
 import { registerContentForHelpers } from './content-for.ts';
 import { registerContentHelpers } from './content.ts';
 import { registerDateHelpers } from './date.ts';
@@ -18,6 +19,7 @@ import { registerUrlHelpers } from './urls.ts';
 export function registerHelpers(engine: NectarEngine): void {
   registerAssetHelpers(engine);
   registerBlockHelpers(engine);
+  registerCommentCountHelper(engine);
   registerContentForHelpers(engine);
   registerContentHelpers(engine);
   registerDateHelpers(engine);

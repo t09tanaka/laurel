@@ -216,6 +216,15 @@ export function registerContentHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper(
     'comments',
     function commentsHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const ctx = this as { id?: string; url?: string; comments?: unknown };
+      // Ghost lets editors disable comments per-post via the `comments` boolean
+      // on the post payload. When `post.comments === false` the helper must
+      // emit nothing so themes' `{{#if comments}}…{{comments}}…{{/if}}` blocks
+      // stay collapsed and no provider script loads. Undefined/true keep the
+      // existing behaviour (placeholder div or configured provider).
+      if (ctx.comments === false) {
+        return new engine.hb.SafeString('');
+      }
       const cfg = engine.config?.components?.comments;
       const provider = cfg?.provider ?? 'off';
       if (!cfg || provider === 'off') {
@@ -223,7 +232,6 @@ export function registerContentHelpers(engine: NectarEngine): void {
       }
       const route = options.data?.route as { url?: string } | undefined;
       const site = engine.content?.site as { url?: string } | undefined;
-      const ctx = this as { id?: string; url?: string };
       const canonical = buildCanonicalUrl(site?.url, route?.url ?? ctx.url ?? '/');
       const identifier = cfg.identifier ?? (typeof ctx.id === 'string' ? ctx.id : canonical);
 

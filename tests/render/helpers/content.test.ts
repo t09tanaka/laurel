@@ -726,6 +726,32 @@ describe('comments helper', () => {
     expect(out).toContain('data-target="https://example.com/post/"');
     expect(out).not.toContain('data-username');
   });
+
+  test('post.comments === false suppresses output entirely (no placeholder, no provider script)', () => {
+    const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')({ comments: false });
+    expect(out).toBe('');
+  });
+
+  test('post.comments === false suppresses the default empty placeholder too', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    expect(engine.hb.compile('{{comments}}')({ comments: false })).toBe('');
+  });
+
+  test('post.comments === true falls through to the configured provider', () => {
+    const engine = makeEngineWithComments({ provider: 'giscus', repo: 'acme/site' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')({ comments: true });
+    expect(out).toContain('data-repo="acme/site"');
+  });
+
+  test('post.comments undefined keeps the default placeholder so existing themes are unaffected', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    expect(engine.hb.compile('{{comments}}')({})).toBe('<div data-nectar-comments></div>');
+  });
 });
 
 describe('authors helper', () => {
