@@ -54,6 +54,36 @@ overrides applied from `nectar.toml [theme.custom]`.
 The exposed fields are exactly the keys on `Post`/`Page`/`Tag`/`Author` model
 types defined in `src/content/model.ts`. Keep that as the source of truth.
 
+## Ghost card support status
+
+This matrix tracks the per-card contract for `nectar import-ghost` and the
+Markdown renderer. "Migrates" means a Ghost export can retain enough structure
+in `content/posts/*.md` to avoid data loss. "Renders" means a static Nectar
+build emits usable reader-facing HTML without a Ghost server.
+
+| Card | Migrates | Renders | Notes |
+|------|----------|---------|-------|
+| Image | Yes | Yes | Preserves `kg-image-card`, image link, caption, width/height, and width modifier classes where exported. |
+| Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape with intrinsic image dimensions; Nectar does not inject Ghost's legacy gallery bootstrap script. |
+| Bookmark | Yes | Yes | Converts to a `{{< bookmark />}}` shortcode and renders the static `kg-bookmark-card` scaffold with best-effort metadata. |
+| Embed | Yes | Partial | Converts to `{{< embed />}}`. YouTube, Vimeo, and Spotify render static iframes; Twitter/X, Instagram, TikTok, and CodePen stay fallback links unless a site deliberately loads provider scripts. |
+| HTML | Yes | Partial | Imports through the HTML-card sanitizer and renders allowed raw HTML. Script/style loaders and dangerous URL schemes are removed. |
+| Markdown | Yes | Yes | Ghost's rendered Markdown-card HTML is converted back through Turndown and then rendered as normal Markdown/HTML. |
+| Code | Yes | Yes | Renders fenced code as `<pre><code>` and keeps language hints; Ghost-specific code-card wrapper and caption parity is limited. |
+| Callout | Yes | Yes | Renders the static `kg-callout-card` wrapper, color modifier, emoji, and text body. |
+| Button | Yes | Yes | Renders a static `kg-button-card` anchor with alignment and button style classes. |
+| Toggle | Yes | Yes | Renders as native `<details>` / `<summary>` with `kg-toggle-card` hooks; no Ghost toggle JavaScript is required. |
+| File | Yes | Yes | Renders a static download link with `kg-file-card` metadata rows. |
+| Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks; Ghost's custom player runtime is not hydrated. |
+| Video | Yes | Yes | Renders native `<video controls>`, poster, captions/tracks, and sanitized `--aspect-ratio` metadata for theme CSS. |
+| Product | Yes | Yes | Renders the static product-card scaffold, image/title/description/rating/CTA fields that survived import. |
+| Header | Partial | Partial | Raw `kg-header-card` HTML scaffolds survive sanitisation and Source has matching CSS hooks, but Nectar does not yet emit a first-class header-card shortcode from Lexical nodes. |
+| NFT | Partial | Partial | Static link, image, and metadata scaffolds survive; no blockchain wallet, marketplace, or live ownership runtime is provided. |
+| Signup | Partial | Partial | The `kg-signup-card` wrapper can survive for portal/member plugins, but raw form fields are stripped by default and Nectar has no members backend. |
+| Recommendations | Partial | Partial | Static `kg-recommendations-card` markup can survive sanitisation for plugin/theme hydration; Ghost's server-side recommendations service is not implemented. |
+| Email / email CTA | No | No | Members/newsletter-only email cards are stripped so a public static build does not expose email-only content. |
+| Paywall | Partial | Partial | The paywall marker is used by the content loader to cut gated content; visible server-side member access behaviour is out of scope. |
+
 ### `error`
 
 The root `error` context is only populated for Nectar's static `/404.html`

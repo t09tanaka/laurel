@@ -5,6 +5,27 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dir, '..', '..');
 
 describe('Ghost compatibility docs', () => {
+  test('documents the Ghost card support status matrix', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+
+    expect(doc).toContain('| Card | Migrates | Renders | Notes |');
+    expect(doc).toContain(
+      '| Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape',
+    );
+    expect(doc).toContain(
+      '| Embed | Yes | Partial | Converts to `{{< embed />}}`. YouTube, Vimeo, and Spotify render static iframes',
+    );
+    expect(doc).toContain(
+      '| Audio | Yes | Yes | Renders native `<audio controls>` plus `kg-audio-*` metadata hooks',
+    );
+    expect(doc).toContain(
+      '| Header | Partial | Partial | Raw `kg-header-card` HTML scaffolds survive sanitisation',
+    );
+    expect(doc).toContain(
+      '| Email / email CTA | No | No | Members/newsletter-only email cards are stripped',
+    );
+  });
+
   test('documents shared-theme-assets requirements for Ease load-more controls', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 
