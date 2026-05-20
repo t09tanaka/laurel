@@ -224,6 +224,14 @@ Cloudflare Pages-specific deploy hints.
 | --- | --- | --- | --- | --- |
 | `deploy.cloudflare_pages.enabled` | `boolean` | no | `false` | Emit Cloudflare Pages `_headers` and (when a `redirects.yaml` exists at the project root) `_redirects` at the output root. The `_headers` defaults pin fingerprinted asset URLs (`/assets/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). The `_redirects` emitter loads rules from `redirects.yaml` (`[{from, to, status}]` with status one of 301/302/307/308, default 301), drops later rules whose `from` repeats an earlier one (Cloudflare uses first-match), and prepends them before any existing `_redirects` entries. Leave disabled when deploying somewhere other than Cloudflare Pages. |
 
+## `deploy.cloudflare_workers`
+
+Cloudflare Workers Static Assets-specific deploy hints.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.cloudflare_workers.enabled` | `boolean` | no | `false` | Emit a Worker-readable `_routes-manifest.json` at the output root for Cloudflare Workers Static Assets. The manifest folds `deploy.headers` and canonical redirect rules from `redirects.yaml` / Ghost-style `content/data/redirects.*` into JSON so a reference Worker can apply headers and redirects before delegating to `ASSETS`. Leave disabled when deploying somewhere other than Cloudflare Workers Static Assets. |
+
 ## `deploy.netlify`
 
 Netlify-specific deploy hints.
@@ -312,7 +320,7 @@ rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist
 
 ## `deploy.headers`
 
-Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.
+Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.
 
 
 ## `deploy.headers.security`

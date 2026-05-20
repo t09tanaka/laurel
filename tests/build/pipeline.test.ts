@@ -166,6 +166,42 @@ describe('build pipeline strict mode wiring', () => {
     expect(body).toContain('RewriteRule ^old$ /new [R=301,L]');
   });
 
+  test('emits dist/_routes-manifest.json when deploy.cloudflare_workers is enabled', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '',
+        '[deploy.cloudflare_workers]',
+        'enabled = true',
+        '',
+        '[deploy.headers.security]',
+        'custom = { X-Test-Header = "worker" }',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+    await writeFile(
+      join(cwd, 'redirects.yaml'),
+      '- from: /old\n  to: /new\n  status: 308\n',
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const body = JSON.parse(readFileSync(join(summary.outputDir, '_routes-manifest.json'), 'utf8'));
+
+    expect(body).toMatchObject({
+      version: 1,
+      redirects: [{ source: '/old', destination: '/new', status: 308 }],
+    });
+    expect(body.headers).toContainEqual(
+      expect.objectContaining({
+        source: '/*',
+        headers: expect.arrayContaining([{ key: 'X-Test-Header', value: 'worker' }]),
+      }),
+    );
+  });
+
   test('emits dist/content/search.json with the post in the flat index', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });

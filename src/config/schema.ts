@@ -532,6 +532,18 @@ export const configSchema = z
           .strict()
           .default({})
           .describe('Cloudflare Pages-specific deploy hints.'),
+        cloudflare_workers: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit a Worker-readable `_routes-manifest.json` at the output root for Cloudflare Workers Static Assets. The manifest folds `deploy.headers` and canonical redirect rules from `redirects.yaml` / Ghost-style `content/data/redirects.*` into JSON so a reference Worker can apply headers and redirects before delegating to `ASSETS`. Leave disabled when deploying somewhere other than Cloudflare Workers Static Assets.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe('Cloudflare Workers Static Assets-specific deploy hints.'),
         netlify: z
           .object({
             enabled: z
@@ -840,7 +852,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.',
+            'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.apache`, `deploy.nginx`) into its native format.',
           ),
       })
       .strict()

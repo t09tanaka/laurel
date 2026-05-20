@@ -5,6 +5,8 @@ edge network. Nectar has two Cloudflare-specific pieces:
 
 - `[deploy.cloudflare_pages]` controls build output for Pages: `_headers`
   and `_routes.json`.
+- `[deploy.cloudflare_workers]` controls build output for Workers Static
+  Assets: `_routes-manifest.json` consumed by the reference Worker.
 - `[deploy.cloudflare]` controls the optional `nectar deploy cloudflare`
   command: project name and branch passed to `wrangler pages deploy`.
 
@@ -15,8 +17,9 @@ explicit deploy command.
 If you need a Cloudflare Workers deployment instead of a Pages project, use
 Workers Static Assets with the sample
 [`examples/cloudflare-workers/wrangler.toml`](../../examples/cloudflare-workers/wrangler.toml)
-and its no-op `index.ts` worker. The sample binds `dist/` as `ASSETS` and
-delegates requests to Cloudflare's asset handler.
+and its `index.ts` worker. The sample binds `dist/` as `ASSETS`, reads
+`dist/_routes-manifest.json`, applies redirects and headers, then delegates
+requests to Cloudflare's asset handler.
 
 ## Quickstart: Git-connected Pages
 
@@ -73,15 +76,25 @@ Cloudflare Pages' built-in static 404 convention.
 
 If you deploy the same `dist/` directory with Cloudflare Workers Static Assets
 instead of Pages, keep Nectar's multi-page output as static files and let
-Cloudflare serve `dist/404.html` for missing routes:
+Cloudflare serve `dist/404.html` for missing routes. Enable the Workers
+manifest in `nectar.toml`:
+
+```toml
+[deploy.cloudflare_workers]
+enabled = true
+```
+
+Then use a Workers Static Assets config like this:
 
 ```toml
 name = "my-blog"
+main = "index.ts"
 compatibility_date = "2025-04-01"
 
 [assets]
 directory = "./dist"
 not_found_handling = "404-page"
+binding = "ASSETS"
 ```
 
 Use `not_found_handling = "404-page"` for Nectar sites. Nectar emits separate
@@ -93,6 +106,15 @@ Do not use `not_found_handling = "single-page-application"` for a normal
 Nectar deploy. SPA fallback serves `index.html` for navigation requests that do
 not match an asset, which can hide missing pages behind the homepage and break
 Nectar's direct navigation / 404 semantics.
+
+Workers Static Assets does not read `_headers` or `_redirects` from `dist/`.
+When `[deploy.cloudflare_workers].enabled = true`, Nectar emits
+`dist/_routes-manifest.json` instead. The manifest uses the shared
+`deploy.headers` schema for cache and security headers, and the same canonical
+redirect rules loaded from `redirects.yaml` and Ghost-style
+`content/data/redirects.*`. Copy
+[`examples/cloudflare-workers/index.ts`](../../examples/cloudflare-workers/index.ts)
+next to `wrangler.toml` to consume that manifest in a small reference Worker.
 
 ## Redirects
 

@@ -107,31 +107,39 @@ const SECURITY_HEADER_FIELDS: ReadonlyArray<{
   { key: 'cross_origin_embedder_policy', name: 'Cross-Origin-Embedder-Policy' },
 ];
 
-interface Rule {
+export interface HeaderEntry {
+  key: string;
+  value: string;
+}
+
+export interface HeaderRule {
   pattern: string;
-  lines: string[];
+  headers: HeaderEntry[];
 }
 
 export function buildHeadersBody(headers: HeadersConfig): string {
-  const rules = collectRules(headers);
+  const rules = collectHeaderRules(headers);
   if (rules.length === 0) return '';
   return `${rules
-    .map(({ pattern, lines }) => `${pattern}\n${lines.map((line) => `  ${line}`).join('\n')}`)
+    .map(
+      ({ pattern, headers }) =>
+        `${pattern}\n${headers.map(({ key, value }) => `  ${key}: ${value}`).join('\n')}`,
+    )
     .join('\n\n')}\n`;
 }
 
-function collectRules(headers: HeadersConfig): Rule[] {
-  const securityLines = collectSecurityLines(headers.security);
+export function collectHeaderRules(headers: HeadersConfig): HeaderRule[] {
+  const securityHeaders = collectSecurityHeaders(headers.security);
   const seen = new Set<string>();
-  const ordered: Rule[] = [];
-  let catchAll: Rule | null = null;
+  const ordered: HeaderRule[] = [];
+  let catchAll: HeaderRule | null = null;
 
   for (const rule of headers.cache_rules) {
     if (seen.has(rule.pattern)) continue;
     seen.add(rule.pattern);
-    const entry: Rule = {
+    const entry: HeaderRule = {
       pattern: rule.pattern,
-      lines: [`Cache-Control: ${rule.cache_control}`],
+      headers: [{ key: 'Cache-Control', value: rule.cache_control }],
     };
     if (rule.pattern === CATCH_ALL) {
       catchAll = entry;
@@ -140,29 +148,29 @@ function collectRules(headers: HeadersConfig): Rule[] {
     }
   }
 
-  if (!catchAll && securityLines.length > 0) {
-    catchAll = { pattern: CATCH_ALL, lines: [] };
+  if (!catchAll && securityHeaders.length > 0) {
+    catchAll = { pattern: CATCH_ALL, headers: [] };
   }
   if (catchAll) {
-    catchAll.lines.push(...securityLines);
+    catchAll.headers.push(...securityHeaders);
     ordered.push(catchAll);
   }
 
   return ordered;
 }
 
-function collectSecurityLines(security: HeadersConfig['security']): string[] {
-  const lines: string[] = [];
+function collectSecurityHeaders(security: HeadersConfig['security']): HeaderEntry[] {
+  const lines: HeaderEntry[] = [];
   for (const { key, name } of SECURITY_HEADER_FIELDS) {
     const value = security[key];
     if (typeof value === 'string' && value.length > 0) {
       const emitted = name === 'Strict-Transport-Security' ? validateHstsForPreload(value) : value;
-      lines.push(`${name}: ${emitted}`);
+      lines.push({ key: name, value: emitted });
     }
   }
   for (const [name, value] of Object.entries(security.custom)) {
     if (typeof value === 'string' && value.length > 0) {
-      lines.push(`${name}: ${value}`);
+      lines.push({ key: name, value });
     }
   }
   return lines;

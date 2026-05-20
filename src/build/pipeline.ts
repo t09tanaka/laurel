@@ -26,6 +26,7 @@ import { emitBuildManifest } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
 import { emitCloudflarePagesHeaders } from './cloudflare-pages.ts';
 import { emitCloudflareRoutes } from './cloudflare-routes.ts';
+import { emitCloudflareWorkersManifest } from './cloudflare-workers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { emitCustomRedirects } from './custom-redirects.ts';
@@ -842,6 +843,12 @@ async function runBuild({
     outputDir,
     rules: redirects,
     enabled: config.deploy.cloudflare_pages.enabled,
+  });
+  await emitCloudflareWorkersManifest({
+    outputDir,
+    enabled: config.deploy.cloudflare_workers.enabled,
+    headers: config.deploy.headers,
+    rules: redirects,
   });
   await emitNetlifyRedirects({
     outputDir,
