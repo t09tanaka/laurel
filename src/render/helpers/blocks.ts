@@ -199,7 +199,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
         blockParams: [results, paginationBlockParam],
       });
     }
-    return options.fn(results, { data });
+    return options.fn(exposeGetResource(results, resource), { data });
   });
 
   engine.hb.registerHelper('match', function matchHelper(this: unknown, ...args: unknown[]) {
@@ -324,6 +324,15 @@ function attachAuthorPostCount(
   const slug = String((author as { slug?: unknown }).slug ?? '');
   const count = postsByAuthor?.get(slug)?.length ?? 0;
   return { ...(author as Record<string, unknown>), count: { posts: count } };
+}
+
+function exposeGetResource(results: unknown[], resource: string): unknown[] {
+  Object.defineProperty(results, resource, {
+    configurable: true,
+    enumerable: true,
+    value: results,
+  });
+  return results;
 }
 
 function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {

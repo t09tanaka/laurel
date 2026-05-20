@@ -231,6 +231,30 @@ describe('get helper pagination metadata', () => {
 });
 
 describe('get helper include= parameter', () => {
+  test('include="authors" is a no-op for implicit posts blocks and preserves authors', () => {
+    const posts = [
+      {
+        id: 'p1',
+        title: 'One',
+        published_at: '2026-05-20T00:00:00.000Z',
+        authors: [{ slug: 'alice' }],
+      },
+      {
+        id: 'p2',
+        title: 'Two',
+        published_at: '2026-05-19T00:00:00.000Z',
+        authors: [{ slug: 'bob' }],
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" include="authors"}}{{#foreach posts}}{{id}}:{{authors.0.slug}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(() => tpl({})).not.toThrow();
+    expect(tpl({})).toBe('p1:alice,p2:bob,');
+  });
+
   test('include="tags,authors" is accepted for posts and preserves the result data', () => {
     const posts = [
       {
