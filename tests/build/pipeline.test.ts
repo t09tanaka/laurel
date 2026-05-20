@@ -1256,6 +1256,32 @@ describe('build pipeline HTML minification (#1109)', () => {
     expect(htmlMin).toContain('Hello');
     expect(htmlMin).not.toMatch(/<!--[^[]/);
   });
+
+  test('minifies final afterRender HTML before writing', async () => {
+    const cwd = await makeSite({ minify: true });
+    const pluginPath = join(cwd, 'after-render-plugin.mjs');
+    await writeFile(
+      pluginPath,
+      `
+export default {
+  name: 'after-render-minify-fixture',
+  afterRender(_ctx, _route, html) {
+    return html.replace('</body>', '\\n    <!-- remove me before disk -->\\n    <div data-minify-fixture>  plugin text  </div>\\n  </body>');
+  },
+};
+`,
+      'utf8',
+    );
+    await prependTomlTopLevel(cwd, 'plugins = ["./after-render-plugin.mjs"]');
+
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
+
+    expect(html).toContain('data-minify-fixture');
+    expect(html).toContain('plugin text');
+    expect(html).not.toContain('remove me before disk');
+    expect(html).not.toMatch(/\n\s+<div data-minify-fixture>/);
+  });
 });
 
 describe('build pipeline --no-atomic escape hatch (#247)', () => {
