@@ -396,14 +396,36 @@ describe('packaging', () => {
       expect(workflow).toContain('release/*');
     });
 
+    test('release workflow opens a Homebrew tap bump pull request', async () => {
+      const workflow = await readFile(
+        join(REPO_ROOT, '.github', 'workflows', 'release.yml'),
+        'utf8',
+      );
+
+      expect(workflow).toContain('bump-homebrew-tap:');
+      expect(workflow).toContain('uses: Homebrew/actions/setup-homebrew@main');
+      expect(workflow).toContain('HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-nectar');
+      expect(workflow).toContain('HOMEBREW_TAP_TOKEN');
+      expect(workflow).toContain('--output ../homebrew-nectar/Formula/nectar.rb');
+      expect(workflow).toContain('brew audit --strict --online --formula Formula/nectar.rb');
+      expect(workflow).toContain('gh pr create');
+    });
+
     test('docs show the tap command that enables brew install nectar', async () => {
       const readme = await readFile(join(REPO_ROOT, 'README.md'), 'utf8');
       const releaseDocs = await readFile(join(REPO_ROOT, 'docs', 'release.md'), 'utf8');
+      const tapDocs = await readFile(
+        join(REPO_ROOT, 'packaging', 'homebrew-tap', 'README.md'),
+        'utf8',
+      );
 
       expect(readme).toContain('brew tap t09tanaka/nectar');
       expect(readme).toContain('brew install nectar');
       expect(releaseDocs).toContain('t09tanaka/homebrew-nectar');
       expect(releaseDocs).toContain('bun run homebrew:formula');
+      expect(releaseDocs).toContain('bump-homebrew-tap');
+      expect(tapDocs).toContain('Formula/nectar.rb');
+      expect(tapDocs).toContain('HOMEBREW_TAP_TOKEN');
     });
   });
 

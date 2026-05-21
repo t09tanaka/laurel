@@ -483,6 +483,106 @@ jobs:
           } > combined_notes.md
           gh release edit "$TAG_NAME" --notes-file combined_notes.md
 
+  bump-homebrew-tap:
+    name: Bump Homebrew tap
+    needs: [resolve-ref, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      TAG_NAME: ${{ needs.resolve-ref.outputs.tag }}
+      HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-nectar
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          path: nectar
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          brew-gh-api-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HOMEBREW_TAP_REPOSITORY }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-nectar
+
+      - name: Download release checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p nectar/release-tap
+          gh release download "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern SHASUMS256.txt \
+            --dir nectar/release-tap \
+            --clobber
+
+      - name: Generate tap formula
+        run: |
+          cd nectar
+          bun run scripts/generate-homebrew-formula.ts \
+            --version "$TAG_NAME" \
+            --shasums release-tap/SHASUMS256.txt \
+            --output ../homebrew-nectar/Formula/nectar.rb
+
+      - name: Validate tap formula
+        run: |
+          cd homebrew-nectar
+          ruby -c Formula/nectar.rb
+          brew audit --strict --online --formula Formula/nectar.rb
+
+      - name: Open tap bump pull request
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd homebrew-nectar
+
+          if git diff --quiet -- Formula/nectar.rb; then
+            echo "Homebrew tap formula already matches ${TAG_NAME}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          branch="nectar-${TAG_NAME}"
+          git fetch origin "$branch:refs/remotes/origin/$branch" || true
+          git checkout -B "$branch"
+          git add Formula/nectar.rb
+          git commit -m "nectar ${TAG_NAME#v}"
+          git push --force-with-lease origin "$branch"
+
+          existing_pr="$(gh pr list \
+            --repo "$HOMEBREW_TAP_REPOSITORY" \
+            --head "$branch" \
+            --json number \
+            --jq '.[0].number // empty')"
+          if [[ -n "$existing_pr" ]]; then
+            echo "Homebrew tap PR #${existing_pr} already exists."
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$HOMEBREW_TAP_REPOSITORY" \
+            --base main \
+            --head "$branch" \
+            --title "nectar ${TAG_NAME#v}" \
+            --body "Bumps the Nectar Homebrew formula to ${TAG_NAME} using the signed Darwin and Linux binaries from the GitHub Release."
+
   publish-docker:
     name: Publish Docker image
     needs: [resolve-ref, release]

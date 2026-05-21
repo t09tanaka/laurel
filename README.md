@@ -55,6 +55,8 @@ need Bun on your machine to use it. Grab the artifact that matches your platform
 from the latest [GitHub Release](https://github.com/t09tanaka/nectar/releases),
 verify the checksum, and drop it on your `$PATH`.
 
+Homebrew users can install Nectar from the project tap:
+
 ```bash
 # Homebrew tap (macOS/Linux)
 brew tap t09tanaka/nectar

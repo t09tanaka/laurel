@@ -79,8 +79,14 @@ release binaries. The generated formula embeds the release tag and the
 platform-specific SHA-256 values from `SHASUMS256.txt`.
 
 The public tap should live in a separate `t09tanaka/homebrew-nectar` repository
-with the generated file copied to `Formula/nectar.rb`. After that tap exists,
-users can install the CLI with:
+with the generated file at `Formula/nectar.rb`. After the GitHub Release is
+created, the `bump-homebrew-tap` job uses `Homebrew/actions/setup-homebrew`,
+regenerates that formula from the release checksums, runs `brew audit`, and
+opens a pull request against the tap. The job requires a `HOMEBREW_TAP_TOKEN`
+repository secret with permission to push branches and open pull requests in the
+tap repository.
+
+Users can install the CLI with:
 
 ```bash
 brew tap t09tanaka/nectar
@@ -97,6 +103,9 @@ bun run homebrew:formula -- \
 ruby -c ../homebrew-nectar/Formula/nectar.rb
 brew audit --new --strict ../homebrew-nectar/Formula/nectar.rb
 ```
+
+The tap repository layout and automation notes are tracked in
+`packaging/homebrew-tap/README.md`.
 
 ## Scoop bucket manifest
 
