@@ -55,8 +55,8 @@ describe('cli integration — new (#663/#692)', () => {
   test('new without a kind exits 2 with a usage error', async () => {
     const { stderr, exitCode } = await runCli(['new'], dir);
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('Missing required argument');
-    expect(stderr).toContain('<kind>');
+    expect(stderr).toContain('Missing kind.');
+    expect(stderr).toContain('post, page, tag, author');
   });
 
   test('new with an unknown kind exits 2 and lists the valid kinds', async () => {

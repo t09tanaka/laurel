@@ -197,6 +197,13 @@ describe('cli dispatch', () => {
     expect(stdout).toContain('--port <n>');
   });
 
+  test('plugins list reserves the extension namespace', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['plugins', 'list']);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('No plugins installed.');
+  });
+
   test('build with unknown flag exits 2 and prints subcommand help', async () => {
     const { stderr, exitCode } = await runCli(['build', '--bogus']);
     expect(exitCode).toBe(2);
@@ -221,7 +228,7 @@ describe('cli dispatch', () => {
   test('new with missing positionals exits 2', async () => {
     const { stderr, exitCode } = await runCli(['new']);
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('Missing required argument');
+    expect(stderr).toContain('Missing kind.');
   });
 
   test('import-ghost --help prints positional documentation', async () => {

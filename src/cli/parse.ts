@@ -305,23 +305,26 @@ export function formatUsageLine(spec: CommandSpec): string {
   return parts.join(' ');
 }
 
-export function formatCommandHelp(spec: CommandSpec): string {
+export function formatCommandHelp(spec: CommandSpec, width = helpWidth()): string {
   const lines: string[] = [];
-  lines.push(spec.summary);
+  lines.push(...wrapPlainText(spec.summary, width));
   lines.push('');
   lines.push('Usage:');
-  lines.push(`  ${formatUsageLine(spec)}`);
+  lines.push(...wrapPlainText(formatUsageLine(spec), width, '  ', '  '));
 
   if (spec.positionals.length > 0) {
     lines.push('');
     lines.push('Arguments:');
     for (const pos of spec.positionals) {
-      lines.push(`  ${pad(pos.name, 20)}${pos.description}`);
+      lines.push(...formatHelpRow(pos.name, pos.description, width));
     }
     lines.push('');
     lines.push('End of options:');
     lines.push(
-      '  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.',
+      ...wrapPlainText(
+        '  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.',
+        width,
+      ),
     );
   }
 
@@ -329,31 +332,64 @@ export function formatCommandHelp(spec: CommandSpec): string {
   lines.push('Options:');
   for (const [name, def] of optionEntriesForDisplay(spec)) {
     const flag = formatFlag(name, def);
-    lines.push(`  ${pad(flag, 20)}${def.description}`);
+    lines.push(...formatHelpRow(flag, def.description, width));
   }
-  lines.push(`  ${pad('-h, --help', 20)}${HELP_OPTION.description}`);
+  lines.push(...formatHelpRow('-h, --help', HELP_OPTION.description, width));
 
   const firstOption = Object.keys(spec.options)[0];
   if (firstOption !== undefined) {
     lines.push('');
     lines.push('Environment variables:');
     lines.push(
-      '  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).',
+      ...wrapPlainText(
+        'Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).',
+        width,
+        '  ',
+        '  ',
+      ),
     );
-    lines.push('  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).');
-    lines.push(`  Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`);
+    lines.push(
+      ...wrapPlainText(
+        'Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).',
+        width,
+        '  ',
+        '  ',
+      ),
+    );
+    lines.push(
+      ...wrapPlainText(
+        `Example: --${firstOption} → ${envVarName(spec.name, firstOption)}`,
+        width,
+        '  ',
+        '  ',
+      ),
+    );
     lines.push('');
     lines.push('Repeated flags:');
-    lines.push('  Scalar string flags use the last value.');
-    lines.push('  List-style string flags accumulate as comma-separated values in argv order.');
-    lines.push('  Boolean flags use the last positive or negated spelling.');
+    lines.push(...wrapPlainText('Scalar string flags use the last value.', width, '  ', '  '));
+    lines.push(
+      ...wrapPlainText(
+        'List-style string flags accumulate as comma-separated values in argv order.',
+        width,
+        '  ',
+        '  ',
+      ),
+    );
+    lines.push(
+      ...wrapPlainText(
+        'Boolean flags use the last positive or negated spelling.',
+        width,
+        '  ',
+        '  ',
+      ),
+    );
   }
 
   if (spec.examples && spec.examples.length > 0) {
     lines.push('');
     lines.push('Examples:');
     for (const ex of spec.examples) {
-      lines.push(`  ${ex}`);
+      lines.push(...wrapPlainText(ex, width, '  ', '  '));
     }
   }
   lines.push('');
@@ -370,6 +406,59 @@ function formatFlag(name: string, def: OptionSpec): string {
 function pad(text: string, width: number): string {
   if (text.length >= width) return `${text}  `;
   return text + ' '.repeat(width - text.length);
+}
+
+function helpWidth(): number | undefined {
+  const columns = process.stdout.columns;
+  if (!Number.isInteger(columns) || columns === undefined || columns <= 0) return undefined;
+  return Math.max(40, Math.min(columns, 100));
+}
+
+function formatHelpRow(label: string, description: string, width: number | undefined): string[] {
+  const labelColumnWidth = 20;
+  const labelPrefix = '  ';
+  const descriptionPrefix = labelPrefix + ' '.repeat(labelColumnWidth + 2);
+  const paddedLabel = `${labelPrefix}${pad(label, labelColumnWidth)}`;
+  if (width === undefined) return [`${paddedLabel}${description}`];
+  if (paddedLabel.length >= width - 8) {
+    return [paddedLabel.trimEnd(), ...wrapPlainText(description, width, descriptionPrefix)];
+  }
+  return wrapPlainText(description, width, paddedLabel, descriptionPrefix);
+}
+
+function wrapPlainText(
+  text: string,
+  width: number | undefined,
+  firstPrefix = '',
+  restPrefix = firstPrefix,
+): string[] {
+  const expanded = text.replace(/\t/g, '  ');
+  if (width === undefined || firstPrefix.length + expanded.length <= width) {
+    return [`${firstPrefix}${expanded}`];
+  }
+
+  const words = expanded.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [firstPrefix.trimEnd()];
+
+  const lines: string[] = [];
+  let prefix = firstPrefix;
+  let current = prefix;
+  for (const word of words) {
+    const separator = current === prefix ? '' : ' ';
+    if (`${current}${separator}${word}`.length <= width) {
+      current = `${current}${separator}${word}`;
+      continue;
+    }
+    if (current !== prefix) lines.push(current);
+    prefix = restPrefix;
+    current = `${prefix}${word}`;
+    while (current.length > width && width > prefix.length + 8) {
+      lines.push(current.slice(0, width));
+      current = `${prefix}${current.slice(width).trimStart()}`;
+    }
+  }
+  lines.push(current);
+  return lines;
 }
 
 // Wrap node:util parseArgs errors so unknown-flag failures include a did-you-mean

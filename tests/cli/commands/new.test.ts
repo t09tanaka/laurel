@@ -52,12 +52,19 @@ describe('cli new — slug collision handling', () => {
   });
 
   test('creates a new post when the destination does not exist', async () => {
-    const { exitCode } = await runCli(['new', 'post', 'Hello World'], dir);
+    const { stdout, exitCode } = await runCli(['new', 'post', 'Hello World'], dir);
     expect(exitCode).toBe(0);
+    expect(stdout).toContain('Next: nectar build && nectar serve');
     const dest = join(dir, 'content/posts/hello-world.md');
     const body = await readFile(dest, 'utf8');
     expect(body).toContain('title: "Hello World"');
     expect(body).toContain('slug: hello-world');
+  });
+
+  test('quiet mode suppresses next-step guidance', async () => {
+    const { stdout, exitCode } = await runCli(['--quiet', 'new', 'post', 'Quiet Post'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('');
   });
 
   test('writes LF-only markdown when Windows CRLF text reaches the scaffold input', async () => {
@@ -450,6 +457,14 @@ describe('cli new — tag and author kinds', () => {
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid kind: widget');
     expect(stderr).toContain('post, page, tag, author');
+  });
+
+  test('missing kind produces a specific usage error', async () => {
+    const { stderr, exitCode } = await runCli(['new'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Missing kind.');
+    expect(stderr).toContain('Usage:');
+    expect(stderr).toContain('nectar new');
   });
 });
 

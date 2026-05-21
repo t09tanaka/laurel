@@ -32,7 +32,11 @@ export async function runNew(args: string[]): Promise<number> {
     parsed = parseCommand(NEW_SPEC, args, process.env);
   } catch (err) {
     if (err instanceof CliUsageError) {
-      process.stderr.write(`${err.message}\n\n`);
+      const message =
+        err.message === 'Missing required argument: <kind>'
+          ? 'Missing kind. Expected one of: post, page, tag, author.'
+          : err.message;
+      process.stderr.write(`${message}\n\n`);
       process.stderr.write(formatCommandHelp(NEW_SPEC));
       return 2;
     }
@@ -201,6 +205,7 @@ export async function runNew(args: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify({ ok: true, kind, slug, path: dest })}\n`);
   } else {
     logger.info(t('new.created', { path: dest }));
+    logger.info('Next: nectar build && nectar serve');
   }
 
   if (openEditor) {

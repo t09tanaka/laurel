@@ -258,8 +258,18 @@ function finalize(
   if (asJson) {
     const report: CheckReport = { ok, errors, warnings, summary };
     process.stdout.write(`${JSON.stringify(report)}\n`);
+  } else if (ok) {
+    logger.info('All checks passed');
+  } else {
+    logger.error(formatCheckIssueSummary(errors.length, warnings.length));
   }
   return ok ? 0 : 1;
+}
+
+function formatCheckIssueSummary(errorCount: number, warningCount: number): string {
+  const errorLabel = errorCount === 1 ? 'error' : 'errors';
+  const warningLabel = warningCount === 1 ? 'warning' : 'warnings';
+  return `${errorCount} ${errorLabel}, ${warningCount} ${warningLabel}`;
 }
 
 function formatLoc(file: string, line: number | undefined, cwd: string): string {

@@ -58,6 +58,7 @@ function pickPort(): number {
   });
   const { port } = server;
   server.stop(true);
+  if (port === undefined) throw new Error('Bun.serve did not expose an assigned port');
   return port;
 }
 
@@ -144,6 +145,24 @@ describe('cli serve — host binding', () => {
     const { stderr, exitCode } = await runCli(['serve', '--host', '   ', '--no-watch'], dir);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid --host');
+  });
+
+  test('default port scans to the next open port when 4321 is in use', async () => {
+    const blocker = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 4321,
+      fetch() {
+        return new Response('busy');
+      },
+    });
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['serve', '--no-watch'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      expect(stdout).toContain('http://127.0.0.1:4322/');
+    } finally {
+      blocker.stop(true);
+    }
   });
 });
 
@@ -385,6 +404,79 @@ describe('cli serve — access logs', () => {
       proc.kill('SIGTERM');
       await proc.exited;
     }
+  });
+});
+
+describe('cli serve — compression', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+    await Bun.write(join(dir, 'dist/assets/app.css'), 'body { color: black; }\n'.repeat(50));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--compression gzip serves gzip-encoded compressible files', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      [
+        'bun',
+        CLI_ENTRY,
+        'serve',
+        '--port',
+        String(port),
+        '--host',
+        '127.0.0.1',
+        '--compression',
+        'gzip',
+      ],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`${baseUrl}/assets/app.css`, {
+        headers: { 'Accept-Encoding': 'gzip' },
+      });
+      await response.arrayBuffer();
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Encoding')).toBe('gzip');
+      expect(response.headers.get('Vary')).toBe('Accept-Encoding');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
+});
+
+describe('cli serve — verbose examples', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      ['[site]', 'title = "x"', '', '[build]', 'base_path = "/blog/"'].join('\n'),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--verbose prints copy-pasteable curl examples using the base path', async () => {
+    const { stdout, exitCode } = await runCli(['--verbose', 'serve', '--no-watch'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('curl -I http://127.0.0.1:4321/blog/');
+    expect(stdout).toContain('curl -I http://127.0.0.1:4321/blog/sitemap.xml');
+    expect(stdout).toContain('curl -I http://127.0.0.1:4321/blog/rss.xml');
   });
 });
 

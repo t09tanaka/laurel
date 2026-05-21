@@ -9,6 +9,7 @@ Commands:
   build:email       Render a theme email template for one post
   new               Scaffold a new Markdown content file
   open              Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
+  test              Run the project test suite via Bun test (passthrough placeholder)
   dev               Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
   serve             Serve the built site as a local preview server; not for production hosting
   check             Validate config, theme, and content
@@ -30,6 +31,7 @@ Commands:
   export            Dump the loaded content as JSON or regenerate the RSS feed without running a full build
   upgrade           Upgrade the installed Nectar CLI when the install method supports it
   telemetry         Manage opt-in anonymous usage telemetry
+  plugins           Inspect future Nectar plugins
   import-ghost      Convert a Ghost JSON export into Markdown content
   import-wordpress  Convert a WordPress WXR XML export into Markdown content
   import-hugo       Convert Hugo Markdown posts into Nectar content

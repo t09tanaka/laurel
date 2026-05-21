@@ -75,8 +75,9 @@ describe('cli check', () => {
 
   test('exits 0 on a clean project without --strict', async () => {
     dir = await makeFixture();
-    const { exitCode } = await runCli(['check'], dir);
+    const { stdout, exitCode } = await runCli(['check'], dir);
     expect(exitCode).toBe(0);
+    expect(stdout).toContain('All checks passed');
   });
 
   test('exits 0 on a clean project with --strict', async () => {
@@ -128,6 +129,27 @@ describe('cli check', () => {
     expect(report.warnings.find((w) => w.code === 'missing-asset')?.message).toContain(
       'missing.jpg',
     );
+  });
+
+  test('strict mode reports the final warning count before failing', async () => {
+    dir = await makeFixture();
+    await Bun.write(
+      join(dir, 'content/posts/missing-image.md'),
+      [
+        '---',
+        'title: Missing Image',
+        'date: 2026-01-01',
+        'feature_image: /content/images/missing.jpg',
+        '---',
+        '',
+        'body',
+      ].join('\n'),
+    );
+
+    const { stderr, exitCode } = await runCli(['check', '--strict'], dir);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('1 warning');
   });
 
   test('warns when redirects.yaml source is shadowed by a generated route', async () => {

@@ -193,6 +193,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runOpen } = await import('./commands/open.js');
       return runOpen(rest);
     }
+    case 'test': {
+      const { runTest } = await import('./commands/test.js');
+      return runTest(rest);
+    }
     case 'check': {
       const { runCheck } = await import('./commands/check.js');
       return runCheck(rest);
@@ -292,6 +296,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
     case 'telemetry': {
       const { runTelemetry } = await import('./commands/telemetry.js');
       return runTelemetry(rest);
+    }
+    case 'plugins': {
+      const { runPlugins } = await import('./commands/plugins.js');
+      return runPlugins(rest);
     }
     default:
       throw new Error(`Unhandled command: ${command}`);

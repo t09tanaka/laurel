@@ -77,6 +77,7 @@
   "serve.buildRequested": "--build requested; running a build before serving ({distDir}).",
   "serve.initialBuildComplete": "Initial build complete: {routeCount} routes ({assetCount} assets) \u2192 {outputDir}",
   "serve.invalidHost": "Invalid --host value: cannot be empty",
+  "serve.invalidCompression": "Invalid --compression value: {value} (expected auto, gzip, br, or none)",
   "serve.invalidPort": "Invalid --port value: {value} (expected an integer in 1..65535)",
   "serve.invalidSimulate": "Invalid --simulate value: {value} (expected netlify, cloudflare-pages, or vercel)",
   "serve.noBuildOutput": "No build output at {distDir}; running an initial build before serving.",

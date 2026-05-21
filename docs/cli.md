@@ -165,6 +165,7 @@ when prompts are enabled.
 | [`nectar build:email`](#nectar-build-email) | Render a theme email template for one post |
 | [`nectar new`](#nectar-new) | Scaffold a new Markdown content file |
 | [`nectar open`](#nectar-open) | Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match |
+| [`nectar test`](#nectar-test) | Run the project test suite via Bun test (passthrough placeholder) |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
 | [`nectar serve`](#nectar-serve) | Serve the built site as a local preview server; not for production hosting |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
@@ -186,6 +187,7 @@ when prompts are enabled.
 | [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
+| [`nectar plugins`](#nectar-plugins) | Inspect future Nectar plugins |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
 | [`nectar import-hugo`](#nectar-import-hugo) | Convert Hugo Markdown posts into Nectar content |
@@ -373,6 +375,34 @@ nectar open about --kind pages
 EDITOR=code nectar open hello-world          # respects $EDITOR
 ```
 
+### `nectar test`
+
+Run the project test suite via Bun test (passthrough placeholder)
+
+Usage:
+
+```
+nectar test [args...]
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `[args...]` | optional (variadic) | Arguments forwarded to `bun test` after Nectar prints a passthrough warning |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+
+Examples:
+
+```
+nectar test                                  # run bun test
+nectar test tests/cli/parse.test.ts          # forward a path to bun test
+```
+
 ### `nectar dev`
 
 Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
@@ -407,7 +437,7 @@ Serve the built site as a local preview server; not for production hosting
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--json]
+nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--compression <auto|gzip|br|none>] [--json]
 ```
 
 Options:
@@ -421,6 +451,7 @@ Options:
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
 | `--open` | boolean | `NECTAR_SERVE_OPEN` | Open the served URL in the default browser after the server starts |
 | `--simulate <target>` | string | `NECTAR_SERVE_SIMULATE` | Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel |
+| `--compression <auto\|gzip\|br\|none>` | string | `NECTAR_SERVE_COMPRESSION` | Compress local responses when the client supports it. Use auto to prefer br then gzip; default is none |
 | `-j, --json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
 
 Examples:
@@ -430,6 +461,7 @@ nectar serve                                 # local preview of dist/ + rebuild 
 nectar serve --no-watch                      # serve dist/ as a static snapshot
 nectar serve --open                          # open the local preview in a browser
 nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally
+nectar serve --compression auto              # enable br/gzip negotiation
 nectar serve --build                         # build first, then serve
 nectar serve --port 8080 --host 0.0.0.0
 ```
@@ -902,7 +934,7 @@ Convert content from another platform into Nectar Markdown. `ghost <file>`, `wor
 Usage:
 
 ```
-nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] [--json] <source-and-args...>
+nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--json] <source-and-args...>
 ```
 
 Arguments:
@@ -922,6 +954,7 @@ Options:
 | `--max-image-size <size>` | string | `NECTAR_MIGRATE_MAX_IMAGE_SIZE` | ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables) |
 | `--source-url <url>` | string | `NECTAR_MIGRATE_SOURCE_URL` | ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths |
 | `--max-size <size>` | string | `NECTAR_MIGRATE_MAX_SIZE` | ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables) |
+| `--max-post-html-size <size>` | string | `NECTAR_MIGRATE_MAX_POST_HTML_SIZE` | ghost only: per-post rendered HTML size cap before Turndown conversion (e.g. 5MB; default 5MB; 0 disables) |
 | `--keep-code-injection` | boolean | `NECTAR_MIGRATE_KEEP_CODE_INJECTION` | ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source. |
 | `-j, --json` | boolean | `NECTAR_MIGRATE_JSON` | Emit the migration summary as JSON on stdout for CI consumption |
 
@@ -1075,6 +1108,34 @@ NECTAR_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage nectar build
 nectar telemetry disable
 ```
 
+### `nectar plugins`
+
+Inspect future Nectar plugins
+
+Usage:
+
+```
+nectar plugins [--json] <subcommand...>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand...>` | required (variadic) | `list` (show installed plugins; currently always empty) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-j, --json` | boolean | `NECTAR_PLUGINS_JSON` | Emit the plugin list as JSON |
+
+Examples:
+
+```
+nectar plugins list
+```
+
 ### `nectar import-ghost`
 
 Convert a Ghost JSON export into Markdown content
@@ -1082,7 +1143,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
+nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 ```
 
 Arguments:
@@ -1107,6 +1168,7 @@ Options:
 | `--only-tags <slugs>` | string | `NECTAR_IMPORT_GHOST_ONLY_TAGS` | Only import posts tagged with one of these comma-separated tag slugs/names (e.g. news,blog). Tags are slug-normalized before matching |
 | `--since <date>` | string | `NECTAR_IMPORT_GHOST_SINCE` | Only import posts/pages whose published_at (or created_at fallback) is on or after this date (e.g. 2024-01-01) |
 | `--max-size <size>` | string | `NECTAR_IMPORT_GHOST_MAX_SIZE` | Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check. |
+| `--max-post-html-size <size>` | string | `NECTAR_IMPORT_GHOST_MAX_POST_HTML_SIZE` | Per-post rendered HTML size cap before Turndown conversion (e.g. 5MB, 20MB, or raw bytes). Defaults to 5MB; over-cap posts are warned and imported with empty Markdown bodies. Use 0 to disable. |
 | `--keep-code-injection` | boolean | `NECTAR_IMPORT_GHOST_KEEP_CODE_INJECTION` | Preserve codeinjection_head / codeinjection_foot from the Ghost export verbatim. Off by default because exports from sites you no longer control can smuggle attacker scripts into {{ghost_head}} / {{ghost_foot}}; only enable when you trust the source. |
 | `--keep-html` | boolean | `NECTAR_IMPORT_GHOST_KEEP_HTML` | Preserve each post/page rendered Ghost HTML body next to its imported Markdown as a sibling <slug>.md.html file. |
 | `-j, --json` | boolean | `NECTAR_IMPORT_GHOST_JSON` | Emit the import summary as JSON on stdout for CI consumption |

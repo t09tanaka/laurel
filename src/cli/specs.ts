@@ -319,6 +319,12 @@ export const SERVE_SPEC: CommandSpec = {
         'Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel',
       placeholder: '<target>',
     },
+    compression: {
+      type: 'string',
+      description:
+        'Compress local responses when the client supports it. Use auto to prefer br then gzip; default is none',
+      placeholder: '<auto|gzip|br|none>',
+    },
     json: {
       type: 'boolean',
       description:
@@ -331,9 +337,48 @@ export const SERVE_SPEC: CommandSpec = {
     'nectar serve --no-watch                      # serve dist/ as a static snapshot',
     'nectar serve --open                          # open the local preview in a browser',
     'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
+    'nectar serve --compression auto              # enable br/gzip negotiation',
     'nectar serve --build                         # build first, then serve',
     'nectar serve --port 8080 --host 0.0.0.0',
   ],
+};
+
+export const TEST_SPEC: CommandSpec = {
+  name: 'test',
+  summary: 'Run the project test suite via Bun test (passthrough placeholder)',
+  options: {},
+  positionals: [
+    {
+      name: 'args',
+      description: 'Arguments forwarded to `bun test` after Nectar prints a passthrough warning',
+      required: false,
+      variadic: true,
+    },
+  ],
+  examples: [
+    'nectar test                                  # run bun test',
+    'nectar test tests/cli/parse.test.ts          # forward a path to bun test',
+  ],
+};
+
+export const PLUGINS_SPEC: CommandSpec = {
+  name: 'plugins',
+  summary: 'Inspect future Nectar plugins',
+  options: {
+    json: {
+      type: 'boolean',
+      description: 'Emit the plugin list as JSON',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`list` (show installed plugins; currently always empty)',
+      required: true,
+      variadic: true,
+    },
+  ],
+  examples: ['nectar plugins list'],
 };
 
 export const CHECK_SPEC: CommandSpec = {
@@ -1489,6 +1534,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   'build:email': BUILD_EMAIL_SPEC,
   new: NEW_SPEC,
   open: OPEN_SPEC,
+  test: TEST_SPEC,
   dev: DEV_SPEC,
   serve: SERVE_SPEC,
   check: CHECK_SPEC,
@@ -1510,6 +1556,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   export: EXPORT_SPEC,
   upgrade: UPGRADE_SPEC,
   telemetry: TELEMETRY_SPEC,
+  plugins: PLUGINS_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
   'import-hugo': IMPORT_HUGO_SPEC,

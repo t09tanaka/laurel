@@ -1,6 +1,7 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -19,6 +20,7 @@ import { reportError } from '../report.ts';
 import { SERVE_SPEC } from '../specs.ts';
 
 const DEFAULT_PORT = 4321;
+const DEFAULT_PORT_SCAN_MAX = 4400;
 const DEFAULT_HOST = '127.0.0.1';
 const REBUILD_DEBOUNCE_MS = 120;
 const DEV_CACHE_CONTROL = 'no-store';
@@ -50,6 +52,7 @@ const SERVE_CONTENT_TYPES_BY_EXTENSION = new Map<string, string>([
 ]);
 
 export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
+export type ServeCompressionMode = 'auto' | 'gzip' | 'br' | 'none';
 export type BrowserOpener = (command: string[]) => void;
 
 export interface ServeRunOptions {
@@ -91,6 +94,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   }
 
   let port = DEFAULT_PORT;
+  const explicitPort = typeof parsed.values.port === 'string';
   if (typeof parsed.values.port === 'string') {
     const raw = parsed.values.port.trim();
     // Insist on the `^\d+$` shape so typos like `--port 80.5` or `--port 80abc`
@@ -127,6 +131,18 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
       process.stderr.write(`${t('serve.invalidSimulate', { value: parsed.values.simulate })}\n`);
       return 2;
     }
+  }
+
+  let compression: ServeCompressionMode = 'none';
+  if (typeof parsed.values.compression === 'string') {
+    const parsedCompression = parseServeCompressionMode(parsed.values.compression);
+    if (parsedCompression === undefined) {
+      process.stderr.write(
+        `${t('serve.invalidCompression', { value: parsed.values.compression })}\n`,
+      );
+      return 2;
+    }
+    compression = parsedCompression;
   }
 
   const watchMode = parsed.values.watch !== false;
@@ -184,8 +200,9 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   const clients = new Set<ServerWebSocket<unknown>>();
   let server: Server<unknown>;
   try {
-    server = Bun.serve({
-      port,
+    server = startServeServer({
+      initialPort: port,
+      maxPort: explicitPort ? port : DEFAULT_PORT_SCAN_MAX,
       hostname,
       websocket: {
         open(ws) {
@@ -196,7 +213,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
         },
         message() {},
       },
-      async fetch(request, srv) {
+      fetch: async (request, srv) => {
         const startedAt = performance.now();
         let status = 500;
         const finish = (response: Response | undefined): Response | undefined => {
@@ -215,12 +232,17 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
           // HTML or non-rebuilt fixtures still find a working client.
           if (watchMode && url.pathname === LIVERELOAD_SCRIPT_PATH) {
             return finish(
-              new Response(LIVERELOAD_CLIENT_JS, {
-                headers: {
-                  'Content-Type': 'application/javascript; charset=utf-8',
-                  'Cache-Control': DEV_CACHE_CONTROL,
+              await serveResponse(
+                request,
+                LIVERELOAD_CLIENT_JS,
+                {
+                  headers: {
+                    'Content-Type': 'application/javascript; charset=utf-8',
+                    'Cache-Control': DEV_CACHE_CONTROL,
+                  },
                 },
-              }),
+                compression,
+              ),
             );
           }
           const simulatedRedirect = findServeSimulationRedirect(simulation, url.pathname);
@@ -256,15 +278,25 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             if (watchMode && filePath.endsWith('.html')) {
               const html = await file.text();
               return finish(
-                new Response(injectLiveReloadScript(html), {
-                  headers: serveHeaders(simulatedHeaders, {
-                    'Content-Type': 'text/html; charset=utf-8',
-                  }),
-                }),
+                await serveResponse(
+                  request,
+                  injectLiveReloadScript(html),
+                  {
+                    headers: serveHeaders(simulatedHeaders, {
+                      'Content-Type': 'text/html; charset=utf-8',
+                    }),
+                  },
+                  compression,
+                ),
               );
             }
             return finish(
-              new Response(file, { headers: serveFileHeaders(simulatedHeaders, filePath) }),
+              await serveResponse(
+                request,
+                file,
+                { headers: serveFileHeaders(simulatedHeaders, filePath) },
+                compression,
+              ),
             );
           }
           const fallbackPath = resolve(serveRoot, '404.html');
@@ -276,23 +308,38 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             if (watchMode) {
               const html = await fallback.text();
               return finish(
-                new Response(injectLiveReloadScript(html), {
-                  status: 404,
-                  headers: serveHeaders(simulatedHeaders, {
-                    'Content-Type': 'text/html; charset=utf-8',
-                  }),
-                }),
+                await serveResponse(
+                  request,
+                  injectLiveReloadScript(html),
+                  {
+                    status: 404,
+                    headers: serveHeaders(simulatedHeaders, {
+                      'Content-Type': 'text/html; charset=utf-8',
+                    }),
+                  },
+                  compression,
+                ),
               );
             }
             return finish(
-              new Response(fallback, {
-                status: 404,
-                headers: serveFileHeaders(simulatedHeaders, fallbackPath),
-              }),
+              await serveResponse(
+                request,
+                fallback,
+                {
+                  status: 404,
+                  headers: serveFileHeaders(simulatedHeaders, fallbackPath),
+                },
+                compression,
+              ),
             );
           }
           return finish(
-            new Response('Not Found', { status: 404, headers: serveHeaders(simulatedHeaders) }),
+            await serveResponse(
+              request,
+              'Not Found',
+              { status: 404, headers: serveHeaders(simulatedHeaders) },
+              compression,
+            ),
           );
         } finally {
           writeServeAccessLog(request, status, performance.now() - startedAt);
@@ -317,6 +364,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   logger.info(
     t('serve.serving', { distDir, host: displayHost, port: announcedPort, basePath, hostname }),
   );
+  writeVerboseServeExamples(servedUrl);
 
   if (openOnStart) {
     openBrowserUrl(servedUrl, options.openBrowser);
@@ -415,6 +463,34 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   return 0;
 }
 
+function startServeServer(opts: {
+  initialPort: number;
+  maxPort: number;
+  hostname: string;
+  websocket: NonNullable<Parameters<typeof Bun.serve>[0]['websocket']>;
+  fetch(
+    this: Server<unknown>,
+    request: Request,
+    server: Server<unknown>,
+  ): Response | undefined | Promise<Response | undefined>;
+}): Server<unknown> {
+  let candidate = opts.initialPort;
+  while (candidate <= opts.maxPort) {
+    try {
+      return Bun.serve({
+        port: candidate,
+        hostname: opts.hostname,
+        websocket: opts.websocket,
+        fetch: opts.fetch,
+      });
+    } catch (err) {
+      if (!isAddrInUseError(err) || candidate >= opts.maxPort) throw err;
+      candidate += 1;
+    }
+  }
+  throw new Error(`No open port found in ${opts.initialPort}..${opts.maxPort}`);
+}
+
 function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
   const paths = new Set<string>();
   const add = (p: string): void => {
@@ -488,6 +564,19 @@ export function parseServeSimulationTarget(value: string): ServeSimulationTarget
   const normalized = value.trim().toLowerCase();
   if (normalized === 'cloudflare' || normalized === 'cloudflare-pages') return 'cloudflare-pages';
   if (normalized === 'netlify' || normalized === 'vercel') return normalized;
+  return undefined;
+}
+
+export function parseServeCompressionMode(value: string): ServeCompressionMode | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'auto' ||
+    normalized === 'gzip' ||
+    normalized === 'br' ||
+    normalized === 'none'
+  ) {
+    return normalized;
+  }
   return undefined;
 }
 
@@ -631,6 +720,87 @@ function serveFileHeaders(base: Headers, filePath: string): Headers {
   const contentType = inferServeContentType(filePath);
   if (contentType === undefined) return serveHeaders(base);
   return serveHeaders(base, { 'Content-Type': contentType });
+}
+
+interface ServeResponseInit {
+  status?: number;
+  headers?: Headers | Record<string, string>;
+}
+
+async function serveResponse(
+  request: Request,
+  body: string | Blob,
+  init: ServeResponseInit,
+  compression: ServeCompressionMode,
+): Promise<Response> {
+  const headers = new Headers(init.headers as Bun.HeadersInit | undefined);
+  const encoding = selectServeCompressionEncoding(request, headers, compression);
+  if (encoding === undefined)
+    return new Response(body, { status: init.status, headers: headersToRecord(headers) });
+
+  const raw =
+    typeof body === 'string'
+      ? new TextEncoder().encode(body)
+      : new Uint8Array(await body.arrayBuffer());
+  const compressed = encoding === 'br' ? brotliCompressSync(raw) : gzipSync(raw);
+  headers.set('Content-Encoding', encoding);
+  headers.set('Vary', appendVary(headers.get('Vary'), 'Accept-Encoding'));
+  headers.delete('Content-Length');
+  return new Response(compressed, { status: init.status, headers: headersToRecord(headers) });
+}
+
+function headersToRecord(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of headers) out[key] = value;
+  return out;
+}
+
+function selectServeCompressionEncoding(
+  request: Request,
+  headers: Headers,
+  compression: ServeCompressionMode,
+): 'br' | 'gzip' | undefined {
+  if (compression === 'none') return undefined;
+  if (!isCompressibleServeResponse(headers)) return undefined;
+  const accepted = request.headers.get('Accept-Encoding') ?? '';
+  if (compression === 'br') return acceptsEncoding(accepted, 'br') ? 'br' : undefined;
+  if (compression === 'gzip') return acceptsEncoding(accepted, 'gzip') ? 'gzip' : undefined;
+  if (acceptsEncoding(accepted, 'br')) return 'br';
+  if (acceptsEncoding(accepted, 'gzip')) return 'gzip';
+  return undefined;
+}
+
+function isCompressibleServeResponse(headers: Headers): boolean {
+  const contentType = headers.get('Content-Type')?.toLowerCase() ?? '';
+  return (
+    contentType.startsWith('text/') ||
+    contentType.includes('javascript') ||
+    contentType.includes('json') ||
+    contentType.includes('xml') ||
+    contentType.includes('manifest')
+  );
+}
+
+function acceptsEncoding(header: string, encoding: 'br' | 'gzip'): boolean {
+  return header
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .some((part) => part === encoding || part.startsWith(`${encoding};`));
+}
+
+function appendVary(current: string | null, value: string): string {
+  if (current === null || current.trim() === '') return value;
+  const entries = current.split(',').map((entry) => entry.trim());
+  if (entries.some((entry) => entry.toLowerCase() === value.toLowerCase())) return current;
+  return `${current}, ${value}`;
+}
+
+function writeVerboseServeExamples(servedUrl: string): void {
+  if (!isServeAccessLogEnabled()) return;
+  const base = servedUrl.endsWith('/') ? servedUrl : `${servedUrl}/`;
+  logger.debug(`curl -I ${base}`);
+  logger.debug(`curl -I ${new URL('sitemap.xml', base).toString()}`);
+  logger.debug(`curl -I ${new URL('rss.xml', base).toString()}`);
 }
 
 function writeServeAccessLog(request: Request, status: number, elapsedMs: number): void {

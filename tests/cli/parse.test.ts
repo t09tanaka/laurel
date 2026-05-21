@@ -379,6 +379,30 @@ describe('formatCommandHelp', () => {
     expect(help).toContain('title');
     expect(help).toContain('Use `--` before positional values that start with `-`');
   });
+
+  test('wraps long option descriptions to the requested width without tabs', () => {
+    const spec: CommandSpec = {
+      name: 'wrap',
+      summary: 'Wrap long help text',
+      options: {
+        'long-option': {
+          type: 'string',
+          placeholder: '<value>',
+          description:
+            'This description is intentionally long enough to wrap onto multiple aligned continuation lines in narrow terminals.',
+        },
+      },
+      positionals: [],
+    };
+    const help = formatCommandHelp(spec, 64);
+    const lines = help.split('\n');
+
+    expect(help).not.toContain('\t');
+    expect(lines.every((line) => line.length <= 64)).toBe(true);
+    expect(
+      lines.some((line) => line.startsWith(' '.repeat(24)) && line.includes('continuation')),
+    ).toBe(true);
+  });
 });
 
 describe('parseCommand env var fallbacks', () => {
