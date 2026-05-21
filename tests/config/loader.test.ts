@@ -1,8 +1,9 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { findProjectRoot, loadConfig } from '~/config/loader.ts';
+import { configSchema } from '~/config/schema.ts';
 import { NectarError } from '~/util/errors.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -114,6 +115,43 @@ url = "/"
       expect(config.site.url).toBe('https://example.com');
       expect(config.build.posts_per_page).toBe(5);
       expect(config.navigation).toEqual([{ label: 'Home', url: '/' }]);
+    });
+  });
+
+  test('reuses schema parsing for unchanged config inputs without sharing mutable results', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'nectar.toml'), '[site]\ntitle = "Cached"\n', 'utf8');
+      const parseSpy = spyOn(configSchema, 'parse');
+      try {
+        const first = await loadConfig({ cwd, env: {} });
+        first.site.title = 'Mutated by caller';
+        const second = await loadConfig({ cwd, env: {} });
+
+        expect(parseSpy).toHaveBeenCalledTimes(1);
+        expect(second.site.title).toBe('Cached');
+      } finally {
+        parseSpy.mockRestore();
+      }
+    });
+  });
+
+  test('invalidates reused schema parsing when a config layer changes', async () => {
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, '[site]\ntitle = "Cached"\n', 'utf8');
+      const parseSpy = spyOn(configSchema, 'parse');
+      try {
+        expect((await loadConfig({ cwd, env: {} })).site.title).toBe('Cached');
+        expect((await loadConfig({ cwd, env: {} })).site.title).toBe('Cached');
+
+        await Bun.sleep(10);
+        await writeFile(file, '[site]\ntitle = "Updated config title"\n', 'utf8');
+        expect((await loadConfig({ cwd, env: {} })).site.title).toBe('Updated config title');
+
+        expect(parseSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        parseSpy.mockRestore();
+      }
     });
   });
 

@@ -1,3 +1,4 @@
+import type { Stats } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import TOML from '@iarna/toml';
@@ -10,6 +11,7 @@ import { type NectarConfig, configSchema } from './schema.ts';
 const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml', 'nectar.config.json'];
 const LOCAL_CONFIG_NAME = '.nectar.local.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
+const LOAD_CONFIG_CACHE_MAX_ENTRIES = 32;
 
 export interface LoadConfigOptions {
   cwd: string;
@@ -32,6 +34,10 @@ export async function loadConfig({
     : await findConfigLayers(cwd, configEnv);
   const lastConfigPath = resolved[resolved.length - 1];
   const configDir = lastConfigPath ? dirname(lastConfigPath) : cwd;
+  const cacheKey = await loadConfigCacheKey(cwd, resolved, configEnv);
+  const cached = loadConfigCache.get(cacheKey);
+  if (cached !== undefined) return cloneNectarConfig(cached);
+
   let parsed: unknown = {};
   for (const file of resolved) {
     let layer = await parseConfigLayer(file);
@@ -55,9 +61,10 @@ export async function loadConfig({
   // (#853). When the consumer instead uses `resolve(cwd, dir)`, the absolute
   // path produced here passes through unchanged.
   if (resolve(configDir) !== resolve(cwd)) {
-    return resolveProjectPaths(config, configDir);
+    config = resolveProjectPaths(config, configDir);
   }
-  return config;
+  rememberLoadedConfig(cacheKey, config);
+  return cloneNectarConfig(config);
 }
 
 /**
@@ -144,6 +151,49 @@ async function parseConfigLayer(file: string): Promise<unknown> {
   } catch (err) {
     throw wrapTomlError(err, file);
   }
+}
+
+const loadConfigCache = new Map<string, NectarConfig>();
+
+async function loadConfigCacheKey(
+  cwd: string,
+  resolved: readonly string[],
+  env: NodeJS.ProcessEnv,
+): Promise<string> {
+  const signatures = await Promise.all(
+    resolved.map(async (file) => {
+      const fileStat = await stat(file);
+      return fileSignature(file, fileStat);
+    }),
+  );
+  return JSON.stringify({
+    cwd: resolve(cwd),
+    files: signatures,
+    env: envSnapshot(env),
+  });
+}
+
+function fileSignature(file: string, fileStat: Stats): [string, number, number] {
+  return [resolve(file), fileStat.size, fileStat.mtimeMs];
+}
+
+function envSnapshot(env: NodeJS.ProcessEnv): [string, string][] {
+  return Object.entries(env)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b));
+}
+
+function rememberLoadedConfig(cacheKey: string, config: NectarConfig): void {
+  loadConfigCache.set(cacheKey, cloneNectarConfig(config));
+  while (loadConfigCache.size > LOAD_CONFIG_CACHE_MAX_ENTRIES) {
+    const oldest = loadConfigCache.keys().next().value;
+    if (oldest === undefined) break;
+    loadConfigCache.delete(oldest);
+  }
+}
+
+function cloneNectarConfig(config: NectarConfig): NectarConfig {
+  return deepClone(config) as NectarConfig;
 }
 
 function normalizeConfigEnvironment(value: string | undefined): string | undefined {

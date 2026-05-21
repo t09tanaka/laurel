@@ -7,6 +7,7 @@ import {
   type ServeSimulation,
   browserOpenCommand,
   collectServeSimulationHeaders,
+  createServeFileLookupCache,
   findServeSimulationRedirect,
   formatServeUrl,
   inferServeContentType,
@@ -701,6 +702,36 @@ describe('cli serve — dev cache control', () => {
   });
 });
 
+describe('cli serve — file lookup cache', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('holds missing file lookups until invalidated', async () => {
+    const serveRoot = await realpath(join(dir, 'dist'));
+    const cache = createServeFileLookupCache(serveRoot);
+    const target = join(serveRoot, 'late.html');
+
+    expect((await cache.lookup(target)).kind).toBe('missing');
+    await Bun.write(target, '<!doctype html><title>late</title>');
+    expect((await cache.lookup(target)).kind).toBe('missing');
+
+    cache.invalidate();
+    const refreshed = await cache.lookup(target);
+    expect(refreshed.kind).toBe('file');
+    if (refreshed.kind === 'file') {
+      expect(refreshed.filePath).toBe(target);
+      expect(refreshed.size).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('cli serve — content types', () => {
   test('maps common SSG outputs to explicit Content-Type values', () => {
     expect(inferServeContentType('/dist/sitemap.xml')).toBe('application/xml');
@@ -754,6 +785,61 @@ describe('cli serve — content types', () => {
       proc.kill('SIGTERM');
       await proc.exited;
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cli serve — cached 404 fallback headers', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+    await Bun.write(join(dir, 'dist/404.html'), '<!doctype html><title>missing</title>');
+    await Bun.write(
+      join(dir, 'dist/_headers'),
+      ['/*', '  X-Robots-Tag: noindex', '  Cache-Control: public, max-age=60'].join('\n'),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('preserves simulated headers on repeated fallback responses', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      [
+        'bun',
+        CLI_ENTRY,
+        'serve',
+        '--port',
+        String(port),
+        '--host',
+        '127.0.0.1',
+        '--simulate',
+        'netlify',
+      ],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+
+      for (const path of ['/missing-one', '/missing-two']) {
+        const response = await fetch(`${baseUrl}${path}`);
+        await response.arrayBuffer();
+        expect(response.status, path).toBe(404);
+        expect(response.headers.get('Content-Type'), path).toBe('text/html; charset=utf-8');
+        expect(response.headers.get('X-Robots-Tag'), path).toBe('noindex');
+        expect(response.headers.get('Cache-Control'), path).toBe('public, max-age=60');
+      }
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
     }
   });
 });

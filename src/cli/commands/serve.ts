@@ -1,5 +1,5 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
 import type { Server, ServerWebSocket } from 'bun';
@@ -238,6 +238,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   }
 
   const clients = new Set<ServerWebSocket<unknown>>();
+  const fileLookupCache = createServeFileLookupCache(serveRoot);
   let server: Server<unknown>;
   try {
     server = startServeServer({
@@ -311,16 +312,16 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
           if (filePath === null) {
             return finish(new Response('Forbidden', { status: 403 }));
           }
-          const file = Bun.file(filePath);
-          if (await file.exists()) {
-            if (!(await isResolvedFileInsideServeRoot(serveRoot, filePath))) {
-              return finish(new Response('Forbidden', { status: 403 }));
-            }
-            if (isServeFileOverResponseLimit(file)) {
+          const fileLookup = await fileLookupCache.lookup(filePath);
+          if (fileLookup.kind === 'forbidden') {
+            return finish(new Response('Forbidden', { status: 403 }));
+          }
+          if (fileLookup.kind === 'file') {
+            if (isServeFileOverResponseLimit(fileLookup.size)) {
               return finish(new Response('Payload Too Large', { status: 413 }));
             }
             if (watchMode && filePath.endsWith('.html')) {
-              const html = await file.text();
+              const html = await fileLookup.file.text();
               return finish(
                 await serveResponse(
                   request,
@@ -337,7 +338,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             return finish(
               await serveResponse(
                 request,
-                file,
+                fileLookup.file,
                 { headers: serveFileHeaders(simulatedHeaders, filePath) },
                 compression,
               ),
@@ -347,16 +348,16 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             return finish(await proxyServeRequest(request, proxyBase));
           }
           const fallbackPath = resolve(serveRoot, '404.html');
-          const fallback = Bun.file(fallbackPath);
-          if (await fallback.exists()) {
-            if (!(await isResolvedFileInsideServeRoot(serveRoot, fallbackPath))) {
-              return finish(new Response('Forbidden', { status: 403 }));
-            }
-            if (isServeFileOverResponseLimit(fallback)) {
+          const fallbackLookup = await fileLookupCache.lookup(fallbackPath);
+          if (fallbackLookup.kind === 'forbidden') {
+            return finish(new Response('Forbidden', { status: 403 }));
+          }
+          if (fallbackLookup.kind === 'file') {
+            if (isServeFileOverResponseLimit(fallbackLookup.size)) {
               return finish(new Response('Payload Too Large', { status: 413 }));
             }
             if (watchMode) {
-              const html = await fallback.text();
+              const html = await fallbackLookup.file.text();
               return finish(
                 await serveResponse(
                   request,
@@ -374,7 +375,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             return finish(
               await serveResponse(
                 request,
-                fallback,
+                fallbackLookup.file,
                 {
                   status: 404,
                   headers: serveFileHeaders(simulatedHeaders, fallbackPath),
@@ -438,6 +439,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
     building = true;
     try {
       const summary = await build({ cwd });
+      fileLookupCache.invalidate();
       logger.info(
         t('serve.rebuilt', {
           routeCount: summary.routeCount,
@@ -619,6 +621,59 @@ async function isResolvedFileInsideServeRoot(rootDir: string, filePath: string):
   }
 }
 
+export type ServeFileLookupResult =
+  | { kind: 'file'; filePath: string; file: Blob; size: number }
+  | { kind: 'missing' }
+  | { kind: 'forbidden' };
+
+export interface ServeFileLookupCache {
+  lookup(filePath: string): Promise<ServeFileLookupResult>;
+  invalidate(): void;
+}
+
+export function createServeFileLookupCache(serveRoot: string): ServeFileLookupCache {
+  const cache = new Map<string, Promise<ServeFileLookupResult>>();
+  return {
+    lookup(filePath: string): Promise<ServeFileLookupResult> {
+      const key = resolve(filePath);
+      const cached = cache.get(key);
+      if (cached !== undefined) return cached;
+      const lookup = resolveServeFileLookup(serveRoot, key);
+      cache.set(key, lookup);
+      return lookup;
+    },
+    invalidate(): void {
+      cache.clear();
+    },
+  };
+}
+
+async function resolveServeFileLookup(
+  serveRoot: string,
+  filePath: string,
+): Promise<ServeFileLookupResult> {
+  let fileStat: Awaited<ReturnType<typeof stat>>;
+  try {
+    fileStat = await stat(filePath);
+  } catch (err) {
+    if (isMissingFileError(err)) return { kind: 'missing' };
+    throw err;
+  }
+  if (!fileStat.isFile()) return { kind: 'missing' };
+  if (!(await isResolvedFileInsideServeRoot(serveRoot, filePath))) return { kind: 'forbidden' };
+  return { kind: 'file', filePath, file: Bun.file(filePath), size: fileStat.size };
+}
+
+function isMissingFileError(err: unknown): boolean {
+  return (
+    err !== null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    ((err as { code?: unknown }).code === 'ENOENT' ||
+      (err as { code?: unknown }).code === 'ENOTDIR')
+  );
+}
+
 export function parseServeSimulationTarget(value: string): ServeSimulationTarget | undefined {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'cloudflare' || normalized === 'cloudflare-pages') return 'cloudflare-pages';
@@ -786,9 +841,9 @@ function serveFileHeaders(base: Headers, filePath: string): Headers {
   return serveHeaders(base, { 'Content-Type': contentType });
 }
 
-function isServeFileOverResponseLimit(file: Blob): boolean {
+function isServeFileOverResponseLimit(size: number): boolean {
   const maxBytes = serveMaxResponseBytes();
-  return maxBytes > 0 && file.size > maxBytes;
+  return maxBytes > 0 && size > maxBytes;
 }
 
 function serveMaxResponseBytes(env: NodeJS.ProcessEnv = process.env): number {
