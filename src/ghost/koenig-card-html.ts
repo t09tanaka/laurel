@@ -60,6 +60,29 @@ function hasCaptionClass(caption: string): string {
   return caption ? ' kg-card-hascaption' : '';
 }
 
+function captionId(caption: string): string {
+  return `kg-card-caption-${hashLabel(caption)}`;
+}
+
+function captionFigureAttrs(caption: string): string {
+  return caption ? ` role="group" aria-labelledby="${escapeAttr(captionId(caption))}"` : '';
+}
+
+function figcaptionHtml(caption: string): string {
+  return caption
+    ? `<figcaption id="${escapeAttr(captionId(caption))}">${caption}</figcaption>`
+    : '';
+}
+
+function hashLabel(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export function renderImageCardHtml(payload: unknown): string {
   const src = strProp(payload, 'src');
   if (!src) return '';
@@ -78,8 +101,7 @@ export function renderImageCardHtml(payload: unknown): string {
     .join(' ');
   const imgEl = `<img ${imgAttrs}>`;
   const wrapped = href ? `<a href="${escapeAttr(href)}">${imgEl}</a>` : imgEl;
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-image-card${widthClass(payload)}${alignmentClass(payload)}${hasCaptionClass(caption)}">${wrapped}${figcap}</figure>`;
+  return `<figure class="kg-card kg-image-card${widthClass(payload)}${alignmentClass(payload)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${wrapped}${figcaptionHtml(caption)}</figure>`;
 }
 
 export function renderMarkdownCardHtml(payload: unknown): string {
@@ -103,8 +125,7 @@ export function renderCodeCardHtml(payload: unknown): string {
   const langClass = language ? ` class="language-${escapeAttr(language)}"` : '';
   const pre = `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
   const button = '<button class="kg-code-card-copy" type="button">Copy</button>';
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-code-card${hasCaptionClass(caption)}">${button}${pre}${figcap}</figure>`;
+  return `<figure class="kg-card kg-code-card${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${button}${pre}${figcaptionHtml(caption)}</figure>`;
 }
 
 function normalizeCodeLanguage(raw: string): string {
@@ -155,8 +176,7 @@ export function renderBookmarkCardHtml(payload: unknown): string {
   const thumb = thumbnail
     ? `<div class="kg-bookmark-thumbnail"><img src="${escapeAttr(thumbnail)}" alt=""></div>`
     : '';
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-bookmark-card${hasCaptionClass(caption)}"><a class="kg-bookmark-container" href="${escapeAttr(url)}">${content}${thumb}</a>${figcap}</figure>`;
+  return `<figure class="kg-card kg-bookmark-card${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}><a class="kg-bookmark-container" href="${escapeAttr(url)}">${content}${thumb}</a>${figcaptionHtml(caption)}</figure>`;
 }
 
 export function renderCalloutCardHtml(payload: unknown): string {
@@ -226,6 +246,7 @@ function renderHeaderCardV1Html(payload: unknown): string {
   const subheading = strProp(payload, 'subheading') || strProp(payload, 'subheader');
   const buttonHref = strProp(payload, 'buttonUrl') || strProp(payload, 'button_href');
   const buttonText = strProp(payload, 'buttonText') || strProp(payload, 'button_text');
+  const buttonPortal = strProp(payload, 'buttonPortal') || strProp(payload, 'button_portal');
   if (!heading && !subheading && !buttonText) return '';
   const classes = [
     'kg-card kg-header-card',
@@ -241,7 +262,7 @@ function renderHeaderCardV1Html(payload: unknown): string {
     : '';
   const buttonHtml =
     buttonHref && buttonText
-      ? `<a class="kg-header-card-button" href="${escapeAttr(buttonHref)}">${escapeHtml(buttonText)}</a>`
+      ? `<a class="kg-header-card-button" href="${escapeAttr(buttonHref)}"${buttonPortal ? ` data-portal="${escapeAttr(buttonPortal)}"` : ''}>${escapeHtml(buttonText)}</a>`
       : '';
   return `<div class="${classes}">${headingHtml}${subheadingHtml}${buttonHtml}</div>`;
 }
@@ -309,9 +330,11 @@ function renderHeaderCardV2Html(payload: unknown): string {
     buttonColor === 'accent'
       ? 'kg-header-card-button kg-header-card-button-accent'
       : 'kg-header-card-button';
+  const buttonPortal = strProp(payload, 'buttonPortal') || strProp(payload, 'button_portal');
+  const buttonPortalAttr = buttonPortal ? ` data-portal="${escapeAttr(buttonPortal)}"` : '';
   const buttonHtml =
     buttonHref && buttonText
-      ? `<a class="${buttonClass}" href="${escapeAttr(buttonHref)}"${buttonStyleAttr}${buttonDataColor}${buttonDataTextColor}>${escapeHtml(buttonText)}</a>`
+      ? `<a class="${buttonClass}" href="${escapeAttr(buttonHref)}"${buttonStyleAttr}${buttonDataColor}${buttonDataTextColor}${buttonPortalAttr}>${escapeHtml(buttonText)}</a>`
       : '';
   const textClass = `kg-header-card-text${tokenClass('kg-align', align)}`;
   return `<div class="${classes}"${rootStyle}${dataBackground}${dataAccent}>${imageHtml}<div class="kg-header-card-content"><div class="${textClass}">${headingHtml}${subheadingHtml}${buttonHtml}</div></div></div>`;
@@ -340,8 +363,7 @@ export function renderEmbedCardHtml(payload: unknown): string {
   const inner = html
     ? lazyLoadEmbedIframes(html)
     : `<a href="${escapeAttr(url)}">${escapeHtml(url)}</a>`;
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-embed-card${widthClass(payload)}${hasCaptionClass(caption)}">${inner}${figcap}</figure>`;
+  return `<figure class="kg-card kg-embed-card${widthClass(payload)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${inner}${figcaptionHtml(caption)}</figure>`;
 }
 
 function lazyLoadEmbedIframes(html: string): string {
@@ -419,8 +441,7 @@ export function renderGalleryCardHtml(payload: unknown): string {
     if (imgsHtml) rowsHtml.push(`<div class="kg-gallery-row">${imgsHtml}</div>`);
   }
   if (rowsHtml.length === 0) return '';
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-gallery-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-gallery-card${widthClass(payload)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}><div class="kg-gallery-container">${rowsHtml.join('')}</div>${figcaptionHtml(caption)}</figure>`;
 }
 
 export function renderAudioCardHtml(payload: unknown): string {
@@ -475,8 +496,7 @@ export function renderVideoCardHtml(payload: unknown): string {
     .filter((s) => s !== '')
     .join(' ');
   const posterImage = posterSrcset || posterSizes ? `<img ${posterImageAttrs}>` : '';
-  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-video-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}>${posterImage}<video ${videoAttrs}></video></div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-video-card${widthClass(payload)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}><div class="kg-video-container"${containerStyle}>${posterImage}<video ${videoAttrs}></video></div>${figcaptionHtml(caption)}</figure>`;
 }
 
 function dimensionProp(obj: unknown, key: string): string {
@@ -502,6 +522,8 @@ export function renderProductCardHtml(payload: unknown): string {
     strProp(payload, 'productImageSrc') ||
     strProp(payload, 'productImage') ||
     strProp(payload, 'image');
+  const imageSrcset = strProp(payload, 'productImageSrcset') || strProp(payload, 'imageSrcset');
+  const imageSizes = strProp(payload, 'productImageSizes') || strProp(payload, 'imageSizes');
   const buttonHref =
     strProp(payload, 'productUrl') ||
     strProp(payload, 'productButtonUrl') ||
@@ -514,7 +536,7 @@ export function renderProductCardHtml(payload: unknown): string {
   const rating = dimensionProp(payload, 'productRating') || dimensionProp(payload, 'rating');
   if (!title && !description && !image && !buttonHref) return '';
   const imageHtml = image
-    ? `<img class="kg-product-card-image" src="${escapeAttr(image)}" alt="">`
+    ? `<img class="kg-product-card-image" src="${escapeAttr(image)}"${imageSrcset ? ` srcset="${escapeAttr(imageSrcset)}"` : ''}${imageSizes ? ` sizes="${escapeAttr(imageSizes)}"` : ''} alt="">`
     : '';
   const titleHtml = title ? `<div class="kg-product-card-title">${escapeHtml(title)}</div>` : '';
   const ratingHtml =

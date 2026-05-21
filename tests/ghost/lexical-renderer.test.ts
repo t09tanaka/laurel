@@ -181,7 +181,25 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('src="/content/images/2024/01/x.jpg"');
     expect(out).toContain('alt="A picture"');
     expect(out).toContain('kg-card-hascaption');
-    expect(out).toContain('<figcaption>My caption</figcaption>');
+    expect(out).toContain('>My caption</figcaption>');
+  });
+
+  test('associates figure captions with their Koenig figures', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'image',
+          src: '/content/images/2024/01/x.jpg',
+          caption: 'Accessible caption',
+          version: 1,
+        },
+      ]),
+    );
+
+    expect(out).toContain('role="group"');
+    expect(out).toContain('aria-labelledby="kg-card-caption-');
+    expect(out).toContain('<figcaption id="kg-card-caption-');
+    expect(out).toContain('Accessible caption</figcaption>');
   });
 
   test('preserves Koenig cardWidth on figure-based cards', () => {
@@ -241,6 +259,27 @@ describe('renderLexicalToHtml', () => {
     );
   });
 
+  test('preserves product card image srcset and sizes', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'product',
+          productTitle: 'Sample widget',
+          productImageSrc: 'https://cdn.test/product.jpg',
+          productImageSrcset:
+            'https://cdn.test/product-720.jpg 720w, https://cdn.test/product.jpg 1440w',
+          productImageSizes: '(min-width: 720px) 720px, 100vw',
+          version: 1,
+        },
+      ]),
+    );
+
+    expect(out).toContain(
+      'srcset="https://cdn.test/product-720.jpg 720w, https://cdn.test/product.jpg 1440w"',
+    );
+    expect(out).toContain('sizes="(min-width: 720px) 720px, 100vw"');
+  });
+
   test('renders code cards with Ghost-compatible wrapper and copy control', () => {
     const out = renderLexicalToHtml(
       lex([{ type: 'code', code: 'console.log("x")', language: 'js', version: 1 }]),
@@ -271,6 +310,25 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('data-members-form="signup"');
     expect(out).toContain('data-members-email');
     expect(out).toContain('placeholder="reader@example.com"');
+  });
+
+  test('preserves header subscribe portal buttons', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'header',
+          version: 'v2',
+          heading: 'Join us',
+          buttonText: 'Subscribe',
+          buttonUrl: '#/portal/signup',
+          buttonPortal: 'signup',
+        },
+      ]),
+    );
+
+    expect(out).toContain('class="kg-header-card-button"');
+    expect(out).toContain('href="#/portal/signup"');
+    expect(out).toContain('data-portal="signup"');
   });
 
   test('lazy-loads iframe embed card html', () => {
@@ -345,7 +403,7 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('<pre><code class="language-javascript">');
     expect(out).toContain('class="kg-card kg-code-card kg-card-hascaption"');
     expect(out).toContain('console.log("hi");');
-    expect(out).toContain('<figcaption>Example</figcaption>');
+    expect(out).toContain('>Example</figcaption>');
   });
 
   test('normalizes Ghost code language names to Prism-compatible aliases', () => {
@@ -462,7 +520,7 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('kg-video-container');
     expect(out).toContain(`--aspect-ratio: ${1920 / 1080}`);
     expect(out).toContain('poster="/content/images/poster.jpg"');
-    expect(out).toContain('<figcaption>A clip</figcaption>');
+    expect(out).toContain('>A clip</figcaption>');
   });
 
   test('renders responsive video poster image metadata', () => {

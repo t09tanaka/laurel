@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
 import TurndownService from 'turndown';
 
@@ -66,6 +67,31 @@ function directChildText(node: DomNode, nodeName: string): string {
 
 function html(el: DomNode | null): string {
   return el?.innerHTML?.trim() ?? '';
+}
+
+function encodedInlineSvg(el: DomNode | null): string {
+  if (!el) return '';
+  if (
+    classTokens(el).some(
+      (cls) => cls === 'kg-audio-thumbnail-placeholder' || cls === 'kg-audio-hide',
+    )
+  ) {
+    return '';
+  }
+  const svg = el.nodeName === 'SVG' ? el.innerHTML : html(el.querySelector('svg'));
+  if (!svg) return '';
+  const wrapper =
+    el.nodeName === 'SVG'
+      ? `<svg${attrsHtml(el)}>${svg}</svg>`
+      : `<svg${attrsHtml(el.querySelector('svg'))}>${svg}</svg>`;
+  return Buffer.from(wrapper, 'utf8').toString('base64');
+}
+
+function attrsHtml(el: DomNode | null): string {
+  const attrs = Array.from(el?.attributes ?? [])
+    .filter((attr) => /^[a-zA-Z_:][\w:.-]*$/.test(attr.name))
+    .map((attr) => `${attr.name}="${escapeHtmlAttr(attr.value)}"`);
+  return attrs.length > 0 ? ` ${attrs.join(' ')}` : '';
 }
 
 function styleValue(el: DomNode | null, property: string): string {
@@ -812,6 +838,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           title: text(node.querySelector('.kg-audio-title')),
           duration: text(node.querySelector('.kg-audio-duration')),
           thumbnail: attr(node.querySelector('img.kg-audio-thumbnail'), 'src'),
+          thumbnail_svg: encodedInlineSvg(node.querySelector('.kg-audio-thumbnail')),
         }),
       );
     },
@@ -1027,6 +1054,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           style,
           button_href: attr(button, 'href'),
           button_text: text(button),
+          button_portal: attr(button, 'data-portal'),
         };
         attrs.align = classByPrefix(node, 'kg-align-') || classByPrefix(textWrap, 'kg-align-');
         attrs.width = classByPrefix(node, 'kg-width-');
@@ -1071,6 +1099,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           subtitle: text(subheading),
           'cta-text': text(button),
           'cta-href': attr(button, 'href'),
+          'cta-portal': attr(button, 'data-portal'),
           'card-size': classByPrefix(node, 'kg-size-'),
         }),
       );
@@ -1102,6 +1131,8 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       return wrap(
         liquidShortcode('product', {
           image: attr(node.querySelector('.kg-product-card-image'), 'src'),
+          image_srcset: attr(node.querySelector('.kg-product-card-image'), 'srcset'),
+          image_sizes: attr(node.querySelector('.kg-product-card-image'), 'sizes'),
           title: text(node.querySelector('.kg-product-card-title')),
           rating:
             attr(rating, 'data-rating') || (activeRatingCount > 0 ? `${activeRatingCount}` : ''),

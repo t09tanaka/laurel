@@ -1173,8 +1173,8 @@ date: 2026-01-01T00:00:00Z
 
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(true);
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(true);
-    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=4');
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=4');
+    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=6');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=6');
   });
 
   test('injects the shared card runtime only on pages with runtime cards', async () => {
@@ -1197,8 +1197,8 @@ Hidden detail.
     const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=4');
-    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=4');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=6');
+    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=6');
     expect(postHtml).toContain('data-nectar-koenig-runtime="toggle"');
   });
 

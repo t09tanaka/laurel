@@ -67,6 +67,12 @@ expect.
   `kg-card kg-<name>-card`, followed by width/style modifier classes.
 - Escape text and attributes with the local helpers. Do not pass imported text
   straight into HTML.
+- Captioned figure-based cards must associate the wrapper with the caption:
+  render `role="group"` and `aria-labelledby` on the `<figure>`, and an `id` on
+  the matching `<figcaption>`.
+- Avoid hard-coded reader-facing English when the source card supplies copy.
+  Preserve imported labels in shortcode attributes or DOM `data-label-*`
+  attributes so themes/locales can override shared runtime text.
 - Keep the output static-first. If Ghost relies on runtime JavaScript, render a
   usable fallback and add any progressive enhancement in shared card assets.
 - Update `sanitizeOptions` in `src/content/markdown.ts` only when the rendered
@@ -81,6 +87,8 @@ Make the card readable in themes that opt into Nectar's shared card assets.
 - If the card needs tiny static enhancement, add it to `renderCardAssetsJs()`.
   Keep it defensive and skip it when the card is listed in
   `theme.package.config.card_assets.exclude`.
+- Runtime helpers should read labels from existing DOM text or `data-label-*`
+  attributes before falling back to English strings.
 - Add or update `tests/build/card-assets.test.ts` when the new CSS/runtime
   section changes the emitted asset contract.
 

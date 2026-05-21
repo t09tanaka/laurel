@@ -132,6 +132,9 @@ function normalizedAttrs(node: Element): string {
     .flatMap(([name, value]): Array<[string, string]> => {
       const normalizedName = name.toLowerCase();
       if (node.name === 'img' && normalizedName === 'loading' && value === 'lazy') return [];
+      if (node.name === 'figure' && normalizedName === 'role' && value === 'group') return [];
+      if (node.name === 'figure' && normalizedName === 'aria-labelledby') return [];
+      if (node.name === 'figcaption' && normalizedName === 'id') return [];
       if (normalizedName === 'data-nectar-embed-provider') return [];
       if (normalizedName === 'data-members-email' || normalizedName === 'data-members-submit') {
         return [];
@@ -260,6 +263,7 @@ describe('Ghost card round-trip fidelity', () => {
       'header',
       'html',
       'image',
+      'image-animated',
       'markdown',
       'nft',
       'paywall',

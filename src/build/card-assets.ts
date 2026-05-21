@@ -5,7 +5,7 @@ import { ensureDir } from '~/util/fs.ts';
 
 export const CARD_ASSETS_CSS_PATH = 'assets/ghost-card-assets.css';
 export const CARD_ASSETS_JS_PATH = 'assets/ghost-card-assets.js';
-export const CARD_ASSETS_VERSION = '5';
+export const CARD_ASSETS_VERSION = '6';
 
 const CARD_NAMES = [
   'audio',
@@ -128,11 +128,13 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
     var text = code.innerText || code.textContent || '';
     if (!navigator.clipboard || !navigator.clipboard.writeText) return;
     navigator.clipboard.writeText(text).then(function () {
+      var copyLabel = button.getAttribute('data-label-copy') || button.textContent || 'Copy';
+      var copiedLabel = button.getAttribute('data-label-copied') || 'Copied';
       button.setAttribute('data-copied', 'true');
-      button.textContent = 'Copied';
+      button.textContent = copiedLabel;
       setTimeout(function () {
         button.removeAttribute('data-copied');
-        button.textContent = 'Copy';
+        button.textContent = copyLabel;
       }, 1500);
     }).catch(function () {});
   });`);

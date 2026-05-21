@@ -92,6 +92,39 @@ describe('Ghost Turndown rules — blockquote and simple fallbacks', () => {
   });
 });
 
+describe('Ghost Turndown rules — Koenig accessibility and nesting', () => {
+  test('renders imported figure shortcodes with aria-labelled captions', async () => {
+    const html =
+      '<figure class="kg-card kg-image-card"><img src="/content/images/a.jpg" alt="A"><figcaption>Caption text</figcaption></figure>';
+    const md = td.turndown(html);
+    const rendered = await renderMarkdown(md);
+
+    expect(rendered.html).toContain('role="group"');
+    expect(rendered.html).toContain('aria-labelledby="kg-card-caption-');
+    expect(rendered.html).toContain('<figcaption id="kg-card-caption-');
+    expect(rendered.html).toContain('Caption text</figcaption>');
+  });
+
+  test('preserves mixed emoji, Japanese, and RTL text inside nested card bodies', async () => {
+    const markdown = `{{< callout emoji="💡" color="blue" >}}
+外側の説明 😀 مرحبا
+
+{{< toggle heading="詳細 😄" >}}
+{{< callout emoji="✨" color="purple" >}}
+内側の説明 😇 العربية
+{{< /callout >}}
+{{< /toggle >}}
+{{< /callout >}}`;
+
+    const rendered = await renderMarkdown(markdown);
+
+    expect(rendered.html).toContain('外側の説明 😀 مرحبا');
+    expect(rendered.html).toContain('詳細 😄');
+    expect(rendered.html).toContain('内側の説明 😇 العربية');
+    expect(rendered.html).toContain('kg-callout-card-purple');
+  });
+});
+
 describe('Ghost Turndown rules — kg-header-card', () => {
   test('preserves v1 layout metadata as a header shortcode', () => {
     const html = `
@@ -435,7 +468,7 @@ describe('Ghost Turndown rules — kg-gallery-card', () => {
     expect(md).not.toContain('Nested image caption');
 
     const { html: rendered } = await renderMarkdown(md);
-    expect(rendered).toContain('<figcaption>Outer gallery caption</figcaption>');
+    expect(rendered).toContain('>Outer gallery caption</figcaption>');
     expect(rendered).not.toContain('Nested image caption');
   });
 
@@ -737,10 +770,12 @@ describe('Ghost Turndown rules — kg-code-card', () => {
     const md = td.turndown(source);
     const { html } = await renderMarkdown(md);
 
-    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers">');
+    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers"');
+    expect(html).toContain('role="group"');
+    expect(html).toContain('aria-labelledby="kg-card-caption-');
     expect(html).toContain('<code class="language-javascript">');
     expect(html).toContain('msg');
-    expect(html).toContain('<figcaption>Runnable example</figcaption>');
+    expect(html).toContain('>Runnable example</figcaption>');
   });
 
   test('preserves language from pre class when code has no language class', () => {
@@ -972,6 +1007,21 @@ describe('Ghost Turndown rules — kg-audio-card', () => {
     expect(md).toContain('src="/no-cover.mp3"');
     expect(md).toContain('duration="5:00"');
     expect(md).not.toContain('thumbnail=');
+  });
+
+  test('preserves inline SVG waveform thumbnails', async () => {
+    const html = `
+      <div class="kg-card kg-audio-card">
+        <div class="kg-audio-thumbnail"><svg viewBox="0 0 10 2" aria-hidden="true"><path d="M0 1h10"></path></svg></div>
+        <audio src="/content/media/episode.mp3"></audio>
+      </div>
+    `;
+    const md = td.turndown(html);
+    const rendered = await renderMarkdown(md);
+
+    expect(md).toContain('thumbnail_svg=');
+    expect(rendered.html).toContain('<svg');
+    expect(rendered.html).toContain('<path d="M0 1h10"></path>');
   });
 
   test('falls back to <source> when <audio> has no src attribute', () => {
@@ -1317,6 +1367,28 @@ describe('Ghost Turndown rules — kg-product-card', () => {
     expect(md).toContain('description="Best in class."');
     expect(md).toContain('button="Get it"');
     expect(md).toContain('href="https://example.com/widget"');
+  });
+
+  test('round-trips product image responsive attributes', async () => {
+    const html = `
+      <div class="kg-card kg-product-card">
+        <div class="kg-product-card-container">
+          <img class="kg-product-card-image" src="/content/images/product.jpg" srcset="/content/images/product-720.jpg 720w, /content/images/product.jpg 1440w" sizes="(min-width: 720px) 720px, 100vw" alt="">
+          <div class="kg-product-card-title">Sample widget</div>
+        </div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    const rendered = await renderMarkdown(md);
+
+    expect(md).toContain(
+      'image_srcset="/content/images/product-720.jpg 720w, /content/images/product.jpg 1440w"',
+    );
+    expect(md).toContain('image_sizes="(min-width: 720px) 720px, 100vw"');
+    expect(rendered.html).toContain(
+      'srcset="/content/images/product-720.jpg 720w, /content/images/product.jpg 1440w"',
+    );
+    expect(rendered.html).toContain('sizes="(min-width: 720px) 720px, 100vw"');
   });
 });
 

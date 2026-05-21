@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import renderHtml from 'dom-serializer';
 import type { ChildNode, Element } from 'domhandler';
 import { parseDocument } from 'htmlparser2';
@@ -116,7 +117,7 @@ const sanitizeOptions: IOptions = {
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
-    figure: ['class', 'data-nectar-embed-provider'],
+    figure: ['class', 'data-nectar-embed-provider', 'role', 'aria-labelledby'],
     details: ['open'],
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
@@ -154,6 +155,7 @@ const sanitizeOptions: IOptions = {
       'style',
       'data-button-color',
       'data-button-text-color',
+      'data-portal',
     ],
     svg: ['viewbox', 'aria-hidden', 'focusable'],
     path: ['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'],
@@ -1048,6 +1050,29 @@ function hasCaptionClass(caption: string): string {
   return caption ? ' kg-card-hascaption' : '';
 }
 
+function captionId(caption: string): string {
+  return `kg-card-caption-${hashLabel(caption)}`;
+}
+
+function captionFigureAttrs(caption: string): string {
+  return caption ? ` role="group" aria-labelledby="${escapeHtmlAttr(captionId(caption))}"` : '';
+}
+
+function figcaptionHtml(caption: string, innerHtml: string): string {
+  return caption
+    ? `<figcaption id="${escapeHtmlAttr(captionId(caption))}">${innerHtml}</figcaption>`
+    : '';
+}
+
+function hashLabel(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 const KOENIG_WIDTHS = new Set(['regular', 'wide', 'full']);
 
 function koenigWidthClass(attrs: Record<string, string>): string {
@@ -1123,9 +1148,9 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
     : '';
 
   const anchor = `<a class="kg-bookmark-container" href="${escapeHtmlAttr(url)}">${contentHtml}${thumbnailHtml}</a>`;
-  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const figcaption = figcaptionHtml(caption, escapeHtmlAttr(caption));
 
-  return `\n\n<figure class="kg-card kg-bookmark-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${anchor}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-bookmark-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${anchor}${figcaption}</figure>\n\n`;
 }
 
 function renderFigureHtml(attrs: Record<string, string>): string {
@@ -1148,11 +1173,9 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const pictureSources = renderFigurePictureSourcesHtml(attrs);
   const media = pictureSources ? `<picture>${pictureSources}${image}</picture>` : image;
   const inner = attrs.href ? `<a href="${escapeHtmlAttr(attrs.href)}">${media}</a>` : media;
-  const figcaption = caption
-    ? `<figcaption>${renderInlineCaptionMarkdown(caption)}</figcaption>`
-    : '';
+  const figcaption = figcaptionHtml(caption, renderInlineCaptionMarkdown(caption));
   const alignClass = tokenClass('kg-align', attrs.align ?? attrs.alignment);
-  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${alignClass}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${alignClass}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${inner}${figcaption}</figure>\n\n`;
 }
 
 function renderFigurePictureSourcesHtml(attrs: Record<string, string>): string {
@@ -1198,7 +1221,7 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
 
   const embed = staticEmbedFromUrl(url, attrs.provider);
   const caption = attrs.caption ?? '';
-  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const figcaption = figcaptionHtml(caption, escapeHtmlAttr(caption));
   const cardClass = `kg-card kg-embed-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}`;
   if (!embed) {
     return renderEmbedFallbackLink(url, attrs, cardClass, figcaption);
@@ -1208,7 +1231,7 @@ function renderEmbedHtml(attrs: Record<string, string>): string {
   const width = mediaWidthValue(attrs, embed.width);
   const height = attrs.height || embed.height;
   const iframe = `<iframe src="${escapeHtmlAttr(embed.src)}" title="${escapeHtmlAttr(title)}" width="${escapeHtmlAttr(width)}" height="${escapeHtmlAttr(height)}" loading="lazy" frameborder="0" allow="${escapeHtmlAttr(embed.allow)}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
-  return `\n\n<figure class="${cardClass}">${iframe}${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="${cardClass}"${captionFigureAttrs(caption)}>${iframe}${figcaption}</figure>\n\n`;
 }
 
 function renderCodeHtml(attrs: Record<string, string>, body: string): string {
@@ -1217,7 +1240,7 @@ function renderCodeHtml(attrs: Record<string, string>, body: string): string {
   const languageClass = language ? ` class="language-${escapeHtmlAttr(language)}"` : '';
   const caption = attrs.caption ?? '';
   const lineNumberClass = classTokenList(attrs['line-number-class'] ?? '');
-  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
+  const figcaption = figcaptionHtml(caption, escapeHtmlAttr(caption));
   const cardClass = [
     'kg-card kg-code-card',
     optionalKoenigWidthClass(attrs).trim(),
@@ -1227,7 +1250,7 @@ function renderCodeHtml(attrs: Record<string, string>, body: string): string {
     .filter((part) => part !== '')
     .join(' ');
 
-  return `\n\n<figure class="${cardClass}"><pre><code${languageClass}>${escapeHtmlAttr(parsed.code)}</code></pre>${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="${cardClass}"${captionFigureAttrs(caption)}><pre><code${languageClass}>${escapeHtmlAttr(parsed.code)}</code></pre>${figcaption}</figure>\n\n`;
 }
 
 function parseCodeShortcodeBody(body: string): { code: string; language: string } {
@@ -1348,7 +1371,8 @@ function renderEmbedFallbackLink(
   const description = providerName
     ? `Open this ${providerName} embed at its source URL.`
     : 'Open this unsupported embed at its source URL.';
-  return `\n\n<figure class="${cardClass}"${providerAttr}><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(href)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
+  const caption = attrs.caption ?? '';
+  return `\n\n<figure class="${cardClass}"${providerAttr}${captionFigureAttrs(caption)}><a class="kg-bookmark-container kg-embed-card-fallback" href="${escapeHtmlAttr(href)}"><div class="kg-bookmark-content"><div class="kg-bookmark-title">${escapeHtmlAttr(title)}</div><div class="kg-bookmark-description">${escapeHtmlAttr(description)}</div><div class="kg-bookmark-metadata"><span class="kg-bookmark-publisher">${escapeHtmlAttr(providerName || 'External embed')}</span></div></div></a>${figcaption}</figure>\n\n`;
 }
 
 function twitterDntUrl(rawUrl: string): string {
@@ -1641,8 +1665,8 @@ function renderGalleryHtml(attrs: Record<string, string>, body: string): string 
   }
   if (rows.length === 0) return '';
   const container = `<div class="kg-gallery-container">${rows.join('')}</div>`;
-  const figcaption = caption ? `<figcaption>${escapeHtmlAttr(caption)}</figcaption>` : '';
-  return `\n\n<figure class="kg-card kg-gallery-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${container}${figcaption}</figure>\n\n`;
+  const figcaption = figcaptionHtml(caption, escapeHtmlAttr(caption));
+  return `\n\n<figure class="kg-card kg-gallery-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${container}${figcaption}</figure>\n\n`;
 }
 
 function renderFileHtml(attrs: Record<string, string>): string {
@@ -1674,9 +1698,11 @@ function renderFileHtml(attrs: Record<string, string>): string {
 function renderAudioHtml(attrs: Record<string, string>): string {
   const src = attrs.src ?? '';
   if (!src) return '';
-  const thumbnailHtml = attrs.thumbnail
-    ? `<img src="${escapeHtmlAttr(attrs.thumbnail)}" alt="" class="kg-audio-thumbnail" />`
-    : '';
+  const thumbnailHtml = attrs.thumbnail_svg
+    ? renderAudioThumbnailSvgHtml(attrs.thumbnail_svg)
+    : attrs.thumbnail
+      ? `<img src="${escapeHtmlAttr(attrs.thumbnail)}" alt="" class="kg-audio-thumbnail" />`
+      : '';
   const titleHtml = attrs.title
     ? `<div class="kg-audio-title">${escapeHtmlAttr(attrs.title)}</div>`
     : '';
@@ -1684,6 +1710,17 @@ function renderAudioHtml(attrs: Record<string, string>): string {
     ? `<div class="kg-audio-duration">${escapeHtmlAttr(attrs.duration)}</div>`
     : '';
   return `\n\n<div class="kg-card kg-audio-card${koenigWidthClass(attrs)}">${thumbnailHtml}<audio src="${escapeHtmlAttr(src)}" preload="metadata" controls></audio>${titleHtml}${durationHtml}</div>\n\n`;
+}
+
+function renderAudioThumbnailSvgHtml(encoded: string): string {
+  let svg: string;
+  try {
+    svg = Buffer.from(encoded, 'base64').toString('utf8').trim();
+  } catch {
+    return '';
+  }
+  if (!/^<svg[\s>]/i.test(svg)) return '';
+  return `<div class="kg-audio-thumbnail kg-audio-thumbnail-waveform" aria-hidden="true">${svg}</div>`;
 }
 
 function renderVideoHtml(attrs: Record<string, string>, body: string): string {
@@ -1708,10 +1745,9 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
     attrs.aspect && /^\d+(?:\.\d+)?$/.test(attrs.aspect)
       ? ` style="--aspect-ratio: ${escapeHtmlAttr(attrs.aspect)}"`
       : '';
-  const figcaption = attrs.caption
-    ? `<figcaption>${escapeHtmlAttr(attrs.caption)}</figcaption>`
-    : '';
-  return `\n\n<figure class="kg-card kg-video-card${koenigWidthClass(attrs)}${hasCaptionClass(attrs.caption ?? '')}"><div class="kg-video-container"${aspectStyle}>${posterImage}<video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
+  const caption = attrs.caption ?? '';
+  const figcaption = figcaptionHtml(caption, escapeHtmlAttr(caption));
+  return `\n\n<figure class="kg-card kg-video-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}><div class="kg-video-container"${aspectStyle}>${posterImage}<video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
 }
 
 function renderVideoPosterImageHtml(attrs: Record<string, string>): string {
@@ -1758,11 +1794,13 @@ function renderProductHtml(attrs: Record<string, string>): string {
   const title = attrs.title ?? '';
   const description = attrs.description ?? '';
   const image = attrs.image ?? '';
+  const imageSrcset = attrs.image_srcset ?? attrs.imageSrcset ?? '';
+  const imageSizes = attrs.image_sizes ?? attrs.imageSizes ?? '';
   const buttonHref = attrs.href ?? attrs['button-href'] ?? '';
   const buttonText = attrs.button ?? attrs['button-text'] ?? '';
   if (!title && !description && !image && !buttonHref) return '';
   const imageHtml = image
-    ? `<img class="kg-product-card-image" src="${escapeHtmlAttr(image)}" alt="" />`
+    ? `<img class="kg-product-card-image" src="${escapeHtmlAttr(image)}"${imageSrcset ? ` srcset="${escapeHtmlAttr(imageSrcset)}"` : ''}${imageSizes ? ` sizes="${escapeHtmlAttr(imageSizes)}"` : ''} alt="" />`
     : '';
   const titleHtml = title
     ? `<div class="kg-product-card-title">${escapeHtmlAttr(title)}</div>`
@@ -1836,6 +1874,7 @@ function renderHeaderV1Html(attrs: Record<string, string>): string {
     attrs.button_href ?? attrs.buttonHref ?? attrs['cta-href'] ?? attrs.cta_href ?? '';
   const buttonText =
     attrs.button_text ?? attrs.buttonText ?? attrs['cta-text'] ?? attrs.cta_text ?? '';
+  const buttonPortal = attrs.button_portal ?? attrs.buttonPortal ?? attrs['cta-portal'] ?? '';
   const background = attrs.background ?? attrs.background_image ?? '';
   if (!heading && !subheading && !buttonText && !background) return '';
 
@@ -1854,7 +1893,7 @@ function renderHeaderV1Html(attrs: Record<string, string>): string {
     : '';
   const buttonHtml =
     buttonHref && buttonText
-      ? `<a class="kg-header-card-button" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
+      ? `<a class="kg-header-card-button" href="${escapeHtmlAttr(buttonHref)}"${buttonPortal ? ` data-portal="${escapeHtmlAttr(buttonPortal)}"` : ''}>${escapeHtmlAttr(buttonText)}</a>`
       : '';
   return `\n\n<div class="kg-card kg-header-card${widthClass}${styleClass}${sizeClass}"${backgroundAttrs}>${headingHtml}${subheadingHtml}${buttonHtml}</div>\n\n`;
 }
@@ -1969,7 +2008,9 @@ function renderHeaderButtonHtml(
     .filter((s) => s !== '')
     .join(' ');
   const extraAttrs = [style, dataAttrs].filter((s) => s !== '').join(' ');
-  return `<a class="${classAttr}" href="${escapeHtmlAttr(buttonHref)}"${extraAttrs ? ` ${extraAttrs}` : ''}>${escapeHtmlAttr(buttonText)}</a>`;
+  const portal = attrs.button_portal ?? attrs.buttonPortal ?? '';
+  const portalAttr = portal ? ` data-portal="${escapeHtmlAttr(portal)}"` : '';
+  return `<a class="${classAttr}" href="${escapeHtmlAttr(buttonHref)}"${extraAttrs ? ` ${extraAttrs}` : ''}${portalAttr}>${escapeHtmlAttr(buttonText)}</a>`;
 }
 
 function headerButtonStyle(attrs: Record<string, string>): string {

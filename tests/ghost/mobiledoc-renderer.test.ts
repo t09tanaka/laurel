@@ -122,7 +122,9 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toContain('kg-card-hascaption');
     expect(out).toContain('src="/x.jpg"');
     expect(out).toContain('alt="A"');
-    expect(out).toContain('<figcaption>cap</figcaption>');
+    expect(out).toContain('aria-labelledby="kg-card-caption-');
+    expect(out).toContain('<figcaption id="kg-card-caption-');
+    expect(out).toContain('>cap</figcaption>');
   });
 
   test('preserves Koenig cardWidth on card sections', () => {

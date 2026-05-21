@@ -836,22 +836,6 @@ async function importFromResolvedInput(
     if (hasTagCodeInjection && !keepCodeInjection) {
       counters.codeInjectionSkipped += 1;
     }
-    if (
-      !tag.description &&
-      !tag.feature_image &&
-      !tag.accent_color &&
-      !tag.meta_title &&
-      !tag.meta_description &&
-      !tag.og_title &&
-      !tag.og_description &&
-      !tag.og_image &&
-      !tag.twitter_title &&
-      !tag.twitter_description &&
-      !tag.twitter_image &&
-      !(hasTagCodeInjection && keepCodeInjection)
-    ) {
-      continue;
-    }
     const tagSlug = safeSlug(tag.slug) || safeSlug(tag.name);
     if (!tagSlug) {
       logger.warn(
@@ -1888,11 +1872,16 @@ async function renderPostRecord(
     slug,
     originalSlug: post.slug,
     dest,
-    contents: `${frontmatter}\n\n${body}\n`,
+    contents: renderImportedMarkdown(frontmatter, body),
     htmlContents,
     tagSlugs,
     authorSlugs,
   };
+}
+
+function renderImportedMarkdown(frontmatter: string, body: string): string {
+  const trimmedBody = body.trim();
+  return trimmedBody ? `${frontmatter}\n\n${trimmedBody}\n` : `${frontmatter}\n`;
 }
 
 function resolveImportFilters(opts: ImportGhostOptions): ImportFilterSettings {

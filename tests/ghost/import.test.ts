@@ -3089,6 +3089,52 @@ describe('importGhostExport — multi-db export merging (#126)', () => {
     await readFile(join(cwd, 'content/authors/bob.md'), 'utf8');
   });
 
+  test('imports referenced tags even when they only have slug and name', async () => {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Tagged',
+                  slug: 'tagged',
+                  html: '<p>body</p>',
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+              tags: [{ id: 't1', slug: 'plain-tag', name: 'Plain Tag' }],
+              posts_tags: [{ post_id: 'p1', tag_id: 't1' }],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    expect(summary.tags).toBe(1);
+    const tagMd = await readFile(join(cwd, 'content/tags/plain-tag.md'), 'utf8');
+    expect(tagMd).toContain('slug: "plain-tag"');
+    expect(tagMd).toContain('name: "Plain Tag"');
+  });
+
+  test('uses a canonical one-newline markdown format for empty imported bodies', async () => {
+    await writeFile(
+      exportFile,
+      makeExport([{ slug: 'empty-body', title: 'Empty Body', html: '' }]),
+    );
+
+    await importGhostExport({ cwd, file: exportFile });
+
+    const md = await readFile(join(cwd, 'content/posts/empty-body.md'), 'utf8');
+    expect(md).toMatch(/^---\n[\s\S]*\n---\n$/);
+    expect(md).not.toMatch(/\n---\n\n\n$/);
+  });
+
   test('handles a db[i] block with no data field (e.g. members-only split block)', async () => {
     await writeFile(
       exportFile,

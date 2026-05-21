@@ -86,8 +86,8 @@ describe('emitCardAssets', () => {
   });
 
   test('uses a stable exclude-specific cache key', () => {
-    expect(cardAssetsVersion(true)).toBe('4');
-    expect(cardAssetsVersion({ exclude: [] })).toBe('4');
+    expect(cardAssetsVersion(true)).toBe('6');
+    expect(cardAssetsVersion({ exclude: [] })).toBe('6');
     expect(cardAssetsVersion({ exclude: ['gallery', 'bookmark'] })).toBe(
       cardAssetsVersion({ exclude: ['bookmark', 'gallery'] }),
     );

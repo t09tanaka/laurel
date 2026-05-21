@@ -1,7 +1,7 @@
 # summary
 posts: 30
 pages: 3
-tags: 2
+tags: 6
 authors: 3
 skipped: 0
 overwritten: 0
@@ -835,10 +835,34 @@ name: "Topic 1"
 description: "Posts about topic 1."
 ---
 
+=== content/tags/topic-2.md ===
+---
+slug: "topic-2"
+name: "Topic 2"
+---
+
+=== content/tags/topic-3.md ===
+---
+slug: "topic-3"
+name: "Topic 3"
+---
+
 === content/tags/topic-4.md ===
 ---
 slug: "topic-4"
 name: "Topic 4"
 description: "Posts about topic 4."
+---
+
+=== content/tags/topic-5.md ===
+---
+slug: "topic-5"
+name: "Topic 5"
+---
+
+=== content/tags/topic-6.md ===
+---
+slug: "topic-6"
+name: "Topic 6"
 ---
 
