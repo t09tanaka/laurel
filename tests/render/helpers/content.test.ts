@@ -994,6 +994,20 @@ describe('authors helper', () => {
     );
   });
 
+  test('autolink=true links each author name when author.url is set', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors autolink=true}}')({
+      authors: [
+        { name: 'Ada & Co', url: '/author/ada/?ref=one&sort=asc' },
+        { name: 'Grace <Hopper>', url: '/author/grace/' },
+      ],
+    });
+    expect(out).toBe(
+      '<a href="/author/ada/?ref&#x3D;one&amp;sort&#x3D;asc">Ada &amp; Co</a>, <a href="/author/grace/">Grace &lt;Hopper&gt;</a>',
+    );
+  });
+
   test('separator= overrides the join character', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
