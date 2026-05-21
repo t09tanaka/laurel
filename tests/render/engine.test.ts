@@ -226,6 +226,78 @@ describe('buildContext', () => {
     expect(tpl(pageContext)).toBe('Nested page title||Nested page title');
   });
 
+  test('post root copy skips prototype-sensitive keys without breaking nested access', () => {
+    const post = makePost({ title: 'Safe post title' }) as Post & Record<string, unknown>;
+    Object.defineProperties(post, {
+      __proto__: {
+        enumerable: true,
+        value: { polluted: true },
+      },
+      constructor: {
+        enumerable: true,
+        value: 'shadowed constructor',
+      },
+      prototype: {
+        enumerable: true,
+        value: { polluted: true },
+      },
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+
+    const ctx = buildContext(engine, route);
+    const rendered = Handlebars.compile('{{title}}|{{post.title}}')(ctx);
+
+    expect(rendered).toBe('Safe post title|Safe post title');
+    expect(Object.getPrototypeOf(ctx)).toBe(Object.prototype);
+    expect(Object.hasOwn(ctx, '__proto__')).toBe(false);
+    expect(Object.hasOwn(ctx, 'constructor')).toBe(false);
+    expect(Object.hasOwn(ctx, 'prototype')).toBe(false);
+    expect((ctx.post as Record<string, unknown>).constructor).toBe('shadowed constructor');
+  });
+
+  test('page root copy skips prototype-sensitive keys without breaking nested access', () => {
+    const page = makePage({ title: 'Safe page title' }) as Page & Record<string, unknown>;
+    Object.defineProperties(page, {
+      __proto__: {
+        enumerable: true,
+        value: { polluted: true },
+      },
+      constructor: {
+        enumerable: true,
+        value: 'shadowed constructor',
+      },
+      prototype: {
+        enumerable: true,
+        value: { polluted: true },
+      },
+    });
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page },
+      meta: baseMeta,
+    };
+
+    const ctx = buildContext(engine, route);
+    const rendered = Handlebars.compile('{{title}}|{{page.title}}')(ctx);
+
+    expect(rendered).toBe('Safe page title|Safe page title');
+    expect(Object.getPrototypeOf(ctx)).toBe(Object.prototype);
+    expect(Object.hasOwn(ctx, '__proto__')).toBe(false);
+    expect(Object.hasOwn(ctx, 'constructor')).toBe(false);
+    expect(Object.hasOwn(ctx, 'prototype')).toBe(false);
+    expect((ctx.page as Record<string, unknown>).constructor).toBe('shadowed constructor');
+  });
+
   test('page root copy does not read the page flag before setting ctx.page', () => {
     const page = makePage();
     let pageFlagReads = 0;

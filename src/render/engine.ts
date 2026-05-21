@@ -36,6 +36,7 @@ import type { RouteContext } from './types.ts';
 
 const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
 const MAX_PARTIAL_RENDER_DEPTH = 64;
+const RESERVED_ROOT_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface NectarEngine {
   hb: typeof Handlebars;
@@ -411,7 +412,7 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   }
   if (data.post) {
     const post = withTrustedCaptionHtml(engine.hb, data.post);
-    Object.assign(ctx, post);
+    assignRootFields(ctx, post);
     ctx.post = post;
   }
   if (data.page) {
@@ -490,6 +491,7 @@ function assignRootFields(ctx: Record<string, unknown>, value: object, skipKey?:
   const record = value as Record<string, unknown>;
   for (const key of Object.keys(record)) {
     if (key === skipKey) continue;
+    if (RESERVED_ROOT_CONTEXT_KEYS.has(key)) continue;
     ctx[key] = record[key];
   }
 }
