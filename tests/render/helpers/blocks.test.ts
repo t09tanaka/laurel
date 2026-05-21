@@ -97,6 +97,13 @@ describe('foreach helper', () => {
     expect(tpl({ items: ['a', 'b', 'c', 'd', 'e'] })).toBe('c|d|e|');
   });
 
+  test('iterates plain object as values when array is missing', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach obj}}{{this}}{{/foreach}}');
+    expect(tpl({ obj: { x: 'a', y: 'b' } })).toBe('ab');
+  });
+
   test('object iteration exposes @key for each map entry', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
