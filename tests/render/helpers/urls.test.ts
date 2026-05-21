@@ -16,7 +16,7 @@ function makeEngine(siteUrl = 'https://example.com'): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('url helper', () => {
@@ -80,7 +80,7 @@ describe('url helper', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{url}}');
-    expect(tpl()).toBe('');
+    expect(tpl({})).toBe('');
   });
 
   // Issue #470: Ghost's {{url}} accepts an optional positional argument so a

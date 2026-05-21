@@ -2,6 +2,18 @@ import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
 import { isUnauthenticatedMember } from '../member-stub.ts';
 
+interface HelperOptionsWithContextPath extends Handlebars.HelperOptions {
+  ids?: string[];
+  data?: Handlebars.HelperOptions['data'] & { contextPath?: string };
+}
+
+interface HandlebarsRuntimeUtils {
+  appendContextPath?: (contextPath: string | undefined, id: string | undefined) => string;
+  blockParams(values: unknown[], paths?: unknown[]): unknown[];
+  createFrame<T extends object>(object: T): T;
+  isFunction(value: unknown): value is (...args: unknown[]) => unknown;
+}
+
 export function registerFlowHelpers(engine: NectarEngine): void {
   // Handlebars provides if/unless/each/with by default; expose a couple of
   // Ghost-flavoured aliases that themes occasionally use.
@@ -31,24 +43,22 @@ export function registerFlowHelpers(engine: NectarEngine): void {
     if (args.length !== 2) {
       throw new Error('#with requires exactly one argument');
     }
-    const [context, options] = args as [unknown, Handlebars.HelperOptions];
+    const [context, options] = args as [unknown, HelperOptionsWithContextPath];
+    const utils = engine.hb.Utils as unknown as HandlebarsRuntimeUtils;
     const value = engine.hb.Utils.isFunction(context)
       ? (context as () => unknown).call(this)
       : context;
     if (!isTruthyForHandlebars(engine, value, options)) return options.inverse(this);
 
     let data = options.data;
-    if (options.data && options.ids) {
-      data = engine.hb.Utils.createFrame(options.data);
-      data.contextPath = engine.hb.Utils.appendContextPath(
-        options.data.contextPath,
-        options.ids[0],
-      );
+    if (options.data && options.ids && utils.appendContextPath) {
+      data = utils.createFrame(options.data);
+      data.contextPath = utils.appendContextPath(options.data.contextPath, options.ids[0]);
     }
 
     return options.fn(value, {
       data,
-      blockParams: engine.hb.Utils.blockParams([value], [data?.contextPath]),
+      blockParams: utils.blockParams([value], [data?.contextPath]),
     });
   });
 

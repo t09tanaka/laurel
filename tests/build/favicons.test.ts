@@ -38,7 +38,7 @@ function makeConfig(siteOverrides: Partial<NectarConfig['site']> = {}): NectarCo
     navigation: [],
     secondary_navigation: [],
     components: {} as NectarConfig['components'],
-  } as NectarConfig;
+  } as unknown as NectarConfig;
 }
 
 function makeTheme(assets: Record<string, string> = {}): ThemeBundle {

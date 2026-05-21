@@ -17,7 +17,7 @@ function makeEngine(locales: ThemeLocaleMap, locale = 'en'): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('t helper', () => {

@@ -66,7 +66,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...overrides,
-  };
+  } as unknown as Post;
 }
 
 function makePage(overrides: Partial<Page> = {}): Page {
@@ -110,7 +110,7 @@ function makePage(overrides: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -136,7 +136,7 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     url: `/tag/${slug}/`,
     count: { posts: 0 },
     ...overrides,
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(overrides: Partial<Author> = {}): Author {
@@ -164,7 +164,7 @@ function makeAuthor(overrides: Partial<Author> = {}): Author {
     url: `/author/${slug}/`,
     count: { posts: 0 },
     ...overrides,
-  };
+  } as unknown as Author;
 }
 
 describe('buildContext', () => {
@@ -259,7 +259,7 @@ describe('buildContext', () => {
     expect(Object.hasOwn(ctx, '__proto__')).toBe(false);
     expect(Object.hasOwn(ctx, 'constructor')).toBe(false);
     expect(Object.hasOwn(ctx, 'prototype')).toBe(false);
-    expect((ctx.post as Record<string, unknown>).constructor).toBe('shadowed constructor');
+    expect((ctx.post as { constructor: unknown }).constructor).toBe('shadowed constructor');
   });
 
   test('page root copy skips prototype-sensitive keys without breaking nested access', () => {
@@ -295,7 +295,7 @@ describe('buildContext', () => {
     expect(Object.hasOwn(ctx, '__proto__')).toBe(false);
     expect(Object.hasOwn(ctx, 'constructor')).toBe(false);
     expect(Object.hasOwn(ctx, 'prototype')).toBe(false);
-    expect((ctx.page as Record<string, unknown>).constructor).toBe('shadowed constructor');
+    expect((ctx.page as { constructor: unknown }).constructor).toBe('shadowed constructor');
   });
 
   test('page root copy does not read the page flag before setting ctx.page', () => {
@@ -997,7 +997,7 @@ describe('buildContext', () => {
       codeinjection_foot: '<script>window.__author = "jane"</script>',
       url: '/author/jane/',
       count: { posts: 0 },
-    };
+    } as unknown as Author;
     const route: RouteContext = {
       kind: 'author',
       url: '/author/jane/',
@@ -2325,7 +2325,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       meta_description: undefined,
       url: '/author/wave-author/',
       count: { posts: 1 },
-    };
+    } as unknown as Author;
     const post = {
       ...makePost({
         authors: [author],
@@ -3296,7 +3296,7 @@ describe('createEngine — Bulletin feature image width custom setting', () => {
         tags: new Map(),
         authors: new Map(),
       },
-    };
+    } as unknown as ContentGraph;
   }
 
   test('default Wide value triggers Bulletin image-wide header class', () => {
@@ -3416,7 +3416,7 @@ describe('createEngine — Solo header section layout custom setting', () => {
         tags: new Map(),
         authors: new Map(),
       },
-    };
+    } as unknown as ContentGraph;
   }
 
   function makeRoute(): RouteContext {

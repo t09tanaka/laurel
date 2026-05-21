@@ -90,12 +90,9 @@ export async function runDev(args: string[]): Promise<number> {
   }
 
   const clients = new Set<ServerWebSocket<unknown>>();
-  // The Server generic widened in recent Bun types; biome/tsc disagree on
-  // whether the type argument is required. Pre-existing serve.ts uses the
-  // same un-parameterized form (`let server: Server`), so we follow that
-  // pattern for consistency and accept the lint/tsc mismatch as a known
-  // platform quirk.
-  let server: Server;
+  // Recent Bun types require an explicit WebSocket data parameter even when
+  // the dev server does not attach per-socket state.
+  let server: Server<unknown>;
   try {
     server = Bun.serve({
       port,
@@ -112,7 +109,7 @@ export async function runDev(args: string[]): Promise<number> {
       async fetch(request, srv) {
         const url = new URL(request.url);
         if (url.pathname === LIVERELOAD_PATH) {
-          if (srv.upgrade(request)) return undefined;
+          if (srv.upgrade(request, { data: undefined })) return undefined;
           return new Response('upgrade failed', { status: 426 });
         }
         if (url.pathname === LIVERELOAD_SCRIPT_PATH) {

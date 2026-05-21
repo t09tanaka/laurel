@@ -38,7 +38,7 @@ function makeEngine(opts: { cwd?: string } = {}): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('image_dimensions helper', () => {

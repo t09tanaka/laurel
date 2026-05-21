@@ -16,7 +16,7 @@ function makeEngine(locale = 'en'): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 // Intl currency output uses locale-specific symbols and digit grouping. Strip

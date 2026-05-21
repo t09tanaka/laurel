@@ -27,7 +27,7 @@ function makeEngine(opts: MakeEngineOpts = {}): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('foreach helper', () => {

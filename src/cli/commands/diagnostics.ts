@@ -426,7 +426,7 @@ function createTarGz(entries: readonly TarEntry[]): Uint8Array {
     if (padding > 0) chunks.push(Buffer.alloc(padding));
   }
   chunks.push(Buffer.alloc(TAR_BLOCK_SIZE * 2));
-  return gzipSync(Buffer.concat(chunks), { mtime: 0 });
+  return gzipSync(Buffer.concat(chunks));
 }
 
 function createTarHeader(

@@ -1111,7 +1111,8 @@ async function extractZipExport(zipPath: string): Promise<ExtractedZip> {
   }
   await proc.exited;
   if (proc.exitCode !== 0) {
-    const stderrText = await new Response(proc.stderr).text();
+    const stderrText =
+      proc.stderr instanceof ReadableStream ? await new Response(proc.stderr).text() : '';
     await rm(dir, { recursive: true, force: true });
     throw new Error(
       `Failed to extract ${zipPath}: unzip exited with code ${proc.exitCode}${stderrText ? `: ${stderrText.trim()}` : ''}`,
@@ -1130,6 +1131,7 @@ async function unwrapSingleSubdir(dir: string): Promise<string> {
   const entries = await readdir(dir, { withFileTypes: true });
   if (entries.length !== 1) return dir;
   const only = entries[0];
+  if (!only) return dir;
   if (!only.isDirectory()) return dir;
   return join(dir, only.name);
 }
@@ -1957,7 +1959,9 @@ function sanitizeImageUrl(
   }
   const match = normalized.match(URL_SCHEME_RE);
   if (match) {
-    const scheme = match[1].toLowerCase();
+    const rawScheme = match[1];
+    if (!rawScheme) return undefined;
+    const scheme = rawScheme.toLowerCase();
     if (scheme !== 'http' && scheme !== 'https') {
       logger.warn(
         `Refusing unsafe ${fieldName} URL on ${ownerLabel}: ${JSON.stringify(value)} (scheme: ${scheme}:)`,
@@ -2237,7 +2241,9 @@ function turndownHtmlPreservingRawMarkdownCards(
     const converted = turndownHtml(before).trim();
     if (converted) chunks.push(converted);
 
-    chunks.push(formatRawMarkdownCard(rawMarkdownCards[cardIndex]));
+    const rawCard = rawMarkdownCards[cardIndex];
+    if (!rawCard) return null;
+    chunks.push(formatRawMarkdownCard(rawCard));
     cardIndex += 1;
     lastIndex = match.index + match[0].length;
   }

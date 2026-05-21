@@ -10,6 +10,7 @@ import pkg from '../package.json' with { type: 'json' };
 // artifacts. See backlog task #482.
 
 const WORKFLOWS_DIR = join(import.meta.dir, '..', '.github', 'workflows');
+const CONTRIBUTING_PATH = join(import.meta.dir, '..', 'CONTRIBUTING.md');
 
 const listWorkflows = (): { name: string; content: string }[] =>
   readdirSync(WORKFLOWS_DIR)
@@ -43,6 +44,7 @@ describe('ci supply-chain', () => {
       const lines = content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (line === undefined) continue;
         if (!/\bbun\s+install\b/.test(line)) continue;
         if (/--frozen-lockfile\b/.test(line)) continue;
         offenders.push(`${name}:${i + 1}: ${line.trim()}`);
@@ -75,5 +77,12 @@ describe('ci supply-chain', () => {
     expect(content).toContain('release/nectar.cyclonedx.json');
     expect(content).toContain('if: ${{ !github.event.repository.private }}');
     expect(content).toContain('npm publish --provenance --access public');
+  });
+
+  test('source license header policy is documented', () => {
+    const contributing = readFileSync(CONTRIBUTING_PATH, 'utf8');
+    expect(contributing).toContain('### Source License Header Policy');
+    expect(contributing).toContain('Do not add per-file license headers');
+    expect(contributing).toContain('SPDX-License-Identifier: MIT');
   });
 });

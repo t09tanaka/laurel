@@ -27,8 +27,10 @@ export interface FrontmatterIssue {
 
 const POST_REQUIRED: readonly string[] = ['title'];
 const PAGE_REQUIRED: readonly string[] = ['title'];
-const STATUS_VALUES = new Set(frontmatterStatusValues);
-const VISIBILITY_VALUES = new Set(frontmatterVisibilityValues);
+const STATUS_VALUES: ReadonlySet<string> = new Set(frontmatterStatusValues);
+const VISIBILITY_VALUES: ReadonlySet<string> = new Set(frontmatterVisibilityValues);
+const hasStatusValue = (value: string): boolean => STATUS_VALUES.has(value);
+const hasVisibilityValue = (value: string): boolean => VISIBILITY_VALUES.has(value);
 
 export interface CheckFrontmatterOptions {
   cwd: string;
@@ -162,7 +164,7 @@ async function checkOne(abs: string, kind: 'post' | 'page'): Promise<Frontmatter
   }
 
   if (data.status !== undefined) {
-    if (typeof data.status !== 'string' || !STATUS_VALUES.has(data.status)) {
+    if (typeof data.status !== 'string' || !hasStatusValue(data.status)) {
       out.push({
         file: abs,
         line: headlineLine,
@@ -175,7 +177,7 @@ async function checkOne(abs: string, kind: 'post' | 'page'): Promise<Frontmatter
   }
 
   if (data.visibility !== undefined) {
-    if (typeof data.visibility !== 'string' || !VISIBILITY_VALUES.has(data.visibility)) {
+    if (typeof data.visibility !== 'string' || !hasVisibilityValue(data.visibility)) {
       out.push({
         file: abs,
         line: headlineLine,

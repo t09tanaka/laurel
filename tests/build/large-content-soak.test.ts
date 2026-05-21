@@ -52,7 +52,7 @@ function makeSite(): SiteData {
     comments_enabled: false,
     comments_access: 'all',
     recommendations_enabled: false,
-  } as SiteData;
+  } as unknown as SiteData;
 }
 
 function makePost(i: number): Post {
@@ -78,7 +78,7 @@ function makePost(i: number): Post {
     comments: true,
     feed_html: '',
     feed_excerpt: '',
-  } as Post;
+  } as unknown as Post;
 }
 
 describe('large content route-planning soak', () => {

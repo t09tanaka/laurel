@@ -96,7 +96,7 @@ function resolveIntlLocale(raw: string | undefined): string {
   for (const tag of candidates) {
     try {
       const supported = Intl.NumberFormat.supportedLocalesOf([tag]);
-      if (supported.length > 0) return supported[0];
+      if (supported[0]) return supported[0];
     } catch {
       // ill-formed tag; try next candidate
     }

@@ -35,7 +35,7 @@ interface VercelRedirectRule {
   statusCode: RedirectStatus;
 }
 
-export type BuildTrailingSlash = 'always' | 'never';
+export type BuildTrailingSlash = 'always' | 'never' | 'preserve';
 
 export interface VercelConfig {
   cleanUrls?: boolean;
@@ -128,10 +128,10 @@ export function buildVercelConfig(opts: {
   rules: readonly RedirectRule[];
   trailingSlash: BuildTrailingSlash;
 }): VercelConfig {
-  const config: VercelConfig = {
-    cleanUrls: true,
-    trailingSlash: opts.trailingSlash === 'always',
-  };
+  const config: VercelConfig = { cleanUrls: true };
+  if (opts.trailingSlash !== 'preserve') {
+    config.trailingSlash = opts.trailingSlash === 'always';
+  }
   const headerRules = buildVercelHeaders(opts.headers);
   if (headerRules.length > 0) {
     config.headers = headerRules;

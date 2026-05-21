@@ -10,8 +10,10 @@ function emptyContent(): ContentGraph {
     tags: [],
     authors: [],
     site: {} as ContentGraph['site'],
-    indices: { posts: new Map(), pages: new Map() } as unknown as ContentGraph['indices'],
-  } as ContentGraph;
+    indices: { posts: new Map(), pages: new Map() },
+  } as unknown as ContentGraph & {
+    indices: { posts: Map<string, unknown>; pages: Map<string, unknown> };
+  };
 }
 
 function theme(templates: Record<string, string>): ThemeBundle {

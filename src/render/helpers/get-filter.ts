@@ -479,6 +479,15 @@ function collectRefSlugs(raw: unknown): string[] {
   return out;
 }
 
+function resolvePath(root: unknown, segments: string[]): unknown {
+  let current = root;
+  for (const segment of segments) {
+    if (current === null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
 function compareEq(actual: unknown, expected: unknown): boolean {
   if (Array.isArray(actual)) return actual.some((v) => compareEq(v, expected));
   if (expected === null) return actual == null;

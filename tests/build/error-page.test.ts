@@ -39,7 +39,7 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     ...overrides,
-  };
+  } as unknown as SiteData;
 }
 
 function makeConfig(overrides: { base_path?: string; csp_nonce?: string } = {}): NectarConfig {
@@ -79,7 +79,7 @@ function makeContent(site: SiteData): ContentGraph {
     postsByTag: new Map(),
     postsByAuthor: new Map(),
     site,
-  };
+  } as unknown as ContentGraph;
 }
 
 describe('renderDefault404Html', () => {

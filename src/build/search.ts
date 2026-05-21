@@ -374,7 +374,8 @@ export async function runPagefind(opts: {
   }
   await proc.exited;
   if (proc.exitCode !== 0) {
-    const stderrText = await new Response(proc.stderr).text();
+    const stderrText =
+      proc.stderr instanceof ReadableStream ? await new Response(proc.stderr).text() : '';
     logger.warn(
       `Pagefind exited with code ${proc.exitCode}${stderrText ? `: ${stderrText.trim()}` : ''}. The pagefind/ output may be missing or partial.`,
     );

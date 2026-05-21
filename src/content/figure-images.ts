@@ -50,7 +50,7 @@ export function promoteImagesToFigures(
       continue;
     }
 
-    const { imgTag: imageTag, width } = consumeImageWidthHint(imgTag);
+    const { imgTag: imageTag, width } = consumeImageWidthHint(imgTag ?? '');
     const isPriorityImage = options.prioritizeFirstImage === true && promotedImageCount === 0;
     const imgWithClass = addDefaultImageLoading(
       addKgImageClass(imageTag),
@@ -76,9 +76,9 @@ export function promoteImagesToFigures(
 
 function extractFollowingCaption(tail: string): { text: string; consumed: number } | null {
   const bq = tail.match(FOLLOWING_BLOCKQUOTE_CAPTION_RE);
-  if (bq) return { text: bq[1].trim(), consumed: bq[0].length };
+  if (bq?.[1]) return { text: bq[1].trim(), consumed: bq[0].length };
   const em = tail.match(FOLLOWING_EM_CAPTION_RE);
-  if (em) return { text: em[1].trim(), consumed: em[0].length };
+  if (em?.[1]) return { text: em[1].trim(), consumed: em[0].length };
   return null;
 }
 

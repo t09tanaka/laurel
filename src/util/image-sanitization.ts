@@ -150,6 +150,10 @@ function stripJpegExif(bytes: Buffer): Buffer {
     }
 
     const marker = bytes[pos];
+    if (marker === undefined) {
+      chunks.push(bytes.subarray(markerStart));
+      break;
+    }
     pos += 1;
     if (marker === 0xda || marker === 0xd9) {
       chunks.push(bytes.subarray(markerStart));

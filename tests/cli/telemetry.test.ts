@@ -106,6 +106,7 @@ describe('cli telemetry crash reports', () => {
       prompt: async () => 'y',
       send: async () => {
         sent = true;
+        return true;
       },
     });
 

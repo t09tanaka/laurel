@@ -26,7 +26,7 @@ export interface FirebaseConfig {
     public: string;
     ignore: string[];
     cleanUrls: boolean;
-    trailingSlash: boolean;
+    trailingSlash?: boolean;
     headers: FirebaseHeaderRule[];
     redirects: FirebaseRedirectRule[];
     rewrites: FirebaseRewriteRule[];
@@ -60,17 +60,20 @@ export function buildFirebaseConfig(opts: {
   rules: readonly RedirectRule[];
   trailingSlash: BuildTrailingSlash;
 }): FirebaseConfig {
-  return {
+  const config: FirebaseConfig = {
     hosting: {
       public: '.',
       ignore: FIREBASE_IGNORE,
       cleanUrls: true,
-      trailingSlash: opts.trailingSlash === 'always',
       headers: buildFirebaseHeaders(opts.headers),
       redirects: buildFirebaseRedirects(opts.rules),
       rewrites: [],
     },
   };
+  if (opts.trailingSlash !== 'preserve') {
+    config.hosting.trailingSlash = opts.trailingSlash === 'always';
+  }
+  return config;
 }
 
 export async function emitFirebaseJson(opts: {

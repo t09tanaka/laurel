@@ -1942,7 +1942,9 @@ describe('importGhostExport — --download-images (#128)', () => {
         return new Response('', { status: opts.error[url] });
       }
       if (opts.ok && url in opts.ok) {
-        const { body, contentType } = opts.ok[url];
+        const ok = opts.ok[url];
+        if (!ok) return new Response('', { status: 404 });
+        const { body, contentType } = ok;
         return new Response(body, {
           status: 200,
           headers: { 'content-type': contentType ?? 'image/jpeg' },
@@ -2081,7 +2083,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(summary.imagesDownloaded).toBe(1);
     const files = await readdir(join(cwd, 'content/images/external'));
     expect(files).toEqual([expect.stringMatching(/\.svg$/)]);
-    const svg = await readFile(join(cwd, 'content/images/external', files[0]), 'utf8');
+    const svg = await readFile(join(cwd, 'content/images/external', files[0] ?? ''), 'utf8');
     expect(svg).toContain('<svg');
     expect(svg).not.toContain('<script');
     expect(svg).not.toContain('onload=');
@@ -2107,7 +2109,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(summary.imagesDownloaded).toBe(1);
     const files = await readdir(join(cwd, 'content/images/external'));
     expect(files).toEqual([expect.stringMatching(/\.jpg$/)]);
-    const jpg = await readFile(join(cwd, 'content/images/external', files[0]));
+    const jpg = await readFile(join(cwd, 'content/images/external', files[0] ?? ''));
     expect(jpg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
     expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(false);
     expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
@@ -3681,13 +3683,13 @@ describe('importGhostExport — --dry-run (#502)', () => {
 
   test('skips network entirely when --download-images is combined with --dry-run', async () => {
     let fetchCalls = 0;
-    const fakeFetch: typeof fetch = async () => {
+    const fakeFetch = (async () => {
       fetchCalls += 1;
       return new Response('IMG', {
         status: 200,
         headers: { 'content-type': 'image/jpeg' },
       });
-    };
+    }) as unknown as typeof fetch;
 
     await writeFile(
       exportFile,

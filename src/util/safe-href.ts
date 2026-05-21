@@ -19,7 +19,9 @@ export function sanitizeHref(value: string, context: string): string {
   if (normalized.length === 0) return '#';
   const match = normalized.match(URL_SCHEME_RE);
   if (!match) return value;
-  const scheme = match[1].toLowerCase();
+  const rawScheme = match[1];
+  if (!rawScheme) return value;
+  const scheme = rawScheme.toLowerCase();
   if (SAFE_LINK_SCHEMES.has(scheme)) return value;
   logger.warn(`Refusing unsafe href in ${context}: ${JSON.stringify(value)} (scheme: ${scheme}:)`);
   return '#';

@@ -45,7 +45,7 @@ function makeSite(): SiteData {
     twitter_description: undefined,
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
-  };
+  } as unknown as SiteData;
 }
 
 function makeConfig(siteUrl = 'https://example.com'): NectarConfig {
@@ -165,7 +165,7 @@ function makePage(slug: string, overrides: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
 function makeTag(slug: string): Tag {
@@ -190,7 +190,7 @@ function makeTag(slug: string): Tag {
     meta_description: undefined,
     url: `/tag/${slug}/`,
     count: { posts: 0 },
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(slug: string): Author {
@@ -225,7 +225,7 @@ function makeAuthor(slug: string): Author {
     codeinjection_foot: undefined,
     url: `/author/${slug}/`,
     count: { posts: 0 },
-  };
+  } as unknown as Author;
 }
 
 function makeGraph(opts: {
@@ -268,7 +268,7 @@ function makeGraph(opts: {
     postsByAuthor,
     emailOnlyPosts: [],
     site: makeSite(),
-  };
+  } as unknown as ContentGraph;
 }
 
 function makeTheme(): ThemeBundle {

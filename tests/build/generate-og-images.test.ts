@@ -14,7 +14,7 @@ const TEMPLATE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
   <text x="60" y="260" font-family="sans-serif" font-size="24" fill="#222">{{site_title}}</text>
 </svg>`;
 
-const site: SiteData = {
+const site = {
   title: 'Test Site',
   description: '',
   url: 'https://example.com',
@@ -48,7 +48,7 @@ const site: SiteData = {
   twitter_description: undefined,
   codeinjection_head: undefined,
   codeinjection_foot: undefined,
-};
+} as unknown as SiteData;
 
 function makeAuthor(overrides: Partial<Author> = {}): Author {
   return {
@@ -74,7 +74,7 @@ function makeAuthor(overrides: Partial<Author> = {}): Author {
     url: 'https://example.com/author/alice/',
     count: { posts: 1 },
     ...overrides,
-  };
+  } as unknown as Author;
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -99,7 +99,7 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     url: 'https://example.com/tag/news/',
     count: { posts: 1 },
     ...overrides,
-  };
+  } as unknown as Tag;
 }
 
 function makePost(overrides: Partial<Post> = {}): Post {
@@ -144,7 +144,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     prev: undefined,
     next: undefined,
     ...overrides,
-  };
+  } as unknown as Post;
 }
 
 function makePage(overrides: Partial<Page> = {}): Page {
@@ -188,7 +188,7 @@ function makePage(overrides: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
 function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
@@ -207,7 +207,7 @@ function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
     postsByTag: new Map(),
     postsByAuthor: new Map(),
     site,
-  };
+  } as unknown as ContentGraph;
 }
 
 async function makeFixture(opts: { template?: string } = {}): Promise<{

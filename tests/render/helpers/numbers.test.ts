@@ -16,7 +16,7 @@ function makeEngine(locale = 'en'): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 // Intl format output contains locale-specific separators (commas, narrow no-break

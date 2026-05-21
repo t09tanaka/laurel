@@ -332,6 +332,19 @@ The full coding standards live in [`CLAUDE.md`](./CLAUDE.md). Quick reference:
 By contributing, you agree that your contributions will be licensed under the
 project's [MIT License](./LICENSE).
 
+### Source License Header Policy
+
+The root [`LICENSE`](./LICENSE) file is the canonical license notice for
+Nectar's original source. Do not add per-file license headers to ordinary
+project-owned files under `src/`, `tests/`, `scripts/`, `docs/`, or examples.
+This keeps snippets easy to copy and avoids noisy mechanical diffs.
+
+If a file is copied from another project, generated from a source that requires
+notice preservation, or otherwise has file-level attribution requirements, keep
+the upstream notice with that file. For new project-owned files that genuinely
+need a per-file marker for packaging or redistribution, use the short SPDX form:
+`SPDX-License-Identifier: MIT`.
+
 ## Questions
 
 If you're unsure whether a change is in scope or how to structure it, ask in

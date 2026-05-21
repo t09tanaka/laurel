@@ -111,7 +111,12 @@ function parseImgAttrs(s: string): Map<string, string | true> {
   ATTR_RE.lastIndex = 0;
   let m: RegExpExecArray | null = ATTR_RE.exec(s);
   while (m !== null) {
-    const name = m[1].toLowerCase();
+    const rawName = m[1];
+    if (!rawName) {
+      m = ATTR_RE.exec(s);
+      continue;
+    }
+    const name = rawName.toLowerCase();
     const value = m[2] ?? m[3] ?? m[4];
     out.set(name, value ?? true);
     m = ATTR_RE.exec(s);
@@ -390,8 +395,8 @@ export async function injectImageLqip(html: string, opts: InjectImageLqipOptions
   let m: RegExpExecArray | null = re.exec(html);
   while (m !== null) {
     const match = m[0];
-    const attrsRaw = m[1];
-    const selfClose = m[2];
+    const attrsRaw = m[1] ?? '';
+    const selfClose = m[2] ?? '';
     let replacement = match;
     const attrs = parseImgAttrs(attrsRaw);
     const style = attrs.get('style');
@@ -463,6 +468,7 @@ function upsertStyleAttr(attrsRaw: string, styleToAppend: string, selfClose: str
   }
   const quote = existing[1];
   const current = existing[2];
+  if (!quote || current === undefined) return `<img${attrsRaw}${selfClose}>`;
   const separator = current.trim() === '' || /;\s*$/.test(current) ? '' : ';';
   const next = `${current}${separator}${styleToAppend}`;
   const nextAttrs = attrsRaw.replace(styleRe, ` style=${quote}${next}${quote}`);
@@ -684,7 +690,7 @@ export function injectImagePictureSources(
   while (m !== null) {
     const matchStart = m.index;
     const matchEnd = re.lastIndex;
-    const attrsRaw = m[1];
+    const attrsRaw = m[1] ?? '';
     const lastOpen = html.lastIndexOf('<picture', matchStart);
     const lastClose = html.lastIndexOf('</picture>', matchStart);
     const insidePicture = lastOpen >= 0 && lastOpen > lastClose;
@@ -872,6 +878,7 @@ export async function generateThemeImageSizeVariants(
           format: null,
           webpQuality,
           avifQuality,
+          stripMetadata: opts.stripMetadata,
         })
       ) {
         count += 1;
@@ -895,6 +902,7 @@ export async function generateThemeImageSizeVariants(
               format,
               webpQuality,
               avifQuality,
+              stripMetadata: opts.stripMetadata,
             })
           ) {
             count += 1;
@@ -915,6 +923,7 @@ interface EncodeOrReuseThemeVariantOptions {
   format: ImageFormat | null;
   webpQuality: number;
   avifQuality: number;
+  stripMetadata?: boolean;
 }
 
 async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions): Promise<boolean> {

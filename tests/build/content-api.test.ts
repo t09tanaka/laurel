@@ -31,7 +31,7 @@ function makeTag(over: Partial<Tag> = {}): Tag {
     url: 'https://example.com/tag/news/',
     count: { posts: 1 },
     ...over,
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(over: Partial<Author> = {}): Author {
@@ -67,7 +67,7 @@ function makeAuthor(over: Partial<Author> = {}): Author {
     url: 'https://example.com/author/casper/',
     count: { posts: 1 },
     ...over,
-  };
+  } as unknown as Author;
 }
 
 function makePost(over: Partial<Post> = {}): Post {
@@ -116,7 +116,7 @@ function makePost(over: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...over,
-  };
+  } as unknown as Post;
 }
 
 function makePage(over: Partial<Page> = {}): Page {
@@ -160,7 +160,7 @@ function makePage(over: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...over,
-  };
+  } as unknown as Page;
 }
 
 function makeGraph(over: Partial<ContentGraph> = {}): ContentGraph {
@@ -217,7 +217,7 @@ function makeGraph(over: Partial<ContentGraph> = {}): ContentGraph {
       recommendations_enabled: false,
     },
     ...over,
-  };
+  } as unknown as ContentGraph;
 }
 
 describe('emitContentApiStubs', () => {

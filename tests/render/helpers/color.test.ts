@@ -45,7 +45,7 @@ function makeEngine(): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('color helpers', () => {

@@ -39,7 +39,7 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     ...overrides,
-  };
+  } as unknown as SiteData;
 }
 
 function makeConfig(
@@ -74,7 +74,7 @@ function makeContent(site: SiteData): ContentGraph {
     postsByTag: new Map(),
     postsByAuthor: new Map(),
     site,
-  };
+  } as unknown as ContentGraph;
 }
 
 describe('renderRecommendationsHtml', () => {

@@ -25,7 +25,7 @@ function makeEngine(): NectarEngine {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 function render(source: string, pagination: PaginationFixture | undefined): string {

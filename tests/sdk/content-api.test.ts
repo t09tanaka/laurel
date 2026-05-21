@@ -74,7 +74,7 @@ function makeTag(over: Partial<Tag> = {}): Tag {
     url: 'https://example.com/tag/news/',
     count: { posts: 1 },
     ...over,
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(over: Partial<Author> = {}): Author {
@@ -101,7 +101,7 @@ function makeAuthor(over: Partial<Author> = {}): Author {
     url: 'https://example.com/author/casper/',
     count: { posts: 1 },
     ...over,
-  };
+  } as unknown as Author;
 }
 
 function makePost(over: Partial<Post> = {}): Post {
@@ -157,7 +157,7 @@ function makePost(over: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...over,
-  };
+  } as unknown as Post;
 }
 
 function makeSite(): SiteData {
@@ -214,7 +214,7 @@ function makeGraph(): ContentGraph {
     postsByTag: new Map([[tag.slug, posts]]),
     postsByAuthor: new Map([[author.slug, posts]]),
     site: makeSite(),
-  };
+  } as unknown as ContentGraph;
 }
 
 function makeConfig(): NectarConfig {

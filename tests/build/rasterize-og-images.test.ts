@@ -12,7 +12,7 @@ const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height=
   <rect x="100" y="100" width="400" height="200" fill="#222"/>
 </svg>`;
 
-const site: SiteData = {
+const site = {
   title: 'Test',
   description: '',
   url: 'https://example.com',
@@ -46,7 +46,7 @@ const site: SiteData = {
   twitter_description: undefined,
   codeinjection_head: undefined,
   codeinjection_foot: undefined,
-};
+} as unknown as SiteData;
 
 function makePost(overrides: Partial<Post> = {}): Post {
   return {
@@ -92,7 +92,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...overrides,
-  };
+  } as unknown as Post;
 }
 
 function makePage(overrides: Partial<Page> = {}): Page {
@@ -136,7 +136,7 @@ function makePage(overrides: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
 function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
@@ -155,7 +155,7 @@ function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
     postsByTag: new Map(),
     postsByAuthor: new Map(),
     site,
-  };
+  } as unknown as ContentGraph;
 }
 
 async function makeAssetsFixture(svgFiles: Record<string, string>): Promise<{

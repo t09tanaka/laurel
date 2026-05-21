@@ -34,7 +34,7 @@ function makeEngine(
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 function renderNavigation(navigation: NavItem[], routeUrl: string | undefined, hash = ''): string {

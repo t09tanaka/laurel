@@ -13,11 +13,12 @@ import { KOENIG_RUNTIME_DATA_KEY, collectKoenigRuntimeCardTypes } from '~/render
 
 function makeEngine(
   site: Partial<SiteData> = {},
-  config?: Partial<NectarEngine['config']>,
+  config?: Partial<NectarEngine['config']> | Record<string, unknown>,
   favicons?: FaviconSet,
-  theme?: Partial<NectarEngine['theme']>,
+  theme?: Partial<NectarEngine['theme']> | Record<string, unknown>,
 ): NectarEngine {
   const hb = Handlebars.create();
+  const themeOverrides = theme as Partial<NectarEngine['theme']> | undefined;
   const baseTheme: NectarEngine['theme'] = {
     name: 'test-theme',
     rootDir: '',
@@ -35,7 +36,7 @@ function makeEngine(
       customDefaults: {},
     },
   };
-  const fullSite: SiteData = {
+  const fullSite = {
     title: 'Nectar Test',
     description: 'desc',
     url: 'https://example.com',
@@ -70,15 +71,15 @@ function makeEngine(
     codeinjection_head: undefined,
     codeinjection_foot: undefined,
     ...site,
-  };
+  } as unknown as SiteData;
   return {
     hb,
     config: (config ?? {}) as NectarEngine['config'],
     content: { site: fullSite } as unknown as ContentGraph,
     theme: {
       ...baseTheme,
-      ...theme,
-      pkg: { ...baseTheme.pkg, ...theme?.pkg },
+      ...themeOverrides,
+      pkg: { ...baseTheme.pkg, ...themeOverrides?.pkg },
     } as NectarEngine['theme'],
     favicons,
     templates: {},
@@ -86,7 +87,7 @@ function makeEngine(
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 function renderGhostHead(
@@ -94,13 +95,13 @@ function renderGhostHead(
   routeUrl = '/some-post/',
   opts: {
     site?: Partial<SiteData>;
-    config?: Partial<NectarEngine['config']>;
+    config?: Partial<NectarEngine['config']> | Record<string, unknown>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
     routeMeta?: { canonical?: string; title?: string };
     routeAlternates?: { locale: string; href: string }[];
     favicons?: FaviconSet;
-    theme?: Partial<NectarEngine['theme']>;
+    theme?: Partial<NectarEngine['theme']> | Record<string, unknown>;
   } = {},
 ): string {
   const engine = makeEngine(opts.site, opts.config, opts.favicons, opts.theme);
@@ -123,8 +124,8 @@ function renderGhostFoot(
   ctx: Record<string, unknown>,
   opts: {
     site?: Partial<SiteData>;
-    config?: Partial<NectarEngine['config']>;
-    theme?: Partial<NectarEngine['theme']>;
+    config?: Partial<NectarEngine['config']> | Record<string, unknown>;
+    theme?: Partial<NectarEngine['theme']> | Record<string, unknown>;
     data?: Record<string, unknown>;
   } = {},
 ): string {
@@ -137,7 +138,7 @@ function renderGhostFoot(
 function extractJsonLd(html: string): string {
   const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   if (!match) throw new Error(`no JSON-LD found in: ${html}`);
-  return match[1];
+  return match[1] ?? '';
 }
 
 function extractAllJsonLd(html: string): string[] {
@@ -145,7 +146,7 @@ function extractAllJsonLd(html: string): string[] {
   const out: string[] = [];
   let m: RegExpExecArray | null = re.exec(html);
   while (m !== null) {
-    out.push(m[1]);
+    if (m[1]) out.push(m[1]);
     m = re.exec(html);
   }
   return out;
@@ -199,7 +200,7 @@ describe('ghost_head color-scheme meta', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: {
         pkg: { customDefaults: { site_background_color: '#111111' } },
-      } as Partial<NectarEngine['theme']>,
+      } as unknown as Partial<NectarEngine['theme']>,
     });
     expect(html).toContain('<meta name="color-scheme" content="dark light">');
   });
@@ -208,8 +209,8 @@ describe('ghost_head color-scheme meta', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: {
         pkg: { customDefaults: { site_background_color: '#111111' } },
-      } as Partial<NectarEngine['theme']>,
-      config: { theme: { custom: { site_background_color: '#ffffff' } } } as Partial<
+      } as unknown as Partial<NectarEngine['theme']>,
+      config: { theme: { custom: { site_background_color: '#ffffff' } } } as unknown as Partial<
         NectarEngine['config']
       >,
     });
@@ -225,7 +226,7 @@ describe('ghost_head color-scheme meta', () => {
             site_background_color: '#111111',
           },
         },
-      } as Partial<NectarEngine['config']>,
+      } as unknown as Partial<NectarEngine['config']>,
     });
     expect(html).toContain('<meta name="color-scheme" content="light dark">');
   });
@@ -254,7 +255,7 @@ describe('ghost_head shared card assets', () => {
 
   test('honours base_path and exclude-specific cache key for the head stylesheet', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
-      config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as Partial<
+      config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as unknown as Partial<
         NectarEngine['config']
       >,
       theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
@@ -295,7 +296,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
     const html = renderGhostFoot(
       {},
       {
-        config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as Partial<
+        config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as unknown as Partial<
           NectarEngine['config']
         >,
         theme: { pkg: { card_assets: true } },
@@ -421,7 +422,7 @@ describe('ghost_head JSON-LD escaping', () => {
     for (const raw of blocks) {
       expect(raw).toContain('\\u003C/script\\u003E');
     }
-    const article = JSON.parse(blocks[0]) as { headline: string };
+    const article = JSON.parse(blocks[0] ?? '') as { headline: string };
     expect(article.headline).toBe('Evil </script><script>alert(1)</script>');
   });
 
@@ -490,7 +491,7 @@ describe('ghost_head JSON-LD escaping', () => {
 describe('ghost_head RSS feed autodiscovery', () => {
   test('emits absolute <link rel="alternate" type="application/rss+xml"> when RSS is enabled', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
-      config: { components: { rss: { enabled: true, items: 20 } } } as Partial<
+      config: { components: { rss: { enabled: true, items: 20 } } } as unknown as Partial<
         NectarEngine['config']
       >,
     });
@@ -501,7 +502,7 @@ describe('ghost_head RSS feed autodiscovery', () => {
 
   test('omits the RSS discovery link when components.rss.enabled is false', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
-      config: { components: { rss: { enabled: false, items: 20 } } } as Partial<
+      config: { components: { rss: { enabled: false, items: 20 } } } as unknown as Partial<
         NectarEngine['config']
       >,
     });
@@ -512,7 +513,7 @@ describe('ghost_head RSS feed autodiscovery', () => {
   test('escapes the site title inside the RSS link title attribute', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       site: { title: 'A & "B"' },
-      config: { components: { rss: { enabled: true, items: 20 } } } as Partial<
+      config: { components: { rss: { enabled: true, items: 20 } } } as unknown as Partial<
         NectarEngine['config']
       >,
     });
@@ -829,8 +830,8 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
       author: { '@type': string; name: string; sameAs?: string[] }[];
     };
     expect(parsed.author).toHaveLength(1);
-    expect(parsed.author[0].sameAs).toContain('https://twitter.com/jane');
-    expect(parsed.author[0].sameAs).toContain('https://hachyderm.io/@jane');
+    expect(parsed.author[0]?.sameAs).toContain('https://twitter.com/jane');
+    expect(parsed.author[0]?.sameAs).toContain('https://hachyderm.io/@jane');
   });
 
   test('co-authors past the primary do not carry sameAs duplicated from the primary (issue #867)', () => {
@@ -853,8 +854,8 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
       author: { name: string; sameAs?: string[] }[];
     };
     expect(parsed.author).toHaveLength(2);
-    expect(parsed.author[0].sameAs).toBeDefined();
-    expect(parsed.author[1].sameAs).toBeUndefined();
+    expect(parsed.author[0]?.sameAs).toBeDefined();
+    expect(parsed.author[1]?.sameAs).toBeUndefined();
   });
 
   test('mainEntityOfPage continues to point at the canonical URL after enrichment (issue #867)', () => {
@@ -1346,8 +1347,8 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
     );
     const blocks = extractAllJsonLd(html);
     expect(blocks.length).toBe(2);
-    const first = JSON.parse(blocks[0]) as { '@type': string };
-    const second = JSON.parse(blocks[1]) as { '@type': string };
+    const first = JSON.parse(blocks[0] ?? '') as { '@type': string };
+    const second = JSON.parse(blocks[1] ?? '') as { '@type': string };
     expect(first['@type']).toBe('Article');
     expect(second['@type']).toBe('BreadcrumbList');
   });

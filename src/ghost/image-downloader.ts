@@ -183,13 +183,19 @@ export class GhostImageDownloader {
     if (!text) return text;
 
     const urls = new Set<string>();
-    for (const m of text.matchAll(MARKDOWN_IMAGE_RE)) urls.add(m[2]);
-    for (const m of text.matchAll(HTML_IMG_RE)) urls.add(m[3]);
+    for (const m of text.matchAll(MARKDOWN_IMAGE_RE)) {
+      if (m[2]) urls.add(m[2]);
+    }
+    for (const m of text.matchAll(HTML_IMG_RE)) {
+      if (m[3]) urls.add(m[3]);
+    }
     for (const m of text.matchAll(CSS_URL_RE)) {
       const url = cssUrlMatchValue(m);
       if (url) urls.add(url);
     }
-    for (const m of text.matchAll(HEADER_IMAGE_DATA_ATTR_RE)) urls.add(m[3]);
+    for (const m of text.matchAll(HEADER_IMAGE_DATA_ATTR_RE)) {
+      if (m[3]) urls.add(m[3]);
+    }
     for (const url of collectShortcodeImageUrls(text, HEADER_SHORTCODE_RE, HEADER_IMAGE_ATTRS)) {
       urls.add(url);
     }
@@ -228,9 +234,9 @@ export class GhostImageDownloader {
         CSS_URL_RE,
         (
           full,
-          quote: string,
+          _quote: string,
           quoted: string,
-          entityQuote: string,
+          _entityQuote: string,
           entityQuoted: string,
           bare: string,
         ) => {
@@ -286,7 +292,7 @@ function derivePaths(
   // imported markdown already lines up with how the build pipeline resolves
   // `/content/images/...` URLs.
   const ghostMatch = pathname.match(/^\/content\/(images|media)\/(.+)$/);
-  if (ghostMatch && !ghostMatch[2].includes('..')) {
+  if (ghostMatch?.[1] && ghostMatch[2] && !ghostMatch[2].includes('..')) {
     const subdir = ghostMatch[1];
     const rest = ghostMatch[2];
     return {
@@ -325,12 +331,13 @@ function collectShortcodeImageUrls(
   const urls = new Set<string>();
   for (const shortcode of text.matchAll(shortcodeRe)) {
     const attrs = shortcode[1];
+    if (!attrs) continue;
     SHORTCODE_ATTR_RE.lastIndex = 0;
     let attr: RegExpExecArray | null = SHORTCODE_ATTR_RE.exec(attrs);
     while (attr !== null) {
       const name = attr[1];
       const value = attr[2];
-      if (imageAttrs.has(name) && isHttpUrl(value)) urls.add(value);
+      if (name && value && imageAttrs.has(name) && isHttpUrl(value)) urls.add(value);
       attr = SHORTCODE_ATTR_RE.exec(attrs);
     }
   }
@@ -344,6 +351,7 @@ function rewriteShortcodeImageAttrs(
   imageAttrs: Set<string>,
 ): string {
   if (replacements.size === 0) return full;
+  if (!attrs) return full;
   const rewrittenAttrs = attrs.replace(SHORTCODE_ATTR_RE, (match, name: string, value: string) => {
     if (!imageAttrs.has(name)) return match;
     const rep = replacements.get(value);

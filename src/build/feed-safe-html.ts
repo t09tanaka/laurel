@@ -200,7 +200,7 @@ function imageTags(html: string): string[] {
       ['width', getAttrFromTag(match[0], 'width')],
       ['height', getAttrFromTag(match[0], 'height')],
     ]
-      .filter(([, value]) => value)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1] !== '')
       .map(([name, value]) => `${name}="${escapeAttr(value)}"`)
       .join(' ');
     out.push(`<img ${attrs}>`);

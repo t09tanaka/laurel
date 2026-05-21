@@ -50,7 +50,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
       throw new Error('not used');
     },
     ...overrides,
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('member helpers', () => {

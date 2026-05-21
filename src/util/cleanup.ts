@@ -99,7 +99,7 @@ export class CleanupRegistry {
   }
 
   waitForSignal(options: WaitForSignalOptions = {}): Promise<CleanupSignal> {
-    const target = options.process ?? process;
+    const target = options.process ?? (process as unknown as CleanupProcess);
     const signals = options.signals ?? DEFAULT_SIGNALS;
     const runCleanup = options.runCleanup ?? true;
 
@@ -130,7 +130,7 @@ export class CleanupRegistry {
   }
 
   installProcessHooks(options: ProcessCleanupHookOptions = {}): () => void {
-    const target = options.process ?? process;
+    const target = options.process ?? (process as unknown as CleanupProcess);
     const signals = options.signals ?? DEFAULT_SIGNALS;
     const includeExit = options.includeExit ?? true;
     const exitAfterSignal = options.exitAfterSignal ?? false;
@@ -200,6 +200,7 @@ async function runCleanupEntries(
   if (errors.length === 0) return;
   if (errors.length === 1) {
     const first = errors[0];
+    if (!first) return;
     throw new Error(`Cleanup callback failed: ${first.name}`, { cause: first.error });
   }
   throw new AggregateError(

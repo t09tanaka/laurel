@@ -28,7 +28,7 @@ function makeEngine(opts: {
     render() {
       throw new Error('not used');
     },
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('img_url helper', () => {

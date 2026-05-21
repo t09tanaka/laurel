@@ -39,7 +39,7 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
     url: '/tag/news/',
     count: { posts: 1 },
     ...overrides,
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(overrides: Partial<Author> = {}): Author {
@@ -66,7 +66,7 @@ function makeAuthor(overrides: Partial<Author> = {}): Author {
     url: '/author/jane/',
     count: { posts: 1 },
     ...overrides,
-  };
+  } as unknown as Author;
 }
 
 function makePost(overrides: Partial<Post> = {}): Post {
@@ -115,7 +115,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     feed_html: '<p>Hello handlebars world</p>',
     feed_excerpt: 'Hello handlebars world',
     ...overrides,
-  };
+  } as unknown as Post;
 }
 
 function makePage(overrides: Partial<Page> = {}): Page {
@@ -159,7 +159,7 @@ function makePage(overrides: Partial<Page> = {}): Page {
     show_title_and_feature_image: true,
     custom_template: undefined,
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
 function makeContent(overrides: Partial<ContentGraph> = {}): ContentGraph {
@@ -217,7 +217,7 @@ function makeContent(overrides: Partial<ContentGraph> = {}): ContentGraph {
       codeinjection_foot: undefined,
     },
     ...overrides,
-  };
+  } as unknown as ContentGraph;
 }
 
 describe('searchEngineEmitsLunr', () => {

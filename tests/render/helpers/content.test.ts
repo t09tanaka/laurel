@@ -18,7 +18,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
       throw new Error('not used');
     },
     ...overrides,
-  };
+  } as unknown as NectarEngine;
 }
 
 function makeEngineWithComments(
@@ -319,7 +319,7 @@ describe('content helper', () => {
     const direct = helper.call({ html: '<p>one <strong>two three</strong></p>' }, {
       hash: { words: 2 },
       data: {},
-    } as HelperOptions);
+    } as unknown as HelperOptions);
 
     expect(direct).toBeInstanceOf(engine.hb.SafeString);
     expect(direct.toString()).toBe('<p>one <strong>two</strong></p>');

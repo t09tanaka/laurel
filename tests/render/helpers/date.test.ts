@@ -17,7 +17,7 @@ function makeEngine(locale: string, timezone = 'UTC'): NectarEngine {
       throw new Error('not used');
     },
     sortedCache: new Map(),
-  };
+  } as unknown as NectarEngine;
 }
 
 describe('date helper', () => {

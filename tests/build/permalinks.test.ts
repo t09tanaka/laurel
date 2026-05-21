@@ -24,7 +24,7 @@ function makeTag(slug: string): Tag {
     meta_description: undefined,
     url: `/tag/${slug}/`,
     count: { posts: 0 },
-  };
+  } as unknown as Tag;
 }
 
 function makeAuthor(slug: string): Author {
@@ -50,7 +50,7 @@ function makeAuthor(slug: string): Author {
     meta_description: undefined,
     url: `/author/${slug}/`,
     count: { posts: 0 },
-  };
+  } as unknown as Author;
 }
 
 function makePost(slug: string, overrides: Partial<Post> = {}): Post {
@@ -97,7 +97,7 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
     feed_html: '',
     feed_excerpt: '',
     ...overrides,
-  };
+  } as unknown as Post;
 }
 
 describe('resolvePermalink — tokens', () => {
