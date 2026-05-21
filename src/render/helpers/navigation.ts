@@ -26,6 +26,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     'navigation',
     function navigationHelper(this: unknown, options: Handlebars.HelperOptions) {
       const site = options.data?.site as {
+        locale?: string;
         navigation: { label: string; url: string; slug?: string; current?: boolean }[];
         secondary_navigation:
           | { label: string; url: string; slug?: string; current?: boolean }[]
@@ -74,23 +75,19 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
         return new engine.hb.SafeString(html);
       }
 
-      const list = items
-        .map((item) => {
-          // Prefer the enriched fields that buildRootData attaches (so a
-          // template-side override or a custom NavigationItem extension is
-          // honoured). Fall back to local computation for callers that build
-          // engine state by hand (unit tests, partial mocks).
-          const slug = item.slug ?? slugify(item.label);
-          const isCurrent =
-            item.current ??
-            (currentUrl !== undefined &&
-              (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url)));
-          const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
-          const safeUrl = navigationHref(String(item.url ?? ''), basePath);
-          return `<li class="nav-${slug}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
-        })
-        .join('');
-      return new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);
+      if (!engine.navigationHtmlCache) {
+        engine.navigationHtmlCache = new Map();
+      }
+      const cache = engine.navigationHtmlCache;
+      const locale = String(site.locale ?? engine.content?.site?.locale ?? '');
+      const cacheKey = navigationCacheKey(type, locale, basePath, currentUrl, items);
+      const cached = cache.get(cacheKey);
+      if (cached) return cached;
+
+      const list = renderNavigationItems(items, currentUrl, basePath);
+      const html = new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);
+      cache.set(cacheKey, html);
+      return html;
     },
   );
 
@@ -282,6 +279,62 @@ function navigationHref(value: string, basePath: string | undefined): string {
   const href = sanitizeHref(value, '{{navigation}} helper');
   if (!shouldApplyBasePath(href)) return href;
   return withBasePath(basePath, href);
+}
+
+type NavigationHelperItem = {
+  label: string;
+  url: string;
+  slug?: string;
+  current?: boolean;
+};
+
+function renderNavigationItems(
+  items: NavigationHelperItem[],
+  currentUrl: string | undefined,
+  basePath: string | undefined,
+): string {
+  return items
+    .map((item) => {
+      // Prefer the enriched fields that buildRootData attaches (so a
+      // template-side override or a custom NavigationItem extension is
+      // honoured). Fall back to local computation for callers that build
+      // engine state by hand (unit tests, partial mocks).
+      const slug = item.slug ?? slugify(item.label);
+      const isCurrent = isCurrentNavigationItem(item, currentUrl);
+      const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
+      const safeUrl = navigationHref(String(item.url ?? ''), basePath);
+      return `<li class="nav-${slug}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
+    })
+    .join('');
+}
+
+function navigationCacheKey(
+  type: string,
+  locale: string,
+  basePath: string | undefined,
+  currentUrl: string | undefined,
+  items: NavigationHelperItem[],
+): string {
+  return JSON.stringify({
+    type,
+    locale,
+    basePath: basePath ?? '',
+    // `aria-current` is part of the helper output, so keep route/current state
+    // in the key instead of incorrectly sharing one nav across all pages.
+    current: items.map((item) => isCurrentNavigationItem(item, currentUrl)),
+    items: items.map((item) => [item.label, item.url, item.slug ?? '']),
+  });
+}
+
+function isCurrentNavigationItem(
+  item: NavigationHelperItem,
+  currentUrl: string | undefined,
+): boolean {
+  return (
+    item.current ??
+    (currentUrl !== undefined &&
+      (currentUrl === item.url || normaliseUrl(currentUrl) === normaliseUrl(item.url)))
+  );
 }
 
 function shouldApplyBasePath(href: string): boolean {

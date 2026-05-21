@@ -67,6 +67,10 @@ export interface NectarEngine {
   // Built on first filtered `get` against the resource; without this, every
   // call scans the full list per indexable key.
   filterIndexCache?: Map<string, FilterIndex>;
+  // Engine-scoped cache for the default `{{navigation}}` helper markup.
+  // Navigation is site-level data, so the expensive escape/slug/href work can
+  // be reused across route renders for equivalent output states.
+  navigationHtmlCache?: Map<string, Handlebars.SafeString>;
   // Plugin-facing shortcut for `engine.hb.registerHelper(name, fn)`. Exposed
   // on the engine surface so plugin authors do not have to reach into the
   // Handlebars instance directly, and so we keep one canonical extension
@@ -133,6 +137,7 @@ export function createEngine(opts: {
     layouts,
     templateLayoutNames,
     sortedCache: new Map(),
+    navigationHtmlCache: new Map(),
     render(route) {
       return renderRoute(engine, route);
     },

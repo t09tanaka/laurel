@@ -106,6 +106,51 @@ describe('navigation helper', () => {
     expect(html).toContain('class="nav-forced-slug"');
     expect(html).toContain('aria-current="page"');
   });
+
+  test('reuses cached default markup for equivalent navigation state', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const data = {
+      site: {
+        navigation: [
+          { label: 'Home', url: '/' },
+          { label: 'About', url: '/about/' },
+        ],
+        secondary_navigation: [],
+      },
+      route: { url: '/about/' },
+    };
+
+    const first = template({}, { data });
+    const firstCached = Array.from(engine.navigationHtmlCache?.values() ?? []);
+    const second = template({}, { data });
+    const secondCached = Array.from(engine.navigationHtmlCache?.values() ?? []);
+
+    expect(second).toBe(first);
+    expect(secondCached).toHaveLength(1);
+    expect(secondCached[0]).toBe(firstCached[0]);
+  });
+
+  test('keeps route-sensitive current markup in separate cache entries', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation}}');
+    const site = {
+      navigation: [
+        { label: 'Home', url: '/' },
+        { label: 'About', url: '/about/' },
+      ],
+      secondary_navigation: [],
+    };
+
+    const home = template({}, { data: { site, route: { url: '/' } } });
+    const about = template({}, { data: { site, route: { url: '/about/' } } });
+
+    expect(home).toContain('<li class="nav-home" aria-current="page">');
+    expect(about).toContain('<li class="nav-about" aria-current="page">');
+    expect(engine.navigationHtmlCache?.size).toBe(2);
+  });
 });
 
 describe('navigation helper href sanitisation', () => {
