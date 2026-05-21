@@ -4,6 +4,34 @@ Tagged releases are published by `.github/workflows/release.yml`. The workflow
 verifies the tag, builds platform binaries, publishes build provenance, creates
 the GitHub Release, and publishes the npm package.
 
+## SBOM and npm provenance
+
+The release workflow generates `release/nectar.cyclonedx.json` with
+`bun run sbom:cyclonedx` and uploads it as `nectar.cyclonedx.json` next to the
+release binaries. The SBOM is generated after `bun install --frozen-lockfile`, so
+it reflects the reviewed `bun.lock` dependency graph instead of resolving new
+versions during release.
+
+To generate the same CycloneDX SBOM locally without publishing anything:
+
+```bash
+bun install --frozen-lockfile
+bun run sbom:cyclonedx
+```
+
+The npm package is published only by the release workflow, using:
+
+```bash
+npm publish --provenance --access public
+```
+
+Keep that command in CI so npm can attach provenance to the package. If the
+repository remains private, the workflow still builds the SBOM and GitHub
+Release assets for internal use, but skips npm publication because npm
+provenance requires a public source repository. Public npm releases additionally
+require the `NPM_TOKEN` secret or an npm trusted publisher configuration that
+matches this workflow.
+
 ## Platform binary signing
 
 Release binaries are signed before they are uploaded as release artifacts:

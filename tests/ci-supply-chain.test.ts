@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import pkg from '../package.json' with { type: 'json' };
 
 // Guards CI supply-chain integrity: every `bun install` step in any workflow
 // must pass `--frozen-lockfile` so Bun refuses to mutate bun.lock and verifies
@@ -51,5 +52,28 @@ describe('ci supply-chain', () => {
       offenders,
       `bun install must always pass --frozen-lockfile in CI:\n${offenders.join('\n')}`,
     ).toEqual([]);
+  });
+
+  test('release tooling exposes CycloneDX SBOM generation', () => {
+    const scripts = pkg.scripts as Record<string, string>;
+    const devDependencies = pkg.devDependencies as Record<string, string>;
+    const sbomScript = scripts['sbom:cyclonedx'];
+
+    expect(pkg.publishConfig.provenance).toBe(true);
+    expect(devDependencies['@cyclonedx/cdxgen']).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(sbomScript).toContain('cdxgen');
+    expect(sbomScript).toContain('--no-install-deps');
+    expect(sbomScript).toContain('dist-sbom/nectar.cyclonedx.json');
+  });
+
+  test('release workflow uploads CycloneDX SBOM and keeps npm provenance enabled', () => {
+    const release = listWorkflows().find(({ name }) => name === 'release.yml');
+    expect(release).toBeDefined();
+
+    const content = release?.content ?? '';
+    expect(content).toContain('bun run sbom:cyclonedx');
+    expect(content).toContain('release/nectar.cyclonedx.json');
+    expect(content).toContain('if: ${{ !github.event.repository.private }}');
+    expect(content).toContain('npm publish --provenance --access public');
   });
 });

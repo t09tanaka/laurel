@@ -5,6 +5,7 @@ node_modules/
 # Build artifacts
 dist/
 dist-bin/
+dist-sbom/
 example/dist/
 docs-site/dist/
 *.tsbuildinfo

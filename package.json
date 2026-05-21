@@ -24,7 +24,8 @@
   ],
   "type": "module",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "bin": {
     "nectar": "./dist/cli.mjs"
@@ -53,14 +54,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "TELEMETRY.md",
-    "LICENSE",
-    "CHANGELOG.md",
-    "VERSIONING.md"
-  ],
+  "files": ["dist", "README.md", "TELEMETRY.md", "LICENSE", "CHANGELOG.md", "VERSIONING.md"],
   "scripts": {
     "build": "bun run src/cli/index.ts build",
     "build:example": "cd example && bun ../src/cli/index.ts build",
@@ -74,6 +68,7 @@
     "build:binary:shasums": "bun run scripts/compile.ts --all --shasums",
     "homebrew:formula": "bun run scripts/generate-homebrew-formula.ts",
     "scoop:manifest": "bun run scripts/generate-scoop-manifest.ts",
+    "sbom:cyclonedx": "mkdir -p dist-sbom && cdxgen -t js --no-install-deps --json-pretty --output dist-sbom/nectar.cyclonedx.json .",
     "docs:cli": "bun run src/cli/docs.ts",
     "docs:config": "bun run src/config/docs.ts",
     "docs:theme-reference": "bun run scripts/docs-theme-reference.ts",
@@ -120,6 +115,7 @@
   "devDependencies": {
     "@axe-core/cli": "^4.11.3",
     "@biomejs/biome": "^1.9.4",
+    "@cyclonedx/cdxgen": "12.4.1",
     "@tryghost/content-api": "^1.12.8",
     "@types/bun": "latest",
     "@types/html-minifier-terser": "^7.0.2",
