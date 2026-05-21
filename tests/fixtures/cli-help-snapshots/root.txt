@@ -12,6 +12,7 @@ Commands:
   test              Run the project test suite via Bun test (passthrough placeholder)
   dev               Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
   serve             Serve the built site as a local preview server; not for production hosting
+  dashboard         Run the local file-backed editorial dashboard
   check             Validate config, theme, and content
   doctor            Run health checks on the project (bun, config, theme, content, network)
   diagnostics       Create support-safe diagnostics bundles
