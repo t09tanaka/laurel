@@ -325,4 +325,31 @@ describe('loadTheme', () => {
       });
     });
   });
+
+  test('skips context.json and merges site-level locale overrides', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'mini');
+      await mkdir(join(themeRoot, 'locales'), { recursive: true });
+      await mkdir(join(cwd, 'content', 'translations'), { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), 'hi', 'utf8');
+      await writeFile(join(themeRoot, 'locales', 'en.json'), JSON.stringify({ Search: 'Search' }));
+      await writeFile(
+        join(themeRoot, 'locales', 'context.json'),
+        JSON.stringify({ Search: 'ctx' }),
+      );
+      await writeFile(
+        join(cwd, 'content', 'translations', 'en.json'),
+        JSON.stringify({ Search: 'Find', Subscribe: 'Subscribe' }),
+      );
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'mini', dir: 'themes' },
+      });
+
+      const theme = await loadTheme({ cwd, config });
+
+      expect(theme.locales.context).toBeUndefined();
+      expect(theme.locales.en).toEqual({ Search: 'Find', Subscribe: 'Subscribe' });
+    });
+  });
 });

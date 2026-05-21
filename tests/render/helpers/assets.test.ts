@@ -8,6 +8,7 @@ import type { ThemeImageSize } from '~/theme/types.ts';
 function makeEngine(opts: {
   imageSizes?: Record<string, ThemeImageSize>;
   siteUrl?: string;
+  cdnUrl?: string;
   basePath?: string;
 }): NectarEngine {
   const hb = Handlebars.create();
@@ -17,7 +18,7 @@ function makeEngine(opts: {
       build: { base_path: opts.basePath ?? '/' },
     } as NectarEngine['config'],
     content: {
-      site: { url: opts.siteUrl ?? 'https://example.com' },
+      site: { url: opts.siteUrl ?? 'https://example.com', cdn_url: opts.cdnUrl },
     } as unknown as NectarEngine['content'],
     theme: {
       assets: new Map(),
@@ -227,6 +228,18 @@ describe('img_url helper', () => {
       feature_image: '/content/images/cover.jpg?v=1&sig=abc',
     });
     expect(html).toBe('<img src="/content/images/size/w600/cover.jpg?v=1&sig=abc">');
+  });
+
+  test('resolves absolute content image URLs against site.cdn_url when configured', () => {
+    const engine = makeEngine({
+      cdnUrl: 'https://cdn.example.com',
+      imageSizes: { m: { width: 600 } },
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" absolute=true}}');
+    expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
+      'https://cdn.example.com/content/images/size/w600/cover.jpg',
+    );
   });
 
   test('SVG sources skip size segment rewriting (issues #49 / #140 / #534)', () => {

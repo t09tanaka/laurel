@@ -18,6 +18,7 @@ export interface SiteData {
   title: string;
   description: string;
   url: string;
+  cdn_url?: string | undefined;
   admin_url?: string | undefined;
   locale: string;
   locales?: string[];

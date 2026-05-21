@@ -162,6 +162,8 @@ function baseResource(engine: NectarEngine, resource: string): readonly unknown[
     case 'tiers':
     case 'products':
       return engine.content.tiers;
+    case 'newsletters':
+      return [];
     default:
       return undefined;
   }

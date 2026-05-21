@@ -153,6 +153,18 @@ ${longPlaintext}
       'utf8',
     );
     await writeFile(
+      join(cwd, 'content/posts/html-custom.md'),
+      `---
+title: HTML custom excerpt
+date: 2026-01-04T00:00:00Z
+custom_excerpt: "<p>Editor <strong>summary</strong></p><script>nope()</script>"
+---
+
+${longPlaintext}
+`,
+      'utf8',
+    );
+    await writeFile(
       join(cwd, 'content/posts/generated.md'),
       `---
 title: Generated excerpt
@@ -197,9 +209,12 @@ ${longPlaintext}
     expect(generated?.excerpt).not.toContain('w51');
 
     const nullCustom = graph.bySlug.posts.get('null-custom');
-    expect(nullCustom?.custom_excerpt).toBeUndefined();
-    expect(nullCustom?.excerpt).toBe(first50Words);
-    expect(nullCustom?.excerpt).not.toBe('Legacy excerpt input');
+    expect(nullCustom?.custom_excerpt).toBe('Legacy excerpt input');
+    expect(nullCustom?.excerpt).toBe('Legacy excerpt input');
+
+    const htmlCustom = graph.bySlug.posts.get('html-custom');
+    expect(htmlCustom?.custom_excerpt).toBe('Editor summary');
+    expect(htmlCustom?.excerpt).toBe('Editor summary');
   });
 
   test('strips email cards before plaintext, excerpt, and feed fields are derived', async () => {

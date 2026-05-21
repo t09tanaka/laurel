@@ -273,6 +273,14 @@ describe('get helper slug= hash', () => {
 });
 
 describe('get helper unknown resources', () => {
+  test('newsletters is a known empty static resource', () => {
+    const engine = buildEngine({});
+    const tpl = engine.hb.compile(`{{#get "newsletters"}}A{{else}}B{{/get}}`);
+
+    expect(tpl({})).toBe('B');
+    expect(engine.sortedCache.has('newsletters|published_at desc')).toBe(false);
+  });
+
   test('renders the inverse block for unknown resources', () => {
     const engine = buildEngine({});
     const tpl = engine.hb.compile(`{{#get "unknowns"}}A{{else}}B{{/get}}`);

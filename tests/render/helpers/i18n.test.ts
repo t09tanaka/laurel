@@ -219,6 +219,18 @@ describe('t helper', () => {
     expect(tpl({}, { data: { route: { locale: 'ja' } } })).toBe('ja:こんにちは');
   });
 
+  test('falls back from a regional locale to the base language file', () => {
+    const engine = makeEngine(
+      {
+        en: { Search: 'Search' },
+        fr: { Search: 'Rechercher' },
+      },
+      'fr-CA',
+    );
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Search"}}')({})).toBe('Rechercher');
+  });
+
   test('stringifies numeric and boolean locale values', () => {
     const engine = makeEngine({
       en: {

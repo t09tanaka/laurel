@@ -100,6 +100,7 @@ function renderGhostHead(
     routeKind?: string;
     routeMeta?: { canonical?: string; title?: string };
     routeAlternates?: { locale: string; href: string }[];
+    routeVariant?: string;
     favicons?: FaviconSet;
     theme?: Partial<NectarEngine['theme']> | Record<string, unknown>;
   } = {},
@@ -112,6 +113,7 @@ function renderGhostHead(
       route: {
         kind: opts.routeKind,
         url: routeUrl,
+        variant: opts.routeVariant,
         meta: opts.routeMeta,
         alternates: opts.routeAlternates,
         data: opts.routeData ?? { post: ctx },
@@ -119,6 +121,25 @@ function renderGhostHead(
     },
   });
 }
+
+describe('ghost_head AMP discovery', () => {
+  test('emits rel=amphtml on canonical post routes only', () => {
+    const html = renderGhostHead({ title: 'Hello', id: 'post-1' }, '/hello/', {
+      routeKind: 'post',
+    });
+
+    expect(html).toContain('<link rel="amphtml" href="https://example.com/hello/amp/">');
+  });
+
+  test('does not emit rel=amphtml on AMP routes themselves', () => {
+    const html = renderGhostHead({ title: 'Hello', id: 'post-1' }, '/hello/amp/', {
+      routeKind: 'post',
+      routeVariant: 'amp',
+    });
+
+    expect(html).not.toContain('rel="amphtml"');
+  });
+});
 
 function renderGhostFoot(
   ctx: Record<string, unknown>,

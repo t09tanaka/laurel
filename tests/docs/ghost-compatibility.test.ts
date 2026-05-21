@@ -145,4 +145,21 @@ describe('Ghost compatibility docs', () => {
       /External automation should live in build hooks, CI, or the\s+deploy provider/,
     );
   });
+
+  test('documents final Ghost compatibility route, i18n, and static-scope contracts', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
+    const config = await readFile(join(ROOT, 'docs', 'config.md'), 'utf8');
+
+    expect(doc).toContain('When a theme ships `amp.hbs`, Nectar emits');
+    expect(doc).toContain('custom routes can set `content_type`');
+    expect(doc).toContain('`fr-CA -> fr -> en`');
+    expect(doc).toContain('`{{partials}}` is a no-op registration helper');
+    expect(doc).toContain('`{{#get "newsletters"}}`');
+    expect(doc).toContain('Ghost-specific year/month grouping helper');
+    expect(doc).toContain('Segment metadata for newsletter export is intentionally not preserved');
+    expect(doc).toContain(
+      '`Post.frontmatter` in Ghost is the raw structured Mobiledoc/Lexical/card deck',
+    );
+    expect(config).toContain('| `site.cdn_url` | `string` | no | — | Optional absolute CDN origin');
+  });
 });

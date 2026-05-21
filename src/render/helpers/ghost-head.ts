@@ -42,6 +42,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
             kind?: string;
             url?: string;
             alternates?: { locale: string; href: string }[];
+            variant?: string;
             data?: Record<string, unknown>;
             meta?: { canonical?: string; title?: string };
           }
@@ -111,6 +112,10 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (cardAssetsSnippet) head = appendHeadPart(head, cardAssetsSnippet);
       if (meta.canonical) {
         head = appendHeadPart(head, `<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
+      }
+      const ampHref = routeAmpHtmlHref(route, site.url, basePath);
+      if (ampHref) {
+        head = appendHeadPart(head, `<link rel="amphtml" href="${escapeAttr(ampHref)}">`);
       }
       for (const alternate of route?.alternates ?? []) {
         head = appendHeadPart(
@@ -392,6 +397,24 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
 
 function appendHeadPart(head: string, part: string): string {
   return head ? `${head}\n${part}` : part;
+}
+
+function routeAmpHtmlHref(
+  route:
+    | {
+        kind?: string;
+        url?: string;
+        variant?: string;
+      }
+    | undefined,
+  siteUrl: string,
+  basePath: string,
+): string | undefined {
+  if (route?.kind !== 'post' || route.variant === 'amp' || typeof route.url !== 'string') {
+    return undefined;
+  }
+  const base = route.url.endsWith('/') ? route.url : `${route.url}/`;
+  return absoluteUrlWithBasePath(siteUrl, basePath, `${base}amp/`);
 }
 
 interface ComputedMeta {

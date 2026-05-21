@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { type Stats, existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
+import { parseDocument } from 'htmlparser2';
 import slugify from 'slugify';
 import { assignPostUrls } from '~/build/permalinks.ts';
 import {
@@ -652,6 +653,7 @@ function buildSite(config: NectarConfig): SiteData {
     title: config.site.title,
     description: config.site.description,
     url: config.site.url,
+    cdn_url: config.site.cdn_url,
     admin_url: `${config.site.url}/ghost/`,
     locale: config.site.locale,
     lang: shortLang(config.site.locale),
@@ -1297,7 +1299,7 @@ async function normalizePost(
   const visibility = parsePostVisibility(asString(data.visibility), filePath);
   // Match Ghost Content API semantics: `custom_excerpt` is the editor-managed
   // field, while `excerpt` is generated below from it or from plaintext.
-  const customExcerpt = asString(data.custom_excerpt);
+  const customExcerpt = normalizeCustomExcerpt(asString(data.custom_excerpt ?? data.excerpt));
 
   let html = rendered.html;
   let plaintext = rendered.plaintext;
@@ -1457,6 +1459,33 @@ function clonePlainRecord(value: unknown): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeCustomExcerpt(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/[<&]/.test(value)) return value;
+  const text = textOnly(parseDocument(value, { decodeEntities: true }).children as DomNode[]);
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+type DomNode = {
+  readonly type?: string;
+  readonly name?: string;
+  readonly data?: string;
+  readonly children?: readonly DomNode[];
+};
+
+function textOnly(nodes: readonly DomNode[]): string {
+  let out = '';
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      out += node.data ?? '';
+      continue;
+    }
+    if (node.name === 'script' || node.name === 'style') continue;
+    if (node.children) out += textOnly(node.children);
+  }
+  return out;
 }
 
 function nonNegativeInt(value: unknown): number | undefined {

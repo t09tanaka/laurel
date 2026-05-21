@@ -322,6 +322,15 @@ export const configSchema = z
           .describe(
             'BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme\'s `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping.',
           ),
+        cdn_url: z
+          .string()
+          .url('site.cdn_url must be an absolute URL (e.g. `https://cdn.example.com`)')
+          .refine(isHttpUrl, 'site.cdn_url must use http or https')
+          .optional()
+          .transform((value) => value?.replace(/\/+$/, ''))
+          .describe(
+            'Optional absolute CDN origin used by `{{img_url ... absolute=true}}` for `/content/images/` paths. Canonical links, sitemap entries, and page URLs still use `site.url`.',
+          ),
         timezone: z
           .string()
           .default('UTC')

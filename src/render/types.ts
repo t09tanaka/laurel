@@ -28,7 +28,14 @@ export interface RouteContext {
   kind: RouteKind;
   url: string;
   outputPath: string;
+  outputContentType?:
+    | 'text/html'
+    | 'application/rss+xml'
+    | 'application/atom+xml'
+    | 'text/plain'
+    | 'application/json';
   template: string;
+  variant?: 'amp';
   locale?: string;
   alternates?: RouteAlternate[];
   lastmod?: string;

@@ -43,7 +43,7 @@ describe('loadThemeAssets fingerprint cache', () => {
     );
   });
 
-  test('fingerprints source maps and font assets', async () => {
+  test('skips source maps and fingerprints font assets', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-non-code-cache-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
@@ -51,12 +51,11 @@ describe('loadThemeAssets fingerprint cache', () => {
     await writeFile(join(assetsDir, 'screen.woff2'), 'font-bytes');
 
     const map = await loadThemeAssets(themeDir);
-    for (const logical of ['assets/built/screen.css.map', 'assets/built/screen.woff2']) {
-      const asset = map.get(logical);
-      expect(asset?.hash).toMatch(/^[0-9a-f]{16}$/);
-      expect(asset?.fingerprintedPath).not.toBe(asset?.logicalPath);
-      expect(asset?.fingerprintedPath).toContain(`.${asset?.hash}.`);
-    }
+    expect(map.get('assets/built/screen.css.map')).toBeUndefined();
+    const asset = map.get('assets/built/screen.woff2');
+    expect(asset?.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(asset?.fingerprintedPath).not.toBe(asset?.logicalPath);
+    expect(asset?.fingerprintedPath).toContain(`.${asset?.hash}.`);
   });
 
   test('stores one canonical assets-prefixed key per file', async () => {

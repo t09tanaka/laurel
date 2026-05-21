@@ -49,6 +49,7 @@ export function registerAssetHelpers(engine: NectarEngine): void {
       typeof options.hash.format === 'string' ? normalizeFormat(options.hash.format) : undefined;
     const absolute = options.hash.absolute === true;
     const siteUrl = engine.content.site.url;
+    const imageBaseUrl = imageAbsoluteBaseUrl(candidate, engine.content.site);
     // applyTransformSegments only rewrites URLs whose path contains
     // `/content/images/`. That guard is sufficient: a Ghost CDN host serving
     // `https://CDN/content/images/foo.jpg` is exactly the case where injecting
@@ -65,13 +66,22 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     // rewrite their origin (issue #1132).
     if (absolute && sameOriginAsSite) {
       try {
-        return new engine.hb.SafeString(encodeImageUrl(new URL(url, siteUrl).toString()));
+        return new engine.hb.SafeString(encodeImageUrl(new URL(url, imageBaseUrl).toString()));
       } catch {
         return new engine.hb.SafeString(encodeImageUrl(url));
       }
     }
     return new engine.hb.SafeString(encodeImageUrl(url));
   });
+}
+
+function imageAbsoluteBaseUrl(
+  candidate: string,
+  site: { url: string; cdn_url?: string | undefined },
+): string {
+  if (!site.cdn_url) return site.url;
+  if (!candidate.includes('/content/images/')) return site.url;
+  return site.cdn_url;
 }
 
 function resolveThemeAsset(

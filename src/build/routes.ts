@@ -130,6 +130,28 @@ export function planRoutes(opts: {
         post.feature_image,
       ),
     });
+    if (hasTemplate(theme, 'amp')) {
+      const ampUrl = ampRouteUrl(url, trailingSlash);
+      routes.push({
+        kind: 'post',
+        variant: 'amp',
+        url: ampUrl,
+        outputPath: routeUrlToOutputPath(ampUrl, trailingSlash),
+        template: 'amp',
+        locale: localeRouting ? post.locale : undefined,
+        lastmod: post.updated_at ?? post.published_at,
+        indexable: false,
+        data: { post },
+        meta: defaultMeta(
+          config,
+          ampUrl,
+          post.meta_title ?? post.title,
+          post.meta_description ?? post.excerpt,
+          post.feature_image,
+          url,
+        ),
+      });
+    }
   }
 
   if (hasTemplate(theme, 'page')) {
@@ -249,11 +271,7 @@ export function planRoutes(opts: {
     if (!customTemplate) {
       continue;
     }
-    if (entry.content_type !== 'html') {
-      logger.warn(
-        `routes.yaml: route '${entry.url}' requests content_type '${entry.content_type}' which is parsed but not yet applied; the route will be emitted as HTML.`,
-      );
-    }
+    const outputContentType = routeContentTypeHeader(entry.content_type);
     const channelPosts = resolveCustomChannelPosts(
       entry,
       content.posts,
@@ -280,7 +298,8 @@ export function planRoutes(opts: {
         routes.push({
           kind: 'custom',
           url,
-          outputPath: routeUrlToOutputPath(url, trailingSlash),
+          outputPath: customRouteOutputPath(url, trailingSlash, entry.content_type),
+          outputContentType,
           template: customTemplate,
           locale,
           lastmod: slice ? latestPostTimestamp(slice) : undefined,
@@ -636,6 +655,61 @@ function sameRouteUrl(a: string, b: string): boolean {
 
 function appendPaginationSegment(base: string, prefix: string, page: number): string {
   return `${base.endsWith('/') ? base : `${base}/`}${prefix}/${page}/`;
+}
+
+function ampRouteUrl(postUrl: string, trailingSlash: TrailingSlashPolicy): string {
+  const base = postUrl.endsWith('/') ? postUrl : `${postUrl}/`;
+  return canonicalRouteUrl(`${base}amp/`, trailingSlash);
+}
+
+function customRouteOutputPath(
+  url: string,
+  trailingSlash: TrailingSlashPolicy,
+  contentType: ResolvedRouteEntry['content_type'],
+): string {
+  if (contentType === 'html') return routeUrlToOutputPath(url, trailingSlash);
+  const literal = routeUrlToOutputPath(url, trailingSlash);
+  if (routeUrlHasLiteralFileExtension(url)) return literal;
+  const base = literal.endsWith('/index.html') ? literal.slice(0, -'/index.html'.length) : literal;
+  const extension = routeContentTypeExtension(contentType);
+  return base ? `${base}.${extension}` : `index.${extension}`;
+}
+
+function routeUrlHasLiteralFileExtension(url: string): boolean {
+  const trimmed = url.endsWith('/') ? url.slice(0, -1) : url;
+  const last = trimmed.split('/').pop() ?? '';
+  return last.lastIndexOf('.') > 0;
+}
+
+function routeContentTypeExtension(contentType: ResolvedRouteEntry['content_type']): string {
+  switch (contentType) {
+    case 'rss':
+    case 'atom':
+      return 'xml';
+    case 'plain':
+      return 'txt';
+    case 'json':
+      return 'json';
+    default:
+      return 'html';
+  }
+}
+
+function routeContentTypeHeader(
+  contentType: ResolvedRouteEntry['content_type'],
+): RouteContext['outputContentType'] | undefined {
+  switch (contentType) {
+    case 'rss':
+      return 'application/rss+xml';
+    case 'atom':
+      return 'application/atom+xml';
+    case 'plain':
+      return 'text/plain';
+    case 'json':
+      return 'application/json';
+    default:
+      return undefined;
+  }
 }
 
 function filterByLocale<T extends { locale?: string }>(

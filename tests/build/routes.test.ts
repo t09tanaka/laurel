@@ -1148,6 +1148,22 @@ describe('planRoutes — routes.yaml routes section', () => {
     expect(custom?.meta.canonical).toBe('https://example.com/featured/');
   });
 
+  test('maps non-HTML custom route content_type to output path and content type metadata', () => {
+    const config = makeConfig('https://example.com');
+    const content = makeGraph({});
+    const theme = makeTheme();
+    theme.templates.feed = '<rss></rss>';
+    const routes = planRoutes({
+      config,
+      content,
+      theme,
+      routesYaml: routesYamlWith({ '/custom-feed/': { template: 'feed', content_type: 'rss' } }),
+    });
+    const custom = routes.find((r) => r.kind === 'custom' && r.url === '/custom-feed/');
+    expect(custom?.outputPath).toBe('custom-feed.xml');
+    expect(custom?.outputContentType).toBe('application/rss+xml');
+  });
+
   test('object-form entries pass their template through and skip routes whose template is absent', () => {
     const config = makeConfig('https://example.com');
     const content = makeGraph({});
@@ -1328,6 +1344,29 @@ describe('planRoutes — routes.yaml routes section', () => {
     const engine = createEngine({ config, content, theme });
     expect(engine.render(firstPage)).toBe('iphone-17|ipad-pro|');
     expect(engine.render(secondPage)).toBe('macbook-air|');
+  });
+});
+
+describe('planRoutes — AMP routes', () => {
+  test('emits per-post AMP routes when the theme ships amp.hbs', () => {
+    const config = makeConfig('https://example.com');
+    const post = makePost('hello-amp');
+    const content = makeGraph({ posts: [post] });
+    const theme = makeTheme();
+    theme.templates.amp = '<html amp>{{title}}</html>';
+
+    const routes = planRoutes({ config, content, theme });
+    const amp = routes.find((route) => route.url === '/hello-amp/amp/');
+
+    expect(amp).toMatchObject({
+      kind: 'post',
+      variant: 'amp',
+      outputPath: 'hello-amp/amp/index.html',
+      template: 'amp',
+      indexable: false,
+      data: { post },
+    });
+    expect(amp?.meta.canonical).toBe('https://example.com/hello-amp/');
   });
 });
 

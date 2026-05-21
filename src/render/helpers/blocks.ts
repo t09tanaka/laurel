@@ -187,6 +187,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
 
   registerAdjacentPostBlock(engine, 'prev_post', 'prev');
   registerAdjacentPostBlock(engine, 'next_post', 'next');
+  engine.hb.registerHelper('partials', () => '');
 
   engine.hb.registerHelper('get', function getHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -506,6 +507,8 @@ function baseResource(engine: NectarEngine, resource: string): readonly unknown[
     case 'tiers':
     case 'products':
       return engine.content.tiers;
+    case 'newsletters':
+      return [];
     default:
       return [];
   }

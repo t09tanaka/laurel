@@ -69,7 +69,10 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   const pkg = await loadThemePackage(rootDir);
   warnIfMembersRequiredWithoutPortal(pkg, config);
   warnIfGhostEngineUnsupported(pkg);
-  const locales = await loadLocales(rootDir);
+  const locales = await loadLocales(rootDir, [
+    join(cwd, 'content', 'translations'),
+    join(cwd, 'content', 'themes', config.theme.name, 'locales'),
+  ]);
   const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar-cache') });
 
   return {
@@ -250,8 +253,21 @@ function stripExt(p: string): string {
   return p.slice(0, p.length - extname(p).length);
 }
 
-async function loadLocales(rootDir: string): Promise<ThemeLocaleMap> {
-  const dir = join(rootDir, 'locales');
+async function loadLocales(
+  rootDir: string,
+  overrideDirs: readonly string[] = [],
+): Promise<ThemeLocaleMap> {
+  const themeLocales = await loadLocaleDir(join(rootDir, 'locales'));
+  for (const dir of overrideDirs) {
+    const overrides = await loadLocaleDir(dir);
+    for (const [code, locale] of Object.entries(overrides)) {
+      themeLocales[code] = { ...(themeLocales[code] ?? {}), ...locale };
+    }
+  }
+  return themeLocales;
+}
+
+async function loadLocaleDir(dir: string): Promise<ThemeLocaleMap> {
   if (!existsSync(dir)) return {};
   const allRels = await scanGlob('*.json', { cwd: dir });
   const rels = allRels.filter((rel) => {
@@ -259,6 +275,8 @@ async function loadLocales(rootDir: string): Promise<ThemeLocaleMap> {
       logger.warn(`Skipping symlinked locale file: ${join(dir, rel)}`);
       return false;
     }
+    const code = stripExt(rel);
+    if (!isThemeLocaleFilename(code)) return false;
     return true;
   });
   // Read every locale JSON in parallel; the typical theme ships a few dozen
@@ -282,6 +300,10 @@ async function loadLocales(rootDir: string): Promise<ThemeLocaleMap> {
     out[code] = sanitizeLocale(parsed, rel);
   }
   return out;
+}
+
+function isThemeLocaleFilename(code: string): boolean {
+  return /^[a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,8})*$/.test(code);
 }
 
 // Locale values are rendered by themes through `{{t}}` and frequently through

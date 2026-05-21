@@ -32,9 +32,19 @@ See `DESIGN.md` §4 for the master matrix.
 - `{{!< layout}}` is parsed in `src/render/layouts.ts`. We rewrite the inner
   template into `{{#> layout}}<inner>{{/layout}}` semantics by capturing
   everything after the layout directive as the layout's body.
+- Bare layout names probe the template root first, then `layouts/<name>`, then
+  partial layout candidates. A directive such as `{{!< default}}` can therefore
+  resolve `default.hbs`, `layouts/default.hbs`, or a matching partial layout.
 - Hash params on partial includes (`{{> "post-card" lazyLoad=true}}`) pass
   through Handlebars' standard partial param plumbing — no special handling
   required.
+- Partial paths are registered with POSIX separators and Ghost-style dashed
+  aliases for dot/underscore names. For example, `partials/post.card.hbs` is
+  reachable as `{{> "post-card"}}`, and nested partials such as
+  `components/header` are reachable with quoted partial syntax.
+- `{{partials}}` is a no-op registration helper. Ghost used it as a directive
+  in older themes, but Nectar pre-registers discovered partials at engine
+  startup, so rendering an empty string is the compatible static behaviour.
 - Nectar-only boolean helpers (`{{or}}`, `{{and}}`, `{{not}}`, `{{eq}}`) are
   convenience extensions. Ghost themes should not rely on them if the same
   theme must run unchanged on Ghost.
@@ -53,6 +63,7 @@ See `DESIGN.md` §4 for the master matrix.
 | `title`          | `nectar.toml [site].title` |
 | `description`    | `nectar.toml [site].description` |
 | `url`            | `nectar.toml [site].url` |
+| `cdn_url`        | `nectar.toml [site].cdn_url`; used by `{{img_url ... absolute=true}}` for `/content/images/` paths only. Canonical page URLs still use `site.url`. |
 | `logo`           | `nectar.toml [site].logo` |
 | `icon`           | `nectar.toml [site].icon` |
 | `cover_image`    | `nectar.toml [site].cover_image` |
@@ -117,6 +128,10 @@ The current contract is:
   with their public `kg-card` class hooks (`kg-image-card`, `kg-bookmark-card`,
   `kg-gallery-card`, `kg-callout-card`, and the other rows in the matrix
   above).
+- Imported `custom_excerpt` / legacy `excerpt` frontmatter is coerced to
+  plaintext at content-load time. Ghost export HTML such as
+  `<p>Editor summary</p>` is exposed to themes as `Editor summary`, avoiding
+  nested paragraphs when themes wrap `{{custom_excerpt}}`.
 - Plain Markdown stays plain Markdown HTML. A normal paragraph, heading, list,
   quote, or fenced code block is not wrapped in a Ghost card container just
   because Ghost's editor may have stored it as a Markdown or code card.
@@ -128,6 +143,8 @@ The current contract is:
   stripped again during Markdown rendering. Their bodies are excluded before
   `post.html`, `plaintext`, generated excerpts, `feed_html`, and `feed_excerpt`
   are derived, because Nectar has no authenticated newsletter-only renderer.
+  Segment metadata for newsletter export is intentionally not preserved in the
+  public web content model; that needs a separate newsletter data contract.
   Paywall markers are converted into Nectar's static public/preview behaviour
   (`feed_html` plus configured visibility policy). Nectar does not emit Ghost's
   full member paywall split markup or server-side member access wrappers in
@@ -143,11 +160,16 @@ The current contract is:
 
 ## AMP and Card Runtime Boundaries
 
-Nectar does not generate AMP-specific Koenig card markup. Card output targets
-normal HTML and keeps native fallbacks (`audio`, `video`, static anchors) where
-possible. A future AMP route would need a separate render path for
-`amp-img`/`amp-video`/`amp-iframe`, AMP boilerplate, and a CSS budget; simply
-rewriting the existing card HTML at the end of the build would be incomplete.
+When a theme ships `amp.hbs`, Nectar emits a non-indexable AMP route for every
+web post at `/<post>/amp/` and canonical post heads include
+`<link rel="amphtml" href=".../amp/">`. The AMP template receives the normal
+post context, so a Ghost theme can provide its own AMP boilerplate.
+
+Nectar still does not generate AMP-specific Koenig card markup. Card output
+targets normal HTML and keeps native fallbacks (`audio`, `video`, static
+anchors) where possible. Themes that need strict AMP validation must keep the
+`amp.hbs` body AMP-safe themselves, including any `amp-img` / `amp-video` /
+`amp-iframe` rewrites and CSS budget decisions.
 
 GIF-to-MP4 conversion and built-in lightbox hydration are also not bundled card
 features. Animated GIF/APNG/WebP URLs remain image cards so Source/Casper image
@@ -176,12 +198,17 @@ request-time API server. The detailed contract lives in
 Compatibility notes:
 
 - Query parameters that would require request-time projection or sorting are
-  ignored: `fields`, `formats`, `include`, `order`, and `v`.
+  ignored: `fields`, `formats`, `order`, and `v`.
+- `{{#get}}` is served from the same static graph. `include="authors,tags"` is
+  already hydrated on posts/pages, and `include="count.posts"` is honored for
+  author resources while tag counts are precomputed by the loader. Unknown
+  include tokens are harmless no-ops.
 - Posts/pages are emitted as full records with embedded tags/authors. Tags and
   authors always include `count.posts`.
 - Canonical collection order is posts by `published_at desc`, tags by
   `name asc`, and authors by `name asc`.
-- `tiers` and `newsletters` are emitted as empty Content API stubs; Ghost
+- `tiers` comes from configured static tiers. `newsletters` is a known empty
+  resource for both Content API output and `{{#get "newsletters"}}`; Ghost
   members, billing, newsletter delivery, offers, and email analytics remain out
   of scope.
 - Posts include `email_only: false`, `email: null`, and
@@ -201,6 +228,50 @@ That means runtime-only Ghost snippets such as Biron's subscribe error display
 (`{{{error.message}}}`) are safe in Nectar: with no failed POST happening at
 static render time, the path resolves to an empty string and does not throw.
 Nectar does not implement a runtime subscribe POST error lifecycle.
+
+### Drafts and private publications
+
+Draft posts/pages are excluded from normal builds at content-load time. Preview
+builds can opt in with `nectar build --include-drafts` / `NECTAR_DRAFTS=1`, and
+the CLI emits a visible "Building with drafts" warning so staging policy cannot
+silently leak into production.
+
+Ghost's publication-wide password protection is surfaced only as static theme
+state. `[site].private = true` sets `@site.private` and makes
+`{{#is "private"}}` match; `{{input_password}}` renders a compatible password
+input for themes. Nectar does not enforce authentication or render a real
+Ghost password challenge. Use host-level access control if the generated site
+must be private.
+
+### Custom routes and non-HTML output
+
+`routes.yaml` custom routes can set `content_type` to `rss`, `atom`, `plain`,
+`json`, or `html`. Non-HTML custom routes keep the template output untouched,
+skip HTML-only post-processing, emit an extension-matched artifact such as
+`custom-feed.xml`, and add a matching `Content-Type` rule to supported deploy
+header files. If the route URL already has a literal file extension, Nectar
+keeps that path.
+
+### Locales and theme assets
+
+Theme locale loading ignores helper files such as `context.json`, accepts only
+BCP-47-like locale filenames, and merges overrides from `content/translations`
+and `content/themes/<theme>/locales` over the theme's own `locales` directory.
+The `{{t}}` helper falls back through regional locale chains such as
+`fr-CA -> fr -> en`.
+
+Theme asset emission uses one canonical `assets/...` key per file to avoid
+collisions between same-named files in different folders. Source maps
+(`*.map`) are skipped so built `screen.css.map` files do not ship in production
+outputs.
+
+### Archive grouping
+
+Tag and author archive routes expose the paginated `posts` slice as a flat
+array, matching the rest of Nectar's list route contract. Nectar does not add a
+Ghost-specific year/month grouping helper today. Themes that need chronological
+group headers should derive them from `published_at` in the template/plugin
+layer or add a dedicated helper with tests.
 
 ### `is_popup`
 

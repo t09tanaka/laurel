@@ -2581,6 +2581,53 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     );
   });
 
+  test('layout directives can resolve templates from layouts/ by bare name', () => {
+    const theme = makeTheme({
+      'layouts/default': '<html><body data-layout="subdir">{{{body}}}</body></html>',
+      post: '{{!< default}}\n<article>{{title}}</article>',
+    });
+    const post: Post = makePost({ title: 'Subdir Layout' });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/subdir-layout/',
+      outputPath: 'subdir-layout/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+
+    expect(engine.templateLayoutNames?.get('post')).toBe('layouts/default');
+    expect(engine.render(route)).toBe(
+      '<html><body data-layout="subdir"><article>Subdir Layout</article></body></html>',
+    );
+  });
+
+  test('layout directives can resolve partial layout candidates', () => {
+    const theme = makeTheme(
+      {
+        post: '{{!< default}}\n<article>{{title}}</article>',
+      },
+      {
+        default: '<html><body data-layout="partial">{{{body}}}</body></html>',
+      },
+    );
+    const post: Post = makePost({ title: 'Partial Layout' });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/partial-layout/',
+      outputPath: 'partial-layout/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+
+    expect(engine.render(route)).toBe(
+      '<html><body data-layout="partial"><article>Partial Layout</article></body></html>',
+    );
+  });
+
   test('parent-directory partial includes fail with a policy error', () => {
     const theme = makeTheme({
       home: '{{> "../components/header"}}',
@@ -2622,6 +2669,29 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
 
     expect(typeof engine.hb.partials['components/card']).toBe('function');
     expect(engine.render(route)).toBe('<main><article data-partial="card">Card</article></main>');
+  });
+
+  test('dot and underscore partial names register dashed aliases', () => {
+    const theme = makeTheme(
+      {
+        home: '{{> "post-card"}}|{{> "author-card"}}',
+      },
+      {
+        'post.card': '<article>Post</article>',
+        author_card: '<aside>Author</aside>',
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(engine.render(route)).toBe('<article>Post</article>|<aside>Author</aside>');
   });
 
   test('missing theme partials render empty and warn once instead of crashing (issue #990)', () => {

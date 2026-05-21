@@ -199,6 +199,41 @@ date: 2026-01-01T00:00:00Z
     expect(summary.warningCount).toBe(1);
   });
 
+  test('emits non-HTML custom routes without HTML post-processing and with matching headers', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'themes/source/feed.hbs'),
+      '<rss><channel><title>{{@site.title}}</title></channel></rss>',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'routes.yaml'),
+      ['routes:', '  /custom-feed/:', '    template: feed', '    content_type: rss', ''].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        readFileSync(join(cwd, 'nectar.toml'), 'utf8'),
+        '',
+        '[deploy.netlify]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const feed = readFileSync(join(summary.outputDir, 'custom-feed.xml'), 'utf8');
+    const headers = readFileSync(join(summary.outputDir, '_headers'), 'utf8');
+
+    expect(feed).toBe('<rss><channel><title>Strict Test</title></channel></rss>');
+    expect(feed).not.toContain('data-nectar-build');
+    expect(feed).not.toContain('nectar-skip-link');
+    expect(headers).toContain('/custom-feed.xml');
+    expect(headers).toContain('Content-Type: application/rss+xml');
+  });
+
   test('warns and marks signup forms as no-ops when subscribe provider is none', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(

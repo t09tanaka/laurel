@@ -11,7 +11,7 @@ export function registerI18nHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('t', function tHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const locale = helperLocale(this, options, engine.content.site.locale);
-    const active = engine.theme.locales[locale] ?? fallback;
+    const active = activeLocale(engine.theme.locales, locale) ?? fallback;
     const key = String(args[0] ?? '');
     const lookup = lookupLocaleValue(lookupCache, locale, active, fallback, key);
     // Casper-family themes pass positional values for the legacy `%`
@@ -34,6 +34,26 @@ export function registerI18nHelpers(engine: NectarEngine): void {
       return helperLocale(this, options, engine.content.site.locale);
     },
   );
+}
+
+function activeLocale(
+  locales: Record<string, ThemeLocale>,
+  locale: string,
+): ThemeLocale | undefined {
+  for (const candidate of localeFallbackChain(locale)) {
+    const active = locales[candidate];
+    if (active !== undefined) return active;
+  }
+  return undefined;
+}
+
+function localeFallbackChain(locale: string): string[] {
+  const normalized = locale.replaceAll('_', '-');
+  const lower = normalized.toLowerCase();
+  const out = [locale, normalized, lower];
+  const base = lower.split('-')[0];
+  if (base) out.push(base);
+  return [...new Set(out)];
 }
 
 const I18N_CACHE_LIMIT = 4096;

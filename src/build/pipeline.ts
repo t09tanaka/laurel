@@ -75,7 +75,7 @@ import { SITEMAP_MAX_URLS_PER_FILE, type SitemapKind, emitRss, emitSitemap } fro
 import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
-import { collectContentApiHeaderRules } from './headers.ts';
+import { type HeaderRule, collectContentApiHeaderRules } from './headers.ts';
 import { runPostBuildHook } from './hooks.ts';
 import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { emitHumans } from './humans.ts';
@@ -379,6 +379,35 @@ function routeKindToSitemapKind(kind: RouteContext['kind']): SitemapKind | undef
 function isSitemapIndexableRoute(route: RouteContext): boolean {
   if (route.indexable === false) return false;
   return (route.data.pagination?.page ?? 1) <= 1;
+}
+
+function isHtmlRoute(route: RouteContext): boolean {
+  return route.outputContentType === undefined || route.outputContentType === 'text/html';
+}
+
+function collectRouteContentTypeHeaderRules(
+  routes: readonly RouteContext[],
+  basePath: string,
+): HeaderRule[] {
+  const out: HeaderRule[] = [];
+  for (const route of routes) {
+    if (route.outputContentType === undefined || route.outputContentType === 'text/html') continue;
+    out.push({
+      pattern: routeOutputPatternWithBasePath(route.outputPath, basePath),
+      headers: [{ key: 'Content-Type', value: route.outputContentType }],
+    });
+  }
+  return out;
+}
+
+function routeOutputPatternWithBasePath(outputPath: string, basePath: string): string {
+  const cleanBase = basePath === '/' ? '' : basePath.replace(/\/+$/, '');
+  if (outputPath === 'index.html') return `${cleanBase}/`;
+  const route =
+    outputPath.endsWith('/index.html') || outputPath === 'index.html'
+      ? outputPath.slice(0, -'index.html'.length)
+      : outputPath;
+  return `${cleanBase}/${route.replace(/^\/+/, '')}`;
 }
 
 export async function build({
@@ -879,7 +908,7 @@ async function runBuild({
             kind: route.kind,
           });
           const html = await previousFile.text();
-          warnSubscribeNoopIfNeeded(html);
+          if (isHtmlRoute(route)) warnSubscribeNoopIfNeeded(html);
           const bytes = Buffer.byteLength(html, 'utf8');
           stop?.({ bytes, reused: true });
           completedRoutes += 1;
@@ -898,15 +927,16 @@ async function runBuild({
             url: route.url,
             bytes,
             reused: true,
-            earlyHints: earlyHintsEnabled
-              ? collectRouteEarlyHints({
-                  routeUrl: route.url,
-                  outputPath: route.outputPath,
-                  html,
-                  knownHrefs: earlyHintHrefs,
-                  maxLinks: config.deploy.early_hints.max_links,
-                })
-              : null,
+            earlyHints:
+              earlyHintsEnabled && isHtmlRoute(route)
+                ? collectRouteEarlyHints({
+                    routeUrl: route.url,
+                    outputPath: route.outputPath,
+                    html,
+                    knownHrefs: earlyHintHrefs,
+                    maxLinks: config.deploy.early_hints.max_links,
+                  })
+                : null,
           };
         }
       }
@@ -923,65 +953,68 @@ async function runBuild({
         for (const plugin of pluginSet.plugins) {
           if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
         }
-        const renderedHtml = injectSkipLink(engine.render(route), config.build.csp_nonce);
-        warnSubscribeNoopIfNeeded(renderedHtml);
-        let html = collapseDegenerateSrcset(
-          rewritePortalLinks({
-            html: rewriteRecommendationsButton({
-              html: stripUnusedLightbox(transformSubscribeForms(renderedHtml, subscribeConfig)),
-              basePath: config.build.base_path,
-              enabled: recommendationsEnabled,
+        let html = engine.render(route);
+        if (isHtmlRoute(route)) {
+          const renderedHtml = injectSkipLink(html, config.build.csp_nonce);
+          warnSubscribeNoopIfNeeded(renderedHtml);
+          html = collapseDegenerateSrcset(
+            rewritePortalLinks({
+              html: rewriteRecommendationsButton({
+                html: stripUnusedLightbox(transformSubscribeForms(renderedHtml, subscribeConfig)),
+                basePath: config.build.base_path,
+                enabled: recommendationsEnabled,
+              }),
+              urls: portalUrls,
+              inviteOnly: content.site.members_invite_only,
             }),
-            urls: portalUrls,
-            inviteOnly: content.site.members_invite_only,
-          }),
-        );
-        html = injectImageDimensions(html, {
-          assetsRoot: renderedImageAssetsRoot,
-          cache: renderedImageDimensionCache,
-        });
-        if (imagesCfg.lqip) {
-          html = await injectImageLqip(html, {
+          );
+          html = injectImageDimensions(html, {
             assetsRoot: renderedImageAssetsRoot,
-            cache: renderedImageLqipCache,
-            width: imagesCfg.lqip_width,
-            quality: imagesCfg.lqip_quality,
+            cache: renderedImageDimensionCache,
           });
-        }
-        // Search integration: inject the runtime shim script on any page that
-        // has a `[data-ghost-search]` trigger. Pagefind engines also tag
-        // non-public post HTML with `<meta name="pagefind-skip">` so Pagefind
-        // drops those pages from the public index.
-        if (
-          config.components.search.enabled &&
-          searchEngineUsesNectarGhostSearchShim(config.components.search.engine)
-        ) {
-          html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
+          if (imagesCfg.lqip) {
+            html = await injectImageLqip(html, {
+              assetsRoot: renderedImageAssetsRoot,
+              cache: renderedImageLqipCache,
+              width: imagesCfg.lqip_width,
+              quality: imagesCfg.lqip_quality,
+            });
+          }
+          // Search integration: inject the runtime shim script on any page that
+          // has a `[data-ghost-search]` trigger. Pagefind engines also tag
+          // non-public post HTML with `<meta name="pagefind-skip">` so Pagefind
+          // drops those pages from the public index.
           if (
-            config.components.search.engine === 'pagefind' ||
-            config.components.search.engine === 'json+pagefind'
+            config.components.search.enabled &&
+            searchEngineUsesNectarGhostSearchShim(config.components.search.engine)
           ) {
-            const post = route.kind === 'post' ? route.data.post : undefined;
-            if (post && post.visibility !== 'public') {
-              html = injectPagefindSkipMeta(html);
+            html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
+            if (
+              config.components.search.engine === 'pagefind' ||
+              config.components.search.engine === 'json+pagefind'
+            ) {
+              const post = route.kind === 'post' ? route.data.post : undefined;
+              if (post && post.visibility !== 'public') {
+                html = injectPagefindSkipMeta(html);
+              }
             }
           }
+          // Resource-hint post-processing. Runs after every theme-side or
+          // injected script/link has landed so we see the final document shape,
+          // but before plugin afterRender so plugins can still react to the
+          // rewritten head.
+          if (config.performance.dedupe_script_preload) {
+            html = removeRedundantScriptPreload(html);
+          }
+          if (config.performance.preload_stylesheet) {
+            html = injectStylesheetPreload(html);
+          }
+          html = normalizeResourceTagAttributes(html);
+          html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+          html = rewriteBasePathUrls(html, config.build.base_path);
+          html = rewriteImageCdnUrls(html, { config });
+          html = rewriteContentImageUrls(html, { config, plan: contentImagePlan });
         }
-        // Resource-hint post-processing. Runs after every theme-side or
-        // injected script/link has landed so we see the final document shape,
-        // but before plugin afterRender so plugins can still react to the
-        // rewritten head.
-        if (config.performance.dedupe_script_preload) {
-          html = removeRedundantScriptPreload(html);
-        }
-        if (config.performance.preload_stylesheet) {
-          html = injectStylesheetPreload(html);
-        }
-        html = normalizeResourceTagAttributes(html);
-        html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
-        html = rewriteBasePathUrls(html, config.build.base_path);
-        html = rewriteImageCdnUrls(html, { config });
-        html = rewriteContentImageUrls(html, { config, plan: contentImagePlan });
         // afterRender chain: each plugin sees the previous transform's output
         // (including the Pagefind shim above when enabled). Returning anything
         // other than a string is treated as a pass-through so a plugin that
@@ -991,8 +1024,10 @@ async function runBuild({
           const next = await plugin.afterRender(pluginCtx, route, html);
           if (typeof next === 'string') html = next;
         }
-        html = rewriteBasePathUrls(html, config.build.base_path);
-        html = injectHtmlBuildAttribute(html, htmlBuildId(html));
+        if (isHtmlRoute(route)) {
+          html = rewriteBasePathUrls(html, config.build.base_path);
+          html = injectHtmlBuildAttribute(html, htmlBuildId(html));
+        }
         const bytes = Buffer.byteLength(html, 'utf8');
         stop?.({ bytes, reused: false });
         completedRoutes += 1;
@@ -1011,15 +1046,16 @@ async function runBuild({
           url: route.url,
           bytes,
           reused: false,
-          earlyHints: earlyHintsEnabled
-            ? collectRouteEarlyHints({
-                routeUrl: route.url,
-                outputPath: route.outputPath,
-                html,
-                knownHrefs: earlyHintHrefs,
-                maxLinks: config.deploy.early_hints.max_links,
-              })
-            : null,
+          earlyHints:
+            earlyHintsEnabled && isHtmlRoute(route)
+              ? collectRouteEarlyHints({
+                  routeUrl: route.url,
+                  outputPath: route.outputPath,
+                  html,
+                  knownHrefs: earlyHintHrefs,
+                  maxLinks: config.deploy.early_hints.max_links,
+                })
+              : null,
         };
       } catch (err) {
         stop?.();
@@ -1069,11 +1105,13 @@ async function runBuild({
           reused: result.reused,
         });
         htmlOutputs.push(result.htmlOutput);
-        for (const warning of collectImageAltWarnings(result.htmlOutput.html, {
-          outputPath: result.outputPath,
-          routeUrl: result.url,
-        })) {
-          logger.warn(formatImageAltWarning(warning));
+        if (isHtmlRoute(route)) {
+          for (const warning of collectImageAltWarnings(result.htmlOutput.html, {
+            outputPath: result.outputPath,
+            routeUrl: result.url,
+          })) {
+            logger.warn(formatImageAltWarning(warning));
+          }
         }
         keepOutput(result.outputPath);
         if (result.reused) skippedCount += 1;
@@ -1102,7 +1140,10 @@ async function runBuild({
         // Reused outputs already went through minification on the build that
         // emitted them; re-minifying would just pay the cost again and risk
         // skewing the stats line below.
-        const toMinify = htmlOutputs.filter((o) => !o.reused);
+        const toMinify = htmlOutputs.filter((o, index) => {
+          const route = batchRoutes[index];
+          return !o.reused && route !== undefined && isHtmlRoute(route);
+        });
         const stats = await timed(
           profiler,
           'minify_html',
@@ -1114,7 +1155,11 @@ async function runBuild({
         minifiedAnyBatch ||= stats.minified;
       }
 
-      for (const output of htmlOutputs) {
+      for (let i = 0; i < htmlOutputs.length; i += 1) {
+        const output = htmlOutputs[i];
+        const route = batchRoutes[i];
+        if (output === undefined) continue;
+        if (route === undefined || !isHtmlRoute(route)) continue;
         for (const hash of collectInlineScriptCspHashes(output.html)) {
           inlineScriptCspHashes.add(hash);
         }
@@ -1488,12 +1533,17 @@ async function runBuild({
     autoNoindexProvider,
   };
   const contentApiHeaderRules = contentApiEnabled ? collectContentApiHeaderRules() : [];
+  const routeContentTypeHeaderRules = collectRouteContentTypeHeaderRules(
+    routes,
+    config.build.base_path,
+  );
   const earlyHintsHeaderRules =
     earlyHintsEnabled && config.deploy.early_hints.headers
       ? buildEarlyHintsHeaderRules(routeEarlyHints, config.build.base_path)
       : [];
   markPlannedDeploymentHeaderOutputs({ config, autoNoindexProvider, keepOutput });
   await emitDeployHeaders(deploymentHeaderTargets, deploymentArtifacts, [
+    ...routeContentTypeHeaderRules,
     ...contentApiHeaderRules,
     ...earlyHintsHeaderRules,
   ]);

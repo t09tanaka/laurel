@@ -55,6 +55,7 @@ export async function loadThemeAssets(
       logger.warn(`Skipping symlinked theme asset: ${join(assetsDir, rel)}`);
       return false;
     }
+    if (extname(rel).toLowerCase() === '.map') return false;
     return true;
   });
 
@@ -188,7 +189,6 @@ const FINGERPRINTED_THEME_ASSET_EXTENSIONS = new Set([
   '.jpg',
   '.js',
   '.json',
-  '.map',
   '.mjs',
   '.otf',
   '.png',

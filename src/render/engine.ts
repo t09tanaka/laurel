@@ -119,7 +119,9 @@ export function createEngine(opts: {
       split.body,
       templateSourceInfo(opts.theme, name, bodyOffset),
     );
-    const layout = split.layout ? resolveLayoutName(split.layout, name) : undefined;
+    const layout = split.layout
+      ? resolveThemeLayoutName(opts.theme, split.layout, name)
+      : undefined;
     templateLayoutNames.set(name, layout);
     if (layout) {
       // mark for later resolution
@@ -136,6 +138,17 @@ export function createEngine(opts: {
     // that extends it (N routes × M layouts otherwise re-runs hb.compile per
     // render).
     layouts[name] = compileThemeSource(hb, source, layoutSourceInfo(opts.theme, name));
+  }
+  for (const [name, source] of Object.entries(opts.theme.partials)) {
+    const normalizedName = normalizePartialName(name);
+    for (const layoutName of partialLayoutCandidateNames(normalizedName)) {
+      if (layouts[layoutName]) continue;
+      layouts[layoutName] = compileThemeSource(
+        hb,
+        source,
+        partialSourceInfo(opts.theme, normalizedName),
+      );
+    }
   }
   registerPartials(hb, opts.theme, templateBodies, templateBodyOffsets);
 
@@ -183,6 +196,17 @@ function installHelperProfiling(hb: typeof Handlebars, profiler: Profiler | null
   }) as typeof hb.registerHelper;
 }
 
+function resolveThemeLayoutName(theme: ThemeBundle, layout: string, templateName: string): string {
+  const resolved = resolveLayoutName(layout, templateName);
+  if (Object.prototype.hasOwnProperty.call(theme.templates, resolved)) return resolved;
+  const layoutTemplate = `layouts/${resolved}`;
+  if (Object.prototype.hasOwnProperty.call(theme.templates, layoutTemplate)) return layoutTemplate;
+  const layoutPartial = `partials/${resolved}`;
+  if (Object.prototype.hasOwnProperty.call(theme.partials, layoutPartial)) return layoutPartial;
+  if (Object.prototype.hasOwnProperty.call(theme.partials, resolved)) return resolved;
+  return resolved;
+}
+
 type HelperFunction = Handlebars.HelperDelegate;
 
 function wrapProfiledHelper(profiler: Profiler, name: string, fn: HelperFunction): HelperFunction {
@@ -214,14 +238,18 @@ function registerPartials(
   }
   for (const [name, source] of Object.entries(theme.partials)) {
     const normalizedName = normalizePartialName(name);
-    registerThemePartial(hb, normalizedName, source, partialSourceInfo(theme, normalizedName));
+    for (const partialName of partialCandidateNames(normalizedName)) {
+      registerThemePartial(hb, partialName, source, partialSourceInfo(theme, normalizedName));
+    }
+    const prefixedNames = partialCandidateNames(`partials/${normalizedName}`);
     if (!normalizedName.includes('/')) {
-      registerThemePartial(
-        hb,
-        `partials/${normalizedName}`,
-        source,
-        partialSourceInfo(theme, normalizedName),
-      );
+      for (const partialName of prefixedNames) {
+        registerThemePartial(hb, partialName, source, partialSourceInfo(theme, normalizedName));
+      }
+    } else {
+      for (const partialName of prefixedNames) {
+        registerThemePartial(hb, partialName, source, partialSourceInfo(theme, normalizedName));
+      }
     }
   }
   // Templates are also reachable as partials under their bare name to allow
@@ -238,7 +266,11 @@ function registerPartials(
   // and always expose the template body under the `__template__/<name>`
   // namespace as a stable escape hatch for callers that explicitly want the
   // template body (issue #552).
-  const themePartialNames = new Set(Object.keys(theme.partials).map(normalizePartialName));
+  const themePartialNames = new Set(
+    Object.keys(theme.partials).flatMap((name) =>
+      partialCandidateNames(normalizePartialName(name)),
+    ),
+  );
   const referencedPartialNames = staticPartialNames([
     ...Object.values(theme.templates),
     ...Object.values(theme.partials),
@@ -462,6 +494,21 @@ function missingPartialName(err: unknown): string | undefined {
 
 function normalizePartialName(name: string): string {
   return name.replaceAll('\\', '/');
+}
+
+function partialCandidateNames(name: string): string[] {
+  const names = [name];
+  const alias = name.replace(/[._]+/g, '-');
+  if (alias !== name) names.push(alias);
+  return names;
+}
+
+function partialLayoutCandidateNames(name: string): string[] {
+  const names = partialCandidateNames(name);
+  if (!name.includes('/')) {
+    names.push(...partialCandidateNames(`partials/${name}`));
+  }
+  return [...new Set(names)];
 }
 
 function renderRoute(engine: NectarEngine, route: RouteContext): string {
