@@ -125,6 +125,20 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('a|c|');
   });
 
+  test('visibility="members" includes only members posts', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach posts visibility="members"}}{{slug}}{{/foreach}}');
+    const posts = [
+      { slug: 'public', visibility: 'public' },
+      { slug: 'members-a', visibility: 'members' },
+      { slug: 'missing' },
+      { slug: 'paid', visibility: 'paid' },
+      { slug: 'members-b', visibility: 'members' },
+    ];
+    expect(tpl({ posts })).toBe('members-amembers-b');
+  });
+
   // Ghost evaluates visibility before from/to/limit. With public and members
   // posts interleaved, `visibility="public" limit=3` must return the first
   // three *public* posts, not the public-survivors of the first three raw
