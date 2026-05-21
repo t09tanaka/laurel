@@ -202,6 +202,38 @@ fingerprinted. `nectar build` also prints a warning for literal
 theme's own build step has not run yet; run the theme's gulp/npm asset pipeline
 first so files such as `assets/built/screen.css` exist before building Nectar.
 
+### Installing third-party theme dependencies
+
+Many Ghost themes ship a `package.json`, `gulpfile.js`, `yarn.lock`, or other
+frontend build files so they can compile SCSS / JS into `assets/built/`. Treat
+those files as untrusted code until you have reviewed and pinned the theme.
+Package-manager lifecycle hooks (`preinstall`, `install`, `postinstall`,
+`prepare`) can run as soon as you install dependencies, before you ever run the
+theme's gulp task.
+
+Use this workflow for a theme you did not author:
+
+1. Inspect the theme diff first: `package.json`, lockfiles, `gulpfile.js`, and
+   scripts under `bin/`, `scripts/`, or `tasks/` are build-time code.
+2. Install dependencies with lifecycle scripts disabled:
+
+   ```bash
+   cd themes/<name>
+   npm install --ignore-scripts
+   # or: yarn install --ignore-scripts
+   # or: bun install --ignore-scripts
+   ```
+
+3. Run only the specific build command you reviewed, for example `npm run build`
+   or `npx gulp build`.
+4. Commit / pin the resulting theme source and lockfile so CI rebuilds the same
+   dependency graph.
+
+The vendored `example/themes/source/` tree follows the same rule: its theme
+build files are present for compatibility with upstream Ghost tooling, but
+Nectar does not require you to run arbitrary package-manager scripts just to
+render an already-built theme.
+
 ### Favicons and touch icons
 
 Nectar emits browser favicon `<link>` tags from `{{ghost_head}}` and copies

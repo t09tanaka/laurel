@@ -145,6 +145,14 @@ This means:
 - **Vet third-party themes the same way you vet npm packages.** Read the
   `default.hbs`, search for `<script>`, search for `{{{` (triple-stash) usage,
   look at what `partials/` are doing.
+- **Install untrusted theme dependencies with lifecycle scripts disabled.**
+  A theme can ship `package.json`, `gulpfile.js`, `yarn.lock`, and helper
+  scripts for its asset pipeline. Package-manager hooks such as `preinstall`,
+  `install`, `postinstall`, and `prepare` can execute during dependency
+  installation, so use `npm install --ignore-scripts` (or
+  `yarn install --ignore-scripts` / `bun install --ignore-scripts`) until the
+  theme's build tooling has been reviewed. Then run only the specific build
+  command you trust.
 - **Pin the theme.** Vendor it into the repo or pin the upstream commit. Do
   not auto-update on every build.
 - **Don't accept theme changes from random contributors** unless you also
@@ -246,6 +254,7 @@ When reviewing a PR against a Nectar repo, scan for:
 - [ ] `<script>`, `<iframe>`, encoded payloads in `feature_image_caption` → probe attempts.
 - [ ] Slug collisions with existing routes (`index`, `tag/*`, `author/*`, `rss`, `sitemap`).
 - [ ] Edits under `themes/<name>/**` → treat as code review, including `assets/`.
+- [ ] New or changed theme `package.json`, `gulpfile.js`, `yarn.lock`, or build scripts → install with `--ignore-scripts` until reviewed.
 - [ ] Edits to `nectar.toml`, especially `site.url`, `theme.custom.*`, `build.allow_code_injection` → operator-level decisions.
 - [ ] New / replaced files in `content/images/` larger than expected.
 
