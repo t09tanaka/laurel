@@ -305,6 +305,18 @@ describe('get helper pagination metadata', () => {
     expect(tpl({})).toBe('alice:Alice,bob:Bob,');
   });
 
+  test('exposes tags as the block scope for implicit foreach this iteration', () => {
+    const tags = [
+      { slug: 'news', name: 'News' },
+      { slug: 'opinion', name: 'Opinion' },
+      { slug: 'release-notes', name: 'Release Notes' },
+    ];
+    const engine = buildEngine({ tags });
+    const tpl = engine.hb.compile(`{{#get "tags"}}{{#foreach this}}{{slug}};{{/foreach}}{{/get}}`);
+
+    expect(tpl({})).toBe('news;opinion;release-notes;');
+  });
+
   test('exposes pagination via the second block param', () => {
     const engine = buildEngine({ posts: buildPosts(10) });
     const tpl = engine.hb.compile(
