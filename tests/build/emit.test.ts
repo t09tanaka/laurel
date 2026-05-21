@@ -349,6 +349,93 @@ describe('copyContentAssets', () => {
     expect(await readFile(join(outputDir, 'content/media/clip/intro.mp4'), 'utf8')).toBe('MP4');
   });
 
+  test('streams unchanged binary content assets instead of buffering full files (#1083)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-stream-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-stream-'));
+    const src = join(cwd, 'content/files/handout.pdf');
+    const dst = join(outputDir, 'content/files/handout.pdf');
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await mkdir(join(cwd, 'content/files'), { recursive: true });
+    await writeFile(src, Buffer.alloc(128 * 1024, 7));
+
+    const originalFile = Bun.file;
+    let sourceStreamCalls = 0;
+    let destWriterCalls = 0;
+    const patchedFile = ((...args: Parameters<typeof Bun.file>): ReturnType<typeof Bun.file> => {
+      const file = originalFile(...args);
+      const path = String(args[0]);
+      if (path !== src && path !== dst) return file;
+      return new Proxy(file, {
+        get(target, prop, receiver) {
+          if (path === src && prop === 'stream') {
+            return (...streamArgs: Parameters<typeof target.stream>) => {
+              sourceStreamCalls += 1;
+              return target.stream(...streamArgs);
+            };
+          }
+          if (path === dst && prop === 'writer') {
+            return (...writerArgs: Parameters<typeof target.writer>) => {
+              destWriterCalls += 1;
+              return target.writer(...writerArgs);
+            };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }) as typeof Bun.file;
+
+    (Bun as unknown as { file: typeof Bun.file }).file = patchedFile;
+    try {
+      const count = await copyContentAssets(cwd, 'content/images', outputDir);
+      expect(count).toBe(1);
+      expect(await readFile(dst)).toEqual(Buffer.alloc(128 * 1024, 7));
+      expect(sourceStreamCalls).toBeGreaterThan(0);
+      expect(destWriterCalls).toBeGreaterThan(0);
+    } finally {
+      (Bun as unknown as { file: typeof Bun.file }).file = originalFile;
+    }
+  });
+
+  test('falls back when Bun streaming copy is unavailable (#1083)', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-stream-fallback-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-stream-fallback-'));
+    const src = join(cwd, 'content/files/handout.pdf');
+    const dst = join(outputDir, 'content/files/handout.pdf');
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await mkdir(join(cwd, 'content/files'), { recursive: true });
+    await writeFile(src, 'PDF');
+
+    const originalFile = Bun.file;
+    let destWriterCalls = 0;
+    const patchedFile = ((...args: Parameters<typeof Bun.file>): ReturnType<typeof Bun.file> => {
+      const file = originalFile(...args);
+      if (String(args[0]) !== dst) return file;
+      return new Proxy(file, {
+        get(target, prop, receiver) {
+          if (prop === 'writer') {
+            return () => {
+              destWriterCalls += 1;
+              throw new Error('stream writer unavailable');
+            };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }) as typeof Bun.file;
+
+    (Bun as unknown as { file: typeof Bun.file }).file = patchedFile;
+    try {
+      const count = await copyContentAssets(cwd, 'content/images', outputDir);
+      expect(count).toBe(1);
+      expect(destWriterCalls).toBeGreaterThan(0);
+      expect(await readFile(dst, 'utf8')).toBe('PDF');
+    } finally {
+      (Bun as unknown as { file: typeof Bun.file }).file = originalFile;
+    }
+  });
+
   test('sanitizes SVGs and strips JPEG EXIF metadata while copying content/images', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-sanitize-'));
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-sanitize-'));

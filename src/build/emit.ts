@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { createWriteStream } from 'node:fs';
+import { constants, createWriteStream } from 'node:fs';
 import { copyFile, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { finished } from 'node:stream/promises';
@@ -32,6 +32,8 @@ const EMIT_CONCURRENCY = 32;
 // scheduler overhead and per-chunk ensureDirs are amortised, small enough that
 // peak retained HTML stays bounded.
 const WRITE_BATCH_SIZE = 512;
+
+const COPY_STREAM_HIGH_WATER_MARK = 1024 * 1024;
 
 function assertWithinOutputDir(outputDir: string, dest: string): void {
   const root = resolve(outputDir);
@@ -403,11 +405,7 @@ async function copyContentImagePlan(
             );
           }
         }
-        const bytes = await readFile(entry.sourcePath);
-        await writeFile(
-          dst,
-          sanitizeImageAssetBytes(bytes, entry.sourcePath, '', { stripMetadata }),
-        );
+        await copyContentAssetFile(entry.sourcePath, dst, stripMetadata);
         try {
           const mtime = new Date(entry.mtimeMs);
           await utimes(dst, mtime, mtime);
@@ -526,13 +524,7 @@ async function copyTree(
             );
           }
         }
-        const bytes = await readFile(t.src);
-        await writeFile(
-          t.dst,
-          sanitizeImageAssetBytes(bytes, t.src, '', {
-            stripMetadata: opts.stripMetadata,
-          }),
-        );
+        await copyContentAssetFile(t.src, t.dst, opts.stripMetadata);
         // Sanitized writes do not preserve mtime, so stamp the destination with
         // the source's mtime. Without this the skip-unchanged check on the
         // next build would always miss (dst mtime is the copy time).
@@ -552,6 +544,63 @@ async function copyTree(
     ),
   );
   return tasks.length;
+}
+
+async function copyContentAssetFile(
+  src: string,
+  dst: string,
+  stripMetadata: boolean,
+): Promise<void> {
+  if (await contentAssetNeedsSanitization(src, stripMetadata)) {
+    const bytes = await readFile(src);
+    await writeFile(
+      dst,
+      sanitizeImageAssetBytes(bytes, src, '', {
+        stripMetadata,
+      }),
+    );
+    return;
+  }
+  await copyContentAssetStream(src, dst);
+}
+
+async function copyContentAssetStream(src: string, dst: string): Promise<void> {
+  try {
+    const writer = Bun.file(dst).writer({ highWaterMark: COPY_STREAM_HIGH_WATER_MARK });
+    try {
+      for await (const chunk of Bun.file(src).stream()) {
+        writer.write(chunk);
+        await writer.flush();
+      }
+      await writer.end();
+    } catch (err) {
+      await writer.end(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  } catch {
+    await copyFile(src, dst, constants.COPYFILE_FICLONE);
+  }
+}
+
+async function contentAssetNeedsSanitization(
+  src: string,
+  stripMetadata: boolean,
+): Promise<boolean> {
+  const ext = extname(src).toLowerCase();
+  if (ext === '.svg') return true;
+  if (stripMetadata && (ext === '.jpg' || ext === '.jpeg')) return true;
+
+  const header = Buffer.from(await Bun.file(src).slice(0, 256).arrayBuffer());
+  return isSvgHeader(header) || (stripMetadata && isJpegHeader(header));
+}
+
+function isSvgHeader(bytes: Buffer): boolean {
+  const prefix = bytes.toString('utf8').trimStart();
+  return /^<svg(?:\s|>)/i.test(prefix) || /^<\?xml[\s\S]{0,200}<svg(?:\s|>)/i.test(prefix);
+}
+
+function isJpegHeader(bytes: Buffer): boolean {
+  return bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8;
 }
 
 // Narrow `unknown` to a Node fs error and check its `code`. Node fs APIs
