@@ -20,7 +20,13 @@ function resolveHostTriple(): string {
   const platform = process.platform;
   const arch = process.arch;
   const platformPart =
-    platform === 'darwin' ? 'darwin' : platform === 'linux' ? 'linux' : platform === 'win32' ? 'windows' : null;
+    platform === 'darwin'
+      ? 'darwin'
+      : platform === 'linux'
+        ? 'linux'
+        : platform === 'win32'
+          ? 'windows'
+          : null;
   const archPart = arch === 'x64' ? 'x64' : arch === 'arm64' ? 'arm64' : null;
   if (!platformPart || !archPart) {
     throw new Error(`Unsupported host platform/arch combination: ${platform}/${arch}`);
@@ -57,7 +63,7 @@ async function compileOne(target: Target, outDir: string): Promise<void> {
       'build',
       '--compile',
       '--minify',
-      '--sourcemap',
+      '--sourcemap=external',
       `--target=${target.bunTarget}`,
       `--outfile=${outfile}`,
       'src/cli/index.ts',

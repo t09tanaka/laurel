@@ -15,6 +15,7 @@ import { warnIfBunEngineMismatch } from './bun-engine.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
+import { installSourceMapStackTraceSupport } from './source-map-stack.ts';
 import { COMMAND_NAMES, COMMAND_SPECS } from './specs.ts';
 import {
   handleCrashReportPrompt,
@@ -22,6 +23,8 @@ import {
   versionsForCrashReport,
 } from './telemetry.ts';
 import { buildVersionJson } from './version.ts';
+
+installSourceMapStackTraceSupport();
 
 const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
 const SUGGESTABLE_COMMAND_NAMES = [...COMMAND_NAMES, 'version', 'help'];
