@@ -2128,6 +2128,39 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     );
   });
 
+  test('only eagerly registers template bodies that are referenced as partials', () => {
+    const theme = makeTheme({
+      default: '{{> post}}{{> "components/card"}}',
+      post: '<article>{{post.title}}</article>',
+      'components/card': '<aside>card</aside>',
+      page: '<main>{{page.title}}</main>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const partialNames = Object.keys(engine.hb.partials);
+
+    expect(partialNames).toContain('post');
+    expect(partialNames).toContain('components/card');
+    expect(partialNames).not.toContain('page');
+    expect(partialNames).not.toContain('__template__/page');
+  });
+
+  test('lazy template partial fallback preserves dynamic partial names', () => {
+    const theme = makeTheme({
+      index: '{{> (templateName)}}',
+      post: '<article>{{post.title}}</article>',
+      page: '<main>{{page.title}}</main>',
+    });
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    engine.hb.registerHelper('templateName', () => 'post');
+
+    expect(Object.keys(engine.hb.partials)).not.toContain('post');
+    const template = engine.templates.index;
+    if (typeof template !== 'function') throw new Error('expected index template to compile');
+    expect(template({ templateName: 'post', post: { title: 'Hello' } })).toBe(
+      '<article>Hello</article>',
+    );
+  });
+
   test('renders primary_tag.accent_color in Ruby-style post CSS variables', () => {
     const tag = makeTag({ slug: 'ruby', name: 'Ruby', accent_color: '#b6174b' });
     const post = makePost({ tags: [tag], primary_tag: tag });

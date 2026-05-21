@@ -239,18 +239,137 @@ function registerPartials(
   // namespace as a stable escape hatch for callers that explicitly want the
   // template body (issue #552).
   const themePartialNames = new Set(Object.keys(theme.partials).map(normalizePartialName));
-  for (const [name, body] of Object.entries(templateBodies)) {
-    const sourceOffset = templateBodyOffsets[name] ?? 0;
-    registerThemePartial(
-      hb,
-      `__template__/${name}`,
-      body,
-      templatePartialSourceInfo(theme, name, sourceOffset),
-    );
+  const referencedPartialNames = staticPartialNames([
+    ...Object.values(theme.templates),
+    ...Object.values(theme.partials),
+  ]);
+  for (const name of Object.keys(templateBodies)) {
+    const templatePartialName = `__template__/${name}`;
+    const referencedByBareName = referencedPartialNames.has(name);
+    const referencedByTemplateNamespace = referencedPartialNames.has(templatePartialName);
+    if (referencedByBareName || referencedByTemplateNamespace) {
+      registerTemplatePartial(hb, theme, name, templateBodies, templateBodyOffsets);
+    }
+    if (!referencedByBareName && !referencedByTemplateNamespace) {
+      installLazyTemplatePartial(
+        hb,
+        theme,
+        name,
+        templateBodies,
+        templateBodyOffsets,
+        templatePartialName,
+      );
+    }
     if (themePartialNames.has(name)) continue;
-    registerThemePartial(hb, name, body, templatePartialSourceInfo(theme, name, sourceOffset));
+    if (referencedByBareName) {
+      registerTemplatePartial(hb, theme, name, templateBodies, templateBodyOffsets, name);
+      continue;
+    }
+    installLazyTemplatePartial(hb, theme, name, templateBodies, templateBodyOffsets, name);
   }
   installMissingPartialFallback(hb, theme.name);
+}
+
+function registerTemplatePartial(
+  hb: typeof Handlebars,
+  theme: ThemeBundle,
+  templateName: string,
+  templateBodies: Record<string, string>,
+  templateBodyOffsets: Record<string, number>,
+  partialName = `__template__/${templateName}`,
+): void {
+  const body = templateBodies[templateName];
+  if (body === undefined) return;
+  registerThemePartial(
+    hb,
+    partialName,
+    body,
+    templatePartialSourceInfo(theme, templateName, templateBodyOffsets[templateName] ?? 0),
+  );
+}
+
+function installLazyTemplatePartial(
+  hb: typeof Handlebars,
+  theme: ThemeBundle,
+  templateName: string,
+  templateBodies: Record<string, string>,
+  templateBodyOffsets: Record<string, number>,
+  partialName: string,
+): void {
+  const body = templateBodies[templateName];
+  if (body === undefined) return;
+  const partials = hb.partials as Record<string, unknown>;
+  Object.defineProperty(partials, partialName, {
+    configurable: true,
+    enumerable: false,
+    get() {
+      const compiled = compileThemeSource(
+        hb,
+        body,
+        templatePartialSourceInfo(theme, templateName, templateBodyOffsets[templateName] ?? 0),
+      );
+      Object.defineProperty(partials, partialName, {
+        configurable: true,
+        enumerable: false,
+        value: compiled,
+        writable: true,
+      });
+      return compiled;
+    },
+    set(value: unknown) {
+      Object.defineProperty(partials, partialName, {
+        configurable: true,
+        enumerable: true,
+        value,
+        writable: true,
+      });
+    },
+  });
+}
+
+function staticPartialNames(sources: string[]): Set<string> {
+  const names = new Set<string>();
+  for (const source of sources) {
+    try {
+      collectStaticPartialNames(Handlebars.parse(source), names);
+    } catch {
+      // Let the existing source-aware compile/render path report parse errors
+      // with the precise theme file and line instead of failing during this
+      // best-effort optimisation scan.
+    }
+  }
+  return names;
+}
+
+function collectStaticPartialNames(node: unknown, names: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectStaticPartialNames(item, names);
+    return;
+  }
+  if (!isRecord(node)) return;
+  const type = node.type;
+  if (type === 'PartialStatement' || type === 'PartialBlockStatement') {
+    const name = staticPartialName(node.name);
+    if (name !== undefined) names.add(normalizePartialName(name));
+  }
+  for (const value of Object.values(node)) {
+    collectStaticPartialNames(value, names);
+  }
+}
+
+function staticPartialName(node: unknown): string | undefined {
+  if (!isRecord(node)) return undefined;
+  if (node.type === 'StringLiteral' && typeof node.value === 'string') {
+    return node.value;
+  }
+  if (node.type === 'PathExpression' && typeof node.original === 'string') {
+    return node.original;
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 type InvokePartial = (
