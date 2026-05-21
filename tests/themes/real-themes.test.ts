@@ -512,7 +512,7 @@ describe('real Ghost theme contract', () => {
       /data-min-screen href="\/assets\/built\/screen\.min\.[A-Za-z0-9]+\.css"/,
     );
     expect(indexHtml).toMatch(
-      /data-custom-logo src="\/assets\/images\/white-logo\.png\?v(?:&#x3D;|=)[A-Za-z0-9]+"/,
+      /data-custom-logo src="\/assets\/images\/white-logo\.[A-Za-z0-9]+\.png"/,
     );
     expect(indexHtml).toContain('style="--custom-bg: #fafafa"');
     expect(indexHtml).toContain('data-page-copy>Page 1 of 2</p>');

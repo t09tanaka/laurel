@@ -24,6 +24,10 @@ function normalizeIntertagWhitespace(html: string): string {
   return html.replace(/>\s+</g, '><').trim();
 }
 
+function getFigcaptionHtml(html: string): string {
+  return html.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/)?.[1] ?? '';
+}
+
 describe('card fixture corpus', () => {
   test('card spacing contract keeps kg-card roots as gh-content direct children', async () => {
     const md = [
@@ -161,7 +165,7 @@ describe('card fixture corpus', () => {
       ].join(' '),
     );
 
-    const figcaption = html.match(/<figcaption>([\s\S]*?)<\/figcaption>/)?.[1] ?? '';
+    const figcaption = getFigcaptionHtml(html);
     expect(figcaption).toContain('<strong>Jane</strong>');
     expect(figcaption).toContain('<a href="https://nectar.test/about">Nectar</a>');
     expect(figcaption).not.toContain('<img');
@@ -263,7 +267,7 @@ describe('card fixture corpus', () => {
     expect(html).toContain('title="A talk"');
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('allowfullscreen');
-    expect(html).toContain('<figcaption>Talk transcript</figcaption>');
+    expect(getFigcaptionHtml(html)).toBe('Talk transcript');
     expect(html).not.toContain('{{< embed');
   });
 
@@ -297,7 +301,7 @@ describe('card fixture corpus', () => {
     expect(html).toContain('class="kg-bookmark-container kg-embed-card-fallback"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
     expect(html).toContain('Twitter/X embed');
-    expect(html).toContain('<figcaption>Open on Twitter</figcaption>');
+    expect(getFigcaptionHtml(html)).toBe('Open on Twitter');
     expect(html).not.toContain('<iframe');
     expect(html).not.toContain('<script');
   });
