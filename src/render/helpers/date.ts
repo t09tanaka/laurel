@@ -58,10 +58,26 @@ export function registerDateHelpers(engine: NectarEngine): void {
       return cached;
     }
 
-    const formatted = dayjs(value).tz(timezoneName).locale(activeLocale).format(format);
+    const formatted = parseDateValue(value, timezoneName).locale(activeLocale).format(format);
     rememberFormattedDate(formattedDateCache, cacheKey, formatted);
     return formatted;
   });
+}
+
+function parseDateValue(value: DateInput | undefined, timezoneName: string): dayjs.Dayjs {
+  if (typeof value === 'string' && !hasExplicitTimezone(value)) {
+    try {
+      const zoned = dayjs.tz(value, timezoneName);
+      if (zoned.isValid()) return zoned;
+    } catch {
+      // Keep invalid-string behavior aligned with the pre-existing helper path.
+    }
+  }
+  return dayjs(value).tz(timezoneName);
+}
+
+function hasExplicitTimezone(value: string): boolean {
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
 }
 
 function rememberFormattedDate(cache: Map<string, string>, key: string, value: string): void {

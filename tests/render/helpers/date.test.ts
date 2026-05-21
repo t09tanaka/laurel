@@ -91,6 +91,15 @@ describe('date helper', () => {
     expect(out).toBe('2026');
   });
 
+  test('explicit string positional argument overrides the post context date', () => {
+    const engine = makeEngine('en', 'America/Los_Angeles');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date "2020-01-01" format="YYYY"}}')({
+      published_at: '2026-05-05T00:00:00Z',
+    });
+    expect(out).toBe('2020');
+  });
+
   test('invalid date strings render without throwing', () => {
     const engine = makeEngine('en');
     registerDateHelpers(engine);
