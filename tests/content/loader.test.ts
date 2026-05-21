@@ -2544,4 +2544,37 @@ body
     expect(graph.posts[0]?.email_only).toBe(false);
     expect(graph.emailOnlyPosts).toHaveLength(0);
   });
+
+  test('post exposes Ghost-compatible comment and newsletter metadata defaults', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-ghost-fields-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/plain.md'),
+      `---
+title: Plain
+date: 2026-01-01T00:00:00Z
+email_subject: Weekly Plain
+send_email_when_published: true
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+
+    expect(post?.comment_id).toBe(post?.id);
+    expect(post?.count).toEqual({
+      signups: 0,
+      clicks: 0,
+      comments: 0,
+      conversions: 0,
+      positive_feedback: 0,
+      negative_feedback: 0,
+    });
+    expect(post?.email_subject).toBe('Weekly Plain');
+    expect(post?.send_email_when_published).toBe(true);
+  });
 });

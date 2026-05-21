@@ -697,6 +697,19 @@ describe('buildContext', () => {
     expect(tokens).toContain('error-template');
   });
 
+  test('members-area custom routes emit `members-template` for Ghost theme CSS', () => {
+    const route: RouteContext = {
+      kind: 'custom',
+      url: '/members/account/',
+      outputPath: 'members/account/index.html',
+      template: 'members/account',
+      data: {},
+      meta: baseMeta,
+    };
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).toContain('members-template');
+  });
+
   test('tag and author archive routes still carry `archive-template` (issue #862)', () => {
     const tagRoute: RouteContext = {
       kind: 'tag',

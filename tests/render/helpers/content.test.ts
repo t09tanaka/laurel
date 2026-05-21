@@ -409,6 +409,15 @@ describe('excerpt helper', () => {
     expect(out).toBe('01234567890123456789012345678901234567890123456789');
   });
 
+  test('characters=N backs up to a word boundary when possible', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{excerpt characters=18}}')({
+      custom_excerpt: 'Alpha beta gamma delta',
+    });
+    expect(out).toBe('Alpha beta gamma');
+  });
+
   test('falls back from custom_excerpt to excerpt and then plaintext', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);

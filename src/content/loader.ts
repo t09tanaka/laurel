@@ -699,8 +699,8 @@ interface RawPost {
   codeinjection_head: string | undefined;
   codeinjection_foot: string | undefined;
   custom_template: string | undefined;
-  email_only: boolean;
   email_subject: string | undefined;
+  email_only: boolean;
   send_email_when_published: boolean;
   count: PostEngagementCount | undefined;
   source: ContentSourceFingerprint;
@@ -1331,8 +1331,8 @@ async function normalizePost(
       asString(data.template ?? data.custom_template),
       filePath,
     ),
-    email_only: asBool(data.email_only, false),
     email_subject: asString(data.email_subject),
+    email_only: asBool(data.email_only, false),
     send_email_when_published: asBool(data.send_email_when_published, false),
     count: parsePostEngagementCount(data.count),
     source: source ?? contentSourceFingerprint(filePath, rootDir, await stat(filePath)),
@@ -1827,6 +1827,16 @@ function resolvePostRelations(
     created_at: raw.created_at,
     reading_time: raw.reading_time,
     word_count: raw.word_count,
+    comment_id: raw.id,
+    count: {
+      signups: 0,
+      clicks: 0,
+      comments: 0,
+      conversions: 0,
+      positive_feedback: 0,
+      negative_feedback: 0,
+      ...raw.count,
+    },
     visibility: raw.visibility,
     status: raw.status,
     tiers: resolvePostTiers(raw.tierSlugs, tiers),
@@ -1856,7 +1866,6 @@ function resolvePostRelations(
     access: false,
     email_subject: raw.email_subject,
     send_email_when_published: raw.send_email_when_published,
-    count: raw.count,
     prev: undefined,
     next: undefined,
     feed_html: raw.feed_html,

@@ -599,6 +599,7 @@ function visibilityFilter(item: unknown, visibility: string | undefined): boolea
   const obj = item as { visibility?: string };
   if (!obj || typeof obj !== 'object') return true;
   if (visibility === 'public') return (obj.visibility ?? 'public') === 'public';
+  if (visibility === 'none') return obj.visibility === 'none' || obj.visibility === 'internal';
   return (obj.visibility ?? 'public') === visibility;
 }
 

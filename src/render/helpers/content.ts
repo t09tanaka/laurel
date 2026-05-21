@@ -43,7 +43,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const words = parseNum(options.hash.words);
       const characters = parseNum(options.hash.characters);
       if (words) return truncateByWords(source, words, siteLocale(options));
-      if (characters) return sliceByCharacters(source, characters);
+      if (characters) return truncateCharactersAtWordBoundary(source, characters);
       return source;
     },
   );
@@ -510,6 +510,14 @@ function sliceByCharacters(text: string, characters: number): string {
     end += ch.length;
   }
   return text.slice(0, end);
+}
+
+function truncateCharactersAtWordBoundary(text: string, characters: number): string {
+  const sliced = sliceByCharacters(text, characters).trimEnd();
+  if (sliced.length === 0 || sliced.length === text.length) return sliced;
+  const lastWhitespace = sliced.search(/\s+\S*$/);
+  if (lastWhitespace <= 0) return sliced;
+  return sliced.slice(0, lastWhitespace).trimEnd();
 }
 
 // The post/page layout already emits the title as an <h1>, so a body-level <h1>

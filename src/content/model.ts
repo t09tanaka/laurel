@@ -173,6 +173,8 @@ export interface Post {
   created_at: string;
   reading_time: number;
   word_count: number;
+  comment_id: string;
+  count: PostEngagementCount;
   // Ghost exposes additional visibility states beyond the simple public/members/paid
   // tri-state when a post is gated to specific tiers or via a NQL filter. Nectar's
   // static runtime has no tier-aware viewer, so `tiers` and `filter` are rendered
@@ -215,9 +217,8 @@ export interface Post {
   // and root-level `ctx.access` cover the *site* access policy and are
   // intentionally separate — see #208.
   access: false;
-  email_subject?: string | undefined;
-  send_email_when_published?: boolean | undefined;
-  count?: PostEngagementCount | undefined;
+  email_subject: string | undefined;
+  send_email_when_published: boolean;
   prev: Post | undefined;
   next: Post | undefined;
   feed_html: string;

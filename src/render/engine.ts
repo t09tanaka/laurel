@@ -795,6 +795,7 @@ function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): 
   // Ghost emits `error-template` for 404 / 500 / generic error routes so
   // themes can style the error page without inspecting the status code.
   if (route.kind === 'error') tokens.push('error-template');
+  if (isMembersRoute(route)) tokens.push('members-template');
   if (route.data.pagination && route.data.pagination.page > 1) {
     tokens.push('paged');
   }
@@ -816,6 +817,10 @@ function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): 
     }
   }
   return tokens.join(' ');
+}
+
+function isMembersRoute(route: RouteContext): boolean {
+  return route.kind === 'custom' && /^\/members(?:\/|$)/.test(route.url);
 }
 
 function pushBodyClassToken(tokens: string[], prefix: string, slug: unknown): void {
