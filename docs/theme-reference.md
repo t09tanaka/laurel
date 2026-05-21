@@ -22,6 +22,8 @@ the rest return plain strings and Handlebars escapes them.
 ### Asset helpers — `src/render/helpers/assets.ts`
 
 - `{{asset path}}` — Resolve a theme-relative path to its fingerprinted URL.
+- `{{asset_attrs path [hasMinFile=true]}}` — Emit SRI and CORS attributes for a
+  known fingerprinted theme asset, or nothing for unknown/non-fingerprinted assets.
 - `{{img_url image [size="..."] [absolute=true]}}` — Render a content/site
   image URL, optionally fingerprinted and absolutized.
 

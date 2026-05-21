@@ -1,6 +1,6 @@
 import type Handlebars from 'handlebars';
 import { assetPublicUrl, joinPath } from '~/theme/assets.ts';
-import type { ThemeImageSize } from '~/theme/types.ts';
+import type { ThemeAsset, ThemeImageSize } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerAssetHelpers(engine: NectarEngine): void {
@@ -10,15 +10,26 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     'asset',
     function assetHelper(path: unknown, options?: Handlebars.HelperOptions) {
       const logical = String(path ?? '').replace(/^\//, '');
-      const candidates = buildAssetCandidates(logical, options?.hash?.hasMinFile);
-      for (const key of candidates) {
-        const asset = engine.theme.assets.get(key);
-        if (asset) {
-          return new engine.hb.SafeString(encodeAssetUrl(assetPublicUrl(asset, basePath)));
-        }
+      const asset = resolveThemeAsset(engine.theme.assets, logical, options?.hash?.hasMinFile);
+      if (asset) {
+        return new engine.hb.SafeString(encodeAssetUrl(assetPublicUrl(asset, basePath)));
       }
       const resolved = `assets/${logical}`;
       return new engine.hb.SafeString(encodeAssetUrl(joinPath(basePath, resolved)));
+    },
+  );
+
+  engine.hb.registerHelper(
+    'asset_attrs',
+    function assetAttrsHelper(path: unknown, options?: Handlebars.HelperOptions) {
+      const logical = String(path ?? '').replace(/^\//, '');
+      const asset = resolveThemeAsset(engine.theme.assets, logical, options?.hash?.hasMinFile);
+      if (!asset || asset.fingerprintedPath === asset.logicalPath || !asset.integrity) {
+        return new engine.hb.SafeString('');
+      }
+      return new engine.hb.SafeString(
+        `integrity="${escapeAttr(asset.integrity)}" crossorigin="anonymous"`,
+      );
     },
   );
 
@@ -57,6 +68,18 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     }
     return url;
   });
+}
+
+function resolveThemeAsset(
+  assets: Map<string, ThemeAsset>,
+  logical: string,
+  hasMinFile: unknown,
+): ThemeAsset | undefined {
+  for (const key of buildAssetCandidates(logical, hasMinFile)) {
+    const asset = assets.get(key);
+    if (asset) return asset;
+  }
+  return undefined;
 }
 
 function buildAssetCandidates(logical: string, hasMinFile: unknown): string[] {
@@ -186,6 +209,25 @@ function encodeUrlPathSegment(segment: string): string {
 
 function encodeUrlSuffix(suffix: string): string {
   return encodeURI(suffix).replace(/['`]/g, (ch) => encodeURIComponent(ch));
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return ch;
+    }
+  });
 }
 
 function extractImage(value: unknown): string | undefined {

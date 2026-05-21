@@ -579,4 +579,63 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     const tpl = engine.hb.compile('{{{asset "built/screen.css"}}}');
     expect(tpl({})).toBe('/assets/built/screen.css');
   });
+
+  test('asset_attrs emits SRI attributes for a known fingerprinted asset', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/source.js', {
+      logicalPath: 'assets/built/source.js',
+      fingerprintedPath: 'assets/built/source.abc123def0.js',
+      sourcePath: '/theme/assets/built/source.js',
+      hash: 'abc123def0',
+      integrity: 'sha384-source',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile(
+      '<script src="{{asset "built/source.js"}}" {{asset_attrs "built/source.js"}}></script>',
+    );
+    expect(tpl({})).toBe(
+      '<script src="/assets/built/source.abc123def0.js" integrity="sha384-source" crossorigin="anonymous"></script>',
+    );
+  });
+
+  test('asset_attrs prefers the minified fingerprinted asset when hasMinFile is truthy', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/screen.css', {
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+      sourcePath: '/theme/assets/built/screen.css',
+      hash: 'abc123',
+      integrity: 'sha384-screen',
+      size: 42,
+    });
+    engine.theme.assets.set('assets/built/screen.min.css', {
+      logicalPath: 'assets/built/screen.min.css',
+      fingerprintedPath: 'assets/built/screen.min.def456.css',
+      sourcePath: '/theme/assets/built/screen.min.css',
+      hash: 'def456',
+      integrity: 'sha384-screen-min',
+      size: 21,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset_attrs "built/screen.css" hasMinFile=true}}');
+    expect(tpl({})).toBe('integrity="sha384-screen-min" crossorigin="anonymous"');
+  });
+
+  test('asset_attrs omits attributes for unknown or non-fingerprinted assets', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/images/icon.svg', {
+      logicalPath: 'assets/images/icon.svg',
+      fingerprintedPath: 'assets/images/icon.svg',
+      sourcePath: '/theme/assets/images/icon.svg',
+      hash: 'abc123def0',
+      integrity: 'sha384-icon',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{asset_attrs "images/icon.svg"}}|{{asset_attrs "built/missing.js"}}',
+    );
+    expect(tpl({})).toBe('|');
+  });
 });

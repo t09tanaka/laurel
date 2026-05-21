@@ -289,6 +289,22 @@ contract.
 
 Returns a `SafeString` containing the resolved (possibly fingerprinted) URL.
 
+#### `{{asset_attrs path [hasMinFile=true]}}` — inline
+
+| Param         | Type    | Notes |
+|---------------|---------|-------|
+| `path`        | string  | Logical path. Leading `/` allowed. `assets/` prefix optional. |
+| `hasMinFile=` | boolean | Prefer `*.min.*` when a matching theme asset exists. |
+
+Returns `integrity="..." crossorigin="anonymous"` for known fingerprinted
+CSS/JS theme assets. Returns an empty `SafeString` for unknown assets and
+non-fingerprinted assets, so templates can opt in safely:
+
+```hbs
+<link rel="stylesheet" href="{{asset "built/screen.css"}}" {{asset_attrs "built/screen.css"}}>
+<script src="{{asset "built/source.js"}}" defer {{asset_attrs "built/source.js"}}></script>
+```
+
 #### `{{img_url image [size="..." absolute=true]}}` — inline
 
 | Param        | Type     | Notes |
