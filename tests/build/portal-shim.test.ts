@@ -166,4 +166,31 @@ describe('rewritePortalLinks', () => {
     const html = '<button data-portal="signup">never closed';
     expect(rewritePortalLinks({ html, urls: { signup: 'https://example.test/x' } })).toBe(html);
   });
+
+  test('invite-only removes signup/subscribe CTAs while keeping sign-in links rewriteable', () => {
+    const html = [
+      '<nav>',
+      '<a class="signin" href="#/portal/signin" data-portal="signin">Sign In</a>',
+      '<a class="subscribe" href="#/portal/signup" data-portal="signup">Subscribe</a>',
+      '<button class="subscribe-button" data-portal="subscribe">Subscribe</button>',
+      '<form class="signup" data-members-form="signup"><button>Subscribe</button></form>',
+      '</nav>',
+    ].join('');
+    const out = rewritePortalLinks({
+      html,
+      urls: {
+        signup: 'https://example.test/subscribe',
+        signin: 'https://example.test/signin',
+      },
+      inviteOnly: true,
+    });
+
+    expect(out).toContain('href="https://example.test/signin"');
+    expect(out).toContain('data-portal="signin"');
+    expect(out).toContain('>Sign In</a>');
+    expect(out).not.toContain('data-portal="signup"');
+    expect(out).not.toContain('data-portal="subscribe"');
+    expect(out).not.toContain('data-members-form');
+    expect(out).not.toContain('Subscribe');
+  });
 });

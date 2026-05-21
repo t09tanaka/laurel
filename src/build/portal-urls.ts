@@ -75,7 +75,7 @@ export function resolvePortalUrls(cfg: PortalConfig): ResolvedPortalUrls {
 
 function pickOverrides(cfg: PortalConfig): ResolvedPortalUrls {
   const out: ResolvedPortalUrls = {};
-  if (cfg.signup_url) out.signup = cfg.signup_url;
+  if (!cfg.invite_only && cfg.signup_url) out.signup = cfg.signup_url;
   if (cfg.signin_url) out.signin = cfg.signin_url;
   if (cfg.account_url) out.account = cfg.account_url;
   if (cfg.upgrade_url) out.upgrade = cfg.upgrade_url;
@@ -88,7 +88,7 @@ function pickOverrides(cfg: PortalConfig): ResolvedPortalUrls {
 // renders without errors even if the operator forgot a `publication` slug.
 function mergeOverrides(cfg: PortalConfig, inferred: ResolvedPortalUrls): ResolvedPortalUrls {
   const merged: ResolvedPortalUrls = {};
-  const signup = cfg.signup_url ?? inferred.signup;
+  const signup = cfg.invite_only ? undefined : (cfg.signup_url ?? inferred.signup);
   if (signup) merged.signup = signup;
   const signin = cfg.signin_url ?? inferred.signin;
   if (signin) merged.signin = signin;

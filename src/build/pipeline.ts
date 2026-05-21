@@ -663,6 +663,7 @@ async function runBuild({
   const warnSubscribeNoopIfNeeded = (html: string): void => {
     if (
       !warnedSubscribeNoop &&
+      !content.site.members_invite_only &&
       subscribeConfig.provider === 'none' &&
       containsSubscribeFormMarkup(html)
     ) {
@@ -803,6 +804,7 @@ async function runBuild({
               enabled: recommendationsEnabled,
             }),
             urls: portalUrls,
+            inviteOnly: content.site.members_invite_only,
           }),
         );
         html = injectImageDimensions(html, {

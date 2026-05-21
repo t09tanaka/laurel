@@ -123,4 +123,19 @@ describe('resolvePortalUrls', () => {
     expect(out.signin).toBe('https://example.test/sign-in');
     expect(out.account).toBe('https://buttondown.email/account');
   });
+
+  test('invite_only suppresses public signup URLs but keeps sign-in/account URLs', () => {
+    const out = resolvePortalUrls(
+      makeCfg({
+        provider: 'buttondown',
+        invite_only: true,
+        publication: 'private-list',
+        signup_url: 'https://example.test/subscribe',
+      }),
+    );
+
+    expect(out.signup).toBeUndefined();
+    expect(out.signin).toBe('https://buttondown.email/login');
+    expect(out.account).toBe('https://buttondown.email/account');
+  });
 });

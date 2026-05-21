@@ -71,8 +71,10 @@ const PORTAL_TRIGGERS: readonly PortalTrigger[] = ['signup', 'signin', 'account'
 export function rewritePortalLinks(opts: {
   html: string;
   urls: ResolvedPortalUrls;
+  inviteOnly?: boolean | undefined;
 }): string {
-  const { html, urls } = opts;
+  const { urls } = opts;
+  const html = opts.inviteOnly ? removeInviteOnlySignupTriggers(opts.html) : opts.html;
   const wired = PORTAL_TRIGGERS.filter((t) => Boolean(urls[t]));
   if (wired.length === 0) return html;
   let out = html;
@@ -82,6 +84,51 @@ export function rewritePortalLinks(opts: {
     out = rewriteAnchors(out, trigger, href);
     out = rewriteButtons(out, trigger, href);
   }
+  return out;
+}
+
+const INVITE_ONLY_SIGNUP_TRIGGERS = ['signup', 'subscribe'] as const;
+const INVITE_ONLY_SIGNUP_TAGS = ['a', 'button'] as const;
+
+function removeInviteOnlySignupTriggers(html: string): string {
+  let out = html;
+  for (const trigger of INVITE_ONLY_SIGNUP_TRIGGERS) {
+    for (const tag of INVITE_ONLY_SIGNUP_TAGS) out = removePortalTriggerElement(out, tag, trigger);
+  }
+  out = removeElementWithAttribute(out, 'form', 'data-members-form');
+  return out;
+}
+
+function removePortalTriggerElement(html: string, tag: 'a' | 'button', trigger: string): string {
+  const openRe = new RegExp(`<${tag}\\b[^>]*?\\bdata-portal="${trigger}"[^>]*>`, 'gi');
+  return removeMatchedElements(html, openRe, `</${tag}>`);
+}
+
+function removeElementWithAttribute(html: string, tag: string, attribute: string): string {
+  const openRe = new RegExp(`<${tag}\\b[^>]*?\\b${attribute}\\b[^>]*>`, 'gi');
+  return removeMatchedElements(html, openRe, `</${tag}>`);
+}
+
+function removeMatchedElements(html: string, openRe: RegExp, closeTag: string): string {
+  let out = '';
+  let cursor = 0;
+  openRe.lastIndex = 0;
+  while (true) {
+    const match = openRe.exec(html);
+    if (match === null) break;
+    const start = match.index;
+    const openEnd = start + match[0].length;
+    const closeIdx = html.indexOf(closeTag, openEnd);
+    if (closeIdx === -1) {
+      out += html.slice(cursor);
+      cursor = html.length;
+      break;
+    }
+    out += html.slice(cursor, start);
+    cursor = closeIdx + closeTag.length;
+    openRe.lastIndex = cursor;
+  }
+  out += html.slice(cursor);
   return out;
 }
 

@@ -128,6 +128,35 @@ describe('build pipeline strict mode wiring', () => {
     expect(summary.warningCount).toBe(0);
   });
 
+  test('invite-only portal builds remove Subscribe buttons but keep Sign in links', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        readFileSync(join(cwd, 'nectar.toml'), 'utf8'),
+        '',
+        '[components.portal]',
+        'provider = "buttondown"',
+        'publication = "private-list"',
+        'invite_only = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+
+    expect(summary.warningCount).toBe(0);
+    expect(html).toContain('data-portal="signin"');
+    expect(html).toContain('href="https://buttondown.email/login"');
+    expect(html).not.toContain('data-portal="signup"');
+    expect(html).not.toContain('data-portal="subscribe"');
+    expect(html).not.toContain('data-members-form');
+    expect(html).not.toContain('Subscribe');
+    expect(html).not.toContain('https://buttondown.email/private-list');
+  });
+
   test('warns but still builds when feature_image points at a missing local asset', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
