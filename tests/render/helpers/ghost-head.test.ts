@@ -1097,6 +1097,22 @@ describe('ghost_head og:image supplementary tags', () => {
     expect(html).not.toContain('twitter:image');
   });
 
+  test('omits og:image when no image candidate exists', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'no cover',
+      feature_image: '',
+      og_image: '',
+      twitter_image: '',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+
+    expect(html).not.toContain('<meta property="og:image"');
+    expect(html).not.toContain('<meta name="twitter:image"');
+    expect(html).not.toContain('content="">');
+  });
+
   test('strips query strings and fragments before extension lookup', () => {
     const html = renderGhostHead({
       id: 'p1',
