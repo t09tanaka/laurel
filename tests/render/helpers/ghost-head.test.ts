@@ -1823,6 +1823,15 @@ describe('ghost_head CSP nonce', () => {
 });
 
 describe('ghost_head article:* OG tags on post pages', () => {
+  test('emits og:type=website on the home route', () => {
+    const html = renderGhostHead({}, '/', {
+      routeKind: 'home',
+      routeData: {},
+    });
+    expect(html).toContain('<meta property="og:type" content="website">');
+    expect(html).not.toContain('<meta property="og:type" content="article">');
+  });
+
   test('emits article:published_time / article:modified_time as ISO 8601 on post routes', () => {
     const html = renderGhostHead({
       id: 'p1',
