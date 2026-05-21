@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createChangeBus,
+  createDashboardContentItem,
   handleDashboardRequest,
   loadDashboardState,
   readDashboardContentItem,
@@ -62,9 +63,16 @@ async function makeDashboardFixture(): Promise<string> {
       'title: New Post',
       'date: 2026-01-03T00:00:00Z',
       'created_at: 2026-01-03T00:00:00Z',
+      'custom_excerpt: "Short preview copy for editors."',
+      'feature_image: "/content/images/new.svg"',
+      'visibility: members',
+      'meta_title: "New SEO"',
+      'og_title: "New social"',
+      'email_subject: "Newsletter copy stays out of preview"',
+      'internal_note: "Preserve this unknown key"',
       '---',
       '',
-      'New body',
+      'New body with TK marker',
       '',
     ].join('\n'),
     'utf8',
@@ -109,6 +117,25 @@ describe('dashboard data', () => {
       expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.build.outputDir).toBe('dist');
       expect(state.git.isRepo).toBe(false);
+      expect(state.workbench.customViews.map((view) => view.id)).toEqual([
+        'all',
+        'drafts',
+        'scheduled',
+        'needs-review',
+        'members',
+      ]);
+      expect(state.preview).toMatchObject({
+        activeTheme: 'source',
+        source: 'saved-file',
+        contract:
+          'Theme preview opens the latest saved Markdown file; unsaved editor text only appears in split preview.',
+      });
+      expect(state.posts.items[0]).toMatchObject({
+        excerpt: 'Short preview copy for editors.',
+        featureImage: '/content/images/new.svg',
+        visibility: 'members',
+        routePreview: 'https://dashboard.test/new/',
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -167,6 +194,73 @@ describe('dashboard data', () => {
       expect(generated?.editable).toBe(false);
       expect(generated?.missing).toBe(true);
       expect(generated?.generated).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('loads editor metadata for structured frontmatter and preview panels', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'new' });
+
+      expect(item.frontmatter.internal_note).toBe('Preserve this unknown key');
+      expect(item.frontmatterFields.map((field) => field.key)).toContain('feature_image');
+      expect(item.frontmatterSections.map((section) => section.id)).toEqual([
+        'identity',
+        'publishing',
+        'media',
+        'seo-social',
+        'access',
+      ]);
+      expect(item.preview).toMatchObject({
+        source: 'saved-file',
+        theme: 'source',
+        routeUrl: 'https://dashboard.test/new/',
+        unsavedMarkdown: 'editor-only',
+      });
+      expect(item.seoPreview).toMatchObject({
+        title: 'New SEO',
+        description: 'Short preview copy for editors.',
+        canonicalUrl: 'https://dashboard.test/new/',
+      });
+      expect(item.socialPreview).toMatchObject({
+        title: 'New social',
+        image: '/content/images/new.svg',
+      });
+      expect(item.reviewChecklist.some((check) => check.id === 'tk-markers' && !check.ok)).toBe(
+        true,
+      );
+      expect(item.outOfScopeFrontmatter).toEqual(['email_subject']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('duplicates content by cloning saved Markdown without mutating the source file', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const created = await createDashboardContentItem({
+        cwd: dir,
+        config,
+        payload: {
+          kind: 'posts',
+          title: 'Cloned Post',
+          slug: 'cloned-post',
+          cloneFrom: { kind: 'posts', slug: 'new' },
+        },
+      });
+
+      expect(created).toMatchObject({ ok: true, kind: 'posts', slug: 'cloned-post' });
+      const cloned = await readFile(join(dir, 'content/posts/cloned-post.md'), 'utf8');
+      expect(cloned).toContain('title: Cloned Post');
+      expect(cloned).toContain('slug: cloned-post');
+      expect(cloned).toContain('New body with TK marker');
+      expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toContain(
+        'title: New Post',
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
