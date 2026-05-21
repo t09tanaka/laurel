@@ -365,6 +365,11 @@ function routeKindToSitemapKind(kind: RouteContext['kind']): SitemapKind | undef
   }
 }
 
+function isSitemapIndexableRoute(route: RouteContext): boolean {
+  if (route.indexable === false) return false;
+  return (route.data.pagination?.page ?? 1) <= 1;
+}
+
 export async function build({
   cwd,
   configPath,
@@ -745,19 +750,17 @@ async function runBuild({
   let renderedCount = 0;
   const inlineScriptCspHashes = new Set<string>();
   const sitemapUrls = config.components.sitemap.enabled
-    ? routes
-        .filter((r) => r.indexable !== false)
-        .map((r) => {
-          const post = r.kind === 'post' ? r.data.post : undefined;
-          return {
-            url: r.url,
-            lastmod: r.lastmod,
-            kind: routeKindToSitemapKind(r.kind),
-            images: post?.feature_image
-              ? [{ url: post.feature_image, caption: post.feature_image_caption }]
-              : undefined,
-          };
-        })
+    ? routes.filter(isSitemapIndexableRoute).map((r) => {
+        const post = r.kind === 'post' ? r.data.post : undefined;
+        return {
+          url: r.url,
+          lastmod: r.lastmod,
+          kind: routeKindToSitemapKind(r.kind),
+          images: post?.feature_image
+            ? [{ url: post.feature_image, caption: post.feature_image_caption }]
+            : undefined,
+        };
+      })
     : [];
   let earlyThemeAssetCopy: SettledBuildTask<number> | undefined;
   let earlyContentAssetCopy: SettledBuildTask<number> | undefined;

@@ -2777,6 +2777,59 @@ describe('build pipeline — sitemap excludes non-indexable routes (#781)', () =
     expect(tagsXml).not.toMatch(/\/tag\/[^/]+\/page\/\d+\//);
   });
 
+  test('sitemap-pages.xml keeps content pages while omitting page 2+ archive routes', async () => {
+    const cwd = await makeSiteWithPagination();
+    await writeFile(
+      join(cwd, 'content/pages/about.md'),
+      '---\ntitle: "About"\ndate: 2026-01-10T00:00:00Z\n---\n\nAbout page\n',
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'archive-plugin.mjs'),
+      `
+export default {
+  name: 'archive-route',
+  routes() {
+    return [{
+      kind: 'custom',
+      url: '/archive/page/2/',
+      outputPath: 'archive/page/2/index.html',
+      template: 'index',
+      data: {
+        posts: [],
+        pagination: {
+          page: 2,
+          prev: 1,
+          next: undefined,
+          pages: 2,
+          total: 3,
+          limit: 2,
+          prev_url: '/',
+          next_url: undefined,
+          base_url: '/',
+        },
+      },
+      meta: {
+        title: 'Archive page 2',
+        description: '',
+        canonical: 'https://pg.test/archive/page/2/',
+        image: undefined,
+      },
+    }];
+  },
+};
+`,
+      'utf8',
+    );
+    await prependTomlTopLevel(cwd, 'plugins = ["./archive-plugin.mjs"]');
+
+    const summary = await build({ cwd });
+    const pagesXml = readFileSync(join(summary.outputDir, 'sitemap-pages.xml'), 'utf8');
+
+    expect(pagesXml).toContain('<loc>https://pg.test/about/</loc>');
+    expect(pagesXml).not.toContain('<loc>https://pg.test/archive/page/2/</loc>');
+  });
+
   test('sitemap never lists /404.html even when the theme ships error-404.hbs', async () => {
     const cwd = await makeSiteWithPagination();
     const summary = await build({ cwd });
