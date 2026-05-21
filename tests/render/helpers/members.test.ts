@@ -12,6 +12,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
     config: {
       build: { base_path: '/' },
       components: {
+        portal: { provider: 'none', paid: false, invite_only: false },
         subscribe: { provider: 'none', method: 'post' },
       },
       theme: { custom: {} },
@@ -61,6 +62,7 @@ describe('member helpers', () => {
       'comment_count',
       'member_count',
       'signup',
+      'signup_url',
       'tiers',
       'price',
     ]) {
@@ -68,15 +70,13 @@ describe('member helpers', () => {
     }
   });
 
-  test('cancel_link renders a static cancellation placeholder outside a subscription context', () => {
+  test('cancel_link is empty in static builds', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
-    expect(engine.hb.compile('{{cancel_link}}')({})).toBe(
-      '<a data-cancel-subscription class="gh-subscription-cancel">Cancel subscription</a>',
-    );
+    expect(engine.hb.compile('{{cancel_link}}')({})).toBe('');
   });
 
-  test('cancel_link escapes placeholder class and errorClass hash values', () => {
+  test('cancel_link ignores presentation hash values because cancellation is unavailable', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{cancel_link class=cls errorClass=err}}')({
@@ -85,8 +85,54 @@ describe('member helpers', () => {
       cls: 'x"><script>',
       err: "err' onclick='alert(1)",
     });
-    expect(html).toBe(
-      '<a data-cancel-subscription class="x&quot;&gt;&lt;script&gt;">Cancel subscription</a><span data-cancel-subscription-error class="err&#39; onclick=&#39;alert(1)"></span>',
+    expect(html).toBe('');
+  });
+
+  test('signup_url is empty when portal signup has no static URL', () => {
+    const engine = makeEngine();
+    registerMemberHelpers(engine);
+    expect(engine.hb.compile('{{signup_url}}')({})).toBe('');
+  });
+
+  test('signup_url resolves the configured portal provider signup URL', () => {
+    const engine = makeEngine({
+      config: {
+        build: { base_path: '/' },
+        components: {
+          portal: {
+            provider: 'buttondown',
+            paid: false,
+            invite_only: false,
+            publication: 'letters',
+          },
+          subscribe: { provider: 'none', method: 'post' },
+        },
+        theme: { custom: {} },
+      } as unknown as NectarEngine['config'],
+    });
+    registerMemberHelpers(engine);
+    expect(engine.hb.compile('{{signup_url}}')({})).toBe('https://buttondown.email/letters');
+  });
+
+  test('signup_url uses explicit portal signup_url overrides', () => {
+    const engine = makeEngine({
+      config: {
+        build: { base_path: '/' },
+        components: {
+          portal: {
+            provider: 'custom',
+            paid: false,
+            invite_only: false,
+            signup_url: 'https://example.test/join?plan=free&ref=<theme>',
+          },
+          subscribe: { provider: 'none', method: 'post' },
+        },
+        theme: { custom: {} },
+      } as unknown as NectarEngine['config'],
+    });
+    registerMemberHelpers(engine);
+    expect(engine.hb.compile('{{signup_url}}')({})).toBe(
+      'https://example.test/join?plan&#x3D;free&amp;ref&#x3D;&lt;theme&gt;',
     );
   });
 
@@ -103,6 +149,7 @@ describe('member helpers', () => {
       config: {
         build: { base_path: '/' },
         components: {
+          portal: { provider: 'none', paid: false, invite_only: false },
           subscribe: { provider: 'buttondown', username: 'letters', method: 'post' },
         },
         theme: { custom: {} },

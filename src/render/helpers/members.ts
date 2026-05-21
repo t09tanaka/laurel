@@ -1,26 +1,20 @@
 import type Handlebars from 'handlebars';
+import { type PortalConfig, resolvePortalUrls } from '~/build/portal-urls.ts';
 import type { Tier } from '~/content/model.ts';
 import { type SubscribeAdapterConfig, resolveSubscribeAdapter } from '~/members/index.ts';
 import { SUBSCRIBE_NOOP_REASON, subscribeNoopSubmitHandler } from '~/members/noop.ts';
 import type { NectarEngine } from '../engine.ts';
 
 export function registerMemberHelpers(engine: NectarEngine): void {
-  engine.hb.registerHelper(
-    'cancel_link',
-    function cancelLinkHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const hash = options.hash as Record<string, unknown>;
-      const cls = pickString(hash.class, 'gh-subscription-cancel');
-      const errorClass = pickString(hash.errorClass, '');
-      const error =
-        errorClass.length > 0
-          ? `<span data-cancel-subscription-error class="${escapeAttr(errorClass)}"></span>`
-          : '';
+  engine.hb.registerHelper('cancel_link', function cancelLinkHelper() {
+    return new engine.hb.SafeString('');
+  });
 
-      return new engine.hb.SafeString(
-        `<a data-cancel-subscription class="${escapeAttr(cls)}">Cancel subscription</a>${error}`,
-      );
-    },
-  );
+  engine.hb.registerHelper('signup_url', function signupUrlHelper() {
+    const portal = engine.config.components.portal as PortalConfig | undefined;
+    if (!portal) return '';
+    return resolvePortalUrls(portal).signup ?? '';
+  });
 
   engine.hb.registerHelper(
     'member_count',
