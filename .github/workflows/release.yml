@@ -350,6 +350,14 @@ jobs:
             --output release/nectar.rb
           ruby -c release/nectar.rb
 
+      - name: Generate Scoop manifest
+        run: |
+          bun run scripts/generate-scoop-manifest.ts \
+            --version "$TAG_NAME" \
+            --shasums release/SHASUMS256.txt \
+            --output release/nectar.json
+          bun -e 'JSON.parse(await Bun.file("release/nectar.json").text())'
+
       # Signed checksums (cosign / minisign) are intentionally out of scope for now.
       # Platform binaries are signed in the build job before upload.
 

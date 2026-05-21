@@ -61,6 +61,12 @@ brew tap t09tanaka/nectar
 brew install nectar
 ```
 
+```powershell
+# Scoop bucket (Windows)
+scoop bucket add nectar https://github.com/t09tanaka/scoop-nectar
+scoop install nectar
+```
+
 ```bash
 # macOS (Apple Silicon) — substitute the triple that matches your machine
 curl -L -o nectar \

@@ -4,16 +4,11 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_TEMPLATE = fileURLToPath(
-  new URL('../packaging/homebrew/Formula/nectar.rb.template', import.meta.url),
+  new URL('../packaging/scoop/bucket/nectar.json.template', import.meta.url),
 );
-const DEFAULT_OUTPUT = 'packaging/homebrew/Formula/nectar.rb';
-
-const REQUIRED_ARTIFACTS = [
-  ['nectar-darwin-arm64', '{{DARWIN_ARM64_SHA256}}'],
-  ['nectar-darwin-x64', '{{DARWIN_X64_SHA256}}'],
-  ['nectar-linux-arm64', '{{LINUX_ARM64_SHA256}}'],
-  ['nectar-linux-x64', '{{LINUX_X64_SHA256}}'],
-] as const;
+const DEFAULT_OUTPUT = 'packaging/scoop/bucket/nectar.json';
+const WINDOWS_ARTIFACT = 'nectar-windows-x64.exe';
+const WINDOWS_SHA_TOKEN = '{{WINDOWS_X64_SHA256}}';
 
 interface CliOptions {
   version?: string;
@@ -23,7 +18,7 @@ interface CliOptions {
   stdout: boolean;
 }
 
-export function parseHomebrewShasums(body: string): Map<string, string> {
+export function parseScoopShasums(body: string): Map<string, string> {
   const hashes = new Map<string, string>();
   for (const [index, rawLine] of body.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
@@ -42,7 +37,7 @@ export function parseHomebrewShasums(body: string): Map<string, string> {
   return hashes;
 }
 
-export function normalizeHomebrewVersion(raw: string): string {
+export function normalizeScoopVersion(raw: string): string {
   const version = raw.trim().replace(/^v/i, '');
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
     throw new Error(`Invalid release version "${raw}". Expected a semver tag like v1.2.3.`);
@@ -50,32 +45,28 @@ export function normalizeHomebrewVersion(raw: string): string {
   return version;
 }
 
-export function generateHomebrewFormula(input: {
+export function generateScoopManifest(input: {
   version: string;
   shasumsText: string;
   templateText: string;
 }): string {
-  const version = normalizeHomebrewVersion(input.version);
-  const hashes = parseHomebrewShasums(input.shasumsText);
+  const version = normalizeScoopVersion(input.version);
+  const hash = parseScoopShasums(input.shasumsText).get(WINDOWS_ARTIFACT);
 
-  let formula = input.templateText.replaceAll('{{VERSION}}', version);
-  const missing: string[] = [];
-  for (const [artifact, token] of REQUIRED_ARTIFACTS) {
-    const hash = hashes.get(artifact);
-    if (!hash) {
-      missing.push(artifact);
-      continue;
-    }
-    formula = formula.replaceAll(token, hash);
+  if (!hash) {
+    throw new Error(`Missing Scoop artifact checksum: ${WINDOWS_ARTIFACT}`);
   }
 
-  if (missing.length > 0) {
-    throw new Error(`Missing Homebrew artifact checksums: ${missing.join(', ')}`);
+  const manifest = input.templateText
+    .replaceAll('{{VERSION}}', version)
+    .replaceAll(WINDOWS_SHA_TOKEN, hash);
+
+  if (manifest.includes('{{')) {
+    throw new Error('Scoop manifest template still contains unreplaced placeholders.');
   }
-  if (formula.includes('{{')) {
-    throw new Error('Homebrew formula template still contains unreplaced placeholders.');
-  }
-  return formula.endsWith('\n') ? formula : `${formula}\n`;
+
+  JSON.parse(manifest);
+  return manifest.endsWith('\n') ? manifest : `${manifest}\n`;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -135,10 +126,10 @@ function requireValue(name: string, value: string | undefined): string {
 }
 
 function printUsage(): void {
-  console.log(`Usage: bun run scripts/generate-homebrew-formula.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output Formula/nectar.rb]
+  console.log(`Usage: bun run scripts/generate-scoop-manifest.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output bucket/nectar.json]
 
-Generates a Homebrew formula from the checked-in template and release binary checksums.
-Use --stdout instead of --output to print the formula.`);
+Generates a Scoop bucket manifest from the checked-in template and Windows release checksum.
+Use --stdout instead of --output to print the manifest.`);
 }
 
 async function main(): Promise<void> {
@@ -147,20 +138,20 @@ async function main(): Promise<void> {
     readFile(options.template, 'utf8'),
     readFile(options.shasums as string, 'utf8'),
   ]);
-  const formula = generateHomebrewFormula({
+  const manifest = generateScoopManifest({
     version: options.version as string,
     shasumsText,
     templateText,
   });
 
   if (options.stdout) {
-    process.stdout.write(formula);
+    process.stdout.write(manifest);
     return;
   }
 
   const output = options.output as string;
   await mkdir(dirname(output), { recursive: true });
-  await writeFile(output, formula, 'utf8');
+  await writeFile(output, manifest, 'utf8');
   console.log(`Wrote ${output}`);
 }
 

@@ -97,3 +97,30 @@ bun run homebrew:formula -- \
 ruby -c ../homebrew-nectar/Formula/nectar.rb
 brew audit --new --strict ../homebrew-nectar/Formula/nectar.rb
 ```
+
+## Scoop bucket manifest
+
+The release workflow also generates a `nectar.json` Scoop manifest from
+`packaging/scoop/bucket/nectar.json.template` and uploads it next to the
+release binaries. The generated manifest points at `nectar-windows-x64.exe`,
+aliases it to the `nectar` command, and embeds the SHA-256 value from
+`SHASUMS256.txt`.
+
+The public bucket should live in a separate `t09tanaka/scoop-nectar` repository
+with the generated file copied to `bucket/nectar.json`. After that bucket
+exists, Windows users can install the CLI with:
+
+```powershell
+scoop bucket add nectar https://github.com/t09tanaka/scoop-nectar
+scoop install nectar
+```
+
+To regenerate the manifest locally before updating the bucket:
+
+```bash
+bun run scoop:manifest -- \
+  --version v0.1.0 \
+  --shasums dist-bin/SHASUMS256.txt \
+  --output ../scoop-nectar/bucket/nectar.json
+bun -e 'JSON.parse(await Bun.file("../scoop-nectar/bucket/nectar.json").text())'
+```

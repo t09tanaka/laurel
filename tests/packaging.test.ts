@@ -8,6 +8,11 @@ import {
   normalizeHomebrewVersion,
   parseHomebrewShasums,
 } from '../scripts/generate-homebrew-formula.ts';
+import {
+  generateScoopManifest,
+  normalizeScoopVersion,
+  parseScoopShasums,
+} from '../scripts/generate-scoop-manifest.ts';
 
 // Guards the npm publish surface: without a strict `files` whitelist, npm
 // publishes everything not in .npmignore — which would balloon the tarball
@@ -399,6 +404,102 @@ describe('packaging', () => {
       expect(readme).toContain('brew install nectar');
       expect(releaseDocs).toContain('t09tanaka/homebrew-nectar');
       expect(releaseDocs).toContain('bun run homebrew:formula');
+    });
+  });
+
+  describe('Scoop bucket manifest', () => {
+    const hashes = {
+      darwinArm64: 'a'.repeat(64),
+      darwinX64: 'b'.repeat(64),
+      linuxArm64: 'c'.repeat(64),
+      linuxX64: 'd'.repeat(64),
+      windowsX64: 'e'.repeat(64),
+    };
+
+    const shasums = [
+      `${hashes.darwinArm64}  nectar-darwin-arm64`,
+      `${hashes.darwinX64}  nectar-darwin-x64`,
+      `${hashes.linuxArm64}  nectar-linux-arm64`,
+      `${hashes.linuxX64}  nectar-linux-x64`,
+      `${hashes.windowsX64}  nectar-windows-x64.exe`,
+    ].join('\n');
+
+    test('normalizes release tags for manifest versions', () => {
+      expect(normalizeScoopVersion('v1.2.3')).toBe('1.2.3');
+      expect(normalizeScoopVersion('1.2.3')).toBe('1.2.3');
+      expect(() => normalizeScoopVersion('nightly')).toThrow('Invalid release version');
+    });
+
+    test('parses release SHASUMS256.txt entries', () => {
+      const parsed = parseScoopShasums(shasums);
+
+      expect(parsed.get('nectar-windows-x64.exe')).toBe(hashes.windowsX64);
+      expect(parsed.get('nectar-linux-x64')).toBe(hashes.linuxX64);
+    });
+
+    test('generates an installable manifest from the release template', async () => {
+      const template = await readFile(
+        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'nectar.json.template'),
+        'utf8',
+      );
+      const manifest = generateScoopManifest({
+        version: 'v1.2.3',
+        shasumsText: shasums,
+        templateText: template,
+      });
+      const parsed = JSON.parse(manifest) as {
+        version: string;
+        architecture: { '64bit': { url: string; hash: string; bin: string[][] } };
+      };
+
+      expect(parsed.version).toBe('1.2.3');
+      expect(parsed.architecture['64bit'].url).toBe(
+        'https://github.com/t09tanaka/nectar/releases/download/v1.2.3/nectar-windows-x64.exe',
+      );
+      expect(parsed.architecture['64bit'].hash).toBe(hashes.windowsX64);
+      expect(parsed.architecture['64bit'].bin).toEqual([['nectar-windows-x64.exe', 'nectar']]);
+      expect(manifest).toContain('"checkver"');
+      expect(manifest).toContain('"autoupdate"');
+      expect(manifest).not.toContain('{{');
+    });
+
+    test('refuses to generate a manifest without the Windows checksum', async () => {
+      const template = await readFile(
+        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'nectar.json.template'),
+        'utf8',
+      );
+
+      expect(() =>
+        generateScoopManifest({
+          version: 'v1.2.3',
+          shasumsText: `${hashes.linuxX64}  nectar-linux-x64\n`,
+          templateText: template,
+        }),
+      ).toThrow('Missing Scoop artifact checksum');
+    });
+
+    test('release workflow publishes the generated manifest as a release asset', async () => {
+      const workflow = await readFile(
+        join(REPO_ROOT, '.github', 'workflows', 'release.yml'),
+        'utf8',
+      );
+
+      expect(workflow).toContain('Generate Scoop manifest');
+      expect(workflow).toContain('scripts/generate-scoop-manifest.ts');
+      expect(workflow).toContain('--output release/nectar.json');
+      expect(workflow).toContain('JSON.parse(await Bun.file("release/nectar.json").text())');
+      expect(workflow).toContain('gh release create "$TAG_NAME"');
+      expect(workflow).toContain('release/*');
+    });
+
+    test('docs show the bucket command that enables scoop install nectar', async () => {
+      const readme = await readFile(join(REPO_ROOT, 'README.md'), 'utf8');
+      const releaseDocs = await readFile(join(REPO_ROOT, 'docs', 'release.md'), 'utf8');
+
+      expect(readme).toContain('scoop bucket add nectar https://github.com/t09tanaka/scoop-nectar');
+      expect(readme).toContain('scoop install nectar');
+      expect(releaseDocs).toContain('t09tanaka/scoop-nectar');
+      expect(releaseDocs).toContain('bun run scoop:manifest');
     });
   });
 });

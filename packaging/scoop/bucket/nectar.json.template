@@ -1,0 +1,32 @@
+{
+  "version": "{{VERSION}}",
+  "description": "Ghost-theme-compatible static site generator powered by Markdown and Bun",
+  "homepage": "https://github.com/t09tanaka/nectar",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/t09tanaka/nectar/releases/download/v{{VERSION}}/nectar-windows-x64.exe",
+      "hash": "{{WINDOWS_X64_SHA256}}",
+      "bin": [
+        [
+          "nectar-windows-x64.exe",
+          "nectar"
+        ]
+      ]
+    }
+  },
+  "checkver": {
+    "github": "https://github.com/t09tanaka/nectar"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/t09tanaka/nectar/releases/download/v$version/nectar-windows-x64.exe",
+        "hash": {
+          "url": "$baseurl/SHASUMS256.txt",
+          "find": "$sha256\\s+nectar-windows-x64\\.exe"
+        }
+      }
+    }
+  }
+}
