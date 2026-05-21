@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import {
@@ -175,6 +175,24 @@ describe('renderFeedSafeHtml', () => {
 });
 
 describe('emitRss', () => {
+  test('streams RSS pages instead of joining every item into one XML string', () => {
+    const source = readFileSync(resolve(import.meta.dir, '../../src/build/feeds.ts'), 'utf8');
+    const writeRssPageStart = source.indexOf('async function writeRssPage');
+    const writeRssPageEnd = source.indexOf('function rssHashConfig');
+    const writeRssPageSource = source.slice(writeRssPageStart, writeRssPageEnd);
+
+    expect(source).toContain('writeTextStream(outputDir, filename');
+    expect(writeRssPageStart).toBeGreaterThanOrEqual(0);
+    expect(writeRssPageEnd).toBeGreaterThan(writeRssPageStart);
+    expect(writeRssPageSource).toContain('for (const post of opts.pagePosts)');
+    expect(writeRssPageSource).toContain('await writer.write(renderItem(');
+    expect(writeRssPageSource).not.toContain('.map(');
+    expect(writeRssPageSource).not.toContain('opts.pagePosts.join');
+    expect(writeRssPageSource).not.toContain('renderItem(post)).join');
+    expect(writeRssPageSource).not.toContain('writeHtml(');
+    expect(writeRssPageSource).not.toContain('writeFile(');
+  });
+
   test('declares atom namespace and emits atom:link rel="self"', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
