@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
@@ -277,6 +279,45 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['--log-format=json', 'version']);
     expect(exitCode).toBe(0);
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  test('NECTAR_LOG_FORMAT=json emits JSON Lines logs without forcing command json output', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-json-log-init-'));
+    try {
+      const { stdout, stderr, exitCode } = await runCli(['init', '--yes', '--dir', dir], {
+        NECTAR_LOG_FORMAT: 'json',
+      });
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+
+      const lines = stdout.trim().split('\n');
+      expect(lines.length).toBeGreaterThanOrEqual(4);
+      const records = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(records[0]).toMatchObject({
+        level: 'info',
+        msg: `Initialised Nectar project in ${dir}`,
+      });
+      expect(records.every((record) => typeof record.ts === 'string')).toBe(true);
+      expect(stdout).not.toContain('\x1b[');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('--log-format=pretty overrides NECTAR_LOG_FORMAT=json for human logs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-pretty-log-init-'));
+    try {
+      const { stdout, stderr, exitCode } = await runCli(
+        ['--log-format=pretty', 'init', '--yes', '--dir', dir],
+        { NECTAR_LOG_FORMAT: 'json' },
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      expect(stdout).toContain(`Initialised Nectar project in ${dir}`);
+      expect(() => JSON.parse(stdout.trim().split('\n')[0] ?? '')).toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test('build --help footer documents the env var convention', async () => {

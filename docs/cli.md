@@ -33,6 +33,26 @@ filenames beginning with `--` can be passed after it.
 | `-h, --help` | — | Show help for the top-level CLI or any subcommand |
 | `-v, --version` | — | Print the Nectar version and exit. Use `nectar version --json` for machine-readable version metadata. |
 
+## JSON Lines logs
+
+Set `NECTAR_LOG_FORMAT=json` (or pass `--log-format=json`) when CI jobs,
+process supervisors, or log shippers need machine-readable Nectar logs
+without changing command-specific output such as `nectar version` or
+`nectar config get`. Each logger call emits one JSON object per line with
+`ts`, `level`, and `msg`; structured logger fields are nested under
+`fields` when present.
+
+```sh
+NECTAR_LOG_FORMAT=json nectar build > nectar.log.jsonl
+NECTAR_LOG_FORMAT=json nectar dev 2> nectar.err.jsonl
+```
+
+`NECTAR_LOG_FORMAT=json` is intentionally different from `NECTAR_JSON=1`
+or the global `--json` flag: it only changes the logger surface. Use
+`--json` when a subcommand also has a machine-readable result payload.
+Use `--log-format=pretty` to force human-readable logs when the environment
+sets `NECTAR_LOG_FORMAT=json`.
+
 ## Built-in version output
 
 `nectar --version` prints the plain package version for scripts that expect
