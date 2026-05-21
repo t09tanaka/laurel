@@ -806,6 +806,15 @@ describe('has helper', () => {
     expect(tpl({ twitter: '@me' })).toBe('MISS');
   });
 
+  test('all="tag,author" requires both tag and author collections to be populated', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has all="tag,author"}}yes{{else}}no{{/has}}');
+    expect(tpl({ tags: [{ slug: 'news' }], authors: [{ slug: 'jane' }] })).toBe('yes');
+    expect(tpl({ tags: [{ slug: 'news' }], authors: [] })).toBe('no');
+    expect(tpl({ tags: [], authors: [{ slug: 'jane' }] })).toBe('no');
+  });
+
   test('any="@labs.x" reads from the data frame instead of the context', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);

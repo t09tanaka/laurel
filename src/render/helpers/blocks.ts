@@ -688,6 +688,9 @@ function evaluateAnyAll(
     .filter(Boolean);
   if (paths.length === 0) return false;
   const check = (path: string): boolean => {
+    const collectionPresence = evaluateAnyAllCollectionPrefix(ctx, path);
+    if (collectionPresence !== undefined) return collectionPresence;
+
     const useData = path.startsWith('@');
     const segs = (useData ? path.slice(1) : path).split('.');
     const root: unknown = useData ? data : ctx;
@@ -699,6 +702,21 @@ function evaluateAnyAll(
     return Boolean(cursor);
   };
   return mode === 'any' ? paths.some(check) : paths.every(check);
+}
+
+function evaluateAnyAllCollectionPrefix(
+  ctx: Record<string, unknown>,
+  path: string,
+): boolean | undefined {
+  if (path.startsWith('@') || path.includes('.')) return undefined;
+  switch (path) {
+    case 'tag':
+      return Array.isArray(ctx.tags) && ctx.tags.length > 0;
+    case 'author':
+      return Array.isArray(ctx.authors) && ctx.authors.length > 0;
+    default:
+      return undefined;
+  }
 }
 
 // Ghost themes write `{{#has count:tags=">2"}}` to branch on collection size.
