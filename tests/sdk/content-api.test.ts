@@ -275,6 +275,8 @@ describe('@tryghost/content-api SDK smoke (#213)', () => {
             read(opts: { slug: string }): Promise<unknown>;
           };
           tags: { browse(opts?: Record<string, unknown>): Promise<unknown> };
+          tiers: { browse(opts?: Record<string, unknown>): Promise<unknown> };
+          newsletters: { browse(opts?: Record<string, unknown>): Promise<unknown> };
         }
       )({
         url: handle.url,
@@ -315,6 +317,22 @@ describe('@tryghost/content-api SDK smoke (#213)', () => {
       expect(tags.meta?.pagination.page).toBe(1);
       expect(tags.meta?.pagination.total).toBe(1);
       expect(tags.meta?.pagination.pages).toBe(1);
+
+      // (5) members/newsletter resources are static empty stubs so SDK calls
+      // resolve cleanly instead of surfacing a 404/network error.
+      const tiers = (await api.tiers.browse()) as Array<unknown> & {
+        meta?: { pagination: { total: number } };
+      };
+      expect(Array.isArray(tiers)).toBe(true);
+      expect(tiers).toHaveLength(0);
+      expect(tiers.meta?.pagination.total).toBe(0);
+
+      const newsletters = (await api.newsletters.browse()) as Array<unknown> & {
+        meta?: { pagination: { total: number } };
+      };
+      expect(Array.isArray(newsletters)).toBe(true);
+      expect(newsletters).toHaveLength(0);
+      expect(newsletters.meta?.pagination.total).toBe(0);
     } finally {
       await handle.stop();
     }

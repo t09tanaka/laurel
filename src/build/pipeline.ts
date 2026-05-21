@@ -1835,7 +1835,7 @@ function markPlannedContentApiShadowOutputs(opts: {
   keepOutput: KeepOutput;
 }): void {
   const base = 'ghost/api/content';
-  for (const resource of ['posts', 'pages', 'authors', 'tags'] as const) {
+  for (const resource of ['posts', 'pages', 'authors', 'tags', 'tiers', 'newsletters'] as const) {
     opts.keepOutput(`${base}/${resource}.json`);
     opts.keepOutput(`${base}/${resource}/index.json`);
   }
@@ -1851,6 +1851,8 @@ function markPlannedContentApiShadowOutputs(opts: {
     opts.keepOutput(`${base}/posts/page/${page}.json`);
     opts.keepOutput(`${base}/posts/page/${page}/index.json`);
   }
+  opts.keepOutput(`${base}/posts/featured.json`);
+  opts.keepOutput(`${base}/posts/featured/index.json`);
   for (const post of posts) {
     opts.keepOutput(`${base}/posts/${post.id}.json`);
     opts.keepOutput(`${base}/posts/${post.id}/index.json`);
@@ -1873,6 +1875,7 @@ function markPlannedContentApiShadowOutputs(opts: {
     opts.keepOutput(`${base}/posts/tag/${tag.slug}.json`);
     opts.keepOutput(`${base}/posts/tag/${tag.slug}/index.json`);
   }
+  opts.keepOutput('.well-known/ghost.json');
   opts.keepOutput('_redirects');
 }
 
@@ -1881,7 +1884,7 @@ function markPlannedContentApiStubOutputs(opts: {
   config: Awaited<ReturnType<typeof loadConfig>>;
   keepOutput: KeepOutput;
 }): void {
-  for (const resource of ['posts', 'pages', 'tags', 'authors'] as const) {
+  for (const resource of ['posts', 'pages', 'tags', 'authors', 'tiers', 'newsletters'] as const) {
     opts.keepOutput(`content/${resource}.json`);
     opts.keepOutput(`content/${resource}/index.json`);
   }
@@ -1897,6 +1900,8 @@ function markPlannedContentApiStubOutputs(opts: {
     opts.keepOutput(`content/posts/page/${page}.json`);
     opts.keepOutput(`content/posts/page/${page}/index.json`);
   }
+  opts.keepOutput('content/posts/featured.json');
+  opts.keepOutput('content/posts/featured/index.json');
   for (const post of posts) {
     opts.keepOutput(`content/posts/${post.id}.json`);
     opts.keepOutput(`content/posts/${post.id}/index.json`);
@@ -1915,6 +1920,7 @@ function markPlannedContentApiStubOutputs(opts: {
   }
   opts.keepOutput('_headers');
   opts.keepOutput('_headers.cf');
+  opts.keepOutput('.well-known/ghost.json');
   if (opts.config.components.content_api.emit_htaccess) {
     opts.keepOutput('content/.htaccess');
   }

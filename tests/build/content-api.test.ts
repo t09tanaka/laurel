@@ -227,6 +227,9 @@ describe('emitContentApiStubs', () => {
 
     expect(existsSync(join(outputDir, 'content', 'posts.json'))).toBe(true);
     expect(existsSync(join(outputDir, 'content', 'settings.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'tiers.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content', 'newsletters.json'))).toBe(true);
+    expect(existsSync(join(outputDir, '.well-known', 'ghost.json'))).toBe(true);
     expect(existsSync(join(outputDir, 'content', '404.json'))).toBe(true);
     expect(existsSync(join(outputDir, '_headers'))).toBe(true);
     expect(existsSync(join(outputDir, '_headers.cf'))).toBe(true);
@@ -531,6 +534,7 @@ name: News
     expect(body).toContain('Access-Control-Allow-Origin: *');
     expect(body).toContain('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
     expect(body).toContain('Access-Control-Allow-Headers: Content-Type, Authorization');
+    expect(body).toContain('Access-Control-Max-Age: 86400');
     expect(body).toContain('Cache-Control: public, max-age=300');
   });
 
@@ -553,6 +557,7 @@ name: News
     expect(body).toContain(
       'Header always set Access-Control-Allow-Headers "Content-Type, Authorization"',
     );
+    expect(body).toContain('Header always set Access-Control-Max-Age "86400"');
     expect(body).toContain('Header set Cache-Control "public, max-age=300"');
     expect(body).toContain('Header set Cache-Control "public, max-age=3600"');
   });
@@ -589,6 +594,55 @@ name: News
     const second = readFileSync(join(outputDir, '_headers'), 'utf8');
 
     expect(second).toBe(first);
+  });
+
+  test('upgrades existing Content API CORS rules when the generated header set changes', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-upgrade-'));
+    await writeFile(
+      join(outputDir, '_headers'),
+      [
+        '/content/posts/*',
+        '  Access-Control-Allow-Origin: *',
+        '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+        '  Access-Control-Allow-Headers: Content-Type, Authorization',
+        '  Cache-Control: public, max-age=300',
+        '',
+        '/*',
+        '  X-Frame-Options: SAMEORIGIN',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = readFileSync(join(outputDir, '_headers'), 'utf8');
+    expect(body).toContain('Access-Control-Max-Age: 86400');
+    expect(body.match(/\/content\/posts\/\*/g)).toHaveLength(1);
+    expect(body).toContain('X-Frame-Options: SAMEORIGIN');
+  });
+
+  test('does not remove user-authored content header rules during CORS upgrades', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-custom-headers-'));
+    await writeFile(
+      join(outputDir, '_headers'),
+      [
+        '/content/posts/*',
+        '  X-Robots-Tag: noindex',
+        '',
+        '/*',
+        '  X-Frame-Options: SAMEORIGIN',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = readFileSync(join(outputDir, '_headers'), 'utf8');
+    expect(body).toContain('Access-Control-Max-Age: 86400');
+    expect(body).toContain('X-Robots-Tag: noindex');
+    expect(body).toContain('X-Frame-Options: SAMEORIGIN');
   });
 
   test('emits pages.json with per-page shards (#750)', async () => {
@@ -793,6 +847,47 @@ name: News
     expect(techBody.posts[0].slug).toBe('p-tech');
   });
 
+  test('emits featured post shards and preserves canonical post order (#1359)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-featured-'));
+    const posts = [
+      makePost({
+        id: 'older-featured',
+        slug: 'older-featured',
+        featured: true,
+        published_at: '2026-01-01T00:00:00.000Z',
+      }),
+      makePost({
+        id: 'newer-regular',
+        slug: 'newer-regular',
+        featured: false,
+        published_at: '2026-01-03T00:00:00.000Z',
+      }),
+      makePost({
+        id: 'newer-featured',
+        slug: 'newer-featured',
+        featured: true,
+        published_at: '2026-01-02T00:00:00.000Z',
+      }),
+    ];
+    await emitContentApiStubs({ content: makeGraph({ posts }), outputDir });
+
+    const all = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(all.posts.map((post: { slug: string }) => post.slug)).toEqual([
+      'newer-regular',
+      'newer-featured',
+      'older-featured',
+    ]);
+
+    const featured = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'posts', 'featured.json'), 'utf8'),
+    );
+    expect(featured.posts.map((post: { slug: string }) => post.slug)).toEqual([
+      'newer-featured',
+      'older-featured',
+    ]);
+    expect(featured.meta.pagination.total).toBe(2);
+  });
+
   test('absolute_urls rewrites html src/href to absolute (#743)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
     const post = makePost({
@@ -872,6 +967,18 @@ name: News
     }
   });
 
+  test('emits static members/email compatibility fields on posts (#1358, #1360)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-compat-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0]).toMatchObject({
+      email_only: false,
+      email: null,
+      send_email_when_published: false,
+    });
+  });
+
   test('emits post and page UUIDs separately from ObjectId ids', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-uuid-'));
     const post = makePost({
@@ -933,5 +1040,49 @@ name: News
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
     expect(body.authors[0].url).toBe('https://example.com/author/casper/');
+  });
+
+  test('emits empty tiers and newsletters stubs plus service discovery (#1349, #1350, #1354)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-empty-stubs-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir });
+
+    const tiers = JSON.parse(readFileSync(join(outputDir, 'content', 'tiers.json'), 'utf8'));
+    const newsletters = JSON.parse(
+      readFileSync(join(outputDir, 'content', 'newsletters.json'), 'utf8'),
+    );
+    expect(tiers).toEqual({
+      tiers: [],
+      meta: { pagination: { page: 1, limit: 1, pages: 1, total: 0, next: null, prev: null } },
+    });
+    expect(newsletters).toEqual({
+      newsletters: [],
+      meta: { pagination: { page: 1, limit: 1, pages: 1, total: 0, next: null, prev: null } },
+    });
+
+    const discovery = JSON.parse(
+      readFileSync(join(outputDir, '.well-known', 'ghost.json'), 'utf8'),
+    );
+    expect(discovery).toMatchObject({
+      generator: 'nectar',
+      ghost_api_version: 'v5.0',
+      endpoints: {
+        content: '/ghost/api/content/',
+        flat_content: '/content/',
+      },
+    });
+    expect(typeof discovery.version).toBe('string');
+  });
+
+  test('service discovery endpoints include base_path for subpath deploys (#1354)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-discovery-base-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir, basePath: '/blog/' });
+
+    const discovery = JSON.parse(
+      readFileSync(join(outputDir, '.well-known', 'ghost.json'), 'utf8'),
+    );
+    expect(discovery.endpoints).toEqual({
+      content: '/blog/ghost/api/content/',
+      flat_content: '/blog/content/',
+    });
   });
 });

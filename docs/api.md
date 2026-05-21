@@ -28,12 +28,16 @@ a site can serve either entry point (or both) from a single build.
 | `content/posts/slug/<slug>.json`                        | Single post by slug                    |
 | `content/posts/page/<n>.json`                           | Paginated post shards                  |
 | `content/posts/tag/<slug>.json`                         | Posts pre-filtered by tag              |
+| `content/posts/featured.json`                           | Featured posts                         |
 | `content/pages.json`                                    | All published pages                    |
 | `content/pages/<id>.json`                               | Single page by id                      |
 | `content/pages/slug/<slug>.json`                        | Single page by slug                    |
 | `content/tags.json`                                     | All public tags                        |
 | `content/authors.json`                                  | All authors (`count.posts` included)   |
+| `content/tiers.json`                                    | Empty members-tier stub                |
+| `content/newsletters.json`                              | Empty newsletter stub                  |
 | `content/settings.json`                                 | Site settings singleton                |
+| `.well-known/ghost.json`                                | Nectar/Ghost-compatible discovery      |
 
 The same paths exist under `ghost/api/content/...` for SDK consumers.
 
@@ -68,6 +72,7 @@ Every rule also sets:
 - `Access-Control-Allow-Origin: *`
 - `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`
 - `Access-Control-Allow-Headers: Content-Type, Authorization`
+- `Access-Control-Max-Age: 86400`
 
 Self-hosted deployments that do not consume `_headers` should copy the same
 rules from the nginx, Apache, or Caddy snippets:
@@ -148,6 +153,32 @@ because there is no server.
 This means the SDK init form is compatible as-is. Operators rotating keys
 in their themes do not need to coordinate with Nectar.
 
+Nectar does not emit a key registry such as
+`.well-known/ghost-content-keys.json`. The static dump is public and accepts
+any key value.
+
+## Query parameters
+
+Nectar's Content API is generated at build time, so request-time query
+parameters do not change the payload. Static hosts strip or ignore query
+strings before resolving the JSON file.
+
+The deliberate divergences are:
+
+- `?fields=title,slug` is ignored. Full records are always emitted; project
+  fields in the client if you need a smaller object.
+- `?formats=html,plaintext,mobiledoc,lexical` is ignored. Nectar emits `html`
+  and `plaintext` for posts/pages and does not emit `mobiledoc` or `lexical`.
+- `?include=authors,tags` is ignored. Posts/pages always include `tags`,
+  `authors`, `primary_tag`, and `primary_author`.
+- `?include=count.posts` is ignored. Tags and authors always include
+  `count.posts`.
+- `?order=` is ignored. Canonical output order is posts by
+  `published_at desc`, tags by `name asc`, and authors by `name asc`.
+- `?v=v5.0` and older `?v=` values are ignored. Nectar emits one v5-shaped
+  representation. A future incompatible schema would use a versioned path,
+  not query-time branching.
+
 ## NQL filtering (`?filter=...`)
 
 Ghost's Content API accepts arbitrary [NQL](https://ghost.org/docs/content-api/#filtering)
@@ -166,6 +197,49 @@ filter client-side.
 If you need server-side filtering, run a real Ghost backend or proxy
 through a server-side worker (e.g. a Cloudflare Worker that reads the same
 JSON and applies NQL on the fly).
+
+## Static empty resources
+
+Ghost's Content API exposes members/newsletter resources that depend on live
+Ghost services. Nectar emits empty stubs so SDK consumers can call them
+without a 404:
+
+- `content/tiers.json` / `ghost/api/content/tiers.json`
+- `content/newsletters.json` / `ghost/api/content/newsletters.json`
+
+Both return an empty array with `meta.pagination`. Nectar does not implement
+members billing, newsletter delivery, offers, or email analytics.
+
+Posts also include static compatibility fields for SDK/type consumers:
+`email_only: false`, `email: null`, and
+`send_email_when_published: false`.
+
+## Other emitted files
+
+The Content API is not the only machine-readable output Nectar can emit.
+Depending on component config, builds may also include:
+
+- `sitemap.xml`
+- `rss.xml`
+- `robots.txt`
+- `humans.txt`
+- search indexes under `content/search.json`, `pagefind/`, or provider
+  records
+
+These are static build artifacts, not Ghost Content API endpoints.
+
+## Explicit non-support
+
+Nectar does not emit:
+
+- AMP routes such as `/post-slug/amp/`
+- Ghost Image API resize URLs like `/content/images/size/w600/...`
+- `GET /oembed/?url=...`
+- Ghost Admin API webhooks or integration endpoints
+- A published `@nectar/content-api-types` package
+
+Use pre-generated images, theme/plugin code, or host/CI deploy hooks for
+those concerns.
 
 ## Admin API
 

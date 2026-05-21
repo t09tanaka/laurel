@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
@@ -20,14 +21,18 @@ import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './heade
 //   content/posts/<id>.json                  — single post by id
 //   content/posts/slug/<slug>.json           — single post by slug
 //   content/posts/tag/<slug>.json            — posts pre-filtered by tag
+//   content/posts/featured.json              — featured posts shard
 //   content/pages.json                       — all published pages
 //   content/pages/<id>.json                  — single page by id
 //   content/pages/slug/<slug>.json           — single page by slug
 //   content/tags.json                        — all public tags
 //   content/tags/slug/<slug>.json            — single public tag by slug
 //   content/authors.json                     — all authors (with count.posts)
+//   content/tiers.json                       — empty members stub
+//   content/newsletters.json                 — empty newsletter stub
 //   content/settings.json                    — site settings singleton
 //   content/404.json                         — Ghost-shaped 404 error envelope
+//   .well-known/ghost.json                   — Nectar/Ghost-compatible discovery
 //
 // Pre-baked tag shards exist because arbitrary Ghost NQL filtering needs a
 // server. Operators who need a different filter can shape it client-side off
@@ -68,7 +73,7 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
   const urlBase = absoluteUrls ? buildUrlBase(content.site.url, basePath) : undefined;
   const urlContext = { siteUrl: content.site.url, basePath };
 
-  const publishedPosts = content.posts.filter((p) => p.status === 'published');
+  const publishedPosts = selectPublishedPosts(content.posts);
   const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, urlContext));
   const publishedPages = content.pages.filter((p) => p.status === 'published');
   const serializedPages = publishedPages.map((p) => serializePage(p, urlBase, urlContext));
@@ -76,13 +81,17 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
   const serializedTags = publicTags.map(({ tag, countPosts }) =>
     serializeTag(tag, countPosts, urlContext),
   );
-  const serializedAuthors = content.authors.map((author) => serializeAuthor(author, urlContext));
+  const serializedAuthors = selectAuthors(content.authors).map((author) =>
+    serializeAuthor(author, urlContext),
+  );
 
   await Promise.all([
     writeCollection(outputDir, 'posts', serializedPosts),
     writeCollection(outputDir, 'pages', serializedPages),
     writeCollection(outputDir, 'tags', serializedTags),
     writeCollection(outputDir, 'authors', serializedAuthors),
+    writeEmptyCollection(outputDir, 'tiers'),
+    writeEmptyCollection(outputDir, 'newsletters'),
     writeSettingsDump(outputDir, content.site),
     writePaginatedPosts(outputDir, serializedPosts, postsPerPage),
     writePerSlugPosts(outputDir, serializedPosts),
@@ -91,7 +100,9 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writePerIdPages(outputDir, serializedPages),
     writePerSlugTags(outputDir, publicTags, urlContext),
     writePerTagPosts(outputDir, content.tags, publishedPosts, urlBase, urlContext),
+    writeFeaturedPosts(outputDir, serializedPosts),
     writeContentApi404(outputDir),
+    writeServiceDiscovery(outputDir, basePath),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
     writeContentHtaccess(outputDir, opts.emitHtaccess ?? false),
@@ -111,7 +122,7 @@ async function writeContentApi404(outputDir: string): Promise<void> {
 // rules. See #215.
 async function writeCollection(
   outputDir: string,
-  resource: 'posts' | 'pages' | 'tags' | 'authors',
+  resource: 'posts' | 'pages' | 'tags' | 'authors' | 'tiers' | 'newsletters',
   items: Array<Record<string, unknown>>,
 ): Promise<void> {
   const body = {
@@ -123,6 +134,13 @@ async function writeCollection(
   const flat = join(outputDir, 'content', `${resource}.json`);
   const dirIndex = join(outputDir, 'content', resource, 'index.json');
   await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
+}
+
+async function writeEmptyCollection(
+  outputDir: string,
+  resource: 'tiers' | 'newsletters',
+): Promise<void> {
+  await writeCollection(outputDir, resource, []);
 }
 
 async function writePaginatedPosts(
@@ -251,6 +269,22 @@ async function writePerTagPosts(
   );
 }
 
+async function writeFeaturedPosts(
+  outputDir: string,
+  posts: Array<Record<string, unknown>>,
+): Promise<void> {
+  const featured = posts.filter((post) => post.featured === true);
+  const body = {
+    posts: featured,
+    meta: {
+      pagination: projectPagination({ total: featured.length }),
+    },
+  };
+  const flat = join(outputDir, 'content', 'posts', 'featured.json');
+  const dirIndex = join(outputDir, 'content', 'posts', 'featured', 'index.json');
+  await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
+}
+
 async function writeSettingsDump(outputDir: string, site: SiteData): Promise<void> {
   // Settings is a singleton, not a collection, so no pagination meta. The
   // duo emit still applies so SDK trailing-slash requests resolve cleanly.
@@ -258,6 +292,19 @@ async function writeSettingsDump(outputDir: string, site: SiteData): Promise<voi
   const flat = join(outputDir, 'content', 'settings.json');
   const dirIndex = join(outputDir, 'content', 'settings', 'index.json');
   await Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]);
+}
+
+async function writeServiceDiscovery(outputDir: string, basePath: string): Promise<void> {
+  const version = await getNectarVersion();
+  await writeJson(join(outputDir, '.well-known', 'ghost.json'), {
+    generator: 'nectar',
+    version,
+    ghost_api_version: 'v5.0',
+    endpoints: {
+      content: joinDiscoveryEndpoint(basePath, 'ghost/api/content/'),
+      flat_content: joinDiscoveryEndpoint(basePath, 'content/'),
+    },
+  });
 }
 
 async function writeJson(dest: string, body: unknown): Promise<void> {
@@ -291,30 +338,42 @@ async function writeCorsHeaders(outputDir: string, filename: string): Promise<vo
     await writeFile(dest, body, 'utf8');
     return;
   }
-  if (existing.includes('/content/posts/*') || existing.includes('/content/tags/*')) {
+  if (
+    (existing.includes('/content/posts/*') || existing.includes('/content/tags/*')) &&
+    existing.includes('Access-Control-Max-Age: 86400')
+  ) {
     // Already merged on a previous build run; leave it as-is.
     return;
   }
-  // Drop the legacy single-block `/content/*` body if present so reruns
-  // upgrade cleanly to the per-resource layout without duplicating rules.
-  const stripped = stripLegacyContentBlock(existing);
+  // Drop older generated `/content/*` or per-resource Content API blocks so
+  // reruns upgrade cleanly when the generated CORS header set changes.
+  const stripped = stripGeneratedContentApiBlocks(existing);
   const trimmed = stripped.endsWith('\n') ? stripped : `${stripped}\n`;
   await writeFile(dest, `${body}\n${trimmed}`, 'utf8');
 }
 
-function stripLegacyContentBlock(existing: string): string {
-  // The pre-#751 CORS body was a single `/content/*` rule. Detect and remove
-  // it so we don't end up with both old and new rule blocks after upgrade.
+function stripGeneratedContentApiBlocks(existing: string): string {
+  const generatedPatterns = new Set([
+    '/content/posts/*',
+    '/content/tags/*',
+    '/content/authors/*',
+    '/content/*',
+  ]);
   const lines = existing.split('\n');
   const out: string[] = [];
   let i = 0;
   while (i < lines.length) {
     const line = lines[i] ?? '';
-    if (line === '/content/*') {
+    if (generatedPatterns.has(line)) {
+      const blockStart = i;
       // Skip until next blank line (rule boundary).
       while (i < lines.length && (lines[i] ?? '') !== '') i++;
+      const block = lines.slice(blockStart, i);
       // Skip the blank separator too.
       if (i < lines.length && (lines[i] ?? '') === '') i++;
+      if (!isGeneratedContentApiCorsBlock(block)) {
+        out.push(...block, '');
+      }
       continue;
     }
     out.push(line);
@@ -323,11 +382,36 @@ function stripLegacyContentBlock(existing: string): string {
   return out.join('\n');
 }
 
+function isGeneratedContentApiCorsBlock(lines: string[]): boolean {
+  return (
+    lines.some((line) => line.trim() === 'Access-Control-Allow-Origin: *') &&
+    lines.some((line) => line.trim() === 'Access-Control-Allow-Methods: GET, HEAD, OPTIONS') &&
+    lines.some(
+      (line) => line.trim() === 'Access-Control-Allow-Headers: Content-Type, Authorization',
+    )
+  );
+}
+
 function buildUrlBase(siteUrl: string, basePath: string): string {
   const root = siteUrl.replace(/\/+$/, '');
   if (basePath === '/' || basePath === '') return root;
   const trimmed = basePath.replace(/^\/+|\/+$/g, '');
   return trimmed.length === 0 ? root : `${root}/${trimmed}`;
+}
+
+function joinDiscoveryEndpoint(basePath: string, path: string): string {
+  const prefix = normalizeApiBasePath(basePath).replace(/\/$/, '');
+  return `${prefix}/${path}`;
+}
+
+function selectPublishedPosts(posts: Post[]): Post[] {
+  return posts
+    .filter((post) => post.status === 'published')
+    .toSorted((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
+}
+
+function selectAuthors(authors: Author[]): Author[] {
+  return authors.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 // Rewrites `src="/..."`, `href="/..."`, `srcset` entries, and any other
@@ -412,6 +496,9 @@ function serializePost(
     feature_image_alt: post.feature_image_alt ?? null,
     feature_image_caption: post.feature_image_caption ?? null,
     featured: post.featured,
+    email_only: false,
+    email: null,
+    send_email_when_published: false,
     page: post.page,
     published_at: post.published_at,
     updated_at: post.updated_at,

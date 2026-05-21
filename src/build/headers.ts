@@ -225,6 +225,7 @@ const CORS_DIRECTIVE_LINES = [
   'Access-Control-Allow-Origin: *',
   'Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
   'Access-Control-Allow-Headers: Content-Type, Authorization',
+  'Access-Control-Max-Age: 86400',
 ] as const;
 
 interface ContentApiCorsRule {
@@ -245,6 +246,7 @@ export function collectContentApiHeaderRules(): HeaderRule[] {
       { key: 'Access-Control-Allow-Origin', value: '*' },
       { key: 'Access-Control-Allow-Methods', value: 'GET, HEAD, OPTIONS' },
       { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+      { key: 'Access-Control-Max-Age', value: '86400' },
       { key: 'Cache-Control', value: `public, max-age=${maxAge}` },
     ],
   }));

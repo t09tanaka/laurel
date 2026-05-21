@@ -141,6 +141,30 @@ true` may be added later if a narrow Markdown block can be safely decorated
 without changing existing output. It should not try to reimplement Ghost's full
 serializer unless Nectar gains a first-class Lexical/Koenig render path.
 
+## Content API static compatibility
+
+Nectar emits static JSON for Ghost Content API consumers, but it does not run a
+request-time API server. The detailed contract lives in
+[`api.md`](./api.md).
+
+Compatibility notes:
+
+- Query parameters that would require request-time projection or sorting are
+  ignored: `fields`, `formats`, `include`, `order`, and `v`.
+- Posts/pages are emitted as full records with embedded tags/authors. Tags and
+  authors always include `count.posts`.
+- Canonical collection order is posts by `published_at desc`, tags by
+  `name asc`, and authors by `name asc`.
+- `tiers` and `newsletters` are emitted as empty Content API stubs; Ghost
+  members, billing, newsletter delivery, offers, and email analytics remain out
+  of scope.
+- Posts include `email_only: false`, `email: null`, and
+  `send_email_when_published: false` for SDK shape compatibility.
+- Nectar emits `.well-known/ghost.json` for service discovery, but not a
+  Content API key registry. Static JSON accepts any `?key=` value.
+- AMP routes, Image API resize URLs, `GET /oembed/`, Admin API webhooks, and a
+  separate `@nectar/content-api-types` package are not implemented.
+
 ### `error`
 
 The root `error` context is only populated for Nectar's static `/404.html`

@@ -257,6 +257,22 @@ describe('emitContentApiShadows', () => {
     const tags = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/tags.json'), 'utf8'));
     expect(tags.tags[0].slug).toBe('news');
 
+    const tiers = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/tiers.json'), 'utf8'));
+    expect(tiers.tiers).toEqual([]);
+
+    const newsletters = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/newsletters.json'), 'utf8'),
+    );
+    expect(newsletters.newsletters).toEqual([]);
+
+    const discovery = JSON.parse(readFileSync(join(outputDir, '.well-known/ghost.json'), 'utf8'));
+    expect(discovery.generator).toBe('nectar');
+    expect(discovery.ghost_api_version).toBe('v5.0');
+    expect(discovery.endpoints).toEqual({
+      content: '/ghost/api/content/',
+      flat_content: '/content/',
+    });
+
     const settings = JSON.parse(
       readFileSync(join(outputDir, 'ghost/api/content/settings.json'), 'utf8'),
     );
@@ -562,6 +578,12 @@ ${numberedWords(53, 3).join(' ')}
     expect(redirects).toContain(
       '/blog/ghost/api/content/posts/slug/hello-world/  /blog/ghost/api/content/posts/slug/hello-world/index.json  200',
     );
+
+    const discovery = JSON.parse(readFileSync(join(outputDir, '.well-known/ghost.json'), 'utf8'));
+    expect(discovery.endpoints).toEqual({
+      content: '/blog/ghost/api/content/',
+      flat_content: '/blog/content/',
+    });
   });
 
   test('emits per-id post and page shadows (#752)', async () => {
@@ -627,6 +649,60 @@ ${numberedWords(53, 3).join(' ')}
     );
     expect(tagPosts.posts).toHaveLength(1);
     expect(tagPosts.posts[0].slug).toBe('hello-world');
+  });
+
+  test('emits featured shard and canonical post ordering (#1359)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-featured-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    const graph = makeGraph();
+    const posts = [
+      makePost({
+        id: 'older-featured',
+        slug: 'older-featured',
+        featured: true,
+        published_at: '2026-01-01T00:00:00.000Z',
+      }),
+      makePost({
+        id: 'newer-regular',
+        slug: 'newer-regular',
+        featured: false,
+        published_at: '2026-01-03T00:00:00.000Z',
+      }),
+      makePost({
+        id: 'newer-featured',
+        slug: 'newer-featured',
+        featured: true,
+        published_at: '2026-01-02T00:00:00.000Z',
+      }),
+    ];
+    await emitContentApiShadows({
+      config,
+      content: {
+        ...graph,
+        posts,
+        bySlug: {
+          ...graph.bySlug,
+          posts: new Map(posts.map((post) => [post.slug, post])),
+        },
+      },
+      outputDir,
+    });
+
+    const all = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(all.posts.map((post: { slug: string }) => post.slug)).toEqual([
+      'newer-regular',
+      'newer-featured',
+      'older-featured',
+    ]);
+
+    const featured = JSON.parse(
+      readFileSync(join(outputDir, 'ghost/api/content/posts/featured.json'), 'utf8'),
+    );
+    expect(featured.posts.map((post: { slug: string }) => post.slug)).toEqual([
+      'newer-featured',
+      'older-featured',
+    ]);
+    expect(featured.meta.pagination.total).toBe(2);
   });
 
   test('authors include count.posts (#749)', async () => {
@@ -783,6 +859,19 @@ ${numberedWords(53, 3).join(' ')}
 
     const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
     expect(body.posts[0].access).toBe('public');
+  });
+
+  test('emits static members/email compatibility fields on posts (#1358, #1360)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-post-compat-'));
+    const config = configSchema.parse({ site: { title: 'T' } });
+    await emitContentApiShadows({ config, content: makeGraph(), outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'ghost/api/content/posts.json'), 'utf8'));
+    expect(body.posts[0]).toMatchObject({
+      email_only: false,
+      email: null,
+      send_email_when_published: false,
+    });
   });
 
   test('emits post and page UUIDs separately from ObjectId ids', async () => {

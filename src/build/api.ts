@@ -4,6 +4,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
@@ -16,7 +17,9 @@ export interface EmitContentApiOptions {
 
 const API_BASE = 'ghost/api/content';
 const COLLECTIONS = ['posts', 'pages', 'authors', 'tags'] as const;
+const EMPTY_COLLECTIONS = ['tiers', 'newsletters'] as const;
 type Collection = (typeof COLLECTIONS)[number];
+type EmptyCollection = (typeof EMPTY_COLLECTIONS)[number];
 
 interface ApiUrlContext {
   siteUrl: string;
@@ -31,7 +34,7 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   const urlBase = absoluteUrls ? buildUrlBase(content.site.url, config.build.base_path) : undefined;
   const urlContext = { siteUrl: content.site.url, basePath: config.build.base_path };
 
-  const publishedPosts = content.posts.filter((p) => p.status === 'published');
+  const publishedPosts = selectPublishedPosts(content.posts);
   const publishedPages = content.pages.filter((p) => p.status === 'published');
 
   const serializedPosts = publishedPosts.map((p) => serializePost(p, urlBase, urlContext));
@@ -40,17 +43,23 @@ export async function emitContentApiShadows(opts: EmitContentApiOptions): Promis
   const serializedTags = publicTags.map(({ tag, countPosts }) =>
     serializeTag(tag, countPosts, urlContext),
   );
-  const serializedAuthors = content.authors.map((author) => serializeAuthor(author, urlContext));
+  const serializedAuthors = selectAuthors(content.authors).map((author) =>
+    serializeAuthor(author, urlContext),
+  );
 
   await Promise.all([
     writeResourceWith(outputDir, 'posts', serializedPosts),
     writeResourceWith(outputDir, 'pages', serializedPages),
     writeResourceWith(outputDir, 'authors', serializedAuthors),
     writeResourceWith(outputDir, 'tags', serializedTags),
+    writeEmptyResource(outputDir, 'tiers'),
+    writeEmptyResource(outputDir, 'newsletters'),
     writeSettings(outputDir, content.site),
     writePaginated(outputDir, 'posts', serializedPosts, postsPerPage),
     writePerTag(outputDir, content.tags, publishedPosts, urlBase, urlContext),
+    writeFeaturedPosts(outputDir, serializedPosts),
     writeContentApi404(outputDir),
+    writeServiceDiscovery(outputDir, config.build.base_path),
   ]);
 
   await Promise.all([
@@ -93,7 +102,7 @@ async function writeContentApi404(outputDir: string): Promise<void> {
 
 async function writeResourceWith(
   outputDir: string,
-  resource: Collection,
+  resource: Collection | EmptyCollection,
   data: Array<Record<string, unknown>>,
 ): Promise<void> {
   const body = {
@@ -104,6 +113,10 @@ async function writeResourceWith(
   };
   await writeJson(join(outputDir, API_BASE, `${resource}.json`), body);
   await writeJson(join(outputDir, API_BASE, resource, 'index.json'), body);
+}
+
+async function writeEmptyResource(outputDir: string, resource: EmptyCollection): Promise<void> {
+  await writeResourceWith(outputDir, resource, []);
 }
 
 async function writePaginated(
@@ -150,6 +163,21 @@ async function writePerTag(
       return Promise.all([writeJson(flat, body), writeJson(dirIndex, body)]).then(() => undefined);
     }),
   );
+}
+
+async function writeFeaturedPosts(
+  outputDir: string,
+  posts: Array<Record<string, unknown>>,
+): Promise<void> {
+  const featured = posts.filter((post) => post.featured === true);
+  const body = {
+    posts: featured,
+    meta: {
+      pagination: projectPagination({ total: featured.length }),
+    },
+  };
+  await writeJson(join(outputDir, API_BASE, 'posts', 'featured.json'), body);
+  await writeJson(join(outputDir, API_BASE, 'posts', 'featured', 'index.json'), body);
 }
 
 async function writeBySlug(
@@ -214,6 +242,19 @@ async function writeSettings(outputDir: string, site: SiteData): Promise<void> {
   await writeJson(join(outputDir, API_BASE, 'settings', 'index.json'), body);
 }
 
+async function writeServiceDiscovery(outputDir: string, basePath: string): Promise<void> {
+  const version = await getNectarVersion();
+  await writeJson(join(outputDir, '.well-known', 'ghost.json'), {
+    generator: 'nectar',
+    version,
+    ghost_api_version: 'v5.0',
+    endpoints: {
+      content: joinDiscoveryEndpoint(basePath, 'ghost/api/content/'),
+      flat_content: joinDiscoveryEndpoint(basePath, 'content/'),
+    },
+  });
+}
+
 async function writeRedirects(
   outputDir: string,
   basePath: string,
@@ -225,9 +266,10 @@ async function writeRedirects(
     '# Maps SDK requests like /posts/?key=... to the JSON shadow files.',
   ];
 
-  for (const resource of [...COLLECTIONS, 'settings'] as const) {
+  for (const resource of [...COLLECTIONS, ...EMPTY_COLLECTIONS, 'settings'] as const) {
     lines.push(`${prefix}/${resource}/  ${prefix}/${resource}/index.json  200`);
   }
+  lines.push(`${prefix}/posts/featured/  ${prefix}/posts/featured/index.json  200`);
 
   const slugMap: Record<Collection, Array<{ slug: string }>> = {
     posts: content.posts,
@@ -251,11 +293,25 @@ function normalizeBasePath(basePath: string): string {
   return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
 }
 
+function joinDiscoveryEndpoint(basePath: string, path: string): string {
+  return `${normalizeBasePath(basePath)}/${path}`;
+}
+
 function buildUrlBase(siteUrl: string, basePath: string): string {
   const root = siteUrl.replace(/\/+$/, '');
   if (basePath === '/' || basePath === '') return root;
   const trimmed = basePath.replace(/^\/+|\/+$/g, '');
   return trimmed.length === 0 ? root : `${root}/${trimmed}`;
+}
+
+function selectPublishedPosts(posts: Post[]): Post[] {
+  return posts
+    .filter((post) => post.status === 'published')
+    .toSorted((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
+}
+
+function selectAuthors(authors: Author[]): Author[] {
+  return authors.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 function serializeApiUrl(url: string, ctx: ApiUrlContext): string {
@@ -307,6 +363,9 @@ function serializePost(
     feature_image_alt: post.feature_image_alt ?? null,
     feature_image_caption: post.feature_image_caption ?? null,
     featured: post.featured,
+    email_only: false,
+    email: null,
+    send_email_when_published: false,
     page: post.page,
     published_at: post.published_at,
     updated_at: post.updated_at,
