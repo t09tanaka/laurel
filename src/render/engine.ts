@@ -35,6 +35,7 @@ import {
 import type { RouteContext } from './types.ts';
 
 const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
+const MAX_PARTIAL_RENDER_DEPTH = 64;
 
 export interface NectarEngine {
   hb: typeof Handlebars;
@@ -254,6 +255,7 @@ interface MissingPartialRuntimeOptions {
 
 function installMissingPartialFallback(hb: typeof Handlebars, themeName: string): void {
   const warned = new Set<string>();
+  let partialRenderDepth = 0;
   hb.registerPartial(MISSING_PARTIAL_FALLBACK_NAME, function missingPartialFallback(
     _context: unknown,
     options?: MissingPartialRuntimeOptions,
@@ -276,7 +278,17 @@ function installMissingPartialFallback(hb: typeof Handlebars, themeName: string)
     context: unknown,
     options: MissingPartialRuntimeOptions,
   ) {
+    partialRenderDepth += 1;
     try {
+      if (partialRenderDepth > MAX_PARTIAL_RENDER_DEPTH) {
+        const name = partialNameFromOptions(options);
+        throw new NectarError({
+          message: `Partial render depth exceeded while rendering${name ? ` '${name}'` : ''}`,
+          hint: `Check theme partials for cyclic includes. Nectar stops partial rendering after ${MAX_PARTIAL_RENDER_DEPTH} nested partial calls to prevent unbounded recursion.`,
+          docsUrl: 'docs/THEME_DEV.md#3-partials',
+          code: 'theme',
+        });
+      }
       return invokePartial.call(this, partial, context, options);
     } catch (err) {
       const name = missingPartialName(err);
@@ -291,6 +303,8 @@ function installMissingPartialFallback(hb: typeof Handlebars, themeName: string)
           name,
         },
       );
+    } finally {
+      partialRenderDepth -= 1;
     }
   };
 }

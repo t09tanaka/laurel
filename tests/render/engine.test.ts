@@ -2350,6 +2350,62 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     }
   });
 
+  test('cyclic partials fail with a bounded render-depth error (issue #1149)', () => {
+    const theme = makeTheme(
+      {
+        home: '<main>{{> "loop"}}</main>',
+      },
+      {
+        loop: '<section>{{> "loop"}}</section>',
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(() => engine.render(route)).toThrow('Partial render depth exceeded');
+    expect(() => engine.render(route)).toThrow("rendering 'loop'");
+
+    try {
+      engine.render(route);
+      throw new Error('expected render to fail');
+    } catch (err) {
+      expect(err).toMatchObject({
+        file: '/tmp/themes/fixture/partials/loop.hbs',
+        code: 'theme',
+      });
+    }
+  });
+
+  test('mutually recursive partials are also bounded (issue #1149)', () => {
+    const theme = makeTheme(
+      {
+        home: '{{> "a"}}',
+      },
+      {
+        a: 'A{{> "b"}}',
+        b: 'B{{> "a"}}',
+      },
+    );
+    const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
+    const route: RouteContext = {
+      kind: 'home',
+      url: '/',
+      outputPath: 'index.html',
+      template: 'home',
+      data: {},
+      meta: baseMeta,
+    };
+
+    expect(() => engine.render(route)).toThrow('Partial render depth exceeded');
+  });
+
   test('partial parse errors include the theme partial file and source line', () => {
     const theme = makeTheme(
       {
