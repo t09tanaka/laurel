@@ -34,6 +34,13 @@ describe('concat helper', () => {
     expect(tpl({ a: 1, b: true, c: 'x' })).toBe('1, true, x');
   });
 
+  test('coerces numeric literal arguments when joining with separator=', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{concat 1 2 3 separator=","}}');
+    expect(tpl({})).toBe('1,2,3');
+  });
+
   test('returns a SafeString so Ghost-compatible HTML fragments are not escaped', () => {
     const engine = makeEngine();
     registerStringHelpers(engine);
