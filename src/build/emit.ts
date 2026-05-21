@@ -59,7 +59,7 @@ export async function writeHtml(
   const dest = join(outputDir, outputPath);
   assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
-  await writeFile(dest, html, 'utf8');
+  await writeFile(dest, stripLeadingBom(html), 'utf8');
 }
 
 export interface TextStreamWriter {
@@ -195,10 +195,14 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
           throw new Error('writeHtmlBatch: chunk entry missing');
         }
         if (entry.reused) return Promise.resolve();
-        return Bun.write(dest, entry.html);
+        return Bun.write(dest, stripLeadingBom(entry.html));
       }),
     );
   }
+}
+
+function stripLeadingBom(value: string): string {
+  return value.startsWith('\uFEFF') ? value.slice(1) : value;
 }
 
 // Only the fingerprinted copy is emitted. The `{{asset}}` helper always

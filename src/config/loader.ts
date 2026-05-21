@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import TOML from '@iarna/toml';
 import { ZodError, type ZodTypeAny, z } from 'zod';
@@ -9,6 +9,7 @@ import { type NectarConfig, configSchema } from './schema.ts';
 
 const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml', 'nectar.config.json'];
 const LOCAL_CONFIG_NAME = '.nectar.local.toml';
+const MAX_CONFIG_BYTES = 1024 * 1024;
 
 export interface LoadConfigOptions {
   cwd: string;
@@ -122,6 +123,13 @@ async function findConfigLayers(
 }
 
 async function parseConfigLayer(file: string): Promise<unknown> {
+  const fileStat = await stat(file);
+  if (fileStat.size > MAX_CONFIG_BYTES) {
+    throw new NectarError({
+      message: `${file} is too large (${fileStat.size} bytes); config files must be ${MAX_CONFIG_BYTES} bytes or smaller.`,
+      code: 'config',
+    });
+  }
   const raw = await readFile(file, 'utf8');
   const ext = extname(file).toLowerCase();
   if (ext === '.json') {
@@ -269,7 +277,7 @@ function walkParent(
 // object. Unknown `NECTAR_*` vars are ignored silently so the override
 // surface stays opt-in (#852).
 function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
-  const map = buildEnvVarMap(configSchema);
+  const map = envVarMap();
   let target = applyDeployEnvFallbacks(parsed, env);
   if (map.size === 0) return target;
   for (const [name, raw] of Object.entries(env)) {
@@ -283,6 +291,13 @@ function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
     target = setDeep(target, entry.path, value);
   }
   return target;
+}
+
+let cachedEnvVarMap: Map<string, EnvMapEntry> | undefined;
+
+function envVarMap(): Map<string, EnvMapEntry> {
+  if (cachedEnvVarMap === undefined) cachedEnvVarMap = buildEnvVarMap(configSchema);
+  return cachedEnvVarMap;
 }
 
 function applyDeployEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {

@@ -491,6 +491,30 @@ describe('cli serve — compression', () => {
       await proc.exited;
     }
   });
+
+  test('returns 413 when a file exceeds the configured local response cap', async () => {
+    await Bun.write(join(dir, 'dist/assets/large.txt'), 'x'.repeat(64));
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+        env: { ...process.env, NECTAR_SERVE_MAX_RESPONSE_BYTES: '32' },
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`${baseUrl}/assets/large.txt`);
+      expect(response.status).toBe(413);
+      expect(await response.text()).toBe('Payload Too Large');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  });
 });
 
 describe('cli serve — verbose examples', () => {

@@ -82,6 +82,15 @@ describe('date helper', () => {
     expect(out).toBe('2026年5月5日');
   });
 
+  test('falls back to the default format for unsafe format strings', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile(
+      '{{date "2026-05-05T00:00:00Z" format="YYYY<script>alert(1)</script>"}}',
+    )({});
+    expect(out).toBe('May 5, 2026');
+  });
+
   test('accepts a Date object as a positional argument', () => {
     const engine = makeEngine('en');
     registerDateHelpers(engine);

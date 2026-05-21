@@ -24,6 +24,7 @@ const DEFAULT_PORT_SCAN_MAX = 4400;
 const DEFAULT_HOST = '127.0.0.1';
 const REBUILD_DEBOUNCE_MS = 120;
 const DEV_CACHE_CONTROL = 'no-store';
+const DEFAULT_MAX_SERVE_RESPONSE_BYTES = 128 * 1024 * 1024;
 
 const SERVE_CONTENT_TYPES_BY_FILENAME = new Map<string, string>([
   ['rss.xml', 'application/rss+xml'],
@@ -315,6 +316,9 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             if (!(await isResolvedFileInsideServeRoot(serveRoot, filePath))) {
               return finish(new Response('Forbidden', { status: 403 }));
             }
+            if (isServeFileOverResponseLimit(file)) {
+              return finish(new Response('Payload Too Large', { status: 413 }));
+            }
             if (watchMode && filePath.endsWith('.html')) {
               const html = await file.text();
               return finish(
@@ -347,6 +351,9 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
           if (await fallback.exists()) {
             if (!(await isResolvedFileInsideServeRoot(serveRoot, fallbackPath))) {
               return finish(new Response('Forbidden', { status: 403 }));
+            }
+            if (isServeFileOverResponseLimit(fallback)) {
+              return finish(new Response('Payload Too Large', { status: 413 }));
             }
             if (watchMode) {
               const html = await fallback.text();
@@ -777,6 +784,19 @@ function serveFileHeaders(base: Headers, filePath: string): Headers {
   const contentType = inferServeContentType(filePath);
   if (contentType === undefined) return serveHeaders(base);
   return serveHeaders(base, { 'Content-Type': contentType });
+}
+
+function isServeFileOverResponseLimit(file: Blob): boolean {
+  const maxBytes = serveMaxResponseBytes();
+  return maxBytes > 0 && file.size > maxBytes;
+}
+
+function serveMaxResponseBytes(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.NECTAR_SERVE_MAX_RESPONSE_BYTES;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_SERVE_RESPONSE_BYTES;
+  const value = Number(raw.trim());
+  if (!Number.isInteger(value) || value < 0) return DEFAULT_MAX_SERVE_RESPONSE_BYTES;
+  return value;
 }
 
 function isProxyableServePath(pathname: string): boolean {

@@ -51,8 +51,7 @@ export function registerDateHelpers(engine: NectarEngine): void {
     if (isTimeagoHash(options.hash) || hasBareTimeagoInput(inputs)) {
       return dayjs(value).locale(activeLocale).fromNow();
     }
-    const format =
-      typeof options.hash.format === 'string' ? options.hash.format : DEFAULT_DATE_FORMAT;
+    const format = safeDateFormat(options.hash.format);
     const cacheKey = buildDateFormatCacheKey(value, format, timezoneName, activeLocale);
     const cached = formattedDateCache.get(cacheKey);
     if (cached !== undefined) {
@@ -70,6 +69,23 @@ export function registerDateHelpers(engine: NectarEngine): void {
 
   engine.hb.registerHelper('date', formatDate);
   engine.hb.registerHelper('time', formatDate);
+}
+
+function safeDateFormat(raw: unknown): string {
+  if (typeof raw !== 'string') return DEFAULT_DATE_FORMAT;
+  if (raw.length === 0 || raw.length > 128) return DEFAULT_DATE_FORMAT;
+  if (containsUnsafeDateFormatChar(raw)) return DEFAULT_DATE_FORMAT;
+  return raw;
+}
+
+function containsUnsafeDateFormatChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+    const ch = value[i];
+    if (ch === '<' || ch === '>') return true;
+  }
+  return false;
 }
 
 function isTimeagoHash(hash: Record<string, unknown>): boolean {

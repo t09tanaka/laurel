@@ -66,6 +66,14 @@ describe('writeHtml', () => {
     expect(body).toContain('ok');
   });
 
+  test('strips a leading BOM from HTML output', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
+    await writeHtml(dir, 'index.html', '\uFEFF<!doctype html><h1>ok</h1>');
+    const body = await readFile(join(dir, 'index.html'), 'utf8');
+    expect(body.startsWith('\uFEFF')).toBeFalse();
+    expect(body).toStartWith('<!doctype html>');
+  });
+
   test('refuses to write when outputPath escapes outputDir via ..', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
     await expect(writeHtml(dir, '../../../etc/cron.d/evil/index.html', 'pwned')).rejects.toThrow(
@@ -94,6 +102,15 @@ describe('writeHtmlBatch', () => {
     expect(await readFile(join(dir, 'a/index.html'), 'utf8')).toContain('a');
     expect(await readFile(join(dir, 'a/b/index.html'), 'utf8')).toContain('b');
     expect(await readFile(join(dir, 'tag/foo/index.html'), 'utf8')).toContain('foo');
+  });
+
+  test('strips a leading BOM from batched HTML output', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    await writeHtmlBatch(dir, [{ outputPath: 'index.html', html: '\uFEFF<h1>home</h1>' }]);
+
+    const body = await readFile(join(dir, 'index.html'), 'utf8');
+    expect(body.startsWith('\uFEFF')).toBeFalse();
+    expect(body).toBe('<h1>home</h1>');
   });
 
   test('preserves global SVG sprite symbols and xlink use references (#1703)', async () => {

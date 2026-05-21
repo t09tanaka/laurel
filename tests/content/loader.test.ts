@@ -2342,10 +2342,9 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      // Logger output may contain ANSI color codes under Bun's test runner,
-      // so detect the `[warn]` token anywhere in the line rather than at
-      // index 0.
-      if (s.includes('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes and timestamp formatting
+      // under Bun's test runner, so detect the warning level token flexibly.
+      if (/\bwarn\b/.test(s)) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {
@@ -2402,10 +2401,9 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      // Logger output may contain ANSI color codes under Bun's test runner,
-      // so detect the `[warn]` token anywhere in the line rather than at
-      // index 0.
-      if (s.includes('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes and timestamp formatting
+      // under Bun's test runner, so detect the warning level token flexibly.
+      if (/\bwarn\b/.test(s)) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {
@@ -2437,10 +2435,9 @@ describe('loadContent parallel markdown loading is deterministic', () => {
     const origWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
       const s = typeof chunk === 'string' ? chunk : String(chunk);
-      // Logger output may contain ANSI color codes under Bun's test runner,
-      // so detect the `[warn]` token anywhere in the line rather than at
-      // index 0.
-      if (s.includes('[warn]')) warnings.push(s);
+      // Logger output may contain ANSI color codes and timestamp formatting
+      // under Bun's test runner, so detect the warning level token flexibly.
+      if (/\bwarn\b/.test(s)) warnings.push(s);
       return true;
     }) as typeof process.stderr.write;
     try {

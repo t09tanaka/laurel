@@ -38,6 +38,7 @@ import type { RouteContext } from './types.ts';
 const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
 const MAX_PARTIAL_RENDER_DEPTH = 64;
 const RESERVED_ROOT_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const customDataCache = new WeakMap<NectarEngine, Record<string, unknown>>();
 
 export interface NectarEngine {
   hb: typeof Handlebars;
@@ -696,12 +697,16 @@ function normalizeThemeSiteUrl(url: string | undefined): string {
 }
 
 function buildCustom(engine: NectarEngine): Record<string, unknown> {
+  const cached = customDataCache.get(engine);
+  if (cached) return cached;
   const merged = {
     ...(engine.theme?.pkg?.customDefaults ?? {}),
     ...(engine.config?.theme?.custom ?? {}),
   };
   const sanitized = sanitizeThemeCustomValues(merged, engine.theme?.pkg?.custom ?? {});
-  return resolveCustomImageValues(engine, sanitized);
+  const resolved = resolveCustomImageValues(engine, sanitized);
+  customDataCache.set(engine, resolved);
+  return resolved;
 }
 
 function buildLegacyLabs(site: ContentGraph['site']): Record<string, boolean> {

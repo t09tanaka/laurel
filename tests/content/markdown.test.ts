@@ -1019,7 +1019,7 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
       '<p class="kg-header-card-subheading" style="color:#ffffff" data-text-color="#ffffff">Useful supporting copy.</p>',
     );
     expect(html).toContain(
-      '<a class="kg-header-card-button kg-header-card-button-accent" href="https://example.com/signup" style="background-color:#f6c344;color:#101820" data-button-color="#f6c344" data-button-text-color="#101820">Join now</a>',
+      '<a class="kg-header-card-button kg-header-card-button-accent" href="https://example.com/signup" style="background-color:#f6c344;--kg-header-button-color:#f6c344;color:#101820;--kg-header-button-text-color:#101820" data-button-color="#f6c344" data-button-text-color="#101820">Join now</a>',
     );
     expect(html).not.toContain('{{< header');
   });

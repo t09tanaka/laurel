@@ -1965,6 +1965,9 @@ function resolvePageRelations(
 // re-emit the warning if the offending content is still present.
 const warnedAutoTagSlugs = new Set<string>();
 const warnedAutoAuthorSlugs = new Set<string>();
+const EMPTY_TAGS: readonly Tag[] = Object.freeze([]);
+const EMPTY_AUTHORS: readonly Author[] = Object.freeze([]);
+const titleCaseCache = new Map<string, string>();
 
 export function resetAutoCreationWarnings(): void {
   warnedAutoTagSlugs.clear();
@@ -1981,6 +1984,7 @@ function resolveTagSlugs(
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Tag[] {
+  if (slugs.length === 0) return EMPTY_TAGS as Tag[];
   return slugs.map((slug) => {
     const key = localizedKey(locale, slug);
     const existing = tags.get(key) ?? tags.get(localizedKey(siteLocale, slug));
@@ -2034,6 +2038,7 @@ function resolveAuthorSlugs(
   taxonomies: ResolvedTaxonomies,
   trailingSlash: TrailingSlashPolicy,
 ): Author[] {
+  if (slugs.length === 0) return EMPTY_AUTHORS as Author[];
   return slugs.map((slug) => {
     const key = localizedKey(locale, slug);
     const existing = authors.get(key) ?? authors.get(localizedKey(siteLocale, slug));
@@ -2078,11 +2083,15 @@ function resolveAuthorSlugs(
 }
 
 function titleCase(slug: string): string {
-  return slug
+  const cached = titleCaseCache.get(slug);
+  if (cached !== undefined) return cached;
+  const value = slug
     .split(/[-_]/)
     .filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(' ');
+  titleCaseCache.set(slug, value);
+  return value;
 }
 
 // Compose a path by inserting `basePath` before the route-relative `path`.

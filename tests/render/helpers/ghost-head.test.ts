@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
+import { CARD_ASSETS_VERSION } from '~/build/card-assets.ts';
 import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 import {
@@ -168,6 +169,26 @@ function findBreadcrumb(html: string): BreadcrumbList | undefined {
   return undefined;
 }
 
+describe('ghost_head social image URL schemes', () => {
+  test('drops social image URLs with unsafe or protocol-relative schemes', () => {
+    const javascriptHead = renderGhostHead(
+      { title: 'Post', og_image: 'javascript:alert(1)' },
+      '/post/',
+    );
+    expect(javascriptHead).not.toContain('og:image');
+    expect(javascriptHead).not.toContain('twitter:image');
+    expect(javascriptHead).not.toContain('javascript:');
+
+    const protocolRelativeHead = renderGhostHead(
+      { title: 'Post', twitter_image: '//evil.test/track.png' },
+      '/post/',
+    );
+    expect(protocolRelativeHead).not.toContain('og:image');
+    expect(protocolRelativeHead).not.toContain('twitter:image');
+    expect(protocolRelativeHead).not.toContain('evil.test');
+  });
+});
+
 describe('ghost_head color-scheme meta', () => {
   test('emits a conservative light dark hint by default', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
@@ -226,7 +247,7 @@ describe('ghost_head shared card assets', () => {
     });
 
     expect(html).toContain(
-      '<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=6">',
+      `<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=${CARD_ASSETS_VERSION}">`,
     );
     expect(html).not.toContain('ghost-card-assets.js');
   });
@@ -239,7 +260,11 @@ describe('ghost_head shared card assets', () => {
       theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
     });
 
-    expect(html).toMatch(/href="\/blog\/assets\/ghost-card-assets\.css\?v=6-[a-z0-9]+"/);
+    expect(html).toMatch(
+      new RegExp(
+        `href="/blog/assets/ghost-card-assets\\.css\\?v=${CARD_ASSETS_VERSION}-[a-z0-9]+"`,
+      ),
+    );
     expect(html).not.toContain('ghost-card-assets.js');
   });
 });
@@ -279,7 +304,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
     );
 
     expect(html).toContain(
-      '<script defer src="/blog/assets/ghost-card-assets.js?v=6" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>',
+      `<script defer src="/blog/assets/ghost-card-assets.js?v=${CARD_ASSETS_VERSION}" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>`,
     );
   });
 

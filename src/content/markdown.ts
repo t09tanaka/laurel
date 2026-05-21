@@ -316,6 +316,8 @@ export async function renderMarkdown(
 
 const CODE_HIGHLIGHT_THEME = 'github-dark';
 const LANGUAGE_CLASS_RE = /\blanguage-([^\s]+)/;
+const CODE_HIGHLIGHT_CACHE_LIMIT = 1024;
+const codeHighlightCache = new Map<string, Promise<string>>();
 
 async function highlightCodeBlocks(html: string): Promise<string> {
   if (!html.includes('<pre')) return html;
@@ -385,12 +387,29 @@ async function renderHighlightedCodeBlock(
 }
 
 async function codeToHighlightedHtml(code: string, lang: string): Promise<string> {
+  const cacheKey = `${lang}\u0000${code}`;
+  const cached = codeHighlightCache.get(cacheKey);
+  if (cached) return cached;
+  const promise = codeToHighlightedHtmlUncached(code, lang);
+  rememberCodeHighlight(cacheKey, promise);
+  return promise;
+}
+
+async function codeToHighlightedHtmlUncached(code: string, lang: string): Promise<string> {
   try {
     return await codeToHtml(code, { lang, theme: CODE_HIGHLIGHT_THEME });
   } catch (error) {
     if (lang === 'plaintext') throw error;
     return codeToHtml(code, { lang: 'plaintext', theme: CODE_HIGHLIGHT_THEME });
   }
+}
+
+function rememberCodeHighlight(key: string, value: Promise<string>): void {
+  if (codeHighlightCache.size >= CODE_HIGHLIGHT_CACHE_LIMIT) {
+    const oldest = codeHighlightCache.keys().next().value;
+    if (oldest !== undefined) codeHighlightCache.delete(oldest);
+  }
+  codeHighlightCache.set(key, value);
 }
 
 function codeTextContent(node: ChildNode): string {

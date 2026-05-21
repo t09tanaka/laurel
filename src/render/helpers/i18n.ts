@@ -5,27 +5,27 @@ import type { NectarEngine } from '../engine.ts';
 
 export function registerI18nHelpers(engine: NectarEngine): void {
   const fallback = engine.theme.locales.en ?? {};
+  const lookupCache = new Map<string, string>();
+  const interpolationCache = new Map<string, string>();
 
   engine.hb.registerHelper('t', function tHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const locale = helperLocale(this, options, engine.content.site.locale);
     const active = engine.theme.locales[locale] ?? fallback;
     const key = String(args[0] ?? '');
-    // Ghost treats an existing locale entry as authoritative even when its
-    // value is ""; only an absent key falls through to en.json and then the key.
-    let lookup: ThemeLocaleValue = key;
-    if (hasLocaleEntry(active, key)) {
-      lookup = active[key] ?? '';
-    } else if (hasLocaleEntry(fallback, key)) {
-      lookup = fallback[key] ?? '';
-    }
+    const lookup = lookupLocaleValue(lookupCache, locale, active, fallback, key);
     // Casper-family themes pass positional values for the legacy `%`
     // placeholder (e.g. `{{t "Powered by %" "Ghost"}}`). Hash values still win
     // on `{name}` placeholders, but positional args 1..n-1 (every argument
     // after the key, excluding the Handlebars options object at the tail)
     // feed `%` substitution so we don't ship a "%" literal to readers.
     const positional = args.slice(1, -1);
-    return interpolate(String(lookup), options.hash as Record<string, unknown>, positional);
+    return interpolateCached(
+      interpolationCache,
+      String(lookup),
+      options.hash as Record<string, unknown>,
+      positional,
+    );
   });
 
   engine.hb.registerHelper(
@@ -34,6 +34,72 @@ export function registerI18nHelpers(engine: NectarEngine): void {
       return helperLocale(this, options, engine.content.site.locale);
     },
   );
+}
+
+const I18N_CACHE_LIMIT = 4096;
+
+function lookupLocaleValue(
+  cache: Map<string, string>,
+  localeName: string,
+  active: ThemeLocale,
+  fallback: ThemeLocale,
+  key: string,
+): string {
+  const cacheKey = `${localeName}\u0000${key}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  // Ghost treats an existing locale entry as authoritative even when its
+  // value is ""; only an absent key falls through to en.json and then the key.
+  let lookup: ThemeLocaleValue = key;
+  if (hasLocaleEntry(active, key)) {
+    lookup = active[key] ?? '';
+  } else if (hasLocaleEntry(fallback, key)) {
+    lookup = fallback[key] ?? '';
+  }
+  remember(cache, cacheKey, String(lookup));
+  return String(lookup);
+}
+
+function interpolateCached(
+  cache: Map<string, string>,
+  template: string,
+  hash: Record<string, unknown>,
+  positional: readonly unknown[] = [],
+): string {
+  if (Object.keys(hash).length === 0 && positional.length === 0) return template;
+  const cacheKey = interpolationCacheKey(template, hash, positional);
+  if (cacheKey === undefined) return interpolate(template, hash, positional);
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const result = interpolate(template, hash, positional);
+  remember(cache, cacheKey, result);
+  return result;
+}
+
+function interpolationCacheKey(
+  template: string,
+  hash: Record<string, unknown>,
+  positional: readonly unknown[],
+): string | undefined {
+  const hashEntries: [string, string][] = [];
+  for (const [key, value] of Object.entries(hash)) {
+    if (!isPrimitive(value)) return undefined;
+    hashEntries.push([key, String(value)]);
+  }
+  const positionalValues: string[] = [];
+  for (const value of positional) {
+    if (!isPrimitive(value) && value !== undefined) return undefined;
+    positionalValues.push(String(value));
+  }
+  return JSON.stringify([template, hashEntries, positionalValues]);
+}
+
+function remember(cache: Map<string, string>, key: string, value: string): void {
+  if (cache.size >= I18N_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(key, value);
 }
 
 function helperLocale(

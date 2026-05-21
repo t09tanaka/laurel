@@ -50,9 +50,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     for (let i = 0; i < sliced.length; i += 1) {
       const entry = sliced[i];
       if (!entry) continue;
-      const data = engine.hb.createFrame(
-        (options.data as Record<string, unknown> | undefined) ?? {},
-      );
+      const data = engine.hb.createFrame(safeHelperDataSeed(options.data));
       const foreachState: Record<string, unknown> = {
         index: i,
         number: i + 1,
@@ -261,6 +259,16 @@ export function registerBlockHelpers(engine: NectarEngine): void {
 
 function isMembersRoute(route: { kind?: string; url?: string }): boolean {
   return route.kind === 'members' || /^\/members(?:\/|$)/.test(route.url ?? '');
+}
+
+function safeHelperDataSeed(data: unknown): Record<string, unknown> {
+  const seed: Record<string, unknown> = Object.create(null);
+  if (!data || typeof data !== 'object') return seed;
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    seed[key] = value;
+  }
+  return seed;
 }
 
 function isSubscriber(member: unknown): boolean {

@@ -117,6 +117,14 @@ url = "/"
     });
   });
 
+  test('rejects oversized TOML config before parsing', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(join(cwd, 'nectar.toml'), `# ${'x'.repeat(1024 * 1024 + 1)}\n`, 'utf8');
+
+      await expect(loadConfig({ cwd })).rejects.toThrow(/nectar\.toml is too large/);
+    });
+  });
+
   test('parses nectar.config.json during default discovery', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

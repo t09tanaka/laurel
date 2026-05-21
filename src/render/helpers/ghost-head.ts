@@ -360,7 +360,10 @@ function computeMeta(
   // Apply base_path so a root-relative `/content/images/foo.jpg` becomes
   // `https://host/blog/content/images/foo.jpg` on a subpath deploy. Absolute
   // http(s) URLs pass through unchanged via absoluteUrlWithBasePath.
-  const image = rawImage ? absoluteUrlWithBasePath(site.url, basePath, rawImage) : undefined;
+  const safeRawImage = rawImage ? safeSocialImagePath(rawImage) : undefined;
+  const image = safeRawImage
+    ? absoluteUrlWithBasePath(site.url, basePath, safeRawImage)
+    : undefined;
   const imageType = image ? mimeTypeForImage(image) : undefined;
   // Width/height come from feature_image probing at load time, so only attach
   // them when the emitted og:image actually points at the feature image (not an
@@ -400,6 +403,14 @@ function computeMeta(
     imageAlt,
     ogType,
   };
+}
+
+function safeSocialImagePath(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith('//')) return undefined;
+  const scheme = trimmed.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  if (scheme && scheme !== 'http' && scheme !== 'https') return undefined;
+  return trimmed;
 }
 
 function resolveMetaDescription(
