@@ -286,7 +286,7 @@ describe('renderLexicalToHtml', () => {
     );
 
     expect(out).toBe(
-      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-js">console.log("x")</code></pre></figure>',
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button" data-kg-i18n="Copy" data-label-copy="Copy" data-label-copied="Copied">Copy</button><pre><code class="language-js">console.log("x")</code></pre></figure>',
     );
   });
 
@@ -310,6 +310,9 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('data-members-form="signup"');
     expect(out).toContain('data-members-email');
     expect(out).toContain('placeholder="reader@example.com"');
+    expect(out).toContain(
+      '<button class="kg-signup-card-button" type="submit" data-kg-i18n="Subscribe">Subscribe</button>',
+    );
   });
 
   test('preserves header subscribe portal buttons', () => {
@@ -432,7 +435,7 @@ describe('renderLexicalToHtml', () => {
       ]),
     );
     expect(out).toBe(
-      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-typescript">const answer: number = 42;</code></pre></figure>',
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button" data-kg-i18n="Copy" data-label-copy="Copy" data-label-copied="Copied">Copy</button><pre><code class="language-typescript">const answer: number = 42;</code></pre></figure>',
     );
   });
 

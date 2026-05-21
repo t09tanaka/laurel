@@ -124,7 +124,8 @@ export function renderCodeCardHtml(payload: unknown): string {
   const caption = strProp(payload, 'caption');
   const langClass = language ? ` class="language-${escapeAttr(language)}"` : '';
   const pre = `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
-  const button = '<button class="kg-code-card-copy" type="button">Copy</button>';
+  const button =
+    '<button class="kg-code-card-copy" type="button" data-kg-i18n="Copy" data-label-copy="Copy" data-label-copied="Copied">Copy</button>';
   return `<figure class="kg-card kg-code-card${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${button}${pre}${figcaptionHtml(caption)}</figure>`;
 }
 
@@ -234,7 +235,10 @@ export function renderSignupCardHtml(payload: unknown): string {
   const subheadingHtml = subheading
     ? `<p class="kg-signup-card-subheading">${escapeHtml(subheading)}</p>`
     : '';
-  const form = `<form class="kg-signup-card-form" data-members-form="signup"><div class="kg-signup-card-fields"><input class="kg-signup-card-input" type="email" name="email" placeholder="${escapeAttr(placeholder)}" required data-members-email></div><button class="kg-signup-card-button" type="submit">${escapeHtml(buttonText)}</button><p class="kg-signup-card-success" data-members-success hidden></p><p class="kg-signup-card-error" data-members-error hidden></p></form>`;
+  const buttonI18nAttr = buttonText === 'Subscribe' ? ' data-kg-i18n="Subscribe"' : '';
+  const placeholderI18nAttr =
+    placeholder === 'you@example.com' ? ' data-kg-i18n-placeholder="Your email address"' : '';
+  const form = `<form class="kg-signup-card-form" data-members-form="signup"><div class="kg-signup-card-fields"><input class="kg-signup-card-input" type="email" name="email" placeholder="${escapeAttr(placeholder)}" required data-members-email${placeholderI18nAttr}></div><button class="kg-signup-card-button" type="submit"${buttonI18nAttr}>${escapeHtml(buttonText)}</button><p class="kg-signup-card-success" data-members-success hidden></p><p class="kg-signup-card-error" data-members-error hidden></p></form>`;
   const disclaimerHtml = disclaimer
     ? `<p class="kg-signup-card-disclaimer">${escapeHtml(disclaimer)}</p>`
     : '';

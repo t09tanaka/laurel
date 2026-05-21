@@ -3,13 +3,21 @@ import type { ThemeCardAssets } from '~/theme/types.ts';
 
 export const KOENIG_RUNTIME_DATA_KEY = '__koenigRuntimeCardTypes';
 
-export const KOENIG_RUNTIME_CARD_TYPES = ['audio', 'embed', 'signup', 'toggle', 'video'] as const;
+export const KOENIG_RUNTIME_CARD_TYPES = [
+  'audio',
+  'embed',
+  'lightbox',
+  'signup',
+  'toggle',
+  'video',
+] as const;
 
 export type KoenigRuntimeCardType = (typeof KOENIG_RUNTIME_CARD_TYPES)[number];
 
 const CARD_CLASS_BY_TYPE: Record<KoenigRuntimeCardType, string> = {
   audio: 'kg-audio-card',
   embed: 'kg-embed-card',
+  lightbox: 'kg-image-card',
   signup: 'kg-signup-card',
   toggle: 'kg-toggle-card',
   video: 'kg-video-card',
@@ -19,6 +27,12 @@ export function collectKoenigRuntimeCardTypes(html: string): Set<KoenigRuntimeCa
   const out = new Set<KoenigRuntimeCardType>();
   if (!html.includes('kg-')) return out;
   for (const type of KOENIG_RUNTIME_CARD_TYPES) {
+    if (type === 'lightbox') {
+      if (hasClassToken(html, 'kg-image-card') || hasClassToken(html, 'kg-gallery-image')) {
+        out.add(type);
+      }
+      continue;
+    }
     if (hasClassToken(html, CARD_CLASS_BY_TYPE[type])) out.add(type);
   }
   return out;

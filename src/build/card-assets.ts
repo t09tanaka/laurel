@@ -5,7 +5,7 @@ import { ensureDir } from '~/util/fs.ts';
 
 export const CARD_ASSETS_CSS_PATH = 'assets/ghost-card-assets.css';
 export const CARD_ASSETS_JS_PATH = 'assets/ghost-card-assets.js';
-export const CARD_ASSETS_VERSION = '6';
+export const CARD_ASSETS_VERSION = '7';
 
 const CARD_NAMES = [
   'audio',
@@ -18,6 +18,7 @@ const CARD_NAMES = [
   'file',
   'gallery',
   'header',
+  'lightbox',
   'nft',
   'product',
   'signup',
@@ -44,6 +45,8 @@ const CARD_CSS: Record<(typeof CARD_NAMES)[number], string> = {
     '.kg-gallery-card+.kg-gallery-card,.kg-gallery-card+.kg-image-card{margin-top:.75em}.kg-gallery-container{display:flex;flex-direction:column;gap:.75em;width:100%}.kg-gallery-row{display:flex;flex-direction:row;justify-content:center;gap:.75em}.kg-gallery-image{flex:1;min-width:0}.kg-gallery-image img{display:block;width:100%;height:100%;object-fit:cover}',
   header:
     '.kg-header-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:24rem;padding:6vmin 4vmin;text-align:center;background:#f5f5f5;color:#15171a}.kg-header-card.kg-style-dark{background:#15171a;color:#fff}.kg-header-card h2,.kg-header-card h3{margin:.2em 0}.kg-header-card .kg-header-card-button{display:inline-flex;margin-top:1.5rem;padding:.75em 1.25em;border-radius:4px;background:var(--ghost-accent-color,#15171a);color:#fff;text-decoration:none;font-weight:700}',
+  lightbox:
+    '.kg-lightbox-backdrop{position:fixed;inset:0;z-index:3999998;display:none;align-items:center;justify-content:center;padding:4vmin;background:rgba(0,0,0,.86)}.kg-lightbox-backdrop[data-kg-lightbox-open="true"]{display:flex}.kg-lightbox-backdrop img{max-width:100%;max-height:100%;object-fit:contain}.kg-lightbox-close{position:absolute;top:1rem;right:1rem;width:44px;height:44px;border:0;border-radius:999px;background:rgba(255,255,255,.15);color:#fff;font-size:28px;line-height:1;cursor:pointer}.kg-image-card img,.kg-gallery-image img{cursor:zoom-in}',
   nft: '.kg-nft-card{display:block}.kg-nft-card-container{display:flex;flex-direction:column;max-width:520px;margin:0 auto;color:inherit;text-decoration:none;border:1px solid rgba(0,0,0,.12);border-radius:8px;overflow:hidden}.kg-nft-image{display:block;width:100%}.kg-nft-metadata{padding:1rem}.kg-nft-title{font-weight:700}.kg-nft-description{color:rgba(0,0,0,.65)}',
   product:
     '.kg-product-card{display:flex;flex-direction:column;gap:1rem;padding:1.5rem;border:1px solid rgba(0,0,0,.12);border-radius:5px}.kg-product-card-image{width:100%;height:auto}.kg-product-card-title{font-size:1.2em;font-weight:700}.kg-product-card-description{color:rgba(0,0,0,.7)}.kg-product-card-button{display:inline-flex;align-self:flex-start;padding:.65em 1em;border-radius:4px;background:var(--ghost-accent-color,#15171a);color:#fff;text-decoration:none;font-weight:700}',
@@ -153,6 +156,17 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
       if (!video.hasAttribute('controls')) video.setAttribute('controls', 'controls');
       if (!video.hasAttribute('preload')) video.setAttribute('preload', 'metadata');
     });
+    each(document.querySelectorAll('.kg-video-card video[data-kg-gif-video]'), function (video) {
+      video.removeAttribute('controls');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      if (!('IntersectionObserver' in window)) {
+        video.play && video.play().catch(function () {});
+        return;
+      }
+      gifObserver().observe(video);
+    });
   });
 
   document.addEventListener('click', function (event) {
@@ -163,6 +177,40 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
     if (!video) return;
     if (video.paused) video.play();
     else video.pause();
+  });`);
+  }
+  if (!exclude.has('lightbox')) {
+    sections.push(`ready(function () {
+    var backdrop;
+    function ensureBackdrop() {
+      if (backdrop) return backdrop;
+      backdrop = document.createElement('div');
+      backdrop.className = 'kg-lightbox-backdrop';
+      backdrop.setAttribute('role', 'dialog');
+      backdrop.setAttribute('aria-modal', 'true');
+      backdrop.innerHTML = '<button class="kg-lightbox-close" type="button" aria-label="Close">&times;</button><img alt="">';
+      document.body.appendChild(backdrop);
+      backdrop.addEventListener('click', function (event) {
+        if (event.target === backdrop || closest(event.target, '.kg-lightbox-close')) close();
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') close();
+      });
+      return backdrop;
+    }
+    function close() {
+      if (!backdrop) return;
+      backdrop.removeAttribute('data-kg-lightbox-open');
+    }
+    document.addEventListener('click', function (event) {
+      var image = closest(event.target, '.kg-image-card img, .kg-gallery-image img');
+      if (!image || closest(image, 'a')) return;
+      var overlay = ensureBackdrop();
+      var target = overlay.querySelector('img');
+      target.src = image.currentSrc || image.src;
+      target.alt = image.alt || '';
+      overlay.setAttribute('data-kg-lightbox-open', 'true');
+    });
   });`);
   }
   if (!exclude.has('embed')) {
@@ -198,6 +246,19 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
   function ready(fn) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
     else fn();
+  }
+
+  var sharedGifObserver;
+  function gifObserver() {
+    if (sharedGifObserver) return sharedGifObserver;
+    sharedGifObserver = new IntersectionObserver(function (entries) {
+      each(entries, function (entry) {
+        var video = entry.target;
+        if (entry.isIntersecting) video.play && video.play().catch(function () {});
+        else video.pause && video.pause();
+      });
+    }, { threshold: 0.2 });
+    return sharedGifObserver;
   }
 
   ${sections.join('\n\n  ')}

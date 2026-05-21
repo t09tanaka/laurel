@@ -1173,8 +1173,8 @@ date: 2026-01-01T00:00:00Z
 
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(true);
     expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(true);
-    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=6');
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=6');
+    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=7');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=7');
   });
 
   test('injects the shared card runtime only on pages with runtime cards', async () => {
@@ -1197,9 +1197,85 @@ Hidden detail.
     const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=6');
-    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=6');
+    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=7');
+    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
     expect(postHtml).toContain('data-nectar-koenig-runtime="toggle"');
+  });
+
+  test('translates card-emitted default labels through the active theme locale', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      readFileSync(join(cwd, 'nectar.toml'), 'utf8').replace(
+        'url = "https://strict.test"',
+        'url = "https://strict.test"\nlocale = "fr"',
+      ),
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+{% signup heading="Join" %}
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
+
+    expect(postHtml).toContain('data-kg-i18n="Subscribe"');
+    expect(postHtml).toContain(">S'abonner</button>");
+  });
+
+  test('injects optional lightbox runtime only on pages with image/gallery cards', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+{{< figure src="https://cdn.test/photo.jpg" alt="Photo" width="1200" height="800" />}}
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd, basePath: '/blog/' });
+    const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
+
+    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
+    expect(postHtml).toContain('data-nectar-koenig-runtime="lightbox"');
+  });
+
+  test('Source post-card excerpts stay plaintext when content starts with a Koenig card', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+{{< bookmark url="https://example.com" title="First card" />}}
+
+The text after the opening card should feed Source list excerpts.
+`,
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+
+    expect(indexHtml).toContain(
+      '<p class="gh-card-excerpt is-body">First card The text after the opening card should feed Source list excerpts</p>',
+    );
+    expect(indexHtml).not.toContain('<div class="gh-card-wrapper"><figure class="kg-card');
+    expect(indexHtml).not.toContain('<div class="gh-card-wrapper"><div class="kg-card');
   });
 
   test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {

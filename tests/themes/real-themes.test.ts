@@ -534,8 +534,8 @@ describe('real Ghost theme contract', () => {
     expect(postHtml).toContain('data-negated-non-public');
     expect(postHtml).toContain('action="#"');
     expect(postHtml).toContain('data-members-label type="hidden" value="Daily"');
-    expect(postHtml).toContain(
-      'data-members-email type="email" name="email" required placeholder="Email" autofocus',
+    expect(postHtml).toMatch(
+      /<input\b(?=[^>]*\bdata-members-email\b)(?=[^>]*\btype="email")(?=[^>]*\bname="email")(?=[^>]*\brequired\b)(?=[^>]*\bplaceholder="Email")(?=[^>]*\bautofocus\b)[^>]*>/,
     );
     expect(postHtml).toContain('placeholder="Your inbox"');
     expect(postHtml).not.toContain('{{script}}');

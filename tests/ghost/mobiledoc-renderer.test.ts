@@ -178,7 +178,7 @@ describe('renderMobiledocToHtml', () => {
       }),
     );
     expect(out).toBe(
-      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-python">x = 1</code></pre></figure>',
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button" data-kg-i18n="Copy" data-label-copy="Copy" data-label-copied="Copied">Copy</button><pre><code class="language-python">x = 1</code></pre></figure>',
     );
   });
 
@@ -288,6 +288,7 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toContain('<!--members-only-->');
     expect(out).toContain('class="kg-card kg-signup-card"');
     expect(out).toContain('data-members-form="signup"');
+    expect(out).toContain('data-kg-i18n="Subscribe"');
     expect(out).toContain('<p>public</p>');
     expect(out).not.toContain('<p>x</p>');
   });

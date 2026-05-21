@@ -114,6 +114,8 @@ const sanitizeOptions: IOptions = {
       'muted',
       'loop',
       'playsinline',
+      'autoplay',
+      'data-kg-gif-video',
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
@@ -136,8 +138,16 @@ const sanitizeOptions: IOptions = {
       'data-members-email',
       'data-members-name',
       'data-members-label',
+      'data-kg-i18n-placeholder',
     ],
-    button: ['class', 'type', 'data-members-submit'],
+    button: [
+      'class',
+      'type',
+      'data-members-submit',
+      'data-kg-i18n',
+      'data-label-copy',
+      'data-label-copied',
+    ],
     div: [
       'style',
       'data-rating',
@@ -1175,6 +1185,23 @@ function renderBookmarkHtml(attrs: Record<string, string>): string {
 function renderFigureHtml(attrs: Record<string, string>): string {
   const src = attrs.src ?? '';
   if (!src) return '';
+  const mp4 = attrs.mp4 ?? attrs.video ?? attrs.video_src ?? attrs.videoSrc ?? '';
+  if (isGifUrl(src) && mp4) {
+    return renderVideoHtml(
+      {
+        ...attrs,
+        src: mp4,
+        poster: attrs.poster ?? src,
+        preload: attrs.preload ?? 'auto',
+        autoplay: attrs.autoplay ?? 'true',
+        muted: attrs.muted ?? 'true',
+        loop: attrs.loop ?? 'true',
+        playsinline: attrs.playsinline ?? 'true',
+        'gif-video': 'true',
+      },
+      '',
+    );
+  }
   const caption = attrs.caption ?? '';
   const imgAttrs = [
     'class="kg-image"',
@@ -1195,6 +1222,15 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const figcaption = figcaptionHtml(caption, renderInlineCaptionMarkdown(caption));
   const alignClass = tokenClass('kg-align', attrs.align ?? attrs.alignment);
   return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${alignClass}${hasCaptionClass(caption)}"${captionFigureAttrs(caption)}>${inner}${figcaption}</figure>\n\n`;
+}
+
+function isGifUrl(src: string): boolean {
+  try {
+    const url = new URL(src, 'https://nectar.invalid');
+    return url.pathname.toLowerCase().endsWith('.gif');
+  } catch {
+    return src.split(/[?#]/, 1)[0]?.toLowerCase().endsWith('.gif') === true;
+  }
 }
 
 function renderFigurePictureSourcesHtml(attrs: Record<string, string>): string {
@@ -1751,10 +1787,12 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
     mediaWidthAttr(attrs),
     attrs.height ? `height="${escapeHtmlAttr(attrs.height)}"` : '',
     attrs.preload ? `preload="${escapeHtmlAttr(attrs.preload)}"` : '',
+    truthyShortcodeAttr(attrs.autoplay) ? 'autoplay' : '',
     truthyShortcodeAttr(attrs.controls) ? 'controls' : '',
     truthyShortcodeAttr(attrs.loop) ? 'loop' : '',
     truthyShortcodeAttr(attrs.muted) ? 'muted' : '',
     truthyShortcodeAttr(attrs.playsinline) ? 'playsinline' : '',
+    truthyShortcodeAttr(attrs['gif-video']) ? 'data-kg-gif-video' : '',
   ]
     .filter((s) => s !== '')
     .join(' ');
@@ -1843,6 +1881,9 @@ function renderSignupHtml(attrs: Record<string, string>): string {
   const subheading = attrs.subheading ?? attrs.subtitle ?? '';
   const button = attrs.button ?? attrs['button-text'] ?? 'Subscribe';
   const placeholder = attrs.email_placeholder ?? attrs.placeholder ?? 'you@example.com';
+  const buttonI18nAttr = button === 'Subscribe' ? ' data-kg-i18n="Subscribe"' : '';
+  const placeholderI18nAttr =
+    placeholder === 'you@example.com' ? ' data-kg-i18n-placeholder="Your email address"' : '';
   const styleClass = tokenClass('kg-style', attrs.style);
   const widthClass = koenigWidthClass(attrs);
   const headingHtml = heading
@@ -1851,7 +1892,7 @@ function renderSignupHtml(attrs: Record<string, string>): string {
   const subheadingHtml = subheading
     ? `<p class="kg-signup-card-subheading">${escapeHtmlAttr(subheading)}</p>`
     : '';
-  const form = `<form class="kg-signup-card-form" data-members-form="signup"><input class="kg-signup-card-input" type="email" placeholder="${escapeHtmlAttr(placeholder)}" required /><button class="kg-signup-card-button" type="submit">${escapeHtmlAttr(button)}</button></form>`;
+  const form = `<form class="kg-signup-card-form" data-members-form="signup"><input class="kg-signup-card-input" type="email" placeholder="${escapeHtmlAttr(placeholder)}" required${placeholderI18nAttr} /><button class="kg-signup-card-button" type="submit"${buttonI18nAttr}>${escapeHtmlAttr(button)}</button></form>`;
   return `\n\n<div class="kg-card kg-signup-card${widthClass}${styleClass}">${headingHtml}${subheadingHtml}${form}</div>\n\n`;
 }
 

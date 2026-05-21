@@ -8,6 +8,7 @@ import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
 import { DEFAULT_PARTIALS } from '../default-partials.ts';
 import { type NectarEngine, computePostClass } from '../engine.ts';
+import { localizeKoenigCardLabels } from '../koenig-i18n.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
   const tagMarkupCache = new WeakMap<
@@ -31,7 +32,10 @@ export function registerContentHelpers(engine: NectarEngine): void {
       // `gh-paywall-stub` HTML so existing themes/CSS that hook
       // `.gh-paywall-stub` continue to work end-to-end (issue #207).
       const swapped = replacePaywallStubWithPartial(engine, html, this, options);
-      return new engine.hb.SafeString(downshiftHeadings(swapped));
+      const localized = localizeKoenigCardLabels(swapped, (key) =>
+        translateCardLabel(engine, options, key),
+      );
+      return new engine.hb.SafeString(downshiftHeadings(localized));
     },
   );
 
@@ -638,6 +642,15 @@ function translate(engine: NectarEngine, options: Handlebars.HelperOptions, key:
   const fallback = engine.theme.locales?.en ?? {};
   const value = active[key] ?? fallback[key];
   return typeof value === 'string' ? value : key;
+}
+
+function translateCardLabel(
+  engine: NectarEngine,
+  options: Handlebars.HelperOptions,
+  key: string,
+): string {
+  const value = translate(engine, options, key);
+  return value.trim() === '' ? key : value;
 }
 
 function renderDefaultSearchPartial(engine: NectarEngine): string {

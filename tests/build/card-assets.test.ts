@@ -48,6 +48,9 @@ describe('emitCardAssets', () => {
     expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
       '.kg-video-card video',
     );
+    expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
+      '.kg-image-card img, .kg-gallery-image img',
+    );
   });
 
   test('skips writing files when disabled', async () => {
@@ -59,13 +62,14 @@ describe('emitCardAssets', () => {
   });
 
   test('excludes per-card CSS and runtime sections', () => {
-    const cardAssets = { exclude: ['bookmark', 'code', 'toggle', 'video'] };
+    const cardAssets = { exclude: ['bookmark', 'code', 'toggle', 'video', 'lightbox'] };
 
     expect(renderCardAssetsCss(cardAssets)).not.toContain('.kg-bookmark-card');
     expect(renderCardAssetsCss(cardAssets)).not.toContain('.kg-code-card');
     expect(renderCardAssetsCss(cardAssets)).toContain('.kg-gallery-card');
     expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-toggle-card .kg-toggle-heading');
     expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-video-card video');
+    expect(renderCardAssetsJs(cardAssets)).not.toContain('.kg-image-card img');
     expect(renderCardAssetsJs(cardAssets)).toContain('.kg-audio-card audio');
   });
 
@@ -86,8 +90,8 @@ describe('emitCardAssets', () => {
   });
 
   test('uses a stable exclude-specific cache key', () => {
-    expect(cardAssetsVersion(true)).toBe('6');
-    expect(cardAssetsVersion({ exclude: [] })).toBe('6');
+    expect(cardAssetsVersion(true)).toBe('7');
+    expect(cardAssetsVersion({ exclude: [] })).toBe('7');
     expect(cardAssetsVersion({ exclude: ['gallery', 'bookmark'] })).toBe(
       cardAssetsVersion({ exclude: ['bookmark', 'gallery'] }),
     );
@@ -125,5 +129,18 @@ describe('emitCardAssets', () => {
     expect(css).toMatch(/\.kg-code-card pre code\{[^}]*white-space:pre/);
     expect(css).toMatch(/\.kg-code-card figcaption\{[^}]*margin-top:\.75rem/);
     expect(css).toMatch(/\.kg-code-card-with-line-numbers pre\{[^}]*padding-left:3rem/);
+  });
+
+  test('lightbox assets are optional and scoped to image/gallery cards', () => {
+    const css = renderCardAssetsCss(true);
+    const js = renderCardAssetsJs(true);
+
+    expect(css).toContain('.kg-lightbox-backdrop');
+    expect(js).toContain('.kg-image-card img, .kg-gallery-image img');
+    expect(js).toContain('data-kg-lightbox-open');
+    expect(renderCardAssetsCss({ exclude: ['lightbox'] })).not.toContain('.kg-lightbox-backdrop');
+    expect(renderCardAssetsJs({ exclude: ['lightbox'] })).not.toContain(
+      '.kg-image-card img, .kg-gallery-image img',
+    );
   });
 });
