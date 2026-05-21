@@ -589,7 +589,7 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/blog/assets/images/100%25%20legit%20image.abc123.css');
   });
 
-  test('keeps query ampersands raw inside href attributes (issue #1032)', () => {
+  test('HTML-escapes query ampersands inside href attributes for fingerprinted assets', () => {
     const engine = makeEngine({ basePath: '/' });
     engine.theme.assets.set('assets/built/screen.css', {
       logicalPath: 'assets/built/screen.css',
@@ -602,8 +602,38 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('<link href="{{asset "built/screen.css"}}">');
     const out = tpl({});
-    expect(out).toBe('<link href="/assets/built/screen.css?v=abc123&mode=dark">');
-    expect(out).not.toContain('&amp;');
+    expect(out).toBe('<link href="/assets/built/screen.css?v=abc123&amp;mode=dark">');
+    expect(out).not.toContain('&amp;amp;');
+  });
+
+  test('returns a SafeString with HTML-escaped fingerprinted asset URLs', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/special.css', {
+      logicalPath: 'assets/built/special.css',
+      fingerprintedPath: 'assets/built/special.&<>"\'.abc123.css',
+      sourcePath: '/theme/assets/built/special.css',
+      hash: 'abc123',
+      integrity: 'sha384-special',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+
+    const helper = engine.hb.helpers.asset as (
+      path: unknown,
+      options?: Handlebars.HelperOptions,
+    ) => unknown;
+    const direct = helper('built/special.css', { hash: {} } as Handlebars.HelperOptions);
+    expect(direct).toBeInstanceOf(engine.hb.SafeString);
+    expect(String(direct)).toBe('/assets/built/special.&amp;&lt;&gt;&quot;&#39;.abc123.css');
+
+    const tpl = engine.hb.compile('<link href="{{asset "built/special.css"}}">');
+    const out = tpl({});
+    expect(out).toBe('<link href="/assets/built/special.&amp;&lt;&gt;&quot;&#39;.abc123.css">');
+    expect(out).not.toContain('&amp;amp;');
+    expect(out).not.toContain('&amp;lt;');
+    expect(out).not.toContain('&amp;gt;');
+    expect(out).not.toContain('&amp;quot;');
+    expect(out).not.toContain('&amp;#39;');
   });
 
   test('triple-stash {{{asset}}} returns the raw URL (user explicitly opts out of escape)', () => {

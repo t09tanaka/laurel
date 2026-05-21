@@ -12,7 +12,11 @@ export function registerAssetHelpers(engine: NectarEngine): void {
       const logical = String(path ?? '').replace(/^\//, '');
       const asset = resolveThemeAsset(engine.theme.assets, logical, options?.hash?.hasMinFile);
       if (asset) {
-        return new engine.hb.SafeString(encodeAssetUrl(assetPublicUrl(asset, basePath)));
+        return new engine.hb.SafeString(
+          encodeAssetUrlForSafeString(assetPublicUrl(asset, basePath), {
+            htmlEscapeDecodedSpecials: asset.fingerprintedPath !== asset.logicalPath,
+          }),
+        );
       }
       const resolved = `assets/${logical}`;
       return new engine.hb.SafeString(encodeAssetUrl(joinPath(basePath, resolved)));
@@ -189,6 +193,19 @@ function encodeAssetUrl(url: string): string {
   const path = url.slice(0, suffixIndex);
   const suffix = url.slice(suffixIndex);
   return encodeUrlPath(path) + encodeUrlSuffix(suffix);
+}
+
+function encodeAssetUrlForSafeString(
+  url: string,
+  opts: { htmlEscapeDecodedSpecials: boolean },
+): string {
+  const encoded = encodeAssetUrl(url);
+  if (!opts.htmlEscapeDecodedSpecials) return encoded;
+  return escapeAttr(decodeHtmlSpecialPercentEscapes(encoded));
+}
+
+function decodeHtmlSpecialPercentEscapes(url: string): string {
+  return url.replace(/%(?:26|3C|3E|22)/gi, (match) => decodeURIComponent(match));
 }
 
 function encodeUrlPath(path: string): string {
