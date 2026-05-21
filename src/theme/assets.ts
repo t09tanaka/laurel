@@ -1,5 +1,5 @@
-import { existsSync, statSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
@@ -72,9 +72,9 @@ export async function loadThemeAssets(
     rels.map((rel) =>
       limit(async (): Promise<Processed> => {
         const file = join(assetsDir, rel);
-        const stat = statSync(file);
-        const mtimeMs = stat.mtimeMs;
-        const size = stat.size;
+        const fileStat = await stat(file);
+        const mtimeMs = fileStat.mtimeMs;
+        const size = fileStat.size;
         const cached = cache[file];
         let hash: string;
         let integrity: string;

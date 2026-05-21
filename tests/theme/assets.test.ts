@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { existsSync } from 'node:fs';
+import * as fs from 'node:fs';
 import { mkdir, mkdtemp, readFile, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -117,6 +118,23 @@ describe('loadThemeAssets fingerprint cache', () => {
 });
 
 describe('loadThemeAssets parallel hashing', () => {
+  test('does not block parallel asset processing with statSync', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-async-stat-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(assetsDir, 'screen.css'), 'body{}');
+
+    const statSync = spyOn(fs, 'statSync').mockImplementation(() => {
+      throw new Error('loadThemeAssets should use async stat for assets');
+    });
+    try {
+      const map = await loadThemeAssets(themeDir);
+      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
+    } finally {
+      statSync.mockRestore();
+    }
+  });
+
   // Hash work fans out via Promise.all with a concurrency limit. Iteration
   // order of the returned Map must still be deterministic so downstream code
   // (cache writes, build summaries) doesn't see flaky ordering, and every
