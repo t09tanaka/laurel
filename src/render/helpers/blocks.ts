@@ -7,6 +7,7 @@ import { applyGetFilter } from './get-filter.ts';
 interface HelperOptions extends Handlebars.HelperOptions {
   hash: {
     visibility?: string;
+    order?: string;
     limit?: number | string;
     from?: number | string;
     to?: number | string;
@@ -38,7 +39,11 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     // members posts are interleaved: `visibility="public" limit=3` must yield
     // the first three *public* items, not three positions from the raw input.
     const visible = items.filter((entry) => visibilityFilter(entry.value, options.hash.visibility));
-    const sliced = visible.slice(from - 1, to).slice(0, limit);
+    const ordered =
+      options.hash.order === undefined
+        ? visible
+        : applyEntryOrder(visible, String(options.hash.order));
+    const sliced = ordered.slice(from - 1, to).slice(0, limit);
     const columns = parseColumns(options.hash.columns);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const hasBlockParams = (fnAny?.blockParams ?? 0) > 0;
@@ -819,17 +824,23 @@ function toComparableNumber(value: unknown): number | null {
 }
 
 function applyOrder(items: readonly unknown[], order: string): unknown[] {
+  return items.slice().sort((a, b) => compareByOrder(a, b, order));
+}
+
+function applyEntryOrder(entries: readonly IterationEntry[], order: string): IterationEntry[] {
+  return entries.slice().sort((a, b) => compareByOrder(a.value, b.value, order));
+}
+
+function compareByOrder(a: unknown, b: unknown, order: string): number {
   const clauses = order.split(',').map((s) => s.trim());
-  return items.slice().sort((a, b) => {
-    for (const clause of clauses) {
-      const [field, dir = 'asc'] = clause.split(/\s+/);
-      const av = resolveOrderValue(a, field ?? '');
-      const bv = resolveOrderValue(b, field ?? '');
-      const cmp = compareValues(av, bv);
-      if (cmp !== 0) return dir.toLowerCase() === 'desc' ? -cmp : cmp;
-    }
-    return 0;
-  });
+  for (const clause of clauses) {
+    const [field, dir = 'asc'] = clause.split(/\s+/);
+    const av = resolveOrderValue(a, field ?? '');
+    const bv = resolveOrderValue(b, field ?? '');
+    const cmp = compareValues(av, bv);
+    if (cmp !== 0) return dir.toLowerCase() === 'desc' ? -cmp : cmp;
+  }
+  return 0;
 }
 
 function resolveOrderValue(item: unknown, field: string): unknown {

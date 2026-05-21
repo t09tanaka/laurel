@@ -104,6 +104,19 @@ describe('foreach helper', () => {
     expect(tpl({ obj: { x: 'a', y: 'b' } })).toBe('ab');
   });
 
+  test('order="published_at desc" renders the most recent item first', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach posts order="published_at desc"}}{{slug}}|{{/foreach}}',
+    );
+    const posts = [
+      { slug: 'old', published_at: '2024-01-01' },
+      { slug: 'new', published_at: '2024-03-01' },
+    ];
+    expect(tpl({ posts })).toBe('new|old|');
+  });
+
   test('object iteration exposes @key for each map entry', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
