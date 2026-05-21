@@ -24,8 +24,10 @@ Designed around four pillars:
    opt in by config; not core.
 
 Plus migration tooling: `nectar import-ghost ghost-export.json` converts a
-Ghost admin JSON export into Markdown content. The supported migration path is
-documented in [`docs/MIGRATION.md`](./docs/MIGRATION.md).
+Ghost admin JSON export into Markdown content, and `nectar import-hugo` /
+`nectar import-jekyll` provide conservative Markdown-post imports from existing
+static sites. The supported migration paths are documented in
+[`docs/MIGRATION.md`](./docs/MIGRATION.md).
 
 ## Status
 

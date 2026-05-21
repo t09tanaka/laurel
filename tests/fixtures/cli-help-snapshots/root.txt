@@ -32,6 +32,8 @@ Commands:
   telemetry         Manage opt-in anonymous usage telemetry
   import-ghost      Convert a Ghost JSON export into Markdown content
   import-wordpress  Convert a WordPress WXR XML export into Markdown content
+  import-hugo       Convert Hugo Markdown posts into Nectar content
+  import-jekyll     Convert Jekyll Markdown posts into Nectar content
   version           Print the version, optionally as JSON, or check for updates
   help              Show this help or help for a command
 

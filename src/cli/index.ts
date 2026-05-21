@@ -202,6 +202,14 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runImportWordPress } = await import('./commands/import-wordpress.js');
       return runImportWordPress(rest);
     }
+    case 'import-hugo': {
+      const { runImportHugo } = await import('./commands/import-static.js');
+      return runImportHugo(rest);
+    }
+    case 'import-jekyll': {
+      const { runImportJekyll } = await import('./commands/import-static.js');
+      return runImportJekyll(rest);
+    }
     case 'serve': {
       const { runServe } = await import('./commands/serve.js');
       return runServe(rest);

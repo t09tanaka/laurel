@@ -526,6 +526,61 @@ export const IMPORT_WORDPRESS_SPEC: CommandSpec = {
   ],
 };
 
+const STATIC_SITE_IMPORT_OPTIONS: CommandSpec['options'] = {
+  'on-conflict': {
+    type: 'string',
+    description:
+      'How to handle existing files when slugs collide: skip (default), overwrite, or rename',
+    placeholder: '<skip|overwrite|rename>',
+  },
+  'dry-run': {
+    type: 'boolean',
+    description:
+      'Scan Markdown and print a summary of what would land, including redirects from aliases, without writing files',
+  },
+  json: {
+    type: 'boolean',
+    description: 'Emit the import summary as JSON on stdout for CI consumption',
+  },
+};
+
+export const IMPORT_HUGO_SPEC: CommandSpec = {
+  name: 'import-hugo',
+  summary: 'Convert Hugo Markdown posts into Nectar content',
+  options: STATIC_SITE_IMPORT_OPTIONS,
+  positionals: [
+    {
+      name: 'dir',
+      description:
+        'Path to a Hugo project root. Nectar scans content/posts/, content/post/, content/blog/, then content/.',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar import-hugo ../old-hugo-site',
+    'nectar import-hugo ../old-hugo-site --dry-run',
+    'nectar import-hugo ../old-hugo-site --on-conflict rename',
+  ],
+};
+
+export const IMPORT_JEKYLL_SPEC: CommandSpec = {
+  name: 'import-jekyll',
+  summary: 'Convert Jekyll Markdown posts into Nectar content',
+  options: STATIC_SITE_IMPORT_OPTIONS,
+  positionals: [
+    {
+      name: 'dir',
+      description: 'Path to a Jekyll project root. Nectar scans _posts/.',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar import-jekyll ../old-jekyll-site',
+    'nectar import-jekyll ../old-jekyll-site --dry-run',
+    'nectar import-jekyll ../old-jekyll-site --on-conflict rename',
+  ],
+};
+
 export const INIT_SPEC: CommandSpec = {
   name: 'init',
   summary: 'Scaffold a new Nectar project in the current (or given) directory',
@@ -1444,6 +1499,8 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   telemetry: TELEMETRY_SPEC,
   'import-ghost': IMPORT_GHOST_SPEC,
   'import-wordpress': IMPORT_WORDPRESS_SPEC,
+  'import-hugo': IMPORT_HUGO_SPEC,
+  'import-jekyll': IMPORT_JEKYLL_SPEC,
 };
 
 export const COMMAND_NAMES = Object.keys(COMMAND_SPECS);

@@ -1,0 +1,31 @@
+Convert Jekyll Markdown posts into Nectar content
+
+Usage:
+  nectar import-jekyll [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <dir>
+
+Arguments:
+  dir                 Path to a Jekyll project root. Nectar scans _posts/.
+
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
+Options:
+  --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
+  --dry-run           Scan Markdown and print a summary of what would land, including redirects from aliases, without writing files
+  -j, --json          Emit the import summary as JSON on stdout for CI consumption
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --on-conflict → NECTAR_IMPORT_JEKYLL_ON_CONFLICT
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar import-jekyll ../old-jekyll-site
+  nectar import-jekyll ../old-jekyll-site --dry-run
+  nectar import-jekyll ../old-jekyll-site --on-conflict rename

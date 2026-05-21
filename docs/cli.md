@@ -188,6 +188,8 @@ when prompts are enabled.
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar import-ghost`](#nectar-import-ghost) | Convert a Ghost JSON export into Markdown content |
 | [`nectar import-wordpress`](#nectar-import-wordpress) | Convert a WordPress WXR XML export into Markdown content |
+| [`nectar import-hugo`](#nectar-import-hugo) | Convert Hugo Markdown posts into Nectar content |
+| [`nectar import-jekyll`](#nectar-import-jekyll) | Convert Jekyll Markdown posts into Nectar content |
 
 ### `nectar init`
 
@@ -1153,4 +1155,68 @@ Examples:
 nectar import-wordpress wordpress.xml
 nectar import-wordpress wordpress.xml --dry-run
 nectar import-wordpress wordpress.xml --on-conflict rename
+```
+
+### `nectar import-hugo`
+
+Convert Hugo Markdown posts into Nectar content
+
+Usage:
+
+```
+nectar import-hugo [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <dir>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<dir>` | required | Path to a Hugo project root. Nectar scans content/posts/, content/post/, content/blog/, then content/. |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_HUGO_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
+| `--dry-run` | boolean | `NECTAR_IMPORT_HUGO_DRY_RUN` | Scan Markdown and print a summary of what would land, including redirects from aliases, without writing files |
+| `-j, --json` | boolean | `NECTAR_IMPORT_HUGO_JSON` | Emit the import summary as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar import-hugo ../old-hugo-site
+nectar import-hugo ../old-hugo-site --dry-run
+nectar import-hugo ../old-hugo-site --on-conflict rename
+```
+
+### `nectar import-jekyll`
+
+Convert Jekyll Markdown posts into Nectar content
+
+Usage:
+
+```
+nectar import-jekyll [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <dir>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<dir>` | required | Path to a Jekyll project root. Nectar scans _posts/. |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_JEKYLL_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
+| `--dry-run` | boolean | `NECTAR_IMPORT_JEKYLL_DRY_RUN` | Scan Markdown and print a summary of what would land, including redirects from aliases, without writing files |
+| `-j, --json` | boolean | `NECTAR_IMPORT_JEKYLL_JSON` | Emit the import summary as JSON on stdout for CI consumption |
+
+Examples:
+
+```
+nectar import-jekyll ../old-jekyll-site
+nectar import-jekyll ../old-jekyll-site --dry-run
+nectar import-jekyll ../old-jekyll-site --on-conflict rename
 ```

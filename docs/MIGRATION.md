@@ -49,6 +49,35 @@ nectar import-ghost ./ghost-export.zip --on-conflict rename
 
 See [`docs/cli.md`](./cli.md#nectar-import-ghost) for every flag.
 
+## Hugo / Jekyll Markdown posts
+
+`nectar import-hugo <dir>` and `nectar import-jekyll <dir>` provide a
+conservative first-pass import for Markdown posts. They are intended for review
+imports into a Nectar project, not a full static-site migration.
+
+```bash
+nectar import-hugo ../old-hugo-site --dry-run
+nectar import-hugo ../old-hugo-site --on-conflict rename
+nectar import-jekyll ../old-jekyll-site --dry-run
+nectar import-jekyll ../old-jekyll-site
+```
+
+The Hugo importer scans `content/posts/`, `content/post/`, `content/blog/`, then
+`content/`. The Jekyll importer scans `_posts/`. Both import Markdown files into
+`content/posts/<slug>.md`, preserve the body, and remap common frontmatter:
+
+| Source frontmatter | Nectar output |
+| --- | --- |
+| `categories` | Merged into `tags` as slug-normalized values |
+| `aliases` | Appended to root `redirects.yaml` as 301 redirects to `/<slug>/` |
+| `draft: true` | `status: draft` |
+| Jekyll `YYYY-MM-DD-slug.md` filename | `slug` plus `date` when frontmatter omits them |
+
+This first slice supports YAML frontmatter and Hugo TOML `+++` frontmatter. It
+does not convert layouts, shortcodes, theme templates, site config, data files,
+asset pipelines, or custom collections. Review the generated Markdown and
+`redirects.yaml` before publishing.
+
 ## Imported automatically
 
 `src/ghost/import.ts` currently imports these Ghost export records and assets:

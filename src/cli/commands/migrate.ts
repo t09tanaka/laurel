@@ -4,7 +4,7 @@ import { extname, isAbsolute, join, resolve } from 'node:path';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
-import { MIGRATE_SPEC } from '../specs.ts';
+import { IMPORT_HUGO_SPEC, IMPORT_JEKYLL_SPEC, MIGRATE_SPEC } from '../specs.ts';
 
 const VALID_SOURCES = ['ghost', 'wordpress', 'hugo', 'jekyll', 'eleventy'] as const;
 type Source = (typeof VALID_SOURCES)[number];
@@ -54,12 +54,17 @@ export async function runMigrate(args: string[]): Promise<number> {
     return runImportWordPress(buildWordPressArgs(parsed, path));
   }
 
-  // hugo / jekyll / eleventy share a common minimal-import shape: copy
-  // `content/posts/*.md` from the source tree into `content/posts/` here,
-  // best-effort. Frontmatter format compatibility is high for Hugo (YAML
-  // between `---`) and Jekyll (same); Eleventy's per-collection layout
-  // varies more, so we currently only walk `posts/`. Anything outside that
-  // surface area is left to a follow-up.
+  if (source === 'hugo' || source === 'jekyll') {
+    const { runImportStaticSite } = await import('./import-static.ts');
+    return runImportStaticSite(source, source === 'hugo' ? IMPORT_HUGO_SPEC : IMPORT_JEKYLL_SPEC, [
+      ...buildStaticSiteArgs(parsed),
+      path,
+    ]);
+  }
+
+  // Eleventy remains a conservative copy-only path. Its collection structure
+  // varies enough that the dedicated Hugo/Jekyll frontmatter remapper should
+  // not be applied to it without a separate compatibility pass.
   const dryRun = parsed.values['dry-run'] === true;
   const asJson = parsed.values.json === true;
   try {
@@ -105,6 +110,14 @@ function buildWordPressArgs(parsed: ParsedCommand, file: string): string[] {
   if (parsed.values['dry-run'] === true) out.push('--dry-run');
   if (parsed.values.json === true) out.push('--json');
   out.push(file);
+  return out;
+}
+
+function buildStaticSiteArgs(parsed: ParsedCommand): string[] {
+  const out: string[] = [];
+  pushIfString(out, parsed.values['on-conflict'], '--on-conflict');
+  if (parsed.values['dry-run'] === true) out.push('--dry-run');
+  if (parsed.values.json === true) out.push('--json');
   return out;
 }
 
