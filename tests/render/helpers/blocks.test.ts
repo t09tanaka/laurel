@@ -61,6 +61,14 @@ describe('foreach helper', () => {
     expect(tpl({ items: [] })).toBe('EMPTY');
   });
 
+  test('renders the inverse block when the input is missing or null', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach missing}}A{{else}}B{{/foreach}}');
+    expect(tpl({})).toBe('B');
+    expect(tpl({ missing: null })).toBe('B');
+  });
+
   test('limit + from slice the visible window 1-indexed', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
