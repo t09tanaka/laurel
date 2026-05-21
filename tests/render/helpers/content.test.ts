@@ -985,6 +985,15 @@ describe('authors helper', () => {
     );
   });
 
+  test('separator hash overrides the default join character with autolinks', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors separator=" | "}}')(ctx);
+    expect(out).toBe(
+      '<a href="/author/ada/">Ada</a> | <a href="/author/grace/">Grace</a> | <a href="/author/linus/">Linus</a>',
+    );
+  });
+
   test('separator= overrides the join character', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
