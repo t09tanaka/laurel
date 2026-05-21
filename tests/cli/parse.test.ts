@@ -425,6 +425,17 @@ describe('parseCommand env var fallbacks', () => {
     expect(result.values['on-conflict']).toBe('overwrite');
   });
 
+  test('colon command names map to underscored env var names', () => {
+    const spec: CommandSpec = {
+      name: 'build:email',
+      summary: 'Render email',
+      options: { post: { type: 'string', description: 'Post slug' } },
+      positionals: [],
+    };
+    const result = parseCommand(spec, [], { NECTAR_BUILD_EMAIL_POST: 'weekly' });
+    expect(result.values.post).toBe('weekly');
+  });
+
   test('empty string env var is treated as not set for string options', () => {
     const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_CONFIG: '' });
     expect(result.values.config).toBeUndefined();
@@ -452,9 +463,10 @@ describe('parseCommand env var fallbacks', () => {
 });
 
 describe('envVarName / globalEnvVarName', () => {
-  test('uppercases and converts dashes to underscores', () => {
+  test('uppercases and converts separators to underscores', () => {
     expect(envVarName('serve', 'port')).toBe('NECTAR_SERVE_PORT');
     expect(envVarName('build', 'base-path')).toBe('NECTAR_BUILD_BASE_PATH');
+    expect(envVarName('build:email', 'post')).toBe('NECTAR_BUILD_EMAIL_POST');
     expect(envVarName('import-ghost', 'on-conflict')).toBe('NECTAR_IMPORT_GHOST_ON_CONFLICT');
     expect(envVarName('serve', 'no-watch')).toBe('NECTAR_SERVE_NO_WATCH');
   });

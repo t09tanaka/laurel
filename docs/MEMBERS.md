@@ -492,6 +492,24 @@ Nectar sets `NECTAR_OUTPUT_DIR` to the final output directory, so the script can
 inspect emitted HTML, feeds, or `.nectar/manifest.json` before deciding
 what to send.
 
+If your active theme includes a root `email.hbs` or `email-template.hbs`, Nectar
+keeps that file out of normal web route planning and exposes it only for
+newsletter rendering. Generate a provider-ready HTML file for a single post
+with:
+
+```bash
+nectar build:email --post=weekly-update
+```
+
+The output is written to `dist/email/weekly-update.html` by default. Review or
+inline CSS as needed, then hand that HTML to your sender. For Postmark, Resend,
+or Amazon SES, keep credentials and API calls in your own script, for example:
+
+```bash
+nectar build:email --post=weekly-update
+bun run newsletter-send -- dist/email/weekly-update.html
+```
+
 For member-facing newsletter delivery, keep the provider-specific logic in your
 own command and call it from the hook:
 

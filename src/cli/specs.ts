@@ -128,6 +128,40 @@ export const BUILD_SPEC: CommandSpec = {
   ],
 };
 
+export const BUILD_EMAIL_SPEC: CommandSpec = {
+  name: 'build:email',
+  summary: 'Render a theme email template for one post',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    output: {
+      type: 'string',
+      short: 'o',
+      description:
+        'Override build.output_dir from the config (relative path inside the project root)',
+      placeholder: '<dir>',
+    },
+    post: {
+      type: 'string',
+      description:
+        'Post slug to render through email.hbs or email-template.hbs. Email-only posts are supported.',
+      placeholder: '<slug>',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit the rendered email result as JSON ({ event, post, template, outputPath })',
+    },
+  },
+  positionals: [],
+  examples: [
+    'nectar build:email --post=weekly-update',
+    'nectar build:email --post=weekly-update --output dist-email-preview',
+  ],
+};
+
 export const NEW_SPEC: CommandSpec = {
   name: 'new',
   summary: 'Scaffold a new Markdown content file',
@@ -1384,6 +1418,7 @@ export const TELEMETRY_SPEC: CommandSpec = {
 export const COMMAND_SPECS: Record<string, CommandSpec> = {
   init: INIT_SPEC,
   build: BUILD_SPEC,
+  'build:email': BUILD_EMAIL_SPEC,
   new: NEW_SPEC,
   open: OPEN_SPEC,
   dev: DEV_SPEC,

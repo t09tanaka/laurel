@@ -263,7 +263,7 @@ export function globalEnvVarName(flagName: string): string {
 }
 
 function toEnvSegment(s: string): string {
-  return s.toUpperCase().replace(/-/g, '_');
+  return s.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
 }
 
 const ENV_BOOLEAN_TRUE = new Set(['1', 'true', 'yes', 'on']);

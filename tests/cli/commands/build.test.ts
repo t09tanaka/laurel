@@ -264,6 +264,82 @@ describe('nectar build --dry-run (#252)', () => {
   });
 });
 
+describe('nectar build:email', () => {
+  const cleanups: string[] = [];
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const dir = cleanups.pop();
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function makeEmailFixture(): Promise<string> {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-email-')));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await mkdir(join(dir, 'themes/source'), { recursive: true });
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Email Test"',
+        'url = "https://email.example.com"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = false',
+        '',
+        '[components.sitemap]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+    );
+    await Bun.write(
+      join(dir, 'content/posts/weekly.md'),
+      [
+        '---',
+        'title: "Weekly Update"',
+        'date: 2026-01-01T00:00:00Z',
+        '---',
+        '',
+        '<strong>Hello email readers</strong>',
+        '',
+      ].join('\n'),
+    );
+    await Bun.write(join(dir, 'themes/source/post.hbs'), '<article>{{title}}</article>');
+    await Bun.write(
+      join(dir, 'themes/source/email.hbs'),
+      '<html><body><h1>{{title}}</h1>{{{html}}}</body></html>',
+    );
+    return dir;
+  }
+
+  test('renders root email.hbs for a post into dist/email', async () => {
+    const dir = await makeEmailFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['build:email', '--post=weekly'], dir);
+
+    expect(result.exitCode).toBe(0);
+    const html = readFileSync(join(dir, 'dist/email/weekly.html'), 'utf8');
+    expect(html).toContain('<h1>Weekly Update</h1>');
+    expect(html).toContain('<strong>Hello email readers</strong>');
+  });
+
+  test('does not expose email.hbs as a web route template during normal builds', async () => {
+    const dir = await makeEmailFixture();
+    cleanups.push(dir);
+
+    const result = await runCli(['--verbose', 'build', '--dry-run'], dir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain('/email/');
+    expect(result.stdout).not.toContain('email.hbs');
+  });
+});
+
 describe('nectar build --no-clean (#831)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {

@@ -1,0 +1,25 @@
+Render a theme email template for one post
+
+Usage:
+  nectar build:email [--config <path>] [--output <dir>] [--post <slug>] [--json]
+
+Options:
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
+  -o, --output <dir>  Override build.output_dir from the config (relative path inside the project root)
+  --post <slug>       Post slug to render through email.hbs or email-template.hbs. Email-only posts are supported.
+  -j, --json          Emit the rendered email result as JSON ({ event, post, template, outputPath })
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_BUILD_EMAIL_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar build:email --post=weekly-update
+  nectar build:email --post=weekly-update --output dist-email-preview

@@ -162,6 +162,7 @@ when prompts are enabled.
 | --- | --- |
 | [`nectar init`](#nectar-init) | Scaffold a new Nectar project in the current (or given) directory |
 | [`nectar build`](#nectar-build) | Build the site into the configured output directory |
+| [`nectar build:email`](#nectar-build-email) | Render a theme email template for one post |
 | [`nectar new`](#nectar-new) | Scaffold a new Markdown content file |
 | [`nectar open`](#nectar-open) | Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
@@ -265,6 +266,32 @@ nectar build --profile                       # write timings and peak RSS to dis
 BUN_INSPECT=1 nectar build --profile         # attach Bun inspector for heap snapshots while profiling
 nectar build --watch                         # rebuild on content/theme/config changes
 nectar build --json                          # emit the summary as JSON for CI
+```
+
+### `nectar build:email`
+
+Render a theme email template for one post
+
+Usage:
+
+```
+nectar build:email [--config <path>] [--output <dir>] [--post <slug>] [--json]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_BUILD_EMAIL_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `-o, --output <dir>` | string | `NECTAR_BUILD_EMAIL_OUTPUT` | Override build.output_dir from the config (relative path inside the project root) |
+| `--post <slug>` | string | `NECTAR_BUILD_EMAIL_POST` | Post slug to render through email.hbs or email-template.hbs. Email-only posts are supported. |
+| `-j, --json` | boolean | `NECTAR_BUILD_EMAIL_JSON` | Emit the rendered email result as JSON ({ event, post, template, outputPath }) |
+
+Examples:
+
+```
+nectar build:email --post=weekly-update
+nectar build:email --post=weekly-update --output dist-email-preview
 ```
 
 ### `nectar new`

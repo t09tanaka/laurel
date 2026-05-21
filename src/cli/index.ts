@@ -178,6 +178,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runBuild } = await import('./commands/build.js');
       return runBuild(rest);
     }
+    case 'build:email': {
+      const { runBuildEmail } = await import('./commands/build-email.js');
+      return runBuildEmail(rest);
+    }
     case 'new': {
       const { runNew } = await import('./commands/new.js');
       return runNew(rest);

@@ -16,6 +16,7 @@ export interface LoadThemeOptions {
 
 export const THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING =
   'Theme package.json declares config.members = "required", but [components.portal].provider is "none". Configure a Portal provider before building this theme.';
+export const THEME_EMAIL_TEMPLATE_NAMES = ['email', 'email-template'] as const;
 
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
   const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
@@ -28,6 +29,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   }
 
   const templates: Record<string, string> = {};
+  const emailTemplates: Record<string, string> = {};
   const partials: Record<string, string> = {};
 
   // Collect every `.hbs` path up front so the per-file `readFile` fan-out can
@@ -54,7 +56,12 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
       partials[normalizeName(name)] = raw;
     } else {
       const name = stripExt(rel);
-      templates[normalizeName(name)] = raw;
+      const normalizedName = normalizeName(name);
+      if (isEmailTemplateName(normalizedName)) {
+        emailTemplates[normalizedName] = raw;
+      } else {
+        templates[normalizedName] = raw;
+      }
     }
   }
 
@@ -67,11 +74,16 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     name: config.theme.name,
     rootDir,
     templates,
+    emailTemplates,
     partials,
     pkg,
     locales,
     assets,
   };
+}
+
+function isEmailTemplateName(name: string): boolean {
+  return (THEME_EMAIL_TEMPLATE_NAMES as readonly string[]).includes(name);
 }
 
 function warnIfMembersRequiredWithoutPortal(pkg: ThemeBundle['pkg'], config: NectarConfig): void {

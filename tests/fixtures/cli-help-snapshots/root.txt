@@ -6,6 +6,7 @@ Usage:
 Commands:
   init              Scaffold a new Nectar project in the current (or given) directory
   build             Build the site into the configured output directory
+  build:email       Render a theme email template for one post
   new               Scaffold a new Markdown content file
   open              Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
   dev               Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser

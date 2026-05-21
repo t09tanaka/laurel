@@ -152,6 +152,31 @@ describe('loadTheme', () => {
     });
   });
 
+  test('keeps root email templates out of web route templates', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'newsletter');
+      await mkdir(join(themeRoot, 'partials'), { recursive: true });
+      await writeFile(join(themeRoot, 'index.hbs'), '{{!web index}}', 'utf8');
+      await writeFile(join(themeRoot, 'post.hbs'), '{{!web post}}', 'utf8');
+      await writeFile(join(themeRoot, 'email.hbs'), '<p>{{title}}</p>', 'utf8');
+      await writeFile(join(themeRoot, 'email-template.hbs'), '<p>{{excerpt}}</p>', 'utf8');
+      await writeFile(join(themeRoot, 'partials', 'email.hbs'), '<span>partial</span>', 'utf8');
+
+      const config = configSchema.parse({
+        theme: { name: 'newsletter', dir: 'themes' },
+        site: { title: 'Newsletter', url: 'https://newsletter.example.com' },
+      });
+
+      const theme = await loadTheme({ cwd, config });
+
+      expect(theme.templates.email).toBeUndefined();
+      expect(theme.templates['email-template']).toBeUndefined();
+      expect(theme.emailTemplates?.email).toBe('<p>{{title}}</p>');
+      expect(theme.emailTemplates?.['email-template']).toBe('<p>{{excerpt}}</p>');
+      expect(theme.partials.email).toBe('<span>partial</span>');
+    });
+  });
+
   // #855: themes shipped as npm packages live under node_modules/<spec>/
   // rather than `<cwd>/themes/<name>/`. The loader falls back to
   // `node_modules/<theme.dir>` when nothing exists at the local-directory

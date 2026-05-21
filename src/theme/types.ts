@@ -52,6 +52,7 @@ export interface ThemeBundle {
   name: string;
   rootDir: string;
   templates: Record<string, string>;
+  emailTemplates?: Record<string, string>;
   partials: Record<string, string>;
   pkg: ThemePackage;
   locales: ThemeLocaleMap;
