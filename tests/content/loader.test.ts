@@ -183,9 +183,9 @@ ${longPlaintext}
     const generated = graph.bySlug.posts.get('generated');
     const first50Words = numberedWords(50).join(' ');
     expect(generated?.custom_excerpt).toBeUndefined();
-    expect(generated?.plaintext).toBe(numberedWords(55).join(' '));
-    expect(generated?.plaintext).not.toContain('<strong>');
+    expect(generated).not.toHaveProperty('plaintext');
     expect(generated?.excerpt).toBe(first50Words);
+    expect(generated?.excerpt).not.toContain('<strong>');
     expect(/\s$/.test(generated?.excerpt ?? '')).toBe(false);
     expect(generated?.excerpt).not.toContain('w51');
 
@@ -236,7 +236,7 @@ Public outro.
     expect(post.html).not.toContain('Newsletter body secret');
     expect(post.html).not.toContain('Email CTA secret');
 
-    for (const field of [post.plaintext, post.excerpt, post.feed_html, post.feed_excerpt]) {
+    for (const field of [post.excerpt, post.feed_html, post.feed_excerpt]) {
       expect(field).toContain('Public intro');
       expect(field).toContain('Middle public copy');
       expect(field).toContain('Public outro');
@@ -600,7 +600,7 @@ codeinjection_foot: "<script>window.__author='casper'</script>"
 
     const cached = await loadContent({ cwd, config });
     expect(cached.bySlug.posts.get('hello')?.html).toBe('<p>cached hello</p>');
-    expect(cached.bySlug.posts.get('hello')?.plaintext).toBe('cached hello');
+    expect(cached.bySlug.posts.get('hello')).not.toHaveProperty('plaintext');
 
     await writeFile(
       join(cwd, 'content/posts/hello.md'),

@@ -1722,7 +1722,6 @@ function resolvePostRelations(
     locale: raw.locale,
     title: raw.title,
     html: raw.html,
-    plaintext: raw.plaintext,
     excerpt: raw.excerpt,
     custom_excerpt: raw.custom_excerpt,
     feature_image: raw.feature_image,

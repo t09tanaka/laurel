@@ -4,6 +4,7 @@ import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
+import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -267,7 +268,7 @@ function serializePost(post: Post): Record<string, unknown> {
     slug: post.slug,
     title: post.title,
     html: post.html,
-    plaintext: post.plaintext,
+    plaintext: htmlToPlaintext(post.html),
     excerpt: post.excerpt,
     custom_excerpt: post.custom_excerpt ?? null,
     feature_image: post.feature_image ?? null,
@@ -368,7 +369,7 @@ function serializeGhostPost(item: Post | Page, kind: 'post' | 'page'): Record<st
     slug: item.slug,
     mobiledoc: null,
     html: item.html,
-    plaintext: item.plaintext,
+    plaintext: 'plaintext' in item ? item.plaintext : htmlToPlaintext(item.html),
     feature_image: item.feature_image ?? null,
     featured: 'featured' in item ? item.featured : false,
     type: kind,

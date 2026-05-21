@@ -77,7 +77,6 @@ function makePost(overrides: Partial<Post> = {}): Post {
     slug: 'hello',
     title: 'Hello world',
     html: '<p>Hello handlebars world</p>',
-    plaintext: 'Hello handlebars world',
     excerpt: 'Hello handlebars world',
     custom_excerpt: undefined,
     feature_image: undefined,

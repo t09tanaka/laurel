@@ -1922,7 +1922,7 @@ function truthyShortcodeAttr(value: string | undefined): boolean {
   return value === 'true' || value === '1' || value === '';
 }
 
-function htmlToPlaintext(html: string): string {
+export function htmlToPlaintext(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')

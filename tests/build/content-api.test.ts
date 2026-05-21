@@ -78,7 +78,6 @@ function makePost(over: Partial<Post> = {}): Post {
     slug: 'hello-world',
     title: 'Hello, world',
     html: '<p>hi</p>',
-    plaintext: 'hi',
     excerpt: 'hi',
     custom_excerpt: undefined,
     feature_image: undefined,
@@ -842,7 +841,6 @@ name: News
     const post = makePost({
       visibility: 'members',
       html: '<p>secret members content</p>',
-      plaintext: 'secret members content',
       excerpt: 'secret excerpt',
     });
     const graph = makeGraph({ posts: [post] });

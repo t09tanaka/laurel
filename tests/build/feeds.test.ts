@@ -1514,7 +1514,6 @@ function makePost(over: Partial<Post> = {}): Post {
     slug: 'hello-world',
     title: 'Hello, world',
     html: '<p>hi</p>',
-    plaintext: 'hi',
     excerpt: 'hi',
     custom_excerpt: undefined,
     feature_image: undefined,

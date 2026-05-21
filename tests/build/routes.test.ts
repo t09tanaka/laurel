@@ -81,7 +81,6 @@ function makePost(slug: string, overrides: Partial<Post> = {}): Post {
     slug,
     title: slug,
     html: '',
-    plaintext: '',
     excerpt: '',
     custom_excerpt: undefined,
     feature_image: undefined,

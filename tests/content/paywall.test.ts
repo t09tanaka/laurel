@@ -131,7 +131,8 @@ describe('visibility_policy', () => {
     const gated = graph.posts.find((p) => p.slug === 'gated');
     expect(gated?.html).toContain('gh-paywall-stub');
     expect(gated?.html).not.toContain('one two');
-    expect(gated?.plaintext.split(/\s+/).filter(Boolean)).toHaveLength(0);
+    expect(gated?.word_count).toBe(0);
+    expect(gated).not.toHaveProperty('plaintext');
     expect(gated?.feed_html).toContain('gh-paywall-stub');
     expect(gated?.feed_html).not.toContain('one two');
   });
@@ -144,7 +145,8 @@ describe('visibility_policy', () => {
     });
     const graph = await loadContent({ cwd, config });
     const gated = graph.posts.find((p) => p.slug === 'gated');
-    expect(gated?.plaintext.split(/\s+/).filter(Boolean)).toHaveLength(5);
+    expect(gated?.word_count).toBe(5);
+    expect(gated).not.toHaveProperty('plaintext');
     expect(gated?.html).toContain('gh-paywall-stub');
   });
 

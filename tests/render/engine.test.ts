@@ -25,7 +25,6 @@ function makePost(overrides: Partial<Post> = {}): Post {
     slug: 'p1',
     title: 'A post',
     html: '',
-    plaintext: '',
     excerpt: '',
     custom_excerpt: undefined,
     feature_image: undefined,

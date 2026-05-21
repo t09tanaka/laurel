@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
@@ -404,7 +405,7 @@ function serializePost(
     slug: post.slug,
     title: post.title,
     html: isPublic ? rewriteHtmlAbsolute(post.html, urlBase) : '',
-    plaintext: isPublic ? post.plaintext : '',
+    plaintext: isPublic ? htmlToPlaintext(post.html) : '',
     excerpt: isPublic ? post.excerpt : '',
     custom_excerpt: post.custom_excerpt ?? null,
     feature_image: post.feature_image ?? null,

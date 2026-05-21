@@ -42,10 +42,10 @@ export interface RouteContext {
   data: {
     // Aggregate list of posts for `home` / `index` / `tag` / `author` routes.
     // Narrowed to `ListPost[]` so callers don't accidentally reach for the
-    // heavy per-post body fields (`html`, `plaintext`, `feed_html`,
-    // `feed_excerpt`) in list-card contexts — those only render correctly
-    // for the dedicated `post` / `page` routes. Themes that genuinely need
-    // the body in a list context should iterate `content.posts` directly.
+    // heavy per-post body fields (`html`, `feed_html`, `feed_excerpt`) in
+    // list-card contexts — those only render correctly for the dedicated
+    // `post` / `page` routes. Themes that genuinely need the body in a list
+    // context should iterate `content.posts` directly.
     // See `ListPost` in `~/content/model.ts` for the rationale and #524.
     posts?: ListPost[];
     pagination?: PaginationInfo;

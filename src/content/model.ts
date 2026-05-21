@@ -156,7 +156,6 @@ export interface Post {
   locale?: string;
   title: string;
   html: string;
-  plaintext: string;
   excerpt: string;
   custom_excerpt: string | undefined;
   feature_image: string | undefined;
@@ -326,7 +325,7 @@ export interface ContentGraph {
 // author archive) expose through `RouteContext.data.posts`. These routes
 // render their items through post-card partials (`{{#foreach posts}} ... {{/foreach}}`)
 // that only need metadata + the pre-computed `excerpt`; the heavy
-// per-post fields (`html`, `plaintext`, `feed_html`, `feed_excerpt`) are
+// per-post fields (`html`, `feed_html`, `feed_excerpt`) are
 // only required by the dedicated `post` / `page` routes that render the
 // full body. Narrowing the list shape at the type level keeps plugin
 // authors and downstream code from accidentally pulling the full HTML
@@ -340,7 +339,7 @@ export interface ContentGraph {
 // genuinely need the body in a list context (rare; e.g. RSS-style "full
 // post on home page" layouts) should iterate `content.posts` directly
 // instead of `route.data.posts`.
-export type ListPost = Omit<Post, 'html' | 'plaintext' | 'feed_html' | 'feed_excerpt'>;
+export type ListPost = Omit<Post, 'html' | 'feed_html' | 'feed_excerpt'>;
 
 // Even leaner shape for "card-only" use cases (recommendations, related
 // posts, sidebar widgets) where the renderer only needs the link, the
