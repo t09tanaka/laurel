@@ -18,6 +18,13 @@ export interface BuildStatsRoute {
   reused: boolean;
 }
 
+export interface BuildStatsHelperHotspot {
+  name: string;
+  calls: number;
+  totalDurationMs: number;
+  maxDurationMs: number;
+}
+
 export interface BuildStatsMemory {
   peakRssBytes: number;
   peakRssMiB: number;
@@ -34,9 +41,12 @@ export interface BuildStats {
   memory: BuildStatsMemory;
   phases: BuildStatsPhase[];
   routes: BuildStatsRoute[];
+  slowestRoutes: BuildStatsRoute[];
+  helperHotspots: BuildStatsHelperHotspot[];
 }
 
 export type StopFn = (extra?: { bytes?: number; reused?: boolean }) => void;
+export type HelperStopFn = () => void;
 
 export interface RouteTimerInput {
   url: string;
@@ -48,9 +58,12 @@ export interface RouteTimerInput {
 export interface Profiler {
   startPhase(name: string): StopFn;
   startRoute(route: RouteTimerInput): StopFn;
+  startHelper(name: string): HelperStopFn;
   readonly memory: BuildStatsMemory;
   readonly phases: readonly BuildStatsPhase[];
   readonly routes: readonly BuildStatsRoute[];
+  readonly slowestRoutes: readonly BuildStatsRoute[];
+  readonly helperHotspots: readonly BuildStatsHelperHotspot[];
   toJSON(summary: { outputDir: string; routeCount: number; assetCount: number }): BuildStats;
   dispose?: () => void;
 }
@@ -68,6 +81,10 @@ export function createProfiler(options: ProfilerOptions = {}): Profiler {
   const startedAt = performance.now();
   const phases: BuildStatsPhase[] = [];
   const routes: BuildStatsRoute[] = [];
+  const helpers = new Map<
+    string,
+    { calls: number; totalDurationMs: number; maxDurationMs: number }
+  >();
   const readRssBytes = options.readRssBytes ?? readProcessRssBytes;
   const memory = createMemorySampler(readRssBytes);
   memory.sample();
@@ -100,11 +117,28 @@ export function createProfiler(options: ProfilerOptions = {}): Profiler {
         });
       };
     },
+    startHelper(name) {
+      const t0 = performance.now();
+      return () => {
+        const durationMs = roundMs(performance.now() - t0);
+        const current = helpers.get(name) ?? { calls: 0, totalDurationMs: 0, maxDurationMs: 0 };
+        current.calls += 1;
+        current.totalDurationMs = roundMs(current.totalDurationMs + durationMs);
+        current.maxDurationMs = Math.max(current.maxDurationMs, durationMs);
+        helpers.set(name, current);
+      };
+    },
     get phases() {
       return phases;
     },
     get routes() {
       return routes;
+    },
+    get slowestRoutes() {
+      return topRoutes(routes);
+    },
+    get helperHotspots() {
+      return topHelpers(helpers);
     },
     get memory() {
       if (!disposed) memory.sample();
@@ -122,6 +156,8 @@ export function createProfiler(options: ProfilerOptions = {}): Profiler {
         memory: memory.toJSON(),
         phases: aggregatePhases(phases),
         routes: [...routes],
+        slowestRoutes: topRoutes(routes),
+        helperHotspots: topHelpers(helpers),
       };
     },
     dispose() {
@@ -183,6 +219,39 @@ function aggregatePhases(phases: readonly BuildStatsPhase[]): BuildStatsPhase[] 
     totals.set(phase.name, (totals.get(phase.name) ?? 0) + phase.durationMs);
   }
   return order.map((name) => ({ name, durationMs: roundMs(totals.get(name) ?? 0) }));
+}
+
+function topRoutes(routes: readonly BuildStatsRoute[], limit = 5): BuildStatsRoute[] {
+  return [...routes]
+    .sort(
+      (a, b) =>
+        b.durationMs - a.durationMs ||
+        b.bytes - a.bytes ||
+        a.url.localeCompare(b.url) ||
+        a.outputPath.localeCompare(b.outputPath),
+    )
+    .slice(0, limit);
+}
+
+function topHelpers(
+  helpers: ReadonlyMap<string, { calls: number; totalDurationMs: number; maxDurationMs: number }>,
+  limit = 5,
+): BuildStatsHelperHotspot[] {
+  return [...helpers.entries()]
+    .map(([name, stats]) => ({
+      name,
+      calls: stats.calls,
+      totalDurationMs: roundMs(stats.totalDurationMs),
+      maxDurationMs: roundMs(stats.maxDurationMs),
+    }))
+    .sort(
+      (a, b) =>
+        b.totalDurationMs - a.totalDurationMs ||
+        b.calls - a.calls ||
+        b.maxDurationMs - a.maxDurationMs ||
+        a.name.localeCompare(b.name),
+    )
+    .slice(0, limit);
 }
 
 function roundMs(ms: number): number {

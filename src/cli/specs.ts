@@ -35,7 +35,7 @@ export const BUILD_SPEC: CommandSpec = {
     profile: {
       type: 'boolean',
       description:
-        'Write dist/.nectar-build-stats.json with phase timings, per-route render durations, and peak RSS for diagnosing slow or memory-heavy builds',
+        'Write dist/.nectar-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds',
     },
     atomic: {
       type: 'boolean',

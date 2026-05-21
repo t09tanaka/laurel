@@ -388,7 +388,11 @@ describe('nectar build --profile', () => {
       memory: { peakRssBytes: number; peakRssMiB: number; samples: number };
       phases: Array<{ name: string }>;
       routes: Array<{ url: string; outputPath: string; template: string; durationMs: number }>;
+      slowestRoutes: Array<{ url: string; outputPath: string; durationMs: number }>;
+      helperHotspots: Array<{ name: string; calls: number; totalDurationMs: number }>;
     };
+    expect(result.stdout).toContain('Slowest routes:');
+    expect(result.stdout).toContain('Helper hotspots:');
     expect(stats.memory.peakRssBytes).toBeGreaterThan(0);
     expect(stats.memory.peakRssMiB).toBeGreaterThan(0);
     expect(stats.memory.samples).toBeGreaterThan(0);
@@ -401,6 +405,16 @@ describe('nectar build --profile', () => {
       outputPath: expect.any(String),
       template: expect.any(String),
       durationMs: expect.any(Number),
+    });
+    expect(stats.slowestRoutes[0]).toMatchObject({
+      url: expect.any(String),
+      outputPath: expect.any(String),
+      durationMs: expect.any(Number),
+    });
+    expect(stats.helperHotspots[0]).toMatchObject({
+      name: expect.any(String),
+      calls: expect.any(Number),
+      totalDurationMs: expect.any(Number),
     });
   });
 

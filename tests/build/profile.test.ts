@@ -56,6 +56,42 @@ describe('createProfiler', () => {
     expect(p.routes[0]?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
+  test('summarises slowest routes and helper hotspots', () => {
+    const p = createProfiler();
+    p.startRoute({
+      url: '/fast/',
+      outputPath: 'fast/index.html',
+      template: 'post.hbs',
+      kind: 'post',
+    })({ bytes: 100, reused: false });
+    p.startRoute({
+      url: '/slow/',
+      outputPath: 'slow/index.html',
+      template: 'post.hbs',
+      kind: 'post',
+    })({ bytes: 100, reused: false });
+    p.startHelper('content')();
+    p.startHelper('content')();
+    p.startHelper('url')();
+
+    const stats = p.toJSON({ outputDir: '/tmp/dist', routeCount: 2, assetCount: 0 });
+
+    expect(stats.slowestRoutes).toHaveLength(2);
+    expect(stats.slowestRoutes.map((route) => route.url)).toEqual(
+      expect.arrayContaining(['/fast/', '/slow/']),
+    );
+    expect(stats.helperHotspots[0]).toMatchObject({
+      name: 'content',
+      calls: 2,
+      totalDurationMs: expect.any(Number),
+      maxDurationMs: expect.any(Number),
+    });
+    expect(stats.helperHotspots[1]).toMatchObject({
+      name: 'url',
+      calls: 1,
+    });
+  });
+
   test('aggregates repeated phase names in the JSON shape', () => {
     const p = createProfiler();
     p.startPhase('load')();
@@ -101,5 +137,7 @@ describe('writeProfile', () => {
     });
     expect(parsed).toHaveProperty('phases');
     expect(parsed).toHaveProperty('routes');
+    expect(parsed).toHaveProperty('slowestRoutes');
+    expect(parsed).toHaveProperty('helperHotspots');
   });
 });

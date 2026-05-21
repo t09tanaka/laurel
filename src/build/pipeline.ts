@@ -115,7 +115,14 @@ import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
 import { loadPreservePatterns } from './preserve.ts';
-import { type Profiler, buildStatsPath, createProfiler, writeProfile } from './profile.ts';
+import {
+  type BuildStatsHelperHotspot,
+  type BuildStatsRoute,
+  type Profiler,
+  buildStatsPath,
+  createProfiler,
+  writeProfile,
+} from './profile.ts';
 import { rasterizeOgImages } from './rasterize-og-images.ts';
 import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
@@ -255,6 +262,8 @@ export interface BuildSummary {
   // Populated only when dryRun is true; lets the CLI print a per-route table
   // under --verbose without re-walking the route plan.
   routes?: DryRunRouteSummary[];
+  slowestRoutes?: BuildStatsRoute[];
+  helperHotspots?: BuildStatsHelperHotspot[];
 }
 
 async function timed<T>(
@@ -545,7 +554,7 @@ async function runBuild({
       const favicons = computeFavicons({ config, theme, cwd });
       notifyProgressStatus(progress, 'content', 'Compiling templates…');
       const engine = await timed(profiler, 'compile_templates', () =>
-        createEngine({ config, content, theme, favicons, cwd }),
+        createEngine({ config, content, theme, favicons, cwd, profiler }),
       );
       return {
         routesYaml,
@@ -1004,6 +1013,8 @@ async function runBuild({
       uniqueAssets.add(`${asset.sourcePath}|${asset.fingerprintedPath}`);
     }
     const peakRssBytes = profiler?.memory.peakRssBytes;
+    const slowestRoutes = profiler?.slowestRoutes;
+    const helperHotspots = profiler?.helperHotspots;
     profiler?.dispose?.();
     return {
       outputDir: finalOutputDir,
@@ -1015,6 +1026,10 @@ async function runBuild({
       skippedCount,
       dryRun: true,
       routes: dryRunRoutes,
+      ...(slowestRoutes && slowestRoutes.length > 0 ? { slowestRoutes: [...slowestRoutes] } : {}),
+      ...(helperHotspots && helperHotspots.length > 0
+        ? { helperHotspots: [...helperHotspots] }
+        : {}),
     };
   }
 
@@ -1449,7 +1464,11 @@ async function runBuild({
 
   const profilePath = profiler ? buildStatsPath(finalOutputDir) : undefined;
   let peakRssBytes: number | undefined;
+  let slowestRoutes: readonly BuildStatsRoute[] | undefined;
+  let helperHotspots: readonly BuildStatsHelperHotspot[] | undefined;
   if (profiler) {
+    slowestRoutes = profiler.slowestRoutes;
+    helperHotspots = profiler.helperHotspots;
     await writeProfile(outputDir, profiler, {
       outputDir: finalOutputDir,
       routeCount: routes.length,
@@ -1510,6 +1529,8 @@ async function runBuild({
     assetCount,
     ...(profilePath ? { profilePath } : {}),
     ...(peakRssBytes !== undefined ? { peakRssBytes } : {}),
+    ...(slowestRoutes && slowestRoutes.length > 0 ? { slowestRoutes: [...slowestRoutes] } : {}),
+    ...(helperHotspots && helperHotspots.length > 0 ? { helperHotspots: [...helperHotspots] } : {}),
     warningCount: getWarningCount(),
     renderedCount,
     skippedCount,

@@ -162,6 +162,8 @@ export async function runBuild(args: string[]): Promise<number> {
         renderedCount: summary.renderedCount,
         skippedCount: summary.skippedCount,
         dryRun: summary.dryRun === true,
+        slowestRoutes: summary.slowestRoutes,
+        helperHotspots: summary.helperHotspots,
       };
       process.stdout.write(`${JSON.stringify(payload)}\n`);
       return;
@@ -181,6 +183,12 @@ export async function runBuild(args: string[]): Promise<number> {
     }
     if (summary.peakRssBytes !== undefined) {
       logger.info(t('build.peakRss', { peakRss: formatBytes(summary.peakRssBytes) }));
+    }
+    if (summary.slowestRoutes && summary.slowestRoutes.length > 0) {
+      logger.info(formatSlowestRoutes(summary.slowestRoutes));
+    }
+    if (summary.helperHotspots && summary.helperHotspots.length > 0) {
+      logger.info(formatHelperHotspots(summary.helperHotspots));
     }
     if (summary.dryRun && summary.routes && isVerbose()) {
       logger.info(formatDryRunRouteTable(summary.routes));
@@ -377,6 +385,31 @@ function formatBytes(bytes: number): string {
 
 function roundToOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function formatDurationMs(ms: number): string {
+  if (ms >= 1000) return `${roundToOneDecimal(ms / 1000)}s`;
+  return `${roundToOneDecimal(ms)}ms`;
+}
+
+function formatSlowestRoutes(routes: NonNullable<BuildSummary['slowestRoutes']>): string {
+  const lines = ['Slowest routes:'];
+  for (const route of routes) {
+    lines.push(
+      `  ${formatDurationMs(route.durationMs).padStart(7)}  ${route.url} (${route.template})`,
+    );
+  }
+  return lines.join('\n');
+}
+
+function formatHelperHotspots(hotspots: NonNullable<BuildSummary['helperHotspots']>): string {
+  const lines = ['Helper hotspots:'];
+  for (const helper of hotspots) {
+    lines.push(
+      `  ${formatDurationMs(helper.totalDurationMs).padStart(7)}  ${helper.name} (${helper.calls} calls, max ${formatDurationMs(helper.maxDurationMs)})`,
+    );
+  }
+  return lines.join('\n');
 }
 
 function parseConcurrency(raw: string): number | CliUsageError {

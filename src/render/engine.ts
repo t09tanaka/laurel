@@ -1,6 +1,7 @@
 import Handlebars from 'handlebars';
 import slugify from 'slugify';
 import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
+import type { Profiler } from '~/build/profile.ts';
 import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
@@ -81,8 +82,10 @@ export function createEngine(opts: {
   theme: ThemeBundle;
   favicons?: FaviconSet;
   cwd?: string;
+  profiler?: Profiler | null;
 }): NectarEngine {
   const hb = Handlebars.create();
+  installHelperProfiling(hb, opts.profiler ?? null);
   installSourceAwareHelperErrors(hb);
   const templateBodies: Record<string, string> = {};
   const templateBodyOffsets: Record<string, number> = {};
@@ -140,6 +143,39 @@ export function createEngine(opts: {
 
   registerHelpers(engine);
   return engine;
+}
+
+function installHelperProfiling(hb: typeof Handlebars, profiler: Profiler | null): void {
+  if (!profiler) return;
+  const registerHelper = hb.registerHelper.bind(hb);
+  hb.registerHelper = ((nameOrHash: string | Handlebars.HelperDeclareSpec, fn?: HelperFunction) => {
+    if (typeof nameOrHash === 'string' && typeof fn === 'function') {
+      return registerHelper(nameOrHash, wrapProfiledHelper(profiler, nameOrHash, fn));
+    }
+    if (nameOrHash && typeof nameOrHash === 'object' && fn === undefined) {
+      const wrapped: Handlebars.HelperDeclareSpec = {};
+      for (const [name, helper] of Object.entries(nameOrHash)) {
+        wrapped[name] =
+          typeof helper === 'function' ? wrapProfiledHelper(profiler, name, helper) : helper;
+      }
+      return registerHelper(wrapped);
+    }
+    if (typeof nameOrHash === 'string' && fn) return registerHelper(nameOrHash, fn);
+    return registerHelper(nameOrHash as Handlebars.HelperDeclareSpec);
+  }) as typeof hb.registerHelper;
+}
+
+type HelperFunction = Handlebars.HelperDelegate;
+
+function wrapProfiledHelper(profiler: Profiler, name: string, fn: HelperFunction): HelperFunction {
+  return function profiledHelper(this: unknown, ...args: unknown[]) {
+    const stop = profiler.startHelper(name);
+    try {
+      return fn.apply(this, args as Parameters<HelperFunction>);
+    } finally {
+      stop();
+    }
+  };
 }
 
 function registerPartials(
