@@ -16,15 +16,17 @@ Commands:
   doctor            Run health checks on the project (bun, config, theme, content, network)
   diagnostics       Create support-safe diagnostics bundles
   clean             Remove dist/ and .nectar-cache build artifacts
+  cache             Inspect or remove the local .nectar-cache directory
   completions       Print or install a shell completion script
   config            Inspect or update the loaded Nectar config
   schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json
   content           Inspect or modify content in the project (posts, pages)
+  redirects         Inspect redirect rules loaded from redirects.yaml and Ghost exports
   info              Print Nectar, Bun, and project environment information
   lint              Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
   fmt               Format content Markdown frontmatter in place
   tags              Inspect or modify tags in the project
-  authors           Inspect authors in the project
+  authors           Inspect or modify authors in the project
   theme             Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
   migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
   deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync

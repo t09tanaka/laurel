@@ -325,6 +325,22 @@ export const SERVE_SPEC: CommandSpec = {
         'Compress local responses when the client supports it. Use auto to prefer br then gzip; default is none',
       placeholder: '<auto|gzip|br|none>',
     },
+    proxy: {
+      type: 'string',
+      description:
+        'Proxy missing Content API requests (/ghost/api/* and /content/*) to this upstream base URL',
+      placeholder: '<api-base>',
+    },
+    'tls-cert': {
+      type: 'string',
+      description: 'Path to a local TLS certificate PEM for serving https:// previews',
+      placeholder: '<file>',
+    },
+    'tls-key': {
+      type: 'string',
+      description: 'Path to the matching local TLS private key PEM',
+      placeholder: '<file>',
+    },
     json: {
       type: 'boolean',
       description:
@@ -338,6 +354,8 @@ export const SERVE_SPEC: CommandSpec = {
     'nectar serve --open                          # open the local preview in a browser',
     'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
     'nectar serve --compression auto              # enable br/gzip negotiation',
+    'nectar serve --proxy https://ghost.example.com',
+    'nectar serve --tls-cert cert.pem --tls-key key.pem',
     'nectar serve --build                         # build first, then serve',
     'nectar serve --port 8080 --host 0.0.0.0',
   ],
@@ -785,6 +803,34 @@ export const CLEAN_SPEC: CommandSpec = {
   ],
 };
 
+export const CACHE_SPEC: CommandSpec = {
+  name: 'cache',
+  summary: 'Inspect or remove the local .nectar-cache directory',
+  options: {
+    'dry-run': {
+      type: 'boolean',
+      description: 'For `clean`: print what would be removed without deleting the cache',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit cache path, stats, or clean result as JSON',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`dir` (print cache path), `stats` (file count and bytes), or `clean`',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar cache dir',
+    'nectar cache stats --json',
+    'nectar cache clean --dry-run',
+    'nectar cache clean',
+  ],
+};
+
 export const COMPLETIONS_SPEC: CommandSpec = {
   name: 'completions',
   summary: 'Print or install a shell completion script',
@@ -920,6 +966,34 @@ export const CONTENT_SPEC: CommandSpec = {
   ],
 };
 
+export const REDIRECTS_SPEC: CommandSpec = {
+  name: 'redirects',
+  summary: 'Inspect redirect rules loaded from redirects.yaml and Ghost exports',
+  options: {
+    collapsed: {
+      type: 'boolean',
+      description:
+        'Show the first-match rule set after dropping later duplicate source paths (`list` only)',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Emit redirect validation or inventory as JSON',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`list` (print redirect rules) or `validate` (parse and report duplicates)',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar redirects list',
+    'nectar redirects list --collapsed --json',
+    'nectar redirects validate',
+  ],
+};
+
 export const INFO_SPEC: CommandSpec = {
   name: 'info',
   summary: 'Print Nectar, Bun, and project environment information',
@@ -990,7 +1064,7 @@ export const TAGS_SPEC: CommandSpec = {
 
 export const AUTHORS_SPEC: CommandSpec = {
   name: 'authors',
-  summary: 'Inspect authors in the project',
+  summary: 'Inspect or modify authors in the project',
   options: {
     config: {
       type: 'string',
@@ -1004,13 +1078,18 @@ export const AUTHORS_SPEC: CommandSpec = {
     },
     json: {
       type: 'boolean',
-      description: 'Emit results as JSON for CI consumption (`list` only)',
+      description: 'Emit results as JSON for CI consumption (`list` and `rename`)',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'On `rename`: scan and report the files that would change without writing anything',
     },
   },
   positionals: [
     {
       name: 'subcommand',
-      description: '`list` (show authors and post counts)',
+      description: '`list` (show authors and post counts) or `rename <old-slug> <new-slug>`',
       required: true,
       variadic: true,
     },
@@ -1019,6 +1098,8 @@ export const AUTHORS_SPEC: CommandSpec = {
     'nectar authors list                          # all authors + post counts',
     'nectar authors list --orphaned               # authors defined but unused by posts',
     'nectar authors list --json                   # machine-readable author inventory',
+    'nectar authors rename old-author new-author',
+    'nectar authors rename old new --dry-run       # preview files that would change',
   ],
 };
 
@@ -1541,10 +1622,12 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   doctor: DOCTOR_SPEC,
   diagnostics: DIAGNOSTICS_SPEC,
   clean: CLEAN_SPEC,
+  cache: CACHE_SPEC,
   completions: COMPLETIONS_SPEC,
   config: CONFIG_SPEC,
   schema: SCHEMA_SPEC,
   content: CONTENT_SPEC,
+  redirects: REDIRECTS_SPEC,
   info: INFO_SPEC,
   lint: LINT_SPEC,
   fmt: FMT_SPEC,

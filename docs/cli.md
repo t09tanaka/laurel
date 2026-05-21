@@ -172,15 +172,17 @@ when prompts are enabled.
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
 | [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
+| [`nectar cache`](#nectar-cache) | Inspect or remove the local .nectar-cache directory |
 | [`nectar completions`](#nectar-completions) | Print or install a shell completion script |
 | [`nectar config`](#nectar-config) | Inspect or update the loaded Nectar config |
 | [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
+| [`nectar redirects`](#nectar-redirects) | Inspect redirect rules loaded from redirects.yaml and Ghost exports |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
 | [`nectar lint`](#nectar-lint) | Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter) |
 | [`nectar fmt`](#nectar-fmt) | Format content Markdown frontmatter in place |
 | [`nectar tags`](#nectar-tags) | Inspect or modify tags in the project |
-| [`nectar authors`](#nectar-authors) | Inspect authors in the project |
+| [`nectar authors`](#nectar-authors) | Inspect or modify authors in the project |
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
@@ -437,7 +439,7 @@ Serve the built site as a local preview server; not for production hosting
 Usage:
 
 ```
-nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--compression <auto|gzip|br|none>] [--json]
+nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--compression <auto|gzip|br|none>] [--proxy <api-base>] [--tls-cert <file>] [--tls-key <file>] [--json]
 ```
 
 Options:
@@ -452,6 +454,9 @@ Options:
 | `--open` | boolean | `NECTAR_SERVE_OPEN` | Open the served URL in the default browser after the server starts |
 | `--simulate <target>` | string | `NECTAR_SERVE_SIMULATE` | Simulate deploy-target redirects and headers from emitted artifacts while serving locally. Supported targets: netlify, cloudflare-pages, vercel |
 | `--compression <auto\|gzip\|br\|none>` | string | `NECTAR_SERVE_COMPRESSION` | Compress local responses when the client supports it. Use auto to prefer br then gzip; default is none |
+| `--proxy <api-base>` | string | `NECTAR_SERVE_PROXY` | Proxy missing Content API requests (/ghost/api/* and /content/*) to this upstream base URL |
+| `--tls-cert <file>` | string | `NECTAR_SERVE_TLS_CERT` | Path to a local TLS certificate PEM for serving https:// previews |
+| `--tls-key <file>` | string | `NECTAR_SERVE_TLS_KEY` | Path to the matching local TLS private key PEM |
 | `-j, --json` | boolean | `NECTAR_SERVE_JSON` | Switch logger output (rebuild events / lifecycle) to one JSON object per line for CI / log forwarders |
 
 Examples:
@@ -462,6 +467,8 @@ nectar serve --no-watch                      # serve dist/ as a static snapshot
 nectar serve --open                          # open the local preview in a browser
 nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally
 nectar serve --compression auto              # enable br/gzip negotiation
+nectar serve --proxy https://ghost.example.com
+nectar serve --tls-cert cert.pem --tls-key key.pem
 nectar serve --build                         # build first, then serve
 nectar serve --port 8080 --host 0.0.0.0
 ```
@@ -588,6 +595,38 @@ nectar clean                                 # interactive; asks before deleting
 nectar clean --yes                           # non-interactive (CI/scripts)
 nectar clean --dry-run                       # show what would be removed
 nectar clean --keep dist/.well-known --yes   # preserve specific paths
+```
+
+### `nectar cache`
+
+Inspect or remove the local .nectar-cache directory
+
+Usage:
+
+```
+nectar cache [--dry-run] [--json] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | `dir` (print cache path), `stats` (file count and bytes), or `clean` |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--dry-run` | boolean | `NECTAR_CACHE_DRY_RUN` | For `clean`: print what would be removed without deleting the cache |
+| `-j, --json` | boolean | `NECTAR_CACHE_JSON` | Emit cache path, stats, or clean result as JSON |
+
+Examples:
+
+```
+nectar cache dir
+nectar cache stats --json
+nectar cache clean --dry-run
+nectar cache clean
 ```
 
 ### `nectar completions`
@@ -740,6 +779,37 @@ nectar content touch hello-world --date 2026-01-02T03:04:05Z
 nectar content touch about --kind pages --published
 ```
 
+### `nectar redirects`
+
+Inspect redirect rules loaded from redirects.yaml and Ghost exports
+
+Usage:
+
+```
+nectar redirects [--collapsed] [--json] <subcommand>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | `list` (print redirect rules) or `validate` (parse and report duplicates) |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--collapsed` | boolean | `NECTAR_REDIRECTS_COLLAPSED` | Show the first-match rule set after dropping later duplicate source paths (`list` only) |
+| `-j, --json` | boolean | `NECTAR_REDIRECTS_JSON` | Emit redirect validation or inventory as JSON |
+
+Examples:
+
+```
+nectar redirects list
+nectar redirects list --collapsed --json
+nectar redirects validate
+```
+
 ### `nectar info`
 
 Print Nectar, Bun, and project environment information
@@ -855,19 +925,19 @@ nectar tags merge draft old canonical --dry-run
 
 ### `nectar authors`
 
-Inspect authors in the project
+Inspect or modify authors in the project
 
 Usage:
 
 ```
-nectar authors [--config <path>] [--orphaned] [--json] <subcommand...>
+nectar authors [--config <path>] [--orphaned] [--json] [--dry-run] <subcommand...>
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<subcommand...>` | required (variadic) | `list` (show authors and post counts) |
+| `<subcommand...>` | required (variadic) | `list` (show authors and post counts) or `rename <old-slug> <new-slug>` |
 
 Options:
 
@@ -875,7 +945,8 @@ Options:
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_AUTHORS_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
 | `--orphaned` | boolean | `NECTAR_AUTHORS_ORPHANED` | Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only) |
-| `-j, --json` | boolean | `NECTAR_AUTHORS_JSON` | Emit results as JSON for CI consumption (`list` only) |
+| `-j, --json` | boolean | `NECTAR_AUTHORS_JSON` | Emit results as JSON for CI consumption (`list` and `rename`) |
+| `--dry-run` | boolean | `NECTAR_AUTHORS_DRY_RUN` | On `rename`: scan and report the files that would change without writing anything |
 
 Examples:
 
@@ -883,6 +954,8 @@ Examples:
 nectar authors list                          # all authors + post counts
 nectar authors list --orphaned               # authors defined but unused by posts
 nectar authors list --json                   # machine-readable author inventory
+nectar authors rename old-author new-author
+nectar authors rename old new --dry-run       # preview files that would change
 ```
 
 ### `nectar theme`

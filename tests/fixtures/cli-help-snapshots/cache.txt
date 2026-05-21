@@ -1,0 +1,31 @@
+Inspect or remove the local .nectar-cache directory
+
+Usage:
+  nectar cache [--dry-run] [--json] <subcommand>
+
+Arguments:
+  subcommand          `dir` (print cache path), `stats` (file count and bytes), or `clean`
+
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
+Options:
+  --dry-run           For `clean`: print what would be removed without deleting the cache
+  -j, --json          Emit cache path, stats, or clean result as JSON
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --dry-run → NECTAR_CACHE_DRY_RUN
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar cache dir
+  nectar cache stats --json
+  nectar cache clean --dry-run
+  nectar cache clean

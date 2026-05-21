@@ -26,7 +26,16 @@ import { buildVersionJson } from './version.ts';
 
 installSourceMapStackTraceSupport();
 
-const COMMAND_ALIASES: Record<string, string> = { completion: 'completions', env: 'info' };
+const COMMAND_ALIASES: Record<string, string> = {
+  b: 'build',
+  c: 'check',
+  completion: 'completions',
+  d: 'dev',
+  env: 'info',
+  n: 'new',
+  s: 'serve',
+  t: 'test',
+};
 const SUGGESTABLE_COMMAND_NAMES = [...COMMAND_NAMES, 'version', 'help'];
 
 // Crash hooks: a stray `await` or floating promise that rejects in the build
@@ -237,6 +246,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runClean } = await import('./commands/clean.js');
       return runClean(rest);
     }
+    case 'cache': {
+      const { runCache } = await import('./commands/cache.js');
+      return runCache(rest);
+    }
     case 'completions': {
       const { runCompletions } = await import('./commands/completions.js');
       return runCompletions(rest);
@@ -244,6 +257,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
     case 'content': {
       const { runContent } = await import('./commands/content.js');
       return runContent(rest);
+    }
+    case 'redirects': {
+      const { runRedirects } = await import('./commands/redirects.js');
+      return runRedirects(rest);
     }
     case 'info': {
       const { runInfo } = await import('./commands/info.js');

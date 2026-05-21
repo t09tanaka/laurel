@@ -1,0 +1,14 @@
+{
+  "name": "Nectar",
+  "image": "oven/bun:1.3",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["biomejs.biome", "oven.bun-vscode", "tamasfe.even-better-toml"]
+    }
+  },
+  "postCreateCommand": "bun install --frozen-lockfile",
+  "remoteUser": "bun"
+}

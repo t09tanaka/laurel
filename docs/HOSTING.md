@@ -69,6 +69,12 @@ collects the operator-facing pieces of that contract in one place:
   uploading `dist/` to a Bunny Storage Zone and serving it through a connected
   Pull Zone. Nectar does not currently emit Bunny-specific deploy artifacts or
   provide `nectar deploy bunny`.
+- [`docs/deploy/fastly.md`](./deploy/fastly.md) — Fastly CDN quickstart for
+  placing Fastly in front of a static origin that serves `dist/`, including
+  cache, header, redirect, and purge ownership notes.
+- [`docs/deploy/surge.md`](./deploy/surge.md) — Surge quickstart for publishing
+  `dist/` with the Surge CLI, custom domain notes, and the current lack of
+  Surge-specific generated headers / redirects.
 - [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
   for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
   the generated server block from the main nginx config.

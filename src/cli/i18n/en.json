@@ -79,10 +79,13 @@
   "serve.invalidHost": "Invalid --host value: cannot be empty",
   "serve.invalidCompression": "Invalid --compression value: {value} (expected auto, gzip, br, or none)",
   "serve.invalidPort": "Invalid --port value: {value} (expected an integer in 1..65535)",
+  "serve.invalidProxy": "Invalid --proxy value: {value} (expected an http(s) URL)",
   "serve.invalidSimulate": "Invalid --simulate value: {value} (expected netlify, cloudflare-pages, or vercel)",
+  "serve.tlsPairRequired": "--tls-cert and --tls-key must be provided together.",
+  "serve.tlsReadFailed": "Failed to read TLS certificate or key: {message}",
   "serve.noBuildOutput": "No build output at {distDir}; running an initial build before serving.",
   "serve.portInUse": "Port {port} is in use; try --port {nextPort}",
   "serve.rebuilt": "Rebuilt {routeCount} routes ({assetCount} assets); pushing reload to {clientCount} client(s)",
-  "serve.serving": "Serving {distDir} on http://{host}:{port}{basePath} (bound to {hostname}; local preview only, not for production hosting)",
+  "serve.serving": "Serving {distDir} on {scheme}://{host}:{port}{basePath} (bound to {hostname}; local preview only, not for production hosting)",
   "serve.simulating": "Simulating {target} deploy artifacts: {headers} header rule(s), {redirects} redirect rule(s)"
 }

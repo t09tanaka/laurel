@@ -145,6 +145,13 @@ describe('cli dispatch', () => {
     expect(stderr).not.toContain('Did you mean');
   });
 
+  test('short cargo-style command aliases dispatch to their canonical commands', async () => {
+    const { stdout, stderr, exitCode } = await runCli(['b', '--help']);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Build the site');
+  });
+
   test('build --help prints subcommand help', async () => {
     const { stdout, exitCode } = await runCli(['build', '--help']);
     expect(exitCode).toBe(0);

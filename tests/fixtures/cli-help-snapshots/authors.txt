@@ -1,10 +1,10 @@
-Inspect authors in the project
+Inspect or modify authors in the project
 
 Usage:
-  nectar authors [--config <path>] [--orphaned] [--json] <subcommand...>
+  nectar authors [--config <path>] [--orphaned] [--json] [--dry-run] <subcommand...>
 
 Arguments:
-  subcommand          `list` (show authors and post counts)
+  subcommand          `list` (show authors and post counts) or `rename <old-slug> <new-slug>`
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
@@ -12,7 +12,8 @@ End of options:
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   --orphaned          Show only authors that are defined under content/authors/ but referenced by zero posts (`list` only)
-  -j, --json          Emit results as JSON for CI consumption (`list` only)
+  -j, --json          Emit results as JSON for CI consumption (`list` and `rename`)
+  --dry-run           On `rename`: scan and report the files that would change without writing anything
   -h, --help          Show help for this command
 
 Environment variables:
@@ -29,3 +30,5 @@ Examples:
   nectar authors list                          # all authors + post counts
   nectar authors list --orphaned               # authors defined but unused by posts
   nectar authors list --json                   # machine-readable author inventory
+  nectar authors rename old-author new-author
+  nectar authors rename old new --dry-run       # preview files that would change

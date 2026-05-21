@@ -111,6 +111,9 @@ describe('cli serve — host binding', () => {
     expect(stdout).toContain('--host <host>');
     expect(stdout).toContain('127.0.0.1');
     expect(stdout).toContain('0.0.0.0');
+    expect(stdout).toContain('--proxy <api-base>');
+    expect(stdout).toContain('--tls-cert <file>');
+    expect(stdout).toContain('--tls-key <file>');
     expect(stdout).toContain('local preview server');
     expect(stdout).toContain('not for production hosting');
   });
@@ -163,6 +166,40 @@ describe('cli serve — host binding', () => {
     } finally {
       blocker.stop(true);
     }
+  });
+});
+
+describe('cli serve — proxy and TLS validation', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeServeFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('rejects non-http proxy URLs before starting the server', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['serve', '--proxy', 'file:///tmp/api', '--no-watch'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --proxy');
+  });
+
+  test('requires TLS cert and key together', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['serve', '--tls-cert', 'cert.pem', '--no-watch'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--tls-cert and --tls-key');
+  });
+
+  test('formats https preview URLs when TLS is enabled', () => {
+    expect(formatServeUrl('localhost', 4321, '/', 'https')).toBe('https://localhost:4321/');
   });
 });
 

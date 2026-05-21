@@ -54,6 +54,10 @@ const SERVE_CONTENT_TYPES_BY_EXTENSION = new Map<string, string>([
 export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
 export type ServeCompressionMode = 'auto' | 'gzip' | 'br' | 'none';
 export type BrowserOpener = (command: string[]) => void;
+interface ServeTlsOptions {
+  cert: string;
+  key: string;
+}
 
 export interface ServeRunOptions {
   openBrowser?: BrowserOpener;
@@ -93,6 +97,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
     return 0;
   }
 
+  const cwd = process.cwd();
   let port = DEFAULT_PORT;
   const explicitPort = typeof parsed.values.port === 'string';
   if (typeof parsed.values.port === 'string') {
@@ -145,10 +150,44 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
     compression = parsedCompression;
   }
 
+  let proxyBase: URL | undefined;
+  if (typeof parsed.values.proxy === 'string') {
+    try {
+      proxyBase = new URL(parsed.values.proxy);
+    } catch {
+      process.stderr.write(`${t('serve.invalidProxy', { value: parsed.values.proxy })}\n`);
+      return 2;
+    }
+    if (proxyBase.protocol !== 'http:' && proxyBase.protocol !== 'https:') {
+      process.stderr.write(`${t('serve.invalidProxy', { value: parsed.values.proxy })}\n`);
+      return 2;
+    }
+  }
+
+  const rawTlsCert = typeof parsed.values['tls-cert'] === 'string' ? parsed.values['tls-cert'] : '';
+  const rawTlsKey = typeof parsed.values['tls-key'] === 'string' ? parsed.values['tls-key'] : '';
+  let tls: ServeTlsOptions | undefined;
+  if (rawTlsCert || rawTlsKey) {
+    if (!rawTlsCert || !rawTlsKey) {
+      process.stderr.write(`${t('serve.tlsPairRequired')}\n`);
+      return 2;
+    }
+    try {
+      tls = {
+        cert: await readFile(resolve(cwd, rawTlsCert), 'utf8'),
+        key: await readFile(resolve(cwd, rawTlsKey), 'utf8'),
+      };
+    } catch (err) {
+      process.stderr.write(
+        `${t('serve.tlsReadFailed', { message: err instanceof Error ? err.message : String(err) })}\n`,
+      );
+      return 2;
+    }
+  }
+
   const watchMode = parsed.values.watch !== false;
   const forceBuild = parsed.values.build === true;
   const openOnStart = parsed.values.open === true;
-  const cwd = process.cwd();
   const config = await loadConfig({ cwd });
   const distDir = join(cwd, config.build.output_dir);
 
@@ -213,6 +252,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
         },
         message() {},
       },
+      tls,
       fetch: async (request, srv) => {
         const startedAt = performance.now();
         let status = 500;
@@ -299,6 +339,9 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               ),
             );
           }
+          if (proxyBase !== undefined && isProxyableServePath(url.pathname)) {
+            return finish(await proxyServeRequest(request, proxyBase));
+          }
           const fallbackPath = resolve(serveRoot, '404.html');
           const fallback = Bun.file(fallbackPath);
           if (await fallback.exists()) {
@@ -360,9 +403,16 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   // instead of a 404 at the bare host:port root.
   const basePath = config.build.base_path || '/';
   const announcedPort = server.port ?? port;
-  const servedUrl = formatServeUrl(displayHost, announcedPort, basePath);
+  const servedUrl = formatServeUrl(displayHost, announcedPort, basePath, tls ? 'https' : 'http');
   logger.info(
-    t('serve.serving', { distDir, host: displayHost, port: announcedPort, basePath, hostname }),
+    t('serve.serving', {
+      distDir,
+      scheme: tls ? 'https' : 'http',
+      host: displayHost,
+      port: announcedPort,
+      basePath,
+      hostname,
+    }),
   );
   writeVerboseServeExamples(servedUrl);
 
@@ -468,6 +518,7 @@ function startServeServer(opts: {
   maxPort: number;
   hostname: string;
   websocket: NonNullable<Parameters<typeof Bun.serve>[0]['websocket']>;
+  tls?: ServeTlsOptions;
   fetch(
     this: Server<unknown>,
     request: Request,
@@ -480,6 +531,7 @@ function startServeServer(opts: {
       return Bun.serve({
         port: candidate,
         hostname: opts.hostname,
+        tls: opts.tls,
         websocket: opts.websocket,
         fetch: opts.fetch,
       });
@@ -580,8 +632,13 @@ export function parseServeCompressionMode(value: string): ServeCompressionMode |
   return undefined;
 }
 
-export function formatServeUrl(host: string, port: number, basePath: string): string {
-  return `http://${host}:${port}${basePath}`;
+export function formatServeUrl(
+  host: string,
+  port: number,
+  basePath: string,
+  scheme: 'http' | 'https' = 'http',
+): string {
+  return `${scheme}://${host}:${port}${basePath}`;
 }
 
 export function browserOpenCommand(
@@ -720,6 +777,30 @@ function serveFileHeaders(base: Headers, filePath: string): Headers {
   const contentType = inferServeContentType(filePath);
   if (contentType === undefined) return serveHeaders(base);
   return serveHeaders(base, { 'Content-Type': contentType });
+}
+
+function isProxyableServePath(pathname: string): boolean {
+  return pathname.startsWith('/ghost/api/') || pathname.startsWith('/content/');
+}
+
+async function proxyServeRequest(request: Request, proxyBase: URL): Promise<Response> {
+  const incoming = new URL(request.url);
+  const upstream = new URL(incoming.pathname.replace(/^\/+/, ''), ensureTrailingSlash(proxyBase));
+  upstream.search = incoming.search;
+  const headers = new Headers(request.headers);
+  headers.set('Host', upstream.host);
+  return fetch(upstream, {
+    method: request.method,
+    headers,
+    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+    redirect: 'manual',
+  });
+}
+
+function ensureTrailingSlash(url: URL): URL {
+  const out = new URL(url);
+  if (!out.pathname.endsWith('/')) out.pathname = `${out.pathname}/`;
+  return out;
 }
 
 interface ServeResponseInit {
