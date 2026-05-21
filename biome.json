@@ -6,13 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": [
-      "node_modules",
-      "dist",
-      "example/dist",
-      "example/themes/source",
-      "**/*.hbs"
-    ]
+    "ignore": ["node_modules", "dist", "example/dist", "example/themes/source", "**/*.hbs"]
   },
   "formatter": {
     "enabled": true,

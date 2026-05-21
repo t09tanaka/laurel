@@ -8,18 +8,8 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": [
-    "Programming Languages",
-    "Snippets",
-    "Other"
-  ],
-  "keywords": [
-    "nectar",
-    "ghost",
-    "static-site-generator",
-    "toml",
-    "markdown"
-  ],
+  "categories": ["Programming Languages", "Snippets", "Other"],
+  "keywords": ["nectar", "ghost", "static-site-generator", "toml", "markdown"],
   "repository": {
     "type": "git",
     "url": "https://github.com/t09tanaka/nectar.git",
@@ -33,21 +23,13 @@
     "workspaceContains:nectar.toml",
     "workspaceContains:nectar.config.toml"
   ],
-  "extensionKind": [
-    "workspace"
-  ],
+  "extensionKind": ["workspace"],
   "contributes": {
     "languages": [
       {
         "id": "nectar-config",
-        "aliases": [
-          "Nectar Config",
-          "nectar.config.toml"
-        ],
-        "filenames": [
-          "nectar.config.toml",
-          "nectar.toml"
-        ],
+        "aliases": ["Nectar Config", "nectar.config.toml"],
+        "filenames": ["nectar.config.toml", "nectar.toml"],
         "configuration": "./language-configuration/nectar-config.json"
       }
     ],
@@ -68,10 +50,7 @@
       {
         "name": "nectar",
         "owner": "nectar",
-        "fileLocation": [
-          "relative",
-          "${workspaceFolder}"
-        ],
+        "fileLocation": ["relative", "${workspaceFolder}"],
         "pattern": {
           "regexp": "^----\\s+(.+?)(?::(\\d+)(?::(\\d+))?)?\\s+-\\s+(.+)$",
           "file": 1,
@@ -84,18 +63,12 @@
     "taskDefinitions": [
       {
         "type": "nectar",
-        "required": [
-          "task"
-        ],
+        "required": ["task"],
         "properties": {
           "task": {
             "type": "string",
             "description": "Nectar task to run.",
-            "enum": [
-              "build",
-              "dev",
-              "check"
-            ]
+            "enum": ["build", "dev", "check"]
           }
         }
       }

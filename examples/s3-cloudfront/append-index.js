@@ -38,22 +38,22 @@
 // See docs/tutorials/04-deploy.md for the broader deploy walkthrough.
 
 function handler(event) {
-  var request = event.request;
-  var uri = request.uri;
+  const request = event.request;
+  const uri = request.uri;
 
   if (uri.endsWith('/')) {
-    request.uri = uri + 'index.html';
+    request.uri = `${uri}index.html`;
     return request;
   }
 
-  var lastSlash = uri.lastIndexOf('/');
-  var lastSegment = uri.slice(lastSlash + 1);
+  const lastSlash = uri.lastIndexOf('/');
+  const lastSegment = uri.slice(lastSlash + 1);
   if (lastSegment.indexOf('.') === -1) {
     return {
       statusCode: 301,
       statusDescription: 'Moved Permanently',
       headers: {
-        location: { value: uri + '/' },
+        location: { value: `${uri}/` },
       },
     };
   }

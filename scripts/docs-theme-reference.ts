@@ -14,7 +14,7 @@
  * `docs/THEME_DEV.md` §5 and is hand-written. This script only enumerates the
  * names so a missing entry surfaces in code review.
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const HELPERS_DIR = new URL('../src/render/helpers/', import.meta.url).pathname;

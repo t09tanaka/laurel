@@ -147,9 +147,7 @@
               "description": "Optional Stripe publishable key surfaced as `@site.stripe_publishable_key`. Static-only: Nectar settles no payments — exposing this is a theme-compatibility stub for embedders wiring their own client-only checkout widget. Never put a secret key here; this value is rendered into HTML."
             }
           },
-          "required": [
-            "title"
-          ],
+          "required": ["title"],
           "additionalProperties": false,
           "default": {
             "title": "Nectar Site"
@@ -220,9 +218,7 @@
                     "description": "Frontmatter field that receives the scaffold title. Defaults to `name`."
                   }
                 },
-                "required": [
-                  "dir"
-                ],
+                "required": ["dir"],
                 "additionalProperties": false
               },
               "default": {},
@@ -240,11 +236,7 @@
             },
             "visibility_policy": {
               "type": "string",
-              "enum": [
-                "truncate",
-                "render-full",
-                "skip"
-              ],
+              "enum": ["truncate", "render-full", "skip"],
               "default": "truncate",
               "description": "How to render posts whose `visibility` is `members` or `paid`. `truncate` cuts the body at `paywall_word_count`, `render-full` keeps the body intact (losing the paywall), and `skip` drops the post entirely."
             },
@@ -286,11 +278,7 @@
             },
             "trailing_slash": {
               "type": "string",
-              "enum": [
-                "always",
-                "never",
-                "preserve"
-              ],
+              "enum": ["always", "never", "preserve"],
               "default": "always",
               "description": "Controls clean HTML route shape. `always` keeps Ghost-style `/slug/` URLs and writes `slug/index.html`; `never` emits slashless `/slug` canonicals and writes `slug.html`; `preserve` follows each route's authored URL shape."
             },
@@ -340,20 +328,12 @@
               "properties": {
                 "provider": {
                   "type": "string",
-                  "enum": [
-                    "cloudflare_pages",
-                    "netlify",
-                    "vercel"
-                  ],
+                  "enum": ["cloudflare_pages", "netlify", "vercel"],
                   "description": "Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Netlify preview builds set this to `netlify`; Vercel builds set this to `vercel`."
                 },
                 "environment": {
                   "type": "string",
-                  "enum": [
-                    "production",
-                    "preview",
-                    "development"
-                  ],
+                  "enum": ["production", "preview", "development"],
                   "description": "Deploy environment for the current build. Netlify deploy-preview / branch-deploy builds set this to `preview`; Vercel copies `VERCEL_ENV`; Cloudflare Pages infers `production` for `main` / `master` (or `CF_PAGES_PRODUCTION_BRANCH`) and `preview` for other branches."
                 },
                 "branch": {
@@ -401,13 +381,7 @@
             },
             "adapter": {
               "type": "string",
-              "enum": [
-                "cloudflare",
-                "netlify",
-                "vercel",
-                "cloudinary",
-                "imgproxy"
-              ],
+              "enum": ["cloudflare", "netlify", "vercel", "cloudinary", "imgproxy"],
               "default": "cloudflare",
               "description": "Image CDN URL shape to emit. `cloudflare` uses `/cdn-cgi/image/...`, `netlify` uses `/.netlify/images?...`, `vercel` uses `/_vercel/image?...`, `cloudinary` uses `/image/fetch/...`, and `imgproxy` uses `/insecure/.../plain/...` unless `signature` overrides that segment."
             },
@@ -425,14 +399,7 @@
             },
             "format": {
               "type": "string",
-              "enum": [
-                "auto",
-                "avif",
-                "webp",
-                "jpg",
-                "jpeg",
-                "png"
-              ],
+              "enum": ["auto", "avif", "webp", "jpg", "jpeg", "png"],
               "default": "auto",
               "description": "Preferred output format passed to adapters. `auto` lets the CDN negotiate a modern format when the adapter supports it."
             },
@@ -447,9 +414,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "default": [
-                "/content/images/"
-              ],
+              "default": ["/content/images/"],
               "description": "Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Nectar content images only. Prefix matching also accepts the same paths under `build.base_path`."
             },
             "signature": {
@@ -512,10 +477,7 @@
                 "description": "Destination of the link. May be an absolute URL or a path relative to the site root."
               }
             },
-            "required": [
-              "label",
-              "url"
-            ],
+            "required": ["label", "url"],
             "additionalProperties": false
           },
           "default": [],
@@ -559,10 +521,7 @@
                 "description": "Optional editorial reason shown alongside the title on the full page."
               }
             },
-            "required": [
-              "title",
-              "url"
-            ],
+            "required": ["title", "url"],
             "additionalProperties": false
           },
           "default": [],
@@ -610,9 +569,7 @@
                 "description": "Bullet-point benefits surfaced on pricing tables, in display order."
               }
             },
-            "required": [
-              "name"
-            ],
+            "required": ["name"],
             "additionalProperties": false
           },
           "default": [],
@@ -878,10 +835,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "default": [
-                    "-avz",
-                    "--delete"
-                  ],
+                  "default": ["-avz", "--delete"],
                   "description": "Flags passed to `rsync` before the source and destination. Defaults to `-avz --delete` to mirror the local `dist/` over SSH. Override to drop `--delete`, add `--exclude=…` rules, or pin a specific SSH command via `-e`."
                 }
               },
@@ -896,66 +850,42 @@
                   "type": "object",
                   "properties": {
                     "content_type_options": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": "nosniff",
                       "description": "Value of the `X-Content-Type-Options` header applied to the catch-all route. `null` omits the header."
                     },
                     "frame_options": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the legacy `X-Frame-Options` header (e.g. `DENY`, `SAMEORIGIN`). Off by default because modern sites prefer `frame-ancestors` in CSP; set when older browsers still matter."
                     },
                     "referrer_policy": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": "strict-origin-when-cross-origin",
                       "description": "Value of the `Referrer-Policy` header applied to the catch-all route. `null` omits the header."
                     },
                     "strict_transport_security": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the `Strict-Transport-Security` header. Off by default; set to e.g. `max-age=63072000; includeSubDomains` once you are confident the site only serves over HTTPS."
                     },
                     "content_security_policy": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. When set, Nectar scans rendered HTML and appends build-time `sha256-...` hash sources for inline `<script>` bodies to `script-src` so strict deploy artifacts can allow the exact scripts the build produced without `unsafe-inline`."
                     },
                     "permissions_policy": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the `Permissions-Policy` header (e.g. `camera=(), microphone=(), geolocation=()`). Off by default; opt in to deny features the site does not need."
                     },
                     "cross_origin_opener_policy": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the `Cross-Origin-Opener-Policy` header. Off by default; set to `same-origin` to isolate the browsing context group for stronger XS-Leak protection."
                     },
                     "cross_origin_embedder_policy": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": ["string", "null"],
                       "default": null,
                       "description": "Value of the `Cross-Origin-Embedder-Policy` header. Off by default; pair with `cross_origin_opener_policy` to enable cross-origin isolation. Can break themes that load third-party assets without CORP, so opt in deliberately."
                     },
@@ -986,10 +916,7 @@
                         "description": "Value of the `Cache-Control` header applied to requests matching `pattern`."
                       }
                     },
-                    "required": [
-                      "pattern",
-                      "cache_control"
-                    ],
+                    "required": ["pattern", "cache_control"],
                     "additionalProperties": false
                   },
                   "default": [
@@ -1266,14 +1193,7 @@
               "properties": {
                 "provider": {
                   "type": "string",
-                  "enum": [
-                    "none",
-                    "buttondown",
-                    "beehiiv",
-                    "convertkit",
-                    "mailchimp",
-                    "custom"
-                  ],
+                  "enum": ["none", "buttondown", "beehiiv", "convertkit", "mailchimp", "custom"],
                   "default": "none",
                   "description": "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` rewrite the form action to the provider's embed / API endpoint. `custom` lets the operator supply a raw `action` and optional `field_map`."
                 },
@@ -1283,10 +1203,7 @@
                 },
                 "method": {
                   "type": "string",
-                  "enum": [
-                    "get",
-                    "post"
-                  ],
+                  "enum": ["get", "post"],
                   "default": "post",
                   "description": "HTML form method used when rewriting `data-members-form` markup. Defaults to `post`; set to `get` only for custom endpoints that require query-string submission."
                 },
@@ -1346,14 +1263,9 @@
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "enum": [
-                      "webp",
-                      "avif"
-                    ]
+                    "enum": ["webp", "avif"]
                   },
-                  "default": [
-                    "webp"
-                  ],
+                  "default": ["webp"],
                   "description": "Image formats to transcode the responsive variants into. Order matters: the first entry is preferred by browsers that understand it."
                 },
                 "webp_quality": {
@@ -1385,13 +1297,7 @@
               "properties": {
                 "provider": {
                   "type": "string",
-                  "enum": [
-                    "off",
-                    "giscus",
-                    "disqus",
-                    "utterances",
-                    "webmention.io"
-                  ],
+                  "enum": ["off", "giscus", "disqus", "utterances", "webmention.io"],
                   "default": "off",
                   "description": "Comments provider. `off` disables comments and renders `{{comments}}` as empty."
                 },
@@ -1429,10 +1335,7 @@
                 },
                 "input_position": {
                   "type": "string",
-                  "enum": [
-                    "top",
-                    "bottom"
-                  ],
+                  "enum": ["top", "bottom"],
                   "description": "Giscus: place the comment composer above or below the thread."
                 },
                 "theme": {
@@ -1445,10 +1348,7 @@
                 },
                 "loading": {
                   "type": "string",
-                  "enum": [
-                    "lazy",
-                    "eager"
-                  ],
+                  "enum": ["lazy", "eager"],
                   "description": "Giscus: iframe loading strategy."
                 },
                 "issue_term": {

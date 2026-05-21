@@ -1,5 +1,3 @@
-'use strict';
-
 const vscode = require('vscode');
 const configSchema = require('./schemas/nectar.config.schema.json');
 
@@ -106,7 +104,11 @@ function createPropertyCompletion(key, property) {
 function findCurrentSectionPath(document, lineNumber) {
   for (let line = lineNumber; line >= 0; line -= 1) {
     const match = document.lineAt(line).text.match(/^\s*\[+([^\]]+)\]+\s*(?:#.*)?$/);
-    if (match) return match[1].split('.').map((part) => part.trim()).filter(Boolean);
+    if (match)
+      return match[1]
+        .split('.')
+        .map((part) => part.trim())
+        .filter(Boolean);
   }
   return [];
 }
@@ -119,7 +121,10 @@ function collectExistingKeys(document, sectionPath, beforeLine) {
     const text = document.lineAt(line).text;
     const section = text.match(/^\s*\[+([^\]]+)\]+\s*(?:#.*)?$/);
     if (section) {
-      const currentPath = section[1].split('.').map((part) => part.trim()).filter(Boolean);
+      const currentPath = section[1]
+        .split('.')
+        .map((part) => part.trim())
+        .filter(Boolean);
       insideTarget = pathsEqual(currentPath, sectionPath);
       continue;
     }
