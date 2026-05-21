@@ -306,6 +306,24 @@ export function registerContentHelpers(engine: NectarEngine): void {
     },
   );
 
+  engine.hb.registerHelper('action', function actionHelper() {
+    return '#';
+  });
+
+  engine.hb.registerHelper(
+    'hidden',
+    function hiddenHelper(this: unknown, options?: Handlebars.HelperOptions) {
+      const label = options?.hash?.label != null ? String(options.hash.label) : '';
+      return new engine.hb.SafeString(
+        `<input data-members-label type="hidden" value="${escapeAttr(label)}">`,
+      );
+    },
+  );
+
+  engine.hb.registerHelper('script', function scriptHelper() {
+    return new engine.hb.SafeString('');
+  });
+
   engine.hb.registerHelper(
     'input_email',
     function inputEmailHelper(this: unknown, options: Handlebars.HelperOptions) {
@@ -315,7 +333,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       // adapter. Provider adapters overwrite the attribute downstream when
       // they need a non-default field name (e.g. Mailchimp wants `EMAIL`).
       return new engine.hb.SafeString(
-        `<input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}">`,
+        `<input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"${inputEmailExtraAttrs(options.hash)}>`,
       );
     },
   );
@@ -435,6 +453,24 @@ function relinkSiblings(nodes: ChildNode[]): void {
 function siteLocale(options: Handlebars.HelperOptions): string | undefined {
   const site = options.data?.site as { locale?: unknown } | undefined;
   return typeof site?.locale === 'string' ? site.locale : undefined;
+}
+
+function inputEmailExtraAttrs(hash: Record<string, unknown>): string {
+  const attrs: string[] = [];
+  pushBooleanAttr(attrs, 'autofocus', hash.autofocus);
+  for (const name of ['autocomplete', 'class', 'id', 'aria-label']) {
+    const value = hash[name];
+    if (typeof value === 'string' && value.length > 0) {
+      attrs.push(`${name}="${escapeAttr(value)}"`);
+    }
+  }
+  return attrs.length > 0 ? ` ${attrs.join(' ')}` : '';
+}
+
+function pushBooleanAttr(attrs: string[], name: string, value: unknown): void {
+  if (value === true || value === name || value === 'true') {
+    attrs.push(name);
+  }
 }
 
 // `String.prototype.slice` operates on UTF-16 code units, so a slice that lands

@@ -4,6 +4,7 @@ import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { Profiler } from '~/build/profile.ts';
 import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
+import { assetPublicUrl } from '~/theme/assets.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
@@ -528,7 +529,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     page: route.kind === 'page' ? route.data.page : undefined,
     route,
     locale: routeLocale,
-    labs: {},
+    labs: buildLegacyLabs(site),
     // Static builds have no logged-in viewer, so default `@member` is a safe
     // falsy stub. Source-style themes branch on `{{#unless @member}}`
     // (header/footer/CTA) and probe `{{@member.paid}}` / `{{@member.name}}`.
@@ -676,7 +677,34 @@ function buildCustom(engine: NectarEngine): Record<string, unknown> {
     ...(engine.theme?.pkg?.customDefaults ?? {}),
     ...(engine.config?.theme?.custom ?? {}),
   };
-  return sanitizeThemeCustomValues(merged, engine.theme?.pkg?.custom ?? {});
+  const sanitized = sanitizeThemeCustomValues(merged, engine.theme?.pkg?.custom ?? {});
+  return resolveCustomImageValues(engine, sanitized);
+}
+
+function buildLegacyLabs(site: ContentGraph['site']): Record<string, boolean> {
+  return {
+    members: site.members_enabled,
+    subscribers: site.members_enabled,
+  };
+}
+
+function resolveCustomImageValues(
+  engine: NectarEngine,
+  custom: Record<string, unknown>,
+): Record<string, unknown> {
+  const defs = engine.theme?.pkg?.custom ?? {};
+  const out = { ...custom };
+  for (const [key, def] of Object.entries(defs)) {
+    if (def.type !== 'image') continue;
+    const raw = out[key];
+    if (typeof raw !== 'string' || raw.length === 0) continue;
+    const logical = raw.replace(/^\//, '');
+    const asset = engine.theme.assets.get(logical) ?? engine.theme.assets.get(`assets/${logical}`);
+    if (asset) {
+      out[key] = assetPublicUrl(asset, engine.config.build.base_path);
+    }
+  }
+  return out;
 }
 
 function resolveTextColorClass(

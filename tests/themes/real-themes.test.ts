@@ -345,6 +345,201 @@ describe('real Ghost theme contract', () => {
     );
     expect(postHtml).not.toContain('<div class="kg-card-wrapper"><figure class="kg-card');
   });
+
+  test('casper-style cross-theme helpers cover legacy members, custom assets, and pagination gaps', async () => {
+    const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-cross-theme-helpers-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    const themeDir = join(workDir, 'themes', 'casper-mini');
+    await cp(join(FIXTURE_DIR, 'casper-mini'), themeDir, { recursive: true });
+    await mkdir(join(themeDir, 'assets', 'images'), { recursive: true });
+
+    await writeFile(join(themeDir, 'assets', 'images', 'white-logo.png'), 'png', 'utf8');
+    await writeFile(
+      join(themeDir, 'assets', 'built', 'screen.min.css'),
+      'body{color:#111}',
+      'utf8',
+    );
+    await writeFile(join(workDir, 'content', 'images', 'photo.jpg'), 'jpg', 'utf8');
+    await writeFile(
+      join(themeDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'casper-mini',
+          version: '0.0.0',
+          config: {
+            posts_per_page: 2,
+            image_sizes: { m: { width: 720 } },
+            custom: {
+              white_logo_for_dark_mode: {
+                type: 'image',
+                default: 'assets/images/white-logo.png',
+              },
+              background_color: { type: 'color', default: '#fafafa' },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(
+      join(themeDir, 'default.hbs'),
+      [
+        '<!DOCTYPE html>',
+        '<html lang="{{@site.locale}}">',
+        '<head>',
+        '  <meta charset="utf-8">',
+        '  <title>{{meta_title}}</title>',
+        '  <link data-min-screen href="{{asset "built/screen.css" hasMinFile="true"}}">',
+        '  {{ghost_head}}',
+        '</head>',
+        '<body style="--custom-bg: {{@custom.background_color}}">',
+        '  <a class="nectar-skip-link" href="#main">Skip to content</a>',
+        '  <img data-custom-logo src="{{img_url @custom.white_logo_for_dark_mode}}" alt="">',
+        '  {{#if @labs.subscribers}}<span data-labs-subscribers></span>{{/if}}',
+        '  {{#if @labs.members}}<span data-labs-members></span>{{/if}}',
+        '  {{#has tag="general"}}<span data-unexpected-home-tag></span>{{else}}<span data-no-post-has></span>{{/has}}',
+        '  <main id="main">{{{body}}}</main>',
+        '  <footer data-current-year="{{date format="YYYY"}}"></footer>',
+        '  {{ghost_foot}}',
+        '</body>',
+        '</html>',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(themeDir, 'home.hbs'),
+      [
+        '{{!< default}}',
+        '<section class="gh-feed">',
+        '  {{#foreach posts}}{{> "card" width="wide"}}{{/foreach}}',
+        '</section>',
+        '<p data-page-copy>{{t "Page {page} of {pages}" page=pagination.page pages=pagination.pages}}</p>',
+        '{{#get "posts" filter="published_at:<\'2025-01-01\'" limit="10" include="tags" as |older|}}',
+        '  <section data-older-posts>{{#foreach older}}<article data-old-post="{{slug}}">{{title}}</article>{{/foreach}}</section>',
+        '{{/get}}',
+        '{{#pagination}}',
+        '  {{#if next}}<a data-pagination-next href="{{next_url}}">next</a>{{/if}}',
+        '  {{#if prev}}<a data-pagination-prev href="{{prev_url}}">prev</a>{{/if}}',
+        '{{/pagination}}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(join(themeDir, 'index.hbs'), '{{> "__template__/home"}}', 'utf8');
+    await writeFile(
+      join(themeDir, 'post.hbs'),
+      [
+        '{{!< default}}',
+        '<article class="gh-article {{post_class}}">',
+        '  <h1>{{title}}</h1>',
+        '  <p data-lang="{{lang}}"></p>',
+        '  <img data-format-image src="{{img_url feature_image size="m" format="webp"}}" alt="{{#if feature_image_alt}}{{feature_image_alt}}{{else}}{{title}}{{/if}}">',
+        '  {{#has visibility="public"}}<span data-public-post></span>{{else}}<span data-non-public-post></span>{{/has}}',
+        '  {{^has visibility="public"}}<span data-negated-non-public></span>{{/has}}',
+        '  <form data-legacy-members action="{{action}}" method="post">{{hidden label="Daily"}}{{input_email autofocus=true placeholder=(t "Email")}}{{script}}</form>',
+        '  {{subscribe_form placeholder="Your inbox"}}',
+        '</article>',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(workDir, 'content', 'posts', 'cross-theme-compat.md'),
+      [
+        '---',
+        'title: "Cross theme compat"',
+        'slug: cross-theme-compat',
+        'date: 2024-01-01T00:00:00Z',
+        'locale: ja',
+        'visibility: members',
+        'feature_image: "/content/images/photo.jpg"',
+        'authors: [nectar-bot]',
+        'tags: [general]',
+        '---',
+        '',
+        'Members-only compatibility body.',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Cross Theme Helpers"',
+        'description = "Cross-theme helper fixture"',
+        'url = "https://smoke.example.com"',
+        'locale = "en"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        'members_enabled = true',
+        '',
+        '[theme]',
+        'name = "casper-mini"',
+        'dir = "themes"',
+        '',
+        '[content]',
+        'posts_dir = "content/posts"',
+        'pages_dir = "content/pages"',
+        'authors_dir = "content/authors"',
+        'tags_dir = "content/tags"',
+        'assets_dir = "content/images"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 2',
+        'copy_content_assets = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+
+    const indexHtml = readFileSync(join(workDir, 'dist', 'en', 'index.html'), 'utf8');
+    expect(indexHtml).toContain('data-labs-subscribers');
+    expect(indexHtml).toContain('data-labs-members');
+    expect(indexHtml).toContain('data-no-post-has');
+    expect(indexHtml).not.toContain('data-unexpected-home-tag');
+    expect(indexHtml).toMatch(
+      /data-min-screen href="\/assets\/built\/screen\.min\.[A-Za-z0-9]+\.css"/,
+    );
+    expect(indexHtml).toMatch(
+      /data-custom-logo src="\/assets\/images\/white-logo\.png\?v(?:&#x3D;|=)[A-Za-z0-9]+"/,
+    );
+    expect(indexHtml).toContain('style="--custom-bg: #fafafa"');
+    expect(indexHtml).toContain('data-page-copy>Page 1 of 2</p>');
+    expect(indexHtml).toContain('data-old-post="cross-theme-compat"');
+    expect(indexHtml).toContain('data-pagination-next');
+    expect(indexHtml).toContain(`data-current-year="${new Date().getFullYear()}"`);
+    expect(indexHtml).toContain('kg-width-wide');
+    expect(indexHtml).toContain('alt="Placeholder cover"');
+
+    const postHtml = readFileSync(
+      join(workDir, 'dist', 'ja', 'cross-theme-compat', 'index.html'),
+      'utf8',
+    );
+    expect(postHtml).toContain('data-lang="ja"');
+    expect(postHtml).toContain(
+      'src="/content/images/size/w720/format/webp/photo.jpg" alt="Cross theme compat"',
+    );
+    expect(postHtml).toContain('data-non-public-post');
+    expect(postHtml).toContain('data-negated-non-public');
+    expect(postHtml).toContain('action="#"');
+    expect(postHtml).toContain('data-members-label type="hidden" value="Daily"');
+    expect(postHtml).toContain(
+      'data-members-email type="email" name="email" required placeholder="Email" autofocus',
+    );
+    expect(postHtml).toContain('placeholder="Your inbox"');
+    expect(postHtml).not.toContain('{{script}}');
+  });
 });
 
 describe('casper-mini i18n contract (issue #1707)', () => {
