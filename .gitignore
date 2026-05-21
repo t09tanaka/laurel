@@ -9,6 +9,7 @@ dist-sbom/
 example/dist/
 docs-site/dist/
 *.tsbuildinfo
+.nectar/
 
 # Bun
 .bun/
