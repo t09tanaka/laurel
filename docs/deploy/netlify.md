@@ -29,6 +29,19 @@ required for normal static-site 404s.
    publish root. If `redirects.yaml` exists, Nectar also writes `_redirects`
    using Netlify's `301!` force syntax for rules with `force: true`.
 
+   If your Netlify plan/site configuration supports `103 Early Hints`, you can
+   also opt into route-specific preload artifacts:
+
+   ```toml
+   [deploy.early_hints]
+   enabled = true
+   ```
+
+   Nectar then writes `early-hints.json` beside each route with critical
+   same-origin preloads, and adds matching `Link: <...>; rel=preload` entries
+   to `_headers`. Unsupported hosts ignore the JSON artifact as an ordinary
+   static file.
+
 2. Copy
    [`examples/deploy/netlify/netlify.toml`](../../examples/deploy/netlify/netlify.toml)
    to `netlify.toml` at the repo root:

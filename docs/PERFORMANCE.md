@@ -76,6 +76,12 @@ Host-specific notes:
 - Cloudflare Pages, Netlify, Vercel, Apache, nginx, and Caddy can receive
   generated header artifacts from Nectar. Prefer those generated files over
   dashboard-only rules so header drift is reviewable.
+- For hosts that can turn `Link: rel=preload` response headers into
+  `103 Early Hints`, opt in with `[deploy.early_hints].enabled = true`.
+  Nectar remains a file-only SSG: it writes per-route `early-hints.json`
+  artifacts and, when Cloudflare Pages or Netlify header output is enabled,
+  route-specific `Link` entries in `_headers`. Only same-origin preloads that
+  match known built theme/card assets are emitted.
 - GitHub Pages cannot set arbitrary response headers. Put Cloudflare, another
   CDN, or a reverse proxy in front of it when cache/security headers matter.
 - Use long-lived immutable caching only for fingerprinted assets. Do not apply

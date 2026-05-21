@@ -443,6 +443,17 @@ Ordered list of `Cache-Control` rules emitted into the deploy platform `_headers
 | `deploy.headers.cache_rules[].pattern` | `string` | yes | — | URL pattern matched by the deploy platform. Cloudflare Pages and Netlify both honor glob-style patterns like `/assets/*` and the catch-all `/*`. Patterns are emitted in array order and most platforms use first-match, so put specific rules before catch-alls. |
 | `deploy.headers.cache_rules[].cache_control` | `string` | yes | — | Value of the `Cache-Control` header applied to requests matching `pattern`. |
 
+## `deploy.early_hints`
+
+Optional 103 Early Hints support for static deployments. Nectar does not run an HTTP server; this emits deploy artifacts that compatible hosts can consume.
+
+| Key | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `deploy.early_hints.enabled` | `boolean` | no | `false` | Emit per-route Early Hints artifacts from rendered `<link rel="preload">` tags. Disabled by default because static hosts differ in 103 Early Hints support and unsupported hosts will simply serve the JSON artifacts as ordinary files. |
+| `deploy.early_hints.artifacts` | `boolean` | no | `true` | Write an `early-hints.json` artifact beside each HTML route that has conservative same-origin preload hints. Index routes write `<route>/early-hints.json`; flat HTML routes write `<name>.early-hints.json`. |
+| `deploy.early_hints.headers` | `boolean` | no | `true` | When Netlify or Cloudflare Pages header output is enabled, add route-specific `Link: <...>; rel=preload` entries to the generated `_headers` file so hosts that translate Link preload headers into 103 Early Hints can advertise critical CSS/JS/font/image assets. |
+| `deploy.early_hints.max_links` | `number` | no | `8` | Maximum preload Link entries emitted per route. Nectar only includes same-origin preloads that match known built theme/card assets, then stops at this cap to keep `_headers` and JSON artifacts small. |
+
 ## `components`
 
 Optional components that emit extra files or inject markup.

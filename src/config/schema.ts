@@ -1124,6 +1124,40 @@ export const configSchema = z
           .describe(
             'Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.firebase`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.',
           ),
+        early_hints: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit per-route Early Hints artifacts from rendered `<link rel="preload">` tags. Disabled by default because static hosts differ in 103 Early Hints support and unsupported hosts will simply serve the JSON artifacts as ordinary files.',
+              ),
+            artifacts: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Write an `early-hints.json` artifact beside each HTML route that has conservative same-origin preload hints. Index routes write `<route>/early-hints.json`; flat HTML routes write `<name>.early-hints.json`.',
+              ),
+            headers: z
+              .boolean()
+              .default(true)
+              .describe(
+                'When Netlify or Cloudflare Pages header output is enabled, add route-specific `Link: <...>; rel=preload` entries to the generated `_headers` file so hosts that translate Link preload headers into 103 Early Hints can advertise critical CSS/JS/font/image assets.',
+              ),
+            max_links: z
+              .number()
+              .int()
+              .positive()
+              .default(8)
+              .describe(
+                'Maximum preload Link entries emitted per route. Nectar only includes same-origin preloads that match known built theme/card assets, then stops at this cap to keep `_headers` and JSON artifacts small.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Optional 103 Early Hints support for static deployments. Nectar does not run an HTTP server; this emits deploy artifacts that compatible hosts can consume.',
+          ),
       })
       .strict()
       .default({})

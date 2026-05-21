@@ -80,6 +80,19 @@ same cache defaults as Netlify: immutable caching for `/assets/*` and
 so a pure-static site is not accidentally routed through Pages Functions when
 a `functions/` directory exists.
 
+For Cloudflare deployments where `103 Early Hints` is enabled, opt in to
+Nectar's static hint artifacts:
+
+```toml
+[deploy.early_hints]
+enabled = true
+```
+
+Nectar writes `early-hints.json` beside each HTML route that has conservative
+same-origin preloads, and adds matching `Link: <...>; rel=preload` entries to
+the generated `_headers` file. Because Nectar only emits files, the actual
+103 response behavior still depends on Cloudflare's platform support.
+
 Every Nectar build includes `dist/404.html`. When the Cloudflare Pages build
 output directory is `dist`, that file sits at the publish root as `404.html`,
 which Pages automatically serves as the custom 404 response body for unmatched

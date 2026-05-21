@@ -116,6 +116,42 @@ describe('deploy emitter integration outputs (#347)', () => {
     expect(redirects).toContain('/old  /new  301!');
   });
 
+  test('Netlify build can add opt-in Early Hints Link headers and route artifacts', async () => {
+    const cwd = await makeSiteWithDeployTarget('netlify');
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        await readFile(join(cwd, 'nectar.toml'), 'utf8'),
+        '',
+        '[deploy.early_hints]',
+        'enabled = true',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+
+    const headers = await readFile(join(summary.outputDir, '_headers'), 'utf8');
+    expect(headers).toContain('/\n  Link: </assets/built/screen.');
+    expect(headers).toContain(
+      '; rel=preload; as=style; crossorigin="anonymous"; integrity="sha384-',
+    );
+
+    const artifact = JSON.parse(
+      await readFile(join(summary.outputDir, 'early-hints.json'), 'utf8'),
+    ) as { route: string; links: Array<{ href: string; as: string }> };
+    expect(artifact.route).toBe('/');
+    expect(artifact.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          href: expect.stringMatching(/^\/assets\/built\/screen\.[a-f0-9]+\.css$/),
+          as: 'style',
+        }),
+      ]),
+    );
+  });
+
   test('Vercel build emits a vercel.json with headers and redirects', async () => {
     const cwd = await makeSiteWithDeployTarget('vercel');
     const summary = await build({ cwd });

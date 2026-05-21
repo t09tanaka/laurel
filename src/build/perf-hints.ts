@@ -86,6 +86,39 @@ export function injectSubresourceIntegrity(
   });
 }
 
+export interface HtmlPreloadLink {
+  href: string;
+  as: string;
+  crossorigin?: string;
+  integrity?: string;
+  type?: string;
+}
+
+export function collectHtmlPreloadLinks(html: string): HtmlPreloadLink[] {
+  const tags = scanLinkAndScriptTags(html);
+  if (tags.length === 0) return [];
+  const out: HtmlPreloadLink[] = [];
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    if (tag.kind !== 'link' || !isPreload(tag)) continue;
+    const href = extractAttrValue(tag.openTag, 'href');
+    const as = extractAttrValue(tag.openTag, 'as');
+    if (!href || !as) continue;
+    const entry: HtmlPreloadLink = { href, as };
+    const crossorigin = extractAttrValue(tag.openTag, 'crossorigin');
+    if (crossorigin !== undefined) entry.crossorigin = crossorigin;
+    const integrity = extractAttrValue(tag.openTag, 'integrity');
+    if (integrity !== undefined) entry.integrity = integrity;
+    const type = extractAttrValue(tag.openTag, 'type');
+    if (type !== undefined) entry.type = type;
+    const key = JSON.stringify(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+}
+
 interface ScriptOrLink {
   kind: 'script' | 'link';
   // Byte offsets in the input string of the entire `<…>` open tag (link is
@@ -265,6 +298,11 @@ function isScriptPreload(tag: ScriptOrLink): boolean {
   if (!rel || !rel.split(/\s+/).includes('preload')) return false;
   const asAttr = extractAttrValue(tag.openTag, 'as');
   return asAttr === 'script';
+}
+
+function isPreload(tag: ScriptOrLink): boolean {
+  const rel = extractAttrValue(tag.openTag, 'rel');
+  return !!rel && rel.split(/\s+/).includes('preload');
 }
 
 function isStylesheet(tag: ScriptOrLink): boolean {

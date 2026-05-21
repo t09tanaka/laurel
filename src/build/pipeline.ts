@@ -43,6 +43,14 @@ import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { rewriteContentImageUrls } from './content-image-urls.ts';
 import {
+  type RouteEarlyHints,
+  buildEarlyHintsHeaderRules,
+  buildKnownEarlyHintHrefs,
+  collectRouteEarlyHints,
+  earlyHintsArtifactPath,
+  emitEarlyHintsArtifacts,
+} from './early-hints.ts';
+import {
   type ContentImageAssetPlan,
   type HtmlOutput,
   copyAssets,
@@ -790,6 +798,11 @@ async function runBuild({
       );
     }
   }
+  const earlyHintsEnabled = config.deploy.early_hints.enabled;
+  const earlyHintHrefs = earlyHintsEnabled
+    ? buildKnownEarlyHintHrefs(theme, config.build.base_path)
+    : new Set<string>();
+  const routeEarlyHints: RouteEarlyHints[] = [];
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
   // per-route `Bun.file().exists()` / `.text()` I/O for reused entries instead
@@ -808,6 +821,7 @@ async function runBuild({
     url: string;
     bytes: number;
     reused: boolean;
+    earlyHints: RouteEarlyHints | null;
   };
   let completedRoutes = 0;
   const renderedImageAssetsRoot = resolve(cwd, config.content.assets_dir);
@@ -862,6 +876,15 @@ async function runBuild({
             url: route.url,
             bytes,
             reused: true,
+            earlyHints: earlyHintsEnabled
+              ? collectRouteEarlyHints({
+                  routeUrl: route.url,
+                  outputPath: route.outputPath,
+                  html,
+                  knownHrefs: earlyHintHrefs,
+                  maxLinks: config.deploy.early_hints.max_links,
+                })
+              : null,
           };
         }
       }
@@ -964,6 +987,15 @@ async function runBuild({
           url: route.url,
           bytes,
           reused: false,
+          earlyHints: earlyHintsEnabled
+            ? collectRouteEarlyHints({
+                routeUrl: route.url,
+                outputPath: route.outputPath,
+                html,
+                knownHrefs: earlyHintHrefs,
+                maxLinks: config.deploy.early_hints.max_links,
+              })
+            : null,
         };
       } catch (err) {
         stop?.();
@@ -1031,6 +1063,12 @@ async function runBuild({
             bytes: result.bytes,
             reused: result.reused,
           });
+        }
+        if (result.earlyHints) {
+          routeEarlyHints.push(result.earlyHints);
+          if (config.deploy.early_hints.artifacts) {
+            keepOutput(earlyHintsArtifactPath(result.earlyHints.output_path));
+          }
         }
       }
 
@@ -1389,8 +1427,20 @@ async function runBuild({
     autoNoindexProvider,
   };
   const contentApiHeaderRules = contentApiEnabled ? collectContentApiHeaderRules() : [];
+  const earlyHintsHeaderRules =
+    earlyHintsEnabled && config.deploy.early_hints.headers
+      ? buildEarlyHintsHeaderRules(routeEarlyHints, config.build.base_path)
+      : [];
   markPlannedDeploymentHeaderOutputs({ config, autoNoindexProvider, keepOutput });
-  await emitDeployHeaders(deploymentHeaderTargets, deploymentArtifacts, contentApiHeaderRules);
+  await emitDeployHeaders(deploymentHeaderTargets, deploymentArtifacts, [
+    ...contentApiHeaderRules,
+    ...earlyHintsHeaderRules,
+  ]);
+  if (earlyHintsEnabled && config.deploy.early_hints.artifacts) {
+    await timed(profiler, 'early_hints', () =>
+      emitEarlyHintsArtifacts({ outputDir, routes: routeEarlyHints }),
+    );
+  }
   // Azure Static Web Apps config. Emitted unconditionally — the file is
   // azure-specific and inert on every other host, and a single nectar build
   // should be deployable to Azure without an extra config knob. Users who
