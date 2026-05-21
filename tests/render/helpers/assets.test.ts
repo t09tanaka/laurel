@@ -503,6 +503,13 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/blog/assets/css/screen.abc123.css');
   });
 
+  test('returns base_path-joined raw assets/<path> for unknown asset', () => {
+    const engine = makeEngine({ basePath: '/blog' });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{asset "missing.png"}}');
+    expect(tpl({})).toBe('/blog/assets/missing.png');
+  });
+
   test('does not double slash when build base_path has a trailing slash', () => {
     const engine = makeEngine({ basePath: '/blog/' });
     registerAssetHelpers(engine);
