@@ -279,6 +279,19 @@ describe('get helper pagination metadata', () => {
     expect(tpl({})).toBe('delta');
   });
 
+  test('exposes authors as the named resource inside the block', () => {
+    const authors = [
+      { slug: 'alice', name: 'Alice' },
+      { slug: 'bob', name: 'Bob' },
+    ];
+    const engine = buildEngine({ authors });
+    const tpl = engine.hb.compile(
+      `{{#get "authors"}}{{#foreach authors}}{{slug}}:{{name}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('alice:Alice,bob:Bob,');
+  });
+
   test('exposes pagination via the second block param', () => {
     const engine = buildEngine({ posts: buildPosts(10) });
     const tpl = engine.hb.compile(
