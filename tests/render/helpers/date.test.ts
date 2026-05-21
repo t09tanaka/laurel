@@ -131,6 +131,15 @@ describe('date helper', () => {
     expect(out).toBe('5月');
   });
 
+  test('localized "MMM" month token uses site locale when date comes from context', () => {
+    const engine = makeEngine('ja');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{date format="MMM"}}')({
+      published_at: '2026-05-05T00:00:00Z',
+    });
+    expect(out).toBe('5月');
+  });
+
   test('localized "LL" token resolves to the locale-defined long date pattern', () => {
     // dayjs's ja locale defines LL as YYYY年M月D日 via the localizedFormat plugin.
     const engine = makeEngine('ja');
