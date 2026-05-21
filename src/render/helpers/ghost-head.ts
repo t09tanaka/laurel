@@ -358,13 +358,14 @@ function computeMeta(
   const imageWidth = useFeatureDims ? numericField(ctx.feature_image_width) : undefined;
   const imageHeight = useFeatureDims ? numericField(ctx.feature_image_height) : undefined;
   const imageAlt = image ? (ctx.feature_image_alt as string | undefined) : undefined;
-  // Canonical is precomputed in route.meta (build/routes.ts:defaultMeta). Fall
-  // back to deriving from route.url for callers that hand-construct a partial
-  // route object (some unit tests do this).
+  // Canonical is usually precomputed in route.meta (build/routes.ts:defaultMeta).
+  // Route-scoped canonical_url fields must still win so documented content
+  // overrides are reflected by ghost_head.
   const canonicalOverride = routeScopedCanonicalUrl(ctx, route);
   const canonical =
-    route?.meta?.canonical ??
-    absoluteUrlWithBasePath(site.url, basePath, canonicalOverride ?? route?.url ?? '/');
+    canonicalOverride !== undefined
+      ? absoluteUrlWithBasePath(site.url, basePath, canonicalOverride)
+      : (route?.meta?.canonical ?? absoluteUrlWithBasePath(site.url, basePath, route?.url ?? '/'));
 
   let ogType = 'website';
   if (route?.data?.post) ogType = 'article';
@@ -1012,13 +1013,23 @@ function routeScopedCanonicalUrl(
       }
     | undefined,
 ): string | undefined {
-  if (route?.kind !== 'tag') return undefined;
-  const tagFromCtx = recordValue(ctx.tag);
-  return firstNonEmptyString(
-    ctx.canonical_url,
-    tagFromCtx?.canonical_url,
-    recordValue(route.data?.tag)?.canonical_url,
-  );
+  if (route?.kind === 'post') {
+    const postFromCtx = recordValue(ctx.post);
+    return firstNonEmptyString(
+      ctx.canonical_url,
+      postFromCtx?.canonical_url,
+      recordValue(route.data?.post)?.canonical_url,
+    );
+  }
+  if (route?.kind === 'tag') {
+    const tagFromCtx = recordValue(ctx.tag);
+    return firstNonEmptyString(
+      ctx.canonical_url,
+      tagFromCtx?.canonical_url,
+      recordValue(route.data?.tag)?.canonical_url,
+    );
+  }
+  return undefined;
 }
 
 function routeScopedMetaImage(

@@ -96,6 +96,7 @@ function renderGhostHead(
     config?: Partial<NectarEngine['config']>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
+    routeMeta?: { canonical?: string };
     routeAlternates?: { locale: string; href: string }[];
     favicons?: FaviconSet;
     theme?: Partial<NectarEngine['theme']>;
@@ -109,6 +110,7 @@ function renderGhostHead(
       route: {
         kind: opts.routeKind,
         url: routeUrl,
+        meta: opts.routeMeta,
         alternates: opts.routeAlternates,
         data: opts.routeData ?? { post: ctx },
       },
@@ -1429,6 +1431,25 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
     );
     expect(html).toContain('<meta property="og:description" content="News OG description">');
     expect(html).toContain('<meta name="tag-head" content="news">');
+  });
+
+  test('post canonical uses canonical_url override when present', () => {
+    const post = {
+      title: 'Hello',
+      canonical_url: '/canonical/hello/',
+      url: '/hello/',
+    };
+    const html = renderGhostHead(post, '/hello/', {
+      routeKind: 'post',
+      routeData: { post },
+      routeMeta: { canonical: 'https://example.com/hello/' },
+    });
+
+    expect(html).toContain('<link rel="canonical" href="https://example.com/canonical/hello/">');
+    expect(html).toContain(
+      '<meta property="og:url" content="https://example.com/canonical/hello/">',
+    );
+    expect(html).not.toContain('<link rel="canonical" href="https://example.com/hello/">');
   });
 
   test('author archive description falls back through author metadata before site defaults', () => {
