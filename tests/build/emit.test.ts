@@ -1,8 +1,9 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { existsSync } from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import { mkdir, mkdtemp, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   copyAssets,
   copyContentAssets,
@@ -10,6 +11,7 @@ import {
   writeHtml,
   writeHtmlBatch,
 } from '~/build/emit.ts';
+import type { HtmlOutput } from '~/build/emit.ts';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { getWarningCount, resetWarningCount } from '~/util/logger.ts';
 
@@ -207,6 +209,36 @@ describe('writeHtmlBatch', () => {
       const s = await stat(join(dir, bucket));
       expect(s.isDirectory()).toBe(true);
     }
+  });
+
+  test('calls recursive mkdir once per unique parent dir, not once per route (#1097)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const outputs: HtmlOutput[] = Array.from({ length: 1024 }, (_, i) => {
+      const bucket = i % 2 === 0 ? 'shared/a' : 'shared/b';
+      return { outputPath: `${bucket}/p-${i}.html`, html: `<h1>${i}</h1>` };
+    });
+    outputs.push(
+      { outputPath: 'reused/one/index.html', html: '<h1>old one</h1>', reused: true },
+      { outputPath: 'reused/two/index.html', html: '<h1>old two</h1>', reused: true },
+    );
+    const expectedDirs = [
+      ...new Set(
+        outputs.filter((out) => !out.reused).map((out) => dirname(join(dir, out.outputPath))),
+      ),
+    ];
+    const mkdirSpy = spyOn(fsPromises, 'mkdir');
+    let recursiveMkdirPaths: string[] = [];
+    try {
+      await writeHtmlBatch(dir, outputs);
+      recursiveMkdirPaths = mkdirSpy.mock.calls
+        .filter(([, opts]) => typeof opts === 'object' && opts !== null && opts.recursive === true)
+        .map(([path]) => String(path))
+        .sort();
+    } finally {
+      mkdirSpy.mockRestore();
+    }
+
+    expect(recursiveMkdirPaths).toEqual(expectedDirs.sort());
   });
 
   test('rejects before any write when one entry escapes outputDir even at a deep index (#149)', async () => {

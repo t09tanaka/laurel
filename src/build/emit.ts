@@ -154,11 +154,13 @@ export interface HtmlOutput {
 // Batched companion to writeHtml. Validation happens up front so an escape
 // attempt anywhere in `outputs` rejects before any file is written.
 //
-// Parent directories are deduped across the **entire** batch and created in a
-// single up-front `ensureDirs` pass. ensureDir is `mkdir -p` and the cost is
-// dominated by the per-call syscall: for a 10k-route site with ~50 unique
-// output directories this collapses what used to be O(routes / chunk_size)
-// ensureDirs calls (one per chunk) into a single mkdir fan-out. See #535.
+// Parent directories for files we will actually write are deduped across the
+// **entire** batch and created in a single up-front `ensureDirs` pass. ensureDir
+// is `mkdir -p` and the cost is dominated by the per-call syscall: for a
+// 10k-route site with ~50 unique output directories this keeps recursive
+// mkdir/stat work proportional to the unique parent directory set rather than
+// the route count. Reused HTML is already present on disk, so it does not pay
+// another mkdir call during incremental rebuilds. See #535 and #1097.
 //
 // The actual disk work is then split into fixed-size chunks: within a chunk
 // `Bun.write` fans out via `Promise.all`; chunks run sequentially so the
@@ -179,7 +181,7 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
     const dest = join(outputDir, entry.outputPath);
     assertWithinOutputDir(outputDir, dest);
     dests[i] = dest;
-    allDirs.add(dirname(dest));
+    if (!entry.reused) allDirs.add(dirname(dest));
   }
   await ensureDirs(allDirs);
   for (let start = 0; start < outputs.length; start += WRITE_BATCH_SIZE) {
