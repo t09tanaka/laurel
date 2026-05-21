@@ -435,7 +435,7 @@ function validateGhostExportShape(value: unknown): GhostExport {
     throw new Error('Invalid Ghost export: no db[i].data block present');
   }
 
-  return value as GhostExport;
+  return value as unknown as GhostExport;
 }
 
 // Newer Ghost admin exports split tables across multiple `db[i]` blocks (e.g.
@@ -612,16 +612,21 @@ async function importFromResolvedInput(
     ? join(outputRoot, 'migration', 'redirects')
     : join(opts.cwd, 'migration', 'redirects');
   const resolved = await resolveInput(inputFile, opts.assetsDir);
-  await assertJsonWithinSizeCap(resolved.jsonFile, opts.maxFileSizeBytes);
-  const raw = await readFile(resolved.jsonFile, 'utf8');
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(raw) as unknown;
-  } catch (err) {
-    const reason = err instanceof Error ? `: ${err.message}` : '';
-    throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
-  }
-  const parsed = validateGhostExportShape(stripGhostUrlPlaceholder(parsedJson));
+  const parsedExports = await Promise.all(
+    resolved.jsonFiles.map(async (jsonFile) => {
+      await assertJsonWithinSizeCap(jsonFile, opts.maxFileSizeBytes);
+      const raw = await readFile(jsonFile, 'utf8');
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(raw) as unknown;
+      } catch (err) {
+        const reason = err instanceof Error ? `: ${err.message}` : '';
+        throw new Error(`Invalid JSON in Ghost export: ${jsonFile}${reason}`);
+      }
+      return validateGhostExportShape(stripGhostUrlPlaceholder(parsedJson));
+    }),
+  );
+  const parsed: GhostExport = { db: parsedExports.flatMap((entry) => entry.db) };
   const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers, postsMeta } =
     mergeGhostDbEntries(parsed.db);
   const filters = resolveImportFilters(opts);
@@ -1130,7 +1135,7 @@ async function unwrapSingleSubdir(dir: string): Promise<string> {
 }
 
 interface ResolvedInput {
-  jsonFile: string;
+  jsonFiles: string[];
   assetsDir: string | undefined;
   // True when the user passed --assets explicitly; missing subdirs become a
   // warning rather than silent skip. When false (auto-detected from folder
@@ -1151,11 +1156,11 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
     );
   }
 
-  let jsonFile: string;
+  let jsonFiles: string[];
   let folderAssetsDir: string | undefined;
 
   if (st.isDirectory()) {
-    jsonFile = await findExportJson(file);
+    jsonFiles = await findExportJsons(file);
     const candidateContent = join(file, 'content');
     if (await isDirectory(candidateContent)) {
       folderAssetsDir = candidateContent;
@@ -1163,7 +1168,7 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
       folderAssetsDir = file;
     }
   } else {
-    jsonFile = file;
+    jsonFiles = [file];
     const fileDir = dirname(file);
     const candidateContent = join(fileDir, 'content');
     if (await isDirectory(candidateContent)) {
@@ -1180,10 +1185,10 @@ async function resolveInput(file: string, explicitAssetsDir?: string): Promise<R
         `--assets directory does not exist or is not a directory: ${resolvedExplicit}`,
       );
     }
-    return { jsonFile, assetsDir: resolvedExplicit, assetsDirIsExplicit: true };
+    return { jsonFiles, assetsDir: resolvedExplicit, assetsDirIsExplicit: true };
   }
 
-  return { jsonFile, assetsDir: folderAssetsDir, assetsDirIsExplicit: false };
+  return { jsonFiles, assetsDir: folderAssetsDir, assetsDirIsExplicit: false };
 }
 
 // Stat the resolved Ghost export JSON before loading it into memory and refuse
@@ -1215,17 +1220,17 @@ function formatImportBytes(n: number): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)}GB`;
 }
 
-async function findExportJson(dir: string): Promise<string> {
+async function findExportJsons(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const jsonFiles = entries
     .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.json'))
-    .map((e) => e.name);
-  const fallback = jsonFiles[0];
-  if (!fallback) {
+    .map((e) => e.name)
+    .sort((a, b) => a.localeCompare(b));
+  if (jsonFiles.length === 0) {
     throw new Error(`Ghost export directory does not contain a .json export file: ${dir}`);
   }
-  const ghosty = jsonFiles.find((n) => /ghost/i.test(n));
-  return join(dir, ghosty ?? fallback);
+  const ghosty = jsonFiles.filter((n) => /ghost/i.test(n));
+  return (ghosty.length > 0 ? ghosty : jsonFiles).map((name) => join(dir, name));
 }
 
 function isErrnoException(err: unknown): err is NodeJS.ErrnoException {

@@ -79,31 +79,49 @@ export function registerMemberHelpers(engine: NectarEngine): void {
   engine.hb.registerHelper('tiers', function tiersHelper(this: unknown, options = {}) {
     const helperOptions = options as Handlebars.HelperOptions;
     const hash = (helperOptions.hash ?? {}) as Record<string, unknown>;
-    const selected = resolveTierList(this, engine, hash);
-    const names = selected.map(tierName).filter((name): name is string => name !== undefined);
-    if (names.length === 0) return new engine.hb.SafeString('');
-
-    const separator = pickString(hash.separator, ', ');
-    const lastSeparator = pickString(hash.lastSeparator, ' and ');
-    const prefix = pickString(hash.prefix, '');
-    const suffix =
-      typeof hash.suffix === 'string' ? hash.suffix : names.length === 1 ? ' tier' : ' tiers';
-    const escapedNames = names.map(escapeHtml);
-    const joined =
-      escapedNames.length === 1
-        ? escapedNames[0]
-        : `${escapedNames.slice(0, -1).join(escapeHtml(separator))}${escapeHtml(
-            lastSeparator,
-          )}${escapedNames.at(-1)}`;
-
-    return new engine.hb.SafeString(`${escapeHtml(prefix)}${joined}${escapeHtml(suffix)}`);
+    return renderTiers(this, engine, hash);
   });
 
   engine.hb.registerHelper('tier', function tierHelper(this: unknown) {
-    const tier = resolveTierList(this, engine, {})[0];
-    const name = tierName(tier);
-    return new engine.hb.SafeString(name ? escapeHtml(name) : '');
+    return renderTier(this, engine);
   });
+
+  engine.hb.registerHelper('products', function productsHelper(this: unknown, options = {}) {
+    const helperOptions = options as Handlebars.HelperOptions;
+    const hash = (helperOptions.hash ?? {}) as Record<string, unknown>;
+    return renderTiers(this, engine, hash);
+  });
+
+  engine.hb.registerHelper('product', function productHelper(this: unknown) {
+    return renderTier(this, engine);
+  });
+}
+
+function renderTiers(ctx: unknown, engine: NectarEngine, hash: Record<string, unknown>) {
+  const selected = resolveTierList(ctx, engine, hash);
+  const names = selected.map(tierName).filter((name): name is string => name !== undefined);
+  if (names.length === 0) return new engine.hb.SafeString('');
+
+  const separator = pickString(hash.separator, ', ');
+  const lastSeparator = pickString(hash.lastSeparator, ' and ');
+  const prefix = pickString(hash.prefix, '');
+  const suffix =
+    typeof hash.suffix === 'string' ? hash.suffix : names.length === 1 ? ' tier' : ' tiers';
+  const escapedNames = names.map(escapeHtml);
+  const joined =
+    escapedNames.length === 1
+      ? escapedNames[0]
+      : `${escapedNames.slice(0, -1).join(escapeHtml(separator))}${escapeHtml(
+          lastSeparator,
+        )}${escapedNames.at(-1)}`;
+
+  return new engine.hb.SafeString(`${escapeHtml(prefix)}${joined}${escapeHtml(suffix)}`);
+}
+
+function renderTier(ctx: unknown, engine: NectarEngine) {
+  const tier = resolveTierList(ctx, engine, {})[0];
+  const name = tierName(tier);
+  return new engine.hb.SafeString(name ? escapeHtml(name) : '');
 }
 
 function resolveTierList(

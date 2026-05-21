@@ -147,8 +147,18 @@ function interpolate(
 }
 
 function stringifyInterpolationValue(value: unknown): string {
+  if (isHandlebarsSafeString(value)) return value.toHTML();
   const raw = String(value);
   return textOnly(parseDocument(raw, { decodeEntities: false }).children as readonly DomNode[]);
+}
+
+function isHandlebarsSafeString(value: unknown): value is { toHTML(): string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toHTML' in value &&
+    typeof value.toHTML === 'function'
+  );
 }
 
 type DomNode = {

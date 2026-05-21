@@ -203,7 +203,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const fields = parseFieldsTokens(hash.fields);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
-    if (resource === 'tiers') warnTiersGetHelper(engine);
+    if (resource === 'tiers' || resource === 'products') warnTiersGetHelper(engine);
     const sorted = getSortedResource(engine, resource, order);
     const slugFiltered = slugFilter
       ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
@@ -505,6 +505,7 @@ function baseResource(engine: NectarEngine, resource: string): readonly unknown[
     case 'authors':
       return engine.content.authors;
     case 'tiers':
+    case 'products':
       return engine.content.tiers;
     default:
       return [];

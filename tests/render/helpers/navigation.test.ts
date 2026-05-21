@@ -6,6 +6,9 @@ import { registerNavigationHelpers } from '~/render/helpers/navigation.ts';
 interface NavItem {
   label: string;
   url: string;
+  icon?: string;
+  external?: boolean;
+  target?: '_blank' | '_self' | '_parent' | '_top';
 }
 
 function makeEngine(
@@ -283,6 +286,24 @@ describe('navigation helper href sanitisation', () => {
     expect(renderNavigation([{ label: 'Evil', url: 'file:///etc/passwd' }], undefined)).toContain(
       '<a href="#"',
     );
+  });
+
+  test('renders optional icon, external, and target metadata in fallback markup', () => {
+    const html = renderNavigation(
+      [
+        {
+          label: 'Docs',
+          url: 'https://docs.example.com',
+          icon: 'book',
+          external: true,
+          target: '_blank',
+        },
+      ],
+      '/',
+    );
+    expect(html).toContain('data-nav-icon="book"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="external noopener noreferrer"');
   });
 });
 

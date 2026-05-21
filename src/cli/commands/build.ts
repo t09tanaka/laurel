@@ -134,12 +134,14 @@ export async function runBuild(args: string[]): Promise<number> {
     });
   const runBuildOnce = async (): Promise<BuildSummary> => {
     const progressDisplay = createProgressDisplay();
+    const removeWarningForwarder = installDependencyWarningForwarder();
     try {
       return await build({
         ...buildArgs,
         progress: progressDisplay?.onProgress,
       });
     } finally {
+      removeWarningForwarder();
       progressDisplay?.finish();
     }
   };
@@ -426,6 +428,19 @@ function parseConcurrency(raw: string): number | CliUsageError {
     );
   }
   return n;
+}
+
+function installDependencyWarningForwarder(): () => void {
+  const seen = new Set<string>();
+  const handler = (warning: Error & { code?: string }) => {
+    if (warning.name !== 'DeprecationWarning') return;
+    const key = `${warning.code ?? ''}:${warning.message}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    logger.warn(`[deps] ${warning.message}`);
+  };
+  process.on('warning', handler);
+  return () => process.off('warning', handler);
 }
 
 function isVerbose(): boolean {

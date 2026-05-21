@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -299,6 +299,31 @@ describe('parseCommand', () => {
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('applies user global config command defaults below project rc', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-project-'));
+    const xdg = await mkdtemp(join(tmpdir(), 'nectar-rc-user-'));
+    try {
+      await mkdir(join(xdg, 'nectar'), { recursive: true });
+      await writeFile(
+        join(xdg, 'nectar/config.json'),
+        JSON.stringify({ build: { output: 'user-dist', strict: true } }),
+      );
+      expect(parseCommand(BUILD_SPEC, [], { XDG_CONFIG_HOME: xdg }, dir).values.output).toBe(
+        'user-dist',
+      );
+      await writeFile(
+        join(dir, '.nectarrc.json'),
+        JSON.stringify({ build: { output: 'rc-dist' } }),
+      );
+      const values = parseCommand(BUILD_SPEC, [], { XDG_CONFIG_HOME: xdg }, dir).values;
+      expect(values.output).toBe('rc-dist');
+      expect(values.strict).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(xdg, { recursive: true, force: true });
     }
   });
 

@@ -295,6 +295,19 @@ describe('date helper', () => {
     expect(out).toBe('2026-05-05|2026-05-04');
   });
 
+  test('common IANA timezone names convert from UTC predictably', () => {
+    const engine = makeEngine('en', 'UTC');
+    registerDateHelpers(engine);
+    const tpl = engine.hb.compile(
+      [
+        '{{date "2026-01-15T12:00:00Z" format="YYYY-MM-DD HH:mm" timezone="Europe/Paris"}}',
+        '{{date "2026-01-15T12:00:00Z" format="YYYY-MM-DD HH:mm" timezone="America/New_York"}}',
+        '{{date "2026-01-15T12:00:00Z" format="YYYY-MM-DD HH:mm" timezone="Asia/Tokyo"}}',
+      ].join('|'),
+    );
+    expect(tpl({})).toBe('2026-01-15 13:00|2026-01-15 07:00|2026-01-15 21:00');
+  });
+
   test('invalid date strings render as empty strings', () => {
     const engine = makeEngine('en');
     registerDateHelpers(engine);

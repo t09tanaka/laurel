@@ -263,6 +263,29 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
     expect(await readFile(join(dir, 'content/files/handout.pdf'), 'utf8')).toBe('PDF');
   });
 
+  test('passing a folder ingests multiple Ghost JSON export files in stable order', async () => {
+    await Bun.write(
+      join(exportFolder, 'my-blog.ghost.2024-01-02.json'),
+      exportPayloadWithPosts(2)
+        .replaceAll('post-1', 'split-post-1')
+        .replaceAll('post-2', 'split-post-2'),
+    );
+
+    const { exitCode } = await runCli(
+      ['import-ghost', exportFolder, '--on-conflict', 'overwrite'],
+      dir,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(await readFile(join(dir, 'content/posts/hello.md'), 'utf8')).toContain('slug: "hello"');
+    expect(await readFile(join(dir, 'content/posts/split-post-1.md'), 'utf8')).toContain(
+      'slug: "split-post-1"',
+    );
+    expect(await readFile(join(dir, 'content/posts/split-post-2.md'), 'utf8')).toContain(
+      'slug: "split-post-2"',
+    );
+  });
+
   test('passing the JSON file directly copies sibling content/images assets', async () => {
     const exportJson = join(exportFolder, 'my-blog.ghost.2024-01-01.json');
     const { stdout, stderr, exitCode } = await runCli(

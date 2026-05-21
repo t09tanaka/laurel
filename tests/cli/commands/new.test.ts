@@ -294,6 +294,17 @@ describe('cli new — frontmatter flags', () => {
     expect(body).toContain('date: 2024-01-02T03:04:05.000Z');
   });
 
+  test('default post date uses configured site timezone offset', async () => {
+    await Bun.write(
+      join(dir, 'nectar.toml'),
+      ['[site]', 'title = "Timezone Site"', 'timezone = "Asia/Tokyo"', ''].join('\n'),
+    );
+    const { exitCode } = await runCli(['new', 'post', 'Timezone Post'], dir);
+    expect(exitCode).toBe(0);
+    const body = await readFile(join(dir, 'content/posts/timezone-post.md'), 'utf8');
+    expect(body).toMatch(/^date: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+09:00$/m);
+  });
+
   test('--date rejects values that do not parse as a date', async () => {
     const { stderr, exitCode } = await runCli(
       ['new', 'post', 'Bad Date', '--date', 'not-a-date'],

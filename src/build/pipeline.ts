@@ -1496,6 +1496,7 @@ async function runBuild({
         postsPerPage: config.components.content_api.posts_per_page,
         basePath: config.build.base_path,
         emitHtaccess: config.components.content_api.emit_htaccess,
+        emitKeyRegistry: config.components.content_api.emit_key_registry,
       }),
     );
   }

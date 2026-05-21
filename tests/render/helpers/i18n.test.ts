@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerI18nHelpers } from '~/render/helpers/i18n.ts';
+import { registerStringHelpers } from '~/render/helpers/strings.ts';
 import type { ThemeLocaleMap } from '~/theme/types.ts';
 
 function makeEngine(locales: ThemeLocaleMap, locale = 'en'): NectarEngine {
@@ -102,6 +103,19 @@ describe('t helper', () => {
         name: '<img src=x onerror=alert(1)>Alice <strong>Admin</strong>',
       }),
     ).toBe('Hello Alice Admin');
+  });
+
+  test('preserves SafeString HTML from concat subexpressions in triple-stash output', () => {
+    const engine = makeEngine({
+      en: { 'in {primaryTag}': 'in {primaryTag}' },
+    });
+    registerI18nHelpers(engine);
+    registerStringHelpers(engine);
+
+    const tpl = engine.hb.compile(
+      '{{{t "in {primaryTag}" primaryTag=(concat "<a href=\\"/tag/news/\\">" tag "</a>")}}}',
+    );
+    expect(tpl({ tag: 'News' })).toBe('in <a href="/tag/news/">News</a>');
   });
 
   // Casper-family themes use Ghost's positional `%` placeholder with

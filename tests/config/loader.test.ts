@@ -125,6 +125,30 @@ url = "/"
     });
   });
 
+  test('parses optional navigation metadata', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[[navigation]]
+label = "Docs"
+url = "https://docs.example.com"
+icon = "book"
+external = true
+target = "_blank"
+`,
+        'utf8',
+      );
+      const config = await loadConfig({ cwd });
+      expect(config.navigation[0]).toEqual({
+        label: 'Docs',
+        url: 'https://docs.example.com',
+        icon: 'book',
+        external: true,
+        target: '_blank',
+      });
+    });
+  });
+
   test('parses nectar.config.json during default discovery', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
@@ -523,7 +547,7 @@ feature_image_width = "Wide"
         `[[navigation]]
 label = "Home"
 url = "/"
-external = true
+rel = "noopener"
 `,
         'utf8',
       );
@@ -534,7 +558,7 @@ external = true
         expect(err).toBeInstanceOf(NectarError);
         const ne = err as NectarError;
         expect(ne.message).toMatch(/unknown key/);
-        expect(ne.message).toMatch(/`navigation\.0\.external`/);
+        expect(ne.message).toMatch(/`navigation\.0\.rel`/);
       }
     });
   });

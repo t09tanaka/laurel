@@ -133,7 +133,7 @@ export function parseCommand(
   const values = result.values as Record<string, string | boolean | undefined>;
   applyNegativeAliases(values, result.tokens ?? [], negativeAliases);
   applyEnvFallbacks(spec, values, env);
-  applyRcFallbacks(spec, values, cwd);
+  applyRcFallbacks(spec, values, cwd, env);
   normalizeRepeatableStringValues(spec, values);
 
   return {
@@ -219,10 +219,11 @@ function applyRcFallbacks(
   spec: CommandSpec,
   values: Record<string, string | boolean | undefined>,
   cwd: string,
+  env: Record<string, string | undefined>,
 ): void {
   let defaults: ReturnType<typeof commandRcDefaults>;
   try {
-    defaults = commandRcDefaults(spec.name, cwd);
+    defaults = commandRcDefaults(spec.name, cwd, env);
   } catch (err) {
     throw new CliUsageError(err instanceof Error ? err.message : String(err));
   }

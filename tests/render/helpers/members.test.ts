@@ -238,4 +238,11 @@ describe('member helpers', () => {
       'Gold &lt;Plus&gt;',
     );
   });
+
+  test('products and product alias legacy Ghost tier helpers', () => {
+    const engine = makeEngine();
+    registerMemberHelpers(engine);
+    const ctx = { tiers: [{ name: 'Gold' }] };
+    expect(engine.hb.compile('{{products}}|{{product}}')(ctx)).toBe('Gold tier|Gold');
+  });
 });

@@ -247,6 +247,9 @@ Primary navigation items, exposed to themes via `{{navigation}}`.
 | --- | --- | --- | --- | --- |
 | `navigation[].label` | `string` | yes | — | Anchor text shown in theme navigation. |
 | `navigation[].url` | `string` | yes | — | Destination of the link. May be an absolute URL or a path relative to the site root. |
+| `navigation[].icon` | `string` | no | — | Optional icon identifier surfaced to themes as navigation item metadata. |
+| `navigation[].external` | `boolean` | no | — | Marks the navigation item as external. The fallback renderer adds rel="external" and theme partials can branch on the flag. |
+| `navigation[].target` | `"_blank" \| "_self" \| "_parent" \| "_top"` | no | — | Optional link target metadata for themes that render navigation anchors directly. |
 
 ## `secondary_navigation[]`
 
@@ -256,6 +259,9 @@ Secondary navigation items, exposed to themes via `{{navigation type="secondary"
 | --- | --- | --- | --- | --- |
 | `secondary_navigation[].label` | `string` | yes | — | Anchor text shown in theme navigation. |
 | `secondary_navigation[].url` | `string` | yes | — | Destination of the link. May be an absolute URL or a path relative to the site root. |
+| `secondary_navigation[].icon` | `string` | no | — | Optional icon identifier surfaced to themes as navigation item metadata. |
+| `secondary_navigation[].external` | `boolean` | no | — | Marks the navigation item as external. The fallback renderer adds rel="external" and theme partials can branch on the flag. |
+| `secondary_navigation[].target` | `"_blank" \| "_self" \| "_parent" \| "_top"` | no | — | Optional link target metadata for themes that render navigation anchors directly. |
 
 ## `recommendations[]`
 
@@ -519,6 +525,7 @@ JSON content API component.
 | `components.content_api.absolute_urls` | `boolean` | no | `false` | Rewrite relative URLs in serialized `html` fields to absolute URLs using `[site].url` + `[build].base_path`. Mirrors the Ghost Content API `?absolute_urls=true` query parameter as a build-time switch. Affects `posts`, `pages`, per-tag, paginated, and per-slug/per-id shards across both the flat `/content/*` dump and the `/ghost/api/content/*` SDK shadow tree. Has no effect on absolute URLs already present in the body. |
 | `components.content_api.posts_per_page` | `number` | no | `15` | Page size for the paginated posts shards (`content/posts/page/<n>.json` and `ghost/api/content/posts/page/<n>.json`). Matches Ghost's default Content API `limit=15`. Use `meta.pagination.next` / `meta.pagination.prev` (numbers, not URLs) to walk pages from the consumer. |
 | `components.content_api.emit_htaccess` | `boolean` | no | `false` | Emit `dist/content/.htaccess` with the same Content API CORS and per-resource Cache-Control headers as the generated `_headers` / `_headers.cf` files. Use this only on Apache hosts with `AllowOverride FileInfo`; leave it off for hosts that may serve dotfiles or do not read `.htaccess`. |
+| `components.content_api.emit_key_registry` | `boolean` | no | `false` | Emit `dist/.well-known/ghost-content-keys.json`, a static compatibility registry declaring that Nectar accepts any Ghost Content API key. This does not validate or publish secret keys; it only helps integrations that probe key policy before fetching static JSON. |
 
 ## `components.search`
 

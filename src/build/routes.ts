@@ -440,10 +440,35 @@ export function planRoutes(opts: {
     }
   }
 
+  for (const route of planMembersTemplateRoutes(theme, trailingSlash)) {
+    routes.push({
+      kind: 'custom',
+      url: route.url,
+      outputPath: routeUrlToOutputPath(route.url, trailingSlash),
+      template: route.template,
+      indexable: false,
+      data: {},
+      meta: defaultMeta(config, route.url, `${config.site.title} members`),
+    });
+  }
+
   attachLocaleAlternates(routes, config, basePath);
   assertNoRouteCollisions(routes);
 
   return routes;
+}
+
+function planMembersTemplateRoutes(
+  theme: ThemeBundle,
+  trailingSlash: TrailingSlashPolicy,
+): Array<{ template: string; url: string }> {
+  const out: Array<{ template: string; url: string }> = [];
+  for (const template of Object.keys(theme.templates).sort()) {
+    if (!/^members\/[^/]+$/.test(template)) continue;
+    const url = canonicalRouteUrl(`/${template}/`, trailingSlash);
+    out.push({ template, url });
+  }
+  return out;
 }
 
 function resolveHomeTemplate(theme: ThemeBundle): string | undefined {

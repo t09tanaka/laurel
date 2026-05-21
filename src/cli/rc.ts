@@ -23,17 +23,29 @@ export function discoverRc(cwd: string = process.cwd()): RcDiscovery {
 }
 
 export function loadRcDefaults(cwd: string = process.cwd()): RcObject | undefined {
-  const path = discoverRcPath(cwd);
+  return loadMergedRcDefaults(cwd, process.env);
+}
+
+export function loadMergedRcDefaults(
+  cwd: string = process.cwd(),
+  env: Record<string, string | undefined> = process.env,
+): RcObject | undefined {
+  const user = loadJsonRc(discoverUserConfigPath(env), 'user config');
+  const project = loadJsonRc(discoverRcPath(cwd), 'project .nectarrc');
+  return mergeRcObjects(user, project);
+}
+
+function loadJsonRc(path: string | null, label: string): RcObject | undefined {
   if (path === null) return undefined;
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, 'utf8'));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Invalid ${path}: ${message}`);
+    throw new Error(`Invalid ${label} ${path}: ${message}`);
   }
   if (!isPlainObject(parsed)) {
-    throw new Error(`Invalid ${path}: expected a JSON object`);
+    throw new Error(`Invalid ${label} ${path}: expected a JSON object`);
   }
   return parsed;
 }
@@ -41,18 +53,54 @@ export function loadRcDefaults(cwd: string = process.cwd()): RcObject | undefine
 export function commandRcDefaults(
   commandName: string,
   cwd: string = process.cwd(),
+  env: Record<string, string | undefined> = process.env,
 ): RcObject | undefined {
-  const rc = loadRcDefaults(cwd);
+  const rc = loadMergedRcDefaults(cwd, env);
   if (rc === undefined) return undefined;
   const value = rc[commandName];
   return isPlainObject(value) ? value : undefined;
 }
 
-export function globalRcDefaults(cwd: string = process.cwd()): RcObject | undefined {
-  const rc = loadRcDefaults(cwd);
+export function globalRcDefaults(
+  cwd: string = process.cwd(),
+  env: Record<string, string | undefined> = process.env,
+): RcObject | undefined {
+  const rc = loadMergedRcDefaults(cwd, env);
   if (rc === undefined) return undefined;
   const value = rc.global;
   return isPlainObject(value) ? value : undefined;
+}
+
+function discoverUserConfigPath(env: Record<string, string | undefined>): string | null {
+  const xdg = env.XDG_CONFIG_HOME?.trim();
+  if (xdg) {
+    const candidate = join(xdg, 'nectar', 'config.json');
+    if (existsSync(candidate)) return candidate;
+  }
+  const home = env.HOME?.trim();
+  if (home) {
+    const candidate = join(home, '.config', 'nectar', 'config.json');
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function mergeRcObjects(
+  base: RcObject | undefined,
+  override: RcObject | undefined,
+): RcObject | undefined {
+  if (base === undefined) return override;
+  if (override === undefined) return base;
+  const merged: RcObject = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    const existing = merged[key];
+    if (isPlainObject(existing) && isPlainObject(value)) {
+      merged[key] = { ...existing, ...value };
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }
 
 export function coerceRcValue(

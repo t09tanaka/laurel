@@ -27,10 +27,8 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
     function navigationHelper(this: unknown, options: Handlebars.HelperOptions) {
       const site = options.data?.site as {
         locale?: string;
-        navigation: { label: string; url: string; slug?: string; current?: boolean }[];
-        secondary_navigation:
-          | { label: string; url: string; slug?: string; current?: boolean }[]
-          | undefined;
+        navigation: NavigationHelperItem[];
+        secondary_navigation: NavigationHelperItem[] | undefined;
       };
       const route = options.data?.route as { url?: string } | undefined;
       const currentUrl = route?.url;
@@ -320,6 +318,9 @@ type NavigationHelperItem = {
   url: string;
   slug?: string;
   current?: boolean;
+  icon?: string;
+  external?: boolean;
+  target?: '_blank' | '_self' | '_parent' | '_top';
 };
 
 function renderNavigationItems(
@@ -337,9 +338,20 @@ function renderNavigationItems(
       const isCurrent = isCurrentNavigationItem(item, currentUrl);
       const ariaCurrent = isCurrent ? ' aria-current="page"' : '';
       const safeUrl = navigationHref(String(item.url ?? ''), basePath);
-      return `<li class="nav-${slug}"${ariaCurrent}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}>${escapeHtml(item.label)}</a></li>`;
+      const icon = item.icon ? ` data-nav-icon="${escapeAttr(item.icon)}"` : '';
+      const target = item.target ? ` target="${escapeAttr(item.target)}"` : '';
+      const rel = navigationRel(item);
+      const relAttr = rel ? ` rel="${escapeAttr(rel)}"` : '';
+      return `<li class="nav-${slug}"${ariaCurrent}${icon}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}${target}${relAttr}>${escapeHtml(item.label)}</a></li>`;
     })
     .join('');
+}
+
+function navigationRel(item: NavigationHelperItem): string {
+  const parts: string[] = [];
+  if (item.external === true) parts.push('external');
+  if (item.target === '_blank') parts.push('noopener', 'noreferrer');
+  return [...new Set(parts)].join(' ');
 }
 
 function navigationCacheKey(
@@ -356,7 +368,14 @@ function navigationCacheKey(
     // `aria-current` is part of the helper output, so keep route/current state
     // in the key instead of incorrectly sharing one nav across all pages.
     current: items.map((item) => isCurrentNavigationItem(item, currentUrl)),
-    items: items.map((item) => [item.label, item.url, item.slug ?? '']),
+    items: items.map((item) => [
+      item.label,
+      item.url,
+      item.slug ?? '',
+      item.icon ?? '',
+      item.external === true,
+      item.target ?? '',
+    ]),
   });
 }
 

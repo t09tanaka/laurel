@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { extractGlobalFlags } from '~/cli/global-flags.ts';
@@ -15,6 +15,7 @@ describe('extractGlobalFlags', () => {
       noColor: false,
       debug: false,
       warningsAsErrors: false,
+      locale: undefined,
     });
     expect(rest).toEqual(['build', '--strict']);
   });
@@ -133,6 +134,7 @@ describe('extractGlobalFlags env var fallbacks', () => {
       noColor: false,
       debug: false,
       warningsAsErrors: false,
+      locale: undefined,
     });
   });
 
@@ -263,6 +265,39 @@ describe('extractGlobalFlags env var fallbacks', () => {
       expect(fromCli.verboseCount).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('user global config supplies defaults below project rc, env, and CLI flags', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-global-project-'));
+    const xdg = await mkdtemp(join(tmpdir(), 'nectar-rc-global-user-'));
+    try {
+      await mkdir(join(xdg, 'nectar'), { recursive: true });
+      await writeFile(
+        join(xdg, 'nectar/config.json'),
+        JSON.stringify({ global: { verbose: 1, locale: 'ja-JP' } }),
+      );
+      await writeFile(join(dir, '.nectarrc.json'), JSON.stringify({ global: { verbose: 2 } }));
+      const flags = extractGlobalFlags(['build'], { XDG_CONFIG_HOME: xdg }, dir).flags;
+      expect(flags.verboseCount).toBe(2);
+      expect(flags.locale).toBe('ja-JP');
+
+      const fromEnv = extractGlobalFlags(
+        ['build'],
+        { XDG_CONFIG_HOME: xdg, NECTAR_LOCALE: 'en-US' },
+        dir,
+      ).flags;
+      expect(fromEnv.locale).toBe('en-US');
+
+      const fromCli = extractGlobalFlags(
+        ['--locale=fr-FR', 'build'],
+        { XDG_CONFIG_HOME: xdg, NECTAR_LOCALE: 'en-US' },
+        dir,
+      ).flags;
+      expect(fromCli.locale).toBe('fr-FR');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(xdg, { recursive: true, force: true });
     }
   });
 });

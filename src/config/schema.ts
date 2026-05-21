@@ -17,6 +17,22 @@ const navigationItemSchema = z
       .describe(
         'Destination of the link. May be an absolute URL or a path relative to the site root.',
       ),
+    icon: z
+      .string()
+      .optional()
+      .describe('Optional icon identifier surfaced to themes as navigation item metadata.'),
+    external: z
+      .boolean()
+      .optional()
+      .describe(
+        'Marks the navigation item as external. The fallback renderer adds rel="external" and theme partials can branch on the flag.',
+      ),
+    target: z
+      .enum(['_blank', '_self', '_parent', '_top'])
+      .optional()
+      .describe(
+        'Optional link target metadata for themes that render navigation anchors directly.',
+      ),
   })
   .strict();
 
@@ -1311,6 +1327,12 @@ export const configSchema = z
               .default(false)
               .describe(
                 'Emit `dist/content/.htaccess` with the same Content API CORS and per-resource Cache-Control headers as the generated `_headers` / `_headers.cf` files. Use this only on Apache hosts with `AllowOverride FileInfo`; leave it off for hosts that may serve dotfiles or do not read `.htaccess`.',
+              ),
+            emit_key_registry: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Emit `dist/.well-known/ghost-content-keys.json`, a static compatibility registry declaring that Nectar accepts any Ghost Content API key. This does not validate or publish secret keys; it only helps integrations that probe key policy before fetching static JSON.',
               ),
           })
           .strict()

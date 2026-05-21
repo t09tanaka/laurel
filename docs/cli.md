@@ -28,8 +28,10 @@ filenames beginning with `--` can be passed after it.
 | `-V, --verbose` | `NECTAR_VERBOSE` | Increase verbosity to debug (stack `-VV` for trace) |
 | `-j, --json` | `NECTAR_JSON` | Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`. |
 | `--log-format <json\|pretty>` | `NECTAR_LOG_FORMAT` | Choose logger output format without changing command output. Use `json` for JSON Lines logs in CI, or `pretty` for human-readable logs. |
+| `--locale <tag>` | `NECTAR_LOCALE` | Set the process locale for CLI diagnostics and locale-sensitive output. |
 | `--no-color` | `NECTAR_NO_COLOR` | Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides. |
 | `--debug` | `NECTAR_DEBUG` | Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env. |
+| `--warnings-as-errors` | `NECTAR_WARNINGS_AS_ERRORS` | Exit with code 1 if any logger warning is emitted. |
 | `-h, --help` | — | Show help for the top-level CLI or any subcommand |
 | `-v, --version` | — | Print the Nectar version and exit. Use `nectar version --json` for machine-readable version metadata. |
 
@@ -74,9 +76,9 @@ command line. Useful for `docker-compose`, CI, devcontainers, and `.env` files.
   underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,
   and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.
   Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,
-  `NECTAR_LOG_FORMAT`.
-- **Precedence:** CLI flag → env var → project `.nectarrc` → config file →
-  built-in default.
+  `NECTAR_LOG_FORMAT`, `NECTAR_LOCALE`.
+- **Precedence:** CLI flag → env var → project `.nectarrc` → user global
+  config → built-in default.
 - **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,
   `off`, and the empty string are false (case-insensitive). Anything else is
   rejected as a usage error.
@@ -103,6 +105,14 @@ flags override these defaults.
 `nectar config path` prints both the resolved config file and whether a
 project rc file was detected; `nectar config path --json` exposes
 `config_path` and `rc_path`.
+
+## User-wide defaults
+
+User-wide defaults live in `~/.config/nectar/config.json` (or
+`$XDG_CONFIG_HOME/nectar/config.json`) and use the same JSON shape as
+project `.nectarrc` files. They are intended for personal defaults such as
+`global.no-color`, `global.locale`, or a preferred `serve.port`. Project
+`.nectarrc`, env vars, and CLI flags override them.
 
 Each command section below lists the env-var name for every flag in its
 `Env var` column.
@@ -325,7 +335,7 @@ Options:
 | `--force` | boolean | `NECTAR_NEW_FORCE` | Overwrite the destination file if it already exists |
 | `--slug <slug>` | string | `NECTAR_NEW_SLUG` | Use this lowercase ASCII slug instead of one derived from the title (post/page/custom kinds only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug) |
 | `--draft` | boolean | `NECTAR_NEW_DRAFT` | Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only) |
-| `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only) |
+| `--date <iso>` | string | `NECTAR_NEW_DATE` | Override the published date with an ISO-8601 timestamp instead of the current time (post only). Without --date, UTC is used unless [site].timezone configures an IANA timezone; use an explicit offset when preserving a source editorial wall-clock value. |
 | `--tags <a,b,c>` | string | `NECTAR_NEW_TAGS` | Tag slugs to seed in frontmatter (post only); repeat or comma-separate |
 | `--author <slug>` | string | `NECTAR_NEW_AUTHOR` | Author slug to seed in frontmatter (post only) |
 | `--open` | boolean | `NECTAR_NEW_OPEN` | Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set) |
@@ -1223,7 +1233,7 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<file>` | required | Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json) |
+| `<file>` | required | Path to a Ghost export: a JSON file (.json), an unzipped folder containing one or more JSON exports, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json) |
 
 Options:
 
@@ -1250,6 +1260,7 @@ Examples:
 
 ```
 nectar import-ghost ghost-export.json
+nectar import-ghost ghost-export-folder       # imports all export*.json files in stable order
 nectar import-ghost - < ghost-export.json   # read JSON from stdin
 nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
 nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff

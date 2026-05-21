@@ -1920,3 +1920,31 @@ describe('planRoutes — email_only posts (#505)', () => {
     expect(homePosts.some((p) => p.email_only)).toBe(false);
   });
 });
+
+describe('planRoutes — members templates', () => {
+  test('emits static /members/* routes for Ghost members templates', () => {
+    const theme = makeTheme();
+    theme.templates['members/signin'] = '{{!signin}}';
+    theme.templates['members/signup'] = '{{!signup}}';
+    theme.templates['members/account'] = '{{!account}}';
+
+    const routes = planRoutes({
+      config: makeConfig('https://example.com'),
+      content: makeGraph({}),
+      theme,
+    });
+
+    expect(routes.find((route) => route.url === '/members/signin/')).toMatchObject({
+      kind: 'custom',
+      outputPath: 'members/signin/index.html',
+      template: 'members/signin',
+      indexable: false,
+    });
+    expect(routes.find((route) => route.url === '/members/signup/')).toMatchObject({
+      template: 'members/signup',
+    });
+    expect(routes.find((route) => route.url === '/members/account/')).toMatchObject({
+      template: 'members/account',
+    });
+  });
+});

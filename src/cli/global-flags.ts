@@ -9,6 +9,7 @@ export interface GlobalFlags {
   noColor: boolean;
   debug: boolean;
   warningsAsErrors: boolean;
+  locale: string | undefined;
 }
 
 export interface ExtractResult {
@@ -23,6 +24,7 @@ const LOG_FORMAT_ENV = globalEnvVarName('log-format');
 const NO_COLOR_ENV_NECTAR = globalEnvVarName('no-color');
 const DEBUG_ENV = globalEnvVarName('debug');
 const WARNINGS_AS_ERRORS_ENV = globalEnvVarName('warnings-as-errors');
+const LOCALE_ENV = globalEnvVarName('locale');
 
 // Strips top-level verbosity / output-mode flags from argv so subcommand
 // parsers (which run node:util `parseArgs` in strict mode) don't choke on
@@ -51,6 +53,8 @@ export function extractGlobalFlags(
   let debugFromCli = false;
   let warningsAsErrors = false;
   let warningsAsErrorsFromCli = false;
+  let locale: string | undefined;
+  let localeFromCli = false;
   let passthrough = false;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -116,6 +120,21 @@ export function extractGlobalFlags(
       warningsAsErrorsFromCli = true;
       continue;
     }
+    if (arg === '--locale') {
+      const value = argv[i + 1];
+      if (value === undefined) {
+        throw new CliUsageError('Missing value for --locale (expected a BCP 47 locale tag)');
+      }
+      locale = parseLocale(value, '--locale');
+      localeFromCli = true;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--locale=')) {
+      locale = parseLocale(arg.slice('--locale='.length), '--locale');
+      localeFromCli = true;
+      continue;
+    }
     if (/^-V+$/.test(arg)) {
       verboseCount += arg.length - 1;
       continue;
@@ -167,9 +186,13 @@ export function extractGlobalFlags(
   if (!warningsAsErrorsFromCli && warningsAsErrorsRaw !== undefined) {
     warningsAsErrors = parseBooleanEnv(warningsAsErrorsRaw, WARNINGS_AS_ERRORS_ENV);
   }
+  const localeRaw = env[LOCALE_ENV];
+  if (!localeFromCli && localeRaw !== undefined && localeRaw !== '') {
+    locale = parseLocale(localeRaw, LOCALE_ENV);
+  }
   let rc: ReturnType<typeof globalRcDefaults>;
   try {
-    rc = globalRcDefaults(cwd);
+    rc = globalRcDefaults(cwd, env);
   } catch (err) {
     throw new CliUsageError(err instanceof Error ? err.message : String(err));
   }
@@ -205,10 +228,13 @@ export function extractGlobalFlags(
     if (!warningsAsErrorsFromCli && warningsAsErrorsRaw === undefined) {
       warningsAsErrors = readGlobalRcBoolean(rc, 'warnings-as-errors') ?? warningsAsErrors;
     }
+    if (!localeFromCli && localeRaw === undefined) {
+      locale = readGlobalRcString(rc, 'locale') ?? locale;
+    }
   }
 
   return {
-    flags: { quiet, verboseCount, json, logFormat, noColor, debug, warningsAsErrors },
+    flags: { quiet, verboseCount, json, logFormat, noColor, debug, warningsAsErrors, locale },
     rest,
   };
 }
@@ -241,5 +267,13 @@ function parseLogFormat(raw: string, source: string): NonNullable<GlobalFlags['l
   if (raw === 'json' || raw === 'pretty') return raw;
   throw new CliUsageError(
     `Invalid ${source}: ${JSON.stringify(raw)} (expected "json" or "pretty")`,
+  );
+}
+
+function parseLocale(raw: string, source: string): string {
+  const value = raw.trim();
+  if (/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value)) return value;
+  throw new CliUsageError(
+    `Invalid ${source}: ${JSON.stringify(raw)} (expected a BCP 47 locale tag like "en-US")`,
   );
 }

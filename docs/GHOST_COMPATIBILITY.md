@@ -35,6 +35,15 @@ See `DESIGN.md` §4 for the master matrix.
 - Hash params on partial includes (`{{> "post-card" lazyLoad=true}}`) pass
   through Handlebars' standard partial param plumbing — no special handling
   required.
+- Nectar-only boolean helpers (`{{or}}`, `{{and}}`, `{{not}}`, `{{eq}}`) are
+  convenience extensions. Ghost themes should not rely on them if the same
+  theme must run unchanged on Ghost.
+- Legacy `{{products}}` / `{{product}}` helpers alias the static tier surface
+  exposed by `{{tiers}}` / `{{tier}}`.
+- Themes with `members/signin.hbs`, `members/signup.hbs`,
+  `members/subscribe.hbs`, or `members/account.hbs` get static `/members/*/`
+  routes. These are presentation routes only; Nectar still does not provide a
+  live members backend.
 
 ## Contexts
 

@@ -69,6 +69,19 @@ export function validateThemeCustom(
   return { unknownKeys, invalidValues };
 }
 
+export function generateThemeCustomTomlSnippet(pkg: ThemePackage): string {
+  const entries = Object.entries(pkg.custom).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return '';
+  const lines = ['[theme.custom]'];
+  for (const [key, def] of entries) {
+    lines.push('');
+    if (def.description) lines.push(`# ${def.description}`);
+    lines.push(`# type: ${def.type}${def.options?.length ? ` (${def.options.join(', ')})` : ''}`);
+    lines.push(`${key} = ${tomlValue(def.default ?? defaultCustomValue(def))}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export function formatThemeCustomIssue(issue: ThemeCustomIssue, themeName: string): string {
   const head = `unknown \`[theme.custom].${issue.key}\` — not declared by theme "${themeName}"`;
   return issue.suggestion ? `${head} (did you mean \`${issue.suggestion}\`?)` : head;
@@ -166,4 +179,21 @@ function describeValue(value: unknown): string {
   if (t === 'string') return `string \`${value as string}\``;
   if (t === 'number' || t === 'boolean') return `${t} \`${String(value)}\``;
   return t;
+}
+
+function defaultCustomValue(def: ThemeCustomSettingDefinition): unknown {
+  switch (def.type) {
+    case 'boolean':
+      return false;
+    case 'color':
+      return '#ffffff';
+    default:
+      return '';
+  }
+}
+
+function tomlValue(value: unknown): string {
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return JSON.stringify(String(value ?? ''));
 }

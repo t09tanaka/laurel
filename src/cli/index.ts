@@ -110,6 +110,9 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     `  ${'--log-format <json|pretty>'.padEnd(globalOptionWidth)}Choose logger output format without changing command output`,
   );
   lines.push(
+    `  ${'--locale <tag>'.padEnd(globalOptionWidth)}Set the process locale for CLI diagnostics and locale-sensitive output`,
+  );
+  lines.push(
     `  ${'--no-color'.padEnd(globalOptionWidth)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,
   );
   lines.push(
@@ -356,6 +359,10 @@ function applyGlobalFlags(flags: GlobalFlags): void {
   }
   if (flags.warningsAsErrors) {
     setWarningsAsErrors(true);
+  }
+  if (flags.locale) {
+    process.env.LC_MESSAGES = flags.locale;
+    process.env.LANG = flags.locale;
   }
 }
 

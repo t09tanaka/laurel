@@ -153,9 +153,10 @@ because there is no server.
 This means the SDK init form is compatible as-is. Operators rotating keys
 in their themes do not need to coordinate with Nectar.
 
-Nectar does not emit a key registry such as
-`.well-known/ghost-content-keys.json`. The static dump is public and accepts
-any key value.
+Set `[components.content_api].emit_key_registry = true` to emit
+`.well-known/ghost-content-keys.json`. The registry declares that the static
+dump accepts any key value; it does not store or publish secret Content API
+keys.
 
 ## Query parameters
 

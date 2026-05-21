@@ -235,6 +235,32 @@ describe('emitContentApiStubs', () => {
     expect(existsSync(join(outputDir, '_headers.cf'))).toBe(true);
   });
 
+  test('optionally emits a static Ghost Content API key registry', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-keys-'));
+    await emitContentApiStubs({ content: makeGraph(), outputDir, emitKeyRegistry: true });
+
+    const body = JSON.parse(
+      readFileSync(join(outputDir, '.well-known', 'ghost-content-keys.json'), 'utf8'),
+    );
+    expect(body).toMatchObject({
+      generator: 'nectar',
+      mode: 'static',
+      accepts_any_key: true,
+      validation: 'disabled',
+    });
+  });
+
+  test('preserves raw og_description for Wave-style audio URL usage', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-og-description-'));
+    const graph = makeGraph({
+      posts: [makePost({ og_description: 'https://cdn.example.com/podcast.mp3' })],
+    });
+    await emitContentApiStubs({ content: graph, outputDir });
+
+    const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
+    expect(body.posts[0].og_description).toBe('https://cdn.example.com/podcast.mp3');
+  });
+
   test('emits a Ghost-shaped 404 error envelope for static Content API misses (#742)', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-404-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });

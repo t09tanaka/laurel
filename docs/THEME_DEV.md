@@ -727,6 +727,11 @@ navigation_layout = "Logo on the left"
 show_featured_posts = true
 ```
 
+For UI-less distribution, Nectar can generate a TOML snippet from the theme
+package custom schema. The snippet is the supported minimum form-generation
+surface: theme authors can show it in docs or tooling, and users can paste the
+`[theme.custom]` block into `nectar.toml` without guessing defaults.
+
 A custom setting referenced by the theme but not declared in `package.json` is
 still readable (it just resolves to `undefined`); a user-side override of an
 undeclared key currently warns rather than hard-fails.

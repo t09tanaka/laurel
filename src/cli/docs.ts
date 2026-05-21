@@ -39,6 +39,11 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     envVar: globalEnvVarName('log-format'),
   },
   {
+    flag: '--locale <tag>',
+    description: 'Set the process locale for CLI diagnostics and locale-sensitive output.',
+    envVar: globalEnvVarName('locale'),
+  },
+  {
     flag: '--no-color',
     description:
       'Disable ANSI color output. Also honours the standard `NO_COLOR=1` env var; `FORCE_COLOR=1` overrides.',
@@ -49,6 +54,11 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
     description:
       'Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env.',
     envVar: globalEnvVarName('debug'),
+  },
+  {
+    flag: '--warnings-as-errors',
+    description: 'Exit with code 1 if any logger warning is emitted.',
+    envVar: globalEnvVarName('warnings-as-errors'),
   },
   { flag: '-h, --help', description: 'Show help for the top-level CLI or any subcommand' },
   {
@@ -163,9 +173,9 @@ export function renderCliReference(
     '  underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,',
     '  and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.',
     '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,',
-    '  `NECTAR_LOG_FORMAT`.',
-    '- **Precedence:** CLI flag → env var → project `.nectarrc` → config file →',
-    '  built-in default.',
+    '  `NECTAR_LOG_FORMAT`, `NECTAR_LOCALE`.',
+    '- **Precedence:** CLI flag → env var → project `.nectarrc` → user global',
+    '  config → built-in default.',
     '- **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,',
     '  `off`, and the empty string are false (case-insensitive). Anything else is',
     '  rejected as a usage error.',
@@ -196,6 +206,16 @@ export function renderCliReference(
     '`nectar config path` prints both the resolved config file and whether a',
     'project rc file was detected; `nectar config path --json` exposes',
     '`config_path` and `rc_path`.',
+  );
+  lines.push('');
+  lines.push('## User-wide defaults');
+  lines.push('');
+  lines.push(
+    'User-wide defaults live in `~/.config/nectar/config.json` (or',
+    '`$XDG_CONFIG_HOME/nectar/config.json`) and use the same JSON shape as',
+    'project `.nectarrc` files. They are intended for personal defaults such as',
+    '`global.no-color`, `global.locale`, or a preferred `serve.port`. Project',
+    '`.nectarrc`, env vars, and CLI flags override them.',
   );
   lines.push('');
   lines.push(

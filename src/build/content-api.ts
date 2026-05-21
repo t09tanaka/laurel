@@ -58,6 +58,9 @@ export interface EmitContentApiStubsOptions {
   // When true, writes an Apache .htaccess into dist/content/ with the same
   // CORS and Cache-Control headers as the generated _headers files.
   emitHtaccess?: boolean;
+  // When true, writes a static compatibility registry for Ghost Content API
+  // clients that probe key policy before fetching JSON.
+  emitKeyRegistry?: boolean;
 }
 
 interface ApiUrlContext {
@@ -103,6 +106,7 @@ export async function emitContentApiStubs(opts: EmitContentApiStubsOptions): Pro
     writeFeaturedPosts(outputDir, serializedPosts),
     writeContentApi404(outputDir),
     writeServiceDiscovery(outputDir, basePath),
+    writeContentApiKeyRegistry(outputDir, opts.emitKeyRegistry ?? false),
     writeCorsHeaders(outputDir, '_headers'),
     writeCorsHeaders(outputDir, '_headers.cf'),
     writeContentHtaccess(outputDir, opts.emitHtaccess ?? false),
@@ -304,6 +308,17 @@ async function writeServiceDiscovery(outputDir: string, basePath: string): Promi
       content: joinDiscoveryEndpoint(basePath, 'ghost/api/content/'),
       flat_content: joinDiscoveryEndpoint(basePath, 'content/'),
     },
+  });
+}
+
+async function writeContentApiKeyRegistry(outputDir: string, enabled: boolean): Promise<void> {
+  if (!enabled) return;
+  await writeJson(join(outputDir, '.well-known', 'ghost-content-keys.json'), {
+    generator: 'nectar',
+    mode: 'static',
+    accepts_any_key: true,
+    validation: 'disabled',
+    note: 'Nectar emits static Ghost Content API JSON and does not validate ?key= values at runtime.',
   });
 }
 

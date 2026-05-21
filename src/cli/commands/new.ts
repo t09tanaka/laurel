@@ -1,6 +1,9 @@
 import { existsSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone.js';
+import utc from 'dayjs/plugin/utc.js';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
@@ -15,6 +18,9 @@ import { reportError } from '../report.ts';
 import { isValidCliSlug, slugifyCliValue } from '../slug.ts';
 import { NEW_SPEC } from '../specs.ts';
 import { readStdinText } from '../stdin.ts';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 type BuiltInKind = 'post' | 'page' | 'tag' | 'author';
 type KindModel = BuiltInKind | 'custom';
@@ -191,7 +197,7 @@ export async function runNew(args: string[]): Promise<number> {
     kind: kindDef,
     title: usesTitle(kindDef) ? titleOrValue : titleFromSlug(slug),
     slug,
-    date: isPost ? (isoDate ?? new Date().toISOString()) : undefined,
+    date: isPost ? (isoDate ?? currentPostDate(config.site.timezone)) : undefined,
     draft: isPostOrPage ? draft : false,
     tags: tagList,
     author: authorRaw,
@@ -214,6 +220,15 @@ export async function runNew(args: string[]): Promise<number> {
   }
 
   return 0;
+}
+
+function currentPostDate(timezoneName: string | undefined): string {
+  const normalized = timezoneName?.trim();
+  if (!normalized || normalized === 'UTC') return new Date().toISOString();
+  const localized = dayjs().tz(normalized);
+  return localized.isValid()
+    ? localized.format('YYYY-MM-DDTHH:mm:ss.SSSZ')
+    : new Date().toISOString();
 }
 
 async function resolveNewKinds(

@@ -189,7 +189,7 @@ export const NEW_SPEC: CommandSpec = {
     date: {
       type: 'string',
       description:
-        'Override the published date with an ISO-8601 timestamp instead of the current time (post only)',
+        'Override the published date with an ISO-8601 timestamp instead of the current time (post only). Without --date, UTC is used unless [site].timezone configures an IANA timezone; use an explicit offset when preserving a source editorial wall-clock value.',
       placeholder: '<iso>',
     },
     tags: {
@@ -545,12 +545,13 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     {
       name: 'file',
       description:
-        'Path to a Ghost export: the JSON file (.json), an unzipped folder, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\\x03\\x04 → zip, leading "{" / "[" → json)',
+        'Path to a Ghost export: a JSON file (.json), an unzipped folder containing one or more JSON exports, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\\x03\\x04 → zip, leading "{" / "[" → json)',
       required: true,
     },
   ],
   examples: [
     'nectar import-ghost ghost-export.json',
+    'nectar import-ghost ghost-export-folder       # imports all export*.json files in stable order',
     'nectar import-ghost - < ghost-export.json   # read JSON from stdin',
     'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
     'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',

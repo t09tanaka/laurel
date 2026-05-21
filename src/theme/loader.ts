@@ -274,8 +274,9 @@ async function loadLocales(rootDir: string): Promise<ThemeLocaleMap> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
-    } catch {
-      logger.warn(`Locale file ${rel} is not valid JSON; ignoring.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`Locale file ${join(dir, rel)} is not valid JSON; ignoring. ${message}`);
       continue;
     }
     out[code] = sanitizeLocale(parsed, rel);

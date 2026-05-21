@@ -74,6 +74,7 @@
     "docs:theme-reference": "bun run scripts/docs-theme-reference.ts",
     "prepublishOnly": "bun run build:cli && bun run build:types",
     "test": "bun test",
+    "test:e2e": "bun test tests/e2e",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "test:coverage:gate": "bun test --coverage && bun scripts/coverage-gate.ts",
