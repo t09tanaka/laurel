@@ -1255,7 +1255,10 @@ describe('get helper', () => {
     registerBlockHelpers(engine);
     engine.hb.registerHelper('mutate', (item: Record<string, unknown>) => {
       item.title = 'Mutated';
-      (item.authors as Record<string, unknown>[])[0].name = 'Changed';
+      const [author] = item.authors as Record<string, unknown>[];
+      if (author) {
+        author.name = 'Changed';
+      }
       return '';
     });
 
