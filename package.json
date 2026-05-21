@@ -82,6 +82,7 @@
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "test:coverage:gate": "bun test --coverage && bun scripts/coverage-gate.ts",
+    "bench:performance": "bun tests/bench/performance.bench.ts",
     "typecheck": "tsc --noEmit",
     "check": "biome check src tests",
     "format": "biome format --write src tests",

@@ -124,6 +124,10 @@ Once a site is live, see
 header snippets each host needs — Nectar emits static files, so these are
 the host's job.
 
+For build-time expectations, scaling guidance, recommended cache headers, image
+limits, and a manual 1k-post benchmark, see
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md).
+
 Accepting PRs against `content/` or `themes/`? Read
 [`docs/security/threat-model.md`](./docs/security/threat-model.md) first.
 It documents which frontmatter fields (`codeinjection_*`,
