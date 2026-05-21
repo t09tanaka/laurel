@@ -13,6 +13,8 @@ published from Ghost — without running Ghost.
   Source theme is the litmus test.
 - Database, members, paywall, email — these are out of scope unless the user
   opts into an optional component.
+- The local Admin / dashboard follows the file-first design direction in
+  [`admin-dashboard.md`](./admin-dashboard.md); it is not a Ghost Admin clone.
 - Multi-locale routing. A build produces exactly one locale, determined by
   `[site].locale`. There is no `/en/foo/` + `/ja/foo/` split, no per-locale
   content subdirectory convention, and no language switcher routing. Sites

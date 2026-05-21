@@ -32,6 +32,8 @@ static sites. The supported migration paths are documented in
 ## Status
 
 Bootstrap in progress. See `docs/DESIGN.md` for the full architecture,
+[`docs/admin-dashboard.md`](./docs/admin-dashboard.md) for the local
+file-backed Admin design direction,
 [`VERSIONING.md`](./VERSIONING.md) for the SemVer, public API, and
 theme-compatibility policy,
 `docs/GHOST_COMPATIBILITY.md` for the helper coverage matrix,
