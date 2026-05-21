@@ -771,6 +771,23 @@ describe('buildContext', () => {
     expect(tokens).toContain('author-jane-doe');
   });
 
+  test('tag template body_class includes sanitized tag-<slug> token (issue #1179)', () => {
+    const route: RouteContext = {
+      kind: 'tag',
+      url: '/tag/launch-notes/',
+      outputPath: 'tag/launch-notes/index.html',
+      template: 'tag',
+      data: { tag: makeTag({ slug: 'Launch Notes' }) },
+      meta: baseMeta,
+    };
+    const bodyClass = String(buildContext(engine, route).body_class);
+    const tokens = bodyClass.split(' ');
+
+    expect(tokens).toEqual(expect.arrayContaining(['tag-template', 'tag-launch-notes']));
+    expect(tokens).toContain('tag-template-launch-notes');
+    expect(bodyClass).not.toContain('Launch Notes');
+  });
+
   test('resource routes include per-resource body_class slug modifiers (issue #979)', () => {
     const postRoute: RouteContext = {
       kind: 'post',
