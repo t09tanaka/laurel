@@ -193,6 +193,19 @@ describe('get helper memoization', () => {
 });
 
 describe('get helper slug= hash', () => {
+  test('resource="pages" exposes the pages collection to the block', () => {
+    const pages = [
+      { id: 'about', slug: 'about', title: 'About' },
+      { id: 'contact', slug: 'contact', title: 'Contact' },
+    ];
+    const engine = buildEngine({ pages });
+    const tpl = engine.hb.compile(
+      `{{#get "pages"}}{{#foreach pages}}{{slug}}:{{title}};{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('about:About;contact:Contact;');
+  });
+
   test('filters posts by slug before rendering the block', () => {
     const posts = [
       { id: 'home', slug: 'home', title: 'Home', published_at: '2026-05-20T00:00:00.000Z' },
