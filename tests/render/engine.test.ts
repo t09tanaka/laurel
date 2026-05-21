@@ -1023,6 +1023,31 @@ describe('buildContext', () => {
     );
     expect(post.feature_image_caption).toBe('Credit <strong>Casper</strong>');
   });
+
+  test('author block exposes the author from route data', () => {
+    const author = makeAuthor({ name: 'Route Author' });
+    const route: RouteContext = {
+      kind: 'author',
+      url: '/author/route-author/',
+      outputPath: 'author/route-author/index.html',
+      template: 'author',
+      data: { author },
+      meta: baseMeta,
+    };
+    const hb = Handlebars.create();
+    const blockEngine = {
+      ...engine,
+      hb,
+      content: { posts: [], pages: [], tags: [], authors: [author], tiers: [] },
+      sortedCache: new Map<string, readonly unknown[]>(),
+    } as unknown as NectarEngine;
+    registerBlockHelpers(blockEngine);
+
+    const ctx = buildContext(blockEngine, route);
+    const tpl = hb.compile('{{#author}}{{name}}{{/author}}');
+
+    expect(tpl(ctx, { data: { route } })).toBe('Route Author');
+  });
 });
 
 function makePagination(page: number): RouteContext['data']['pagination'] {
