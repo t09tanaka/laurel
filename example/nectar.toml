@@ -18,6 +18,7 @@ site_background_color = "#ffffff"
 header_and_footer_color = "Background color"
 title_font = "Modern sans-serif"
 body_font = "Modern sans-serif"
+font_display = "swap"
 header_style = "Landing"
 header_text = "Reading and writing for the love of the craft."
 background_image = true

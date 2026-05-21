@@ -124,6 +124,15 @@
                 ],
                 "default": "Modern sans-serif"
             },
+            "font_display": {
+                "type": "select",
+                "options": [
+                    "swap",
+                    "optional"
+                ],
+                "default": "swap",
+                "description": "Use swap for readable text during font load, or optional to avoid late font swaps when brand consistency is more important."
+            },
             "signup_heading": {
                 "type": "text",
                 "description": "Used in your footer across your theme, defaults to site title when empty"

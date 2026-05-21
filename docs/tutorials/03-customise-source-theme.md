@@ -77,6 +77,7 @@ header_style = "Magazine"                # or "Landing", "Highlight", "Off"
 header_text = "Reading and writing for the love of the craft."
 title_font = "Modern sans-serif"         # or "Elegant serif"
 body_font = "Modern sans-serif"          # or "Elegant serif"
+font_display = "swap"                    # or "optional"
 post_feed_style = "List"                 # or "Grid"
 show_featured_posts = true
 show_images_in_feed = true
@@ -91,6 +92,11 @@ background_image = true
 The exact set is in Source's `package.json` `config.custom` block — that file
 is the source of truth for valid values. Mistyped keys are silently ignored
 (they just don't reach the template).
+
+`font_display = "swap"` is the Source default because it keeps text readable
+while web fonts load. Set `font_display = "optional"` only when avoiding late
+font swaps and preserving brand typography is more important than guaranteeing
+the custom font appears on slow or interrupted connections.
 
 ## Step 3 — Edit a partial to change a snippet
 

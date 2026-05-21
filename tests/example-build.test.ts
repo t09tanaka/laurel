@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
+import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
@@ -19,6 +21,8 @@ describe('example build', () => {
     expect(indexHtml).toContain('gh-viewport');
     expect(indexHtml).toContain('/assets/built/screen.');
     expect(indexHtml).not.toMatch(/\{\{[a-zA-Z][^}]*\}\}/);
+    expect(indexHtml).toContain('font-display: swap;');
+    expect(indexHtml).not.toContain('font-display: optional;');
 
     const postHtml = readFileSync(join(distRoot, 'hello-nectar/index.html'), 'utf8');
     expect(postHtml).toContain('Hello, Nectar');
@@ -196,6 +200,31 @@ describe('example build', () => {
       expect(html, `${label} page must not assign has-NaN-text via JS`).not.toContain(
         'document.documentElement.className = `has-${textColor}-text`',
       );
+    }
+  });
+
+  test('Source font-display optional remains an explicit theme custom opt-in', async () => {
+    const source = join(process.cwd(), 'example');
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-source-font-display-'));
+
+    try {
+      await cp(source, cwd, { recursive: true });
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        readFileSync(join(cwd, 'nectar.toml'), 'utf8').replace(
+          'font_display = "swap"',
+          'font_display = "optional"',
+        ),
+        'utf8',
+      );
+
+      await build({ cwd });
+
+      const indexHtml = readFileSync(join(cwd, 'dist', 'index.html'), 'utf8');
+      expect(indexHtml).toContain('font-display: optional;');
+      expect(indexHtml).not.toContain('font-display: swap;');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
     }
   });
 });

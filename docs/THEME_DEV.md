@@ -708,6 +708,11 @@ undeclared key currently warns rather than hard-fails.
         "type": "boolean",
         "default": false,
         "group": "homepage"
+      },
+      "font_display": {
+        "type": "select",
+        "options": ["swap", "optional"],
+        "default": "swap"
       }
     }
   }
@@ -735,6 +740,10 @@ undeclared key currently warns rather than hard-fails.
   Ghost: `text`, `boolean`, `select` (with `options`), `color`, `image`. Types
   beyond `select` and `boolean` currently round-trip as strings — the user is
   responsible for the value's shape.
+  For font-loading controls, prefer a `select` such as Source's
+  `font_display = "swap" | "optional"`: `swap` avoids invisible text while fonts
+  load, while `optional` can reduce late layout/typography changes at the cost
+  of the custom font never appearing on slow connections.
 
 ## 8. Locales
 
