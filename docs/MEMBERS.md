@@ -229,6 +229,15 @@ existing subscribe-form transform only targets those explicit hooks:
 | `listmonk`                             | Patch the form `action`, email/name fields, and inject `l` hidden fields from `list_id` / `list_ids`. |
 | `customformaction` / `custom`          | Patch the form `action` and optional field mapping you configure. |
 
+When Nectar rewrites a members form to a real provider action, it also injects
+a hidden honeypot input named `website` with `tabindex="-1"` and
+`autocomplete="off"`. Buttondown, Beehiiv, and the other built-in providers
+keep their normal email/name field names. For `customformaction` and `custom`,
+your server-side endpoint should treat a non-empty `website` value as spam and
+reject or silently drop the submission. Nectar skips the injection when a form
+already contains an input named `website`, so theme authors can provide their
+own equivalent field without duplication.
+
 Nectar does not rewrite arbitrary forms that lack these members-form markers,
 and it does not implement Ghost's runtime success / error state machine.
 `data-members-success` and `data-members-error` are static presentation hooks

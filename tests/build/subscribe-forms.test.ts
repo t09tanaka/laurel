@@ -201,6 +201,9 @@ describe('transformSubscribeForms', () => {
     });
     expect(out).toContain('action="https://buttondown.email/api/emails/embed-subscribe/jamie"');
     expect(out).toMatch(/<input[^>]*\bname="email"/);
+    expect(out).toMatch(
+      /<input[^>]*\btype="text"[^>]*\bname="website"[^>]*\btabindex="-1"[^>]*\bautocomplete="off"[^>]*\bstyle="display:none"/,
+    );
     expect(out).not.toMatch(/onsubmit=/);
   });
 
@@ -348,7 +351,23 @@ describe('transformSubscribeForms', () => {
     });
     expect(out).toContain('action="https://api.beehiiv.com/v2/publications/pub_abc/subscriptions"');
     expect(out).toMatch(/<input[^>]*\bname="email"/);
+    expect(out).toMatch(/<input[^>]*\bname="website"/);
     expect(out).not.toMatch(/onsubmit=/);
+  });
+
+  test('does not duplicate an existing honeypot input on the same form', () => {
+    const html = [
+      '<form class="gh-form" data-members-form>',
+      '<input type="text" name="website" tabindex="-1" autocomplete="off" style="display:none">',
+      '<input type="email" data-members-email>',
+      '<button type="submit">Subscribe</button>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'custom',
+      action: 'https://hooks.example.com/subscribe',
+    });
+    expect(out.match(/name="website"/g) ?? []).toHaveLength(1);
   });
 
   test('with convertkit provider, rewrites action and email field for signup card markup', () => {

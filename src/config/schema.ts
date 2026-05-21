@@ -1418,7 +1418,7 @@ export const configSchema = z
               ])
               .default('none')
               .describe(
-                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailerlite` / `mailchimp` / `emailoctopus` / `listmonk` rewrite the form action to the provider's public embed / subscription endpoint. `customformaction` and `custom` let the operator supply a raw `action` and optional `field_map`.",
+                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailerlite` / `mailchimp` / `emailoctopus` / `listmonk` rewrite the form action to the provider's public embed / subscription endpoint and add a hidden `website` honeypot input. `customformaction` and `custom` let the operator supply a raw `action` and optional `field_map`; custom endpoints should reject submissions where `website` is non-empty.",
               ),
             action: z
               .string()
@@ -1476,7 +1476,7 @@ export const configSchema = z
               .record(z.string())
               .optional()
               .describe(
-                '`custom` and provider override escape hatch. Map of logical field name -> form field name. Today `email` and `name` are consulted (overriding `email_field_name` / `name_field_name` when set); reserved for future hidden / honeypot fields without a schema bump.',
+                '`custom` and provider override escape hatch. Map of logical field name -> form field name. Today only `email` and `name` are consulted (overriding `email_field_name` / `name_field_name` when set); the spam honeypot keeps the fixed `website` name for provider compatibility.',
               ),
             strip_selectors: z
               .array(z.string())

@@ -34,6 +34,9 @@ const FORM_BLOCK_RE = /<form\b[^>]*\bdata-members-form\b[^>]*>[\s\S]*?<\/form>/g
 const FORM_OPEN_RE = /^<form\b[^>]*>/i;
 const INPUT_RE = /<input\b[^>]*>/gi;
 const BUTTON_RE = /<button\b[^>]*>/gi;
+const HONEYPOT_FIELD_NAME = 'website';
+const HONEYPOT_FIELD_HTML =
+  '<input type="text" name="website" tabindex="-1" autocomplete="off" style="display:none" aria-hidden="true">';
 
 export function containsSubscribeFormMarkup(html: string): boolean {
   return html.includes('data-members-form');
@@ -71,7 +74,8 @@ function rewriteMembersFormBlock(block: string, resolved: ResolvedSubscribeForm)
   const rewrittenBody = body
     .replace(INPUT_RE, (tag) => rewriteMembersInput(tag, resolved))
     .replace(BUTTON_RE, (tag) => rewriteMembersButton(tag));
-  return `${form}${renderHiddenFields(resolved, rewrittenBody)}${rewrittenBody}`;
+  const hiddenFields = renderHiddenFields(resolved, rewrittenBody);
+  return `${form}${hiddenFields}${renderHoneypotField(resolved, `${hiddenFields}${rewrittenBody}`)}${rewrittenBody}`;
 }
 
 function rewriteMembersInput(tag: string, resolved: ResolvedSubscribeForm): string {
@@ -110,6 +114,11 @@ function renderHiddenFields(resolved: ResolvedSubscribeForm, body: string): stri
     .join('');
 }
 
+function renderHoneypotField(resolved: ResolvedSubscribeForm, body: string): string {
+  if (resolved.disabled || hasInputNamed(body, HONEYPOT_FIELD_NAME)) return '';
+  return HONEYPOT_FIELD_HTML;
+}
+
 function hasNamedInput(body: string, name: string, value: string): boolean {
   const expectedName = name.toLowerCase();
   const expectedValue = value.toLowerCase();
@@ -120,6 +129,17 @@ function hasNamedInput(body: string, name: string, value: string): boolean {
     const hasExpectedName = getAttribute(tag, 'name')?.toLowerCase() === expectedName;
     const hasExpectedValue = (getAttribute(tag, 'value') ?? '').toLowerCase() === expectedValue;
     if (hasExpectedName && hasExpectedValue) return true;
+    match = INPUT_RE.exec(body);
+  }
+  return false;
+}
+
+function hasInputNamed(body: string, name: string): boolean {
+  const expectedName = name.toLowerCase();
+  INPUT_RE.lastIndex = 0;
+  let match = INPUT_RE.exec(body);
+  while (match !== null) {
+    if (getAttribute(match[0], 'name')?.toLowerCase() === expectedName) return true;
     match = INPUT_RE.exec(body);
   }
   return false;
