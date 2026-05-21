@@ -429,6 +429,25 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     expect(tpl({})).toBe('/assets/built/source.abc123def0.js');
   });
 
+  test('strips a leading slash before looking up a registered theme asset', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/built/app.js', {
+      logicalPath: 'assets/built/app.js',
+      fingerprintedPath: 'assets/built/app.abc123def0.js',
+      sourcePath: '/theme/assets/built/app.js',
+      hash: 'abc123def0',
+      integrity: 'sha384-app',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{asset "/built/app.js"}}|{{asset "built/app.js"}}|{{asset "assets/built/app.js"}}',
+    );
+    expect(tpl({})).toBe(
+      '/assets/built/app.abc123def0.js|/assets/built/app.abc123def0.js|/assets/built/app.abc123def0.js',
+    );
+  });
+
   test('prefers a minified asset map entry when hasMinFile is truthy', () => {
     const engine = makeEngine({ basePath: '/' });
     engine.theme.assets.set('assets/built/screen.css', {
