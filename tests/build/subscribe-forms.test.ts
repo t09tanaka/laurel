@@ -41,6 +41,29 @@ describe('resolveSubscribeForm', () => {
     expect(r.disabled).toBe(false);
   });
 
+  test('uses MailerLite action and fields[email] field name by default', () => {
+    const action = 'https://app.mailerlite.com/webforms/submit/abc123';
+    const r = resolveSubscribeForm({ provider: 'mailerlite', action });
+    expect(r.action).toBe(action);
+    expect(r.emailFieldName).toBe('fields[email]');
+    expect(r.nameFieldName).toBe('fields[name]');
+    expect(r.hiddenFields).toEqual([{ name: 'ml-submit', value: '1' }]);
+    expect(r.method).toBe('post');
+  });
+
+  test('uses EmailOctopus list id endpoint and field_0 field name by default', () => {
+    const r = resolveSubscribeForm({
+      provider: 'emailoctopus',
+      list_id: '72d84316-1496-11eb-a3d0-06b4694bee2a',
+    });
+    expect(r.action).toBe(
+      'https://emailoctopus.com/lists/72d84316-1496-11eb-a3d0-06b4694bee2a/members/embedded/1.3/add',
+    );
+    expect(r.emailFieldName).toBe('field_0');
+    expect(r.nameFieldName).toBe('field_1');
+    expect(r.method).toBe('post');
+  });
+
   test('uses ConvertKit hosted form endpoint and email_address field name', () => {
     const r = resolveSubscribeForm({ provider: 'convertkit', form_id: '12345' });
     expect(r.action).toBe('https://app.kit.com/forms/12345/subscriptions');
@@ -188,6 +211,44 @@ describe('transformSubscribeForms', () => {
     expect(out).toMatch(/<form[^>]*\bmethod="post"/);
     expect(out).toMatch(/<input[^>]*\bname="EMAIL"/);
     expect(out).not.toMatch(/<input[^>]*\bname="email"/);
+  });
+
+  test('with mailerlite provider, maps inputs and injects ml-submit once', () => {
+    const html = [
+      '<form class="gh-form" data-members-form>',
+      '<input type="hidden" name="ml-submit" value="1">',
+      '<input type="text" data-members-name>',
+      '<input type="email" data-members-email>',
+      '<button type="submit">Subscribe</button>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'mailerlite',
+      action: 'https://app.mailerlite.com/webforms/submit/abc123',
+    });
+    expect(out).toContain('action="https://app.mailerlite.com/webforms/submit/abc123"');
+    expect(out).toMatch(/<input[^>]*\bdata-members-name[^>]*\bname="fields\[name\]"/);
+    expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="fields\[email\]"/);
+    expect(out.match(/name="ml-submit"/g) ?? []).toHaveLength(1);
+  });
+
+  test('with emailoctopus provider, maps inputs to field_1 and field_0', () => {
+    const html = [
+      '<form class="gh-form" data-members-form>',
+      '<input type="text" data-members-name>',
+      '<input type="email" data-members-email>',
+      '<button type="submit">Subscribe</button>',
+      '</form>',
+    ].join('');
+    const out = transformSubscribeForms(html, {
+      provider: 'emailoctopus',
+      list_id: '72d84316-1496-11eb-a3d0-06b4694bee2a',
+    });
+    expect(out).toContain(
+      'action="https://emailoctopus.com/lists/72d84316-1496-11eb-a3d0-06b4694bee2a/members/embedded/1.3/add"',
+    );
+    expect(out).toMatch(/<input[^>]*\bdata-members-name[^>]*\bname="field_1"/);
+    expect(out).toMatch(/<input[^>]*\bdata-members-email[^>]*\bname="field_0"/);
   });
 
   test('with custom provider, applies method and name field mapping', () => {

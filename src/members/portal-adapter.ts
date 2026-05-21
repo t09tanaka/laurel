@@ -19,7 +19,9 @@ export type SubscribeProvider =
   | 'buttondown'
   | 'beehiiv'
   | 'convertkit'
+  | 'mailerlite'
   | 'mailchimp'
+  | 'emailoctopus'
   | 'listmonk'
   | 'customformaction'
   | 'custom';
@@ -37,7 +39,7 @@ export interface SubscribeAdapterConfig {
   // listmonk public list UUID. `list_ids` is preferred for multi-list forms.
   list_id?: string | undefined;
   list_ids?: ReadonlyArray<string> | undefined;
-  // Explicit form action (custom + mailchimp).
+  // Explicit form action (custom + provider embeds that expose a public action).
   action?: string | undefined;
   // HTML form method. Providers default to POST; custom backends may opt into GET.
   method?: SubscribeFormMethod | undefined;

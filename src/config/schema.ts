@@ -1375,20 +1375,22 @@ export const configSchema = z
                 'buttondown',
                 'beehiiv',
                 'convertkit',
+                'mailerlite',
                 'mailchimp',
+                'emailoctopus',
                 'listmonk',
                 'customformaction',
                 'custom',
               ])
               .default('none')
               .describe(
-                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailchimp` / `listmonk` rewrite the form action to the provider's public embed / subscription endpoint. `customformaction` and `custom` let the operator supply a raw `action` and optional `field_map`.",
+                "Subscribe form provider. `none` neutralises any `data-members-form` and may strip wrapping selectors. `buttondown` / `beehiiv` / `convertkit` / `mailerlite` / `mailchimp` / `emailoctopus` / `listmonk` rewrite the form action to the provider's public embed / subscription endpoint. `customformaction` and `custom` let the operator supply a raw `action` and optional `field_map`.",
               ),
             action: z
               .string()
               .optional()
               .describe(
-                'Form action URL. Required when `provider` is `custom`, `customformaction`, `mailchimp`, or `listmonk`; inferred for other known providers when omitted.',
+                'Form action URL. Required when `provider` is `custom`, `customformaction`, `mailerlite`, `mailchimp`, or `listmonk`; optional for `emailoctopus` when `list_id` is set; inferred for other known providers when omitted.',
               ),
             method: z
               .enum(['get', 'post'])
@@ -1418,7 +1420,7 @@ export const configSchema = z
               .string()
               .optional()
               .describe(
-                'listmonk public list UUID submitted as `l` to the public subscription endpoint. Use `list_ids` for multi-list forms.',
+                'listmonk public list UUID submitted as `l` to the public subscription endpoint, or EmailOctopus list id used to build the embedded form action. Use `list_ids` for multi-list listmonk forms.',
               ),
             list_ids: z
               .array(z.string())
@@ -1639,10 +1641,12 @@ export const configSchema = z
                 'convertkit',
                 'bentonow',
                 'mailerlite',
+                'mailchimp',
+                'emailoctopus',
               ])
               .default('none')
               .describe(
-                'Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost\'s own Portal script intercepts (no rewrite). `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler — if any `*_url` field is set the corresponding `data-portal` button is rewritten to that link, otherwise the original href is left alone. The remaining providers (`buttondown`, `beehiiv`, `substack`, `convertkit`, `bentonow`, `mailerlite`) are external newsletter / membership services: Nectar rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons emitted by Ghost themes to point at the provider\'s hosted pages, inferring URLs from `publication` for providers with conventional URL shapes and falling back to the explicit `*_url` overrides otherwise.',
+                'Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost\'s own Portal script intercepts (no rewrite). `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler — if any `*_url` field is set the corresponding `data-portal` button is rewritten to that link, otherwise the original href is left alone. The remaining providers (`buttondown`, `beehiiv`, `substack`, `convertkit`, `bentonow`, `mailerlite`, `mailchimp`, `emailoctopus`) are external newsletter / membership services: Nectar rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons emitted by Ghost themes to point at the provider\'s hosted pages, inferring URLs from `publication` for providers with conventional URL shapes and falling back to the explicit `*_url` overrides otherwise.',
               ),
             paid: z
               .boolean()
@@ -1668,7 +1672,7 @@ export const configSchema = z
               .string()
               .optional()
               .describe(
-                'Provider-specific publication identifier used to infer default URLs. Buttondown / Beehiiv / Substack treat it as the publication slug (e.g. `my-newsletter`); ConvertKit treats it as a form id; Bento and MailerLite have no canonical URL shape, so their builds require explicit `*_url` overrides instead. Ignored for `provider = "none"` / `"ghost"` / `"custom"`.',
+                'Provider-specific publication identifier used to infer default URLs. Buttondown / Beehiiv / Substack treat it as the publication slug (e.g. `my-newsletter`); ConvertKit treats it as a form id; Bento, MailerLite, Mailchimp, and EmailOctopus have no canonical Portal URL shape, so their builds require explicit `*_url` overrides instead. Ignored for `provider = "none"` / `"ghost"` / `"custom"`.',
               ),
             signup_url: z
               .string()
@@ -1710,7 +1714,7 @@ export const configSchema = z
           .strict()
           .default({})
           .describe(
-            'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `@site.members_enabled` is true, Nectar also emits `assets/nectar-portal.js` and injects it through `{{ghost_foot}}` so `[data-portal]` buttons warn or navigate instead of becoming silent no-ops. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.',
+            'Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `@site.members_enabled` is true, Nectar also emits `assets/nectar-portal.js` and injects it through `{{ghost_foot}}` so `[data-portal]` buttons warn or navigate instead of becoming silent no-ops. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite / mailchimp / emailoctopus) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.',
           ),
         helpers: z
           .object({

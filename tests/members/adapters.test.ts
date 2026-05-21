@@ -3,8 +3,10 @@ import { beehiivAdapter } from '~/members/adapters/beehiiv.ts';
 import { buttondownAdapter } from '~/members/adapters/buttondown.ts';
 import { customAdapter } from '~/members/adapters/custom.ts';
 import { customFormActionAdapter } from '~/members/adapters/customformaction.ts';
+import { emailOctopusAdapter } from '~/members/adapters/emailoctopus.ts';
 import { listmonkAdapter } from '~/members/adapters/listmonk.ts';
 import { mailchimpAdapter } from '~/members/adapters/mailchimp.ts';
+import { mailerLiteAdapter } from '~/members/adapters/mailerlite.ts';
 import { noneAdapter, stripBySelector } from '~/members/adapters/none.ts';
 
 describe('beehiiv adapter', () => {
@@ -64,6 +66,51 @@ describe('mailchimp adapter', () => {
 
   test('throws when action is missing', () => {
     expect(() => mailchimpAdapter.resolve({ provider: 'mailchimp' })).toThrow(/action/);
+  });
+});
+
+describe('mailerlite adapter', () => {
+  test('keeps the operator-supplied action and maps fields for MailerLite embeds', () => {
+    const r = mailerLiteAdapter.resolve({
+      provider: 'mailerlite',
+      action: 'https://app.mailerlite.com/webforms/submit/abc123',
+    });
+    expect(r.action).toBe('https://app.mailerlite.com/webforms/submit/abc123');
+    expect(r.emailFieldName).toBe('fields[email]');
+    expect(r.nameFieldName).toBe('fields[name]');
+    expect(r.hiddenFields).toEqual([{ name: 'ml-submit', value: '1' }]);
+  });
+
+  test('throws when action is missing', () => {
+    expect(() => mailerLiteAdapter.resolve({ provider: 'mailerlite' })).toThrow(/action/);
+  });
+});
+
+describe('emailoctopus adapter', () => {
+  test('builds the embedded form action from list_id', () => {
+    const r = emailOctopusAdapter.resolve({
+      provider: 'emailoctopus',
+      list_id: '72d84316-1496-11eb-a3d0-06b4694bee2a',
+    });
+    expect(r.action).toBe(
+      'https://emailoctopus.com/lists/72d84316-1496-11eb-a3d0-06b4694bee2a/members/embedded/1.3/add',
+    );
+    expect(r.emailFieldName).toBe('field_0');
+    expect(r.nameFieldName).toBe('field_1');
+  });
+
+  test('keeps explicit action when configured', () => {
+    const r = emailOctopusAdapter.resolve({
+      provider: 'emailoctopus',
+      action: 'https://emailoctopus.com/lists/custom/members/embedded/1.3/add',
+    });
+    expect(r.action).toBe('https://emailoctopus.com/lists/custom/members/embedded/1.3/add');
+  });
+
+  test('throws when action and list_id are missing', () => {
+    expect(() => emailOctopusAdapter.resolve({ provider: 'emailoctopus' })).toThrow(
+      /action or list_id/,
+    );
   });
 });
 

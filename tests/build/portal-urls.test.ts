@@ -98,12 +98,14 @@ describe('resolvePortalUrls', () => {
     expect(out).toEqual({ signup: 'https://example.test/form' });
   });
 
-  test('provider="mailerlite" requires explicit URLs (no canonical convention to infer)', () => {
-    expect(resolvePortalUrls(makeCfg({ provider: 'mailerlite' }))).toEqual({});
-    const out = resolvePortalUrls(
-      makeCfg({ provider: 'mailerlite', signin_url: 'https://example.test/login' }),
-    );
-    expect(out).toEqual({ signin: 'https://example.test/login' });
+  test('manual newsletter providers require explicit URLs (no canonical convention to infer)', () => {
+    for (const provider of ['mailerlite', 'mailchimp', 'emailoctopus'] as const) {
+      expect(resolvePortalUrls(makeCfg({ provider }))).toEqual({});
+      const out = resolvePortalUrls(
+        makeCfg({ provider, signin_url: `https://example.test/${provider}/login` }),
+      );
+      expect(out).toEqual({ signin: `https://example.test/${provider}/login` });
+    }
   });
 
   test('provider="buttondown" without publication still wires the constant signin/account but skips signup', () => {

@@ -225,7 +225,7 @@ existing subscribe-form transform only targets those explicit hooks:
 | `[components.subscribe].provider` | Behaviour |
 |----------------------------------------|-----------|
 | `none`                                 | Keep the form shape, set `action="#"`, and add `onsubmit="event.preventDefault();return false;"`. |
-| `buttondown` / `beehiiv` / `convertkit` / `mailchimp` | Patch the form `action` and email field name for the provider. |
+| `buttondown` / `beehiiv` / `convertkit` / `mailerlite` / `mailchimp` / `emailoctopus` | Patch the form `action` and email field name for the provider. |
 | `listmonk`                             | Patch the form `action`, email/name fields, and inject `l` hidden fields from `list_id` / `list_ids`. |
 | `customformaction` / `custom`          | Patch the form `action` and optional field mapping you configure. |
 
@@ -236,10 +236,11 @@ until your JavaScript toggles them.
 
 Static subscribe forms never read provider secrets from environment variables.
 Use only public embed values in `[components.subscribe]`: Buttondown
-`username`, ConvertKit `form_id`, Mailchimp embed `action`, listmonk public
-subscription `action` plus `list_id` / `list_ids`, or a `customformaction` /
-`custom` `action`. If a provider workflow needs an API key, keep it behind the
-configured server-side form action instead of shipping it in the static site.
+`username`, ConvertKit `form_id`, MailerLite or Mailchimp embed `action`,
+EmailOctopus `list_id` or embed `action`, listmonk public subscription `action`
+plus `list_id` / `list_ids`, or a `customformaction` / `custom` `action`. If a
+provider workflow needs an API key, keep it behind the configured server-side
+form action instead of shipping it in the static site.
 
 The runtime dispatches a cancelable `nectar:portal` event before taking its
 fallback action. Custom provider code can listen for that event, call
@@ -316,7 +317,31 @@ action = "https://example.us1.list-manage.com/subscribe/post?u=...&id=..."
 Paste the public embedded-form action URL from Mailchimp. Nectar does not need
 or read a Mailchimp API key.
 
-### 4.5 listmonk
+### 4.5 MailerLite
+
+```toml
+[components.subscribe]
+provider = "mailerlite"
+action = "https://app.mailerlite.com/webforms/submit/<form-code>"
+```
+
+Paste the public action URL from MailerLite's embedded form HTML. Nectar maps
+the email input to `fields[email]`, the optional name input to `fields[name]`,
+and includes MailerLite's `ml-submit=1` hidden field.
+
+### 4.6 EmailOctopus
+
+```toml
+[components.subscribe]
+provider = "emailoctopus"
+list_id = "<your-list-id>"
+```
+
+Nectar builds EmailOctopus' embedded form endpoint from `list_id` and maps the
+email input to `field_0`. If you prefer to paste the full embed action, set
+`action` instead.
+
+### 4.7 listmonk
 
 ```toml
 [components.subscribe]
@@ -329,7 +354,7 @@ For multiple lists, use `list_ids = ["<uuid-a>", "<uuid-b>"]`. Nectar submits
 the list UUIDs as repeated `l` hidden fields to listmonk's public subscription
 endpoint, so no listmonk API token is required in the static build.
 
-### 4.6 Custom form action
+### 4.8 Custom form action
 
 ```toml
 [components.subscribe]
@@ -342,7 +367,7 @@ Use this when a provider gives you a public HTML form endpoint or when your
 own serverless function owns the secrets. Nectar only rewrites the static
 form; any required API keys stay outside the generated site.
 
-### 4.7 Substack
+### 4.9 Substack
 
 ```toml
 [components.portal]
@@ -354,7 +379,7 @@ paid = true
 For inline forms, Substack provides an `<iframe>` embed under *Settings →
 Embed*. Drop it into a theme partial that overrides `subscribe-form.hbs`.
 
-### 4.8 Self-hosted Ghost Portal (advanced)
+### 4.10 Self-hosted Ghost Portal (advanced)
 
 If you run your own Ghost-compatible backend (e.g. a stand-alone Members API)
 and want to reuse Ghost's own `portal.min.js`:

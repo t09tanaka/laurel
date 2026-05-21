@@ -3,8 +3,10 @@ import { buttondownAdapter } from './adapters/buttondown.ts';
 import { convertkitAdapter } from './adapters/convertkit.ts';
 import { customAdapter } from './adapters/custom.ts';
 import { customFormActionAdapter } from './adapters/customformaction.ts';
+import { emailOctopusAdapter } from './adapters/emailoctopus.ts';
 import { listmonkAdapter } from './adapters/listmonk.ts';
 import { mailchimpAdapter } from './adapters/mailchimp.ts';
+import { mailerLiteAdapter } from './adapters/mailerlite.ts';
 import { noneAdapter } from './adapters/none.ts';
 import type {
   PortalAdapter,
@@ -27,7 +29,9 @@ const ADAPTERS: Readonly<Record<SubscribeProvider, PortalAdapter>> = Object.free
   buttondown: buttondownAdapter,
   beehiiv: beehiivAdapter,
   convertkit: convertkitAdapter,
+  mailerlite: mailerLiteAdapter,
   mailchimp: mailchimpAdapter,
+  emailoctopus: emailOctopusAdapter,
   listmonk: listmonkAdapter,
   customformaction: customFormActionAdapter,
   custom: customAdapter,

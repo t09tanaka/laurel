@@ -293,6 +293,74 @@ list_ids = ["list-a", "list-b"]
     });
   });
 
+  test('parses MailerLite and EmailOctopus subscribe provider configs', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.subscribe]
+provider = "emailoctopus"
+list_id = "72d84316-1496-11eb-a3d0-06b4694bee2a"
+`,
+        'utf8',
+      );
+
+      const emailOctopusConfig = await loadConfig({ cwd });
+      expect(emailOctopusConfig.components.subscribe.provider).toBe('emailoctopus');
+      expect(emailOctopusConfig.components.subscribe.list_id).toBe(
+        '72d84316-1496-11eb-a3d0-06b4694bee2a',
+      );
+
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.subscribe]
+provider = "mailerlite"
+action = "https://app.mailerlite.com/webforms/submit/abc123"
+`,
+        'utf8',
+      );
+
+      const mailerLiteConfig = await loadConfig({ cwd });
+      expect(mailerLiteConfig.components.subscribe.provider).toBe('mailerlite');
+      expect(mailerLiteConfig.components.subscribe.action).toBe(
+        'https://app.mailerlite.com/webforms/submit/abc123',
+      );
+    });
+  });
+
+  test('parses Mailchimp and EmailOctopus portal provider configs', async () => {
+    await withTempDir(async (cwd) => {
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.portal]
+provider = "mailchimp"
+signup_url = "https://example.us1.list-manage.com/subscribe/post?u=abc&id=xyz"
+`,
+        'utf8',
+      );
+
+      const mailchimpConfig = await loadConfig({ cwd });
+      expect(mailchimpConfig.components.portal.provider).toBe('mailchimp');
+      expect(mailchimpConfig.components.portal.signup_url).toBe(
+        'https://example.us1.list-manage.com/subscribe/post?u=abc&id=xyz',
+      );
+
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.portal]
+provider = "emailoctopus"
+signup_url = "https://eocampaign1.com/form/abc.js"
+`,
+        'utf8',
+      );
+
+      const emailOctopusConfig = await loadConfig({ cwd });
+      expect(emailOctopusConfig.components.portal.provider).toBe('emailoctopus');
+      expect(emailOctopusConfig.components.portal.signup_url).toBe(
+        'https://eocampaign1.com/form/abc.js',
+      );
+    });
+  });
+
   test('parses site.icon from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

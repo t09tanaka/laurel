@@ -53,8 +53,8 @@ describe('validatePortalConfig (issue #493)', () => {
     expect(findings).toEqual([]);
   });
 
-  test('manual-only providers (bentonow, mailerlite) require at least one *_url override', () => {
-    for (const provider of ['bentonow', 'mailerlite'] as const) {
+  test('manual-only providers require at least one *_url override', () => {
+    for (const provider of ['bentonow', 'mailerlite', 'mailchimp', 'emailoctopus'] as const) {
       const findings = validatePortalConfig(baseConfig({ provider }));
       expect(findings).toHaveLength(1);
       expect(findings[0]?.code).toBe('manual_provider_missing_urls');

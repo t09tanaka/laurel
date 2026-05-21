@@ -32,6 +32,8 @@ const KNOWN_PROVIDERS: ReadonlySet<PortalConfig['provider']> = new Set([
   'convertkit',
   'bentonow',
   'mailerlite',
+  'mailchimp',
+  'emailoctopus',
 ]);
 
 // Providers whose canonical URL shape (`https://<publication>.<host>/...`)
@@ -46,13 +48,14 @@ const INFER_FROM_PUBLICATION: ReadonlySet<PortalConfig['provider']> = new Set([
   'convertkit',
 ]);
 
-// Providers that have no canonical URL shape at all (Bento, MailerLite). For
-// these the operator MUST supply at least one `*_url` override — otherwise
-// the rewrite is a no-op and the dead Ghost-default `#/portal/signup` href
-// ships untouched.
+// Providers that have no canonical URL shape at all. For these the operator
+// MUST supply at least one `*_url` override — otherwise the rewrite is a no-op
+// and the dead Ghost-default `#/portal/signup` href ships untouched.
 const REQUIRE_EXPLICIT_OVERRIDES: ReadonlySet<PortalConfig['provider']> = new Set([
   'bentonow',
   'mailerlite',
+  'mailchimp',
+  'emailoctopus',
 ]);
 
 export interface PortalValidationFinding {

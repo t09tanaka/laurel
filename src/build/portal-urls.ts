@@ -8,7 +8,9 @@ export interface PortalConfig {
     | 'substack'
     | 'convertkit'
     | 'bentonow'
-    | 'mailerlite';
+    | 'mailerlite'
+    | 'mailchimp'
+    | 'emailoctopus';
   paid: boolean;
   invite_only: boolean;
   publication?: string | undefined;
@@ -23,9 +25,9 @@ export type PortalTrigger = 'signup' | 'signin' | 'account' | 'upgrade';
 export type ResolvedPortalUrls = Partial<Record<PortalTrigger, string>>;
 
 // Returns the concrete URLs to inject into `data-portal="..."` buttons.
-// Providers without conventional URL shapes (bentonow, mailerlite) only emit
-// the triggers an operator overrides; un-overridden buttons stay untouched
-// rather than guessing a wrong endpoint and shipping a 404.
+// Providers without conventional URL shapes only emit the triggers an operator
+// overrides; un-overridden buttons stay untouched rather than guessing a wrong
+// endpoint and shipping a 404.
 export function resolvePortalUrls(cfg: PortalConfig): ResolvedPortalUrls {
   switch (cfg.provider) {
     case 'none':
@@ -69,6 +71,8 @@ export function resolvePortalUrls(cfg: PortalConfig): ResolvedPortalUrls {
       });
     case 'bentonow':
     case 'mailerlite':
+    case 'mailchimp':
+    case 'emailoctopus':
       return pickOverrides(cfg);
   }
 }
