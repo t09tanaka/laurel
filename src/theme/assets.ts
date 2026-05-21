@@ -108,8 +108,6 @@ export async function loadThemeAssets(
       size: p.size,
     };
     out.set(logical, entry);
-    // Also let bare references (e.g. "built/screen.css") resolve without the assets/ prefix.
-    out.set(p.rel.replaceAll('\\', '/'), entry);
   }
 
   if (cacheFile) await writeCache(cacheFile, next);
@@ -177,8 +175,29 @@ async function writeCache(
 
 function shouldFingerprint(ext: string): boolean {
   const dotted = ext.toLowerCase();
-  return ['.css', '.js', '.mjs'].includes(dotted);
+  return FINGERPRINTED_THEME_ASSET_EXTENSIONS.has(dotted);
 }
+
+const FINGERPRINTED_THEME_ASSET_EXTENSIONS = new Set([
+  '.avif',
+  '.css',
+  '.eot',
+  '.gif',
+  '.ico',
+  '.jpeg',
+  '.jpg',
+  '.js',
+  '.json',
+  '.map',
+  '.mjs',
+  '.otf',
+  '.png',
+  '.svg',
+  '.ttf',
+  '.webp',
+  '.woff',
+  '.woff2',
+]);
 
 // Stream the file through Bun.CryptoHasher instead of buffering the whole
 // payload into a Buffer first. For a 40MB asset this keeps memory at the

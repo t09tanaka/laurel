@@ -31,6 +31,7 @@ export {
 // per page. 250 is generous enough to cover non-paginated callers while still
 // keeping each file bounded.
 export const RSS_MAX_ITEMS_PER_PAGE = 250;
+const EMPTY_FEED_LAST_BUILD_DATE = 'Thu, 01 Jan 1970 00:00:00 GMT';
 
 export async function emitRss(opts: {
   config: NectarConfig;
@@ -380,7 +381,8 @@ function rssPostHashInput(post: Post, fullContent: boolean): Record<string, unkn
 
 // Use the most recent post timestamp so lastBuildDate is deterministic across
 // rebuilds when content hasn't changed; feed readers rely on it for polling
-// decisions. Fall back to wall-clock only when the feed has no posts at all.
+// decisions. Empty feeds get a fixed epoch value so a build never leaks the
+// host clock into RSS metadata.
 function computeLastBuildDate(posts: ContentGraph['posts']): string {
   let latest = 0;
   for (const post of posts) {
@@ -392,7 +394,7 @@ function computeLastBuildDate(posts: ContentGraph['posts']): string {
       }
     }
   }
-  return new Date(latest > 0 ? latest : Date.now()).toUTCString();
+  return latest > 0 ? new Date(latest).toUTCString() : EMPTY_FEED_LAST_BUILD_DATE;
 }
 
 function renderChannelImage(config: NectarConfig, base: string, basePath: string): string {

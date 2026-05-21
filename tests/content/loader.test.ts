@@ -1,11 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { configSchema } from '~/config/schema.ts';
-import { loadContent } from '~/content/loader.ts';
+import { MISSING_FRONTMATTER_DATE_FALLBACK, loadContent } from '~/content/loader.ts';
 import { NectarError } from '~/util/errors.ts';
+import { logger } from '~/util/logger.ts';
 
 async function fixture(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-content-'));
@@ -1741,6 +1742,34 @@ body
       // The post path is also embedded in the message via the context arg, so
       // logs that bypass the formatter still pinpoint the offending file.
       expect(ne.message).toContain(file);
+    }
+  });
+
+  test('uses a fixed epoch fallback when post frontmatter omits date fields', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-missing-date-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    const file = join(cwd, 'content/posts/no-date.md');
+    await writeFile(
+      file,
+      `---
+title: "No date"
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const graph = await loadContent({ cwd, config });
+      expect(graph.posts[0]?.published_at).toBe(MISSING_FRONTMATTER_DATE_FALLBACK);
+      expect(graph.posts[0]?.updated_at).toBe(MISSING_FRONTMATTER_DATE_FALLBACK);
+      expect(warn).toHaveBeenCalledWith(
+        `Missing \`date\` or \`published_at\` in ${file}; using ${MISSING_FRONTMATTER_DATE_FALLBACK} to avoid leaking build time.`,
+      );
+    } finally {
+      warn.mockRestore();
     }
   });
 

@@ -27,7 +27,7 @@ describe('loadThemeAssets symlink protection', () => {
 });
 
 describe('loadThemeAssets fingerprint cache', () => {
-  test('keeps image asset filenames stable but cache-busts their public URL', async () => {
+  test('fingerprints image asset filenames instead of relying on query cache busting', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-image-cache-'));
     const assetsDir = join(themeDir, 'assets', 'images');
     await mkdir(assetsDir, { recursive: true });
@@ -36,11 +36,39 @@ describe('loadThemeAssets fingerprint cache', () => {
     const map = await loadThemeAssets(themeDir);
     const asset = map.get('assets/images/icon.svg');
 
-    expect(asset?.fingerprintedPath).toBe('assets/images/icon.svg');
     expect(asset?.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(asset?.fingerprintedPath).toBe(`assets/images/icon.${asset?.hash}.svg`);
     expect(asset ? assetPublicUrl(asset, '/blog') : '').toBe(
-      `/blog/assets/images/icon.svg?v=${asset?.hash}`,
+      `/blog/assets/images/icon.${asset?.hash}.svg`,
     );
+  });
+
+  test('fingerprints source maps and font assets', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-non-code-cache-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(assetsDir, 'screen.css.map'), '{"version":3}');
+    await writeFile(join(assetsDir, 'screen.woff2'), 'font-bytes');
+
+    const map = await loadThemeAssets(themeDir);
+    for (const logical of ['assets/built/screen.css.map', 'assets/built/screen.woff2']) {
+      const asset = map.get(logical);
+      expect(asset?.hash).toMatch(/^[0-9a-f]{16}$/);
+      expect(asset?.fingerprintedPath).not.toBe(asset?.logicalPath);
+      expect(asset?.fingerprintedPath).toContain(`.${asset?.hash}.`);
+    }
+  });
+
+  test('stores one canonical assets-prefixed key per file', async () => {
+    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-canonical-assets-'));
+    const assetsDir = join(themeDir, 'assets', 'built');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(assetsDir, 'screen.css'), 'body{}');
+
+    const map = await loadThemeAssets(themeDir);
+    expect(map.get('assets/built/screen.css')).toBeDefined();
+    expect(map.get('built/screen.css')).toBeUndefined();
+    expect(Array.from(map.keys())).toEqual(['assets/built/screen.css']);
   });
 
   test('computes sha384 SRI alongside the fingerprint hash', async () => {

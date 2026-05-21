@@ -434,6 +434,18 @@ describe('emitRss', () => {
     expect(existsSync(join(outputDir, 'rss-2.xml'))).toBe(false);
   });
 
+  test('empty content uses a deterministic epoch lastBuildDate', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.posts = [];
+
+    await emitRss({ config, content, outputDir, limit: 20 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<lastBuildDate>Thu, 01 Jan 1970 00:00:00 GMT</lastBuildDate>');
+  });
+
   test('emits <lastBuildDate> derived from the most recent post timestamp', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });

@@ -52,6 +52,8 @@ import type {
 import { type PaywallVisibility, buildPaywallStub, truncateMarkdownForPaywall } from './paywall.ts';
 import { renderMarkdownWithCache } from './render-cache.ts';
 
+export const MISSING_FRONTMATTER_DATE_FALLBACK = '1970-01-01T00:00:00.000Z';
+
 // Plugin-supplied transform applied to the raw markdown body (after
 // frontmatter is stripped) before `marked.parse` runs. The pipeline composes
 // hooks in registration order, so each transform sees the previous one's
@@ -1219,9 +1221,14 @@ async function normalizePost(
     );
   }
   const dateContext = `${filePath}`;
+  if (data.date === undefined && data.published_at === undefined) {
+    logger.warn(
+      `Missing \`date\` or \`published_at\` in ${filePath}; using ${MISSING_FRONTMATTER_DATE_FALLBACK} to avoid leaking build time.`,
+    );
+  }
   const published = asDateISO(
     data.date ?? data.published_at,
-    new Date().toISOString(),
+    MISSING_FRONTMATTER_DATE_FALLBACK,
     `${dateContext} date`,
   );
   const updated = asDateISO(data.updated_at ?? data.date, published, `${dateContext} updated_at`);

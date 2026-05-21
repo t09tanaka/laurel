@@ -1438,6 +1438,17 @@ Not yet ready.
     expect(existsSync(join(summary.outputDir, 'hello/index.html'))).toBe(true);
     expect(summary.warningCount).toBeGreaterThan(0);
   });
+
+  test('cleans previously emitted draft routes on the next normal build', async () => {
+    const cwd = await withDraft();
+    const preview = await build({ cwd, includeDrafts: true });
+    expect(existsSync(join(preview.outputDir, 'wip/index.html'))).toBe(true);
+
+    const publishedOnly = await build({ cwd });
+    expect(publishedOnly.outputDir).toBe(preview.outputDir);
+    expect(existsSync(join(publishedOnly.outputDir, 'wip/index.html'))).toBe(false);
+    expect(existsSync(join(publishedOnly.outputDir, 'hello/index.html'))).toBe(true);
+  });
 });
 
 describe('build pipeline outputDir override', () => {

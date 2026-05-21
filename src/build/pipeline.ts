@@ -105,6 +105,7 @@ import {
   MANIFEST_VERSION,
   type ManifestEntry,
   collectRouteContentInputs,
+  computeGeneratorSourceFingerprint,
   computeGlobalHash,
   computeRouteContentFingerprint,
   computeRouteHash,
@@ -746,11 +747,15 @@ async function runBuild({
     .map((entry) => ({ rel: entry.rel, hash: entry.hash, outputRel: entry.outputRel }))
     .sort((a, b) => a.rel.localeCompare(b.rel));
   const themeFingerprint = computeThemeFingerprint(theme);
+  const generatorFingerprint = await timed(profiler, 'generator_fingerprint', () =>
+    computeGeneratorSourceFingerprint(),
+  );
   const globalHash = computeGlobalHash({
     config,
     site: content.site,
     theme,
     themeFingerprint,
+    generatorFingerprint,
     contentImageAssets,
   });
   const nextRoutes: Record<string, ManifestEntry> = {};

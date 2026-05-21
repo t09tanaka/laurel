@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
 import { resolveLayoutName, splitLayout } from '~/render/layouts.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
+import { scanGlob } from '~/util/fs.ts';
 
 // Bump when render pipeline changes in a way that requires invalidating
 // previously emitted HTML even though config, content, and theme inputs are
@@ -66,6 +69,7 @@ export function computeGlobalHash(opts: {
   site: SiteData;
   theme: ThemeBundle;
   themeFingerprint?: string;
+  generatorFingerprint?: string;
   contentImageAssets?: Array<{ rel: string; hash: string; outputRel: string }>;
 }): string {
   const { config, site, theme } = opts;
@@ -74,6 +78,7 @@ export function computeGlobalHash(opts: {
     sig: MANIFEST_VERSION,
     config,
     site,
+    generatorFingerprint: opts.generatorFingerprint,
     themeFingerprint: opts.themeFingerprint ?? computeThemeFingerprint(theme),
     partials,
     themeName: theme.pkg.name,
@@ -84,6 +89,29 @@ export function computeGlobalHash(opts: {
     contentImageAssets: opts.contentImageAssets ?? [],
   };
   return sha256(stableStringify(payload));
+}
+
+export async function computeGeneratorSourceFingerprint(
+  srcRoot = resolve(import.meta.dir, '..'),
+): Promise<string> {
+  if (!existsSync(srcRoot)) return 'source-unavailable';
+  const patterns = ['build/**/*.ts', 'content/**/*.ts', 'render/**/*.ts', 'theme/**/*.ts'];
+  const paths = (
+    await Promise.all(
+      patterns.map((pattern) => scanGlob(pattern, { cwd: srcRoot, onlyFiles: true })),
+    )
+  )
+    .flat()
+    .sort();
+  if (paths.length === 0) return 'source-unavailable';
+  const h = createHash('sha256');
+  for (const rel of paths) {
+    h.update(rel);
+    h.update('\0');
+    h.update(await readFile(join(srcRoot, rel)));
+    h.update('\0');
+  }
+  return h.digest('hex');
 }
 
 // Per-route hash combines the global hash with the route's template and

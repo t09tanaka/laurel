@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MANIFEST_VERSION,
+  computeGlobalHash,
   computeRouteHash,
   loadManifest,
   manifestPath,
@@ -100,5 +101,30 @@ describe('build manifest serialization', () => {
     });
 
     expect(changedHash).not.toBe(baseHash);
+  });
+
+  test('computeGlobalHash changes when the generator fingerprint changes', () => {
+    const config = { site: { title: 'Fixture' } } as never;
+    const site = { title: 'Fixture', url: 'https://example.com' } as never;
+    const theme = {
+      name: 'fixture',
+      rootDir: '/tmp/theme',
+      templates: { index: '<main>{{title}}</main>' },
+      partials: {},
+      locales: {},
+      assets: new Map(),
+      pkg: {
+        name: 'fixture',
+        version: '0.0.0',
+        customDefaults: {},
+        posts_per_page: 5,
+        image_sizes: {},
+      },
+    } as unknown as ThemeBundle;
+
+    const before = computeGlobalHash({ config, site, theme, generatorFingerprint: 'helpers-v1' });
+    const after = computeGlobalHash({ config, site, theme, generatorFingerprint: 'helpers-v2' });
+
+    expect(after).not.toBe(before);
   });
 });
