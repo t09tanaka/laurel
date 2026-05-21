@@ -30,10 +30,12 @@ function captureStderr(): CapturedStderr {
 
 function makeExport(
   posts: Array<{
+    id?: string;
     slug: string;
     title: string;
     html?: string;
     uuid?: string;
+    created_at?: string;
     type?: 'post' | 'page';
   }>,
 ): string {
@@ -42,13 +44,14 @@ function makeExport(
       {
         data: {
           posts: posts.map((p, i) => ({
-            id: `post-${i}`,
+            id: p.id ?? `post-${i}`,
             uuid: p.uuid,
             title: p.title,
             slug: p.slug,
             html: p.html ?? `<p>${p.title}</p>`,
             status: 'published',
             type: p.type ?? 'post',
+            created_at: p.created_at,
           })),
         },
       },
@@ -137,15 +140,40 @@ describe('importGhostExport — --on-conflict policy', () => {
     expect(captured.data).toContain(`Overwrote: ${dest}`);
   });
 
-  test('preserves Ghost post UUIDs in frontmatter', async () => {
+  test('preserves Ghost post identifiers in frontmatter', async () => {
+    const id = '64d3f8e1a51f2b7c9d0e1234';
     const uuid = '11111111-2222-5333-8444-555555555555';
-    await writeFile(exportFile, makeExport([{ slug: 'hello', title: 'Hello', uuid }]));
+    const created_at = '2024-01-02T03:04:05.000Z';
+    await writeFile(
+      exportFile,
+      makeExport([{ id, slug: 'hello', title: 'Hello', uuid, created_at }]),
+    );
 
     const summary = await importGhostExport({ cwd, file: exportFile });
     const out = await readFile(join(cwd, 'content/posts/hello.md'), 'utf8');
 
     expect(summary.posts).toBe(1);
+    expect(out).toContain(`id: "${id}"`);
     expect(out).toContain(`uuid: "${uuid}"`);
+    expect(out).toContain(`created_at: "${created_at}"`);
+  });
+
+  test('preserves Ghost page identifiers in frontmatter', async () => {
+    const id = '64d3f8e1a51f2b7c9d0e5678';
+    const uuid = '22222222-3333-5444-8555-666666666666';
+    const created_at = '2024-02-03T04:05:06.000Z';
+    await writeFile(
+      exportFile,
+      makeExport([{ id, slug: 'about', title: 'About', uuid, created_at, type: 'page' }]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    const out = await readFile(join(cwd, 'content/pages/about.md'), 'utf8');
+
+    expect(summary.pages).toBe(1);
+    expect(out).toContain(`id: "${id}"`);
+    expect(out).toContain(`uuid: "${uuid}"`);
+    expect(out).toContain(`created_at: "${created_at}"`);
   });
 
   test('writes post tier relationships into frontmatter', async () => {

@@ -1787,10 +1787,12 @@ async function renderPostRecord(
     : uniqueStrings([...ctx.tierSlugsForPost(post.id), ...tierSlugsFromPost(post.tiers)]);
   const authorSlugs = ctx.authorSlugsForPost(post.id);
   const frontmatter = buildFrontmatter({
+    id: post.id,
     uuid: post.uuid ?? undefined,
     slug,
     title: post.title,
     date: post.published_at ?? post.created_at ?? undefined,
+    created_at: post.created_at ?? undefined,
     updated_at: post.updated_at ?? undefined,
     featured: !!post.featured,
     feature_image,
