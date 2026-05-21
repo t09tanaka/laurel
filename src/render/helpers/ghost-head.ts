@@ -52,12 +52,18 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       const meta = computeMeta(ctx, route, site, basePath);
       const performance = engine.config?.performance;
 
-      const parts: string[] = [];
-      parts.push(`<meta name="generator" content="Nectar">`);
-      parts.push(`<meta name="referrer" content="${escapeAttr(resolveReferrerPolicy(site))}">`);
-      parts.push(`<meta name="color-scheme" content="${resolveColorSchemeMeta(engine)}">`);
+      let head = '';
+      head = appendHeadPart(head, `<meta name="generator" content="Nectar">`);
+      head = appendHeadPart(
+        head,
+        `<meta name="referrer" content="${escapeAttr(resolveReferrerPolicy(site))}">`,
+      );
+      head = appendHeadPart(
+        head,
+        `<meta name="color-scheme" content="${resolveColorSchemeMeta(engine)}">`,
+      );
       if (isNonProductionBuild(engine.config)) {
-        parts.push(`<meta name="robots" content="noindex">`);
+        head = appendHeadPart(head, `<meta name="robots" content="noindex">`);
       }
       // Preconnect to external image origins referenced on this route. Emitted
       // early in the head so the TCP/TLS handshake overlaps the rest of the
@@ -69,12 +75,15 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         const limit = performance?.max_preconnect_origins ?? 3;
         if (limit > 0) {
           for (const origin of collectImageOrigins(ctx, route, site.url, limit)) {
-            parts.push(`<link rel="preconnect" href="${escapeAttr(origin)}" crossorigin>`);
+            head = appendHeadPart(
+              head,
+              `<link rel="preconnect" href="${escapeAttr(origin)}" crossorigin>`,
+            );
           }
         }
       }
       for (const hint of collectComponentHeadHints({ config: engine.config, page: ctx })) {
-        parts.push(renderHeadHint(hint));
+        head = appendHeadPart(head, renderHeadHint(hint));
       }
       // LCP preload for the post/page feature image. Pairs with the theme-side
       // `<img fetchpriority="high">` so the preload scan starts the LCP fetch
@@ -82,7 +91,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // carries a feature_image — page-without-cover routes get nothing.
       if (performance?.preload_lcp_image !== false) {
         const preloadTag = renderLcpPreload(ctx, route, site.url, basePath);
-        if (preloadTag) parts.push(preloadTag);
+        if (preloadTag) head = appendHeadPart(head, preloadTag);
       }
       // Surface @site.accent_color to themes as the `--ghost-accent-color`
       // CSS custom property so partials can reference it with
@@ -92,24 +101,32 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // injecting. Anything that fails the allowlist is silently dropped.
       const accentColor = sanitizeAccentColor(site.accent_color);
       if (accentColor) {
-        parts.push(`<meta name="theme-color" content="${escapeAttr(accentColor)}">`);
-        parts.push(`<style>:root{--ghost-accent-color:${accentColor}}</style>`);
+        head = appendHeadPart(
+          head,
+          `<meta name="theme-color" content="${escapeAttr(accentColor)}">`,
+        );
+        head = appendHeadPart(head, `<style>:root{--ghost-accent-color:${accentColor}}</style>`);
       }
       const cardAssetsSnippet = renderCardAssetsHeadSnippet(engine, basePath);
-      if (cardAssetsSnippet) parts.push(cardAssetsSnippet);
+      if (cardAssetsSnippet) head = appendHeadPart(head, cardAssetsSnippet);
       if (meta.canonical) {
-        parts.push(`<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
+        head = appendHeadPart(head, `<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
       for (const alternate of route?.alternates ?? []) {
-        parts.push(
+        head = appendHeadPart(
+          head,
           `<link rel="alternate" hreflang="${escapeAttr(alternate.locale)}" href="${escapeAttr(alternate.href)}">`,
         );
       }
       for (const link of engine.favicons?.links ?? []) {
-        parts.push(renderFaviconLink(link, engine.config?.build?.base_path ?? '/'));
+        head = appendHeadPart(
+          head,
+          renderFaviconLink(link, engine.config?.build?.base_path ?? '/'),
+        );
       }
       if (!hasManifestLink(engine.favicons?.links ?? [])) {
-        parts.push(
+        head = appendHeadPart(
+          head,
           `<link rel="manifest" href="${escapeAttr(joinPath(basePath, 'site.webmanifest'))}">`,
         );
       }
@@ -117,43 +134,73 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // ranking signal, but Bing and feed crawlers still honour them.
       const pagination = paginationUrls(route);
       if (pagination.prev) {
-        parts.push(
+        head = appendHeadPart(
+          head,
           `<link rel="prev" href="${escapeAttr(absoluteUrl(site.url, pagination.prev))}">`,
         );
       }
       if (pagination.next) {
-        parts.push(
+        head = appendHeadPart(
+          head,
           `<link rel="next" href="${escapeAttr(absoluteUrl(site.url, pagination.next))}">`,
         );
       }
       if (meta.description) {
-        parts.push(`<meta name="description" content="${escapeAttr(meta.description)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta name="description" content="${escapeAttr(meta.description)}">`,
+        );
       }
-      parts.push(`<meta property="og:site_name" content="${escapeAttr(site.title)}">`);
-      parts.push(`<meta property="og:type" content="${meta.ogType}">`);
-      parts.push(
+      head = appendHeadPart(
+        head,
+        `<meta property="og:site_name" content="${escapeAttr(site.title)}">`,
+      );
+      head = appendHeadPart(head, `<meta property="og:type" content="${meta.ogType}">`);
+      head = appendHeadPart(
+        head,
         `<meta property="og:locale" content="${escapeAttr(formatOgLocale(site.locale))}">`,
       );
-      parts.push(`<meta property="og:title" content="${escapeAttr(meta.title)}">`);
+      head = appendHeadPart(head, `<meta property="og:title" content="${escapeAttr(meta.title)}">`);
       if (meta.description) {
-        parts.push(`<meta property="og:description" content="${escapeAttr(meta.description)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta property="og:description" content="${escapeAttr(meta.description)}">`,
+        );
       }
       if (meta.canonical) {
-        parts.push(`<meta property="og:url" content="${escapeAttr(meta.canonical)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta property="og:url" content="${escapeAttr(meta.canonical)}">`,
+        );
       }
       if (meta.image) {
-        parts.push(`<meta property="og:image" content="${escapeAttr(meta.image)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta property="og:image" content="${escapeAttr(meta.image)}">`,
+        );
         if (meta.imageType) {
-          parts.push(`<meta property="og:image:type" content="${escapeAttr(meta.imageType)}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="og:image:type" content="${escapeAttr(meta.imageType)}">`,
+          );
         }
         if (meta.imageWidth !== undefined) {
-          parts.push(`<meta property="og:image:width" content="${meta.imageWidth}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="og:image:width" content="${meta.imageWidth}">`,
+          );
         }
         if (meta.imageHeight !== undefined) {
-          parts.push(`<meta property="og:image:height" content="${meta.imageHeight}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="og:image:height" content="${meta.imageHeight}">`,
+          );
         }
         if (meta.imageAlt) {
-          parts.push(`<meta property="og:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="og:image:alt" content="${escapeAttr(meta.imageAlt)}">`,
+          );
         }
       }
       // Open Graph article:* tags. Only emitted on post routes
@@ -166,17 +213,26 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (meta.ogType === 'article') {
         const published = toIso8601(ctx.published_at);
         if (published) {
-          parts.push(`<meta property="article:published_time" content="${escapeAttr(published)}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="article:published_time" content="${escapeAttr(published)}">`,
+          );
         }
         const modified = toIso8601(ctx.updated_at);
         if (modified) {
-          parts.push(`<meta property="article:modified_time" content="${escapeAttr(modified)}">`);
+          head = appendHeadPart(
+            head,
+            `<meta property="article:modified_time" content="${escapeAttr(modified)}">`,
+          );
         }
         if (Array.isArray(ctx.tags)) {
           for (const tag of ctx.tags as { name?: unknown }[]) {
             const name = typeof tag?.name === 'string' ? tag.name : undefined;
             if (name) {
-              parts.push(`<meta property="article:tag" content="${escapeAttr(name)}">`);
+              head = appendHeadPart(
+                head,
+                `<meta property="article:tag" content="${escapeAttr(name)}">`,
+              );
             }
           }
         }
@@ -184,22 +240,38 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
           for (const author of ctx.authors as { name?: unknown }[]) {
             const name = typeof author?.name === 'string' ? author.name : undefined;
             if (name) {
-              parts.push(`<meta property="article:author" content="${escapeAttr(name)}">`);
+              head = appendHeadPart(
+                head,
+                `<meta property="article:author" content="${escapeAttr(name)}">`,
+              );
             }
           }
         }
       }
-      parts.push(
+      head = appendHeadPart(
+        head,
         `<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">`,
       );
-      parts.push(`<meta name="twitter:title" content="${escapeAttr(meta.title)}">`);
+      head = appendHeadPart(
+        head,
+        `<meta name="twitter:title" content="${escapeAttr(meta.title)}">`,
+      );
       if (meta.description) {
-        parts.push(`<meta name="twitter:description" content="${escapeAttr(meta.description)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta name="twitter:description" content="${escapeAttr(meta.description)}">`,
+        );
       }
       if (meta.image) {
-        parts.push(`<meta name="twitter:image" content="${escapeAttr(meta.image)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta name="twitter:image" content="${escapeAttr(meta.image)}">`,
+        );
         if (meta.imageAlt) {
-          parts.push(`<meta name="twitter:image:alt" content="${escapeAttr(meta.imageAlt)}">`);
+          head = appendHeadPart(
+            head,
+            `<meta name="twitter:image:alt" content="${escapeAttr(meta.imageAlt)}">`,
+          );
         }
       }
       // Twitter Card site / creator attribution. Ghost normalises bare handles
@@ -209,18 +281,25 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // configured (handle, URL, or `@handle` form).
       const twitterSiteHandle = formatTwitterHandle(site.twitter);
       if (twitterSiteHandle) {
-        parts.push(`<meta name="twitter:site" content="${escapeAttr(twitterSiteHandle)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta name="twitter:site" content="${escapeAttr(twitterSiteHandle)}">`,
+        );
       }
       const primaryAuthor = ctx.primary_author as { twitter?: unknown } | undefined;
       const twitterCreatorHandle = formatTwitterHandle(primaryAuthor?.twitter);
       if (twitterCreatorHandle) {
-        parts.push(`<meta name="twitter:creator" content="${escapeAttr(twitterCreatorHandle)}">`);
+        head = appendHeadPart(
+          head,
+          `<meta name="twitter:creator" content="${escapeAttr(twitterCreatorHandle)}">`,
+        );
       }
 
       // RSS autodiscovery: browsers and feed readers look for <link rel="alternate">.
       if (engine.config?.components?.rss?.enabled !== false) {
         const rssHref = absoluteUrlWithBasePath(site.url, basePath, 'rss.xml');
-        parts.push(
+        head = appendHeadPart(
+          head,
           `<link rel="alternate" type="application/rss+xml" title="${escapeAttr(site.title)}" href="${escapeAttr(rssHref)}">`,
         );
       }
@@ -235,7 +314,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         nonce,
         jsonLdScriptCache,
       );
-      if (jsonLdScripts) parts.push(jsonLdScripts);
+      if (jsonLdScripts) head = appendHeadPart(head, jsonLdScripts);
 
       // Drop-in analytics snippet from [components.analytics]. Emitted before
       // the code injection blocks so an operator who needs to override the
@@ -243,7 +322,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // codeinjection_head, while plain configurations get the right snippet
       // without writing any HTML.
       const analyticsSnippet = renderAnalyticsSnippet(engine.config?.components?.analytics);
-      if (analyticsSnippet) parts.push(analyticsSnippet);
+      if (analyticsSnippet) head = appendHeadPart(head, analyticsSnippet);
 
       // Ghost Portal client script. Opt-in via [components.portal].inject_script
       // so plain blogs ship no extra JS. When enabled, the bundled portal.min.js
@@ -254,7 +333,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // `<button data-portal="…">` UI but want offline-safety still render fine
       // because Nectar always also rewrites those buttons via portal-shim.ts.
       const portalSnippet = renderPortalSnippet(engine.config?.components?.portal, site.url);
-      if (portalSnippet) parts.push(portalSnippet);
+      if (portalSnippet) head = appendHeadPart(head, portalSnippet);
 
       // Sodo Search client script. Opt-in via [components.search].engine when
       // set to `sodo-search` or `json+sodo-search`. The script reads from the
@@ -262,7 +341,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // `<button data-ghost-search>` trigger (Source / Casper) get a working
       // search UI without a server. Independent of Pagefind / Lunr emitters.
       const sodoSnippet = renderSodoSearchSnippet(engine.config?.components?.search, site.url);
-      if (sodoSnippet) parts.push(sodoSnippet);
+      if (sodoSnippet) head = appendHeadPart(head, sodoSnippet);
 
       // Raw HTML exit (1/2): codeinjection_head ships verbatim into <head>.
       // The loader already drops the field unless `build.allow_code_injection`
@@ -272,11 +351,13 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // first so per-post / per-page overrides can shadow earlier `<meta>` or
       // `<script>` tags by appearing later in document order.
       const siteHead = (site as { codeinjection_head?: string }).codeinjection_head;
-      if (typeof siteHead === 'string' && siteHead) parts.push(siteHead);
-      const head = ctx.codeinjection_head;
-      if (typeof head === 'string' && head) parts.push(head);
+      if (typeof siteHead === 'string' && siteHead) head = appendHeadPart(head, siteHead);
+      const contextHead = ctx.codeinjection_head;
+      if (typeof contextHead === 'string' && contextHead) {
+        head = appendHeadPart(head, contextHead);
+      }
 
-      return new engine.hb.SafeString(parts.join('\n'));
+      return new engine.hb.SafeString(head);
     },
   );
 
@@ -307,6 +388,10 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       return new engine.hb.SafeString(parts.join('\n'));
     },
   );
+}
+
+function appendHeadPart(head: string, part: string): string {
+  return head ? `${head}\n${part}` : part;
 }
 
 interface ComputedMeta {
@@ -532,8 +617,9 @@ function isDarkBackground(color: string | undefined): boolean {
 function mimeTypeForImage(url: string): string | undefined {
   const pathPart = url.split('?')[0]?.split('#')[0] ?? '';
   const m = pathPart.match(/\.([a-z0-9]+)$/i);
-  if (!m) return undefined;
-  switch (m[1].toLowerCase()) {
+  const ext = m?.[1];
+  if (!ext) return undefined;
+  switch (ext.toLowerCase()) {
     case 'jpg':
     case 'jpeg':
       return 'image/jpeg';
@@ -1086,8 +1172,9 @@ function formatTwitterHandle(value: unknown): string | undefined {
   if (!trimmed) return undefined;
   // Strip protocol + host for `https://twitter.com/foo` / `https://x.com/foo`.
   const urlMatch = trimmed.match(/^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/(.+)$/i);
-  if (urlMatch) {
-    trimmed = urlMatch[1].replace(/[/?#].*$/, '');
+  const handleFromUrl = urlMatch?.[1];
+  if (handleFromUrl) {
+    trimmed = handleFromUrl.replace(/[/?#].*$/, '');
   }
   trimmed = trimmed.replace(/^@/, '');
   if (!/^[A-Za-z0-9_]{1,15}$/.test(trimmed)) return undefined;

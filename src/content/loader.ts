@@ -15,6 +15,7 @@ import {
   resolveTaxonomies,
 } from '~/build/routes-yaml.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import { computePostClass } from '~/render/class-names.ts';
 import { NectarError, formatNectarError, toNectarError } from '~/util/errors.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
@@ -39,6 +40,7 @@ import {
   truncateByWords,
 } from './markdown.ts';
 import type {
+  AdjacentPost,
   Author,
   ContentGraph,
   ContentSourceFingerprint,
@@ -296,8 +298,8 @@ async function loadContentWithPool({
   for (let i = 0; i < resolvedPosts.length; i += 1) {
     const current = resolvedPosts[i];
     if (!current) continue;
-    current.next = resolvedPosts[i - 1];
-    current.prev = resolvedPosts[i + 1];
+    current.next = adjacentPostRef(resolvedPosts[i - 1]);
+    current.prev = adjacentPostRef(resolvedPosts[i + 1]);
   }
 
   // Rewrite `post.url` to honour any `collections:` permalinks declared in
@@ -395,12 +397,7 @@ async function loadContentWithPool({
     tags: allTags,
     authors: allAuthors,
     tiers,
-    bySlug: {
-      posts: new Map(resolvedPosts.map((p) => [p.slug, p])),
-      pages: new Map(resolvedPages.map((p) => [p.slug, p])),
-      tags: publicBySlugMap(tags),
-      authors: publicBySlugMap(authors),
-    },
+    bySlug: lazyBySlugMaps({ posts: resolvedPosts, pages: resolvedPages, tags, authors }),
     postsByTag,
     postsByAuthor,
     sources: {
@@ -464,6 +461,66 @@ function deterministicContentUuid(siteUrl: string, kind: 'post' | 'page', path: 
 
 function publicBySlugMap<T extends { slug: string }>(items: readonly T[]): Map<string, T> {
   return new Map(items.map((item) => [item.slug, item]));
+}
+
+function lazyBySlugMaps(items: {
+  posts: readonly Post[];
+  pages: readonly Page[];
+  tags: readonly Tag[];
+  authors: readonly Author[];
+}): ContentGraph['bySlug'] {
+  let posts: Map<string, Post> | undefined;
+  let pages: Map<string, Page> | undefined;
+  let tags: Map<string, Tag> | undefined;
+  let authors: Map<string, Author> | undefined;
+  return {
+    get posts() {
+      posts ??= publicBySlugMap(items.posts);
+      return posts;
+    },
+    get pages() {
+      pages ??= publicBySlugMap(items.pages);
+      return pages;
+    },
+    get tags() {
+      tags ??= publicBySlugMap(items.tags);
+      return tags;
+    },
+    get authors() {
+      authors ??= publicBySlugMap(items.authors);
+      return authors;
+    },
+  };
+}
+
+function adjacentPostRef(post: Post | undefined): AdjacentPost | undefined {
+  if (!post) return undefined;
+  return {
+    id: post.id,
+    uuid: post.uuid,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    custom_excerpt: post.custom_excerpt,
+    feature_image: post.feature_image,
+    feature_image_alt: post.feature_image_alt,
+    feature_image_caption: post.feature_image_caption,
+    feature_image_width: post.feature_image_width,
+    feature_image_height: post.feature_image_height,
+    featured: post.featured,
+    page: post.page,
+    published_at: post.published_at,
+    updated_at: post.updated_at,
+    reading_time: post.reading_time,
+    visibility: post.visibility,
+    tags: post.tags,
+    primary_tag: post.primary_tag,
+    authors: post.authors,
+    primary_author: post.primary_author,
+    url: post.url,
+    access: post.access,
+    post_class: post.post_class,
+  };
 }
 
 function resolveLocaleRouting(
@@ -1813,7 +1870,7 @@ function resolvePostRelations(
     trailingSlash,
   );
 
-  return {
+  const resolved: Post = {
     id: raw.id,
     uuid: raw.uuid ?? deterministicContentUuid(siteUrl, 'post', url),
     slug: raw.slug,
@@ -1875,9 +1932,13 @@ function resolvePostRelations(
     send_email_when_published: raw.send_email_when_published,
     prev: undefined,
     next: undefined,
+    post_class: '',
+    published_at_rfc2822: new Date(raw.published_at).toUTCString(),
     feed_html: raw.feed_html,
     feed_excerpt: raw.feed_excerpt,
   };
+  resolved.post_class = computePostClass(resolved);
+  return resolved;
 }
 
 function resolvePageRelations(
@@ -1921,7 +1982,7 @@ function resolvePageRelations(
     trailingSlash,
   );
 
-  return {
+  const resolved: Page = {
     id: raw.id,
     uuid: raw.uuid ?? deterministicContentUuid(siteUrl, 'page', url),
     slug: raw.slug,
@@ -1962,8 +2023,11 @@ function resolvePageRelations(
     codeinjection_foot: raw.codeinjection_foot,
     show_title_and_feature_image: raw.show_title_and_feature_image,
     custom_template: raw.custom_template,
+    post_class: '',
     access: false,
   };
+  resolved.post_class = computePostClass(resolved);
+  return resolved;
 }
 
 // Module-level dedupe sets so a tag/author referenced by ten posts only
@@ -2017,6 +2081,7 @@ function resolveTagSlugs(
       feature_image: undefined,
       accent_color: undefined,
       visibility: slug.startsWith('hash-') ? 'internal' : 'public',
+      canonical_url: undefined,
       meta_title: undefined,
       meta_description: undefined,
       og_title: undefined,
@@ -2079,8 +2144,17 @@ function resolveAuthorSlugs(
       tiktok: undefined,
       youtube: undefined,
       instagram: undefined,
+      accent_color: undefined,
       meta_title: undefined,
       meta_description: undefined,
+      og_title: undefined,
+      og_description: undefined,
+      og_image: undefined,
+      twitter_title: undefined,
+      twitter_description: undefined,
+      twitter_image: undefined,
+      codeinjection_head: undefined,
+      codeinjection_foot: undefined,
       url: taxonomyArchiveUrl(basePath, taxonomies, 'author', slug, trailingSlash, routePrefix),
       count: { posts: 0 },
     };

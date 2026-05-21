@@ -219,11 +219,41 @@ export interface Post {
   access: false;
   email_subject: string | undefined;
   send_email_when_published: boolean;
-  prev: Post | undefined;
-  next: Post | undefined;
+  prev: AdjacentPost | undefined;
+  next: AdjacentPost | undefined;
+  post_class?: string;
+  published_at_rfc2822?: string;
   feed_html: string;
   feed_excerpt: string;
 }
+
+export type AdjacentPost = Pick<
+  Post,
+  | 'id'
+  | 'uuid'
+  | 'slug'
+  | 'title'
+  | 'excerpt'
+  | 'custom_excerpt'
+  | 'feature_image'
+  | 'feature_image_alt'
+  | 'feature_image_caption'
+  | 'feature_image_width'
+  | 'feature_image_height'
+  | 'featured'
+  | 'page'
+  | 'published_at'
+  | 'updated_at'
+  | 'reading_time'
+  | 'visibility'
+  | 'tags'
+  | 'primary_tag'
+  | 'authors'
+  | 'primary_author'
+  | 'url'
+  | 'access'
+  | 'post_class'
+>;
 
 export interface PostEngagementCount {
   signups?: number | undefined;
@@ -275,6 +305,7 @@ export interface Page {
   codeinjection_foot: string | undefined;
   show_title_and_feature_image: boolean;
   custom_template: string | undefined;
+  post_class?: string;
   // Pages are always public in Nectar (no gated pages), but Ghost still
   // exposes `page.access` so themes can branch uniformly across posts/pages.
   // The anonymous-viewer rule from `Post.access` applies; see #208.

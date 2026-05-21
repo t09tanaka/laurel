@@ -6,11 +6,13 @@ import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
+import { computePostClass } from '../class-names.ts';
 import { DEFAULT_PARTIALS } from '../default-partials.ts';
-import { type NectarEngine, computePostClass } from '../engine.ts';
+import type { NectarEngine } from '../engine.ts';
 import { localizeKoenigCardLabels } from '../koenig-i18n.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
+  const contentHtmlCache = new WeakMap<object, { source: string; safe: unknown }>();
   const tagMarkupCache = new WeakMap<
     { name: string; url?: string },
     { name: string; url: string | undefined; escapedName: string; linkedHtml: string | undefined }
@@ -35,6 +37,13 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const localized = localizeKoenigCardLabels(swapped, (key) =>
         translateCardLabel(engine, options, key),
       );
+      if (swapped === html && typeof this === 'object' && this !== null) {
+        const cached = contentHtmlCache.get(this);
+        if (cached?.source === localized) return cached.safe;
+        const safe = new engine.hb.SafeString(downshiftHeadings(localized));
+        contentHtmlCache.set(this, { source: localized, safe });
+        return safe;
+      }
       return new engine.hb.SafeString(downshiftHeadings(localized));
     },
   );
@@ -368,8 +377,10 @@ export function registerContentHelpers(engine: NectarEngine): void {
       feature_image?: string | undefined;
       html?: string;
       page?: boolean;
+      post_class?: string;
       visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
     };
+    if (typeof ctx.post_class === 'string') return ctx.post_class;
     return computePostClass(ctx);
   });
 
@@ -709,8 +720,8 @@ function routeScopedMetaTitle(
         tagFromCtx.meta_title,
         tagFromCtx.og_title,
         tagFromCtx.twitter_title,
-        ctx.meta_title,
         tagFromCtx.name,
+        ctx.meta_title,
       );
     }
     if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
@@ -720,7 +731,7 @@ function routeScopedMetaTitle(
   if (route.kind === 'author') {
     const authorFromCtx = recordValue(ctx.author);
     if (authorFromCtx) {
-      return firstNonEmptyString(authorFromCtx.meta_title, ctx.meta_title, authorFromCtx.name);
+      return firstNonEmptyString(authorFromCtx.meta_title, authorFromCtx.name, ctx.meta_title);
     }
     if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
     const author = recordValue(route.data?.author);

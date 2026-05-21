@@ -1,5 +1,4 @@
 import Handlebars from 'handlebars';
-import slugify from 'slugify';
 import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { Profiler } from '~/build/profile.ts';
 import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
@@ -11,6 +10,7 @@ import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
+import { bodyClassToken, computePostClass } from './class-names.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import { recordEmbedProviderScripts } from './embed-provider-scripts.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
@@ -39,6 +39,15 @@ const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
 const MAX_PARTIAL_RENDER_DEPTH = 64;
 const RESERVED_ROOT_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const customDataCache = new WeakMap<NectarEngine, Record<string, unknown>>();
+const rootDataBaseCache = new WeakMap<NectarEngine, RootDataBase>();
+const bodyClassCache = new WeakMap<NectarEngine, WeakMap<RouteContext, string>>();
+
+interface RootDataBase {
+  custom: Record<string, unknown>;
+  config: Record<string, unknown>;
+  member: Member;
+  text_color_class: TextColorClass;
+}
 
 export interface NectarEngine {
   hb: typeof Handlebars;
@@ -470,9 +479,9 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     ctx.message = data.error.message;
     ctx.error = data.error;
   }
-  ctx.body_class = computeBodyClass(route, resolveTextColorClass(engine));
+  ctx.body_class = cachedBodyClass(engine, route);
   const postOrPage = data.post ?? data.page;
-  ctx.post_class = postOrPage ? computePostClass(postOrPage) : '';
+  ctx.post_class = postOrPage ? (postOrPage.post_class ?? computePostClass(postOrPage)) : '';
   // Ghost gates locked content with `{{#unless access}}` (and reads `{{access}}`
   // inline for icon paths). Handlebars resolves the bare `access` token as a
   // context lookup before falling through to the helper registry, so the
@@ -503,8 +512,7 @@ function defaultPaginationContext(): { page: number; pages: number; total: numbe
 }
 
 export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
-  const custom = buildCustom(engine);
-  const textColorClass = resolveTextColorClass(engine, custom);
+  const base = rootDataBase(engine);
   const routeLocale = normalizeLocale(route.locale ?? engine.content.site.locale);
   const siteUrl = normalizeThemeSiteUrl(engine.content.site.url);
   // Per-route enrichment of `@site.navigation` so themes that iterate
@@ -531,8 +539,8 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     site,
     blog: site,
     setting: site,
-    config: buildGhostConfig(engine),
-    custom,
+    config: base.config,
+    custom: base.custom,
     page: {
       number: pagination.page,
       page: pagination.page,
@@ -554,9 +562,36 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     // we inject a synthetic member so designers can preview Casper / Edition
     // signed-in / paid branches against a static build. Production builds leave
     // it unset and `@member` stays an unauthenticated safe stub.
-    member: buildPreviewMember(engine) ?? createUnauthenticatedMember(),
-    text_color_class: textColorClass,
+    member: base.member,
+    text_color_class: base.text_color_class,
   };
+}
+
+function rootDataBase(engine: NectarEngine): RootDataBase {
+  const cached = rootDataBaseCache.get(engine);
+  if (cached) return cached;
+  const custom = buildCustom(engine);
+  const resolved: RootDataBase = {
+    custom,
+    config: buildGhostConfig(engine),
+    member: buildPreviewMember(engine) ?? createUnauthenticatedMember(),
+    text_color_class: resolveTextColorClass(engine, custom),
+  };
+  rootDataBaseCache.set(engine, resolved);
+  return resolved;
+}
+
+function cachedBodyClass(engine: NectarEngine, route: RouteContext): string {
+  let perEngine = bodyClassCache.get(engine);
+  if (!perEngine) {
+    perEngine = new WeakMap();
+    bodyClassCache.set(engine, perEngine);
+  }
+  const cached = perEngine.get(route);
+  if (cached !== undefined) return cached;
+  const resolved = computeBodyClass(route, resolveTextColorClass(engine));
+  perEngine.set(route, resolved);
+  return resolved;
 }
 
 function normalizeLocale(locale: string | undefined): string {
@@ -831,55 +866,4 @@ function isMembersRoute(route: RouteContext): boolean {
 function pushBodyClassToken(tokens: string[], prefix: string, slug: unknown): void {
   const token = bodyClassToken(prefix, slug);
   if (token) tokens.push(token);
-}
-
-function bodyClassToken(prefix: string, slug: unknown): string | undefined {
-  if (typeof slug !== 'string') return undefined;
-  const sanitized = slugify(slug, { lower: true, strict: true });
-  if (!sanitized) return undefined;
-  return `${prefix}-${sanitized}`;
-}
-
-// Ghost's `post_class` emits more than just tag/featured tokens — themes
-// (Source included) hook layout into `no-image`/`image` and `page`, so a
-// minimal "post tag-x" output drops styles that depend on these tokens. We
-// also surface `no-content` for empty bodies; that lets themes hide the
-// content shell on stub posts without inspecting the body themselves.
-export function computePostClass(post: {
-  tags?: { slug: string }[];
-  featured?: boolean;
-  feature_image?: string | undefined;
-  html?: string;
-  page?: boolean;
-  visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
-}): string {
-  const tokens = ['post'];
-  for (const t of post.tags ?? []) tokens.push(`tag-${t.slug}`);
-  if (post.featured) tokens.push('featured');
-  switch (post.visibility) {
-    case 'members':
-      tokens.push('members-only');
-      break;
-    case 'paid':
-    case 'tiers':
-    case 'filter':
-      tokens.push('paid-only');
-      break;
-    default:
-      tokens.push('access');
-      break;
-  }
-  // Both `image` (Ghost legacy) and `feature-image` (Casper / Source variant)
-  // markers are emitted together so theme CSS that hooks either selector
-  // keeps working. `image-cover` is the Source-specific layout hook for
-  // posts that should fill the hero band. Posts without a feature image
-  // fall back to `no-image` so themes can collapse the cover slot.
-  if (post.feature_image) {
-    tokens.push('image', 'feature-image', 'image-cover');
-  } else {
-    tokens.push('no-image');
-  }
-  if (!post.html || post.html.trim() === '') tokens.push('no-content');
-  if (post.page) tokens.push('page');
-  return tokens.join(' ');
 }

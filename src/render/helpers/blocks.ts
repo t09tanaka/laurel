@@ -47,21 +47,20 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const columns = parseColumns(options.hash.columns);
     const fnAny = options.fn as unknown as { blockParams?: number };
     const hasBlockParams = (fnAny?.blockParams ?? 0) > 0;
+    const data = engine.hb.createFrame(safeHelperDataSeed(options.data));
+    const foreachState: Record<string, unknown> = {};
     for (let i = 0; i < sliced.length; i += 1) {
       const entry = sliced[i];
       if (!entry) continue;
-      const data = engine.hb.createFrame(safeHelperDataSeed(options.data));
-      const foreachState: Record<string, unknown> = {
-        index: i,
-        number: i + 1,
-        first: i === 0,
-        last: i === sliced.length - 1,
-        even: i % 2 === 0,
-        odd: i % 2 !== 0,
-        rowStart: i % columns === 0,
-        rowEnd: (i + 1) % columns === 0 || i === sliced.length - 1,
-      };
-      if (entry.key !== undefined) foreachState.key = entry.key;
+      foreachState.index = i;
+      foreachState.number = i + 1;
+      foreachState.first = i === 0;
+      foreachState.last = i === sliced.length - 1;
+      foreachState.even = i % 2 === 0;
+      foreachState.odd = i % 2 !== 0;
+      foreachState.rowStart = i % columns === 0;
+      foreachState.rowEnd = (i + 1) % columns === 0 || i === sliced.length - 1;
+      foreachState.key = entry.key;
       Object.assign(data, foreachState);
       buffer += options.fn(entry.value, {
         data,

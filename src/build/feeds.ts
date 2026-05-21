@@ -362,6 +362,7 @@ function rssPostHashInput(post: Post, fullContent: boolean): Record<string, unkn
     title: post.title,
     url: post.url,
     published_at: post.published_at,
+    published_at_rfc2822: post.published_at_rfc2822,
     updated_at: post.updated_at,
     authors: post.authors.map((author) => ({
       id: author.id,
@@ -497,7 +498,7 @@ function renderItem(
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
     `<link>${escapeXmlText(link)}</link>`,
     `<guid isPermaLink="${guidIsPermaLink}">${escapeXmlText(guid)}</guid>`,
-    `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
+    `<pubDate>${escapeXmlText(post.published_at_rfc2822 ?? new Date(post.published_at).toUTCString())}</pubDate>`,
   ];
   // dc:creator per author (Ghost emits one per author, primary first). Authors
   // already come in primary-first order from the content graph.

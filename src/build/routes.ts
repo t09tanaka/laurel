@@ -20,6 +20,11 @@ import {
   routeUrlToOutputPath,
 } from './routes-yaml.ts';
 
+const defaultMetaBaseCache = new WeakMap<
+  NectarConfig,
+  { description: string; siteUrl: string; basePath: string }
+>();
+
 export function planRoutes(opts: {
   config: NectarConfig;
   content: ContentGraph;
@@ -581,8 +586,10 @@ function parseCustomRouteDataRef(
 ): { kind: 'post' | 'page'; slug: string } | undefined {
   const trimmed = value.trim();
   const match = /^(post|page)\.([^\s.]+)$/.exec(trimmed);
-  if (!match) return undefined;
-  return { kind: match[1] as 'post' | 'page', slug: match[2] };
+  const kind = match?.[1];
+  const slug = match?.[2];
+  if ((kind !== 'post' && kind !== 'page') || slug === undefined) return undefined;
+  return { kind, slug };
 }
 
 function findLocalizedResource<T extends { slug: string; locale?: string }>(
@@ -869,18 +876,31 @@ function defaultMeta(
   image?: string,
   canonicalOverride?: string,
 ) {
+  const base = defaultMetaBase(config);
   // `route.url` and `outputPath` stay root-relative (no base_path) so the
   // emit path lands at `dist/<slug>/index.html` regardless of where the site
   // is served from. Canonical is the user-facing absolute URL, so it must
   // include `base_path` (e.g. `https://host/blog/post-slug/`).
   return {
     title,
-    description: description ?? config.site.description,
-    canonical: absoluteUrlWithBasePath(
-      config.site.url,
-      config.build.base_path,
-      canonicalOverride ?? routeUrl,
-    ),
+    description: description ?? base.description,
+    canonical: absoluteUrlWithBasePath(base.siteUrl, base.basePath, canonicalOverride ?? routeUrl),
     image,
   };
+}
+
+function defaultMetaBase(config: NectarConfig): {
+  description: string;
+  siteUrl: string;
+  basePath: string;
+} {
+  const cached = defaultMetaBaseCache.get(config);
+  if (cached) return cached;
+  const base = {
+    description: config.site.description,
+    siteUrl: config.site.url,
+    basePath: config.build.base_path,
+  };
+  defaultMetaBaseCache.set(config, base);
+  return base;
 }
