@@ -75,6 +75,13 @@ describe('foreach helper', () => {
     expect(tpl({ items: ['a', 'b', 'c', 'd', 'e', 'f'] })).toBe('b|c|');
   });
 
+  test('from + to + limit slice the range before applying the cap', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#foreach items from=2 to=4 limit=2}}{{this}}{{/foreach}}');
+    expect(tpl({ items: ['a', 'b', 'c', 'd', 'e'] })).toBe('bc');
+  });
+
   test('omitted to iterates through the end before applying limit', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
