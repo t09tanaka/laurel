@@ -221,7 +221,7 @@ export interface Post {
   send_email_when_published: boolean;
   prev: AdjacentPost | undefined;
   next: AdjacentPost | undefined;
-  post_class?: string;
+  post_class: string;
   published_at_rfc2822?: string;
   feed_html: string;
   feed_excerpt: string;
@@ -305,7 +305,7 @@ export interface Page {
   codeinjection_foot: string | undefined;
   show_title_and_feature_image: boolean;
   custom_template: string | undefined;
-  post_class?: string;
+  post_class: string;
   // Pages are always public in Nectar (no gated pages), but Ghost still
   // exposes `page.access` so themes can branch uniformly across posts/pages.
   // The anonymous-viewer rule from `Post.access` applies; see #208.

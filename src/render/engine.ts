@@ -10,7 +10,7 @@ import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
 import { NectarError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
-import { bodyClassToken, computePostClass } from './class-names.ts';
+import { bodyClassToken } from './class-names.ts';
 import { DEFAULT_PARTIALS } from './default-partials.ts';
 import { recordEmbedProviderScripts } from './embed-provider-scripts.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
@@ -600,7 +600,7 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   }
   ctx.body_class = cachedBodyClass(engine, route);
   const postOrPage = data.post ?? data.page;
-  ctx.post_class = postOrPage ? (postOrPage.post_class ?? computePostClass(postOrPage)) : '';
+  ctx.post_class = postOrPage?.post_class ?? '';
   // Ghost gates locked content with `{{#unless access}}` (and reads `{{access}}`
   // inline for icon paths). Handlebars resolves the bare `access` token as a
   // context lookup before falling through to the helper registry, so the

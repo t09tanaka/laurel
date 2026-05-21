@@ -124,6 +124,12 @@ describe('loadContent', () => {
     expect(graph.authors.find((a) => a.slug === 'casper')?.count.posts).toBe(1);
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
     expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
+    expect(graph.posts[1]?.post_class.split(' ')).toEqual(
+      expect.arrayContaining(['post', 'tag-news', 'featured', 'access', 'no-image']),
+    );
+    expect(graph.pages[0]?.post_class.split(' ')).toEqual(
+      expect.arrayContaining(['post', 'page', 'access', 'no-image']),
+    );
   });
 
   test('normalizes Ghost excerpt fields from custom_excerpt or 50 plaintext words', async () => {

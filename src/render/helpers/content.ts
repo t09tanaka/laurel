@@ -6,7 +6,6 @@ import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
-import { computePostClass } from '../class-names.ts';
 import { DEFAULT_PARTIALS } from '../default-partials.ts';
 import type { NectarEngine } from '../engine.ts';
 import { localizeKoenigCardLabels } from '../koenig-i18n.ts';
@@ -371,17 +370,8 @@ export function registerContentHelpers(engine: NectarEngine): void {
   });
 
   engine.hb.registerHelper('post_class', function postClassHelper(this: unknown) {
-    const ctx = this as {
-      tags?: { slug: string }[];
-      featured?: boolean;
-      feature_image?: string | undefined;
-      html?: string;
-      page?: boolean;
-      post_class?: string;
-      visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
-    };
-    if (typeof ctx.post_class === 'string') return ctx.post_class;
-    return computePostClass(ctx);
+    const ctx = this as { post_class?: unknown };
+    return typeof ctx.post_class === 'string' ? ctx.post_class : '';
   });
 
   engine.hb.registerHelper(

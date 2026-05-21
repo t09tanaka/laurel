@@ -2,6 +2,7 @@ import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
+import { computePostClass } from '~/render/class-names.ts';
 import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import { registerFlowHelpers } from '~/render/helpers/flow.ts';
@@ -20,7 +21,7 @@ const baseMeta: RouteContext['meta'] = {
 };
 
 function makePost(overrides: Partial<Post> = {}): Post {
-  return {
+  const post = {
     id: 'p1',
     slug: 'p1',
     title: 'A post',
@@ -67,10 +68,14 @@ function makePost(overrides: Partial<Post> = {}): Post {
     feed_excerpt: '',
     ...overrides,
   } as unknown as Post;
+  if (!Object.hasOwn(overrides, 'post_class')) {
+    post.post_class = computePostClass(post);
+  }
+  return post;
 }
 
 function makePage(overrides: Partial<Page> = {}): Page {
-  return {
+  const page = {
     id: 'pg1',
     slug: 'pg1',
     title: 'A page',
@@ -111,6 +116,10 @@ function makePage(overrides: Partial<Page> = {}): Page {
     custom_template: undefined,
     ...overrides,
   } as unknown as Page;
+  if (!Object.hasOwn(overrides, 'post_class')) {
+    page.post_class = computePostClass(page);
+  }
+  return page;
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -322,7 +331,7 @@ describe('buildContext', () => {
 
     expect(ctx.title).toBe(page.title);
     expect(ctx.page).toBe(page);
-    expect(pageFlagReads).toBe(1);
+    expect(pageFlagReads).toBe(0);
   });
 
   test('routes without pagination still expose a page-1 pagination context (issue #1709)', () => {
@@ -453,6 +462,23 @@ describe('buildContext', () => {
     expect(tokens).not.toContain('no-image');
     expect(tokens).not.toContain('no-content');
     expect(tokens).not.toContain('page');
+  });
+
+  test('post_class root context does not recompute when the model field is absent', () => {
+    const post = makePost({
+      feature_image: '/img.jpg',
+      html: '<p>hi</p>',
+      post_class: undefined,
+    });
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    };
+    expect(buildContext(engine, route).post_class).toBe('');
   });
 
   test('post post_class falls back to `no-image` when feature_image is missing (issue #1119)', () => {

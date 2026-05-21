@@ -1493,44 +1493,7 @@ describe('tags helper', () => {
 });
 
 describe('post_class helper', () => {
-  // The helper runs from `{{post_class}}` inside `{{#foreach posts}}` blocks
-  // (Source's post-card.hbs is the canonical caller), so `this` is the
-  // iterated post — not the root context. Regression coverage for #1119.
-  test('emits `image` when the iterated post has a feature_image', () => {
-    const engine = makeEngine();
-    registerContentHelpers(engine);
-    const out = engine.hb.compile('{{post_class}}')({
-      tags: [],
-      feature_image: '/a.jpg',
-      html: '<p>x</p>',
-    });
-    const tokens = out.split(' ');
-    expect(tokens).toContain('post');
-    expect(tokens).toContain('image');
-    expect(tokens).not.toContain('no-image');
-  });
-
-  test('emits `page` when the current context is a page', () => {
-    const engine = makeEngine();
-    registerContentHelpers(engine);
-    const out = engine.hb.compile('{{post_class}}')({
-      page: true,
-      tags: [],
-      html: '<p>x</p>',
-    });
-    expect(out.split(' ')).toContain('page');
-  });
-
-  test('emits `no-image` and `no-content` when the iterated post is empty', () => {
-    const engine = makeEngine();
-    registerContentHelpers(engine);
-    const out = engine.hb.compile('{{post_class}}')({ tags: [], html: '' });
-    const tokens = out.split(' ');
-    expect(tokens).toContain('no-image');
-    expect(tokens).toContain('no-content');
-  });
-
-  test('preserves tag-<slug> tokens alongside the new image/featured tokens', () => {
+  test('returns an empty string instead of recomputing when post_class is absent', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{post_class}}')({
@@ -1538,6 +1501,50 @@ describe('post_class helper', () => {
       featured: true,
       feature_image: '/a.jpg',
       html: '<p>x</p>',
+    });
+    expect(out).toBe('');
+  });
+
+  // The helper runs from `{{post_class}}` inside `{{#foreach posts}}` blocks
+  // (Source's post-card.hbs is the canonical caller), so `this` is the
+  // iterated post — not the root context. Regression coverage for #1119.
+  test('returns the precomputed `image` token from an iterated post', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      post_class: 'post access image feature-image image-cover',
+    });
+    const tokens = out.split(' ');
+    expect(tokens).toContain('post');
+    expect(tokens).toContain('image');
+    expect(tokens).not.toContain('no-image');
+  });
+
+  test('returns the precomputed `page` token from a page context', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      post_class: 'post access no-image page',
+    });
+    expect(out.split(' ')).toContain('page');
+  });
+
+  test('returns precomputed `no-image` and `no-content` tokens', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      post_class: 'post access no-image no-content',
+    });
+    const tokens = out.split(' ');
+    expect(tokens).toContain('no-image');
+    expect(tokens).toContain('no-content');
+  });
+
+  test('preserves precomputed tag-<slug> tokens alongside image/featured tokens', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      post_class: 'post tag-news featured access image feature-image image-cover',
     });
     const tokens = out.split(' ');
     expect(tokens).toContain('tag-news');
@@ -1549,15 +1556,9 @@ describe('post_class helper', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const tpl = engine.hb.compile('{{post_class}}');
-    expect(tpl({ tags: [], visibility: 'public', html: '<p>x</p>' }).split(' ')).toContain(
-      'access',
-    );
-    expect(tpl({ tags: [], visibility: 'members', html: '<p>x</p>' }).split(' ')).toContain(
-      'members-only',
-    );
-    expect(tpl({ tags: [], visibility: 'paid', html: '<p>x</p>' }).split(' ')).toContain(
-      'paid-only',
-    );
+    expect(tpl({ post_class: 'post access' }).split(' ')).toContain('access');
+    expect(tpl({ post_class: 'post members-only' }).split(' ')).toContain('members-only');
+    expect(tpl({ post_class: 'post paid-only' }).split(' ')).toContain('paid-only');
   });
 });
 
