@@ -69,3 +69,7 @@ jobs:
 
       - name: axe a11y gate (example/dist)
         run: bun run lint:a11y
+
+      - name: Lighthouse 100 gate (example/dist)
+        if: matrix.os == 'ubuntu-latest' && matrix.bun == 'latest'
+        run: bun run lint:lighthouse

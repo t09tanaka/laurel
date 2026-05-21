@@ -9,6 +9,7 @@ import {
   loadDashboardState,
   readDashboardContentItem,
   readDashboardSettings,
+  renderDashboardHtml,
   writeDashboardContentItem,
   writeDashboardSiteSettings,
 } from '~/cli/commands/dashboard.ts';
@@ -229,6 +230,40 @@ describe('dashboard data', () => {
       );
       const after = await loadDashboardState({ cwd: dir });
       expect(after.tags.items.find((item) => item.slug === 'missing-tag')?.source).toBe('file');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('surfaces accessibility content warnings in list summaries', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/a11y-risk.md'),
+        [
+          '---',
+          'title: A very long accessibility review title that should be checked before narrow responsive layouts ship',
+          'date: 2026-01-04T00:00:00Z',
+          'created_at: 2026-01-04T00:00:00Z',
+          'feature_image: /content/images/a11y.png',
+          '---',
+          '',
+          '![](/content/images/inline.png)',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const state = await loadDashboardState({ cwd: dir, page: 1, perPage: 1 });
+      const item = state.posts.items[0];
+
+      expect(item?.slug).toBe('a11y-risk');
+      expect(item?.warnings.map((warning) => warning.code)).toEqual([
+        'long-title',
+        'feature-image-alt',
+        'inline-image-alt',
+        'missing-description',
+      ]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -466,5 +501,19 @@ describe('dashboard data', () => {
     expect(snapshot.lastEvent?.reason).toBe('file-change');
     expect(snapshot.lastEvent?.changedPath).toBe('content/posts/new.md');
     expect(snapshot.activity).toHaveLength(1);
+  });
+
+  test('renders dashboard shell with accessibility and responsive QA hooks', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('href="#main"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('role="status" aria-live="polite"');
+    expect(html).toContain('id="paletteModal"');
+    expect(html).toContain('id="density"');
+    expect(html).toContain('id="search"');
+    expect(html).toContain('overflow-wrap:anywhere');
+    expect(html).toContain('prefers-reduced-motion');
+    expect(html).toContain('warningBadge');
   });
 });

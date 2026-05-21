@@ -87,7 +87,8 @@
     "size:theme-bundle": "bun scripts/theme-bundle-size.ts",
     "verify:lockfile": "bun install --frozen-lockfile",
     "verify:bun-path-alias": "bun scripts/verify-bun-path-alias.ts",
-    "lint:a11y": "bun run scripts/a11y-gate.ts"
+    "lint:a11y": "bun run scripts/a11y-gate.ts",
+    "lint:lighthouse": "bun run scripts/lighthouse-gate.ts"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
@@ -126,6 +127,7 @@
     "@types/turndown": "^5.0.5",
     "@types/xml2js": "^0.4.14",
     "html-validate": "^9",
+    "lighthouse": "^13.3.0",
     "pagefind": "^1.5.2",
     "typescript": "^5.6.3"
   },
