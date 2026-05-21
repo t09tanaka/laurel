@@ -2,6 +2,7 @@ import type Handlebars from 'handlebars';
 import type { NectarEngine } from '../engine.ts';
 
 const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
+  x: (h) => `https://twitter.com/${stripAt(h)}`,
   twitter: (h) => `https://twitter.com/${stripAt(h)}`,
   facebook: (h) => `https://facebook.com/${stripAt(h)}`,
   linkedin: (h) => `https://www.linkedin.com/in/${stripAt(h)}`,
@@ -10,7 +11,10 @@ const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
   threads: (h) => `https://www.threads.net/@${stripAt(h)}`,
   tiktok: (h) => `https://www.tiktok.com/@${stripAt(h)}`,
   youtube: (h) => `https://www.youtube.com/${stripAt(h)}`,
+  youtube_channel: (h) => `https://www.youtube.com/${h}`,
   instagram: (h) => `https://www.instagram.com/${stripAt(h)}`,
+  github: (h) => `https://github.com/${stripAt(h)}`,
+  mailto: (h) => (h.startsWith('mailto:') ? h : `mailto:${h}`),
 };
 
 const SOCIAL_PLATFORMS = [
@@ -46,6 +50,9 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     const secure = options.hash.secure === true || options.hash.secure === 'true';
     if (!candidate) return '';
     if (!absolute && !secure) return candidate;
+    if ((absolute || secure) && candidate === '/') {
+      return normalizeSiteUrl(engine.content.site.url, secure);
+    }
     try {
       const resolved = new URL(candidate, engine.content.site.url);
       if (secure) resolved.protocol = 'https:';
@@ -57,11 +64,13 @@ export function registerUrlHelpers(engine: NectarEngine): void {
 
   engine.hb.registerHelper(
     'social_url',
-    function socialUrlHelper(this: unknown, options: Handlebars.HelperOptions) {
-      const ctx = this as Record<string, unknown>;
+    function socialUrlHelper(this: unknown, ...args: unknown[]) {
+      const options = args[args.length - 1] as Handlebars.HelperOptions;
+      const source = args.length > 1 ? args[0] : this;
+      const ctx = source as Record<string, unknown>;
       const type = String(options.hash.type ?? '');
       if (!type) return '';
-      const handle = ctx[type];
+      const handle = socialHandle(ctx, type);
       if (typeof handle !== 'string' || !handle) return '';
       return buildSocialUrl(type, handle);
     },
@@ -75,12 +84,15 @@ export function registerUrlHelpers(engine: NectarEngine): void {
     return typeof handle === 'string' && handle ? buildSocialUrl('facebook', handle) : '';
   });
 
-  engine.hb.registerHelper('readable_url', function readableUrlHelper(...args: unknown[]) {
-    const positional = args.length > 1 ? args[0] : undefined;
-    const ctx = this as { url?: unknown };
-    const candidate = typeof positional === 'string' ? positional : ctx.url;
-    return typeof candidate === 'string' ? readableUrl(candidate) : '';
-  });
+  engine.hb.registerHelper(
+    'readable_url',
+    function readableUrlHelper(this: unknown, ...args: unknown[]) {
+      const positional = args.length > 1 ? args[0] : undefined;
+      const ctx = this as { url?: unknown };
+      const candidate = typeof positional === 'string' ? positional : ctx.url;
+      return typeof candidate === 'string' ? readableUrl(candidate) : '';
+    },
+  );
 
   engine.hb.registerHelper(
     'social_accounts',
@@ -148,6 +160,21 @@ function stripTrailingSlash(value: string): string {
   return value.length > 1 ? value.replace(/\/+$/, '') : value;
 }
 
+function normalizeSiteUrl(siteUrl: string, secure: boolean): string {
+  try {
+    const parsed = new URL(siteUrl);
+    if (secure) parsed.protocol = 'https:';
+    return stripTrailingSlash(parsed.toString());
+  } catch {
+    return stripTrailingSlash(siteUrl);
+  }
+}
+
+function socialHandle(ctx: Record<string, unknown>, type: string): unknown {
+  if (type === 'x') return ctx.x ?? ctx.twitter;
+  return ctx[type];
+}
+
 function buildSocialUrl(type: string, handle: string): string {
   if (isAbsoluteHttpUrl(handle)) return handle;
   const builder = SOCIAL_PATTERNS[type];
@@ -160,7 +187,9 @@ function buildSocialAccounts(source: unknown): SocialAccount[] {
   const ctx = source as Record<string, unknown>;
   const accounts: SocialAccount[] = [];
 
-  for (const { type, name, sourceKey = type } of SOCIAL_PLATFORMS) {
+  for (const platform of SOCIAL_PLATFORMS) {
+    const { type, name } = platform;
+    const sourceKey = 'sourceKey' in platform ? platform.sourceKey : type;
     const username = ctx[sourceKey];
     if (typeof username !== 'string' || username.length === 0) continue;
     const href = buildSocialUrl(sourceKey, username);
@@ -177,6 +206,7 @@ function normaliseMastodon(handle: string): string {
     const parts = clean.split('@');
     if (parts.length !== 2) return '';
     const [user, host] = parts;
+    if (!user || !host) return '';
     if (!isValidMastodonUser(user) || !isValidHostname(host)) return '';
     return `https://${host}/@${user}`;
   }

@@ -1322,6 +1322,49 @@ describe('buildRootData', () => {
     );
   });
 
+  test('@site exposes Ghost compatibility defaults for admin and signup metadata', () => {
+    const engine = makeEngine();
+    engine.content = {
+      ...engine.content,
+      site: {
+        locale: 'en-gb',
+        title: 'Compat Site',
+        url: 'https://example.com/blog/',
+        members_enabled: true,
+      },
+    } as unknown as NectarEngine['content'];
+    const data = buildRootData(engine, makeRoute());
+    const site = data.site as Record<string, unknown>;
+
+    expect(site.admin_url).toBe('https://example.com/blog/ghost/');
+    expect(site.members_support_address).toBe('');
+    expect(site.allow_self_signup).toBe(true);
+    expect(site.locale).toBe('en-gb');
+    expect(site.lang).toBe('en');
+  });
+
+  test('@page is populated on every route with pagination metadata', () => {
+    const engine = makeEngine();
+    const data = buildRootData(engine, {
+      ...makeRoute('tag'),
+      data: {
+        pagination: {
+          page: 2,
+          pages: 4,
+          total: 30,
+          limit: 10,
+          prev: 1,
+          next: 3,
+          prev_url: '/tag/news/',
+          next_url: '/tag/news/page/3/',
+          base_url: '/tag/news/',
+        },
+      },
+    });
+
+    expect(data.page).toMatchObject({ number: 2, pages: 4, total: 30 });
+  });
+
   test('Journal-style @setting.paid_members_enabled blocks follow @site (issue #719)', () => {
     const renderPaidMembersBranch = (paid_members_enabled: boolean) => {
       const engine = makeEngine();

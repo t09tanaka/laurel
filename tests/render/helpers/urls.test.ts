@@ -41,6 +41,13 @@ describe('url helper', () => {
     expect(tpl({ url: '/hello/' })).toBe('https://blog.example.com/hello/');
   });
 
+  test('absolute=true on the home URL matches Ghost without a trailing slash', () => {
+    const engine = makeEngine('https://blog.example.com');
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile('{{url absolute=true}}');
+    expect(tpl({ url: '/' })).toBe('https://blog.example.com');
+  });
+
   test('absolute="true" resolves the url against the site origin', () => {
     const engine = makeEngine('https://blog.example.com');
     registerUrlHelpers(engine);
@@ -176,6 +183,40 @@ describe('social_url helper', () => {
         'https://www.tiktok.com/@alice',
         'https://www.youtube.com/alice',
       ].join('|'),
+    );
+  });
+
+  test('accepts positional @site and author targets', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{social_url @site type="twitter"}}|{{social_url author type="github"}}',
+    );
+    expect(
+      tpl({ author: { github: 'nectar-dev' } }, { data: { site: { twitter: '@nectar' } } }),
+    ).toBe('https://twitter.com/nectar|https://github.com/nectar-dev');
+  });
+
+  test('supports Ghost social aliases for x, youtube_channel, github, and mailto', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      [
+        '{{social_url type="x"}}',
+        '{{social_url type="youtube_channel"}}',
+        '{{social_url type="github"}}',
+        '{{social_url type="mailto"}}',
+      ].join('|'),
+    );
+    expect(
+      tpl({
+        twitter: '@nectar',
+        youtube_channel: '@nectarvideo',
+        github: 'nectar-dev',
+        mailto: 'hello@example.com',
+      }),
+    ).toBe(
+      'https://twitter.com/nectar|https://www.youtube.com/@nectarvideo|https://github.com/nectar-dev|mailto:hello@example.com',
     );
   });
 

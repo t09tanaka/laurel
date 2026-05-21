@@ -26,7 +26,7 @@ export function registerDateHelpers(engine: NectarEngine): void {
   const dayjsLocale = loadDayjsLocale(engine.content.site.locale);
   const formattedDateCache = new Map<string, string>();
 
-  engine.hb.registerHelper('date', function dateHelper(this: unknown, ...args: unknown[]) {
+  const formatDate = function dateHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const inputs = args.slice(0, -1);
     const candidate = inputs[0];
@@ -44,8 +44,11 @@ export function registerDateHelpers(engine: NectarEngine): void {
     } else {
       value = ctx.published_at ?? ctx.updated_at ?? ctx.created_at ?? new Date().toISOString();
     }
-    const timezoneName = engine.content.site.timezone ?? 'UTC';
-    if (options.hash.timeago === true || options.hash.timeago === 'true') {
+    const timezoneName =
+      typeof options.hash.timezone === 'string' && options.hash.timezone.trim()
+        ? options.hash.timezone.trim()
+        : (engine.content.site.timezone ?? 'UTC');
+    if (isTimeagoHash(options.hash) || hasBareTimeagoInput(inputs)) {
       return dayjs(value).locale(activeLocale).fromNow();
     }
     const format =
@@ -58,10 +61,25 @@ export function registerDateHelpers(engine: NectarEngine): void {
       return cached;
     }
 
-    const formatted = parseDateValue(value, timezoneName).locale(activeLocale).format(format);
+    const parsed = parseDateValue(value, timezoneName).locale(activeLocale);
+    if (!parsed.isValid()) return '';
+    const formatted = parsed.format(format);
     rememberFormattedDate(formattedDateCache, cacheKey, formatted);
     return formatted;
-  });
+  };
+
+  engine.hb.registerHelper('date', formatDate);
+  engine.hb.registerHelper('time', formatDate);
+}
+
+function isTimeagoHash(hash: Record<string, unknown>): boolean {
+  if (!Object.prototype.hasOwnProperty.call(hash, 'timeago')) return false;
+  const value = hash.timeago;
+  return value === true || value === 'true' || value === '';
+}
+
+function hasBareTimeagoInput(inputs: readonly unknown[]): boolean {
+  return inputs.length > 1 && inputs[1] === undefined;
 }
 
 function parseDateValue(value: DateInput | undefined, timezoneName: string): dayjs.Dayjs {

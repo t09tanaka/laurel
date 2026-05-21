@@ -202,6 +202,7 @@ describe('input_email helper', () => {
     expect(html).toMatch(/<input\b[^>]*\bname="email"/);
     expect(html).toMatch(/<input\b[^>]*\bdata-members-email\b/);
     expect(html).toMatch(/<input\b[^>]*\btype="email"/);
+    expect(html).toMatch(/<input\b[^>]*\bclass="gh-input"/);
   });
 
   test('honors placeholder hash option and escapes it as an attribute', () => {
@@ -209,6 +210,36 @@ describe('input_email helper', () => {
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{input_email placeholder="jamie@example.com"}}')({});
     expect(html).toContain('placeholder="jamie@example.com"');
+  });
+});
+
+describe('input_password helper', () => {
+  test('emits a Ghost-compatible password input', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{input_password placeholder="Password"}}')({});
+    expect(html).toMatch(/<input\b[^>]*\btype="password"/);
+    expect(html).toMatch(/<input\b[^>]*\bclass="gh-input"/);
+    expect(html).toMatch(/<input\b[^>]*\bdata-members-password\b/);
+    expect(html).toContain('placeholder="Password"');
+  });
+});
+
+describe('search helper', () => {
+  test('renders the built-in search partial markup as a SafeString', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const html = engine.hb.compile('{{search}}')({});
+    expect(html).toContain('<search class="nectar-search" data-nectar-search-root>');
+    expect(html).toContain('data-nectar-search-results');
+  });
+});
+
+describe('meta_data helper', () => {
+  test('is a static-safe no-op helper', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    expect(engine.hb.compile('a{{meta_data}}b')({})).toBe('ab');
   });
 });
 
@@ -437,6 +468,23 @@ describe('reading_time helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{reading_time minutes="% minutes"}}')({ reading_time: 4 });
     expect(out).toBe('4 minutes');
+  });
+
+  test('localizes default strings through the t helper when registered', () => {
+    const engine = makeEngine({
+      content: { site: { locale: 'ja' } } as unknown as NectarEngine['content'],
+      theme: {
+        locales: {
+          ja: {
+            '1 min read': '1分で読めます',
+            '% min read': '%分で読めます',
+          },
+        },
+      } as unknown as NectarEngine['theme'],
+    });
+    registerI18nHelpers(engine);
+    registerContentHelpers(engine);
+    expect(engine.hb.compile('{{reading_time}}')({ reading_time: 3 })).toBe('3分で読めます');
   });
 });
 

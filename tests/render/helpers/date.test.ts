@@ -251,4 +251,36 @@ describe('date helper', () => {
     const out = engine.hb.compile('{{date ts timeago=true}}')({ ts: past });
     expect(out).toMatch(/前$/);
   });
+
+  test('timeago hash without a value enables relative time', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const out = engine.hb.compile('{{date ts timeago}}')({ ts: past });
+    expect(out).toBe('a day ago');
+  });
+
+  test('timezone hash overrides the site timezone for one call', () => {
+    const engine = makeEngine('en', 'UTC');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile(
+      '{{date "2026-05-04T20:00:00Z" format="YYYY-MM-DD" timezone="Asia/Tokyo"}}|{{date "2026-05-04T20:00:00Z" format="YYYY-MM-DD"}}',
+    )({});
+    expect(out).toBe('2026-05-05|2026-05-04');
+  });
+
+  test('invalid date strings render as empty strings', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    expect(engine.hb.compile('{{date "not-a-date"}}')({})).toBe('');
+  });
+});
+
+describe('time helper', () => {
+  test('aliases the date helper with the same formatting semantics', () => {
+    const engine = makeEngine('en', 'UTC');
+    registerDateHelpers(engine);
+    const out = engine.hb.compile('{{time "2026-05-04T20:30:00Z" format="HH:mm"}}')({});
+    expect(out).toBe('20:30');
+  });
 });

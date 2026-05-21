@@ -151,6 +151,27 @@ describe('navigation helper', () => {
     expect(about).toContain('<li class="nav-about" aria-current="page">');
     expect(engine.navigationHtmlCache?.size).toBe(2);
   });
+
+  test('secondary_navigation helper exposes @site.secondary_navigation as a block source', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile(
+      '{{#secondary_navigation}}{{label}}={{url}};{{else}}empty{{/secondary_navigation}}',
+    );
+    expect(
+      template(
+        {},
+        {
+          data: {
+            site: {
+              navigation: [],
+              secondary_navigation: [{ label: 'RSS', url: '/rss/' }],
+            },
+          },
+        },
+      ),
+    ).toBe('RSS=/rss/;');
+  });
 });
 
 describe('navigation helper href sanitisation', () => {

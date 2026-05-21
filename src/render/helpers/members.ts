@@ -25,6 +25,15 @@ export function registerMemberHelpers(engine: NectarEngine): void {
       return new engine.hb.SafeString(formatMemberCount(count));
     },
   );
+  engine.hb.registerHelper('total_members', function totalMembersHelper(this: unknown) {
+    const count = resolveMemberCount(this, engine.content.site, false);
+    return new engine.hb.SafeString(formatMemberCount(count));
+  });
+
+  engine.hb.registerHelper('total_paid_members', function totalPaidMembersHelper(this: unknown) {
+    const count = resolveMemberCount(this, engine.content.site, true);
+    return new engine.hb.SafeString(formatMemberCount(count));
+  });
 
   engine.hb.registerHelper(
     'signup',
@@ -88,6 +97,12 @@ export function registerMemberHelpers(engine: NectarEngine): void {
           )}${escapedNames.at(-1)}`;
 
     return new engine.hb.SafeString(`${escapeHtml(prefix)}${joined}${escapeHtml(suffix)}`);
+  });
+
+  engine.hb.registerHelper('tier', function tierHelper(this: unknown) {
+    const tier = resolveTierList(this, engine, {})[0];
+    const name = tierName(tier);
+    return new engine.hb.SafeString(name ? escapeHtml(name) : '');
   });
 }
 

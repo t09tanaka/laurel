@@ -155,6 +155,27 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
   );
 
   engine.hb.registerHelper(
+    'secondary_navigation',
+    function secondaryNavigationHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const site = options.data?.site as
+        | {
+            secondary_navigation?:
+              | { label: string; url: string; slug?: string; current?: boolean }[]
+              | undefined;
+          }
+        | undefined;
+      const items = site?.secondary_navigation ?? [];
+      if (options.fn) {
+        if (items.length === 0) return options.inverse ? options.inverse(this) : '';
+        let out = '';
+        for (const item of items) out += options.fn(item);
+        return out;
+      }
+      return items;
+    },
+  );
+
+  engine.hb.registerHelper(
     'link',
     function linkHelper(this: unknown, options: Handlebars.HelperOptions) {
       const rawHref = String(options.hash.href ?? '#');

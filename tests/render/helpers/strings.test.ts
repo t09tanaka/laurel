@@ -101,6 +101,15 @@ describe('encode helper', () => {
     expect(mailto(data)).toBe('mailto:?subject=Hi%20%26%20welcome');
     expect(twitter(data)).toBe('https://twitter.com/intent/tweet?text=Hi%20%26%20welcome');
   });
+
+  test('supports Ghost :component and :full modes', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{encode value ":component"}}|{{encode value ":full"}}');
+    expect(tpl({ value: 'https://example.com/a b/?q=x&y=1' })).toBe(
+      'https%3A%2F%2Fexample.com%2Fa%20b%2F%3Fq%3Dx%26y%3D1|https://example.com/a%20b/?q=x&y=1',
+    );
+  });
 });
 
 describe('raw helper', () => {
@@ -206,5 +215,39 @@ describe('plural helper', () => {
     registerStringHelpers(engine);
     const tpl = engine.hb.compile('{{plural count empty="0" singular="one" plural="many %"}}');
     expect(tpl({ count: 'not-a-number' })).toBe('many NaN');
+  });
+
+  test('supports Ghost ICU-style count/plural/one/other hashes', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{plural count=count one="% comment" other="% comments"}}');
+    expect(tpl({ count: 1 })).toBe('1 comment');
+    expect(tpl({ count: 3 })).toBe('3 comments');
+  });
+});
+
+describe('json / log helpers', () => {
+  test('json emits escaped JSON that is safe inside a script tag', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{{json value}}}');
+    expect(tpl({ value: { title: '<Hello>&', ok: true } })).toBe(
+      '{"title":"\\u003CHello\\u003E\\u0026","ok":true}',
+    );
+  });
+
+  test('log helper renders an empty string', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    expect(engine.hb.compile('a{{log value}}b')({ value: 'debug' })).toBe('ab');
+  });
+});
+
+describe('split helper', () => {
+  test('returns an iterable array for each blocks', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{#each (split tags ",")}}{{this}}|{{/each}}');
+    expect(tpl({ tags: 'news,features,dev' })).toBe('news|features|dev|');
   });
 });

@@ -592,8 +592,9 @@ function buildSite(config: NectarConfig): SiteData {
     title: config.site.title,
     description: config.site.description,
     url: config.site.url,
+    admin_url: `${config.site.url}/ghost/`,
     locale: config.site.locale,
-    lang: config.site.locale,
+    lang: shortLang(config.site.locale),
     direction: directionForLocale(config.site.locale),
     timezone: config.site.timezone,
     cover_image: config.site.cover_image,
@@ -617,6 +618,8 @@ function buildSite(config: NectarConfig): SiteData {
     members_enabled: membersEnabled,
     paid_members_enabled: paidEnabled,
     members_invite_only: inviteOnly,
+    members_support_address: '',
+    allow_self_signup: !inviteOnly,
     member_count: config.components.portal.member_count,
     comments_enabled: config.site.comments_enabled,
     comments_access: config.site.comments_access,
@@ -647,6 +650,10 @@ function buildSite(config: NectarConfig): SiteData {
     codeinjection_foot: siteCodeFoot,
     build: buildMetadata,
   };
+}
+
+function shortLang(locale: string): string {
+  return locale.toLowerCase().split('-')[0] ?? locale.toLowerCase();
 }
 
 interface RawPost {

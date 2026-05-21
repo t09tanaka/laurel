@@ -220,6 +220,15 @@ describe('img_url helper', () => {
     expect(tpl({})).toBe('');
   });
 
+  test('returns a SafeString so query strings are not double-escaped in attributes', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const html = engine.hb.compile('<img src="{{img_url feature_image size="m"}}">')({
+      feature_image: '/content/images/cover.jpg?v=1&sig=abc',
+    });
+    expect(html).toBe('<img src="/content/images/size/w600/cover.jpg?v=1&sig=abc">');
+  });
+
   test('SVG sources skip size segment rewriting (issues #49 / #140 / #534)', () => {
     // SVG is vector — there is no raster variant to point at, and the resize
     // pipeline (generateThemeImageSizeVariants) intentionally skips SVG. If

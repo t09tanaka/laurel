@@ -18,6 +18,7 @@ export interface SiteData {
   title: string;
   description: string;
   url: string;
+  admin_url?: string | undefined;
   locale: string;
   locales?: string[];
   localeRouting?: boolean;
@@ -48,6 +49,8 @@ export interface SiteData {
   members_enabled: boolean;
   paid_members_enabled: boolean;
   members_invite_only: boolean;
+  members_support_address?: string | undefined;
+  allow_self_signup?: boolean | undefined;
   member_count?: number | undefined;
   comments_enabled: boolean;
   comments_access: 'all' | 'members' | 'paid';

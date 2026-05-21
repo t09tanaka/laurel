@@ -49,6 +49,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const hasBlockParams = (fnAny?.blockParams ?? 0) > 0;
     for (let i = 0; i < sliced.length; i += 1) {
       const entry = sliced[i];
+      if (!entry) continue;
       const data = engine.hb.createFrame(
         (options.data as Record<string, unknown> | undefined) ?? {},
       );
@@ -88,6 +89,7 @@ export function registerBlockHelpers(engine: NectarEngine): void {
       .filter(Boolean);
     const route = (options.data?.route ?? {}) as {
       kind?: string;
+      url?: string;
       data?: { pagination?: { page: number } };
     };
     const kind = route.kind;
@@ -104,6 +106,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const matches = targets.some((target) => {
       if (target === 'paged') return (route.data?.pagination?.page ?? 1) > 1;
       if (target === 'private') return isPrivatePublication(engine, options);
+      if (target === 'members') return isMembersRoute(route);
+      if (target === 'subscriber') return isSubscriber(options.data?.member);
       const aliasSet = aliases[target] ?? [target];
       return kind ? aliasSet.includes(kind) : false;
     });
@@ -253,6 +257,16 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (params.length === 1) return params[0];
     return result;
   });
+}
+
+function isMembersRoute(route: { kind?: string; url?: string }): boolean {
+  return route.kind === 'members' || /^\/members(?:\/|$)/.test(route.url ?? '');
+}
+
+function isSubscriber(member: unknown): boolean {
+  if (!member || typeof member !== 'object') return false;
+  const record = member as Record<string, unknown>;
+  return typeof record.email === 'string' && record.email.length > 0;
 }
 
 function warnTiersGetHelper(engine: NectarEngine): void {
@@ -800,7 +814,7 @@ function compare(left: unknown, op: string, right: unknown): boolean {
     case '<=':
       return compareOrder(left, right, op);
     case '~':
-      return String(left).includes(String(right));
+      return containsValue(left, right);
     case '~^':
       return String(left).startsWith(String(right));
     case '~$':
@@ -808,6 +822,11 @@ function compare(left: unknown, op: string, right: unknown): boolean {
     default:
       return false;
   }
+}
+
+function containsValue(left: unknown, right: unknown): boolean {
+  if (Array.isArray(left)) return left.some((item) => String(item).includes(String(right)));
+  return String(left).includes(String(right));
 }
 
 // Ghost's `{{#match}}` numeric comparators must work on both numbers and

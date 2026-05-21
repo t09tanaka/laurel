@@ -65,12 +65,12 @@ export function registerAssetHelpers(engine: NectarEngine): void {
     // rewrite their origin (issue #1132).
     if (absolute && sameOriginAsSite) {
       try {
-        return new URL(url, siteUrl).toString();
+        return new engine.hb.SafeString(encodeImageUrl(new URL(url, siteUrl).toString()));
       } catch {
-        return url;
+        return new engine.hb.SafeString(encodeImageUrl(url));
       }
     }
-    return url;
+    return new engine.hb.SafeString(encodeImageUrl(url));
   });
 }
 
@@ -221,6 +221,10 @@ function encodeUrlPathSegment(segment: string): string {
 
 function encodeUrlSuffix(suffix: string): string {
   return encodeURI(suffix).replace(/['`]/g, (ch) => encodeURIComponent(ch));
+}
+
+function encodeImageUrl(url: string): string {
+  return encodeURI(url).replace(/[<>"'`]/g, (ch) => encodeURIComponent(ch));
 }
 
 function escapeAttr(value: string): string {

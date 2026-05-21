@@ -489,6 +489,22 @@ describe('is helper', () => {
     expect(tpl({}, { data: { route: { kind: 'post' } } })).toBe('HIT');
   });
 
+  test('"members" matches members-area custom routes by URL', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "members"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { route: { kind: 'custom', url: '/members/account/' } } })).toBe('HIT');
+    expect(tpl({}, { data: { route: { kind: 'post', url: '/hello/' } } })).toBe('MISS');
+  });
+
+  test('"subscriber" matches when a preview member is present', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#is "subscriber"}}HIT{{else}}MISS{{/is}}');
+    expect(tpl({}, { data: { member: { email: 'reader@example.com' } } })).toBe('HIT');
+    expect(tpl({}, { data: { member: {} } })).toBe('MISS');
+  });
+
   // Cross-theme regression coverage (issue #866). Casper, Source, and Edition
   // all branch on `{{#is "home"}}` vs `{{#is "index"}}` vs `{{#is "paged"}}`
   // with subtly different intents:
@@ -1330,5 +1346,15 @@ describe('prev_post / next_post helpers', () => {
     const tpl = engine.hb.compile('{{#next_post}}{{title}}{{else}}NONE{{/next_post}}');
     const data = { route: { data: { post: { title: 'Current', next: { title: 'Newer' } } } } };
     expect(tpl({}, { data })).toBe('Newer');
+  });
+});
+
+describe('match helper', () => {
+  test('substring operator matches array items', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match tags "~" "news"}}HIT{{else}}MISS{{/match}}');
+    expect(tpl({ tags: ['featured', 'news'] })).toBe('HIT');
+    expect(tpl({ tags: ['featured'] })).toBe('MISS');
   });
 });

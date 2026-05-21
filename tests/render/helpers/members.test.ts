@@ -63,7 +63,10 @@ describe('member helpers', () => {
       'member_count',
       'signup',
       'signup_url',
+      'tier',
       'tiers',
+      'total_members',
+      'total_paid_members',
       'price',
     ]) {
       expect(typeof engine.hb.helpers[name]).toBe('function');
@@ -165,6 +168,13 @@ describe('member helpers', () => {
     expect(engine.hb.compile('{{member_count}}')({})).toBe('1,200+');
   });
 
+  test('total_members and total_paid_members alias member_count sources', () => {
+    const engine = makeEngine();
+    registerMemberHelpers(engine);
+    const tpl = engine.hb.compile('{{total_members}}|{{total_paid_members}}');
+    expect(tpl({ total_members: 1234, total_paid_members: 87 })).toBe('1,200+|80+');
+  });
+
   test('signup emits a provider-resolved members form', () => {
     const engine = makeEngine({
       config: {
@@ -219,5 +229,13 @@ describe('member helpers', () => {
     registerMemberHelpers(engine);
     expect(engine.hb.compile('{{tiers}}')({})).toBe('Free tier');
     expect(engine.hb.compile('{{tiers}}')({ id: 'p1', title: 'Post' })).toBe('');
+  });
+
+  test('tier formats the first context tier name', () => {
+    const engine = makeEngine();
+    registerMemberHelpers(engine);
+    expect(engine.hb.compile('{{tier}}')({ tiers: [{ name: 'Gold <Plus>' }] })).toBe(
+      'Gold &lt;Plus&gt;',
+    );
   });
 });

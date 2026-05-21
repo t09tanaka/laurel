@@ -504,7 +504,8 @@ function defaultPaginationContext(): { page: number; pages: number; total: numbe
 export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
   const custom = buildCustom(engine);
   const textColorClass = resolveTextColorClass(engine, custom);
-  const routeLocale = route.locale ?? engine.content.site.locale;
+  const routeLocale = normalizeLocale(route.locale ?? engine.content.site.locale);
+  const siteUrl = normalizeThemeSiteUrl(engine.content.site.url);
   // Per-route enrichment of `@site.navigation` so themes that iterate
   // `{{#foreach @site.navigation}}{{slug}}{{#if current}}…{{/if}}{{/foreach}}`
   // see `slug` (derived from `label`) and `current` (URL match vs. route.url,
@@ -512,21 +513,31 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   const site = enrichSiteNavigation(
     {
       ...engine.content.site,
-      url: normalizeThemeSiteUrl(engine.content.site.url),
+      url: siteUrl,
+      admin_url: adminUrl(siteUrl),
       locale: routeLocale,
-      lang: routeLocale,
+      lang: shortLang(routeLocale),
       direction: directionForLocale(routeLocale),
       icon: engine.content.site.icon ?? engine.config.site?.icon,
+      members_support_address: engine.content.site.members_support_address ?? '',
+      allow_self_signup:
+        engine.content.site.allow_self_signup ?? engine.content.site.members_invite_only !== true,
     },
     route,
   );
+  const pagination = route.data.pagination ?? defaultPaginationContext();
   return {
     site,
     blog: site,
     setting: site,
     config: buildGhostConfig(engine),
     custom,
-    page: route.kind === 'page' ? route.data.page : undefined,
+    page: {
+      number: pagination.page,
+      page: pagination.page,
+      pages: pagination.pages,
+      total: pagination.total,
+    },
     route,
     locale: routeLocale,
     labs: buildLegacyLabs(site),
@@ -545,6 +556,18 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     member: buildPreviewMember(engine) ?? createUnauthenticatedMember(),
     text_color_class: textColorClass,
   };
+}
+
+function normalizeLocale(locale: string | undefined): string {
+  return (locale || 'en').toLowerCase();
+}
+
+function shortLang(locale: string): string {
+  return locale.split('-')[0] ?? locale;
+}
+
+function adminUrl(siteUrl: string): string {
+  return `${siteUrl}/ghost/`;
 }
 
 // `[components.preview].member` lets the operator inject a synthetic `@member`

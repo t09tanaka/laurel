@@ -6,6 +6,7 @@ import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
+import { DEFAULT_PARTIALS } from '../default-partials.ts';
 import { type NectarEngine, computePostClass } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
@@ -52,8 +53,8 @@ export function registerContentHelpers(engine: NectarEngine): void {
     function readingTimeHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as Record<string, unknown>;
       const minutes = typeof ctx.reading_time === 'number' ? ctx.reading_time : 1;
-      const minute = String(options.hash.minute ?? '1 min read');
-      const plural = String(options.hash.minutes ?? '% min read');
+      const minute = String(options.hash.minute ?? translate(engine, options, '1 min read'));
+      const plural = String(options.hash.minutes ?? translate(engine, options, '% min read'));
       if (minutes <= 1) return minute;
       return plural.replace('%', String(minutes));
     },
@@ -333,10 +334,28 @@ export function registerContentHelpers(engine: NectarEngine): void {
       // adapter. Provider adapters overwrite the attribute downstream when
       // they need a non-default field name (e.g. Mailchimp wants `EMAIL`).
       return new engine.hb.SafeString(
-        `<input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"${inputEmailExtraAttrs(options.hash)}>`,
+        `<input${inputEmailExtraAttrs(options.hash, 'gh-input')} data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}">`,
       );
     },
   );
+
+  engine.hb.registerHelper(
+    'input_password',
+    function inputPasswordHelper(this: unknown, options: Handlebars.HelperOptions) {
+      const placeholder = String(options.hash.placeholder ?? 'Password');
+      return new engine.hb.SafeString(
+        `<input class="gh-input" data-members-password type="password" name="password" required placeholder="${escapeAttr(placeholder)}">`,
+      );
+    },
+  );
+
+  engine.hb.registerHelper('search', function searchHelper() {
+    return new engine.hb.SafeString(renderDefaultSearchPartial(engine));
+  });
+
+  engine.hb.registerHelper('meta_data', function metaDataHelper() {
+    return new engine.hb.SafeString('');
+  });
 
   engine.hb.registerHelper('post_class', function postClassHelper(this: unknown) {
     const ctx = this as {
@@ -455,10 +474,14 @@ function siteLocale(options: Handlebars.HelperOptions): string | undefined {
   return typeof site?.locale === 'string' ? site.locale : undefined;
 }
 
-function inputEmailExtraAttrs(hash: Record<string, unknown>): string {
+function inputEmailExtraAttrs(hash: Record<string, unknown>, baseClass?: string): string {
   const attrs: string[] = [];
+  const classes = [baseClass, typeof hash.class === 'string' ? hash.class : undefined]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join(' ');
+  if (classes) attrs.push(`class="${escapeAttr(classes)}"`);
   pushBooleanAttr(attrs, 'autofocus', hash.autofocus);
-  for (const name of ['autocomplete', 'class', 'id', 'aria-label']) {
+  for (const name of ['autocomplete', 'id', 'aria-label']) {
     const value = hash[name];
     if (typeof value === 'string' && value.length > 0) {
       attrs.push(`${name}="${escapeAttr(value)}"`);
@@ -597,6 +620,27 @@ function parseNum(value: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
+}
+
+function translate(engine: NectarEngine, options: Handlebars.HelperOptions, key: string): string {
+  const route = options.data?.route as { locale?: unknown } | undefined;
+  const locale =
+    typeof route?.locale === 'string' ? route.locale : (engine.content.site?.locale ?? 'en');
+  const active = engine.theme.locales?.[locale] ?? {};
+  const fallback = engine.theme.locales?.en ?? {};
+  const value = active[key] ?? fallback[key];
+  return typeof value === 'string' ? value : key;
+}
+
+function renderDefaultSearchPartial(engine: NectarEngine): string {
+  const partial = engine.hb.partials.search;
+  if (typeof partial === 'function') {
+    return partial({}, { data: {} });
+  }
+  const source = typeof partial === 'string' ? partial : (DEFAULT_PARTIALS.search ?? '');
+  return source
+    .replaceAll('{{t "Search"}}', 'Search')
+    .replaceAll('{{t "Search posts…"}}', 'Search posts...');
 }
 
 function hashString(value: unknown): string | undefined {
