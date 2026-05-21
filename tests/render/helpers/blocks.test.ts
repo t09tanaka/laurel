@@ -587,6 +587,14 @@ describe('has helper', () => {
     expect(tpl({ slug: 'welcome' })).toBe('yes');
   });
 
+  test('matches when the author display name is present on the context', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has author="Jane Doe"}}yes{{else}}no{{/has}}');
+    const ctx = { authors: [{ name: 'Jane Doe' }] };
+    expect(tpl(ctx)).toBe('yes');
+  });
+
   test('visibility="members" matches the current context visibility', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
