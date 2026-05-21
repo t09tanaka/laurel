@@ -121,6 +121,8 @@ export const BUILD_SPEC: CommandSpec = {
     'nectar build --strict                        # fail when the build emits any warnings',
     'nectar build --output dist-preview --base-path /preview/',
     'nectar build --dry-run --verbose             # plan routes without writing anything',
+    'nectar build --profile                       # write timings and peak RSS to dist/.nectar-build-stats.json',
+    'BUN_INSPECT=1 nectar build --profile         # attach Bun inspector for heap snapshots while profiling',
     'nectar build --watch                         # rebuild on content/theme/config changes',
     'nectar build --json                          # emit the summary as JSON for CI',
   ],

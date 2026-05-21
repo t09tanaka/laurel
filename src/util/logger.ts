@@ -23,7 +23,7 @@ let warningsAsErrorsFailure = false;
 // Output mode controls how `logger.<level>(...)` is serialised. `text` (the
 // default) keeps human-readable info/debug/trace output on stdout and
 // warning/error output on stderr.
-// `json` switches to one JSON object per line ({ts,level,msg,fields?}) so CI
+// `json` switches to one JSON object per line ({ts,level,msg,...fields}) so CI
 // pipelines and log aggregators can consume nectar output without parsing
 // the surface text. Toggled by `--log-format=json` (global), legacy `--json`,
 // env `NECTAR_LOG_FORMAT=json`, or legacy env `NECTAR_JSON=1`.
@@ -126,9 +126,10 @@ export function colorize(text: string, color: keyof typeof ANSI): string {
 
 // Fields object can be threaded through any logger call as the last argument
 // when it's a plain object. The text formatter renders it as `key=value`
-// trailing pairs; the JSON formatter embeds it under `fields`. Splitting
-// strings vs structured data this way means existing call sites
-// (`logger.info('built', count, 'routes')`) keep working unchanged.
+// trailing pairs; the JSON formatter emits them as top-level properties next
+// to the stable {ts, level, msg} envelope. Splitting strings vs structured
+// data this way means existing call sites (`logger.info('built', count,
+// 'routes')`) keep working unchanged.
 export type LogFields = Record<string, unknown>;
 
 function isFieldsObject(value: unknown): value is LogFields {
@@ -159,11 +160,11 @@ function emit(level: Level, parts: unknown[]): void {
   const message = rest.map(formatPart).join(' ');
   if (outputMode === 'json') {
     const record: Record<string, unknown> = {
+      ...(fields ? sanitizeFields(fields) : undefined),
       ts: new Date().toISOString(),
       level: effectiveLevel,
       msg: message,
     };
-    if (fields) record.fields = sanitizeFields(fields);
     writeToLevelStream(effectiveLevel, `${safeJsonStringify(record)}\n`);
     return;
   }

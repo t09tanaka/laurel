@@ -118,13 +118,17 @@ export function renderCliReference(
     'process supervisors, or log shippers need machine-readable Nectar logs',
     'without changing command-specific output such as `nectar version` or',
     '`nectar config get`. Each logger call emits one JSON object per line with',
-    '`ts`, `level`, and `msg`; structured logger fields are nested under',
-    '`fields` when present.',
+    '`ts`, `level`, and `msg`; structured logger fields are emitted as additional',
+    'top-level properties when present.',
   );
   lines.push('');
   lines.push('```sh');
   lines.push('NECTAR_LOG_FORMAT=json nectar build > nectar.log.jsonl');
   lines.push('NECTAR_LOG_FORMAT=json nectar dev 2> nectar.err.jsonl');
+  lines.push('```');
+  lines.push('');
+  lines.push('```json');
+  lines.push('{"ts":"2026-05-21T00:00:00.000Z","level":"info","msg":"built","routes":12}');
   lines.push('```');
   lines.push('');
   lines.push(

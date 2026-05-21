@@ -39,12 +39,16 @@ Set `NECTAR_LOG_FORMAT=json` (or pass `--log-format=json`) when CI jobs,
 process supervisors, or log shippers need machine-readable Nectar logs
 without changing command-specific output such as `nectar version` or
 `nectar config get`. Each logger call emits one JSON object per line with
-`ts`, `level`, and `msg`; structured logger fields are nested under
-`fields` when present.
+`ts`, `level`, and `msg`; structured logger fields are emitted as additional
+top-level properties when present.
 
 ```sh
 NECTAR_LOG_FORMAT=json nectar build > nectar.log.jsonl
 NECTAR_LOG_FORMAT=json nectar dev 2> nectar.err.jsonl
+```
+
+```json
+{"ts":"2026-05-21T00:00:00.000Z","level":"info","msg":"built","routes":12}
 ```
 
 `NECTAR_LOG_FORMAT=json` is intentionally different from `NECTAR_JSON=1`

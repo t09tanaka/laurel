@@ -300,7 +300,7 @@ describe('logger structured fields', () => {
     expect(stderr).toBe('');
   });
 
-  test('json mode emits one JSON object per line with msg/level/fields', () => {
+  test('json mode emits one JSON object per line with msg/level and top-level fields', () => {
     const prev = getOutputMode();
     setOutputMode('json');
     try {
@@ -312,17 +312,48 @@ describe('logger structured fields', () => {
       const obj = JSON.parse(line) as {
         msg: string;
         level: string;
-        fields?: { a: number; b: string };
+        a?: number;
+        b?: string;
+        fields?: unknown;
       };
       expect(obj.msg).toBe('hello');
       expect(obj.level).toBe('info');
-      expect(obj.fields).toEqual({ a: 1, b: 'two' });
+      expect(obj.a).toBe(1);
+      expect(obj.b).toBe('two');
+      expect(obj.fields).toBeUndefined();
     } finally {
       setOutputMode(prev);
     }
   });
 
-  test('json mode omits fields when none provided', () => {
+  test('json mode preserves core envelope fields when metadata uses reserved keys', () => {
+    const prev = getOutputMode();
+    setOutputMode('json');
+    try {
+      const { stdout } = captureStreams(() => {
+        logger.info('hello', {
+          msg: 'metadata message',
+          level: 'trace',
+          ts: 'yesterday',
+          route: '/',
+        });
+      });
+      const obj = JSON.parse(stdout.trim().split('\n')[0] ?? '') as {
+        msg: string;
+        level: string;
+        ts: string;
+        route?: string;
+      };
+      expect(obj.msg).toBe('hello');
+      expect(obj.level).toBe('info');
+      expect(obj.ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(obj.route).toBe('/');
+    } finally {
+      setOutputMode(prev);
+    }
+  });
+
+  test('json mode omits structured fields when none provided', () => {
     const prev = getOutputMode();
     setOutputMode('json');
     try {
