@@ -230,7 +230,7 @@ Options:
 | `--base-path <path>` | string | `NECTAR_BUILD_BASE_PATH` | Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages) |
 | `--base-url <url>` | string | `NECTAR_BUILD_BASE_URL` | Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host |
 | `--strict` | boolean | `NECTAR_BUILD_STRICT` | Exit with non-zero status if any warnings are emitted |
-| `--profile` | boolean | `NECTAR_BUILD_PROFILE` | Write dist/.nectar-build-stats.json with phase timings and per-route render durations for diagnosing slow builds |
+| `--profile` | boolean | `NECTAR_BUILD_PROFILE` | Write dist/.nectar-build-stats.json with phase timings, per-route render durations, and peak RSS for diagnosing slow or memory-heavy builds |
 | `--atomic` | boolean | `NECTAR_BUILD_ATOMIC` | Use atomic staging: write into a sibling temp dir before renaming into build.output_dir |
 | `--no-atomic` | boolean | `NECTAR_BUILD_ATOMIC=0` | Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted |
 | `--concurrency <n>` | string | `NECTAR_BUILD_CONCURRENCY` | Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help |
@@ -257,6 +257,8 @@ nectar build                                 # one-shot build into dist/
 nectar build --strict                        # fail when the build emits any warnings
 nectar build --output dist-preview --base-path /preview/
 nectar build --dry-run --verbose             # plan routes without writing anything
+nectar build --profile                       # write timings and peak RSS to dist/.nectar-build-stats.json
+BUN_INSPECT=1 nectar build --profile         # attach Bun inspector for heap snapshots while profiling
 nectar build --watch                         # rebuild on content/theme/config changes
 nectar build --json                          # emit the summary as JSON for CI
 ```

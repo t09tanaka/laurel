@@ -11,6 +11,20 @@ import {
 } from '~/build/profile.ts';
 
 describe('createProfiler', () => {
+  test('records peak RSS samples', () => {
+    const readings = [64 * 1024 * 1024, 80 * 1024 * 1024, 72 * 1024 * 1024];
+    const p = createProfiler({
+      readRssBytes: () => readings.shift() ?? 72 * 1024 * 1024,
+    });
+    p.startPhase('load')();
+
+    expect(p.memory).toMatchObject({
+      peakRssBytes: 80 * 1024 * 1024,
+      peakRssMiB: 80,
+    });
+    expect(p.memory.samples).toBeGreaterThanOrEqual(3);
+  });
+
   test('records phase timings', () => {
     const p = createProfiler();
     const stop = p.startPhase('load');
@@ -79,6 +93,12 @@ describe('writeProfile', () => {
     });
     expect(parsed).toHaveProperty('generatedAt');
     expect(parsed).toHaveProperty('totalDurationMs');
+    expect(parsed).toHaveProperty('memory');
+    expect(parsed.memory).toMatchObject({
+      peakRssBytes: expect.any(Number),
+      peakRssMiB: expect.any(Number),
+      samples: expect.any(Number),
+    });
     expect(parsed).toHaveProperty('phases');
     expect(parsed).toHaveProperty('routes');
   });

@@ -306,11 +306,16 @@ describe('nectar build --profile', () => {
     expect(result.exitCode).toBe(0);
     const statsPath = join(dir, 'dist/.nectar-build-stats.json');
     expect(result.stdout).toContain(`Build stats: ${statsPath}`);
+    expect(result.stdout).toContain('Peak RSS:');
     expect(existsSync(statsPath)).toBe(true);
     const stats = JSON.parse(readFileSync(statsPath, 'utf8')) as {
+      memory: { peakRssBytes: number; peakRssMiB: number; samples: number };
       phases: Array<{ name: string }>;
       routes: Array<{ url: string; outputPath: string; template: string; durationMs: number }>;
     };
+    expect(stats.memory.peakRssBytes).toBeGreaterThan(0);
+    expect(stats.memory.peakRssMiB).toBeGreaterThan(0);
+    expect(stats.memory.samples).toBeGreaterThan(0);
     expect(stats.phases.map((phase) => phase.name)).toEqual(
       expect.arrayContaining(['load', 'plan', 'render', 'assetCopy', 'feedEmit']),
     );
@@ -330,8 +335,11 @@ describe('nectar build --profile', () => {
     const result = await runCli(['build', '--profile', '--json'], dir);
 
     expect(result.exitCode).toBe(0);
-    const payload = parseLastJsonLine<{ profilePath?: string }>(result.stdout);
+    const payload = parseLastJsonLine<{ profilePath?: string; peakRssBytes?: number }>(
+      result.stdout,
+    );
     expect(payload.profilePath).toBe(join(dir, 'dist/.nectar-build-stats.json'));
+    expect(payload.peakRssBytes).toBeGreaterThan(0);
   });
 });
 

@@ -18,6 +18,12 @@ export interface BuildStatsRoute {
   reused: boolean;
 }
 
+export interface BuildStatsMemory {
+  peakRssBytes: number;
+  peakRssMiB: number;
+  samples: number;
+}
+
 export interface BuildStats {
   schemaVersion: 1;
   generatedAt: string;
@@ -25,6 +31,7 @@ export interface BuildStats {
   routeCount: number;
   assetCount: number;
   totalDurationMs: number;
+  memory: BuildStatsMemory;
   phases: BuildStatsPhase[];
   routes: BuildStatsRoute[];
 }
@@ -41,30 +48,50 @@ export interface RouteTimerInput {
 export interface Profiler {
   startPhase(name: string): StopFn;
   startRoute(route: RouteTimerInput): StopFn;
+  readonly memory: BuildStatsMemory;
   readonly phases: readonly BuildStatsPhase[];
   readonly routes: readonly BuildStatsRoute[];
   toJSON(summary: { outputDir: string; routeCount: number; assetCount: number }): BuildStats;
+  dispose?: () => void;
+}
+
+export interface ProfilerOptions {
+  readRssBytes?: () => number;
+  sampleIntervalMs?: number | false;
 }
 
 export function buildStatsPath(outputDir: string): string {
   return join(outputDir, BUILD_STATS_FILENAME);
 }
 
-export function createProfiler(): Profiler {
+export function createProfiler(options: ProfilerOptions = {}): Profiler {
   const startedAt = performance.now();
   const phases: BuildStatsPhase[] = [];
   const routes: BuildStatsRoute[] = [];
+  const readRssBytes = options.readRssBytes ?? readProcessRssBytes;
+  const memory = createMemorySampler(readRssBytes);
+  memory.sample();
+  const interval =
+    typeof options.sampleIntervalMs === 'number' && options.sampleIntervalMs > 0
+      ? setInterval(() => memory.sample(), options.sampleIntervalMs)
+      : undefined;
+  interval?.unref?.();
+  let disposed = false;
 
   return {
     startPhase(name) {
+      memory.sample();
       const t0 = performance.now();
       return () => {
+        memory.sample();
         phases.push({ name, durationMs: roundMs(performance.now() - t0) });
       };
     },
     startRoute(route) {
+      memory.sample();
       const t0 = performance.now();
       return (extra) => {
+        memory.sample();
         routes.push({
           ...route,
           durationMs: roundMs(performance.now() - t0),
@@ -79,7 +106,12 @@ export function createProfiler(): Profiler {
     get routes() {
       return routes;
     },
+    get memory() {
+      if (!disposed) memory.sample();
+      return memory.toJSON();
+    },
     toJSON(summary) {
+      if (!disposed) memory.sample();
       return {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
@@ -87,9 +119,14 @@ export function createProfiler(): Profiler {
         routeCount: summary.routeCount,
         assetCount: summary.assetCount,
         totalDurationMs: roundMs(performance.now() - startedAt),
+        memory: memory.toJSON(),
         phases: aggregatePhases(phases),
         routes: [...routes],
       };
+    },
+    dispose() {
+      if (interval) clearInterval(interval);
+      disposed = true;
     },
   };
 }
@@ -105,8 +142,37 @@ export async function writeProfile(
     routeCount: summary.routeCount,
     assetCount: summary.assetCount,
   });
+  profiler.dispose?.();
   await writeFile(statsPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
   return statsPath;
+}
+
+function createMemorySampler(readRssBytes: () => number): {
+  sample: () => void;
+  toJSON: () => BuildStatsMemory;
+} {
+  let peakRssBytes = 0;
+  let samples = 0;
+  return {
+    sample() {
+      const rss = readRssBytes();
+      if (!Number.isFinite(rss) || rss < 0) return;
+      samples += 1;
+      peakRssBytes = Math.max(peakRssBytes, Math.round(rss));
+    },
+    toJSON() {
+      return {
+        peakRssBytes,
+        peakRssMiB: roundMiB(peakRssBytes),
+        samples,
+      };
+    },
+  };
+}
+
+function readProcessRssBytes(): number {
+  const memoryUsage = process.memoryUsage;
+  return typeof memoryUsage.rss === 'function' ? memoryUsage.rss() : memoryUsage().rss;
 }
 
 function aggregatePhases(phases: readonly BuildStatsPhase[]): BuildStatsPhase[] {
@@ -121,4 +187,8 @@ function aggregatePhases(phases: readonly BuildStatsPhase[]): BuildStatsPhase[] 
 
 function roundMs(ms: number): number {
   return Math.round(ms * 1000) / 1000;
+}
+
+function roundMiB(bytes: number): number {
+  return Math.round((bytes / 1024 / 1024) * 10) / 10;
 }

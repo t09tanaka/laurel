@@ -157,6 +157,7 @@ export async function runBuild(args: string[]): Promise<number> {
         assetCount: summary.assetCount,
         outputDir: summary.outputDir,
         profilePath: summary.profilePath,
+        peakRssBytes: summary.peakRssBytes,
         warningCount: summary.warningCount,
         renderedCount: summary.renderedCount,
         skippedCount: summary.skippedCount,
@@ -177,6 +178,9 @@ export async function runBuild(args: string[]): Promise<number> {
     );
     if (summary.profilePath) {
       logger.info(t('build.stats', { profilePath: summary.profilePath }));
+    }
+    if (summary.peakRssBytes !== undefined) {
+      logger.info(t('build.peakRss', { peakRss: formatBytes(summary.peakRssBytes) }));
     }
     if (summary.dryRun && summary.routes && isVerbose()) {
       logger.info(formatDryRunRouteTable(summary.routes));
@@ -362,6 +366,17 @@ export function isIgnoredChange(filename: string): boolean {
   if (norm.includes('/.') || norm.startsWith('.')) return true;
   if (norm.endsWith('~') || norm.endsWith('.swp') || norm.endsWith('.tmp')) return true;
   return false;
+}
+
+function formatBytes(bytes: number): string {
+  const gib = 1024 * 1024 * 1024;
+  const mib = 1024 * 1024;
+  if (bytes >= gib) return `${roundToOneDecimal(bytes / gib)} GiB`;
+  return `${roundToOneDecimal(bytes / mib)} MiB`;
+}
+
+function roundToOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function parseConcurrency(raw: string): number | CliUsageError {

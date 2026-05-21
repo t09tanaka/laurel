@@ -247,6 +247,7 @@ export interface BuildSummary {
   routeCount: number;
   assetCount: number;
   profilePath?: string;
+  peakRssBytes?: number;
   warningCount: number;
   renderedCount: number;
   skippedCount: number;
@@ -347,7 +348,7 @@ export async function build({
   progress,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
-  const profiler = profile ? createProfiler() : null;
+  const profiler = profile ? createProfiler({ sampleIntervalMs: 250 }) : null;
   // Emit the looser-policy warning before any other build output so it is
   // hard to miss in CI logs and obviously precedes the rendered route list.
   // Goes through `logger.warn` so `--strict` counts it as a warning and the
@@ -1002,10 +1003,13 @@ async function runBuild({
     for (const asset of theme.assets.values()) {
       uniqueAssets.add(`${asset.sourcePath}|${asset.fingerprintedPath}`);
     }
+    const peakRssBytes = profiler?.memory.peakRssBytes;
+    profiler?.dispose?.();
     return {
       outputDir: finalOutputDir,
       routeCount: routes.length,
       assetCount: uniqueAssets.size,
+      ...(peakRssBytes !== undefined ? { peakRssBytes } : {}),
       warningCount: getWarningCount(),
       renderedCount,
       skippedCount,
@@ -1444,12 +1448,14 @@ async function runBuild({
   }
 
   const profilePath = profiler ? buildStatsPath(finalOutputDir) : undefined;
+  let peakRssBytes: number | undefined;
   if (profiler) {
     await writeProfile(outputDir, profiler, {
       outputDir: finalOutputDir,
       routeCount: routes.length,
       assetCount,
     });
+    peakRssBytes = profiler.memory.peakRssBytes;
   }
 
   const nextManifest: BuildManifest = {
@@ -1503,6 +1509,7 @@ async function runBuild({
     routeCount: routes.length,
     assetCount,
     ...(profilePath ? { profilePath } : {}),
+    ...(peakRssBytes !== undefined ? { peakRssBytes } : {}),
     warningCount: getWarningCount(),
     renderedCount,
     skippedCount,

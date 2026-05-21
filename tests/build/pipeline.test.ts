@@ -1680,6 +1680,7 @@ describe('build pipeline --profile', () => {
       routeCount: number;
       assetCount: number;
       totalDurationMs: number;
+      memory: { peakRssBytes: number; peakRssMiB: number; samples: number };
       phases: Array<{ name: string; durationMs: number }>;
       routes: Array<{
         url: string;
@@ -1696,6 +1697,10 @@ describe('build pipeline --profile', () => {
     expect(parsed.routeCount).toBe(summary.routeCount);
     expect(parsed.assetCount).toBe(summary.assetCount);
     expect(parsed.totalDurationMs).toBeGreaterThanOrEqual(0);
+    expect(summary.peakRssBytes).toBeGreaterThan(0);
+    expect(parsed.memory.peakRssBytes).toBeGreaterThan(0);
+    expect(parsed.memory.peakRssMiB).toBeGreaterThan(0);
+    expect(parsed.memory.samples).toBeGreaterThan(0);
     for (const entry of parsed.phases) {
       expect(typeof entry.name).toBe('string');
       expect(typeof entry.durationMs).toBe('number');
