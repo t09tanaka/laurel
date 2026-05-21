@@ -788,6 +788,61 @@ describe('buildContext', () => {
     expect(bodyClass).not.toContain('Launch Notes');
   });
 
+  test('route body_class includes `paged` on pagination page > 1 without dropping archive tokens (issue #1178)', () => {
+    const cases: {
+      route: RouteContext;
+      expected: string[];
+      absent?: string[];
+    }[] = [
+      {
+        route: {
+          kind: 'home',
+          url: '/page/2/',
+          outputPath: 'page/2/index.html',
+          template: 'home',
+          data: { pagination: makePagination(2) },
+          meta: baseMeta,
+        },
+        expected: ['nectar-route-home', 'archive-template', 'paged'],
+        absent: ['home-template'],
+      },
+      {
+        route: {
+          kind: 'tag',
+          url: '/tag/news/page/2/',
+          outputPath: 'tag/news/page/2/index.html',
+          template: 'tag',
+          data: { tag: makeTag({ slug: 'news' }), pagination: makePagination(2) },
+          meta: baseMeta,
+        },
+        expected: ['nectar-route-tag', 'tag-template', 'archive-template', 'tag-news', 'paged'],
+      },
+      {
+        route: {
+          kind: 'author',
+          url: '/author/jane/page/2/',
+          outputPath: 'author/jane/page/2/index.html',
+          template: 'author',
+          data: { author: makeAuthor({ slug: 'jane' }), pagination: makePagination(2) },
+          meta: baseMeta,
+        },
+        expected: [
+          'nectar-route-author',
+          'author-template',
+          'archive-template',
+          'author-jane',
+          'paged',
+        ],
+      },
+    ];
+
+    for (const { route, expected, absent = [] } of cases) {
+      const tokens = String(buildContext(engine, route).body_class).split(' ');
+      for (const token of expected) expect(tokens).toContain(token);
+      for (const token of absent) expect(tokens).not.toContain(token);
+    }
+  });
+
   test('resource routes include per-resource body_class slug modifiers (issue #979)', () => {
     const postRoute: RouteContext = {
       kind: 'post',
