@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configSchema } from '~/config/schema.ts';
-import { loadTheme } from '~/theme/loader.ts';
+import { THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING, loadTheme } from '~/theme/loader.ts';
+import { logger } from '~/util/logger.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-theme-loader-'));
@@ -69,6 +70,63 @@ describe('loadTheme', () => {
       expect(theme.partials['icons/avatar']).toBe('<svg>avatar</svg>');
       expect(theme.partials['icons/ghost-logo']).toBe('<svg>ghost</svg>');
       expect(theme.partials['icons/infinity']).toBe('<svg>infinity</svg>');
+    });
+  });
+
+  test('warns when package.json requires members but no portal provider is configured', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'required-members');
+      await mkdir(themeRoot, { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(
+        join(themeRoot, 'package.json'),
+        JSON.stringify({
+          name: 'required-members',
+          config: { members: 'required' },
+        }),
+        'utf8',
+      );
+
+      const config = configSchema.parse({
+        theme: { name: 'required-members', dir: 'themes' },
+        site: { title: 'Members', url: 'https://members.example.com' },
+      });
+      const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        await loadTheme({ cwd, config });
+        expect(warn).toHaveBeenCalledWith(THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  test('does not warn for members-required themes when a portal provider is configured', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'required-members');
+      await mkdir(themeRoot, { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(
+        join(themeRoot, 'package.json'),
+        JSON.stringify({
+          name: 'required-members',
+          config: { members: 'required' },
+        }),
+        'utf8',
+      );
+
+      const config = configSchema.parse({
+        theme: { name: 'required-members', dir: 'themes' },
+        site: { title: 'Members', url: 'https://members.example.com' },
+        components: { portal: { provider: 'ghost' } },
+      });
+      const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        await loadTheme({ cwd, config });
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 

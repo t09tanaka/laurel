@@ -56,6 +56,7 @@ export const themePackageJsonSchema = z
     config: z
       .object({
         posts_per_page: z.number().optional(),
+        members: z.unknown().optional(),
         image_sizes: z.record(imageSizeSchema).optional(),
         card_assets: cardAssetsSchema.optional(),
         content_kinds: z.record(contentKindSchema).optional(),
@@ -96,6 +97,7 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
   return {
     name: parsed.name ?? 'theme',
     version: parsed.version ?? '0.0.0',
+    members: normalizeMembersRequirement(cfg.members),
     posts_per_page: cfg.posts_per_page ?? 5,
     image_sizes: cfg.image_sizes ?? {},
     card_assets: normalizeCardAssets(cfg.card_assets),
@@ -103,6 +105,10 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
     custom,
     customDefaults,
   };
+}
+
+function normalizeMembersRequirement(raw: unknown): string | undefined {
+  return typeof raw === 'string' ? raw : undefined;
 }
 
 function normalizeCardAssets(raw: z.infer<typeof cardAssetsSchema> | undefined): ThemeCardAssets {
@@ -248,6 +254,7 @@ function defaultPackage(): ThemePackage {
   return {
     name: 'theme',
     version: '0.0.0',
+    members: undefined,
     posts_per_page: 5,
     image_sizes: {},
     card_assets: false,

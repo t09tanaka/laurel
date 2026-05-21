@@ -78,6 +78,17 @@ describe('loadThemePackage schema validation', () => {
     expect(pkg.card_assets).toEqual({ exclude: ['bookmark', 'gallery'] });
   });
 
+  test('preserves Ghost config.members contract value', async () => {
+    const dir = await makeThemeDir({
+      config: {
+        members: 'required',
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.members).toBe('required');
+  });
+
   test('treats legacy card_assets arrays as exclude lists', async () => {
     const dir = await makeThemeDir({
       config: {

@@ -12,6 +12,7 @@ import {
   SUBSCRIBE_NOOP_REASON,
   SUBSCRIBE_NOOP_RUNTIME_WARNING,
 } from '~/members/noop.ts';
+import { THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING } from '~/theme/loader.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-'));
@@ -201,6 +202,29 @@ date: 2026-01-01T00:00:00Z
     expect(postHtml).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
     expect(postHtml).toContain('window.console.warn');
     expect(postHtml).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
+  });
+
+  test('counts a build warning when the active theme requires members without a portal provider', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await writeFile(
+      join(cwd, 'themes/source/package.json'),
+      JSON.stringify({
+        name: 'source',
+        config: { members: 'required' },
+      }),
+      'utf8',
+    );
+
+    const stderr = captureStderr();
+    let summary!: Awaited<ReturnType<typeof build>>;
+    try {
+      summary = await build({ cwd });
+    } finally {
+      stderr.restore();
+    }
+
+    expect(summary.warningCount).toBe(1);
+    expect(stderr.output).toContain(THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING);
   });
 
   test('warns and skips a post with malformed Koenig shortcode while continuing the build', async () => {

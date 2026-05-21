@@ -14,6 +14,9 @@ export interface LoadThemeOptions {
   config: NectarConfig;
 }
 
+export const THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING =
+  'Theme package.json declares config.members = "required", but [components.portal].provider is "none". Configure a Portal provider before building this theme.';
+
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
   const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
   if (!existsSync(rootDir)) {
@@ -56,6 +59,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   }
 
   const pkg = await loadThemePackage(rootDir);
+  warnIfMembersRequiredWithoutPortal(pkg, config);
   const locales = await loadLocales(rootDir);
   const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar-cache') });
 
@@ -68,6 +72,12 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     locales,
     assets,
   };
+}
+
+function warnIfMembersRequiredWithoutPortal(pkg: ThemeBundle['pkg'], config: NectarConfig): void {
+  if (pkg.members !== 'required') return;
+  if (config.components.portal.provider !== 'none') return;
+  logger.warn(THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING);
 }
 
 // Resolve where the theme's files live, allowing three input shapes:
