@@ -236,6 +236,23 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('a:S|b:|c:E|d:S|e:|f:E|');
   });
 
+  test('@rowEnd is true at the last index of each row', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns=3}}{{#if @rowEnd}}{{@index}}:{{slug}}|{{/if}}{{/foreach}}',
+    );
+    const items = [
+      { slug: 'a' },
+      { slug: 'b' },
+      { slug: 'c' },
+      { slug: 'd' },
+      { slug: 'e' },
+      { slug: 'f' },
+    ];
+    expect(tpl({ items })).toBe('2:c|5:f|');
+  });
+
   test('columns marks the final item as rowEnd for incomplete rows', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
