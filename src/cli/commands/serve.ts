@@ -19,7 +19,7 @@ import { reportError } from '../report.ts';
 import { SERVE_SPEC } from '../specs.ts';
 
 const DEFAULT_PORT = 4321;
-const DEFAULT_HOST = 'localhost';
+const DEFAULT_HOST = '127.0.0.1';
 const REBUILD_DEBOUNCE_MS = 120;
 const DEV_CACHE_CONTROL = 'no-store';
 

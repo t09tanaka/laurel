@@ -104,18 +104,21 @@ describe('cli serve — host binding', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('serve --help advertises --host with localhost default and 0.0.0.0 opt-in', async () => {
+  test('serve --help advertises --host with 127.0.0.1 default and 0.0.0.0 opt-in', async () => {
     const { stdout, exitCode } = await runCli(['serve', '--help']);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('--host <host>');
-    expect(stdout).toContain('localhost');
+    expect(stdout).toContain('127.0.0.1');
     expect(stdout).toContain('0.0.0.0');
+    expect(stdout).toContain('local preview server');
+    expect(stdout).toContain('not for production hosting');
   });
 
-  test('default binding is localhost — log line reports it explicitly', async () => {
+  test('default binding is 127.0.0.1 — log line reports it explicitly', async () => {
     const { stdout, exitCode } = await runCli(['serve', '--port', '52001', '--no-watch'], dir);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('bound to localhost');
+    expect(stdout).toContain('bound to 127.0.0.1');
+    expect(stdout).toContain('local preview only, not for production hosting');
     expect(stdout).not.toContain('bound to 0.0.0.0');
   });
 
@@ -696,7 +699,7 @@ describe('cli serve — base_path in startup log', () => {
     try {
       const { stdout, exitCode } = await runCli(['serve', '--port', '52030', '--no-watch'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('http://localhost:52030/blog/');
+      expect(stdout).toContain('http://127.0.0.1:52030/blog/');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -707,7 +710,7 @@ describe('cli serve — base_path in startup log', () => {
     try {
       const { stdout, exitCode } = await runCli(['serve', '--port', '52031', '--no-watch'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('http://localhost:52031/');
+      expect(stdout).toContain('http://127.0.0.1:52031/');
       expect(stdout).not.toContain('http://localhost:52031/blog');
     } finally {
       await rm(dir, { recursive: true, force: true });

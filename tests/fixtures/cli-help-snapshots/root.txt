@@ -10,7 +10,7 @@ Commands:
   new               Scaffold a new Markdown content file
   open              Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
   dev               Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
-  serve             Serve the built site locally
+  serve             Serve the built site as a local preview server; not for production hosting
   check             Validate config, theme, and content
   doctor            Run health checks on the project (bun, config, theme, content, network)
   diagnostics       Create support-safe diagnostics bundles

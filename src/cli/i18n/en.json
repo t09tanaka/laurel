@@ -81,6 +81,6 @@
   "serve.noBuildOutput": "No build output at {distDir}; running an initial build before serving.",
   "serve.portInUse": "Port {port} is in use; try --port {nextPort}",
   "serve.rebuilt": "Rebuilt {routeCount} routes ({assetCount} assets); pushing reload to {clientCount} client(s)",
-  "serve.serving": "Serving {distDir} on http://{host}:{port}{basePath} (bound to {hostname})",
+  "serve.serving": "Serving {distDir} on http://{host}:{port}{basePath} (bound to {hostname}; local preview only, not for production hosting)",
   "serve.simulating": "Simulating {target} deploy artifacts: {headers} header rule(s), {redirects} redirect rule(s)"
 }

@@ -1,11 +1,11 @@
-Serve the built site locally
+Serve the built site as a local preview server; not for production hosting
 
 Usage:
   nectar serve [--port <n>] [--host <host>] [--watch] [--no-watch] [--build] [--open] [--simulate <target>] [--json]
 
 Options:
   -p, --port <n>      Port to listen on (1..65535 integer; defaults to 4321)
-  --host <host>       Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)
+  --host <host>       Hostname to bind to (defaults to 127.0.0.1 for local-only preview; pass 0.0.0.0 to expose on the LAN)
   -w, --watch         Enable the default rebuild-on-change loop while serving dist/
   --no-watch          Disable the default rebuild-on-change loop; serve dist/ as a static snapshot
   -b, --build         Run a full build before starting the server, regardless of whether dist/ already exists
@@ -25,7 +25,7 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar serve                                 # serve dist/ + rebuild on change
+  nectar serve                                 # local preview of dist/ + rebuild on change
   nectar serve --no-watch                      # serve dist/ as a static snapshot
   nectar serve --open                          # open the local preview in a browser
   nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally

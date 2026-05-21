@@ -166,7 +166,7 @@ when prompts are enabled.
 | [`nectar new`](#nectar-new) | Scaffold a new Markdown content file |
 | [`nectar open`](#nectar-open) | Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
-| [`nectar serve`](#nectar-serve) | Serve the built site locally |
+| [`nectar serve`](#nectar-serve) | Serve the built site as a local preview server; not for production hosting |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
@@ -402,7 +402,7 @@ nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing
 
 ### `nectar serve`
 
-Serve the built site locally
+Serve the built site as a local preview server; not for production hosting
 
 Usage:
 
@@ -415,7 +415,7 @@ Options:
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-p, --port <n>` | string | `NECTAR_SERVE_PORT` | Port to listen on (1..65535 integer; defaults to 4321) |
-| `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN) |
+| `--host <host>` | string | `NECTAR_SERVE_HOST` | Hostname to bind to (defaults to 127.0.0.1 for local-only preview; pass 0.0.0.0 to expose on the LAN) |
 | `-w, --watch` | boolean | `NECTAR_SERVE_WATCH` | Enable the default rebuild-on-change loop while serving dist/ |
 | `--no-watch` | boolean | `NECTAR_SERVE_WATCH=0` | Disable the default rebuild-on-change loop; serve dist/ as a static snapshot |
 | `-b, --build` | boolean | `NECTAR_SERVE_BUILD` | Run a full build before starting the server, regardless of whether dist/ already exists |
@@ -426,7 +426,7 @@ Options:
 Examples:
 
 ```
-nectar serve                                 # serve dist/ + rebuild on change
+nectar serve                                 # local preview of dist/ + rebuild on change
 nectar serve --no-watch                      # serve dist/ as a static snapshot
 nectar serve --open                          # open the local preview in a browser
 nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally

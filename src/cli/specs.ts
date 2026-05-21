@@ -283,7 +283,7 @@ export const DEV_SPEC: CommandSpec = {
 
 export const SERVE_SPEC: CommandSpec = {
   name: 'serve',
-  summary: 'Serve the built site locally',
+  summary: 'Serve the built site as a local preview server; not for production hosting',
   options: {
     port: {
       type: 'string',
@@ -292,7 +292,8 @@ export const SERVE_SPEC: CommandSpec = {
     },
     host: {
       type: 'string',
-      description: 'Hostname to bind to (defaults to localhost; pass 0.0.0.0 to expose on the LAN)',
+      description:
+        'Hostname to bind to (defaults to 127.0.0.1 for local-only preview; pass 0.0.0.0 to expose on the LAN)',
       placeholder: '<host>',
     },
     watch: {
@@ -326,7 +327,7 @@ export const SERVE_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar serve                                 # serve dist/ + rebuild on change',
+    'nectar serve                                 # local preview of dist/ + rebuild on change',
     'nectar serve --no-watch                      # serve dist/ as a static snapshot',
     'nectar serve --open                          # open the local preview in a browser',
     'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
