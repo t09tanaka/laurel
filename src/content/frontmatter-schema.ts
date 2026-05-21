@@ -108,6 +108,14 @@ const postEngagementCountSchema = z
   .optional()
   .describe('Ghost engagement counters imported from posts_meta.');
 
+const emailCardSegmentSchema = z
+  .object({
+    type: z.enum(['email', 'email-cta']),
+    html: z.string().optional(),
+    visibility: z.record(z.unknown()).optional(),
+  })
+  .describe('Imported Ghost email/email-cta card metadata kept outside the public body.');
+
 export const postFrontmatterSchema = z
   .object({
     ...entryBaseFields,
@@ -126,6 +134,14 @@ export const postFrontmatterSchema = z
       .default(false)
       .describe('Exclude the post from public web routes and collections.'),
     email_subject: z.string().optional().describe('Ghost newsletter subject override.'),
+    email_card_segments: z
+      .array(emailCardSegmentSchema)
+      .optional()
+      .describe('Ghost newsletter-only card metadata preserved for newsletter export.'),
+    frontmatter: z
+      .string()
+      .optional()
+      .describe('Raw Ghost Post.frontmatter card deck JSON preserved during import.'),
     send_email_when_published: z
       .boolean()
       .optional()

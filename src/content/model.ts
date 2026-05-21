@@ -218,6 +218,8 @@ export interface Post {
   // intentionally separate — see #208.
   access: false;
   email_subject: string | undefined;
+  email_card_segments?: EmailCardSegment[];
+  frontmatter?: string | undefined;
   send_email_when_published: boolean;
   prev: AdjacentPost | undefined;
   next: AdjacentPost | undefined;
@@ -262,6 +264,12 @@ export interface PostEngagementCount {
   conversions?: number | undefined;
   positive_feedback?: number | undefined;
   negative_feedback?: number | undefined;
+}
+
+export interface EmailCardSegment {
+  type: 'email' | 'email-cta';
+  html?: string | undefined;
+  visibility?: Record<string, unknown> | undefined;
 }
 
 export interface Page {

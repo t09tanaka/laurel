@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import TOML from '@iarna/toml';
+import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { importGhostExport } from '~/ghost/import.ts';
 import { ensureDir } from '~/util/fs.ts';
 
@@ -1726,6 +1727,78 @@ describe('importGhostExport — Koenig card comment fences', () => {
     // markdown card content rendered as markdown.
     expect(md).toContain('## Heading');
     expect(md).toContain('Body paragraph.');
+  });
+
+  test('preserves email-cta segment metadata and raw post frontmatter outside the public body', async () => {
+    const rawFrontmatter = JSON.stringify({
+      root: {
+        type: 'root',
+        version: 1,
+        children: [{ type: 'html', html: '<div>Deck value</div>', version: 1 }],
+      },
+    });
+    const lexical = JSON.stringify({
+      root: {
+        type: 'root',
+        version: 1,
+        children: [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'extended-text', text: 'Public body.', format: 0, version: 1 }],
+          },
+          {
+            type: 'email-cta',
+            version: 1,
+            html: '<p>Newsletter CTA only.</p>',
+            visibility: {
+              email: { memberSegment: 'status:free,status:-free' },
+              web: { memberSegment: 'status:free' },
+            },
+          },
+        ],
+      },
+    });
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'post-email-cta-metadata',
+                title: 'Email CTA Metadata',
+                slug: 'email-cta-metadata',
+                lexical,
+                frontmatter: rawFrontmatter,
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.posts).toBe(1);
+
+    const md = await readFile(join(cwd, 'content/posts/email-cta-metadata.md'), 'utf8');
+    const parsed = parseFrontmatter(md);
+    expect(parsed.body).toContain('Public body.');
+    expect(parsed.body).not.toContain('Newsletter CTA only');
+    expect(parsed.data.frontmatter).toBe(rawFrontmatter);
+    expect(parsed.data.email_card_segments).toEqual([
+      {
+        type: 'email-cta',
+        html: '<p>Newsletter CTA only.</p>',
+        visibility: {
+          email: { memberSegment: 'status:free,status:-free' },
+          web: { memberSegment: 'status:free' },
+        },
+      },
+    ]);
   });
 
   test('preserves comment-fenced bookmark cards instead of importing a bare link', async () => {

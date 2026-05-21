@@ -2609,4 +2609,36 @@ body
     expect(post?.email_subject).toBe('Weekly Plain');
     expect(post?.send_email_when_published).toBe(true);
   });
+
+  test('post exposes imported Ghost newsletter card metadata and raw frontmatter deck', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-ghost-frontmatter-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/newsletter.md'),
+      `---
+title: Newsletter
+date: 2026-01-01T00:00:00Z
+frontmatter: "{\\"root\\":{\\"children\\":[{\\"type\\":\\"html\\",\\"html\\":\\"<div>Deck</div>\\"}]}}"
+email_card_segments: [{"type":"email-cta","html":"<p>CTA</p>","visibility":{"email":{"memberSegment":"status:free"}}}]
+---
+
+body
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+    const post = graph.posts[0];
+
+    expect(post?.frontmatter).toBe(
+      '{"root":{"children":[{"type":"html","html":"<div>Deck</div>"}]}}',
+    );
+    expect(post?.email_card_segments).toEqual([
+      {
+        type: 'email-cta',
+        html: '<p>CTA</p>',
+        visibility: { email: { memberSegment: 'status:free' } },
+      },
+    ]);
+  });
 });

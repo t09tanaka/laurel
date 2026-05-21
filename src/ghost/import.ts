@@ -35,7 +35,6 @@ export const DEFAULT_MAX_IMPORT_JSON_BYTES = 256 * 1024 * 1024;
 // regex work on malicious exports.
 export const DEFAULT_MAX_POST_HTML_BYTES = 5 * 1024 * 1024;
 
-const turndown = createGhostTurndown();
 const MARKDOWN_CARD_FENCE_RE =
   /<!--\s*kg-card-begin:\s*markdown\s*-->([\s\S]*?)<!--\s*kg-card-end:\s*markdown\s*-->/g;
 
@@ -99,6 +98,7 @@ interface GhostPost {
   html?: string | null;
   mobiledoc?: string | null;
   lexical?: string | null;
+  frontmatter?: string | null;
   feature_image?: string | null;
   feature_image_alt?: string | null;
   feature_image_caption?: string | null;
@@ -139,6 +139,12 @@ interface GhostPostMeta {
   conversions?: number | string | null;
   positive_feedback?: number | string | null;
   negative_feedback?: number | string | null;
+}
+
+interface ImportedEmailCardSegment {
+  type: 'email' | 'email-cta';
+  html?: string;
+  visibility?: Record<string, unknown>;
 }
 
 interface GhostTier {
@@ -630,6 +636,7 @@ async function importFromResolvedInput(
   const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers, postsMeta } =
     mergeGhostDbEntries(parsed.db);
   const filters = resolveImportFilters(opts);
+  const turndown = createGhostTurndown();
 
   // Image download requires network and writes to content/images. In dry-run
   // mode we skip the downloader entirely; the dry-run summary should preview
@@ -755,6 +762,7 @@ async function importFromResolvedInput(
           authorSlugsForPost,
           tierSlugsForPost,
           metaForPost: (postId) => postMetaByPost.get(postId),
+          turndown,
         }).finally(reportPostProgress),
       ),
     ),
@@ -1663,6 +1671,7 @@ interface RenderPostContext {
   authorSlugsForPost: (postId: string) => string[];
   tierSlugsForPost: (postId: string) => string[];
   metaForPost: (postId: string) => GhostPostMeta | undefined;
+  turndown: ReturnType<typeof createGhostTurndown>;
 }
 
 async function resolvePostPageSlugClaim(
@@ -1767,7 +1776,7 @@ async function renderPostRecord(
   if (post.status === 'draft') counters.drafts += 1;
   const dir = isPage ? 'pages' : 'posts';
   const renderedHtml = renderPostHtml(post);
-  const rawBody = renderPostBody(post, renderedHtml, opts.maxPostHtmlSizeBytes);
+  const rawBody = renderPostBody(post, ctx.turndown, renderedHtml, opts.maxPostHtmlSizeBytes);
   if (rawBody === '') counters.bodiesEmpty += 1;
   const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
   const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
@@ -1862,6 +1871,8 @@ async function renderPostRecord(
         ? undefined
         : sendEmailWhenPublished,
     count: isPage ? undefined : count,
+    email_card_segments: isPage ? undefined : extractEmailCardSegments(post),
+    frontmatter: normalizeRawPostFrontmatter(post.frontmatter),
     show_title_and_feature_image: isPage
       ? showTitleRaw === undefined || showTitleRaw === null
         ? undefined
@@ -2138,6 +2149,7 @@ function hasBookmarkCardMarkup(html: string): boolean {
 
 function renderPostBody(
   post: GhostPost,
+  turndown: ReturnType<typeof createGhostTurndown>,
   html = renderPostHtml(post),
   maxPostHtmlSizeBytes?: number,
 ): string {
@@ -2161,10 +2173,10 @@ function renderPostBody(
           ? lexicalMarkdownCards
           : extractMobiledocMarkdownCards(post.mobiledoc);
       if (rawMarkdownCards.length > 0) {
-        const body = turndownHtmlPreservingRawMarkdownCards(bodyHtml, rawMarkdownCards);
+        const body = turndownHtmlPreservingRawMarkdownCards(bodyHtml, rawMarkdownCards, turndown);
         if (body !== null) return body;
       }
-      return turndownHtml(bodyHtml);
+      return turndownHtml(bodyHtml, turndown);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       logger.warn(
@@ -2219,13 +2231,14 @@ function isBlankTextOrComment(node: ChildNode): boolean {
   return false;
 }
 
-function turndownHtml(html: string): string {
+function turndownHtml(html: string, turndown: ReturnType<typeof createGhostTurndown>): string {
   return turndown.turndown(preprocessKoenigCardFences(html));
 }
 
 function turndownHtmlPreservingRawMarkdownCards(
   html: string,
   rawMarkdownCards: readonly string[],
+  turndown: ReturnType<typeof createGhostTurndown>,
 ): string | null {
   if (rawMarkdownCards.length === 0) return null;
 
@@ -2238,7 +2251,7 @@ function turndownHtmlPreservingRawMarkdownCards(
     if (cardIndex >= rawMarkdownCards.length) return null;
 
     const before = html.slice(lastIndex, match.index);
-    const converted = turndownHtml(before).trim();
+    const converted = turndownHtml(before, turndown).trim();
     if (converted) chunks.push(converted);
 
     const rawCard = rawMarkdownCards[cardIndex];
@@ -2250,10 +2263,15 @@ function turndownHtmlPreservingRawMarkdownCards(
 
   if (cardIndex !== rawMarkdownCards.length) return null;
 
-  const after = turndownHtml(html.slice(lastIndex)).trim();
+  const after = turndownHtml(html.slice(lastIndex), turndown).trim();
   if (after) chunks.push(after);
 
   return chunks.join('\n\n').trim();
+}
+
+function normalizeRawPostFrontmatter(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  return stripGhostUrlPlaceholder(value);
 }
 
 function formatRawMarkdownCard(markdown: string): string {
@@ -2311,6 +2329,88 @@ function extractMobiledocMarkdownCards(json: string | null | undefined): string[
     }
   }
   return cards;
+}
+
+function extractEmailCardSegments(post: GhostPost): ImportedEmailCardSegment[] {
+  const lexicalSegments = extractLexicalEmailCardSegments(post.lexical);
+  if (lexicalSegments.length > 0) return lexicalSegments;
+  return extractMobiledocEmailCardSegments(post.mobiledoc);
+}
+
+function extractLexicalEmailCardSegments(
+  json: string | null | undefined,
+): ImportedEmailCardSegment[] {
+  const parsed = parseJsonObject(json);
+  if (!parsed) return [];
+  const cards: ImportedEmailCardSegment[] = [];
+  collectLexicalEmailCardSegments(parsed.root, cards);
+  return cards;
+}
+
+function collectLexicalEmailCardSegments(node: unknown, cards: ImportedEmailCardSegment[]): void {
+  if (!isPlainRecord(node)) return;
+  const type = node.type;
+  if (type === 'email' || type === 'email-cta') {
+    cards.push(emailCardSegmentFromPayload(type, node));
+  }
+  if (!Array.isArray(node.children)) return;
+  for (const child of node.children) {
+    collectLexicalEmailCardSegments(child, cards);
+  }
+}
+
+function extractMobiledocEmailCardSegments(
+  json: string | null | undefined,
+): ImportedEmailCardSegment[] {
+  const parsed = parseJsonObject(json);
+  if (!parsed || !Array.isArray(parsed.cards) || !Array.isArray(parsed.sections)) return [];
+
+  const cards: ImportedEmailCardSegment[] = [];
+  for (const section of parsed.sections) {
+    if (!Array.isArray(section) || section[0] !== 10 || typeof section[1] !== 'number') continue;
+    const card = parsed.cards[section[1]];
+    if (!Array.isArray(card)) continue;
+    const type = card[0];
+    if (type !== 'email' && type !== 'email-cta') continue;
+    cards.push(emailCardSegmentFromPayload(type, card[1]));
+  }
+  return cards;
+}
+
+function emailCardSegmentFromPayload(
+  type: 'email' | 'email-cta',
+  payload: unknown,
+): ImportedEmailCardSegment {
+  const out: ImportedEmailCardSegment = { type };
+  if (isPlainRecord(payload)) {
+    const html = payload.html;
+    if (typeof html === 'string' && html.length > 0) {
+      out.html = stripGhostUrlPlaceholder(html);
+    }
+    const visibility = jsonRecord(payload.visibility);
+    if (visibility) out.visibility = visibility;
+  }
+  return out;
+}
+
+function parseJsonObject(json: string | null | undefined): Record<string, unknown> | undefined {
+  if (typeof json !== 'string' || json.trim() === '') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return isPlainRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!isPlainRecord(value)) return undefined;
+  try {
+    const cloned: unknown = JSON.parse(JSON.stringify(value));
+    return isPlainRecord(cloned) ? cloned : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function buildFrontmatter(data: Record<string, unknown>): string {

@@ -44,6 +44,7 @@ import type {
   Author,
   ContentGraph,
   ContentSourceFingerprint,
+  EmailCardSegment,
   Page,
   Post,
   PostEngagementCount,
@@ -759,6 +760,8 @@ interface RawPost {
   codeinjection_foot: string | undefined;
   custom_template: string | undefined;
   email_subject: string | undefined;
+  email_card_segments: EmailCardSegment[];
+  frontmatter: string | undefined;
   email_only: boolean;
   send_email_when_published: boolean;
   count: PostEngagementCount | undefined;
@@ -1396,6 +1399,8 @@ async function normalizePost(
       filePath,
     ),
     email_subject: asString(data.email_subject),
+    email_card_segments: parseEmailCardSegments(data.email_card_segments),
+    frontmatter: asString(data.frontmatter),
     email_only: asBool(data.email_only, false),
     send_email_when_published: asBool(data.send_email_when_published, false),
     count: parsePostEngagementCount(data.count),
@@ -1422,6 +1427,36 @@ function parsePostEngagementCount(value: unknown): PostEngagementCount | undefin
     if (parsed !== undefined) out[key] = parsed;
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseEmailCardSegments(value: unknown): EmailCardSegment[] {
+  if (!Array.isArray(value)) return [];
+  const out: EmailCardSegment[] = [];
+  for (const item of value) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const type = record.type;
+    if (type !== 'email' && type !== 'email-cta') continue;
+    const segment: EmailCardSegment = { type };
+    const html = asString(record.html);
+    if (html !== undefined) segment.html = html;
+    const visibility = clonePlainRecord(record.visibility);
+    if (visibility) segment.visibility = visibility;
+    out.push(segment);
+  }
+  return out;
+}
+
+function clonePlainRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  try {
+    const cloned: unknown = JSON.parse(JSON.stringify(value));
+    return cloned !== null && typeof cloned === 'object' && !Array.isArray(cloned)
+      ? (cloned as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function nonNegativeInt(value: unknown): number | undefined {
@@ -1929,6 +1964,8 @@ function resolvePostRelations(
     // `ctx.access` split.
     access: false,
     email_subject: raw.email_subject,
+    email_card_segments: raw.email_card_segments,
+    frontmatter: raw.frontmatter,
     send_email_when_published: raw.send_email_when_published,
     prev: undefined,
     next: undefined,
