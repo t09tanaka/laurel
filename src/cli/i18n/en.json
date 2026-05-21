@@ -51,6 +51,7 @@
   "importGhost.htmlPreserved": "Preserved rendered HTML for {count} posts/pages",
   "importGhost.imported": "Imported {posts} posts, {pages} pages, {tags} tags, {authors} authors",
   "importGhost.invalidMaxImageSize": "Invalid --max-image-size value: {value}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 10MB, 1GB, 0 to disable).",
+  "importGhost.invalidMaxPostHtmlSize": "Invalid --max-post-html-size value: {value}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 5MB, 20MB, 0 to disable).",
   "importGhost.invalidMaxSize": "Invalid --max-size value: {value}. Expected a non-negative number with optional KB/MB/GB suffix (e.g. 256MB, 1GB, 0 to disable).",
   "importGhost.invalidOnConflict": "Invalid --on-conflict value: {value}. Expected one of: {values}.",
   "importGhost.invalidOnlyTags": "Invalid --only-tags value: {value}. Expected one or more comma-separated tag slugs (e.g. news,blog).",

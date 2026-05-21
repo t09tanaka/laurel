@@ -1,7 +1,7 @@
 Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
 
 Usage:
-  nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--keep-code-injection] [--json] <source-and-args...>
+  nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--json] <source-and-args...>
 
 Arguments:
   source-and-args     `<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy`
@@ -17,6 +17,7 @@ Options:
   --max-image-size <size>  ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables)
   --source-url <url>  ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths
   --max-size <size>   ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)
+  --max-post-html-size <size>  ghost only: per-post rendered HTML size cap before Turndown conversion (e.g. 5MB; default 5MB; 0 disables)
   --keep-code-injection  ghost only: preserve codeinjection_head / codeinjection_foot verbatim. Off by default; only enable when you trust the source.
   -j, --json          Emit the migration summary as JSON on stdout for CI consumption
   -h, --help          Show help for this command

@@ -4053,6 +4053,65 @@ describe('importGhostExport — JSON size cap (#558)', () => {
   });
 });
 
+describe('importGhostExport — post HTML Turndown safety cap (#1157)', () => {
+  let cwd: string;
+  let exportFile: string;
+  let captured: CapturedStderr;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-html-cap-')));
+    exportFile = join(cwd, 'export.json');
+    captured = captureStderr();
+  });
+
+  afterEach(async () => {
+    captured.restore();
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('falls back to an empty Markdown body when rendered post HTML exceeds the cap', async () => {
+    const body = 'x'.repeat(256);
+    await writeFile(
+      exportFile,
+      makeExport([{ slug: 'oversized', title: 'Oversized', html: `<p>${body}</p>` }]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      maxPostHtmlSizeBytes: 64,
+    });
+
+    const out = await readFile(join(cwd, 'content/posts/oversized.md'), 'utf8');
+    expect(summary.posts).toBe(1);
+    expect(summary.bodiesEmpty).toBe(1);
+    expect(out).toContain('title: "Oversized"');
+    expect(out).not.toContain(body);
+    expect(captured.data).toContain('exceeds the configured per-post HTML cap');
+    expect(captured.data).toContain('Falling back to an empty Markdown body');
+  });
+
+  test('maxPostHtmlSizeBytes=0 disables the per-post HTML cap', async () => {
+    const body = 'cap disabled body';
+    await writeFile(
+      exportFile,
+      makeExport([{ slug: 'uncapped', title: 'Uncapped', html: `<p>${body}</p>` }]),
+    );
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      maxPostHtmlSizeBytes: 0,
+    });
+
+    const out = await readFile(join(cwd, 'content/posts/uncapped.md'), 'utf8');
+    expect(summary.posts).toBe(1);
+    expect(summary.bodiesEmpty).toBe(0);
+    expect(out).toContain(body);
+    expect(captured.data).toBe('');
+  });
+});
+
 describe('importGhostExport — image URL scheme sanitization (#562)', () => {
   let cwd: string;
   let exportFile: string;

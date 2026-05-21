@@ -742,6 +742,68 @@ describe('cli import-ghost — --max-image-size (#239)', () => {
   });
 });
 
+describe('cli import-ghost — --max-post-html-size (#1157)', () => {
+  let dir: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maxhtml-')));
+    exportFile = join(dir, 'export.json');
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Huge HTML',
+                  slug: 'huge-html',
+                  html: `<p>${'x'.repeat(256)}</p>`,
+                  status: 'published',
+                  type: 'post',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('help advertises --max-post-html-size', async () => {
+    const { stdout, exitCode } = await runCli(['import-ghost', '--help'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--max-post-html-size');
+  });
+
+  test('rejects a malformed --max-post-html-size value with exit 2', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--max-post-html-size', 'huge'],
+      dir,
+    );
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --max-post-html-size value');
+  });
+
+  test('falls back per post without failing the CLI when HTML exceeds the cap', async () => {
+    const { stderr, exitCode } = await runCli(
+      ['import-ghost', exportFile, '--max-post-html-size', '64B'],
+      dir,
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain('exceeds the configured per-post HTML cap');
+    const out = await readFile(join(dir, 'content/posts/huge-html.md'), 'utf8');
+    expect(out).toContain('title: "Huge HTML"');
+    expect(out).not.toContain('x'.repeat(256));
+  });
+});
+
 describe('cli import-ghost — --keep-code-injection (#561)', () => {
   let dir: string;
   let exportFile: string;

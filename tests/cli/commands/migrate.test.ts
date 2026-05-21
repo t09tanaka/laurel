@@ -76,4 +76,45 @@ describe('cli migrate', () => {
       await rm(src, { recursive: true, force: true });
     }
   });
+
+  test('passes Ghost max-post-html-size through to import-ghost', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-ghost-')));
+    const exportFile = join(dir, 'ghost.json');
+    try {
+      await writeFile(
+        exportFile,
+        JSON.stringify({
+          db: [
+            {
+              data: {
+                posts: [
+                  {
+                    id: 'p1',
+                    title: 'Huge HTML',
+                    slug: 'huge-html',
+                    html: `<p>${'x'.repeat(256)}</p>`,
+                    status: 'published',
+                    type: 'post',
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+
+      const { stderr, exitCode } = await runCli(
+        ['migrate', 'ghost', exportFile, '--max-post-html-size', '64B'],
+        dir,
+      );
+
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('exceeds the configured per-post HTML cap');
+      const out = await readFile(join(dir, 'content/posts/huge-html.md'), 'utf8');
+      expect(out).toContain('title: "Huge HTML"');
+      expect(out).not.toContain('x'.repeat(256));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -96,6 +96,7 @@ function buildGhostArgs(parsed: ParsedCommand, file: string): string[] {
   pushIfString(out, parsed.values['max-image-size'], '--max-image-size');
   pushIfString(out, parsed.values['source-url'], '--source-url');
   pushIfString(out, parsed.values['max-size'], '--max-size');
+  pushIfString(out, parsed.values['max-post-html-size'], '--max-post-html-size');
   if (parsed.values['download-images'] === true) out.push('--download-images');
   if (parsed.values['dry-run'] === true) out.push('--dry-run');
   if (parsed.values['keep-code-injection'] === true) out.push('--keep-code-injection');

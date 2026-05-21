@@ -457,6 +457,12 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'Maximum JSON export size accepted before refusing to parse (e.g. 256MB, 1GB, or raw bytes). Defaults to 256MB; guards against multi-GB exports OOM-ing the host. Use 0 to disable the check.',
       placeholder: '<size>',
     },
+    'max-post-html-size': {
+      type: 'string',
+      description:
+        'Per-post rendered HTML size cap before Turndown conversion (e.g. 5MB, 20MB, or raw bytes). Defaults to 5MB; over-cap posts are warned and imported with empty Markdown bodies. Use 0 to disable.',
+      placeholder: '<size>',
+    },
     'keep-code-injection': {
       type: 'boolean',
       description:
@@ -1132,6 +1138,12 @@ export const MIGRATE_SPEC: CommandSpec = {
       type: 'string',
       description:
         'ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)',
+      placeholder: '<size>',
+    },
+    'max-post-html-size': {
+      type: 'string',
+      description:
+        'ghost only: per-post rendered HTML size cap before Turndown conversion (e.g. 5MB; default 5MB; 0 disables)',
       placeholder: '<size>',
     },
     'keep-code-injection': {

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
@@ -27,6 +28,12 @@ export const ON_CONFLICT_VALUES: readonly OnConflict[] = ['skip', 'overwrite', '
 // export can crash the host. 256 MiB covers normal blogs comfortably and keeps
 // peak memory bounded; raise via maxFileSizeBytes / --max-size for huge sites.
 export const DEFAULT_MAX_IMPORT_JSON_BYTES = 256 * 1024 * 1024;
+
+// Per-post rendered HTML cap before feeding Ghost bodies into Turndown.
+// Typical Ghost posts are KB-scale; 5 MiB leaves room for unusually large
+// long-form or code-heavy posts while bounding Turndown's synchronous DOM /
+// regex work on malicious exports.
+export const DEFAULT_MAX_POST_HTML_BYTES = 5 * 1024 * 1024;
 
 const turndown = createGhostTurndown();
 const MARKDOWN_CARD_FENCE_RE =
@@ -207,9 +214,10 @@ export interface ImportSummary {
   // Posts/pages excluded because their publish/create date is before --since,
   // or missing/invalid when a since boundary was requested.
   dateFiltered: number;
-  // Posts whose lexical/mobiledoc body rendered to empty content and so
-  // would be written as empty markdown. Surfaced separately so users with
-  // large exports can spot silent body loss before importing.
+  // Posts whose body would be written as empty markdown because structured
+  // content rendered empty, Turndown was skipped by safety caps, or Turndown
+  // failed and the post fell back safely. Surfaced separately so users with
+  // large exports can spot body loss before importing.
   bodiesEmpty: number;
   // Custom redirect rules read from <export>/content/data/redirects.json. Each
   // one becomes a line in the emitted _redirects / vercel.json / nginx.conf
@@ -284,6 +292,11 @@ export interface ImportGhostOptions {
   // DEFAULT_MAX_IMPORT_JSON_BYTES (256 MiB). For .zip exports the cap is
   // applied to the JSON inside after extraction, not the compressed archive.
   maxFileSizeBytes?: number;
+  // Maximum rendered HTML body size (bytes) to send through Turndown per
+  // post/page. Defaults to DEFAULT_MAX_POST_HTML_BYTES (5 MiB). 0 disables the
+  // cap. Over-cap posts are still imported with frontmatter, but their Markdown
+  // body falls back to empty and a warning is emitted.
+  maxPostHtmlSizeBytes?: number;
   // When true, preserve `codeinjection_head` / `codeinjection_foot` from the
   // Ghost export verbatim in post frontmatter. Defaults to false: a user
   // importing an export from a site they no longer control (sold, taken
@@ -1734,7 +1747,7 @@ async function renderPostRecord(
   if (post.status === 'draft') counters.drafts += 1;
   const dir = isPage ? 'pages' : 'posts';
   const renderedHtml = renderPostHtml(post);
-  const rawBody = renderPostBody(post, renderedHtml);
+  const rawBody = renderPostBody(post, renderedHtml, opts.maxPostHtmlSizeBytes);
   if (rawBody === '') counters.bodiesEmpty += 1;
   const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
   const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
@@ -2039,24 +2052,51 @@ function hasBookmarkCardMarkup(html: string): boolean {
   return /\bkg-bookmark-card\b|<!--\s*kg-card-begin:\s*bookmark\s*-->/i.test(html);
 }
 
-function renderPostBody(post: GhostPost, html = renderPostHtml(post)): string {
+function renderPostBody(
+  post: GhostPost,
+  html = renderPostHtml(post),
+  maxPostHtmlSizeBytes?: number,
+): string {
   if (html.trim()) {
-    const bodyHtml = stripLeadingDuplicateTitleH1(html, post.title);
-    const lexicalMarkdownCards = extractLexicalMarkdownCards(post.lexical);
-    const rawMarkdownCards =
-      lexicalMarkdownCards.length > 0
-        ? lexicalMarkdownCards
-        : extractMobiledocMarkdownCards(post.mobiledoc);
-    if (rawMarkdownCards.length > 0) {
-      const body = turndownHtmlPreservingRawMarkdownCards(bodyHtml, rawMarkdownCards);
-      if (body !== null) return body;
+    const cap = maxPostHtmlSizeBytes ?? DEFAULT_MAX_POST_HTML_BYTES;
+    if (Number.isFinite(cap) && cap > 0) {
+      const byteLength = Buffer.byteLength(html, 'utf8');
+      if (byteLength > cap) {
+        logger.warn(
+          `Skipping Turndown for ${postImportLabel(post)}: rendered HTML is ${formatImportBytes(byteLength)}, which exceeds the configured per-post HTML cap of ${formatImportBytes(cap)}. Falling back to an empty Markdown body. Re-run with --max-post-html-size to raise the limit, or pass 0 to disable the cap.`,
+        );
+        return '';
+      }
     }
-    return turndownHtml(bodyHtml);
+
+    try {
+      const bodyHtml = stripLeadingDuplicateTitleH1(html, post.title);
+      const lexicalMarkdownCards = extractLexicalMarkdownCards(post.lexical);
+      const rawMarkdownCards =
+        lexicalMarkdownCards.length > 0
+          ? lexicalMarkdownCards
+          : extractMobiledocMarkdownCards(post.mobiledoc);
+      if (rawMarkdownCards.length > 0) {
+        const body = turndownHtmlPreservingRawMarkdownCards(bodyHtml, rawMarkdownCards);
+        if (body !== null) return body;
+      }
+      return turndownHtml(bodyHtml);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      logger.warn(
+        `Skipping Turndown for ${postImportLabel(post)}: ${reason}. Falling back to an empty Markdown body.`,
+      );
+      return '';
+    }
   }
   if (post.lexical || post.mobiledoc) {
     logger.warn(`Post ${post.slug}: Lexical/Mobiledoc body rendered to empty content, skipping.`);
   }
   return '';
+}
+
+function postImportLabel(post: GhostPost): string {
+  return `post ${JSON.stringify(post.slug ?? post.id ?? '(no id)')}`;
 }
 
 function stripLeadingDuplicateTitleH1(html: string, title: string): string {

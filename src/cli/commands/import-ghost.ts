@@ -93,6 +93,20 @@ export async function runImportGhost(args: string[]): Promise<number> {
     maxFileSizeBytes = parsedSize;
   }
 
+  const rawMaxPostHtmlSize = parsed.values['max-post-html-size'];
+  let maxPostHtmlSizeBytes: number | undefined;
+  if (typeof rawMaxPostHtmlSize === 'string') {
+    const parsedSize = parseSizeSpec(rawMaxPostHtmlSize);
+    if (parsedSize === null) {
+      process.stderr.write(
+        `${t('importGhost.invalidMaxPostHtmlSize', { value: rawMaxPostHtmlSize })}\n\n`,
+      );
+      process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
+      return 2;
+    }
+    maxPostHtmlSizeBytes = parsedSize;
+  }
+
   const keepCodeInjection = parsed.values['keep-code-injection'] === true;
   const keepHtml = parsed.values['keep-html'] === true;
   const includeDrafts = parsed.values['include-drafts'] === true;
@@ -144,6 +158,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       sourceUrl,
       dryRun,
       maxFileSizeBytes,
+      maxPostHtmlSizeBytes,
       keepCodeInjection,
       keepHtml,
       outputDir,
@@ -288,7 +303,7 @@ function formatDryRunSummary(
     {
       label: t('importGhost.dryRun.emptyBodies'),
       value: summary.bodiesEmpty,
-      note: 'lexical/mobiledoc rendered to empty markdown',
+      note: 'body rendered empty or Turndown fell back safely',
     },
     { label: t('importGhost.dryRun.tags'), value: summary.tags },
     { label: t('importGhost.dryRun.authors'), value: summary.authors },
