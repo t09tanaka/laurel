@@ -932,11 +932,20 @@ async function loadMarkdownDir<T>(
   const results: T[] = [];
   for (let i = 0; i < files.length; i += MARKDOWN_LOAD_CONCURRENCY) {
     const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);
-    const chunkResults = await Promise.all(
+    const inputs = await Promise.all(
       chunk.map(async (file) => {
         const sourceStat = await enforceMarkdownSizeLimit(file, maxBytes);
         const raw = await readFile(file, 'utf8');
-        const source = contentSourceFingerprint(file, dir, sourceStat);
+        return {
+          file,
+          raw,
+          sourceStat,
+          source: contentSourceFingerprint(file, dir, sourceStat),
+        };
+      }),
+    );
+    const chunkResults = await Promise.all(
+      inputs.map(async ({ file, raw, sourceStat, source }) => {
         try {
           return await normalize(file, raw, sourceStat, source);
         } catch (err) {

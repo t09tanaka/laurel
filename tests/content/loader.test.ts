@@ -639,6 +639,74 @@ Fresh body.
     expect(rewritten.result.html).toContain('Body 2');
   });
 
+  test('starts markdown normalization for sibling posts in parallel before rendering', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-parallel-markdown-render-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/a.md'),
+      `---
+title: First
+date: 2026-01-01T00:00:00Z
+---
+
+first body
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/b.md'),
+      `---
+title: Second
+date: 2026-01-02T00:00:00Z
+---
+
+second body
+`,
+      'utf8',
+    );
+
+    let seenSecond = false;
+    let releaseFirst: (() => void) | undefined;
+    const secondStarted = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let timeoutId: Timer | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error('second post render was not scheduled in parallel')),
+        500,
+      );
+    });
+
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    try {
+      const graph = await loadContent({
+        cwd,
+        config,
+        markdownTransforms: [
+          async (body) => {
+            if (body.includes('second body')) {
+              seenSecond = true;
+              releaseFirst?.();
+              return body;
+            }
+            if (body.includes('first body')) {
+              await Promise.race([secondStarted, timeout]);
+            }
+            return body;
+          },
+        ],
+      });
+
+      expect(seenSecond).toBe(true);
+      expect(graph.posts.map((post) => post.slug)).toEqual(['b', 'a']);
+      expect(graph.bySlug.posts.get('a')?.html).toContain('first body');
+      expect(graph.bySlug.posts.get('b')?.html).toContain('second body');
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  });
+
   test('copies config site.icon into SiteData', async () => {
     const cwd = await fixture();
     const config = configSchema.parse({
