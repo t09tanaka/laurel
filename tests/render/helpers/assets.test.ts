@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerAssetHelpers } from '~/render/helpers/assets.ts';
+import { registerStringHelpers } from '~/render/helpers/strings.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
 
 function makeEngine(opts: {
@@ -530,6 +531,24 @@ describe('asset helper (issue #1137 — context-aware encoding)', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{asset "images/icon.svg"}}');
     expect(tpl({})).toBe('/blog/assets/images/icon.svg?v=abc123def0');
+  });
+
+  test('resolves concat subexpressions the same as literal asset paths', () => {
+    const engine = makeEngine({ basePath: '/' });
+    engine.theme.assets.set('assets/img/logo.svg', {
+      logicalPath: 'assets/img/logo.svg',
+      fingerprintedPath: 'assets/img/logo.svg',
+      sourcePath: '/theme/assets/img/logo.svg',
+      hash: 'abc123def0',
+      integrity: 'sha384-logo',
+      size: 42,
+    });
+    registerAssetHelpers(engine);
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{asset (concat "img/" name)}}|{{asset "img/logo.svg"}}');
+    expect(tpl({ name: 'logo.svg' })).toBe(
+      '/assets/img/logo.svg?v=abc123def0|/assets/img/logo.svg?v=abc123def0',
+    );
   });
 
   test('encodes non-fingerprinted asset paths without escaping the cache-busting query', () => {
