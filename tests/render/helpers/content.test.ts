@@ -994,6 +994,15 @@ describe('authors helper', () => {
     );
   });
 
+  test('separator hash without a block fn joins inline author names', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors separator=" & "}}')({
+      authors: [{ name: 'Ada' }, { name: 'Grace' }, { name: 'Linus' }],
+    });
+    expect(out).toBe('Ada & Grace & Linus');
+  });
+
   test('autolink=true links each author name when author.url is set', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
