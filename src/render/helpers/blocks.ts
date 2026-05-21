@@ -200,8 +200,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const sorted = getSortedResource(engine, resource, order);
     const slugFiltered = slugFilter
       ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
-      : sorted.slice();
-    const filtered: unknown[] = filter
+      : sorted;
+    const filtered: readonly unknown[] = filter
       ? applyGetFilter(engine, resource, slugFiltered, filter, this, options.data?.route)
       : slugFiltered;
     const total = filtered.length;
@@ -213,7 +213,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (paged.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    const included = applyGetIncludes(engine, resource, paged, include);
+    const presented = presentGetResource(engine, resource, paged);
+    const included = applyGetIncludes(engine, resource, presented, include);
     const results = exposeGetResource(resource, applyGetFields(included, fields));
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
@@ -319,9 +320,23 @@ function getSortedResource(
   const cacheKey = `${resource}|${order}`;
   const cached = engine.sortedCache.get(cacheKey);
   if (cached) return cached;
-  const sorted: readonly unknown[] = applyOrder(base as unknown[], order);
+  const sorted = applyOrder(base, order);
   engine.sortedCache.set(cacheKey, sorted);
   return sorted;
+}
+
+function presentGetResource(
+  engine: NectarEngine,
+  resource: string,
+  results: readonly unknown[],
+): readonly unknown[] {
+  switch (resource) {
+    case 'posts':
+    case 'pages':
+      return withTrustedCaptionHtmlArray(engine.hb, results);
+    default:
+      return results;
+  }
 }
 
 function parseIncludeTokens(raw: unknown): readonly string[] {
@@ -429,9 +444,9 @@ function attachAuthorPostCount(
 function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {
   switch (resource) {
     case 'posts':
-      return withTrustedCaptionHtmlArray(engine.hb, engine.content.posts);
+      return engine.content.posts;
     case 'pages':
-      return withTrustedCaptionHtmlArray(engine.hb, engine.content.pages);
+      return engine.content.pages;
     case 'tags':
       return engine.content.tags;
     case 'authors':
@@ -803,7 +818,7 @@ function toComparableNumber(value: unknown): number | null {
   return null;
 }
 
-function applyOrder(items: unknown[], order: string): unknown[] {
+function applyOrder(items: readonly unknown[], order: string): unknown[] {
   const clauses = order.split(',').map((s) => s.trim());
   return items.slice().sort((a, b) => {
     for (const clause of clauses) {

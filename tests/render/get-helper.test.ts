@@ -58,6 +58,27 @@ describe('get helper memoization', () => {
     expect(engine.sortedCache.size).toBe(0);
   });
 
+  test('canonical posts order avoids a full loader array slice before pagination', () => {
+    const posts = Array.from({ length: 20 }, (_, i) => ({
+      id: `p${i}`,
+      title: `Post ${i}`,
+      published_at: `2026-05-${String(20 - i).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+    const originalSlice = posts.slice;
+    const calls: unknown[][] = [];
+    posts.slice = function instrumentedSlice(this: typeof posts, ...args: unknown[]) {
+      calls.push(args);
+      return originalSlice.apply(this, args as [number?, number?]);
+    };
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=3 as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('p0,p1,p2,');
+    expect(calls).toEqual([[0, 3]]);
+  });
+
   test('defaults posts to the loader-provided published_at desc order', () => {
     const posts = [
       { id: 'newest', title: 'Newest', published_at: '2026-05-20T00:00:00.000Z' },
@@ -136,6 +157,24 @@ describe('get helper memoization', () => {
       `{{#get "posts" limit=3 as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
     );
     expect(tpl({})).toBe('p0,p1,p2,');
+  });
+
+  test('keeps post captions trusted after paginating canonical results', () => {
+    const posts = [
+      {
+        id: 'a',
+        title: 'A',
+        feature_image_caption: 'Credit <strong>Alice</strong>',
+        published_at: '2026-05-19T00:00:00.000Z',
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" limit=1 as |items|}}{{#foreach items}}{{feature_image_caption}}{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('Credit <strong>Alice</strong>');
+    expect(posts[0]?.feature_image_caption).toBe('Credit <strong>Alice</strong>');
   });
 
   test('does not mutate the loader-owned posts array', () => {
