@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createChangeBus,
-  createDashboardContentItem,
+  createDashboardTaxonomyFile,
   handleDashboardRequest,
   loadDashboardState,
   readDashboardContentItem,
@@ -63,16 +63,13 @@ async function makeDashboardFixture(): Promise<string> {
       'title: New Post',
       'date: 2026-01-03T00:00:00Z',
       'created_at: 2026-01-03T00:00:00Z',
-      'custom_excerpt: "Short preview copy for editors."',
-      'feature_image: "/content/images/new.svg"',
-      'visibility: members',
-      'meta_title: "New SEO"',
-      'og_title: "New social"',
-      'email_subject: "Newsletter copy stays out of preview"',
-      'internal_note: "Preserve this unknown key"',
+      'authors:',
+      '  - missing-author',
+      'tags:',
+      '  - missing-tag',
       '---',
       '',
-      'New body with TK marker',
+      'New body',
       '',
     ].join('\n'),
     'utf8',
@@ -108,34 +105,20 @@ describe('dashboard data', () => {
       expect(state.posts.items.map((item) => item.slug)).toEqual(['new']);
       expect(state.posts.items[0]?.path).toBe('content/posts/new.md');
       expect(state.pages.items.map((item) => item.slug)).toEqual(['about']);
-      expect(state.authors.items.map((item) => item.slug)).toEqual(['casper']);
-      expect(state.tags.items[0]?.editable).toBe(true);
-      expect(state.tags.items[0]?.path).toBe('content/tags/news.md');
+      expect(state.authors.items.map((item) => item.slug)).toEqual(['casper', 'missing-author']);
+      expect(state.tags.items.find((item) => item.slug === 'news')?.editable).toBe(true);
+      expect(state.tags.items.find((item) => item.slug === 'news')?.path).toBe(
+        'content/tags/news.md',
+      );
+      expect(state.settings.contentDirs.assets).toBe('content/images');
       expect(state.settings.configPath).toBe('nectar.toml');
       expect(state.sync.status).toBe('synced');
       expect(state.sync.loadStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.build.outputDir).toBe('dist');
       expect(state.git.isRepo).toBe(false);
-      expect(state.workbench.customViews.map((view) => view.id)).toEqual([
-        'all',
-        'drafts',
-        'scheduled',
-        'needs-review',
-        'members',
-      ]);
-      expect(state.preview).toMatchObject({
-        activeTheme: 'source',
-        source: 'saved-file',
-        contract:
-          'Theme preview opens the latest saved Markdown file; unsaved editor text only appears in split preview.',
-      });
-      expect(state.posts.items[0]).toMatchObject({
-        excerpt: 'Short preview copy for editors.',
-        featureImage: '/content/images/new.svg',
-        visibility: 'members',
-        routePreview: 'https://dashboard.test/new/',
-      });
+      expect(state.settings.cards.map((card) => card.id)).toContain('content-health');
+      expect(state.settings.operations.cliAssets.map((asset) => asset.command)).toContain('deploy');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -160,6 +143,31 @@ describe('dashboard data', () => {
         search: 'old',
         sort: 'created_asc',
       });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('filters content by metadata slug search and status', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const state = await loadDashboardState({
+        cwd: dir,
+        search: 'missing-tag',
+        status: 'published',
+      });
+
+      expect(state.posts.items.map((item) => item.slug)).toEqual(['new']);
+      expect(state.pages.items).toEqual([]);
+      expect(state.settings.operations.search.fields).toEqual([
+        'title',
+        'slug',
+        'path',
+        'tags',
+        'authors',
+        'status',
+      ]);
+      expect(state.settings.operations.search.bodySearch).toBe('deferred');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -199,68 +207,28 @@ describe('dashboard data', () => {
     }
   });
 
-  test('loads editor metadata for structured frontmatter and preview panels', async () => {
+  test('creates backing files for generated taxonomy records', async () => {
     const dir = await makeDashboardFixture();
     try {
-      const config = await loadConfig({ cwd: dir });
-      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'new' });
+      const before = await loadDashboardState({ cwd: dir });
+      const generated = before.tags.items.find((item) => item.slug === 'missing-tag');
+      expect(generated?.source).toBe('generated');
+      expect(generated?.editable).toBe(false);
 
-      expect(item.frontmatter.internal_note).toBe('Preserve this unknown key');
-      expect(item.frontmatterFields.map((field) => field.key)).toContain('feature_image');
-      expect(item.frontmatterSections.map((section) => section.id)).toEqual([
-        'identity',
-        'publishing',
-        'media',
-        'seo-social',
-        'access',
-      ]);
-      expect(item.preview).toMatchObject({
-        source: 'saved-file',
-        theme: 'source',
-        routeUrl: 'https://dashboard.test/new/',
-        unsavedMarkdown: 'editor-only',
-      });
-      expect(item.seoPreview).toMatchObject({
-        title: 'New SEO',
-        description: 'Short preview copy for editors.',
-        canonicalUrl: 'https://dashboard.test/new/',
-      });
-      expect(item.socialPreview).toMatchObject({
-        title: 'New social',
-        image: '/content/images/new.svg',
-      });
-      expect(item.reviewChecklist.some((check) => check.id === 'tk-markers' && !check.ok)).toBe(
-        true,
-      );
-      expect(item.outOfScopeFrontmatter).toEqual(['email_subject']);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('duplicates content by cloning saved Markdown without mutating the source file', async () => {
-    const dir = await makeDashboardFixture();
-    try {
-      const config = await loadConfig({ cwd: dir });
-      const created = await createDashboardContentItem({
+      const result = await createDashboardTaxonomyFile({
         cwd: dir,
-        config,
-        payload: {
-          kind: 'posts',
-          title: 'Cloned Post',
-          slug: 'cloned-post',
-          cloneFrom: { kind: 'posts', slug: 'new' },
-        },
+        kind: 'tags',
+        slug: 'missing-tag',
       });
 
-      expect(created).toMatchObject({ ok: true, kind: 'posts', slug: 'cloned-post' });
-      const cloned = await readFile(join(dir, 'content/posts/cloned-post.md'), 'utf8');
-      expect(cloned).toContain('title: Cloned Post');
-      expect(cloned).toContain('slug: cloned-post');
-      expect(cloned).toContain('New body with TK marker');
-      expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toContain(
-        'title: New Post',
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('expected taxonomy file to be created');
+      expect(result.path).toBe('content/tags/missing-tag.md');
+      expect(await readFile(join(dir, 'content/tags/missing-tag.md'), 'utf8')).toContain(
+        'name: Missing Tag',
       );
+      const after = await loadDashboardState({ cwd: dir });
+      expect(after.tags.items.find((item) => item.slug === 'missing-tag')?.source).toBe('file');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -342,6 +310,31 @@ describe('dashboard data', () => {
       if (stale.ok) throw new Error('expected settings conflict');
       expect(stale.reason).toBe('conflict');
       expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('Changed Outside');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('serializes dashboard writes through the content formatter', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'new' });
+
+      const written = await writeDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        slug: 'new',
+        expectedFingerprint: item.fingerprint,
+        frontmatter: { ...item.frontmatter, primary_tag: ' Missing-Tag ' },
+        body: 'Formatted body',
+      });
+
+      expect(written.ok).toBe(true);
+      const raw = await readFile(join(dir, 'content/posts/new.md'), 'utf8');
+      expect(raw).toContain('primary_tag: missing-tag');
+      expect(raw).toContain('\n---\n\nFormatted body\n');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

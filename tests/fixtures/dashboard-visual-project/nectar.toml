@@ -1,0 +1,34 @@
+[site]
+title = "Nectar Visual Admin Fixture"
+description = "Long Japanese and English strings for dashboard state testing"
+url = "https://dashboard-fixture.example"
+locale = "ja"
+timezone = "Asia/Tokyo"
+accent_color = "#2f6f63"
+
+[theme]
+name = "source"
+dir = "themes"
+
+[build]
+output_dir = "dist"
+base_path = "/journal/"
+trailing_slash = "always"
+
+[[navigation]]
+label = "Home"
+url = "/"
+
+[[navigation]]
+label = "長いナビゲーション項目"
+url = "/long-navigation-path/"
+
+[components.search]
+enabled = true
+engine = "json"
+
+[components.rss]
+enabled = true
+
+[components.sitemap]
+enabled = true

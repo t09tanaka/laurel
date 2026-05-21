@@ -1,0 +1,9 @@
+- from: /old-post/
+  to: /future-post/
+  status: 301
+- from: /duplicate/
+  to: /about/
+  status: 302
+- from: /duplicate/
+  to: /
+  status: 301

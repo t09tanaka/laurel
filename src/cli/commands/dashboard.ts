@@ -1,14 +1,15 @@
 import { randomBytes } from 'node:crypto';
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
-import yaml from 'js-yaml';
+import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
+import { loadRedirects } from '~/build/redirects.ts';
+import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
-import { asString, parseFrontmatter } from '~/content/frontmatter.ts';
+import { formatContentSource } from '~/content/format.ts';
+import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadContent } from '~/content/loader.ts';
-import { renderMarkdown } from '~/content/markdown.ts';
 import type {
   Author,
   ContentGraph,
@@ -17,12 +18,14 @@ import type {
   Post,
   Tag,
 } from '~/content/model.ts';
+import { loadTheme } from '~/theme/loader.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DASHBOARD_SPEC } from '../specs.ts';
+import { type CheckResult, runChecks } from './doctor.ts';
 
 const DEFAULT_PORT = 4322;
 const DEFAULT_HOST = '127.0.0.1';
@@ -33,11 +36,6 @@ const ACTIVITY_LIMIT = 50;
 const WATCH_DEBOUNCE_MS = 100;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const SITE_SETTINGS_FIELDS = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
-const NEWSLETTER_FRONTMATTER_KEYS = new Set([
-  'email_subject',
-  'email_card_segments',
-  'send_email_when_published',
-]);
 
 type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
 type DashboardContentKind = 'posts' | 'pages';
@@ -83,20 +81,17 @@ export interface DashboardContentSummary {
   publishedAt: string;
   path: string;
   url: string;
-  routePreview: string;
-  excerpt: string;
-  featureImage: string;
-  visibility: string;
   authors: string[];
+  authorSlugs: string[];
   tags: string[];
+  tagSlugs: string[];
   words: number;
-  readingTime: number;
-  reviewState: 'ready' | 'needs-review';
 }
 
 export interface DashboardTaxonomySummary {
   slug: string;
   name: string;
+  description: string;
   count: number;
   path: string;
   url: string;
@@ -104,6 +99,99 @@ export interface DashboardTaxonomySummary {
   missing: boolean;
   generated: boolean;
   orphaned: boolean;
+  source: 'file' | 'generated';
+  materializePath: string;
+}
+
+type DashboardCardMode =
+  | 'editable'
+  | 'read-only'
+  | 'cli-action'
+  | 'dangerous-cli-only'
+  | 'scope-note';
+type DashboardCardStatus = 'ok' | 'warn' | 'danger' | 'info';
+
+interface DashboardCardValue {
+  label: string;
+  value: string;
+  status?: DashboardCardStatus;
+}
+
+interface DashboardSettingsCard {
+  id: string;
+  section: string;
+  title: string;
+  summary: string;
+  source: string;
+  mode: DashboardCardMode;
+  status: DashboardCardStatus;
+  values: DashboardCardValue[];
+  command?: string;
+}
+
+interface DashboardReadinessItem {
+  id: string;
+  label: string;
+  status: DashboardCardStatus;
+  detail: string;
+  command?: string;
+}
+
+interface DashboardCliAsset {
+  command: string;
+  adminSurface: string;
+  exposure: 'read-only' | 'safe-action' | 'dangerous-cli-only' | 'not-suitable';
+  note: string;
+}
+
+interface DashboardOperations {
+  readiness: DashboardReadinessItem[];
+  doctor: CheckResult[];
+  cliAssets: DashboardCliAsset[];
+  cache: {
+    path: string;
+    exists: boolean;
+    files: number;
+    bytes: number;
+  };
+  redirects: {
+    path: string | null;
+    rules: number;
+    duplicates: string[];
+    error?: string;
+  };
+  routes: {
+    path: string | null;
+    routes: number;
+    collections: number;
+    error?: string;
+  };
+  inventory: {
+    postsByStatus: Record<string, number>;
+    pagesByStatus: Record<string, number>;
+    futurePosts: number;
+    staleDrafts: number;
+    missingTaxonomyFiles: number;
+  };
+  search: {
+    query: string;
+    status: string;
+    fields: string[];
+    bodySearch: 'deferred';
+    resultCount: number;
+  };
+  collaboration: {
+    editorCommand: string;
+    lockPolicy: string;
+    presencePolicy: string;
+    safety: string;
+  };
+  membersPolicy: {
+    adminScope: 'out-of-scope';
+    subscribeProvider: string;
+    portalProvider: string;
+    note: string;
+  };
 }
 
 export interface DashboardSyncEvent {
@@ -143,9 +231,12 @@ export interface DashboardState {
       pages: string;
       authors: string;
       tags: string;
+      assets: string;
     };
     outputDir: string;
     theme: string;
+    cards: DashboardSettingsCard[];
+    operations: DashboardOperations;
   };
   sync: DashboardSyncSnapshot;
   build: {
@@ -156,8 +247,6 @@ export interface DashboardState {
     warnings: string[];
   };
   git: DashboardGitStatus;
-  workbench: DashboardWorkbench;
-  preview: DashboardPreviewContract;
   generatedAt: string;
 }
 
@@ -167,81 +256,7 @@ export interface DashboardContentItem {
   path: string;
   fingerprint: ContentSourceFingerprint;
   frontmatter: Record<string, unknown>;
-  frontmatterSections: DashboardFrontmatterSection[];
-  frontmatterFields: DashboardFrontmatterField[];
-  preview: DashboardEditorPreview;
-  seoPreview: DashboardSeoPreview;
-  socialPreview: DashboardSocialPreview;
-  reviewChecklist: DashboardReviewCheck[];
-  outOfScopeFrontmatter: string[];
-  editorMetrics: {
-    words: number;
-    readingTime: number;
-    tkMarkers: number;
-  };
   body: string;
-}
-
-interface DashboardWorkbench {
-  customViews: { id: string; label: string; filter: string }[];
-  bulkActions: { id: string; label: string; scope: string }[];
-  contentTemplates: {
-    id: string;
-    label: string;
-    kind: EditableKind;
-    frontmatter: Record<string, unknown>;
-    body: string;
-  }[];
-}
-
-interface DashboardPreviewContract {
-  activeTheme: string;
-  source: 'saved-file';
-  contract: string;
-  buildArtifactRoot: string;
-  devices: { id: string; label: string; width: number }[];
-}
-
-interface DashboardFrontmatterSection {
-  id: string;
-  label: string;
-}
-
-interface DashboardFrontmatterField {
-  key: string;
-  label: string;
-  section: string;
-  input: 'text' | 'textarea' | 'select' | 'checkbox' | 'list';
-  value: unknown;
-  options?: string[];
-}
-
-interface DashboardEditorPreview {
-  source: 'saved-file';
-  theme: string;
-  routeUrl: string;
-  buildArtifactPath: string;
-  unsavedMarkdown: 'editor-only';
-  note: string;
-}
-
-interface DashboardSeoPreview {
-  title: string;
-  description: string;
-  canonicalUrl: string;
-}
-
-interface DashboardSocialPreview {
-  title: string;
-  description: string;
-  image: string;
-}
-
-interface DashboardReviewCheck {
-  id: string;
-  label: string;
-  ok: boolean;
-  detail: string;
 }
 
 export type DashboardWriteResult =
@@ -310,6 +325,16 @@ export interface DashboardRequestContext {
   security?: DashboardSecurityContext;
   maxBodyBytes?: number;
 }
+
+export type DashboardTaxonomyFileResult =
+  | {
+      ok: true;
+      kind: 'authors' | 'tags';
+      slug: string;
+      path: string;
+      fingerprint: ContentSourceFingerprint;
+    }
+  | { ok: false; reason: 'not-found' | 'already-exists' | 'invalid-kind' | 'forbidden' };
 
 export async function runDashboard(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -439,6 +464,17 @@ export async function loadDashboardState({
   const loadFinishedAt = new Date().toISOString();
   const syncSnapshot = sync ?? defaultSyncSnapshot({ loadStartedAt, loadFinishedAt });
   const git = await readGitStatus(cwd);
+  const settingsFingerprint = await optionalFingerprintFor(cwd, resolveConfigPath(cwd, configPath));
+  const operations = await buildDashboardOperations({
+    cwd,
+    configPath,
+    config,
+    graph,
+    posts,
+    pages,
+    query: query.search?.trim().toLowerCase() ?? '',
+    status: query.status ?? '',
+  });
 
   return {
     site: {
@@ -467,15 +503,18 @@ export async function loadDashboardState({
     ),
     settings: {
       configPath: relativePath(cwd, resolveConfigPath(cwd, configPath)),
-      fingerprint: await optionalFingerprintFor(cwd, resolveConfigPath(cwd, configPath)),
+      fingerprint: settingsFingerprint,
       contentDirs: {
         posts: config.content.posts_dir,
         pages: config.content.pages_dir,
         authors: config.content.authors_dir,
         tags: config.content.tags_dir,
+        assets: config.content.assets_dir,
       },
       outputDir: config.build.output_dir,
       theme: config.theme.name,
+      cards: await buildSettingsCards({ cwd, configPath, config, graph, operations }),
+      operations,
     },
     sync: {
       ...syncSnapshot,
@@ -491,8 +530,6 @@ export async function loadDashboardState({
       warnings: [],
     },
     git,
-    workbench: dashboardWorkbench(),
-    preview: dashboardPreviewContract(config),
     generatedAt: loadFinishedAt,
   };
 }
@@ -515,78 +552,12 @@ export async function readDashboardContentItem({
   }
   const raw = await readFile(filePath, 'utf8');
   const parsed = parseFrontmatter(raw, { filePath });
-  const graph = await loadContent({
-    cwd,
-    config,
-    includeDrafts: true,
-    includeFuturePosts: true,
-  });
-  const loaded = findLoadedEditable(graph, kind, slug);
-  const routeUrl = toAbsoluteRouteUrl(config, loaded?.url ?? fallbackRouteUrl(config, kind, slug));
-  const rendered = await renderMarkdown(parsed.body, { locale: graph.site.locale });
-  const normalizedTitle =
-    asString(parsed.data.title) ?? asString(parsed.data.name) ?? loadedTitle(loaded) ?? slug;
-  const description =
-    asString(parsed.data.meta_description) ??
-    asString(parsed.data.og_description) ??
-    asString(parsed.data.twitter_description) ??
-    asString(parsed.data.custom_excerpt) ??
-    asString(parsed.data.excerpt) ??
-    loadedExcerpt(loaded) ??
-    plainTextSnippet(rendered.plaintext);
-  const featureImage =
-    asString(parsed.data.og_image) ??
-    asString(parsed.data.twitter_image) ??
-    asString(parsed.data.feature_image) ??
-    loadedFeatureImage(loaded) ??
-    '';
-  const tkMarkers = countTkMarkers(parsed.body);
   return {
     kind,
     slug,
     path: relativePath(cwd, filePath),
     fingerprint: await fingerprintFor(cwd, filePath),
     frontmatter: parsed.data,
-    frontmatterSections: frontmatterSectionsFor(kind),
-    frontmatterFields: frontmatterFieldsFor(kind, parsed.data),
-    preview: {
-      source: 'saved-file',
-      theme: config.theme.name,
-      routeUrl,
-      buildArtifactPath: buildArtifactPath(cwd, config, routeUrl),
-      unsavedMarkdown: 'editor-only',
-      note: 'Theme preview opens the latest saved Markdown file; split preview renders the unsaved editor draft only.',
-    },
-    seoPreview: {
-      title: asString(parsed.data.meta_title) ?? normalizedTitle,
-      description,
-      canonicalUrl: asString(parsed.data.canonical_url) ?? routeUrl,
-    },
-    socialPreview: {
-      title:
-        asString(parsed.data.og_title) ??
-        asString(parsed.data.twitter_title) ??
-        asString(parsed.data.meta_title) ??
-        normalizedTitle,
-      description,
-      image: featureImage,
-    },
-    reviewChecklist: reviewChecklistFor({
-      body: parsed.body,
-      frontmatter: parsed.data,
-      title: normalizedTitle,
-      description,
-      featureImage,
-      tkMarkers,
-    }),
-    outOfScopeFrontmatter: Object.keys(parsed.data).filter((key) =>
-      NEWSLETTER_FRONTMATTER_KEYS.has(key),
-    ),
-    editorMetrics: {
-      words: rendered.word_count,
-      readingTime: rendered.reading_time,
-      tkMarkers,
-    },
     body: parsed.body,
   };
 }
@@ -626,11 +597,8 @@ export async function writeDashboardContentItem({
       },
     };
   }
-  const yamlText = yaml
-    .dump(frontmatter, { lineWidth: -1, noRefs: true, sortKeys: false })
-    .trimEnd();
   const normalizedBody = body.endsWith('\n') ? body : `${body}\n`;
-  await writeFile(filePath, `---\n${yamlText}\n---\n\n${normalizedBody}`, 'utf8');
+  await writeFile(filePath, serializeContentSource(frontmatter, normalizedBody), 'utf8');
   return {
     ok: true,
     fingerprint: await fingerprintFor(cwd, filePath),
@@ -712,7 +680,7 @@ export async function handleDashboardRequest(
           perPage: numberParam(url, 'per_page'),
           kind,
           status: stringParam(url, 'status'),
-          search: stringParam(url, 'search'),
+          search: stringParam(url, 'search') ?? stringParam(url, 'q'),
           sort,
           sync: ctx.changeBus.snapshot(ctx.watch),
           requestOrigin: `${url.protocol}//${url.host}`,
@@ -768,6 +736,31 @@ export async function handleDashboardRequest(
       return jsonResponse(
         await readDashboardSettings({ cwd: ctx.cwd, configPath: ctx.configPath }),
       );
+    }
+    const taxonomyMaterializeMatch = url.pathname.match(
+      /^\/api\/taxonomy\/(authors|tags)\/([^/]+)\/file$/,
+    );
+    if (request.method === 'POST' && taxonomyMaterializeMatch) {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const kind = taxonomyMaterializeMatch[1] as 'authors' | 'tags';
+      const slug = decodeURIComponent(taxonomyMaterializeMatch[2] ?? '');
+      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid taxonomy slug' }, 400);
+      const result = await createDashboardTaxonomyFile({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        kind,
+        slug,
+      });
+      if (!result.ok && result.reason === 'already-exists') return jsonResponse(result, 409);
+      if (!result.ok && result.reason === 'forbidden') return jsonResponse(result, 403);
+      if (!result.ok) return jsonResponse(result, 404);
+      ctx.changeBus.broadcast({
+        reason: 'taxonomy-file-create',
+        kind,
+        changedPath: result.path,
+      });
+      return jsonResponse(result, 201);
     }
     if (request.method === 'POST' && url.pathname === '/api/content') {
       const blocked = validateWriteRequest(request, ctx.security);
@@ -826,20 +819,14 @@ export async function handleDashboardRequest(
   }
 }
 
-export async function createDashboardContentItem({
+async function createDashboardContentItem({
   cwd,
   config,
   payload,
 }: {
   cwd: string;
   config: NectarConfig;
-  payload: {
-    kind?: EditableKind;
-    title?: string;
-    slug?: string;
-    cloneFrom?: { kind?: EditableKind; slug?: string };
-    template?: 'blank' | 'post' | 'page';
-  };
+  payload: { kind?: EditableKind; title?: string; slug?: string };
 }): Promise<{ ok: true; kind: EditableKind; slug: string; path: string }> {
   const kind = parseEditableKind(payload.kind ?? '');
   if (kind === undefined) throw new Error('invalid kind');
@@ -855,346 +842,62 @@ export async function createDashboardContentItem({
   if (existsSync(filePath)) throw new Error(`content already exists: ${slug}`);
   await mkdir(dir, { recursive: true });
   const now = new Date().toISOString();
-  const cloned = await cloneSourceContent({ cwd, config, cloneFrom: payload.cloneFrom });
   const frontmatter =
-    cloned?.frontmatter ??
-    (kind === 'authors'
+    kind === 'authors'
       ? { slug, name: title }
       : kind === 'tags'
         ? { slug, name: title }
-        : { title, slug, date: now, created_at: now, updated_at: now, status: 'draft' });
-  if (kind === 'authors' || kind === 'tags') {
-    frontmatter.slug = slug;
-    frontmatter.name = title;
-  } else {
-    frontmatter.title = title;
-    frontmatter.slug = slug;
-    frontmatter.updated_at = now;
-    frontmatter.status ??= 'draft';
-  }
-  const yamlText = yaml
-    .dump(frontmatter, { lineWidth: -1, noRefs: true, sortKeys: false })
-    .trimEnd();
-  await writeFile(filePath, `---\n${yamlText}\n---\n\n${cloned?.body ?? ''}`, 'utf8');
+        : { title, slug, date: now, created_at: now, updated_at: now, status: 'draft' };
+  await writeFile(filePath, serializeContentSource(frontmatter, '\n'), 'utf8');
   return { ok: true, kind, slug, path: relativePath(cwd, filePath) };
 }
 
-async function cloneSourceContent({
+export async function createDashboardTaxonomyFile({
   cwd,
-  config,
-  cloneFrom,
+  configPath,
+  kind,
+  slug,
 }: {
   cwd: string;
-  config: NectarConfig;
-  cloneFrom?: { kind?: EditableKind; slug?: string };
-}): Promise<{ frontmatter: Record<string, unknown>; body: string } | undefined> {
-  const cloneKind = parseEditableKind(cloneFrom?.kind ?? '');
-  const cloneSlug = cloneFrom?.slug ?? '';
-  if (cloneKind === undefined || !SLUG_RE.test(cloneSlug)) return undefined;
-  const source = await readDashboardContentItem({ cwd, config, kind: cloneKind, slug: cloneSlug });
-  return { frontmatter: { ...source.frontmatter }, body: source.body };
-}
-
-function dashboardWorkbench(): DashboardWorkbench {
-  return {
-    customViews: [
-      { id: 'all', label: 'All', filter: 'all content files' },
-      { id: 'drafts', label: 'Drafts', filter: 'status:draft' },
-      { id: 'scheduled', label: 'Scheduled', filter: 'status:scheduled' },
-      { id: 'needs-review', label: 'Needs review', filter: 'missing excerpt, image alt, or TK' },
-      { id: 'members', label: 'Members', filter: 'visibility:members|paid|tiers|filter' },
-    ],
-    bulkActions: [
-      { id: 'set-draft', label: 'Set draft', scope: 'posts/pages' },
-      { id: 'set-published', label: 'Set published', scope: 'posts/pages' },
-      { id: 'duplicate', label: 'Duplicate', scope: 'single saved file' },
-      { id: 'trash-note', label: 'Trash planned', scope: 'design placeholder; no file delete yet' },
-    ],
-    contentTemplates: [
-      {
-        id: 'post',
-        label: 'Post draft',
-        kind: 'posts',
-        frontmatter: { status: 'draft', visibility: 'public' },
-        body: '',
-      },
-      {
-        id: 'page',
-        label: 'Page draft',
-        kind: 'pages',
-        frontmatter: { status: 'draft' },
-        body: '',
-      },
-    ],
-  };
-}
-
-function dashboardPreviewContract(config: NectarConfig): DashboardPreviewContract {
-  return {
-    activeTheme: config.theme.name,
-    source: 'saved-file',
-    contract:
-      'Theme preview opens the latest saved Markdown file; unsaved editor text only appears in split preview.',
-    buildArtifactRoot: config.build.output_dir,
-    devices: [
-      { id: 'mobile', label: 'Mobile', width: 390 },
-      { id: 'tablet', label: 'Tablet', width: 768 },
-      { id: 'desktop', label: 'Desktop', width: 1180 },
-    ],
-  };
-}
-
-function findLoadedEditable(
-  graph: ContentGraph,
-  kind: EditableKind,
-  slug: string,
-): Post | Page | Author | Tag | undefined {
-  return kind === 'posts'
-    ? graph.bySlug.posts.get(slug)
-    : kind === 'pages'
-      ? graph.bySlug.pages.get(slug)
-      : kind === 'authors'
-        ? graph.bySlug.authors.get(slug)
-        : graph.bySlug.tags.get(slug);
-}
-
-function loadedTitle(item: Post | Page | Author | Tag | undefined): string | undefined {
-  if (!item) return undefined;
-  return 'title' in item ? item.title : item.name;
-}
-
-function loadedExcerpt(item: Post | Page | Author | Tag | undefined): string | undefined {
-  if (!item) return undefined;
-  if ('custom_excerpt' in item) return item.custom_excerpt ?? item.excerpt;
-  if ('description' in item) return item.description;
-  return 'bio' in item ? item.bio : undefined;
-}
-
-function loadedFeatureImage(item: Post | Page | Author | Tag | undefined): string | undefined {
-  if (!item) return undefined;
-  if ('feature_image' in item) return item.feature_image;
-  return 'profile_image' in item ? item.profile_image : undefined;
-}
-
-function fallbackRouteUrl(config: NectarConfig, kind: EditableKind, slug: string): string {
-  const site = config.site.url.replace(/\/$/, '');
-  if (kind === 'pages') return `${site}/${slug}/`;
-  if (kind === 'authors') return `${site}/author/${slug}/`;
-  if (kind === 'tags') return `${site}/tag/${slug}/`;
-  return `${site}/${slug}/`;
-}
-
-function buildArtifactPath(cwd: string, config: NectarConfig, routeUrl: string): string {
-  const route = new URL(toAbsoluteRouteUrl(config, routeUrl)).pathname
-    .replace(/^\/+/, '')
-    .replace(/\/$/, '');
-  const segments = route ? route.split('/') : [];
-  return relativePath(
+  configPath?: string;
+  kind: 'authors' | 'tags';
+  slug: string;
+}): Promise<DashboardTaxonomyFileResult> {
+  const config = await loadConfig({ cwd, configPath });
+  const graph = await loadContent({
     cwd,
-    join(absolutise(cwd, config.build.output_dir), ...segments, 'index.html'),
-  );
-}
-
-function toAbsoluteRouteUrl(config: NectarConfig, routeUrl: string): string {
-  if (/^https?:\/\//i.test(routeUrl)) return routeUrl;
-  return `${config.site.url.replace(/\/$/, '')}/${routeUrl.replace(/^\/+/, '')}`;
-}
-
-function frontmatterSectionsFor(kind: EditableKind): DashboardFrontmatterSection[] {
-  if (kind === 'authors' || kind === 'tags') {
-    return [
-      { id: 'identity', label: 'Identity' },
-      { id: 'media', label: 'Media' },
-      { id: 'seo-social', label: 'SEO / Social' },
-    ];
+    config,
+    includeDrafts: true,
+    includeFuturePosts: true,
+  });
+  const item =
+    kind === 'authors'
+      ? graph.authors.find((author) => author.slug === slug)
+      : graph.tags.find((tag) => tag.slug === slug);
+  if (item === undefined) return { ok: false, reason: 'not-found' };
+  if (!(await isEditableRootInsideProject(cwd, config, kind))) {
+    return { ok: false, reason: 'forbidden' };
   }
-  return [
-    { id: 'identity', label: 'Identity' },
-    { id: 'publishing', label: 'Publishing' },
-    { id: 'media', label: 'Media' },
-    { id: 'seo-social', label: 'SEO / Social' },
-    { id: 'access', label: 'Access' },
-  ];
-}
-
-function frontmatterFieldsFor(
-  kind: EditableKind,
-  frontmatter: Record<string, unknown>,
-): DashboardFrontmatterField[] {
-  const fields: DashboardFrontmatterField[] = [
-    field('slug', 'Slug', 'identity', 'text', frontmatter.slug),
-  ];
-  if (kind === 'authors' || kind === 'tags') {
-    fields.unshift(field('name', 'Name', 'identity', 'text', frontmatter.name));
-    fields.push(
-      field('description', 'Description', 'identity', 'textarea', frontmatter.description),
-    );
-    fields.push(field('feature_image', 'Image', 'media', 'text', frontmatter.feature_image));
-    fields.push(field('meta_title', 'SEO title', 'seo-social', 'text', frontmatter.meta_title));
-    fields.push(
-      field(
-        'meta_description',
-        'SEO description',
-        'seo-social',
-        'textarea',
-        frontmatter.meta_description,
-      ),
-    );
-    return fields.filter((item) => !NEWSLETTER_FRONTMATTER_KEYS.has(item.key));
-  }
-  fields.unshift(field('title', 'Title', 'identity', 'text', frontmatter.title));
-  fields.push(
-    field('status', 'Status', 'publishing', 'select', frontmatter.status ?? 'published', [
-      'published',
-      'draft',
-      'scheduled',
-    ]),
-  );
-  fields.push(
-    field(
-      'published_at',
-      'Published',
-      'publishing',
-      'text',
-      frontmatter.published_at ?? frontmatter.date,
-    ),
-  );
-  fields.push(field('tags', 'Tags', 'identity', 'list', frontmatter.tags));
-  fields.push(
-    field('authors', 'Authors', 'identity', 'list', frontmatter.authors ?? frontmatter.author),
-  );
-  fields.push(field('feature_image', 'Feature image', 'media', 'text', frontmatter.feature_image));
-  fields.push(
-    field('feature_image_alt', 'Image alt', 'media', 'text', frontmatter.feature_image_alt),
-  );
-  fields.push(
-    field(
-      'custom_excerpt',
-      'Excerpt',
-      'seo-social',
-      'textarea',
-      frontmatter.custom_excerpt ?? frontmatter.excerpt,
-    ),
-  );
-  fields.push(field('meta_title', 'SEO title', 'seo-social', 'text', frontmatter.meta_title));
-  fields.push(
-    field(
-      'meta_description',
-      'SEO description',
-      'seo-social',
-      'textarea',
-      frontmatter.meta_description,
-    ),
-  );
-  fields.push(field('og_title', 'Social title', 'seo-social', 'text', frontmatter.og_title));
-  fields.push(
-    field(
-      'og_description',
-      'Social description',
-      'seo-social',
-      'textarea',
-      frontmatter.og_description,
-    ),
-  );
-  fields.push(field('og_image', 'Social image', 'seo-social', 'text', frontmatter.og_image));
-  fields.push(
-    field('visibility', 'Visibility', 'access', 'select', frontmatter.visibility ?? 'public', [
-      'public',
-      'members',
-      'paid',
-      'tiers',
-      'filter',
-    ]),
-  );
-  fields.push(field('tiers', 'Tiers', 'access', 'list', frontmatter.tiers));
-  return fields.filter((item) => !NEWSLETTER_FRONTMATTER_KEYS.has(item.key));
-}
-
-function field(
-  key: string,
-  label: string,
-  section: string,
-  input: DashboardFrontmatterField['input'],
-  value: unknown,
-  options?: string[],
-): DashboardFrontmatterField {
-  return { key, label, section, input, value, ...(options ? { options } : {}) };
-}
-
-function reviewChecklistFor({
-  body,
-  frontmatter,
-  title,
-  description,
-  featureImage,
-  tkMarkers,
-}: {
-  body: string;
-  frontmatter: Record<string, unknown>;
-  title: string;
-  description: string;
-  featureImage: string;
-  tkMarkers: number;
-}): DashboardReviewCheck[] {
-  return [
-    {
-      id: 'title',
-      label: 'Title',
-      ok: title.trim().length > 0,
-      detail: title.trim().length > 0 ? 'Set' : 'Missing title',
-    },
-    {
-      id: 'excerpt',
-      label: 'Excerpt',
-      ok: description.trim().length >= 40,
-      detail: description.trim().length >= 40 ? 'Ready' : 'Add a short summary',
-    },
-    {
-      id: 'feature-image-alt',
-      label: 'Image alt',
-      ok: !featureImage || Boolean(asString(frontmatter.feature_image_alt)),
-      detail:
-        !featureImage || Boolean(asString(frontmatter.feature_image_alt))
-          ? 'Ready'
-          : 'Add alt text',
-    },
-    {
-      id: 'tk-markers',
-      label: 'TK markers',
-      ok: tkMarkers === 0,
-      detail: tkMarkers === 0 ? 'None' : `${tkMarkers} marker(s)`,
-    },
-    {
-      id: 'body',
-      label: 'Body',
-      ok: body.trim().length > 0,
-      detail: body.trim().length > 0 ? 'Draft has body text' : 'Empty body',
-    },
-  ];
-}
-
-function postNeedsReview({
-  title,
-  excerpt,
-  featureImage,
-  body,
-}: {
-  title: string;
-  excerpt: string;
-  featureImage: string;
-  body: string;
-}): boolean {
-  return (
-    !title || excerpt.length < 40 || (featureImage.length > 0 && !body) || countTkMarkers(body) > 0
-  );
-}
-
-function plainTextSnippet(value: string): string {
-  return value.replace(/\s+/g, ' ').trim().slice(0, 180);
-}
-
-function countTkMarkers(value: string): number {
-  return (value.match(/\bTK\b/gi) ?? []).length;
+  const filePath = join(editableDir(cwd, config, kind), `${slug}.md`);
+  if (existsSync(filePath)) return { ok: false, reason: 'already-exists' };
+  await mkdir(dirname(filePath), { recursive: true });
+  const frontmatter =
+    kind === 'authors'
+      ? { slug, name: item.name, bio: 'bio' in item ? item.bio : '' }
+      : {
+          slug,
+          name: item.name,
+          description: 'description' in item ? item.description : '',
+          visibility: 'visibility' in item ? item.visibility : 'public',
+        };
+  await writeFile(filePath, serializeContentSource(frontmatter, '\n'), 'utf8');
+  return {
+    ok: true,
+    kind,
+    slug,
+    path: relativePath(cwd, filePath),
+    fingerprint: await fingerprintFor(cwd, filePath),
+  };
 }
 
 function postSummary(
@@ -1211,22 +914,11 @@ function postSummary(
     publishedAt: post.published_at,
     path: contentPath(config.content.posts_dir, graph.sources?.posts.get(post.id)),
     url: post.url,
-    routePreview: toAbsoluteRouteUrl(config, post.url),
-    excerpt: post.custom_excerpt ?? post.excerpt,
-    featureImage: post.feature_image ?? '',
-    visibility: post.visibility,
     authors: post.authors.map((author) => author.name),
+    authorSlugs: post.authors.map((author) => author.slug),
     tags: post.tags.map((tag) => tag.name),
+    tagSlugs: post.tags.map((tag) => tag.slug),
     words: post.word_count,
-    readingTime: post.reading_time,
-    reviewState: postNeedsReview({
-      title: post.title,
-      excerpt: post.custom_excerpt ?? post.excerpt,
-      featureImage: post.feature_image ?? '',
-      body: post.html,
-    })
-      ? 'needs-review'
-      : 'ready',
   };
 }
 
@@ -1244,22 +936,11 @@ function pageSummary(
     publishedAt: page.published_at,
     path: contentPath(config.content.pages_dir, graph.sources?.pages.get(page.id)),
     url: page.url,
-    routePreview: toAbsoluteRouteUrl(config, page.url),
-    excerpt: page.custom_excerpt ?? page.excerpt,
-    featureImage: page.feature_image ?? '',
-    visibility: page.visibility,
     authors: page.authors.map((author) => author.name),
+    authorSlugs: page.authors.map((author) => author.slug),
     tags: page.tags.map((tag) => tag.name),
+    tagSlugs: page.tags.map((tag) => tag.slug),
     words: page.word_count,
-    readingTime: page.reading_time,
-    reviewState: postNeedsReview({
-      title: page.title,
-      excerpt: page.custom_excerpt ?? page.excerpt,
-      featureImage: page.feature_image ?? '',
-      body: page.html,
-    })
-      ? 'needs-review'
-      : 'ready',
   };
 }
 
@@ -1275,6 +956,7 @@ function taxonomySummary(
   return {
     slug: item.slug,
     name: item.name,
+    description: 'bio' in item ? item.bio : item.description,
     count: item.count.posts,
     path: contentPath(
       kind === 'authors' ? config.content.authors_dir : config.content.tags_dir,
@@ -1285,6 +967,10 @@ function taxonomySummary(
     missing: !editable,
     generated: !editable,
     orphaned: editable && item.count.posts === 0,
+    source: editable ? 'file' : 'generated',
+    materializePath: `${
+      kind === 'authors' ? config.content.authors_dir : config.content.tags_dir
+    }/${item.slug}.md`,
   };
 }
 
@@ -1298,9 +984,16 @@ function applyContentQuery(
     if (query.kind !== undefined && query.kind !== itemKind) return false;
     if (query.status !== undefined && item.status !== query.status) return false;
     if (needle === undefined) return true;
-    return [item.slug, item.title, item.path, item.url, ...item.authors, ...item.tags].some(
-      (value) => value.toLowerCase().includes(needle),
-    );
+    return [
+      item.slug,
+      item.title,
+      item.path,
+      item.url,
+      ...item.authors,
+      ...item.authorSlugs,
+      ...item.tags,
+      ...item.tagSlugs,
+    ].some((value) => value.toLowerCase().includes(needle));
   });
   return sortContentSummaries(filtered, query.sort ?? 'created_desc');
 }
@@ -1335,6 +1028,705 @@ function paginate<T>(
     pages,
     query,
   };
+}
+
+function serializeContentSource(frontmatter: Record<string, unknown>, body: string): string {
+  const separatedBody = body.startsWith('\n') ? body : `\n${body}`;
+  return formatContentSource(`---\n${JSON.stringify(frontmatter)}\n---\n${separatedBody}`, {
+    filePath: 'dashboard.md',
+  });
+}
+
+function normalizeStatusFilter(value: string | undefined): string {
+  const normalized = (value ?? '').trim().toLowerCase();
+  return ['published', 'draft', 'scheduled'].includes(normalized) ? normalized : '';
+}
+
+function filterSummaries(
+  items: DashboardContentSummary[],
+  query: string,
+  status: string,
+): DashboardContentSummary[] {
+  return items.filter((item) => {
+    if (status && item.status !== status) return false;
+    if (!query) return true;
+    return summarySearchText(item).includes(query);
+  });
+}
+
+function summarySearchText(item: DashboardContentSummary): string {
+  return [
+    item.title,
+    item.slug,
+    item.path,
+    item.url,
+    item.status,
+    ...item.authors,
+    ...item.authorSlugs,
+    ...item.tags,
+    ...item.tagSlugs,
+  ]
+    .join('\n')
+    .toLowerCase();
+}
+
+async function buildSettingsCards({
+  cwd,
+  configPath,
+  config,
+  graph,
+  operations,
+}: {
+  cwd: string;
+  configPath?: string;
+  config: NectarConfig;
+  graph: ContentGraph;
+  operations: DashboardOperations;
+}): Promise<DashboardSettingsCard[]> {
+  const configSource = relativePath(cwd, resolveConfigPath(cwd, configPath));
+  const themeInfo = await readThemeInfo(cwd, config);
+  const missingDirs = operations.readiness.filter((item) => item.id.startsWith('dir:'));
+  const deployEnabled = enabledDeployTargets(config);
+  const pluginCount = config.plugins.length + (config.plugin_auto_detect ? 1 : 0);
+
+  return [
+    {
+      id: 'site',
+      section: 'Site',
+      title: 'Site identity',
+      summary: 'Core public metadata written to [site].',
+      source: configSource,
+      mode: 'editable',
+      status: 'ok',
+      values: [
+        { label: 'title', value: config.site.title },
+        { label: 'url', value: config.site.url },
+        { label: 'locale', value: config.site.locale },
+        { label: 'timezone', value: config.site.timezone },
+        { label: 'accent_color', value: config.site.accent_color },
+      ],
+    },
+    {
+      id: 'content-paths',
+      section: 'Content paths',
+      title: 'File-backed content directories',
+      summary: 'Posts, pages, authors, tags, and assets remain the source of truth.',
+      source: configSource,
+      mode: 'read-only',
+      status: missingDirs.length > 0 ? 'warn' : 'ok',
+      values: [
+        {
+          label: 'posts_dir',
+          value: config.content.posts_dir,
+          status: dirStatus(cwd, config.content.posts_dir),
+        },
+        {
+          label: 'pages_dir',
+          value: config.content.pages_dir,
+          status: dirStatus(cwd, config.content.pages_dir),
+        },
+        {
+          label: 'authors_dir',
+          value: config.content.authors_dir,
+          status: dirStatus(cwd, config.content.authors_dir),
+        },
+        {
+          label: 'tags_dir',
+          value: config.content.tags_dir,
+          status: dirStatus(cwd, config.content.tags_dir),
+        },
+        {
+          label: 'assets_dir',
+          value: config.content.assets_dir,
+          status: dirStatus(cwd, config.content.assets_dir),
+        },
+      ],
+    },
+    {
+      id: 'theme',
+      section: 'Theme',
+      title: 'Active theme and design surface',
+      summary: themeInfo.error ?? 'Theme metadata, template count, assets, and custom settings.',
+      source: `${config.theme.dir}/${config.theme.name}`,
+      mode: 'read-only',
+      status: themeInfo.error ? 'danger' : 'ok',
+      values: [
+        { label: 'name', value: config.theme.name },
+        { label: 'dir', value: config.theme.dir },
+        { label: 'package', value: themeInfo.packageName },
+        { label: 'templates', value: String(themeInfo.templates) },
+        { label: 'partials', value: String(themeInfo.partials) },
+        { label: 'assets', value: String(themeInfo.assets) },
+        { label: 'custom settings', value: String(themeInfo.customSettings) },
+      ],
+      command: 'nectar theme lint',
+    },
+    {
+      id: 'build-output',
+      section: 'Build',
+      title: 'Build output and URL shape',
+      summary: 'Read-only build settings that affect generated files and public URLs.',
+      source: configSource,
+      mode: 'read-only',
+      status: 'info',
+      values: [
+        { label: 'output_dir', value: config.build.output_dir },
+        { label: 'base_path', value: config.build.base_path },
+        { label: 'trailing_slash', value: config.build.trailing_slash },
+        { label: 'posts_per_page', value: String(config.build.posts_per_page) },
+        { label: 'copy_content_assets', value: String(config.build.copy_content_assets) },
+        { label: 'include_future_posts', value: String(config.build.include_future_posts) },
+      ],
+      command: 'nectar build --dry-run --verbose',
+    },
+    {
+      id: 'navigation',
+      section: 'Site structure',
+      title: 'Navigation',
+      summary: 'Primary and secondary navigation are config-backed arrays.',
+      source: configSource,
+      mode: 'read-only',
+      status: 'ok',
+      values: [
+        { label: 'primary items', value: String(config.navigation.length) },
+        { label: 'secondary items', value: String(config.secondary_navigation.length) },
+        {
+          label: 'edit policy',
+          value: 'fingerprint-gated config write; slug rename remains CLI-only',
+        },
+      ],
+    },
+    {
+      id: 'redirects',
+      section: 'Site structure',
+      title: 'Redirects manager',
+      summary:
+        operations.redirects.error ?? 'Canonical redirects.yaml inventory and validation state.',
+      source: operations.redirects.path ?? 'redirects.yaml',
+      mode: 'cli-action',
+      status: operations.redirects.error
+        ? 'danger'
+        : operations.redirects.duplicates.length > 0
+          ? 'warn'
+          : 'ok',
+      values: [
+        { label: 'rules', value: String(operations.redirects.rules) },
+        { label: 'duplicates', value: String(operations.redirects.duplicates.length) },
+        { label: 'component enabled', value: String(config.components.redirects.enabled) },
+      ],
+      command: 'nectar redirects validate',
+    },
+    {
+      id: 'routes',
+      section: 'Site structure',
+      title: 'Routes and collections',
+      summary: operations.routes.error ?? 'routes.yaml collections are read-only in the dashboard.',
+      source: operations.routes.path ?? 'routes.yaml',
+      mode: 'read-only',
+      status: operations.routes.error ? 'danger' : 'ok',
+      values: [
+        { label: 'routes', value: String(operations.routes.routes) },
+        { label: 'collections', value: String(operations.routes.collections) },
+      ],
+    },
+    {
+      id: 'content-health',
+      section: 'Operations',
+      title: 'Content health and readiness',
+      summary: 'Doctor, link checks, taxonomy coverage, and stale draft signals.',
+      source: 'CLI checks',
+      mode: 'cli-action',
+      status: operations.readiness.some((item) => item.status === 'danger')
+        ? 'danger'
+        : operations.readiness.some((item) => item.status === 'warn')
+          ? 'warn'
+          : 'ok',
+      values: [
+        { label: 'doctor checks', value: String(operations.doctor.length) },
+        { label: 'future posts', value: String(operations.inventory.futurePosts) },
+        { label: 'stale drafts', value: String(operations.inventory.staleDrafts) },
+        {
+          label: 'missing taxonomy files',
+          value: String(operations.inventory.missingTaxonomyFiles),
+        },
+      ],
+      command: 'nectar check --frontmatter --check-links',
+    },
+    {
+      id: 'feeds-search-images',
+      section: 'Operations',
+      title: 'Generated surfaces',
+      summary: 'RSS, sitemap, site search, image processing, and cache status.',
+      source: configSource,
+      mode: 'read-only',
+      status: 'info',
+      values: [
+        { label: 'rss', value: String(config.components.rss.enabled) },
+        { label: 'sitemap', value: String(config.components.sitemap.enabled) },
+        { label: 'search engine', value: config.components.search.engine },
+        { label: 'images enabled', value: String(config.components.images.enabled) },
+        { label: 'cache files', value: String(operations.cache.files) },
+      ],
+    },
+    {
+      id: 'deploy',
+      section: 'Operations',
+      title: 'Deploy readiness',
+      summary: 'Provider configuration is visible, but deploy execution stays CLI-only.',
+      source: configSource,
+      mode: 'dangerous-cli-only',
+      status: deployEnabled.length > 0 ? 'ok' : 'info',
+      values: [
+        { label: 'enabled providers', value: deployEnabled.join(', ') || 'none' },
+        { label: 'merge artifacts', value: String(config.deploy.merge) },
+        { label: 'output', value: config.build.output_dir },
+      ],
+      command: 'nectar deploy <target> --dry-run',
+    },
+    {
+      id: 'advanced-security',
+      section: 'Advanced',
+      title: 'Advanced and code injection',
+      summary: 'Dangerous or experimental settings are grouped instead of scattered.',
+      source: configSource,
+      mode: 'read-only',
+      status: config.build.allow_code_injection ? 'warn' : 'ok',
+      values: [
+        { label: 'allow_code_injection', value: String(config.build.allow_code_injection) },
+        { label: 'csp_nonce', value: config.build.csp_nonce ? 'configured' : 'not set' },
+        { label: 'plugin_auto_detect', value: String(config.plugin_auto_detect) },
+        { label: 'plugins', value: String(pluginCount) },
+      ],
+    },
+    {
+      id: 'import-export-diagnostics',
+      section: 'Advanced',
+      title: 'Import, export, diagnostics',
+      summary: 'Potentially destructive workflows are discoverable as CLI examples only.',
+      source: 'CLI assets',
+      mode: 'dangerous-cli-only',
+      status: 'info',
+      values: [
+        { label: 'import', value: 'import-ghost / import-wordpress' },
+        { label: 'export', value: 'export' },
+        { label: 'diagnostics', value: 'redacted bundle via CLI' },
+      ],
+      command: 'nectar diagnostics bundle --dry-run',
+    },
+    {
+      id: 'members-policy',
+      section: 'Advanced',
+      title: 'Members and newsletter scope',
+      summary: operations.membersPolicy.note,
+      source: configSource,
+      mode: 'scope-note',
+      status: 'info',
+      values: [
+        { label: 'admin scope', value: operations.membersPolicy.adminScope },
+        { label: 'subscribe provider', value: operations.membersPolicy.subscribeProvider },
+        { label: 'portal provider', value: operations.membersPolicy.portalProvider },
+        { label: 'tiers', value: String(config.tiers.length) },
+      ],
+    },
+    {
+      id: 'collaboration',
+      section: 'Advanced',
+      title: 'External editor and conflict policy',
+      summary: operations.collaboration.safety,
+      source: 'local filesystem',
+      mode: 'cli-action',
+      status: 'ok',
+      values: [
+        { label: 'editor command', value: operations.collaboration.editorCommand },
+        { label: 'lock policy', value: operations.collaboration.lockPolicy },
+        { label: 'presence', value: operations.collaboration.presencePolicy },
+      ],
+      command: 'nectar open <slug> --kind posts',
+    },
+  ];
+}
+
+async function buildDashboardOperations({
+  cwd,
+  configPath,
+  config,
+  graph,
+  posts,
+  pages,
+  query,
+  status,
+}: {
+  cwd: string;
+  configPath?: string;
+  config: NectarConfig;
+  graph: ContentGraph;
+  posts: DashboardContentSummary[];
+  pages: DashboardContentSummary[];
+  query: string;
+  status: string;
+}): Promise<DashboardOperations> {
+  const [doctor, cache, redirects, routes] = await Promise.all([
+    runChecks({ cwd, configPath, skipNetwork: true }),
+    readCacheStats(resolve(cwd, '.nectar-cache')),
+    readRedirectInventory(cwd),
+    readRoutesInventory(cwd),
+  ]);
+  const inventory = contentInventory(graph);
+  return {
+    readiness: readinessItems({ cwd, config, graph, doctor, inventory, redirects, routes }),
+    doctor,
+    cliAssets: cliAssetLedger(),
+    cache,
+    redirects,
+    routes,
+    inventory,
+    search: {
+      query,
+      status,
+      fields: ['title', 'slug', 'path', 'tags', 'authors', 'status'],
+      bodySearch: 'deferred',
+      resultCount: posts.length + pages.length,
+    },
+    collaboration: {
+      editorCommand: 'nectar open <slug> --kind posts',
+      lockPolicy: 'No filesystem lock; saves remain fingerprint-gated.',
+      presencePolicy: 'SSE file-change events mark open editors stale before save.',
+      safety:
+        'The dashboard never launches local apps from the browser; it exposes paths and CLI commands.',
+    },
+    membersPolicy: {
+      adminScope: 'out-of-scope',
+      subscribeProvider: config.components.subscribe.provider,
+      portalProvider: config.components.portal.provider,
+      note: 'Ghost-like Members, newsletters, and paid tiers are not Admin features; only static provider state is shown.',
+    },
+  };
+}
+
+function dirStatus(cwd: string, dir: string): DashboardCardStatus {
+  return existsSync(absolutise(cwd, dir)) ? 'ok' : 'warn';
+}
+
+async function readThemeInfo(
+  cwd: string,
+  config: NectarConfig,
+): Promise<{
+  packageName: string;
+  templates: number;
+  partials: number;
+  assets: number;
+  customSettings: number;
+  error?: string;
+}> {
+  try {
+    const theme = await loadTheme({ cwd, config });
+    return {
+      packageName: theme.pkg.name,
+      templates: Object.keys(theme.templates).length,
+      partials: Object.keys(theme.partials).length,
+      assets: theme.assets.size,
+      customSettings: Object.keys(theme.pkg.custom).length,
+    };
+  } catch (err) {
+    return {
+      packageName: config.theme.name,
+      templates: 0,
+      partials: 0,
+      assets: 0,
+      customSettings: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function enabledDeployTargets(config: NectarConfig): string[] {
+  const out: string[] = [];
+  if (config.deploy.cloudflare_pages.enabled) out.push('cloudflare-pages');
+  if (config.deploy.cloudflare_workers.enabled) out.push('cloudflare-workers');
+  if (config.deploy.netlify.enabled) out.push('netlify');
+  if (config.deploy.vercel.enabled) out.push('vercel');
+  if (config.deploy.firebase.enabled) out.push('firebase');
+  if (config.deploy.apache.enabled) out.push('apache');
+  if (config.deploy.nginx.enabled) out.push('nginx');
+  if (config.deploy.caddy.enabled) out.push('caddy');
+  if (config.deploy.github_pages.redirects || config.deploy.github_pages.custom_domain) {
+    out.push('github-pages');
+  }
+  if (config.deploy.s3.bucket) out.push('s3');
+  if (config.deploy.r2.bucket) out.push('r2');
+  if (config.deploy.rsync.destination) out.push('rsync');
+  return out;
+}
+
+async function readCacheStats(path: string): Promise<DashboardOperations['cache']> {
+  if (!existsSync(path)) return { path, exists: false, files: 0, bytes: 0 };
+  const scanned = await scanFiles(path);
+  return { path, exists: true, files: scanned.files, bytes: scanned.bytes };
+}
+
+async function scanFiles(path: string): Promise<{ files: number; bytes: number }> {
+  const info = await stat(path);
+  if (info.isFile()) return { files: 1, bytes: info.size };
+  if (!info.isDirectory()) return { files: 0, bytes: 0 };
+  let files = 0;
+  let bytes = 0;
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    const child = join(path, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await scanFiles(child);
+      files += nested.files;
+      bytes += nested.bytes;
+    } else if (entry.isFile()) {
+      const childStat = await stat(child);
+      files += 1;
+      bytes += childStat.size;
+    }
+  }
+  return { files, bytes };
+}
+
+async function readRedirectInventory(cwd: string): Promise<DashboardOperations['redirects']> {
+  const path = existingProjectFile(cwd, ['redirects.yaml', 'redirects.yml']);
+  try {
+    const rules = await loadRedirects(cwd);
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const rule of rules) {
+      if (seen.has(rule.from)) duplicates.add(rule.from);
+      seen.add(rule.from);
+    }
+    return { path, rules: rules.length, duplicates: [...duplicates].sort() };
+  } catch (err) {
+    return {
+      path,
+      rules: 0,
+      duplicates: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function readRoutesInventory(cwd: string): Promise<DashboardOperations['routes']> {
+  const path = existingProjectFile(cwd, ['routes.yaml', 'routes.yml']);
+  try {
+    const routes = await loadRoutesYaml(cwd);
+    return {
+      path,
+      routes: resolveRouteEntries(routes).length,
+      collections: resolveCollections(routes).length,
+    };
+  } catch (err) {
+    return {
+      path,
+      routes: 0,
+      collections: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function existingProjectFile(cwd: string, names: readonly string[]): string | null {
+  for (const name of names) {
+    if (existsSync(join(cwd, name))) return name;
+  }
+  return null;
+}
+
+function contentInventory(graph: ContentGraph): DashboardOperations['inventory'] {
+  const postsByStatus = countByStatus(graph.posts);
+  const pagesByStatus = countByStatus(graph.pages);
+  const now = Date.now();
+  const futurePosts = graph.posts.filter((post) => Date.parse(post.published_at) > now).length;
+  const staleDraftCutoff = now - 90 * 24 * 60 * 60 * 1000;
+  const staleDrafts = [...graph.posts, ...graph.pages].filter(
+    (item) => item.status === 'draft' && Date.parse(item.updated_at) < staleDraftCutoff,
+  ).length;
+  const missingTaxonomyFiles =
+    graph.tags.filter((tag) => !graph.sources?.tags.has(tag.id)).length +
+    graph.authors.filter((author) => !graph.sources?.authors.has(author.id)).length;
+  return { postsByStatus, pagesByStatus, futurePosts, staleDrafts, missingTaxonomyFiles };
+}
+
+function countByStatus(items: Array<{ status: string }>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of items) {
+    out[item.status] = (out[item.status] ?? 0) + 1;
+  }
+  return out;
+}
+
+function readinessItems({
+  cwd,
+  config,
+  graph,
+  doctor,
+  inventory,
+  redirects,
+  routes,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  graph: ContentGraph;
+  doctor: CheckResult[];
+  inventory: DashboardOperations['inventory'];
+  redirects: DashboardOperations['redirects'];
+  routes: DashboardOperations['routes'];
+}): DashboardReadinessItem[] {
+  const items: DashboardReadinessItem[] = [];
+  for (const [key, dir] of Object.entries({
+    posts: config.content.posts_dir,
+    pages: config.content.pages_dir,
+    authors: config.content.authors_dir,
+    tags: config.content.tags_dir,
+    assets: config.content.assets_dir,
+  })) {
+    const exists = existsSync(absolutise(cwd, dir));
+    items.push({
+      id: `dir:${key}`,
+      label: `${key} directory`,
+      status: exists ? 'ok' : 'warn',
+      detail: exists ? dir : `Missing ${dir}`,
+      command: exists ? undefined : `mkdir -p ${dir}`,
+    });
+  }
+  const failingDoctor = doctor.filter((item) => item.status === 'FAIL');
+  const warningDoctor = doctor.filter((item) => item.status === 'WARN');
+  items.push({
+    id: 'doctor',
+    label: 'Doctor checks',
+    status: failingDoctor.length > 0 ? 'danger' : warningDoctor.length > 0 ? 'warn' : 'ok',
+    detail: `${doctor.length} check(s), ${failingDoctor.length} failure(s), ${warningDoctor.length} warning(s)`,
+    command: 'nectar doctor --no-network',
+  });
+  items.push({
+    id: 'taxonomy-files',
+    label: 'Taxonomy file coverage',
+    status: inventory.missingTaxonomyFiles > 0 ? 'warn' : 'ok',
+    detail:
+      inventory.missingTaxonomyFiles > 0
+        ? `${inventory.missingTaxonomyFiles} generated author/tag record(s) need files`
+        : 'All displayed authors/tags have backing files',
+  });
+  items.push({
+    id: 'scheduled',
+    label: 'Scheduled/future content',
+    status: inventory.futurePosts > 0 && !config.build.include_future_posts ? 'info' : 'ok',
+    detail:
+      inventory.futurePosts > 0
+        ? `${inventory.futurePosts} future post(s); build.include_future_posts=${config.build.include_future_posts}`
+        : 'No future-dated posts loaded',
+  });
+  items.push({
+    id: 'stale-drafts',
+    label: 'Draft aging',
+    status: inventory.staleDrafts > 0 ? 'warn' : 'ok',
+    detail: `${inventory.staleDrafts} draft(s) older than 90 days`,
+  });
+  items.push({
+    id: 'redirects',
+    label: 'Redirect rules',
+    status: redirects.error ? 'danger' : redirects.duplicates.length > 0 ? 'warn' : 'ok',
+    detail:
+      redirects.error ??
+      `${redirects.rules} rule(s), ${redirects.duplicates.length} duplicate source(s)`,
+    command: 'nectar redirects validate',
+  });
+  items.push({
+    id: 'routes',
+    label: 'Routes and collections',
+    status: routes.error ? 'danger' : 'ok',
+    detail: routes.error ?? `${routes.routes} route(s), ${routes.collections} collection(s)`,
+  });
+  items.push({
+    id: 'feeds',
+    label: 'RSS and sitemap',
+    status: config.components.rss.enabled && config.components.sitemap.enabled ? 'ok' : 'info',
+    detail: `rss=${config.components.rss.enabled}, sitemap=${config.components.sitemap.enabled}`,
+  });
+  items.push({
+    id: 'search',
+    label: 'Site search index',
+    status: config.components.search.enabled ? 'ok' : 'info',
+    detail: `engine=${config.components.search.engine}; Admin search is separate metadata search`,
+  });
+  items.push({
+    id: 'link-checker',
+    label: 'Link checker',
+    status: 'info',
+    detail:
+      'Internal/frontmatter checks can be surfaced immediately; external probes stay explicit.',
+    command: 'nectar check --check-links',
+  });
+  items.push({
+    id: 'preview-output',
+    label: 'HTML output preview',
+    status: existsSync(join(cwd, config.build.output_dir)) ? 'ok' : 'warn',
+    detail: existsSync(join(cwd, config.build.output_dir))
+      ? `Build artifacts found in ${config.build.output_dir}`
+      : `Run nectar build before opening saved-output previews for ${graph.posts.length + graph.pages.length} content item(s)`,
+    command: 'nectar build',
+  });
+  return items;
+}
+
+function cliAssetLedger(): DashboardCliAsset[] {
+  return [
+    {
+      command: 'build',
+      adminSurface: 'Build readiness and saved-output preview',
+      exposure: 'read-only',
+      note: 'Show output_dir, base_path, recent artifacts, and dry-run command examples.',
+    },
+    {
+      command: 'check / doctor',
+      adminSurface: 'Content health',
+      exposure: 'read-only',
+      note: 'Use existing CLI checks as the authority; avoid reimplementing validators in UI.',
+    },
+    {
+      command: 'redirects',
+      adminSurface: 'Redirects manager',
+      exposure: 'safe-action',
+      note: 'Validate/list rules; editing remains fingerprint-gated YAML work.',
+    },
+    {
+      command: 'cache',
+      adminSurface: 'Cache manager',
+      exposure: 'safe-action',
+      note: 'Stats are read-only; clean requires confirmation and can remain CLI-only initially.',
+    },
+    {
+      command: 'deploy',
+      adminSurface: 'Deploy readiness',
+      exposure: 'dangerous-cli-only',
+      note: 'Never deploy from the browser in the first pass; expose --dry-run examples.',
+    },
+    {
+      command: 'import-ghost / import-wordpress / export',
+      adminSurface: 'Import/export',
+      exposure: 'dangerous-cli-only',
+      note: 'Discovery and command examples only; file picker/upload is a separate design.',
+    },
+    {
+      command: 'diagnostics',
+      adminSurface: 'Diagnostics bundle',
+      exposure: 'dangerous-cli-only',
+      note: 'Bundle creation needs redaction and destination confirmation.',
+    },
+    {
+      command: 'open',
+      adminSurface: 'External editor handoff',
+      exposure: 'safe-action',
+      note: 'Expose copyable commands/paths, not automatic local app launch from the browser.',
+    },
+    {
+      command: 'plugins / theme / schema',
+      adminSurface: 'Advanced settings',
+      exposure: 'read-only',
+      note: 'Schema and plugin state inform cards; installation and arbitrary code stay out of Admin.',
+    },
+  ];
 }
 
 function contentPath(dir: string, source: ContentSourceFingerprint | undefined): string {
@@ -1814,19 +2206,18 @@ function renderDashboardHtml(token: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nectar Dashboard</title>
 <style>
-:root{color-scheme:light;--paper:#f5f7f1;--ink:#20231f;--muted:#66706a;--line:#d6ddd3;--field:#fbfcf8;--green:#2f6f63;--rust:#b5532a;--blue:#305c7a;--gold:#c99b42;--shadow:0 18px 45px rgba(24,34,31,.12)}
+:root{color-scheme:light;--paper:#f5f7f1;--ink:#20231f;--muted:#66706a;--line:#d6ddd3;--field:#fbfcf8;--green:#2f6f63;--moss:#93a86a;--rust:#b5532a;--blue:#305c7a;--gold:#c99b42;--shadow:0 18px 45px rgba(24,34,31,.12)}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#eef3ef 0%,#f8faf4 54%,#e4ece7 100%);background-attachment:fixed;color:var(--ink);font:14px/1.5 Avenir Next,Segoe UI,Helvetica Neue,sans-serif;letter-spacing:0}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(32,35,31,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(32,35,31,.028) 1px,transparent 1px);background-size:28px 28px;mask-image:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.08))}
 button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}.shell{min-height:100vh;display:grid;grid-template-columns:260px minmax(0,1fr)}
 .side{border-right:1px solid #111b17;padding:24px 18px;background:linear-gradient(180deg,#18221f,#22231f 58%,#111713);color:#f8fbf2;position:sticky;top:0;height:100vh}.brand{font-family:Georgia,serif;font-size:30px;line-height:1;margin-bottom:6px}.tagline{color:#afc1b8;font-size:12px;margin-bottom:30px}
 .nav{display:grid;gap:6px}.nav button{width:100%;text-align:left;padding:11px 12px;border-radius:8px;background:transparent;color:#d9e2da}.nav button.active{background:#f8fbf2;color:#18221f;box-shadow:inset 3px 0 0 var(--gold)}.sync{position:absolute;bottom:18px;left:18px;right:18px;color:#afc1b8;font-size:12px}
 .main{padding:26px;min-width:0}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}.kicker{font-size:12px;color:var(--green);font-weight:800;text-transform:uppercase;letter-spacing:.08em}.title{font-family:Georgia,serif;font-size:42px;line-height:1.05;margin:3px 0}.sub{color:var(--muted);max-width:760px}
-.actions,.toolbar,.views,.pager,.rowActions,.deviceBar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.btn{border-radius:8px;padding:10px 13px;background:var(--ink);color:#fff;box-shadow:0 7px 18px rgba(32,35,31,.13);white-space:nowrap}.btn.secondary,.views button{background:var(--field);color:var(--ink);border:1px solid var(--line);box-shadow:none}.btn:disabled{opacity:.46;cursor:not-allowed}.views button.active{background:#24332e;color:#fff}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border-radius:8px;padding:10px 13px;background:var(--ink);color:#fff;box-shadow:0 7px 18px rgba(32,35,31,.13)}.btn.secondary{background:var(--field);color:var(--ink);border:1px solid var(--line);box-shadow:none}.btn:disabled{opacity:.46;cursor:not-allowed}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}.stat{background:rgba(251,252,248,.86);border:1px solid var(--line);border-radius:8px;padding:14px;box-shadow:var(--shadow)}.stat b{font-size:30px;font-family:Georgia,serif;display:block}.stat span{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:800}
-.panel{background:rgba(251,252,248,.9);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(10px)}.panelHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}.panelHead h2{margin:0;font-size:15px}.tableWrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:820px}.table th,.table td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.table th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.06em}.table tr:hover td{background:#f2f7ee}.slug{font-family:Menlo,Consolas,monospace;font-size:12px;color:var(--blue)}.pill{display:inline-flex;border-radius:99px;background:#e5ead2;color:#334321;padding:3px 8px;font-size:12px}.pill.draft,.pill.needs-review{background:#f2ded6;color:#7b351c}.meta{color:var(--muted);font-size:12px}.excerpt{max-width:340px;color:#4d5b54}.pager{padding:14px 16px}
-.editor{position:fixed;inset:0;background:#fbfcf8;display:none;grid-template-rows:auto 1fr auto;z-index:5}.editor.open{display:grid}.editorGrid{display:grid;grid-template-columns:minmax(240px,320px) minmax(360px,1fr) minmax(320px,460px);min-height:0}.editorCol{border-right:1px solid var(--line);padding:16px;overflow:auto;min-width:0}.editorCol:last-child{border-right:0}.editor textarea{width:100%;height:calc(100vh - 250px);min-height:360px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:white;padding:14px;font-family:Menlo,Consolas,monospace;font-size:13px}.settingsGrid,.frontmatterGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px}.frontmatterGrid{grid-template-columns:1fr;padding:0}.field{display:grid;gap:5px;margin-bottom:10px}.field span{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:800}.field input,.field select,.field textarea{border:1px solid var(--line);border-radius:8px;padding:10px;background:white;min-width:0}.field.wide{grid-column:1/-1}.sectionTitle{font-size:12px;font-weight:800;color:#27352f;margin:16px 0 8px;text-transform:uppercase}.notice{color:var(--rust);font-size:13px;min-height:20px}.previewFrame{border:1px solid var(--line);border-radius:8px;background:white;padding:18px;margin:10px auto;max-width:100%;min-height:190px}.previewFrame h1,.previewFrame h2{font-family:Georgia,serif}.previewBox{border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px;margin-bottom:10px}.editorFooter{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 16px}
-@media (max-width:1100px){.editorGrid{grid-template-columns:1fr}.editorCol{border-right:0;border-bottom:1px solid var(--line)}.editor textarea{height:42vh}.table{min-width:720px}}
-@media (max-width:860px){.shell{grid-template-columns:1fr}.side{position:static;height:auto}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.top{display:block}.main{padding:18px}.title{font-size:34px}}
+.panel{background:rgba(251,252,248,.9);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(10px)}.panelHead{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}.panelHead h2{margin:0;font-size:15px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.table th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.06em}.table tr:hover td{background:#f2f7ee}.slug{font-family:Menlo,Consolas,monospace;font-size:12px;color:var(--blue)}.pill{display:inline-flex;border-radius:99px;background:#e5ead2;color:#334321;padding:3px 8px;font-size:12px}.pill.draft{background:#f2ded6;color:#7b351c}.meta{color:var(--muted);font-size:12px}.pager{display:flex;gap:8px;align-items:center;padding:14px 16px}
+.editor{position:fixed;inset:0 0 0 auto;width:min(760px,100vw);background:#fbfcf8;border-left:1px solid var(--line);box-shadow:-22px 0 55px rgba(21,32,29,.24);padding:20px;display:none;grid-template-rows:auto auto 1fr auto;gap:12px;z-index:5}.editor.open{display:grid}.editor textarea{width:100%;height:100%;resize:none;border:1px solid var(--line);border-radius:8px;background:white;padding:14px;font-family:Menlo,Consolas,monospace;font-size:13px}.fields{display:grid;grid-template-columns:1fr 160px;gap:10px}.settingsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px}.settingsCard{border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px;display:grid;gap:10px}.settingsCard h3{margin:0;font-size:15px}.field{display:grid;gap:5px}.field span{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:800}.field input,.field select{border:1px solid var(--line);border-radius:8px;padding:10px;background:white;min-width:0}.field.wide{grid-column:1/-1}.notice{color:var(--rust);font-size:13px;min-height:20px}
+@media (max-width:860px){.shell{grid-template-columns:1fr}.side{position:static;height:auto}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.top{display:block}.table th:nth-child(4),.table td:nth-child(4){display:none}}
 </style>
 </head>
 <body>
@@ -1834,32 +2225,26 @@ button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}.shell{
   <aside class="side"><div class="brand">Nectar</div><div class="tagline">file-backed editorial dashboard</div><nav class="nav"><button data-view="posts" class="active">Posts</button><button data-view="pages">Pages</button><button data-view="authors">Authors</button><button data-view="tags">Tags</button><button data-view="settings">Settings</button></nav><div class="sync" id="sync">syncing from disk</div></aside>
   <main class="main"><div class="top"><div><div class="kicker" id="kicker">Local workspace</div><h1 class="title" id="siteTitle">Nectar Dashboard</h1><div class="sub" id="siteSub">Reading content files directly from this repository.</div></div><div class="actions"><button class="btn secondary" id="refresh">Refresh</button><button class="btn" id="newItem">New</button></div></div><section class="stats"><div class="stat"><b id="postCount">0</b><span>posts</span></div><div class="stat"><b id="pageCount">0</b><span>pages</span></div><div class="stat"><b id="authorCount">0</b><span>authors</span></div><div class="stat"><b id="tagCount">0</b><span>tags</span></div></section><section class="panel" id="content"></section></main>
 </div>
-<aside class="editor" id="editor"><div class="panelHead"><h2 id="editorTitle">Editor</h2><button class="btn secondary" id="closeEditor">Close</button></div><div class="editorGrid"><section class="editorCol"><div id="frontmatterPanel"></div></section><section class="editorCol"><div class="meta" id="editorMetrics"></div><textarea id="editBody"></textarea></section><section class="editorCol"><div id="previewPanel"></div></section></div><div class="editorFooter"><div class="notice" id="notice"></div><div class="actions"><button class="btn secondary" id="duplicateEditor">Duplicate</button><button class="btn" id="saveEditor">Save to file</button></div></div></aside>
+<aside class="editor" id="editor"><div class="panelHead"><h2 id="editorTitle">Editor</h2><button class="btn secondary" id="closeEditor">Close</button></div><div class="fields"><label class="field"><span>Title</span><input id="editTitle"></label><label class="field"><span>Status</span><select id="editStatus"><option>published</option><option>draft</option><option>scheduled</option></select></label></div><textarea id="editBody"></textarea><div><div class="notice" id="notice"></div><button class="btn" id="saveEditor">Save to file</button></div></aside>
 <script>
 const DASHBOARD_TOKEN=${escapedToken};
 const WRITE_HEADERS={'content-type':'application/json','x-nectar-dashboard-token':DASHBOARD_TOKEN};
-let state=null, view='posts', postsPage=1, pagesPage=1, current=null, activeWorkbenchView='all', activeDevice='desktop';
+let state=null, view='posts', postsPage=1, pagesPage=1, current=null, query='', statusFilter='';
 const $=(id)=>document.getElementById(id);
-async function load(){ $('sync').textContent='reading files...'; const r=await fetch('/api/state?posts_page='+postsPage+'&pages_page='+pagesPage+'&per_page=12'); state=await r.json(); render(); $('sync').textContent='synced '+new Date(state.generatedAt).toLocaleTimeString(); }
+async function load(){ $('sync').textContent='reading files...'; const params=new URLSearchParams({posts_page:String(postsPage),pages_page:String(pagesPage),per_page:'12'}); if(query)params.set('search',query); if(statusFilter)params.set('status',statusFilter); const r=await fetch('/api/state?'+params); state=await r.json(); render(); $('sync').textContent='synced '+new Date(state.generatedAt).toLocaleTimeString(); }
 function render(){ $('siteTitle').textContent=state.site.title; $('siteSub').textContent=state.site.description || state.site.url; $('postCount').textContent=state.posts.total; $('pageCount').textContent=state.pages.total; $('authorCount').textContent=state.authors.total; $('tagCount').textContent=state.tags.total; document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); if(view==='settings') return renderSettings(); if(view==='authors'||view==='tags') return renderTax(view); renderContent(view); }
-function renderContent(kind){ const list=state[kind]; const items=list.items.filter(matchesWorkbenchView); $('kicker').textContent=kind+' / saved files'; $('newItem').style.display='inline-block'; $('content').innerHTML='<div class="panelHead"><div><h2>'+kind+'</h2><div class="meta">'+escapeHtml(state.preview.contract)+'</div></div><span class="meta">page '+list.page+' of '+list.pages+'</span></div><div class="toolbar" style="padding:12px 16px;border-bottom:1px solid var(--line)"><div class="views">'+state.workbench.customViews.map(v=>'<button class="btn secondary '+(activeWorkbenchView===v.id?'active':'')+'" data-workbench="'+v.id+'">'+escapeHtml(v.label)+'</button>').join('')+'</div><select id="bulkAction">'+state.workbench.bulkActions.map(a=>'<option value="'+escapeAttr(a.id)+'">'+escapeHtml(a.label)+'</option>').join('')+'</select></div><div class="tableWrap"><table class="table"><thead><tr><th>Title</th><th>Status</th><th>Preview</th><th>Excerpt</th><th>Path</th><th></th></tr></thead><tbody>'+items.map(item=>'<tr><td><b>'+escapeHtml(item.title)+'</b><div class="slug">'+escapeHtml(item.slug)+'</div><div class="meta">'+item.words+' words / '+item.readingTime+' min</div></td><td><span class="pill '+(item.status==='draft'?'draft':'')+'">'+escapeHtml(item.status)+'</span> <span class="pill '+(item.reviewState==='needs-review'?'needs-review':'')+'">'+escapeHtml(item.reviewState)+'</span></td><td><a class="slug" href="'+escapeAttr(item.routePreview)+'" target="_blank" rel="noreferrer">saved route</a><div class="meta">'+escapeHtml(item.visibility)+'</div></td><td class="excerpt">'+escapeHtml(item.excerpt||'No excerpt yet')+'</td><td class="meta">'+escapeHtml(item.path)+'</td><td><button class="btn secondary" data-edit="'+escapeAttr(item.slug)+'">Edit</button></td></tr>').join('')+'</tbody></table></div><div class="pager"><button class="btn secondary" id="prev" '+(list.page<=1?'disabled':'')+'>Prev</button><button class="btn secondary" id="next" '+(list.page>=list.pages?'disabled':'')+'>Next</button></div>'; document.querySelectorAll('[data-workbench]').forEach(b=>b.onclick=()=>{activeWorkbenchView=b.dataset.workbench;renderContent(kind);}); $('prev').onclick=()=>{ if(list.page<=1)return; if(kind==='posts') postsPage--; else pagesPage--; load(); }; $('next').onclick=()=>{ if(list.page>=list.pages)return; if(kind==='posts') postsPage++; else pagesPage++; load(); }; document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(kind,b.dataset.edit)); }
-function matchesWorkbenchView(item){ if(activeWorkbenchView==='drafts')return item.status==='draft'; if(activeWorkbenchView==='scheduled')return item.status==='scheduled'; if(activeWorkbenchView==='needs-review')return item.reviewState==='needs-review'; if(activeWorkbenchView==='members')return item.visibility&&item.visibility!=='public'; return true; }
-function renderTax(kind){ const list=state[kind]; $('kicker').textContent=kind+' · taxonomy files'; $('newItem').style.display='inline-block'; $('content').innerHTML='<div class="panelHead"><h2>'+kind+'</h2><span class="meta">'+list.total+' files</span></div><table class="table"><thead><tr><th>Name</th><th>Posts</th><th>Path</th><th>URL</th><th></th></tr></thead><tbody>'+list.items.map(item=>'<tr><td><b>'+escapeHtml(item.name)+'</b><div class="slug">'+item.slug+'</div></td><td>'+item.count+'</td><td class="meta">'+escapeHtml(item.path||'generated from content references')+'</td><td class="meta">'+escapeHtml(item.url)+'</td><td>'+(item.editable?'<button class="btn secondary" data-edit="'+item.slug+'">Edit</button>':'<button class="btn secondary" disabled>Missing file</button>')+'</td></tr>').join('')+'</tbody></table>'; document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(kind,b.dataset.edit)); }
-function renderSettings(){ $('kicker').textContent='settings · nectar.toml'; $('newItem').style.display='none'; const s=state.settings; $('content').innerHTML='<div class="panelHead"><h2>Project settings</h2><span class="meta">'+escapeHtml(s.configPath)+'</span></div><div class="settingsGrid"><label class="field"><span>Site title</span><input id="setTitle" value="'+escapeAttr(state.site.title)+'"></label><label class="field"><span>Accent color</span><input id="setAccent" value="'+escapeAttr(state.site.accentColor)+'"></label><label class="field wide"><span>Description</span><input id="setDescription" value="'+escapeAttr(state.site.description)+'"></label><label class="field wide"><span>Site URL</span><input id="setUrl" value="'+escapeAttr(state.site.url)+'"></label><label class="field"><span>Theme</span><input value="'+escapeAttr(s.theme)+'" disabled></label><label class="field"><span>Output</span><input value="'+escapeAttr(s.outputDir)+'" disabled></label><label class="field"><span>Posts dir</span><input value="'+escapeAttr(s.contentDirs.posts)+'" disabled></label><label class="field"><span>Pages dir</span><input value="'+escapeAttr(s.contentDirs.pages)+'" disabled></label><div class="field wide"><span id="settingsNotice" class="notice"></span><button class="btn" id="saveSettings">Save settings</button></div></div>'; $('saveSettings').onclick=saveSettings; }
-async function openEditor(kind,slug){ const r=await fetch('/api/content/'+kind+'/'+slug); current=await r.json(); $('editorTitle').textContent=current.path; $('editBody').value=current.body; $('notice').textContent=''; renderEditorPanels(); $('editor').classList.add('open'); }
-function renderEditorPanels(){ if(!current)return; const sections=current.frontmatterSections||[]; $('frontmatterPanel').innerHTML=sections.map(section=>'<div class="sectionTitle">'+escapeHtml(section.label)+'</div>'+(current.frontmatterFields||[]).filter(f=>f.section===section.id).map(fieldControl).join('')).join('')+(current.outOfScopeFrontmatter.length?'<div class="notice">Newsletter/email frontmatter is preserved but not edited here: '+escapeHtml(current.outOfScopeFrontmatter.join(', '))+'</div>':''); $('editorMetrics').textContent=current.editorMetrics.words+' words / '+current.editorMetrics.readingTime+' min / TK '+current.editorMetrics.tkMarkers; renderPreviewPanel(); document.querySelectorAll('[data-fm]').forEach(el=>el.oninput=()=>{syncPreviewModels();renderPreviewPanel();}); $('editBody').oninput=()=>{syncPreviewModels();renderPreviewPanel();}; }
-function fieldControl(f){ const v=f.input==='list'?listValue(f.value):String(f.value??''); if(f.input==='textarea')return '<label class="field"><span>'+escapeHtml(f.label)+'</span><textarea rows="3" data-fm="'+escapeAttr(f.key)+'">'+escapeHtml(v)+'</textarea></label>'; if(f.input==='select')return '<label class="field"><span>'+escapeHtml(f.label)+'</span><select data-fm="'+escapeAttr(f.key)+'">'+(f.options||[]).map(o=>'<option '+(o===v?'selected':'')+'>'+escapeHtml(o)+'</option>').join('')+'</select></label>'; if(f.input==='checkbox')return '<label class="field"><span>'+escapeHtml(f.label)+'</span><input type="checkbox" data-fm="'+escapeAttr(f.key)+'" '+(f.value?'checked':'')+'></label>'; return '<label class="field"><span>'+escapeHtml(f.label)+'</span><input data-fm="'+escapeAttr(f.key)+'" value="'+escapeAttr(v)+'"></label>'; }
-function renderPreviewPanel(){ if(!current)return; const device=(state.preview.devices||[]).find(d=>d.id===activeDevice)||{width:1180,label:'Desktop'}; $('previewPanel').innerHTML='<div class="previewBox"><b>Saved theme preview</b><div class="meta">'+escapeHtml(current.preview.note)+'</div><p><a class="slug" href="'+escapeAttr(current.preview.routeUrl)+'" target="_blank" rel="noreferrer">'+escapeHtml(current.preview.routeUrl)+'</a></p><div class="meta">Artifact: '+escapeHtml(current.preview.buildArtifactPath)+'</div></div><div class="deviceBar">'+state.preview.devices.map(d=>'<button class="btn secondary '+(activeDevice===d.id?'active':'')+'" data-device="'+d.id+'">'+escapeHtml(d.label)+'</button>').join('')+'</div><div class="previewFrame" style="max-width:'+device.width+'px">'+markdownToHtml($('editBody').value)+'</div><div class="previewBox"><b>SEO</b><div class="slug">'+escapeHtml(current.seoPreview.title)+'</div><div class="meta">'+escapeHtml(current.seoPreview.canonicalUrl)+'</div><p>'+escapeHtml(current.seoPreview.description)+'</p></div><div class="previewBox"><b>Social</b><div>'+escapeHtml(current.socialPreview.title)+'</div><div class="meta">'+escapeHtml(current.socialPreview.description)+'</div><div class="slug">'+escapeHtml(current.socialPreview.image||'No image')+'</div></div><div class="previewBox"><b>Review</b>'+current.reviewChecklist.map(c=>'<div class="meta">'+(c.ok?'OK':'Needs work')+' / '+escapeHtml(c.label)+' / '+escapeHtml(c.detail)+'</div>').join('')+'</div>'; document.querySelectorAll('[data-device]').forEach(b=>b.onclick=()=>{activeDevice=b.dataset.device;renderPreviewPanel();}); }
-function syncPreviewModels(){ if(!current)return; const fm=collectFrontmatter(); const title=fm.meta_title||fm.title||fm.name||current.seoPreview.title; const desc=fm.meta_description||fm.custom_excerpt||fm.excerpt||current.seoPreview.description; const socialTitle=fm.og_title||fm.twitter_title||title; current.seoPreview={...current.seoPreview,title:String(title||''),description:String(desc||'')}; current.socialPreview={...current.socialPreview,title:String(socialTitle||''),description:String(fm.og_description||fm.twitter_description||desc||''),image:String(fm.og_image||fm.twitter_image||fm.feature_image||'')}; }
-function collectFrontmatter(){ const fm={...current.frontmatter}; document.querySelectorAll('[data-fm]').forEach(el=>{ const key=el.dataset.fm; const field=(current.frontmatterFields||[]).find(f=>f.key===key); let value=el.type==='checkbox'?el.checked:el.value; if(field&&field.input==='list')value=String(value).split(',').map(s=>s.trim()).filter(Boolean); if(value===''||(Array.isArray(value)&&value.length===0))delete fm[key]; else fm[key]=value; }); return fm; }
-async function saveEditor(){ if(!current)return; const fm=collectFrontmatter(); if(current.kind==='posts'||current.kind==='pages')fm.updated_at=new Date().toISOString(); const r=await fetch('/api/content/'+current.kind+'/'+current.slug,{method:'PUT',headers:WRITE_HEADERS,body:JSON.stringify({fingerprint:current.fingerprint,frontmatter:fm,body:$('editBody').value})}); const data=await r.json(); if(r.status===409){ current=data.current; $('notice').textContent='This file changed on disk. Reloaded latest saved file; review before saving.'; $('editBody').value=current.body; renderEditorPanels(); return; } if(!r.ok){ $('notice').textContent=data.error||'Could not save file'; return; } current=null; $('editor').classList.remove('open'); await load(); }
-async function duplicateCurrent(){ if(!current)return; const title=prompt('Title for duplicate', String((current.frontmatter.title||current.frontmatter.name||current.slug)+' copy')); if(!title)return; const slug=prompt('Slug for duplicate', slugifyClient(title)); if(!slug)return; const r=await fetch('/api/content',{method:'POST',headers:WRITE_HEADERS,body:JSON.stringify({kind:current.kind,title,slug,cloneFrom:{kind:current.kind,slug:current.slug}})}); if(!r.ok){ alert((await r.json()).error||'Could not duplicate file'); return; } current=null; $('editor').classList.remove('open'); await load(); }
+function renderContent(kind){ const list=state[kind]; $('kicker').textContent=kind+' · created newest first'; $('newItem').style.display='inline-block'; $('content').innerHTML='<div class="panelHead"><h2>'+kind+'</h2><span class="meta">page '+list.page+' of '+list.pages+'</span></div><div class="settingsGrid"><label class="field wide"><span>Search title, slug, path, tags, authors</span><input id="contentSearch" value="'+escapeAttr(query)+'"></label><label class="field"><span>Status</span><select id="statusFilter"><option value="">Any</option><option value="published">Published</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option></select></label></div><table class="table"><thead><tr><th>Title</th><th>Status</th><th>Created</th><th>Path</th><th></th></tr></thead><tbody>'+list.items.map(item=>'<tr><td><b>'+escapeHtml(item.title)+'</b><div class="slug">'+item.slug+'</div></td><td><span class="pill '+(item.status==='draft'?'draft':'')+'">'+item.status+'</span></td><td>'+date(item.createdAt)+'</td><td class="meta">'+escapeHtml(item.path)+'</td><td><button class="btn secondary" data-edit="'+item.slug+'">Edit</button></td></tr>').join('')+'</tbody></table><div class="pager"><button class="btn secondary" id="prev">Prev</button><button class="btn secondary" id="next">Next</button><span class="meta">'+state.settings.operations.search.resultCount+' result(s)</span></div>'; $('statusFilter').value=statusFilter; $('contentSearch').oninput=(e)=>{ query=e.target.value; postsPage=1; pagesPage=1; clearTimeout(window.__nectarSearchTimer); window.__nectarSearchTimer=setTimeout(load,180); }; $('statusFilter').onchange=(e)=>{ statusFilter=e.target.value; postsPage=1; pagesPage=1; load(); }; $('prev').onclick=()=>{ if(kind==='posts') postsPage--; else pagesPage--; load(); }; $('next').onclick=()=>{ if(kind==='posts') postsPage++; else pagesPage++; load(); }; document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(kind,b.dataset.edit)); }
+function renderTax(kind){ const list=state[kind]; $('kicker').textContent=kind+' · taxonomy files'; $('newItem').style.display='inline-block'; $('content').innerHTML='<div class="panelHead"><h2>'+kind+'</h2><span class="meta">'+list.total+' records</span></div><table class="table"><thead><tr><th>Name</th><th>Posts</th><th>Source</th><th>Path</th><th></th></tr></thead><tbody>'+list.items.map(item=>'<tr><td><b>'+escapeHtml(item.name)+'</b><div class="slug">'+item.slug+'</div><div class="meta">'+escapeHtml(item.description||'')+'</div></td><td>'+item.count+'</td><td><span class="pill '+(item.source==='generated'?'draft':'')+'">'+item.source+(item.orphaned?' · orphaned':'')+'</span></td><td class="meta">'+escapeHtml(item.path||item.materializePath)+'</td><td>'+(item.editable?'<button class="btn secondary" data-edit="'+item.slug+'">Edit</button>':'<button class="btn secondary" data-materialize="'+item.slug+'">Create file</button>')+'</td></tr>').join('')+'</tbody></table>'; document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(kind,b.dataset.edit)); document.querySelectorAll('[data-materialize]').forEach(b=>b.onclick=()=>materializeTaxonomy(kind,b.dataset.materialize)); }
+function renderSettings(){ $('kicker').textContent='settings · searchable cards'; $('newItem').style.display='none'; const s=state.settings; const cards=s.cards||[]; $('content').innerHTML='<div class="panelHead"><h2>Project settings</h2><span class="meta">'+escapeHtml(s.configPath)+'</span></div><div class="settingsGrid"><label class="field"><span>Search settings</span><input id="settingsSearch" placeholder="Press / to search" value=""></label><label class="field"><span>Site title</span><input id="setTitle" value="'+escapeAttr(state.site.title)+'"></label><label class="field"><span>Accent color</span><input id="setAccent" value="'+escapeAttr(state.site.accentColor)+'"></label><label class="field wide"><span>Description</span><input id="setDescription" value="'+escapeAttr(state.site.description)+'"></label><label class="field wide"><span>Site URL</span><input id="setUrl" value="'+escapeAttr(state.site.url)+'"></label><div class="field wide"><span id="settingsNotice" class="notice"></span><button class="btn" id="saveSettings">Save site card</button></div></div><div class="settingsGrid" id="settingsCards"></div>'; $('saveSettings').onclick=saveSettings; $('settingsSearch').oninput=()=>renderSettingsCards(cards,$('settingsSearch').value); renderSettingsCards(cards,''); }
+function renderSettingsCards(cards,term){ const q=String(term||'').toLowerCase(); const filtered=cards.filter(card=>(card.section+' '+card.title+' '+card.summary+' '+card.source+' '+card.values.map(v=>v.label+' '+v.value).join(' ')).toLowerCase().includes(q)); $('settingsCards').innerHTML=filtered.length?filtered.map(card=>'<article class="settingsCard"><div><h3>'+escapeHtml(card.title)+'</h3><span class="pill '+(card.status==='warn'||card.status==='danger'?'draft':'')+'">'+escapeHtml(card.section)+'</span></div><p class="meta">'+escapeHtml(card.summary)+'</p><div class="slug">'+escapeHtml(card.source)+'</div><table class="table"><tbody>'+card.values.map(v=>'<tr><th>'+escapeHtml(v.label)+'</th><td>'+escapeHtml(v.value)+'</td></tr>').join('')+'</tbody></table>'+(card.command?'<div class="meta">'+escapeHtml(card.command)+'</div>':'')+'</article>').join(''):'<div class="notice">No settings match this search.</div>'; }
+async function openEditor(kind,slug){ const r=await fetch('/api/content/'+kind+'/'+slug); current=await r.json(); $('editorTitle').textContent=current.path; $('editTitle').value=current.frontmatter.title||current.frontmatter.name||''; $('editStatus').value=current.frontmatter.status||'published'; $('editStatus').disabled=kind!=='posts'&&kind!=='pages'; $('editBody').value=current.body; $('notice').textContent=''; $('editor').classList.add('open'); }
+async function saveEditor(){ if(!current)return; const fm={...current.frontmatter}; if(current.kind==='posts'||current.kind==='pages'){ fm.title=$('editTitle').value; fm.status=$('editStatus').value; fm.updated_at=new Date().toISOString(); } else { fm.name=$('editTitle').value; } const r=await fetch('/api/content/'+current.kind+'/'+current.slug,{method:'PUT',headers:WRITE_HEADERS,body:JSON.stringify({fingerprint:current.fingerprint,frontmatter:fm,body:$('editBody').value})}); const data=await r.json(); if(r.status===409){ current=data.current; $('notice').textContent='This file changed on disk. Reloaded latest version; review before saving.'; $('editBody').value=current.body; return; } current=null; $('editor').classList.remove('open'); await load(); }
 async function saveSettings(){ const updates={title:$('setTitle').value,description:$('setDescription').value,url:$('setUrl').value,accent_color:$('setAccent').value}; const r=await fetch('/api/settings/site',{method:'PATCH',headers:WRITE_HEADERS,body:JSON.stringify({fingerprint:state.settings.fingerprint,updates})}); const data=await r.json(); if(r.status===409){ $('settingsNotice').textContent='nectar.toml changed on disk. Reloaded latest settings; review before saving.'; await load(); return; } if(!r.ok){ $('settingsNotice').textContent=data.error||'Could not save settings'; return; } await load(); if($('settingsNotice')) $('settingsNotice').textContent='Saved to nectar.toml'; }
+async function materializeTaxonomy(kind,slug){ const r=await fetch('/api/taxonomy/'+kind+'/'+slug+'/file',{method:'POST',headers:WRITE_HEADERS}); if(!r.ok){ alert((await r.json()).error||'Could not create taxonomy file'); return; } await load(); }
 async function createItem(){ const title=prompt('Title or name'); if(!title)return; const kind=view==='settings'?'posts':view; const r=await fetch('/api/content',{method:'POST',headers:WRITE_HEADERS,body:JSON.stringify({kind,title})}); if(!r.ok){ alert((await r.json()).error||'Could not create file'); return; } await load(); }
-function markdownToHtml(md){ return '<div>'+escapeHtml(md).replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>').replace(/\\*\\*(.*?)\\*\\*/g,'<strong>$1</strong>').replace(/\\n\\n+/g,'</p><p>').replace(/^/,'<p>').replace(/$/,'</p>')+'</div>'; }
-function listValue(v){ return Array.isArray(v)?v.join(', '):String(v??''); } function slugifyClient(v){ return String(v).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled'; }
 function date(v){ return new Date(v).toLocaleDateString(); } function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); } function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
-document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{view=b.dataset.view;activeWorkbenchView='all';load();}); $('refresh').onclick=load; $('newItem').onclick=createItem; $('closeEditor').onclick=()=>$('editor').classList.remove('open'); $('saveEditor').onclick=saveEditor; $('duplicateEditor').onclick=duplicateCurrent;
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{view=b.dataset.view;load();}); $('refresh').onclick=load; $('newItem').onclick=createItem; $('closeEditor').onclick=()=>$('editor').classList.remove('open'); $('saveEditor').onclick=saveEditor;
+document.addEventListener('keydown',(event)=>{ if(event.key==='/'&&view==='settings'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName||'')){ event.preventDefault(); $('settingsSearch')?.focus(); } });
 new EventSource('/api/events').addEventListener('sync',()=>load()); load();
 </script>
 </body>
