@@ -135,6 +135,24 @@ describe('lintTheme', () => {
     }
   });
 
+  test('warns on member-related theme markers that need static Portal wiring', async () => {
+    const dir = await makeTempDir();
+    try {
+      await writeFullTheme(dir);
+      await writeFile2(
+        join(dir, 'partials/signup.hbs'),
+        '<a href="#/portal/signup" data-portal="signup">{{#if @member}}Account{{/if}}</a>',
+      );
+
+      const report = await lintTheme(dir);
+      const warnings = report.findings.filter((f) => f.code === 'gscan-members-static-runtime');
+      expect(warnings.length).toBeGreaterThanOrEqual(2);
+      expect(warnings.every((f) => f.level === 'warn')).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('post_class can live in a partial instead of post.hbs', async () => {
     const dir = await makeTempDir();
     try {

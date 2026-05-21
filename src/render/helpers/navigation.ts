@@ -82,7 +82,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
-      const list = renderNavigationItems(items, currentUrl, basePath);
+      const list = renderNavigationItems(items, currentUrl, basePath, type === 'secondary');
       const html = new engine.hb.SafeString(`<ul class="nav">${list}</ul>`);
       cache.set(cacheKey, html);
       return html;
@@ -327,6 +327,7 @@ function renderNavigationItems(
   items: NavigationHelperItem[],
   currentUrl: string | undefined,
   basePath: string | undefined,
+  isSecondary = false,
 ): string {
   return items
     .map((item) => {
@@ -342,7 +343,8 @@ function renderNavigationItems(
       const target = item.target ? ` target="${escapeAttr(item.target)}"` : '';
       const rel = navigationRel(item);
       const relAttr = rel ? ` rel="${escapeAttr(rel)}"` : '';
-      return `<li class="nav-${slug}"${ariaCurrent}${icon}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}${target}${relAttr}>${escapeHtml(item.label)}</a></li>`;
+      const className = isSecondary ? `nav-secondary nav-${slug}` : `nav-${slug}`;
+      return `<li class="${className}"${ariaCurrent}${icon}><a href="${escapeAttr(safeUrl)}"${ariaCurrent}${target}${relAttr}>${escapeHtml(item.label)}</a></li>`;
     })
     .join('');
 }

@@ -509,7 +509,7 @@ body[class*=" gh-font-heading"]:not(.gh-font-heading-fira-sans):not(.gh-font-hea
     font-weight: 600;
 }
 
-.gh-search {
+.nectar-search-toggle {
     margin-right: -2px;
     margin-left: -2px;
 }
@@ -525,13 +525,13 @@ body[class*=" gh-font-heading"]:not(.gh-font-heading-fira-sans):not(.gh-font-hea
         width: 100%;
     }
 
-    .gh-navigation-actions .gh-search {
+    .gh-navigation-actions .nectar-search-toggle {
         display: none;
     }
 }
 
 @media (min-width: 768px) {
-    .gh-navigation-brand .gh-search {
+    .gh-navigation-brand .nectar-search-toggle {
         display: none;
     }
 
@@ -670,7 +670,7 @@ Search                         LOGO                    Login Subscribe
         justify-content: space-between;
     }
 
-    .gh-navigation.is-stacked .gh-navigation-actions .gh-search {
+    .gh-navigation.is-stacked .gh-navigation-actions .nectar-search-toggle {
         display: flex;
         gap: 10px;
         width: auto;

@@ -97,7 +97,7 @@ function renderGhostHead(
     config?: Partial<NectarEngine['config']>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
-    routeMeta?: { canonical?: string };
+    routeMeta?: { canonical?: string; title?: string };
     routeAlternates?: { locale: string; href: string }[];
     favicons?: FaviconSet;
     theme?: Partial<NectarEngine['theme']>;
@@ -2154,6 +2154,17 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     expect(html).toContain('<meta name="twitter:title" content="Custom News Title">');
   });
 
+  test('tag archive uses route meta title before tag.name when available', () => {
+    const tag = { name: 'News', url: '/tag/news/' };
+    const html = renderGhostHead({ tag }, '/tag/news/', {
+      routeKind: 'tag',
+      routeData: { tag },
+      routeMeta: { title: 'News | Nectar Test' },
+    });
+    expect(html).toContain('<meta property="og:title" content="News | Nectar Test">');
+    expect(html).toContain('<meta name="twitter:title" content="News | Nectar Test">');
+  });
+
   test('author archive without an override falls back to author.name before site titles', () => {
     const author = { name: 'Jane Doe', url: '/author/jane/' };
     const html = renderGhostHead(
@@ -2169,6 +2180,17 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     expect(html).toContain('<meta name="twitter:title" content="Jane Doe">');
     expect(html).not.toContain('content="Jane Doe | Nectar Test"');
     expect(html).not.toContain('content="Configured Site Title"');
+  });
+
+  test('author archive uses route meta title before author.name when available', () => {
+    const author = { name: 'Jane Doe', url: '/author/jane/' };
+    const html = renderGhostHead({ author }, '/author/jane/', {
+      routeKind: 'author',
+      routeData: { author },
+      routeMeta: { title: 'Jane Doe | Nectar Test' },
+    });
+    expect(html).toContain('<meta property="og:title" content="Jane Doe | Nectar Test">');
+    expect(html).toContain('<meta name="twitter:title" content="Jane Doe | Nectar Test">');
   });
 
   test('@site.og_image is the last fallback for og:image / twitter:image', () => {

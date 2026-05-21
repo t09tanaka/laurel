@@ -237,6 +237,28 @@ describe('navigation helper href sanitisation', () => {
     expect(html).toContain('href="/blog/contact/"');
   });
 
+  test('adds Ghost secondary navigation class to secondary nav items', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const template = engine.hb.compile('{{navigation type="secondary"}}');
+    const html = template(
+      {},
+      {
+        data: {
+          site: {
+            navigation: [],
+            secondary_navigation: [{ label: 'RSS', url: '/rss/' }],
+          },
+          route: { url: '/rss/' },
+        },
+      },
+    );
+
+    expect(html).toContain(
+      '<li class="nav-secondary nav-rss" aria-current="page"><a href="/rss/" aria-current="page">RSS</a></li>',
+    );
+  });
+
   test('preserves http(s), mailto, tel, and relative URLs', () => {
     const html = renderNavigation(
       [

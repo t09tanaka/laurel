@@ -57,6 +57,14 @@ const RECOMMENDED_PARTIALS = ['partials/navigation.hbs', 'partials/pagination.hb
 // usually surfaces as visual regressions rather than build errors, so warn.
 const DEPRECATED_HELPERS = ['amp_components', 'amp_content', 'amp_ghost_head'];
 
+const MEMBER_COMPAT_MARKERS = [
+  { label: 'data-members-form', re: /\bdata-members-form\b/ },
+  { label: 'data-portal', re: /\bdata-portal\b/ },
+  { label: '@site.members_enabled', re: /@site\.members_enabled\b/ },
+  { label: '@site.paid_members_enabled', re: /@site\.paid_members_enabled\b/ },
+  { label: '@member', re: /@member\b/ },
+];
+
 export async function lintTheme(themePath: string): Promise<LintReport> {
   const findings: LintFinding[] = [];
   if (!existsSync(themePath)) {
@@ -139,6 +147,15 @@ export async function lintTheme(themePath: string): Promise<LintReport> {
           file,
         });
       }
+    }
+    for (const marker of MEMBER_COMPAT_MARKERS) {
+      if (!marker.re.test(src)) continue;
+      findings.push({
+        level: 'warn',
+        code: 'gscan-members-static-runtime',
+        message: `Member-related theme marker '${marker.label}' requires a configured static Portal or external provider in Nectar.`,
+        file,
+      });
     }
   }
 

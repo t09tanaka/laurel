@@ -42,7 +42,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
             url?: string;
             alternates?: { locale: string; href: string }[];
             data?: Record<string, unknown>;
-            meta?: { canonical?: string };
+            meta?: { canonical?: string; title?: string };
           }
         | undefined;
       const site = engine.content.site;
@@ -327,7 +327,7 @@ function computeMeta(
         kind?: string;
         url?: string;
         data?: Record<string, unknown>;
-        meta?: { canonical?: string };
+        meta?: { canonical?: string; title?: string };
       }
     | undefined,
   site: {
@@ -419,6 +419,7 @@ function resolveMetaDescription(
     | {
         kind?: string;
         data?: Record<string, unknown>;
+        meta?: { title?: string };
       }
     | undefined,
   site: {
@@ -987,6 +988,7 @@ function routeScopedMetaTitle(
     | {
         kind?: string;
         data?: Record<string, unknown>;
+        meta?: { title?: string };
       }
     | undefined,
 ): string | undefined {
@@ -997,6 +999,7 @@ function routeScopedMetaTitle(
         tagFromCtx.meta_title,
         tagFromCtx.og_title,
         tagFromCtx.twitter_title,
+        route.meta?.title,
         tagFromCtx.name,
       );
     }
@@ -1011,6 +1014,7 @@ function routeScopedMetaTitle(
         authorFromCtx.meta_title,
         authorFromCtx.og_title,
         authorFromCtx.twitter_title,
+        route.meta?.title,
         authorFromCtx.name,
       );
     }

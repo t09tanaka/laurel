@@ -696,6 +696,7 @@ function routeScopedMetaTitle(
         tagFromCtx.meta_title,
         tagFromCtx.og_title,
         tagFromCtx.twitter_title,
+        ctx.meta_title,
         tagFromCtx.name,
       );
     }
@@ -706,7 +707,7 @@ function routeScopedMetaTitle(
   if (route.kind === 'author') {
     const authorFromCtx = recordValue(ctx.author);
     if (authorFromCtx) {
-      return firstNonEmptyString(authorFromCtx.meta_title, authorFromCtx.name);
+      return firstNonEmptyString(authorFromCtx.meta_title, ctx.meta_title, authorFromCtx.name);
     }
     if (firstNonEmptyString(ctx.meta_title, ctx.title)) return undefined;
     const author = recordValue(route.data?.author);

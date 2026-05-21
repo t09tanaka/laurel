@@ -158,6 +158,7 @@ export async function runBuild(args: string[]): Promise<number> {
         routeCount: summary.routeCount,
         assetCount: summary.assetCount,
         outputDir: summary.outputDir,
+        outputBytes: summary.outputBytes,
         profilePath: summary.profilePath,
         peakRssBytes: summary.peakRssBytes,
         warningCount: summary.warningCount,
@@ -177,6 +178,8 @@ export async function runBuild(args: string[]): Promise<number> {
         prefix,
         routeCount: summary.routeCount,
         assetCount: summary.assetCount,
+        outputSizeSuffix:
+          summary.outputBytes === undefined ? '' : `, ${formatBytes(summary.outputBytes)}`,
         outputDir: summary.outputDir,
       }),
     );
@@ -381,7 +384,12 @@ export function isIgnoredChange(filename: string): boolean {
 function formatBytes(bytes: number): string {
   const gib = 1024 * 1024 * 1024;
   const mib = 1024 * 1024;
+  const kib = 1024;
   if (bytes >= gib) return `${roundToOneDecimal(bytes / gib)} GiB`;
+  if (bytes >= mib) return `${roundToOneDecimal(bytes / mib)} MiB`;
+  if (bytes >= kib) return `${roundToOneDecimal(bytes / kib)} KiB`;
+  if (bytes === 1) return '1 B';
+  if (bytes >= 0) return `${bytes} B`;
   return `${roundToOneDecimal(bytes / mib)} MiB`;
 }
 

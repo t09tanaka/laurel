@@ -12,6 +12,7 @@ describe('example build', () => {
 
     expect(summary.routeCount).toBeGreaterThan(10);
     expect(summary.assetCount).toBeGreaterThan(0);
+    expect(summary.outputBytes).toBeGreaterThan(0);
 
     const distRoot = join(cwd, 'dist');
     const indexHtml = readFileSync(join(distRoot, 'index.html'), 'utf8');
@@ -81,6 +82,9 @@ describe('example build', () => {
       );
       expect(html, `${label} page search button must have non-empty aria-label`).not.toMatch(
         /<button[^>]*\bgh-search\b[^>]*\baria-label=""/,
+      );
+      expect(html, `${label} page search button should use Nectar search class`).toContain(
+        'nectar-search-toggle gh-icon-button',
       );
       expect(html, `${label} page burger button must have non-empty aria-label`).not.toMatch(
         /<button[^>]*\bgh-burger\b[^>]*\baria-label=""/,

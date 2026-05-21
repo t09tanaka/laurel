@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -67,6 +68,7 @@ import {
 } from './emitters/registry.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
+import { FEDIVERSE_DISCOVERY_PATH, emitFediverseDiscovery } from './fediverse.ts';
 import { emitFeedAlias } from './feed-alias.ts';
 import { SITEMAP_MAX_URLS_PER_FILE, type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { emitFirebaseJson } from './firebase.ts';
@@ -122,6 +124,7 @@ import {
   removeRedundantScriptPreload,
 } from './perf-hints.ts';
 import { assignPostUrls } from './permalinks.ts';
+import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
 import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
@@ -157,6 +160,7 @@ import {
   findMissingThemeAssetReferences,
   formatMissingThemeAssetReference,
 } from './theme-asset-references.ts';
+import { emitTierWelcomePages } from './tier-welcome-pages.ts';
 import { GENERATED_WEB_MANIFEST_PATH, emitWebManifest } from './web-manifest.ts';
 
 export interface BuildOptions {
@@ -266,6 +270,7 @@ export interface BuildSummary {
   outputDir: string;
   routeCount: number;
   assetCount: number;
+  outputBytes?: number;
   profilePath?: string;
   peakRssBytes?: number;
   warningCount: number;
@@ -505,6 +510,8 @@ async function runBuild({
   keepOutput('.nectar-manifest.json');
   keepOutput(buildManifestRelPath());
   keepOutput(changedPathsRelPath());
+  keepOutput(FEDIVERSE_DISCOVERY_PATH);
+  keepOutput(PORTAL_MANIFEST_PATH);
   keepOutput('staticwebapp.config.json');
   keepOutput('.nojekyll');
   if (profiler) keepOutput('.nectar-build-stats.json');
@@ -1176,6 +1183,16 @@ async function runBuild({
     );
   }
 
+  const tierWelcomeOutputs = await timed(profiler, 'tier_welcome_pages', () =>
+    emitTierWelcomePages({
+      config,
+      outputDir,
+      tiers: content.tiers,
+      reservedOutputPaths: new Set(routes.map((route) => route.outputPath)),
+    }),
+  );
+  for (const outputPath of tierWelcomeOutputs) keepOutput(outputPath);
+
   const assetCount = await timed(profiler, 'assetCopy', () =>
     withProgressPhase(progress, 'assets', 'Copying assets', async () => {
       let assetCount = 0;
@@ -1409,6 +1426,15 @@ async function runBuild({
       emitMeilisearchRecords({ config, content, outputDir }),
     );
   }
+  await timed(profiler, 'fediverse_discovery', () => emitFediverseDiscovery({ config, outputDir }));
+  await timed(profiler, 'portal_manifest', () =>
+    emitPortalManifest({
+      config,
+      outputDir,
+      urls: portalUrls,
+      recommendationsEnabled,
+    }),
+  );
   keepOutput('.nojekyll');
   await emitNojekyll({ outputDir });
   if (config.deploy.github_pages.custom_domain) keepOutput('CNAME');
@@ -1680,11 +1706,13 @@ async function runBuild({
     outputDir: finalOutputDir,
     command: config.hooks.post_build,
   });
+  const outputBytes = await timed(profiler, 'output_size', () => dirSize(finalOutputDir));
 
   return {
     outputDir: finalOutputDir,
     routeCount: routes.length,
     assetCount,
+    outputBytes,
     ...(profilePath ? { profilePath } : {}),
     ...(peakRssBytes !== undefined ? { peakRssBytes } : {}),
     ...(slowestRoutes && slowestRoutes.length > 0 ? { slowestRoutes: [...slowestRoutes] } : {}),
@@ -1697,6 +1725,21 @@ async function runBuild({
 }
 
 type KeepOutput = (path: string) => void;
+
+async function dirSize(path: string): Promise<number> {
+  let total = 0;
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    const child = join(path, entry.name);
+    if (entry.isDirectory()) {
+      total += await dirSize(child);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    total += (await stat(child)).size;
+  }
+  return total;
+}
 
 function normalizeOutputRelPath(path: string): string | undefined {
   const normalized = (sep === '/' ? path : path.split(sep).join('/'))

@@ -524,4 +524,43 @@ describe('packaging', () => {
       expect(releaseDocs).toContain('bun run scoop:manifest');
     });
   });
+
+  describe('AUR and Nix templates', () => {
+    test('AUR template packages Linux release binaries', async () => {
+      const template = await readFile(
+        join(REPO_ROOT, 'packaging', 'aur', 'PKGBUILD.template'),
+        'utf8',
+      );
+
+      expect(template).toContain('pkgname=nectar-bin');
+      expect(template).toContain('source_x86_64=');
+      expect(template).toContain('nectar-linux-x64');
+      expect(template).toContain('source_aarch64=');
+      expect(template).toContain('nectar-linux-arm64');
+      expect(template).toContain('install -Dm755');
+      expect(template).toContain('/usr/bin/nectar');
+    });
+
+    test('Nix flake template wraps Linux release binaries', async () => {
+      const flake = await readFile(join(REPO_ROOT, 'packaging', 'nix', 'flake.nix'), 'utf8');
+
+      expect(flake).toContain('x86_64-linux');
+      expect(flake).toContain('aarch64-linux');
+      expect(flake).toContain('nectar-linux-x64');
+      expect(flake).toContain('nectar-linux-arm64');
+      expect(flake).toContain('install -Dm755 "$src" "$out/bin/nectar"');
+      expect(flake).toContain('"$out/bin/nectar" --help');
+    });
+
+    test('docs describe downstream AUR and Nix ownership', async () => {
+      const integrations = await readFile(join(REPO_ROOT, 'docs', 'integrations.md'), 'utf8');
+      const aur = await readFile(join(REPO_ROOT, 'packaging', 'aur', 'README.md'), 'utf8');
+      const nix = await readFile(join(REPO_ROOT, 'packaging', 'nix', 'README.md'), 'utf8');
+
+      expect(integrations).toContain('AUR packages');
+      expect(integrations).toContain('Nix flakes');
+      expect(aur).toContain('PKGBUILD.template');
+      expect(nix).toContain('flake.nix');
+    });
+  });
 });

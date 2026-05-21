@@ -1,0 +1,24 @@
+# Maintainer: AUR maintainer <maintainer@example.invalid>
+pkgname=nectar-bin
+pkgver={{VERSION}}
+pkgrel=1
+pkgdesc="Ghost-theme-compatible static site generator powered by Markdown and Bun"
+arch=("x86_64" "aarch64")
+url="https://github.com/t09tanaka/nectar"
+license=("MIT")
+depends=()
+source_x86_64=("${url}/releases/download/v${pkgver}/nectar-linux-x64")
+source_aarch64=("${url}/releases/download/v${pkgver}/nectar-linux-arm64")
+sha256sums_x86_64=("{{SHA256_LINUX_X64}}")
+sha256sums_aarch64=("{{SHA256_LINUX_ARM64}}")
+
+package() {
+  local artifact
+  case "${CARCH}" in
+    x86_64) artifact="nectar-linux-x64" ;;
+    aarch64) artifact="nectar-linux-arm64" ;;
+    *) echo "Unsupported architecture: ${CARCH}" >&2; return 1 ;;
+  esac
+
+  install -Dm755 "${srcdir}/${artifact}" "${pkgdir}/usr/bin/nectar"
+}

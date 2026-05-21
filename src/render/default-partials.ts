@@ -43,4 +43,34 @@ export const DEFAULT_PARTIALS: Record<string, string> = {
   <button type="button" data-portal="signup">{{t "Subscribe"}}</button>
 </aside>
 `,
+  // Static pricing table for themes that expect a reusable membership tiers
+  // partial but do not ship one. It reads the Ghost-shaped tier objects Nectar
+  // derives from `[[tiers]]`; live checkout remains the operator's Portal /
+  // external-provider responsibility.
+  'pricing-table': `<section class="nectar-pricing-table" data-nectar-pricing-table>
+  {{#get "tiers" limit="all" as |tiers|}}
+    {{#foreach tiers}}
+      <article class="nectar-pricing-tier" data-tier="{{slug}}">
+        <h3>{{name}}</h3>
+        {{#if description}}<p>{{description}}</p>{{/if}}
+        {{#if monthly_price}}
+          <p class="nectar-pricing-tier__price">{{currency monthly_price currency=currency}} / {{t "month"}}</p>
+        {{else}}
+          <p class="nectar-pricing-tier__price">{{t "Free"}}</p>
+        {{/if}}
+        {{#if benefits}}
+          <ul>
+            {{#foreach benefits}}<li>{{this}}</li>{{/foreach}}
+          </ul>
+        {{/if}}
+        {{#if welcome_page_url}}
+          <a class="nectar-pricing-tier__action" href="{{welcome_page_url}}">{{t "Subscribe"}}</a>
+        {{else}}
+          <button class="nectar-pricing-tier__action" type="button" data-portal="signup">{{t "Subscribe"}}</button>
+        {{/if}}
+      </article>
+    {{/foreach}}
+  {{/get}}
+</section>
+`,
 };

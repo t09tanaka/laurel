@@ -107,6 +107,23 @@ describe('renderRecommendationsHtml', () => {
     expect(html).toContain('Recommended because A.');
     expect(html).toContain('First');
     expect(html).toContain('Second');
+    expect(html).toContain('id="incoming-recommendations"');
+  });
+
+  test('renders configured recommendation favicons without fetching them at build time', () => {
+    const html = renderRecommendationsHtml({
+      config: makeConfig([
+        {
+          title: 'Icon Site',
+          url: 'https://icon.example',
+          favicon: 'https://icon.example/favicon.ico',
+        },
+      ]),
+      content: makeContent(makeSite()),
+    });
+
+    expect(html).toContain('class="recommendation-favicon"');
+    expect(html).toContain('src="https://icon.example/favicon.ico"');
   });
 
   test('shows an empty state when no recommendations are configured', () => {
