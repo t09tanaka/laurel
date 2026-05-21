@@ -839,6 +839,79 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
   });
 });
 
+describe('ghost_head JSON-LD cache', () => {
+  test('reuses rendered JSON-LD scripts for repeated renders of the same post id', () => {
+    const engine = makeEngine();
+    registerGhostHeadFootHelpers(engine);
+    const template = engine.hb.compile('{{{ghost_head}}}');
+    let wordCountReads = 0;
+    const ctx: Record<string, unknown> = {
+      id: 'cached-post',
+      title: 'Cached post',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    };
+    Object.defineProperty(ctx, 'word_count', {
+      enumerable: true,
+      get() {
+        wordCountReads += 1;
+        return 123;
+      },
+    });
+    const route = {
+      kind: 'post',
+      url: '/cached-post/',
+      data: { post: ctx },
+    };
+
+    const first = template(ctx, { data: { route } });
+    const second = template(ctx, { data: { route } });
+
+    expect(extractAllJsonLd(second)).toEqual(extractAllJsonLd(first));
+    expect(wordCountReads).toBe(1);
+  });
+
+  test('keeps site URL and base_path variants in separate JSON-LD cache entries', () => {
+    const engine = makeEngine({ url: 'https://first.example' }, {
+      build: { base_path: '/blog' },
+    } as Partial<NectarEngine['config']>);
+    registerGhostHeadFootHelpers(engine);
+    const template = engine.hb.compile('{{{ghost_head}}}');
+    const ctx = {
+      id: 'base-path-post',
+      title: 'Base path post',
+      feature_image: '/content/images/cover.png',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    };
+    const route = {
+      kind: 'post',
+      url: '/base-path-post/',
+      data: { post: ctx },
+    };
+
+    const first = template(ctx, { data: { route } });
+    engine.content.site.url = 'https://second.example';
+    engine.config.build = { ...(engine.config.build ?? {}), base_path: '/news' };
+    const second = template(ctx, { data: { route } });
+
+    const firstArticle = JSON.parse(extractJsonLd(first)) as {
+      image: { url: string };
+      mainEntityOfPage: { '@id': string };
+    };
+    const secondArticle = JSON.parse(extractJsonLd(second)) as {
+      image: { url: string };
+      mainEntityOfPage: { '@id': string };
+    };
+    expect(firstArticle.image.url).toBe('https://first.example/blog/content/images/cover.png');
+    expect(secondArticle.image.url).toBe('https://second.example/news/content/images/cover.png');
+    expect(firstArticle.mainEntityOfPage['@id']).toBe('https://first.example/blog/base-path-post/');
+    expect(secondArticle.mainEntityOfPage['@id']).toBe(
+      'https://second.example/news/base-path-post/',
+    );
+  });
+});
+
 describe('ghost_head twitter:site / twitter:creator (issue #868)', () => {
   test('emits twitter:site from @site.twitter as a normalised @handle', () => {
     const html = renderGhostHead(

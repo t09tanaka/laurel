@@ -30,6 +30,8 @@ import type { NectarEngine } from '../engine.ts';
 import { publicSafeGeneratedExcerpt } from './content.ts';
 
 export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
+  const jsonLdScriptCache = new Map<string, string>();
+
   engine.hb.registerHelper(
     'ghost_head',
     function ghostHeadHelper(this: unknown, options: Handlebars.HelperOptions) {
@@ -210,13 +212,17 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
         );
       }
 
-      const jsonLdEntities = buildJsonLd(ctx, route, site, meta, basePath);
       const nonce = nonceAttr(engine.config?.build?.csp_nonce);
-      for (const entity of jsonLdEntities) {
-        parts.push(
-          `<script type="application/ld+json"${nonce}>${escapeJsonForScript(JSON.stringify(entity))}</script>`,
-        );
-      }
+      const jsonLdScripts = renderJsonLdScripts(
+        ctx,
+        route,
+        site,
+        meta,
+        basePath,
+        nonce,
+        jsonLdScriptCache,
+      );
+      if (jsonLdScripts) parts.push(jsonLdScripts);
 
       // Drop-in analytics snippet from [components.analytics]. Emitted before
       // the code injection blocks so an operator who needs to override the
@@ -627,6 +633,132 @@ function buildJsonLd(
   if (breadcrumb) entities.push(breadcrumb);
 
   return entities;
+}
+
+function renderJsonLdScripts(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        url?: string;
+        data?: Record<string, unknown>;
+        meta?: { canonical?: string };
+      }
+    | undefined,
+  site: {
+    title: string;
+    url: string;
+    logo?: string;
+    logo_width?: number;
+    logo_height?: number;
+    twitter?: string | undefined;
+    facebook?: string | undefined;
+  },
+  meta: ComputedMeta,
+  basePath: string,
+  nonce: string,
+  cache: Map<string, string>,
+): string {
+  const cacheKey = jsonLdCacheKey(ctx, route, site, meta, basePath, nonce);
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const scripts = buildJsonLd(ctx, route, site, meta, basePath)
+    .map(
+      (entity) =>
+        `<script type="application/ld+json"${nonce}>${escapeJsonForScript(JSON.stringify(entity))}</script>`,
+    )
+    .join('\n');
+  cache.set(cacheKey, scripts);
+  return scripts;
+}
+
+function jsonLdCacheKey(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        kind?: string;
+        url?: string;
+        data?: Record<string, unknown>;
+        meta?: { canonical?: string };
+      }
+    | undefined,
+  site: {
+    title: string;
+    url: string;
+    logo?: string;
+    logo_width?: number;
+    logo_height?: number;
+    twitter?: string | undefined;
+    facebook?: string | undefined;
+  },
+  meta: ComputedMeta,
+  basePath: string,
+  nonce: string,
+): string {
+  const structuredResource = structuredContentResource(ctx, route);
+  const resourceKey = structuredResource
+    ? `content:${structuredResource.kind}:${structuredResource.id}`
+    : `site:${route?.kind ?? ''}:${route?.url ?? ''}:${stableJsonLdRouteDataSignature(route?.data)}`;
+
+  return JSON.stringify([
+    resourceKey,
+    route?.kind ?? '',
+    route?.url ?? '',
+    route?.meta?.canonical ?? '',
+    site.url,
+    site.title,
+    site.logo ?? '',
+    site.logo_width ?? '',
+    site.logo_height ?? '',
+    site.twitter ?? '',
+    site.facebook ?? '',
+    basePath,
+    nonce,
+    meta,
+  ]);
+}
+
+function structuredContentResource(
+  ctx: Record<string, unknown>,
+  route:
+    | {
+        data?: Record<string, unknown>;
+      }
+    | undefined,
+): { kind: 'post' | 'page'; id: string } | undefined {
+  const kind = route?.data?.page ? 'page' : route?.data?.post ? 'post' : undefined;
+  const id = typeof ctx.id === 'string' && ctx.id ? ctx.id : undefined;
+  return kind && id ? { kind, id } : undefined;
+}
+
+function stableJsonLdRouteDataSignature(data: Record<string, unknown> | undefined): string {
+  if (!data) return '';
+  return JSON.stringify({
+    tag: resourceSignature(data.tag),
+    author: resourceSignature(data.author),
+    posts: Array.isArray(data.posts)
+      ? data.posts.map((post) => {
+          const record = recordValue(post);
+          return record ? [record.url ?? '', record.title ?? ''] : undefined;
+        })
+      : undefined,
+  });
+}
+
+function resourceSignature(value: unknown): unknown {
+  const record = recordValue(value);
+  if (!record) return undefined;
+  return {
+    name: record.name,
+    url: record.url,
+    meta_title: record.meta_title,
+    meta_description: record.meta_description,
+    og_title: record.og_title,
+    og_description: record.og_description,
+    twitter_title: record.twitter_title,
+    twitter_description: record.twitter_description,
+  };
 }
 
 function isStructuredContentRoute(
