@@ -107,9 +107,10 @@ function renderSection(section: unknown, markups: Markup[], atoms: Atom[], cards
       const safeTag = VALID_MARKUP_TAGS.has(tag) ? tag : 'p';
       const markers = Array.isArray(section[2]) ? (section[2] as Marker[]) : [];
       const inner = renderMarkers(markers, markups, atoms);
-      // `pull-quote` renders as <aside class="pull-quote"> in Ghost.
+      // Legacy pull-quote sections map to Ghost's alternate blockquote class
+      // so Source/Casper `.kg-blockquote-alt` rules can style migrated posts.
       if (safeTag === 'pull-quote') {
-        return `<aside class="pull-quote">${inner}</aside>`;
+        return `<blockquote class="kg-blockquote-alt">${inner}</blockquote>`;
       }
       return `<${safeTag}>${inner}</${safeTag}>`;
     }

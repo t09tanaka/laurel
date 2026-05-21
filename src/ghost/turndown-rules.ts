@@ -68,14 +68,6 @@ function html(el: DomNode | null): string {
   return el?.innerHTML?.trim() ?? '';
 }
 
-function firstText(node: DomNode, selectors: readonly string[]): string {
-  for (const selector of selectors) {
-    const found = text(node.querySelector(selector));
-    if (found) return found;
-  }
-  return '';
-}
-
 function styleValue(el: DomNode | null, property: string): string {
   const style = attr(el, 'style');
   if (!style) return '';
@@ -108,10 +100,27 @@ function htmlCardWrapper(inner: string, className = 'kg-card kg-html-card'): str
 }
 
 function normalizeCodeLanguage(raw: string): string {
-  return raw
+  const normalized = raw
     .trim()
+    .toLowerCase()
     .replace(/^language-/, '')
-    .replace(/^lang-/, '');
+    .replace(/^lang-/, '')
+    .replace(/\s+/g, '-');
+  const aliases: Record<string, string> = {
+    node: 'javascript',
+    nodejs: 'javascript',
+    shell: 'bash',
+    sh: 'bash',
+    'plain-text': 'plaintext',
+    text: 'plaintext',
+    csharp: 'csharp',
+    'c#': 'csharp',
+    cpp: 'cpp',
+    'c++': 'cpp',
+    'objective-c': 'objectivec',
+    obj_c: 'objectivec',
+  };
+  return aliases[normalized] ?? normalized;
 }
 
 function codeCardLanguage(card: DomNode, pre: DomNode | null, code: DomNode | null): string {
@@ -161,7 +170,7 @@ function providerFromUrl(url: string): string {
   } catch {
     return '';
   }
-  if (/(?:^|\.)(?:youtube\.com|youtu\.be)$/.test(host)) return 'youtube';
+  if (/(?:^|\.)(?:youtube\.com|youtube-nocookie\.com|youtu\.be)$/.test(host)) return 'youtube';
   if (/(?:^|\.)vimeo\.com$/.test(host)) return 'vimeo';
   if (/(?:^|\.)spotify\.com$/.test(host)) return 'spotify';
   if (/(?:^|\.)(?:soundcloud\.com|w\.soundcloud\.com|api\.soundcloud\.com)$/.test(host))
@@ -247,7 +256,9 @@ function pictureSourceAttrs(node: DomNode): Record<string, string> {
 function lastAnchorHref(node: DomNode): string {
   const anchors = Array.from(node.querySelectorAll('a') as ArrayLike<DomNode>);
   for (let i = anchors.length - 1; i >= 0; i--) {
-    const href = attr(anchors[i], 'href');
+    const anchor = anchors[i];
+    if (!anchor) continue;
+    const href = attr(anchor, 'href');
     if (href) return href;
   }
   return '';
@@ -261,6 +272,17 @@ function twitterDnt(node: DomNode, rawUrl: string): string {
   } catch {
     return '';
   }
+}
+
+function codepenEmbedAttrs(node: DomNode): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const theme = attr(node, 'theme-id') || attr(node, 'data-theme-id') || attr(node, 'data-theme');
+  const defaultTab = attr(node, 'default-tab') || attr(node, 'data-default-tab');
+  const prefill = attr(node, 'data-prefill');
+  if (theme) attrs.theme = theme;
+  if (defaultTab) attrs['default-tab'] = defaultTab;
+  if (prefill) attrs['data-prefill'] = prefill;
+  return attrs;
 }
 
 function backgroundImageUrlFromStyle(style: string): string {
@@ -303,20 +325,6 @@ function shortcodeBlock(name: string, attrs: Record<string, string>, inner: stri
 
 function wrap(s: string): string {
   return `\n\n${s}\n\n`;
-}
-
-function formatHtmlAttrs(attrs: Array<[string, string]>): string {
-  const pairs = attrs
-    .filter(([name, value]) => /^[a-zA-Z_:][\w:.-]*$/.test(name) && value !== '')
-    .map(([name, value]) => `${name}="${escapeHtmlAttr(value)}"`);
-  return pairs.length ? ` ${pairs.join(' ')}` : '';
-}
-
-function dataAttrs(node: DomNode): Array<[string, string]> {
-  const attrs = Array.from(node.attributes ?? []);
-  return attrs
-    .filter(({ name }) => name.toLowerCase().startsWith('data-'))
-    .map(({ name, value }) => [name, value] as [string, string]);
 }
 
 function hasAttr(el: DomNode | null, name: string): boolean {
@@ -447,6 +455,15 @@ const FIGURE_CARD_SUBTYPES = [
 ] as const;
 
 export function registerGhostCardRules(turndown: TurndownService): void {
+  // Alternate blockquote: Ghost themes style this class distinctly from plain
+  // Markdown blockquotes. Keep it as raw HTML because Markdown has no classed
+  // blockquote syntax.
+  turndown.addRule('kg-blockquote-alt', {
+    filter: (node) => node.nodeName === 'BLOCKQUOTE' && hasClass(node, 'kg-blockquote-alt'),
+    replacement: (_content, node) =>
+      wrap(`<blockquote class="kg-blockquote-alt">${node.innerHTML.trim()}</blockquote>`),
+  });
+
   // Bookmark card: <figure class="kg-card kg-bookmark-card"><a href><...>
   turndown.addRule('kg-bookmark-card', {
     filter: (node) => node.nodeName === 'FIGURE' && hasClass(node, 'kg-bookmark-card'),
@@ -560,6 +577,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
             height: attr(iframe, 'height'),
             caption,
             size: classByPrefix(node, 'kg-width-'),
+            ...codepenEmbedAttrs(iframe),
           }),
         );
       }
@@ -586,6 +604,35 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           shortcode('embed', {
             url: permalink || lastAnchorHref(instagram),
             provider: 'instagram',
+            caption,
+            size: classByPrefix(node, 'kg-width-'),
+          }),
+        );
+      }
+
+      const reddit = node.querySelector('blockquote.reddit-card');
+      if (reddit) {
+        const url = attr(reddit, 'data-card-url') || lastAnchorHref(reddit);
+        return wrap(
+          shortcode('embed', {
+            url,
+            provider: 'reddit',
+            'blockquote-class': attr(reddit, 'class'),
+            caption,
+            size: classByPrefix(node, 'kg-width-'),
+          }),
+        );
+      }
+
+      const tiktok = node.querySelector('blockquote.tiktok-embed');
+      if (tiktok) {
+        return wrap(
+          shortcode('embed', {
+            url: attr(tiktok, 'cite') || lastAnchorHref(tiktok),
+            provider: 'tiktok',
+            cite: attr(tiktok, 'cite'),
+            'video-id': attr(tiktok, 'data-video-id'),
+            'blockquote-class': attr(tiktok, 'class'),
             caption,
             size: classByPrefix(node, 'kg-width-'),
           }),
@@ -701,9 +748,10 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const video = node.querySelector('video');
       const src = attr(video, 'src') || attr(video?.querySelector('source') ?? null, 'src');
       const container = node.querySelector('.kg-video-container');
+      const posterImage = node.querySelector('.kg-video-thumbnail-image-card');
       const containerStyle = attr(container, 'style');
       const aspectMatch = containerStyle.match(/--aspect-ratio\s*:\s*([0-9.]+)/);
-      const aspect = aspectMatch ? aspectMatch[1] : '';
+      const aspect = aspectMatch?.[1] ?? '';
       const booleanAttr = (el: DomNode | null, name: string): string => {
         if (!el) return '';
         const v = el.getAttribute(name);
@@ -712,6 +760,9 @@ export function registerGhostCardRules(turndown: TurndownService): void {
       const attrs = {
         src,
         poster: attr(video, 'poster'),
+        poster_src: attr(posterImage, 'src'),
+        poster_srcset: attr(posterImage, 'srcset'),
+        poster_sizes: attr(posterImage, 'sizes'),
         width: attr(video, 'width'),
         height: attr(video, 'height'),
         aspect,
@@ -808,6 +859,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           ...pictureSourceAttrs(node),
           href: imageWrapAnchorHref(node),
           size: classByPrefix(node, 'kg-width-'),
+          align: classByPrefix(node, 'kg-align-'),
           caption: text(node.querySelector('figcaption')),
         }),
       );
@@ -821,12 +873,22 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   turndown.addRule('kg-callout-card', {
     filter: (node) => node.nodeName === 'DIV' && hasClass(node, 'kg-callout-card'),
     replacement: (_content, node) => {
-      const emojiEl = node.querySelector('.kg-callout-emoji');
+      const emojiEl =
+        node.querySelector('.kg-callout-emoji') ??
+        node.querySelector('.kg-callout-card-emoji') ??
+        node.querySelector('.callout-emoji');
       const emoji = text(emojiEl);
       const emojiHtml = emoji ? '' : html(emojiEl);
       const noIcon = hasClass(node, 'kg-callout-card-without-emoji') || (!emoji && !emojiHtml);
-      const color = classByPrefix(node, 'kg-callout-card-');
-      const textEl = node.querySelector('.kg-callout-text');
+      const color =
+        attr(node, 'data-callout-color') ||
+        attr(node, 'data-kg-background-color') ||
+        classByPrefix(node, 'kg-callout-card-') ||
+        classByPrefix(node, 'kg-callout-');
+      const textEl =
+        node.querySelector('.kg-callout-text') ??
+        node.querySelector('.kg-callout-card-text') ??
+        node.querySelector('.callout-text');
       const inner = textEl ? turndown.turndown(textEl.innerHTML).trim() : '';
       return wrap(
         shortcodeBlock(
@@ -985,9 +1047,13 @@ export function registerGhostCardRules(turndown: TurndownService): void {
           styleValue(heading, 'color') ||
           styleValue(node, 'color');
         attrs.button_color =
-          attr(button, 'data-button-color') || styleValue(button, 'background-color');
+          attr(button, 'data-button-color') ||
+          styleValue(button, '--kg-header-button-color') ||
+          styleValue(button, 'background-color');
         attrs.button_text_color =
-          attr(button, 'data-button-text-color') || styleValue(button, 'color');
+          attr(button, 'data-button-text-color') ||
+          styleValue(button, '--kg-header-button-text-color') ||
+          styleValue(button, 'color');
         attrs.button_style = buttonStyle;
         attrs.accent = attr(node, 'data-accent-color') || styleValue(node, '--accent-color');
         return wrap(shortcode('header', attrs));

@@ -43,6 +43,14 @@ function widthClass(payload: unknown): string {
     : '';
 }
 
+function alignmentClass(payload: unknown): string {
+  const raw = strProp(payload, 'align') || strProp(payload, 'alignment');
+  const normalized = raw.replace(/^kg-align-/, '');
+  return normalized === 'left' || normalized === 'center' || normalized === 'right'
+    ? ` kg-align-${normalized}`
+    : '';
+}
+
 function tokenClass(prefix: string, raw: string): string {
   const token = raw.trim().replace(new RegExp(`^${prefix}-`), '');
   return /^[a-z][a-z0-9-]*$/.test(token) ? ` ${prefix}-${token}` : '';
@@ -71,7 +79,7 @@ export function renderImageCardHtml(payload: unknown): string {
   const imgEl = `<img ${imgAttrs}>`;
   const wrapped = href ? `<a href="${escapeAttr(href)}">${imgEl}</a>` : imgEl;
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-image-card${widthClass(payload)}${hasCaptionClass(caption)}">${wrapped}${figcap}</figure>`;
+  return `<figure class="kg-card kg-image-card${widthClass(payload)}${alignmentClass(payload)}${hasCaptionClass(caption)}">${wrapped}${figcap}</figure>`;
 }
 
 export function renderMarkdownCardHtml(payload: unknown): string {
@@ -90,12 +98,37 @@ export function renderHtmlCardHtml(payload: unknown): string {
 export function renderCodeCardHtml(payload: unknown): string {
   const code = strProp(payload, 'code');
   if (!code) return '';
-  const language = strProp(payload, 'language');
+  const language = normalizeCodeLanguage(strProp(payload, 'language'));
   const caption = strProp(payload, 'caption');
   const langClass = language ? ` class="language-${escapeAttr(language)}"` : '';
   const pre = `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
   if (!caption) return pre;
   return `<figure class="kg-card kg-code-card kg-card-hascaption">${pre}<figcaption>${caption}</figcaption></figure>`;
+}
+
+function normalizeCodeLanguage(raw: string): string {
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^language-/, '')
+    .replace(/^lang-/, '')
+    .replace(/\s+/g, '-');
+  const aliases: Record<string, string> = {
+    node: 'javascript',
+    nodejs: 'javascript',
+    shell: 'bash',
+    sh: 'bash',
+    'plain-text': 'plaintext',
+    text: 'plaintext',
+    csharp: 'csharp',
+    'c#': 'csharp',
+    cpp: 'cpp',
+    'c++': 'cpp',
+    'objective-c': 'objectivec',
+    obj_c: 'objectivec',
+  };
+  const mapped = aliases[normalized] ?? normalized;
+  return /^[a-zA-Z0-9_+.-]+$/.test(mapped) ? mapped : '';
 }
 
 export function renderBookmarkCardHtml(payload: unknown): string {
@@ -365,6 +398,8 @@ export function renderVideoCardHtml(payload: unknown): string {
   const src = strProp(payload, 'src');
   if (!src) return '';
   const poster = strProp(payload, 'thumbnailSrc');
+  const posterSrcset = strProp(payload, 'thumbnailSrcset') || strProp(payload, 'posterSrcset');
+  const posterSizes = strProp(payload, 'thumbnailSizes') || strProp(payload, 'posterSizes');
   const caption = strProp(payload, 'caption');
   // Lexical payloads store width/height as numbers; Mobiledoc and ad-hoc
   // callers may pass strings. Accept either rather than silently dropping
@@ -391,8 +426,19 @@ export function renderVideoCardHtml(payload: unknown): string {
     Number.isFinite(wNum) && Number.isFinite(hNum) && wNum > 0 && hNum > 0
       ? ` style="--aspect-ratio: ${wNum / hNum}"`
       : '';
+  const posterImageAttrs = [
+    poster ? `src="${escapeAttr(poster)}"` : '',
+    posterSrcset ? `srcset="${escapeAttr(posterSrcset)}"` : '',
+    posterSizes ? `sizes="${escapeAttr(posterSizes)}"` : '',
+    'alt=""',
+    'class="kg-video-thumbnail-image-card"',
+    'loading="lazy"',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  const posterImage = posterSrcset || posterSizes ? `<img ${posterImageAttrs}>` : '';
   const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
-  return `<figure class="kg-card kg-video-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}><video ${videoAttrs}></video></div>${figcap}</figure>`;
+  return `<figure class="kg-card kg-video-card${widthClass(payload)}${hasCaptionClass(caption)}"><div class="kg-video-container"${containerStyle}>${posterImage}<video ${videoAttrs}></video></div>${figcap}</figure>`;
 }
 
 function dimensionProp(obj: unknown, key: string): string {

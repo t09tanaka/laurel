@@ -21,6 +21,7 @@ slugCollisions: 0
 # tree
 === content/posts/card-audio.md ===
 ---
+id: "card-audio"
 slug: "card-audio"
 title: "Card: audio"
 date: "2024-01-08T00:00:00.000Z"
@@ -33,6 +34,7 @@ status: "published"
 
 === content/posts/card-bookmark.md ===
 ---
+id: "card-bookmark"
 slug: "card-bookmark"
 title: "Card: bookmark"
 date: "2024-01-03T00:00:00.000Z"
@@ -45,6 +47,7 @@ status: "published"
 
 === content/posts/card-button.md ===
 ---
+id: "card-button"
 slug: "card-button"
 title: "Card: button"
 date: "2024-01-05T00:00:00.000Z"
@@ -57,6 +60,7 @@ status: "published"
 
 === content/posts/card-callout.md ===
 ---
+id: "card-callout"
 slug: "card-callout"
 title: "Card: callout"
 date: "2024-01-04T00:00:00.000Z"
@@ -71,6 +75,7 @@ Heads up: this is a callout card.
 
 === content/posts/card-code.md ===
 ---
+id: "card-code"
 slug: "card-code"
 title: "Card: code"
 date: "2024-01-12T00:00:00.000Z"
@@ -87,6 +92,7 @@ export function hello(name: string): string {
 
 === content/posts/card-email-cta.md ===
 ---
+id: "card-email-cta"
 slug: "card-email-cta"
 title: "Card: email-cta"
 date: "2024-01-20T00:00:00.000Z"
@@ -101,6 +107,7 @@ Public paragraph after the newsletter CTA.
 
 === content/posts/card-embed.md ===
 ---
+id: "card-embed"
 slug: "card-embed"
 title: "Card: embed"
 date: "2024-01-06T00:00:00.000Z"
@@ -113,6 +120,7 @@ status: "published"
 
 === content/posts/card-file.md ===
 ---
+id: "card-file"
 slug: "card-file"
 title: "Card: file"
 date: "2024-01-07T00:00:00.000Z"
@@ -125,6 +133,7 @@ status: "published"
 
 === content/posts/card-gallery.md ===
 ---
+id: "card-gallery"
 slug: "card-gallery"
 title: "Card: gallery"
 date: "2024-01-02T00:00:00.000Z"
@@ -143,6 +152,7 @@ status: "published"
 
 === content/posts/card-header.md ===
 ---
+id: "card-header"
 slug: "card-header"
 title: "Card: header"
 date: "2024-01-10T00:00:00.000Z"
@@ -155,6 +165,7 @@ status: "published"
 
 === content/posts/card-html.md ===
 ---
+id: "card-html"
 slug: "card-html"
 title: "Card: html"
 date: "2024-01-11T00:00:00.000Z"
@@ -163,10 +174,11 @@ visibility: "public"
 status: "published"
 ---
 
-<div class="custom-embed"><p>Raw HTML wrapped in an html card fence.</p></div>
+<div class="kg-card kg-html-card"><div class="custom-embed"><p>Raw HTML wrapped in an html card fence.</p></div></div>
 
 === content/posts/card-image.md ===
 ---
+id: "card-image"
 slug: "card-image"
 title: "Card: image"
 date: "2024-01-01T00:00:00.000Z"
@@ -179,6 +191,7 @@ status: "published"
 
 === content/posts/card-markdown.md ===
 ---
+id: "card-markdown"
 slug: "card-markdown"
 title: "Card: markdown"
 date: "2024-01-13T00:00:00.000Z"
@@ -194,6 +207,7 @@ Raw paragraph from a Koenig markdown card.
 
 === content/posts/card-nft.md ===
 ---
+id: "card-nft"
 slug: "card-nft"
 title: "Card: nft"
 date: "2024-01-17T00:00:00.000Z"
@@ -206,6 +220,7 @@ status: "published"
 
 === content/posts/card-paywall.md ===
 ---
+id: "card-paywall"
 slug: "card-paywall"
 title: "Card: paywall"
 date: "2024-01-14T00:00:00.000Z"
@@ -220,6 +235,7 @@ Members-only paragraph that lives below the paywall fence.
 
 === content/posts/card-product.md ===
 ---
+id: "card-product"
 slug: "card-product"
 title: "Card: product"
 date: "2024-01-18T00:00:00.000Z"
@@ -232,6 +248,7 @@ status: "published"
 
 === content/posts/card-recommendations.md ===
 ---
+id: "card-recommendations"
 slug: "card-recommendations"
 title: "Card: recommendations"
 date: "2024-01-16T00:00:00.000Z"
@@ -245,6 +262,7 @@ status: "published"
 
 === content/posts/card-signup.md ===
 ---
+id: "card-signup"
 slug: "card-signup"
 title: "Card: signup"
 date: "2024-01-15T00:00:00.000Z"
@@ -257,6 +275,7 @@ status: "published"
 
 === content/posts/card-toggle.md ===
 ---
+id: "card-toggle"
 slug: "card-toggle"
 title: "Card: toggle"
 date: "2024-01-19T00:00:00.000Z"
@@ -271,6 +290,7 @@ The body of the toggle, with **bold** and a [link](https://example.com/).
 
 === content/posts/card-video.md ===
 ---
+id: "card-video"
 slug: "card-video"
 title: "Card: video"
 date: "2024-01-09T00:00:00.000Z"

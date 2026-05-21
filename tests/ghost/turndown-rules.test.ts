@@ -67,6 +67,31 @@ describe('Ghost Turndown rules — kg-bookmark-card', () => {
   });
 });
 
+describe('Ghost Turndown rules — blockquote and simple fallbacks', () => {
+  test('preserves kg-blockquote-alt as classed HTML', async () => {
+    const md = td.turndown('<blockquote class="kg-blockquote-alt"><p>Pull quote</p></blockquote>');
+    expect(md).toContain('<blockquote class="kg-blockquote-alt">');
+    expect(md).toContain('<p>Pull quote</p>');
+
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('<blockquote class="kg-blockquote-alt">');
+  });
+
+  test('keeps inline code containing backticks readable', () => {
+    const md = td.turndown('<p>Use <code>`tick`</code> safely.</p>');
+    expect(md).toContain('`` `tick` ``');
+  });
+
+  test('keeps markdown and divider cards on the standard markdown path', async () => {
+    const { html: markdownHtml } = await renderMarkdown('**plain markdown card**');
+    expect(markdownHtml).toContain('<strong>plain markdown card</strong>');
+
+    const dividerMd = td.turndown('<hr>');
+    const { html: dividerHtml } = await renderMarkdown(dividerMd);
+    expect(dividerHtml).toContain('<hr');
+  });
+});
+
 describe('Ghost Turndown rules — kg-header-card', () => {
   test('preserves v1 layout metadata as a header shortcode', () => {
     const html = `
@@ -103,7 +128,7 @@ describe('Ghost Turndown rules — kg-header-card', () => {
             <p class="kg-header-card-subheading" style="color: #f4f4f4;" data-text-color="#f4f4f4">Useful supporting copy.</p>
             <a
               class="kg-header-card-button kg-header-card-button-accent"
-              style="background-color: #f6c344; color: #101820;"
+              style="--kg-header-button-color: #f6c344; --kg-header-button-text-color: #101820;"
               data-button-color="#f6c344"
               href="https://example.com/signup"
             >Join now</a>
@@ -126,12 +151,21 @@ describe('Ghost Turndown rules — kg-header-card', () => {
     expect(md).toContain('background_color="#101820"');
     expect(md).toContain('text_color="#ffffff"');
     expect(md).toContain('button_color="#f6c344"');
+    expect(md).toContain('button_text_color="#101820"');
     expect(md).toContain('button_style="accent"');
     expect(md).toContain('accent="#f6c344"');
     expect(md).toContain('heading="Launch headline"');
     expect(md).toContain('subheading="Useful supporting copy."');
     expect(md).toContain('button_href="https://example.com/signup"');
     expect(md).toContain('button_text="Join now"');
+  });
+
+  test('renders header button color metadata as CSS variables', async () => {
+    const { html } = await renderMarkdown(
+      '{{< header version="v2" heading="Hi" button_href="https://example.com" button_text="Go" button_color="#123456" button_text_color="#ffffff" />}}',
+    );
+    expect(html).toContain('--kg-header-button-color:#123456');
+    expect(html).toContain('--kg-header-button-text-color:#ffffff');
   });
 });
 
@@ -151,6 +185,19 @@ describe('Ghost Turndown rules — kg-image-card', () => {
     expect(md).toContain('height="1200"');
     expect(md).toContain('size="wide"');
     expect(md).toContain('caption="Photo by Jane"');
+  });
+
+  test('preserves legacy image alignment modifiers', async () => {
+    const html = `
+      <figure class="kg-card kg-image-card kg-align-left">
+        <img src="/content/images/left.jpg" alt="Left" />
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('align="left"');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('class="kg-card kg-image-card kg-width-regular kg-align-left"');
   });
 
   test('renders without caption when figcaption is absent', () => {
@@ -453,6 +500,21 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     expect(md).toContain('provider="spotify"');
   });
 
+  test('preserves spotify iframe dimensions through markdown rendering', async () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://open.spotify.com/embed/episode/abc" width="400" height="232"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('width="400"');
+    expect(md).toContain('height="232"');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('width="400"');
+    expect(rendered).toContain('height="232"');
+  });
+
   test('converts twitter blockquote to embed shortcode with provider twitter', () => {
     const html = `
       <figure class="kg-card kg-embed-card">
@@ -540,6 +602,53 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     expect(md).toContain('provider="gist"');
   });
 
+  test('preserves codepen prefill and theme attrs', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe
+          src="https://codepen.io/user/embed/abc"
+          data-prefill="html=%3Cp%3EHi%3C%2Fp%3E"
+          data-theme-id="dark"
+          data-default-tab="result"
+        ></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="codepen"');
+    expect(md).toContain('data-prefill="html=%3Cp%3EHi%3C%2Fp%3E"');
+    expect(md).toContain('theme="dark"');
+    expect(md).toContain('default-tab="result"');
+  });
+
+  test('preserves reddit blockquote embeds as provider metadata', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <blockquote class="reddit-card" data-card-url="https://www.reddit.com/r/test/comments/abc/example/">
+          <a href="https://www.reddit.com/r/test/comments/abc/example/">View post</a>
+        </blockquote>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="reddit"');
+    expect(md).toContain('url="https://www.reddit.com/r/test/comments/abc/example/"');
+    expect(md).toContain('blockquote-class="reddit-card"');
+  });
+
+  test('preserves tiktok cite attrs from blockquote embeds', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@ghost/video/123" data-video-id="123">
+          <a href="https://www.tiktok.com/@ghost/video/123">Watch</a>
+        </blockquote>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="tiktok"');
+    expect(md).toContain('url="https://www.tiktok.com/@ghost/video/123"');
+    expect(md).toContain('cite="https://www.tiktok.com/@ghost/video/123"');
+    expect(md).toContain('video-id="123"');
+  });
+
   test('unwraps provider iframe wrappers back to source urls', () => {
     const html = `
       <figure class="kg-card kg-embed-card">
@@ -560,6 +669,28 @@ describe('Ghost Turndown rules — kg-embed-card', () => {
     const md = td.turndown(html);
     expect(md).toContain('url="https://api.soundcloud.com/tracks/42"');
     expect(md).toContain('provider="soundcloud"');
+  });
+
+  test('detects youtube-nocookie imports as YouTube embeds', () => {
+    const html = `
+      <figure class="kg-card kg-embed-card">
+        <iframe src="https://www.youtube-nocookie.com/embed/abc123"></iframe>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('provider="youtube"');
+
+    const rendered = td.turndown(
+      '<figure class="kg-card kg-embed-card"><iframe src="https://www.youtube.com/embed/abc123"></iframe></figure>',
+    );
+    expect(rendered).toContain('provider="youtube"');
+  });
+
+  test('preserves Vimeo dnt query through rendering', async () => {
+    const md =
+      '{{< embed url="https://player.vimeo.com/video/76979871?dnt=1" provider="vimeo" />}}';
+    const { html } = await renderMarkdown(md);
+    expect(html).toContain('src="https://player.vimeo.com/video/76979871?dnt=1"');
   });
 
   test('omits provider attribute when host is unrecognised', () => {
@@ -586,6 +717,18 @@ describe('Ghost Turndown rules — kg-code-card', () => {
     expect(md).toContain('line-number-class="line-numbers"');
     expect(md).toContain('```javascript\nconst msg = "hi";\nconsole.log(msg);\n```');
     expect(md).toContain('{{< /code >}}');
+  });
+
+  test('normalizes Ghost language labels to Prism aliases', async () => {
+    const html =
+      '<figure class="kg-card kg-code-card"><pre><code class="language-Shell">echo hi</code></pre></figure>';
+    const md = td.turndown(html);
+    expect(md.trim()).toBe('```bash\necho hi\n```');
+
+    const { html: rendered } = await renderMarkdown(
+      '{{< code language="Plain Text" >}}x{{< /code >}}',
+    );
+    expect(rendered).toContain('class="language-plaintext"');
   });
 
   test('round-trips figcaption through import markdown and rendering', async () => {
@@ -655,6 +798,26 @@ describe('Ghost Turndown rules — kg-video-card', () => {
     expect(md).toContain('poster="/p.jpg"');
     expect(md).toContain('width="1280"');
     expect(md).toContain('caption="Demo"');
+  });
+
+  test('preserves responsive video thumbnail image metadata', async () => {
+    const html = `
+      <figure class="kg-card kg-video-card">
+        <div class="kg-video-container">
+          <img class="kg-video-thumbnail-image-card" src="/content/images/poster.jpg" srcset="/content/images/size/w600/poster.jpg 600w" sizes="100vw" alt="" />
+          <video poster="/content/images/poster.jpg" src="/content/media/video.mp4"></video>
+        </div>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('poster_src="/content/images/poster.jpg"');
+    expect(md).toContain('poster_srcset="/content/images/size/w600/poster.jpg 600w"');
+    expect(md).toContain('poster_sizes="100vw"');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('class="kg-video-thumbnail-image-card"');
+    expect(rendered).toContain('srcset="/content/images/size/w600/poster.jpg 600w"');
+    expect(rendered).toContain('sizes="100vw"');
   });
 
   // Regression for backlog task #99: the kg-video-card carries three distinct
@@ -886,6 +1049,19 @@ describe('Ghost Turndown rules — kg-callout-card', () => {
     expect(md).not.toContain('emoji=""');
     expect(md).not.toContain('emoji-html=""');
     expect(md).toContain('Note: be careful.');
+  });
+
+  test('accepts pre-v5 callout child class names', () => {
+    const html = `
+      <div class="kg-card kg-callout-card" data-callout-color="yellow">
+        <div class="kg-callout-card-emoji">💡</div>
+        <div class="kg-callout-card-text">Legacy <strong>tip</strong>.</div>
+      </div>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('emoji="💡"');
+    expect(md).toContain('color="yellow"');
+    expect(md).toContain('Legacy **tip**.');
   });
 
   test('preserves custom callout emoji markup', () => {

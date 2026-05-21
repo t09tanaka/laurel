@@ -215,6 +215,15 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toBe('<blockquote>quote</blockquote>');
   });
 
+  test('renders legacy pull-quote sections as Ghost alternate blockquotes', () => {
+    const out = renderMobiledocToHtml(
+      mobi({
+        sections: [[1, 'pull-quote', [[0, [], 0, 'quote']]]],
+      }),
+    );
+    expect(out).toBe('<blockquote class="kg-blockquote-alt">quote</blockquote>');
+  });
+
   test('renders an html card via the kg-card fence', () => {
     const out = renderMobiledocToHtml(
       mobi({

@@ -196,6 +196,8 @@ const sanitizeOptions: IOptions = {
     a: {
       color: [/^#[0-9a-f]{3,8}$/i],
       'background-color': [/^#[0-9a-f]{3,8}$/i],
+      '--kg-header-button-color': [/^#[0-9a-f]{3,8}$/i],
+      '--kg-header-button-text-color': [/^#[0-9a-f]{3,8}$/i],
     },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel'],
@@ -1144,7 +1146,8 @@ function renderFigureHtml(attrs: Record<string, string>): string {
   const figcaption = caption
     ? `<figcaption>${renderInlineCaptionMarkdown(caption)}</figcaption>`
     : '';
-  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
+  const alignClass = tokenClass('kg-align', attrs.align ?? attrs.alignment);
+  return `\n\n<figure class="kg-card kg-image-card${koenigWidthClass(attrs)}${alignClass}${hasCaptionClass(caption)}">${inner}${figcaption}</figure>\n\n`;
 }
 
 function renderFigurePictureSourcesHtml(attrs: Record<string, string>): string {
@@ -1235,9 +1238,26 @@ function parseCodeShortcodeBody(body: string): { code: string; language: string 
 function normalizeCodeLanguage(raw: string): string {
   const normalized = raw
     .trim()
+    .toLowerCase()
     .replace(/^language-/, '')
-    .replace(/^lang-/, '');
-  return /^[a-zA-Z0-9_+.-]+$/.test(normalized) ? normalized : '';
+    .replace(/^lang-/, '')
+    .replace(/\s+/g, '-');
+  const aliases: Record<string, string> = {
+    node: 'javascript',
+    nodejs: 'javascript',
+    shell: 'bash',
+    sh: 'bash',
+    'plain-text': 'plaintext',
+    text: 'plaintext',
+    csharp: 'csharp',
+    'c#': 'csharp',
+    cpp: 'cpp',
+    'c++': 'cpp',
+    'objective-c': 'objectivec',
+    obj_c: 'objectivec',
+  };
+  const mapped = aliases[normalized] ?? normalized;
+  return /^[a-zA-Z0-9_+.-]+$/.test(mapped) ? mapped : '';
 }
 
 function classTokenList(raw: string): string {
@@ -1275,7 +1295,13 @@ function normalizeEmbedProvider(provider: string | undefined): string {
 
 function providerFromUrl(url: URL): string {
   const host = url.hostname.toLowerCase();
-  if (host === 'youtu.be' || host.endsWith('.youtube.com') || host === 'youtube.com') {
+  if (
+    host === 'youtu.be' ||
+    host.endsWith('.youtube.com') ||
+    host === 'youtube.com' ||
+    host.endsWith('.youtube-nocookie.com') ||
+    host === 'youtube-nocookie.com'
+  ) {
     return 'youtube';
   }
   if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) return 'vimeo';
@@ -1417,8 +1443,11 @@ function vimeoEmbed(url: URL): StaticEmbed | null {
   const id = parts[0] === 'video' ? parts[1] : parts[0];
   const safeId = safeEmbedPathToken(id ?? '');
   if (!safeId) return null;
+  const src = new URL(`https://player.vimeo.com/video/${encodeURIComponent(safeId)}`);
+  const dnt = url.searchParams.get('dnt');
+  if (dnt === '0' || dnt === '1') src.searchParams.set('dnt', dnt);
   return {
-    src: `https://player.vimeo.com/video/${encodeURIComponent(safeId)}`,
+    src: src.toString(),
     title: 'Vimeo video',
     width: '640',
     height: '360',
@@ -1669,6 +1698,7 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
     .filter((s) => s !== '')
     .join(' ');
   const tracks = renderVideoTracksHtml(body);
+  const posterImage = renderVideoPosterImageHtml(attrs);
   const aspectStyle =
     attrs.aspect && /^\d+(?:\.\d+)?$/.test(attrs.aspect)
       ? ` style="--aspect-ratio: ${escapeHtmlAttr(attrs.aspect)}"`
@@ -1676,7 +1706,25 @@ function renderVideoHtml(attrs: Record<string, string>, body: string): string {
   const figcaption = attrs.caption
     ? `<figcaption>${escapeHtmlAttr(attrs.caption)}</figcaption>`
     : '';
-  return `\n\n<figure class="kg-card kg-video-card${koenigWidthClass(attrs)}${hasCaptionClass(attrs.caption ?? '')}"><div class="kg-video-container"${aspectStyle}><video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
+  return `\n\n<figure class="kg-card kg-video-card${koenigWidthClass(attrs)}${hasCaptionClass(attrs.caption ?? '')}"><div class="kg-video-container"${aspectStyle}>${posterImage}<video ${videoAttrs}>${tracks}</video></div>${figcaption}</figure>\n\n`;
+}
+
+function renderVideoPosterImageHtml(attrs: Record<string, string>): string {
+  const src = attrs.poster_src ?? attrs.poster ?? '';
+  const srcset = attrs.poster_srcset ?? '';
+  const sizes = attrs.poster_sizes ?? '';
+  if (!src || (!srcset && !sizes)) return '';
+  const imgAttrs = [
+    'class="kg-video-thumbnail-image-card"',
+    `src="${escapeHtmlAttr(src)}"`,
+    srcset ? `srcset="${escapeHtmlAttr(srcset)}"` : '',
+    sizes ? `sizes="${escapeHtmlAttr(sizes)}"` : '',
+    'alt=""',
+    'loading="lazy"',
+  ]
+    .filter((s) => s !== '')
+    .join(' ');
+  return `<img ${imgAttrs}>`;
 }
 
 function renderVideoTracksHtml(body: string): string {
@@ -1905,7 +1953,11 @@ function renderHeaderButtonHtml(
 function headerButtonStyle(attrs: Record<string, string>): string {
   const declarations = [
     safeHexColor(attrs.button_color) ? `background-color: ${attrs.button_color}` : '',
+    safeHexColor(attrs.button_color) ? `--kg-header-button-color: ${attrs.button_color}` : '',
     safeHexColor(attrs.button_text_color) ? `color: ${attrs.button_text_color}` : '',
+    safeHexColor(attrs.button_text_color)
+      ? `--kg-header-button-text-color: ${attrs.button_text_color}`
+      : '',
   ].filter((s) => s !== '');
   return declarations.length > 0 ? `style="${escapeHtmlAttr(`${declarations.join('; ')};`)}"` : '';
 }

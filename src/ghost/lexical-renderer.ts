@@ -87,7 +87,7 @@ function renderNode(node: unknown): string {
     case 'listitem':
       return `<li>${renderNodeChildren(node)}</li>`;
     case 'quote':
-      return `<blockquote>${renderNodeChildren(node)}</blockquote>`;
+      return renderQuote(node);
     case 'linebreak':
       return '<br>';
     case 'tab':
@@ -144,6 +144,36 @@ function renderNode(node: unknown): string {
       // case is third-party Koenig plugin nodes that wrap standard children.
       return renderNodeChildren(node);
   }
+}
+
+function renderQuote(node: unknown): string {
+  const cls = quoteClass(node);
+  return `<blockquote${cls}>${renderNodeChildren(node)}</blockquote>`;
+}
+
+function quoteClass(node: unknown): string {
+  if (typeof node !== 'object' || node === null) return '';
+  const record = node as Record<string, unknown>;
+  const rawClass =
+    typeof record.className === 'string'
+      ? record.className
+      : typeof record.class === 'string'
+        ? record.class
+        : '';
+  const variant =
+    typeof record.variant === 'string'
+      ? record.variant
+      : typeof record.quoteType === 'string'
+        ? record.quoteType
+        : '';
+  if (
+    rawClass.split(/\s+/).includes('kg-blockquote-alt') ||
+    variant === 'alt' ||
+    variant === 'blockquote-alt'
+  ) {
+    return ' class="kg-blockquote-alt"';
+  }
+  return '';
 }
 
 function renderText(node: unknown): string {

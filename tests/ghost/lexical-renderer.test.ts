@@ -149,6 +149,20 @@ describe('renderLexicalToHtml', () => {
     expect(out).toBe('<blockquote>To be</blockquote>');
   });
 
+  test('renders alternate blockquote nodes with Ghost class', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'quote',
+          variant: 'alt',
+          children: [text('Pull quote')],
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toBe('<blockquote class="kg-blockquote-alt">Pull quote</blockquote>');
+  });
+
   test('renders an image card with caption and href', () => {
     const out = renderLexicalToHtml(
       lex([
@@ -302,6 +316,20 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('<figcaption>Example</figcaption>');
   });
 
+  test('normalizes Ghost code language names to Prism-compatible aliases', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'code', code: 'echo hi', language: 'Shell', version: 1 }]),
+    );
+    expect(out).toContain('<code class="language-bash">');
+  });
+
+  test('renders legacy image alignment class', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'image', src: '/content/images/a.jpg', align: 'left', version: 1 }]),
+    );
+    expect(out).toContain('class="kg-card kg-image-card kg-align-left"');
+  });
+
   test('reads node.language for captionless code cards', () => {
     const out = renderLexicalToHtml(
       lex([
@@ -403,6 +431,24 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain(`--aspect-ratio: ${1920 / 1080}`);
     expect(out).toContain('poster="/content/images/poster.jpg"');
     expect(out).toContain('<figcaption>A clip</figcaption>');
+  });
+
+  test('renders responsive video poster image metadata', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'video',
+          src: '/content/media/clip.mp4',
+          thumbnailSrc: '/content/images/poster.jpg',
+          thumbnailSrcset: '/content/images/size/w600/poster.jpg 600w',
+          thumbnailSizes: '100vw',
+          version: 1,
+        },
+      ]),
+    );
+    expect(out).toContain('class="kg-video-thumbnail-image-card"');
+    expect(out).toContain('srcset="/content/images/size/w600/poster.jpg 600w"');
+    expect(out).toContain('sizes="100vw"');
   });
 
   test('omits --aspect-ratio when width or height is missing (#101)', () => {
