@@ -1034,6 +1034,15 @@ describe('authors helper', () => {
     expect(out).toBe('By Ada, Grace, Linus.');
   });
 
+  test('prefix=/suffix= wrap the full authors output when names are not linked', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{authors prefix="by " suffix="."}}')({
+      authors: [{ name: 'Jane' }, { name: 'John' }],
+    });
+    expect(out).toBe('by Jane, John.');
+  });
+
   test('supports Liebling-style translated prefix with string from= hash', () => {
     const engine = makeEngine({
       content: { site: { locale: 'en' } } as unknown as NectarEngine['content'],
