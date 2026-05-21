@@ -427,4 +427,98 @@ describe('casper-mini i18n contract (issue #1707)', () => {
     // <html lang="de"> reflects the active locale.
     expect(indexHtml).toMatch(/<html lang="de"/);
   });
+
+  test('Casper-mini de.json translates portal and member-facing t helper strings', async () => {
+    const { mkdtemp, cp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { build } = await import('~/build/pipeline.ts');
+
+    const siteFixture = join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      'fixtures',
+      'theme-smoke',
+      'site',
+    );
+    const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-portal-i18n-de-'));
+    await cp(siteFixture, workDir, { recursive: true });
+    await mkdir(join(workDir, 'themes'), { recursive: true });
+    const themeDir = join(workDir, 'themes', 'casper-mini');
+    await cp(join(FIXTURE_DIR, 'casper-mini'), themeDir, { recursive: true });
+
+    await writeFile(
+      join(themeDir, 'default.hbs'),
+      [
+        '<!DOCTYPE html>',
+        '<html lang="{{@site.locale}}">',
+        '<head>',
+        '  <meta charset="utf-8">',
+        '  <title>{{meta_title}}</title>',
+        '  {{ghost_head}}',
+        '</head>',
+        '<body>',
+        '  <main>{{{body}}}</main>',
+        '  <section data-portal-i18n-contract>',
+        '    <button data-portal="signup">{{t "Subscribe"}}</button>',
+        '    <button data-portal="signin">{{t "Sign in"}}</button>',
+        '    <button data-portal="account">{{t "Account"}}</button>',
+        '    <button data-portal="upgrade">{{t "Upgrade"}}</button>',
+        '    <p data-email-sent>{{t "Email sent"}}</p>',
+        '    <input aria-label="{{t "Search this site"}}" placeholder="{{t "jamie@example.com"}}">',
+        '    <h2>{{t "Recommendations"}}</h2>',
+        '    <a href="/recommendations/">{{t "See all"}}</a>',
+        '    <label>{{t "Search posts, tags and authors"}}</label>',
+        '    <p data-members-only>{{t "This post is for members only"}}</p>',
+        '  </section>',
+        '  {{ghost_foot}}',
+        '</body>',
+        '</html>',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(workDir, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Casper Portal I18n DE"',
+        'description = "i18n smoke"',
+        'url = "https://smoke.example.com"',
+        'locale = "de"',
+        'timezone = "UTC"',
+        'accent_color = "#222222"',
+        '',
+        '[theme]',
+        'name = "casper-mini"',
+        'dir = "themes"',
+        '',
+        '[build]',
+        'output_dir = "dist"',
+        'base_path = "/"',
+        'posts_per_page = 5',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd: workDir });
+    expect(summary.routeCount).toBeGreaterThan(0);
+
+    const indexHtml = readFileSync(join(workDir, 'dist', 'index.html'), 'utf8');
+    expect(indexHtml).toContain('Abonnieren');
+    expect(indexHtml).toContain('Anmelden');
+    expect(indexHtml).toContain('Konto');
+    expect(indexHtml).toContain('E-Mail gesendet');
+    expect(indexHtml).toContain('jamie@example.de');
+    expect(indexHtml).toContain('Empfehlungen');
+    expect(indexHtml).toContain('Alle anzeigen');
+    expect(indexHtml).toContain('Upgraden');
+    expect(indexHtml).toContain('Diese Website durchsuchen');
+    expect(indexHtml).toContain('Beitraege, Tags und Autoren durchsuchen');
+    expect(indexHtml).toContain('Dieser Beitrag ist nur fuer Mitglieder');
+
+    expect(indexHtml).not.toContain('Search this site');
+    expect(indexHtml).not.toContain('Search posts, tags and authors');
+    expect(indexHtml).not.toContain('This post is for members only');
+  });
 });
