@@ -56,6 +56,7 @@ import {
   type HtmlOutput,
   copyAssets,
   copyContentAssets,
+  createThemeAssetCopyCache,
   planContentImageAssets,
   writeHtmlBatch,
 } from './emit.ts';
@@ -781,9 +782,12 @@ async function runBuild({
   let earlyThemeAssetCopy: SettledBuildTask<number> | undefined;
   let earlyContentAssetCopy: SettledBuildTask<number> | undefined;
   let earlySitemapEmit: SettledBuildTask<void> | undefined;
+  const themeAssetCopyCache = createThemeAssetCopyCache();
   if (!dryRun) {
     earlyThemeAssetCopy = startSettledBuildTask(() =>
-      timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir)),
+      timed(profiler, 'copy_assets', () =>
+        copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+      ),
     );
     if (config.build.copy_content_assets) {
       earlyContentAssetCopy = startSettledBuildTask(() =>
@@ -803,7 +807,6 @@ async function runBuild({
         timed(profiler, 'sitemap', () =>
           emitSitemap({
             config,
-            content,
             outputDir,
             previousFeeds,
             nextFeeds,
@@ -1208,7 +1211,9 @@ async function runBuild({
             assetCount = await awaitSettledBuildTask(
               earlyThemeAssetCopy ??
                 startSettledBuildTask(() =>
-                  timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir)),
+                  timed(profiler, 'copy_assets', () =>
+                    copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+                  ),
                 ),
             );
             for (const asset of theme.assets.values()) keepOutput(asset.fingerprintedPath);
@@ -1354,7 +1359,6 @@ async function runBuild({
         await timed(profiler, 'sitemap', () =>
           emitSitemap({
             config,
-            content,
             outputDir,
             previousFeeds,
             nextFeeds,

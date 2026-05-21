@@ -4,6 +4,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
+import { escapeXmlText } from './escaping.ts';
 
 // When a post has no feature_image / og_image / twitter_image set, no og:image
 // tag is emitted at all and social shares fall back to the platform default.
@@ -155,15 +156,6 @@ function buildTemplateContext(item: Post | Page, site: { title: string }): Recor
 function renderTemplate(svg: string, ctx: Record<string, string>): string {
   return svg.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_match, key: string) => {
     const value = ctx[key];
-    return value !== undefined ? escapeXml(value) : '';
+    return value !== undefined ? escapeXmlText(value) : '';
   });
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }

@@ -2,6 +2,7 @@ import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 import { withBasePath } from '~/util/url.ts';
 import { type TextStreamWriter, writeTextStream } from './emit.ts';
+import { escapeXmlText } from './escaping.ts';
 import {
   type FeedManifestMap,
   computeFeedHash,
@@ -190,18 +191,18 @@ async function emitRssFeed(opts: {
     const filename = pageFilename(page);
     const selfHref = filenameHref(page);
     const atomLinks: string[] = [
-      `<atom:link href="${escapeXml(selfHref)}" rel="self" type="application/rss+xml"/>`,
+      `<atom:link href="${escapeXmlText(selfHref)}" rel="self" type="application/rss+xml"/>`,
     ];
     if (page > 1) {
       const prevHref = filenameHref(page - 1);
       atomLinks.push(
-        `<atom:link href="${escapeXml(prevHref)}" rel="prev" type="application/rss+xml"/>`,
+        `<atom:link href="${escapeXmlText(prevHref)}" rel="prev" type="application/rss+xml"/>`,
       );
     }
     if (page < totalPages) {
       const nextHref = filenameHref(page + 1);
       atomLinks.push(
-        `<atom:link href="${escapeXml(nextHref)}" rel="next" type="application/rss+xml"/>`,
+        `<atom:link href="${escapeXmlText(nextHref)}" rel="next" type="application/rss+xml"/>`,
       );
     }
     const hash = computeFeedHash({
@@ -324,10 +325,10 @@ async function writeRssPage(
   await writer.write(`<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
 <channel>
-<title>${escapeXml(opts.channel.title)}</title>
-<link>${escapeXml(opts.channel.link)}</link>
-<description>${escapeXml(opts.channel.description)}</description>
-<language>${escapeXml(opts.config.site.locale)}</language>
+<title>${escapeXmlText(opts.channel.title)}</title>
+<link>${escapeXmlText(opts.channel.link)}</link>
+<description>${escapeXmlText(opts.channel.description)}</description>
+<language>${escapeXmlText(opts.config.site.locale)}</language>
 <lastBuildDate>${opts.lastBuildDate}</lastBuildDate>
 <generator>Nectar</generator>
 <docs>https://www.rssboard.org/rss-specification</docs>
@@ -406,9 +407,9 @@ function renderChannelImage(config: NectarConfig, base: string, basePath: string
   const homeLink = trimTrailingSlash(absoluteUrl('/', config));
   return [
     '\n<image>',
-    `<url>${escapeXml(logoUrl)}</url>`,
-    `<title>${escapeXml(config.site.title)}</title>`,
-    `<link>${escapeXml(homeLink || base)}</link>`,
+    `<url>${escapeXmlText(logoUrl)}</url>`,
+    `<title>${escapeXmlText(config.site.title)}</title>`,
+    `<link>${escapeXmlText(homeLink || base)}</link>`,
     '</image>',
   ].join('');
 }
@@ -494,8 +495,8 @@ function renderItem(
   const parts: string[] = [
     '<item>',
     `<title><![CDATA[${escapeCdata(post.title)}]]></title>`,
-    `<link>${escapeXml(link)}</link>`,
-    `<guid isPermaLink="${guidIsPermaLink}">${escapeXml(guid)}</guid>`,
+    `<link>${escapeXmlText(link)}</link>`,
+    `<guid isPermaLink="${guidIsPermaLink}">${escapeXmlText(guid)}</guid>`,
     `<pubDate>${new Date(post.published_at).toUTCString()}</pubDate>`,
   ];
   // dc:creator per author (Ghost emits one per author, primary first). Authors
@@ -513,7 +514,7 @@ function renderItem(
   // thumbnails (Feedly, Inoreader). Ghost always emits this when present.
   if (post.feature_image) {
     const mediaUrl = toAbsoluteUrl(base, basePath, post.feature_image);
-    parts.push(`<media:content url="${escapeXml(mediaUrl)}" medium="image"/>`);
+    parts.push(`<media:content url="${escapeXmlText(mediaUrl)}" medium="image"/>`);
   }
   // CDATA is required for both description (when title/excerpt contains
   // HTML/special chars) and content:encoded (full HTML body). Entity-escaping
@@ -535,15 +536,6 @@ function renderItem(
 // section and a fresh `<![CDATA[>` opens a new one around the trailing `>`.
 function escapeCdata(value: string): string {
   return value.replace(/]]>/g, ']]]]><![CDATA[>');
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 const URL_ATTR_RE = /\b(href|src|poster)\s*=\s*(["'])([^"']*)\2/gi;

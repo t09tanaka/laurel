@@ -1,9 +1,8 @@
 import type { NectarConfig } from '~/config/schema.ts';
-import type { ContentGraph } from '~/content/model.ts';
 import { type TextStreamWriter, writeTextAndGzipStreams } from './emit.ts';
+import { escapeXmlText } from './escaping.ts';
 import {
   type FeedManifestMap,
-  collectContentSourceFingerprints,
   computeFeedHash,
   recordFeedManifest,
   shouldSkipFeedWrite,
@@ -67,7 +66,6 @@ const SITEMAP_UNCLASSIFIED_DEFAULT = { changefreq: 'monthly', priority: 0.5 } as
 
 export async function emitSitemap(opts: {
   config: NectarConfig;
-  content: ContentGraph;
   outputDir: string;
   urls: SitemapEntry[];
   previousFeeds?: FeedManifestMap | undefined;
@@ -93,7 +91,6 @@ export async function emitSitemap(opts: {
         filename,
         config: opts.config,
         entries: pageEntries,
-        content: opts.content,
         previousFeeds: opts.previousFeeds,
         nextFeeds: opts.nextFeeds,
       });
@@ -109,7 +106,6 @@ export async function emitSitemap(opts: {
     filename: 'sitemap.xml',
     entries: indexEntries,
     config: opts.config,
-    content: opts.content,
     previousFeeds: opts.previousFeeds,
     nextFeeds: opts.nextFeeds,
   });
@@ -120,7 +116,6 @@ async function writeSitemapUrlsetWithCache(opts: {
   filename: string;
   config: NectarConfig;
   entries: SitemapEntry[];
-  content: ContentGraph;
   previousFeeds?: FeedManifestMap | undefined;
   nextFeeds?: FeedManifestMap | undefined;
 }): Promise<void> {
@@ -129,7 +124,6 @@ async function writeSitemapUrlsetWithCache(opts: {
     filename: opts.filename,
     config: sitemapHashConfig(opts.config),
     entries: opts.entries,
-    sources: collectContentSourceFingerprints(opts.content),
   });
   const key = `sitemap:${opts.filename}`;
   recordFeedManifest(opts.nextFeeds, key, { hash, outputPath: opts.filename });
@@ -155,7 +149,6 @@ async function writeSitemapIndexWithCache(opts: {
   filename: string;
   entries: { loc: string; lastmod: string | undefined }[];
   config: NectarConfig;
-  content: ContentGraph;
   previousFeeds?: FeedManifestMap | undefined;
   nextFeeds?: FeedManifestMap | undefined;
 }): Promise<void> {
@@ -164,7 +157,6 @@ async function writeSitemapIndexWithCache(opts: {
     filename: opts.filename,
     config: sitemapHashConfig(opts.config),
     entries: opts.entries,
-    sources: collectContentSourceFingerprints(opts.content),
   });
   const key = `sitemap:${opts.filename}`;
   recordFeedManifest(opts.nextFeeds, key, { hash, outputPath: opts.filename });
@@ -198,10 +190,10 @@ async function writeSitemapUrlset(
     const defaults = entry.kind ? SITEMAP_KIND_DEFAULTS[entry.kind] : SITEMAP_UNCLASSIFIED_DEFAULT;
     const changefreq = entry.changefreq ?? defaults.changefreq;
     const priority = entry.priority ?? defaults.priority;
-    const loc = `<loc>${escapeXml(absoluteUrl(entry.url, config))}</loc>`;
+    const loc = `<loc>${escapeXmlText(absoluteUrl(entry.url, config))}</loc>`;
     const images = renderSitemapImages(entry.images ?? [], config);
     const lastmod = entry.lastmod
-      ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
+      ? `<lastmod>${escapeXmlText(formatLastmod(entry.lastmod))}</lastmod>`
       : '';
     const cf = `<changefreq>${changefreq}</changefreq>`;
     const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
@@ -218,8 +210,8 @@ async function writeSitemapIndex(
 ): Promise<void> {
   await writeSitemapDocumentOpen(writer, 'sitemapindex');
   for (const e of entries) {
-    const loc = `<loc>${escapeXml(e.loc)}</loc>`;
-    const lastmod = e.lastmod ? `<lastmod>${escapeXml(e.lastmod)}</lastmod>` : '';
+    const loc = `<loc>${escapeXmlText(e.loc)}</loc>`;
+    const lastmod = e.lastmod ? `<lastmod>${escapeXmlText(e.lastmod)}</lastmod>` : '';
     await writer.write(`${formatXmlBlock('sitemap', [loc, lastmod].filter(Boolean))}\n`);
   }
   await writeSitemapDocumentClose(writer, 'sitemapindex');
@@ -230,10 +222,10 @@ function renderSitemapImages(images: SitemapImage[], config: NectarConfig): stri
   for (const image of images) {
     const loc = normalizeSitemapImageUrl(image.url, config);
     if (!loc) continue;
-    const children = [`<image:loc>${escapeXml(loc)}</image:loc>`];
+    const children = [`<image:loc>${escapeXmlText(loc)}</image:loc>`];
     const caption = normalizeSitemapImageCaption(image.caption);
     if (caption) {
-      children.push(`<image:caption>${escapeXml(caption)}</image:caption>`);
+      children.push(`<image:caption>${escapeXmlText(caption)}</image:caption>`);
     }
     blocks.push(formatXmlBlock('image:image', children));
   }
@@ -360,37 +352,4 @@ function formatLastmod(value: string): string {
 function formatSitemapPriority(value: number): string {
   const clamped = Math.max(0, Math.min(1, value));
   return clamped.toFixed(1);
-}
-
-function escapeXml(value: string): string {
-  let out = '';
-  for (const ch of value) {
-    const escaped = XML_ESCAPE_MAP[ch];
-    if (escaped !== undefined) {
-      out += escaped;
-      continue;
-    }
-    if (isXmlForbiddenControlChar(ch)) continue;
-    out += ch;
-  }
-  return out;
-}
-
-const XML_ESCAPE_MAP: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&apos;',
-};
-
-function isXmlForbiddenControlChar(ch: string): boolean {
-  const code = ch.charCodeAt(0);
-  return (
-    (code >= 0x00 && code <= 0x08) ||
-    code === 0x0b ||
-    code === 0x0c ||
-    (code >= 0x0e && code <= 0x1f) ||
-    (code >= 0x7f && code <= 0x9f)
-  );
 }

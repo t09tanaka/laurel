@@ -7,6 +7,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import {
   copyAssets,
   copyContentAssets,
+  createThemeAssetCopyCache,
   planContentImageAssets,
   writeHtml,
   writeHtmlBatch,
@@ -325,6 +326,40 @@ describe('copyAssets', () => {
     const count = await copyAssets(makeThemeBundle(assets), outputDir);
     expect(count).toBe(1);
     expect(await readFile(join(outputDir, 'assets/fonts/Inter.woff2'), 'utf8')).toBe('FONTBYTES');
+  });
+
+  test('deduplicates theme asset copies across calls when a shared cache is provided (#1743)', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-cross-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-cross-out-'));
+    const srcCss = join(srcDir, 'screen.css');
+    await writeFile(srcCss, 'body{color:red}');
+    const cache = createThemeAssetCopyCache();
+    const firstAsset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+      hash: 'abc123',
+      size: 'body{color:red}'.length,
+    });
+    const secondAsset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: 'assets/built/screen.abc123.css',
+      hash: 'abc123',
+      size: 'body{color:red}'.length,
+    });
+
+    expect(
+      await copyAssets(makeThemeBundle(new Map([['first', firstAsset]])), outputDir, { cache }),
+    ).toBe(1);
+    await writeFile(srcCss, 'body{color:blue}');
+    expect(
+      await copyAssets(makeThemeBundle(new Map([['second', secondAsset]])), outputDir, { cache }),
+    ).toBe(0);
+
+    expect(await readFile(join(outputDir, 'assets/built/screen.abc123.css'), 'utf8')).toBe(
+      'body{color:red}',
+    );
   });
 });
 

@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { constants, createWriteStream } from 'node:fs';
-import { copyFile, readFile, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  link,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { finished } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
@@ -260,6 +269,19 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
   }
 }
 
+export interface ThemeAssetCopyCache {
+  emittedDestinations: Set<string>;
+  emittedByContent: Map<string, string>;
+}
+
+export function createThemeAssetCopyCache(): ThemeAssetCopyCache {
+  return { emittedDestinations: new Set(), emittedByContent: new Map() };
+}
+
+export interface CopyAssetsOptions {
+  cache?: ThemeAssetCopyCache | undefined;
+}
+
 function stripLeadingBom(value: string): string {
   return value.startsWith('\uFEFF') ? value.slice(1) : value;
 }
@@ -268,27 +290,76 @@ function stripLeadingBom(value: string): string {
 // resolves to `fingerprintedPath` (see src/render/helpers/assets.ts), so the
 // logical-path duplicate was dead weight on disk and double the upload —
 // themes with megabytes of fonts/CSS used to pay 2x. See backlog #1106.
-export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise<number> {
+export async function copyAssets(
+  theme: ThemeBundle,
+  outputDir: string,
+  options?: CopyAssetsOptions,
+): Promise<number> {
   const seen = new Set<string>();
-  const unique: ThemeAsset[] = [];
+  const cache = options?.cache ?? createThemeAssetCopyCache();
+  const unique: { asset: ThemeAsset; dest: string }[] = [];
   for (const asset of theme.assets.values()) {
+    const dest = join(outputDir, asset.fingerprintedPath);
+    const destinationKey = resolve(dest);
+    if (cache.emittedDestinations.has(destinationKey)) continue;
     const key = `${asset.sourcePath}|${asset.fingerprintedPath}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push(asset);
+    unique.push({ asset, dest });
   }
   if (unique.length === 0) return 0;
 
-  await ensureDirs(unique.map((asset) => dirname(join(outputDir, asset.fingerprintedPath))));
+  await ensureDirs(unique.map(({ dest }) => dirname(dest)));
 
   const limit = pLimit(EMIT_CONCURRENCY);
-  await Promise.all(unique.map((asset) => limit(() => emitAsset(asset, outputDir))));
+  await Promise.all(unique.map(({ asset, dest }) => limit(() => emitAsset(asset, dest, cache))));
   return unique.length;
 }
 
-async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
-  const dest = join(outputDir, asset.fingerprintedPath);
+async function emitAsset(
+  asset: ThemeAsset,
+  dest: string,
+  cache: ThemeAssetCopyCache,
+): Promise<void> {
+  const destinationKey = resolve(dest);
+  const contentKey = `${asset.hash}|${asset.size}`;
+  const existing = cache.emittedByContent.get(contentKey);
+  if (existing && existing !== destinationKey) {
+    try {
+      await atomicHardlink(existing, dest);
+      cache.emittedDestinations.add(destinationKey);
+      return;
+    } catch (err) {
+      if (!isHardlinkFallbackError(err)) throw err;
+    }
+  }
   await atomicCopyFile(asset.sourcePath, dest);
+  cache.emittedDestinations.add(destinationKey);
+  if (!cache.emittedByContent.has(contentKey)) {
+    cache.emittedByContent.set(contentKey, destinationKey);
+  }
+}
+
+async function atomicHardlink(src: string, dest: string): Promise<void> {
+  const tmp = tempSiblingPath(dest);
+  try {
+    await link(src, tmp);
+    await rename(tmp, dest);
+  } catch (err) {
+    await removeTempFile(tmp);
+    throw err;
+  }
+}
+
+function isHardlinkFallbackError(err: unknown): boolean {
+  return (
+    isFsErrnoCode(err, 'EXDEV') ||
+    isFsErrnoCode(err, 'EPERM') ||
+    isFsErrnoCode(err, 'EACCES') ||
+    isFsErrnoCode(err, 'ENOTSUP') ||
+    isFsErrnoCode(err, 'EOPNOTSUPP') ||
+    isFsErrnoCode(err, 'ENOENT')
+  );
 }
 
 export interface CopyContentAssetsOptions {

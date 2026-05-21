@@ -5,6 +5,7 @@ import { mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { escapeHtmlAttribute, escapeXmlText } from '~/build/escaping.ts';
 import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import {
   RSS_MAX_ITEMS_PER_PAGE,
@@ -171,6 +172,21 @@ describe('renderFeedSafeHtml', () => {
     );
     expect(html).not.toContain('<audio');
     expect(html).not.toContain('<video');
+  });
+});
+
+describe('build escaping helpers', () => {
+  test('keeps XML apostrophes as &apos; and strips XML-forbidden controls (#1744)', () => {
+    expect(escapeXmlText(`A&B <tag> "quote" 'apos'\u0001`)).toBe(
+      'A&amp;B &lt;tag&gt; &quot;quote&quot; &apos;apos&apos;',
+    );
+  });
+
+  test('escapes HTML attributes with numeric apostrophes, not XML &apos; (#1744)', () => {
+    const escaped = escapeHtmlAttribute(`A&B <tag> "quote" 'apos'`);
+
+    expect(escaped).toBe('A&amp;B &lt;tag&gt; &quot;quote&quot; &#39;apos&#39;');
+    expect(escaped).not.toContain('&apos;');
   });
 });
 
@@ -1078,11 +1094,9 @@ describe('emitSitemap', () => {
   test('sitemap.xml is always a <sitemapindex> referencing all four Ghost sub-sitemaps', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/hello-world/', lastmod: '2026-01-02T03:04:05.000Z', kind: 'posts' },
@@ -1113,11 +1127,9 @@ describe('emitSitemap', () => {
   test('per-kind sub-sitemaps emit <lastmod>, <changefreq>, <priority> for every entry', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/hello-world/', lastmod: '2026-01-02T03:04:05.000Z', kind: 'posts' },
@@ -1154,11 +1166,9 @@ describe('emitSitemap', () => {
   test('post sub-sitemap emits image extension entries for feature images', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         {
@@ -1203,11 +1213,9 @@ describe('emitSitemap', () => {
   test('post sub-sitemap skips feature image URLs that cannot be sitemap image loc values', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         {
@@ -1227,11 +1235,9 @@ describe('emitSitemap', () => {
   test('sitemap XML escapes values and strips XML-forbidden control characters', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-xml-escape-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         {
@@ -1254,11 +1260,9 @@ describe('emitSitemap', () => {
       site: { title: 'T', url: 'https://example.com/' },
       build: { trailing_slash: 'never' },
     });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/hello-world/', kind: 'posts' },
@@ -1282,11 +1286,9 @@ describe('emitSitemap', () => {
   test('uses Ghost priorities: posts 0.7, pages 0.6, tags 0.6, authors 0.6', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/p/', kind: 'posts' },
@@ -1313,11 +1315,9 @@ describe('emitSitemap', () => {
   test('non-ISO lastmod strings pass through unchanged', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [{ url: '/x/', lastmod: 'not-a-date', kind: 'pages' }],
     });
@@ -1329,11 +1329,9 @@ describe('emitSitemap', () => {
   test('unclassified entries fall back to monthly/0.5 defaults under sitemap-pages', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [{ url: '/ad-hoc/' }],
     });
@@ -1349,11 +1347,9 @@ describe('emitSitemap', () => {
   test('caller can override changefreq and priority per entry', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [{ url: '/', kind: 'pages', changefreq: 'daily', priority: 1.0 }],
     });
@@ -1366,11 +1362,9 @@ describe('emitSitemap', () => {
   test('clamps out-of-range priority into [0.0, 1.0]', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/hi/', kind: 'pages', priority: 9.9 },
@@ -1389,7 +1383,6 @@ describe('emitSitemap', () => {
   test('above the 50k URL cap, per-kind sub-sitemaps split into -2.xml, -3.xml ...', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     const overflow = SITEMAP_MAX_URLS_PER_FILE + 1;
     const urls: SitemapEntry[] = [];
@@ -1400,7 +1393,7 @@ describe('emitSitemap', () => {
     urls.push({ url: '/tag/news/', kind: 'tags', lastmod: '2026-03-03T00:00:00.000Z' });
     urls.push({ url: '/author/jane/', kind: 'authors', lastmod: '2026-04-04T00:00:00.000Z' });
 
-    await emitSitemap({ config, content, outputDir, urls });
+    await emitSitemap({ config, outputDir, urls });
 
     const index = readFileSync(join(outputDir, 'sitemap.xml'), 'utf8');
     expect(index).toContain('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
@@ -1428,7 +1421,6 @@ describe('emitSitemap', () => {
   test('empty per-kind buckets still emit a sub-sitemap with no urls', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     // Only feed posts. Pages, tags, authors must still get their canonical
     // empty <urlset> file so external consumers can hard-code the URL.
@@ -1436,7 +1428,7 @@ describe('emitSitemap', () => {
       { url: '/hello/', kind: 'posts', lastmod: '2026-01-01T00:00:00.000Z' },
     ];
 
-    await emitSitemap({ config, content, outputDir, urls });
+    await emitSitemap({ config, outputDir, urls });
 
     for (const file of [
       'sitemap-posts.xml',
@@ -1459,11 +1451,9 @@ describe('emitSitemap', () => {
   test('emits gzip companions for every sitemap and the index', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
 
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls: [
         { url: '/hello/', kind: 'posts' },
@@ -1492,26 +1482,16 @@ describe('emitSitemap', () => {
   test('skips rewriting unchanged sitemap files and gzip companions when hashes match', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-cache-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
-    const content = makeGraph();
-    content.sources = {
-      posts: new Map([
-        [content.posts[0]?.id ?? 'post-1', { path: 'hello.md', mtimeMs: 1, size: 10 }],
-      ]),
-      pages: new Map(),
-      tags: new Map(),
-      authors: new Map(),
-    };
     const urls: SitemapEntry[] = [{ url: '/hello/', kind: 'posts' }];
     const firstFeeds = {};
 
-    await emitSitemap({ config, content, outputDir, urls, nextFeeds: firstFeeds });
+    await emitSitemap({ config, outputDir, urls, nextFeeds: firstFeeds });
     const beforeXml = (await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs;
     const beforeGz = (await stat(join(outputDir, 'sitemap-posts.xml.gz'))).mtimeMs;
     await Bun.sleep(20);
     const secondFeeds = {};
     await emitSitemap({
       config,
-      content,
       outputDir,
       urls,
       previousFeeds: firstFeeds,
@@ -1520,6 +1500,28 @@ describe('emitSitemap', () => {
 
     expect((await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs).toBe(beforeXml);
     expect((await stat(join(outputDir, 'sitemap-posts.xml.gz'))).mtimeMs).toBe(beforeGz);
+    expect(secondFeeds).toEqual(firstFeeds);
+  });
+
+  test('sitemap cache ignores content source fingerprints when rendered entries are unchanged (#1747)', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-cache-no-content-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const urls: SitemapEntry[] = [{ url: '/hello/', kind: 'posts' }];
+    const firstFeeds = {};
+
+    await emitSitemap({ config, outputDir, urls, nextFeeds: firstFeeds });
+    const beforeXml = (await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs;
+    await Bun.sleep(20);
+    const secondFeeds = {};
+    await emitSitemap({
+      config,
+      outputDir,
+      urls,
+      previousFeeds: firstFeeds,
+      nextFeeds: secondFeeds,
+    });
+
+    expect((await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs).toBe(beforeXml);
     expect(secondFeeds).toEqual(firstFeeds);
   });
 });

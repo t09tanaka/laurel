@@ -5,6 +5,7 @@ import {
   cardAssetsVersion,
   isCardAssetsEnabled,
 } from '~/build/card-assets.ts';
+import { escapeHtmlAttribute } from '~/build/escaping.ts';
 import type { FaviconLink } from '~/build/favicons.ts';
 import {
   INLINE_SUBMIT_RUNTIME_JS,
@@ -1243,12 +1244,7 @@ function toIso8601(value: unknown): string | undefined {
 }
 
 function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return escapeHtmlAttribute(value);
 }
 
 function renderHeadHint(hint: HeadHint): string {
