@@ -1,7 +1,13 @@
-import { gzipSync } from 'node:zlib';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
-import { writeBytes, writeHtml } from './emit.ts';
+import { type TextStreamWriter, writeTextAndGzipStreams } from './emit.ts';
+import {
+  type FeedManifestMap,
+  collectContentSourceFingerprints,
+  computeFeedHash,
+  recordFeedManifest,
+  shouldSkipFeedWrite,
+} from './feed-cache.ts';
 import { absoluteContentUrl, absoluteUrl } from './url.ts';
 
 export type SitemapKind = 'posts' | 'pages' | 'tags' | 'authors';
@@ -64,6 +70,8 @@ export async function emitSitemap(opts: {
   content: ContentGraph;
   outputDir: string;
   urls: SitemapEntry[];
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
 }): Promise<void> {
   // Always emit Ghost's 5-file shape: sitemap.xml (sitemapindex) +
   // sitemap-{posts,pages,tags,authors}.xml, with -2.xml / -3.xml ... when
@@ -80,8 +88,15 @@ export async function emitSitemap(opts: {
     for (let i = 0; i < pages.length; i++) {
       const filename = sitemapKindFilename(kind, i + 1);
       const pageEntries = pages[i] ?? [];
-      const xml = renderSitemapUrlset(pageEntries, opts.config);
-      await writeXmlWithGzip(opts.outputDir, filename, xml);
+      await writeSitemapUrlsetWithCache({
+        outputDir: opts.outputDir,
+        filename,
+        config: opts.config,
+        entries: pageEntries,
+        content: opts.content,
+        previousFeeds: opts.previousFeeds,
+        nextFeeds: opts.nextFeeds,
+      });
       indexEntries.push({
         loc: absoluteUrl(filename, opts.config),
         lastmod: latestLastmodIso(pageEntries),
@@ -89,48 +104,125 @@ export async function emitSitemap(opts: {
     }
   }
 
-  const indexXml = renderSitemapIndex(indexEntries);
-  await writeXmlWithGzip(opts.outputDir, 'sitemap.xml', indexXml);
+  await writeSitemapIndexWithCache({
+    outputDir: opts.outputDir,
+    filename: 'sitemap.xml',
+    entries: indexEntries,
+    config: opts.config,
+    content: opts.content,
+    previousFeeds: opts.previousFeeds,
+    nextFeeds: opts.nextFeeds,
+  });
 }
 
-async function writeXmlWithGzip(outputDir: string, filename: string, xml: string): Promise<void> {
-  await writeHtml(outputDir, filename, xml);
-  // gzip variant: lets static hosts serve `sitemap.xml.gz` with
-  // Content-Encoding: gzip to crawlers that prefer compressed payloads,
-  // and gives operators a ready artifact to upload as-is to CDNs that
-  // pre-compress. Sync gzip is fine here: each sitemap fits within tens
-  // of MB at the 50k cap, and we already write a handful of files per
-  // build, not thousands.
-  const gz = gzipSync(Buffer.from(xml, 'utf8'));
-  await writeBytes(outputDir, `${filename}.gz`, gz);
+async function writeSitemapUrlsetWithCache(opts: {
+  outputDir: string;
+  filename: string;
+  config: NectarConfig;
+  entries: SitemapEntry[];
+  content: ContentGraph;
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
+}): Promise<void> {
+  const hash = computeFeedHash({
+    type: 'sitemap-urlset',
+    filename: opts.filename,
+    config: sitemapHashConfig(opts.config),
+    entries: opts.entries,
+    sources: collectContentSourceFingerprints(opts.content),
+  });
+  const key = `sitemap:${opts.filename}`;
+  recordFeedManifest(opts.nextFeeds, key, { hash, outputPath: opts.filename });
+  if (
+    await shouldSkipFeedWrite({
+      outputDir: opts.outputDir,
+      outputPath: opts.filename,
+      hash,
+      previousFeeds: opts.previousFeeds,
+      key,
+      companions: [`${opts.filename}.gz`],
+    })
+  ) {
+    return;
+  }
+  await writeTextAndGzipStreams(opts.outputDir, opts.filename, (writer) =>
+    writeSitemapUrlset(writer, opts.entries, opts.config),
+  );
 }
 
-function renderSitemapUrlset(entries: SitemapEntry[], config: NectarConfig): string {
-  let hasImages = false;
-  const urls = entries.map((entry) => {
+async function writeSitemapIndexWithCache(opts: {
+  outputDir: string;
+  filename: string;
+  entries: { loc: string; lastmod: string | undefined }[];
+  config: NectarConfig;
+  content: ContentGraph;
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
+}): Promise<void> {
+  const hash = computeFeedHash({
+    type: 'sitemap-index',
+    filename: opts.filename,
+    config: sitemapHashConfig(opts.config),
+    entries: opts.entries,
+    sources: collectContentSourceFingerprints(opts.content),
+  });
+  const key = `sitemap:${opts.filename}`;
+  recordFeedManifest(opts.nextFeeds, key, { hash, outputPath: opts.filename });
+  if (
+    await shouldSkipFeedWrite({
+      outputDir: opts.outputDir,
+      outputPath: opts.filename,
+      hash,
+      previousFeeds: opts.previousFeeds,
+      key,
+      companions: [`${opts.filename}.gz`],
+    })
+  ) {
+    return;
+  }
+  await writeTextAndGzipStreams(opts.outputDir, opts.filename, (writer) =>
+    writeSitemapIndex(writer, opts.entries),
+  );
+}
+
+async function writeSitemapUrlset(
+  writer: TextStreamWriter,
+  entries: SitemapEntry[],
+  config: NectarConfig,
+): Promise<void> {
+  const hasImages = entries.some((entry) =>
+    (entry.images ?? []).some((image) => normalizeSitemapImageUrl(image.url, config)),
+  );
+  await writeSitemapDocumentOpen(writer, 'urlset', { imageNamespace: hasImages });
+  for (const entry of entries) {
     const defaults = entry.kind ? SITEMAP_KIND_DEFAULTS[entry.kind] : SITEMAP_UNCLASSIFIED_DEFAULT;
     const changefreq = entry.changefreq ?? defaults.changefreq;
     const priority = entry.priority ?? defaults.priority;
     const loc = `<loc>${escapeXml(absoluteUrl(entry.url, config))}</loc>`;
     const images = renderSitemapImages(entry.images ?? [], config);
-    if (images.length > 0) hasImages = true;
     const lastmod = entry.lastmod
       ? `<lastmod>${escapeXml(formatLastmod(entry.lastmod))}</lastmod>`
       : '';
     const cf = `<changefreq>${changefreq}</changefreq>`;
     const pr = `<priority>${formatSitemapPriority(priority)}</priority>`;
-    return formatXmlBlock('url', [loc, ...images, lastmod, cf, pr].filter(Boolean));
-  });
-  return formatSitemapDocument('urlset', urls, { imageNamespace: hasImages });
+    await writer.write(
+      `${formatXmlBlock('url', [loc, ...images, lastmod, cf, pr].filter(Boolean))}\n`,
+    );
+  }
+  await writeSitemapDocumentClose(writer, 'urlset');
 }
 
-function renderSitemapIndex(entries: { loc: string; lastmod: string | undefined }[]): string {
-  const sitemaps = entries.map((e) => {
+async function writeSitemapIndex(
+  writer: TextStreamWriter,
+  entries: { loc: string; lastmod: string | undefined }[],
+): Promise<void> {
+  await writeSitemapDocumentOpen(writer, 'sitemapindex');
+  for (const e of entries) {
     const loc = `<loc>${escapeXml(e.loc)}</loc>`;
     const lastmod = e.lastmod ? `<lastmod>${escapeXml(e.lastmod)}</lastmod>` : '';
-    return formatXmlBlock('sitemap', [loc, lastmod].filter(Boolean));
-  });
-  return formatSitemapDocument('sitemapindex', sitemaps);
+    await writer.write(`${formatXmlBlock('sitemap', [loc, lastmod].filter(Boolean))}\n`);
+  }
+  await writeSitemapDocumentClose(writer, 'sitemapindex');
 }
 
 function renderSitemapImages(images: SitemapImage[], config: NectarConfig): string[] {
@@ -173,21 +265,24 @@ function normalizeSitemapImageCaption(value: string | undefined): string | undef
   return stripped || undefined;
 }
 
-function formatSitemapDocument(
+async function writeSitemapDocumentOpen(
+  writer: TextStreamWriter,
   root: 'urlset' | 'sitemapindex',
-  children: string[],
   opts: { imageNamespace?: boolean } = {},
-): string {
+): Promise<void> {
   const namespaces = ['xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'];
   if (opts.imageNamespace) {
     namespaces.push('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
   }
   const open = `<${root} ${namespaces.join(' ')}>`;
-  const close = `</${root}>`;
-  if (children.length === 0) {
-    return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${close}\n`;
-  }
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${open}\n${children.join('\n')}\n${close}\n`;
+  await writer.write(`<?xml version="1.0" encoding="UTF-8"?>\n${open}\n`);
+}
+
+async function writeSitemapDocumentClose(
+  writer: TextStreamWriter,
+  root: 'urlset' | 'sitemapindex',
+): Promise<void> {
+  await writer.write(`</${root}>\n`);
 }
 
 function formatXmlBlock(name: 'url' | 'sitemap' | 'image:image', children: string[]): string {
@@ -228,6 +323,14 @@ function chunkEntries<T>(items: T[], size: number): T[][] {
 
 function sitemapKindFilename(kind: SitemapKind, page: number): string {
   return page === 1 ? `sitemap-${kind}.xml` : `sitemap-${kind}-${page}.xml`;
+}
+
+function sitemapHashConfig(config: NectarConfig): Record<string, unknown> {
+  return {
+    siteUrl: config.site.url,
+    basePath: config.build.base_path,
+    trailingSlash: config.build.trailing_slash,
+  };
 }
 
 function latestLastmodIso(entries: SitemapEntry[]): string | undefined {

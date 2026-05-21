@@ -183,6 +183,53 @@ Hello body, edited
     await rm(cwd, { recursive: true, force: true });
   });
 
+  test('unchanged RSS and sitemap outputs are preserved across incremental builds', async () => {
+    const cwd = await makeMinimalSite();
+    await writeFile(
+      join(cwd, 'nectar.toml'),
+      [
+        '[site]',
+        'title = "Incremental Test"',
+        'url = "https://incr.test"',
+        '',
+        '[theme]',
+        'dir = "themes"',
+        'name = "source"',
+        '',
+        '[components.rss]',
+        'enabled = true',
+        '',
+        '[components.sitemap]',
+        'enabled = true',
+        '',
+        '[components.search]',
+        'enabled = false',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const first = await build({ cwd });
+    const rssPath = join(first.outputDir, 'rss.xml');
+    const sitemapPath = join(first.outputDir, 'sitemap-posts.xml');
+    const sitemapGzipPath = join(first.outputDir, 'sitemap-posts.xml.gz');
+    const rssBefore = (await stat(rssPath)).mtimeMs;
+    const sitemapBefore = (await stat(sitemapPath)).mtimeMs;
+    const sitemapGzipBefore = (await stat(sitemapGzipPath)).mtimeMs;
+    const firstManifest = await Bun.file(join(first.outputDir, MANIFEST_FILENAME)).json();
+
+    await Bun.sleep(20);
+    const second = await build({ cwd });
+    const secondManifest = await Bun.file(join(second.outputDir, MANIFEST_FILENAME)).json();
+
+    expect((await stat(rssPath)).mtimeMs).toBe(rssBefore);
+    expect((await stat(sitemapPath)).mtimeMs).toBe(sitemapBefore);
+    expect((await stat(sitemapGzipPath)).mtimeMs).toBe(sitemapGzipBefore);
+    expect(secondManifest.feeds).toEqual(firstManifest.feeds);
+
+    await rm(cwd, { recursive: true, force: true });
+  });
+
   test('--force re-renders every route even when nothing changed', async () => {
     const cwd = await makeMinimalSite();
     const first = await build({ cwd });

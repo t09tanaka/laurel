@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -187,6 +187,38 @@ describe('emitRss', () => {
     expect(xml).toContain(
       '<atom:link href="https://example.com/rss.xml" rel="self" type="application/rss+xml"/>',
     );
+  });
+
+  test('skips rewriting unchanged RSS files when the feed hash matches', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-cache-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.sources = {
+      posts: new Map([
+        [content.posts[0]?.id ?? 'post-1', { path: 'hello.md', mtimeMs: 1, size: 10 }],
+      ]),
+      pages: new Map(),
+      tags: new Map(),
+      authors: new Map(),
+    };
+    const firstFeeds = {};
+
+    await emitRss({ config, content, outputDir, limit: 10, nextFeeds: firstFeeds });
+    const before = (await stat(join(outputDir, 'rss.xml'))).mtimeMs;
+    await Bun.sleep(20);
+    const secondFeeds = {};
+    await emitRss({
+      config,
+      content,
+      outputDir,
+      limit: 10,
+      previousFeeds: firstFeeds,
+      nextFeeds: secondFeeds,
+    });
+    const after = (await stat(join(outputDir, 'rss.xml'))).mtimeMs;
+
+    expect(after).toBe(before);
+    expect(secondFeeds).toEqual(firstFeeds);
   });
 
   test('uses post.feed_html instead of post.html so paywalled bodies do not leak', async () => {
@@ -1385,6 +1417,40 @@ describe('emitSitemap', () => {
       const gunzipped = gunzipSync(readFileSync(gzPath)).toString('utf8');
       expect(gunzipped).toBe(xml);
     }
+  });
+
+  test('skips rewriting unchanged sitemap files and gzip companions when hashes match', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-cache-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+    content.sources = {
+      posts: new Map([
+        [content.posts[0]?.id ?? 'post-1', { path: 'hello.md', mtimeMs: 1, size: 10 }],
+      ]),
+      pages: new Map(),
+      tags: new Map(),
+      authors: new Map(),
+    };
+    const urls: SitemapEntry[] = [{ url: '/hello/', kind: 'posts' }];
+    const firstFeeds = {};
+
+    await emitSitemap({ config, content, outputDir, urls, nextFeeds: firstFeeds });
+    const beforeXml = (await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs;
+    const beforeGz = (await stat(join(outputDir, 'sitemap-posts.xml.gz'))).mtimeMs;
+    await Bun.sleep(20);
+    const secondFeeds = {};
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls,
+      previousFeeds: firstFeeds,
+      nextFeeds: secondFeeds,
+    });
+
+    expect((await stat(join(outputDir, 'sitemap-posts.xml'))).mtimeMs).toBe(beforeXml);
+    expect((await stat(join(outputDir, 'sitemap-posts.xml.gz'))).mtimeMs).toBe(beforeGz);
+    expect(secondFeeds).toEqual(firstFeeds);
   });
 });
 

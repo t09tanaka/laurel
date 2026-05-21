@@ -89,6 +89,7 @@ import { stripUnusedLightbox } from './lightbox.ts';
 import { emitLunrIndex, emitLunrWidget } from './lunr.ts';
 import {
   type BuildManifest,
+  type FeedManifestEntry,
   MANIFEST_VERSION,
   type ManifestEntry,
   collectRouteContentInputs,
@@ -712,7 +713,9 @@ async function runBuild({
     contentImageAssets,
   });
   const nextRoutes: Record<string, ManifestEntry> = {};
+  const nextFeeds: Record<string, FeedManifestEntry> = {};
   const previousRoutes = previousManifest?.routes ?? {};
+  const previousFeeds = previousManifest?.feeds ?? {};
   let skippedCount = 0;
   let renderedCount = 0;
   const inlineScriptCspHashes = new Set<string>();
@@ -1191,6 +1194,8 @@ async function runBuild({
           config,
           content,
           outputDir,
+          previousFeeds,
+          nextFeeds,
           // `indexable: false` excludes pagination tails (`/page/N/`,
           // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
           // sitemap discovery surfaces; routes without the flag default to
@@ -1220,6 +1225,8 @@ async function runBuild({
           outputDir,
           limit: config.components.rss.items,
           routesYaml,
+          previousFeeds,
+          nextFeeds,
         }),
       );
     }
@@ -1482,6 +1489,7 @@ async function runBuild({
     globalHash,
     themeFingerprint,
     routes: nextRoutes,
+    feeds: nextFeeds,
   };
   await saveManifest(outputDir, nextManifest);
 

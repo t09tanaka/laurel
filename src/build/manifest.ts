@@ -22,11 +22,17 @@ export interface ManifestEntry {
   themeFingerprint?: string;
 }
 
+export interface FeedManifestEntry {
+  hash: string;
+  outputPath: string;
+}
+
 export interface BuildManifest {
   version: typeof MANIFEST_VERSION;
   globalHash: string;
   themeFingerprint?: string;
   routes: Record<string, ManifestEntry>;
+  feeds?: Record<string, FeedManifestEntry>;
 }
 
 export function manifestPath(outputDir: string): string {

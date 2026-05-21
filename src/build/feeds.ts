@@ -1,7 +1,13 @@
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 import { withBasePath } from '~/util/url.ts';
-import { writeHtml } from './emit.ts';
+import { type TextStreamWriter, writeTextStream } from './emit.ts';
+import {
+  type FeedManifestMap,
+  computeFeedHash,
+  recordFeedManifest,
+  shouldSkipFeedWrite,
+} from './feed-cache.ts';
 import { renderFeedSafeHtml } from './feed-safe-html.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { type ResolvedCollection, type RoutesYaml, resolveCollections } from './routes-yaml.ts';
@@ -32,13 +38,18 @@ export async function emitRss(opts: {
   outputDir: string;
   limit: number;
   routesYaml?: RoutesYaml;
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
 }): Promise<void> {
-  const { config, content, outputDir, limit, routesYaml } = opts;
+  const { config, content, outputDir, limit, routesYaml, previousFeeds, nextFeeds } = opts;
   await emitRssFeed({
     config,
+    content,
     posts: content.posts,
     outputDir,
     limit,
+    previousFeeds,
+    nextFeeds,
     pageFilename: rssPageFilename,
     channel: {
       title: config.site.title,
@@ -56,6 +67,8 @@ export async function emitRss(opts: {
       content,
       outputDir,
       limit,
+      previousFeeds,
+      nextFeeds,
       collections: resolveCollections(routesYaml),
     });
   }
@@ -75,9 +88,12 @@ export async function emitRss(opts: {
       if (tagPosts.length === 0) continue;
       await emitRssFeed({
         config,
+        content,
         posts: tagPosts,
         outputDir,
         limit,
+        previousFeeds,
+        nextFeeds,
         pageFilename: () => `tag/${tag.slug}/rss/index.xml`,
         channel: {
           title: `${tag.name} - ${config.site.title}`,
@@ -93,9 +109,12 @@ export async function emitRss(opts: {
       if (authorPosts.length === 0) continue;
       await emitRssFeed({
         config,
+        content,
         posts: authorPosts,
         outputDir,
         limit,
+        previousFeeds,
+        nextFeeds,
         pageFilename: () => `author/${author.slug}/rss/index.xml`,
         channel: {
           title: `${author.name} - ${config.site.title}`,
@@ -119,14 +138,28 @@ interface RssChannel {
 // (always single-page in practice) write to `tag/<slug>/rss/index.xml` etc.
 async function emitRssFeed(opts: {
   config: NectarConfig;
+  content: ContentGraph;
   posts: Post[];
   outputDir: string;
   limit: number;
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
   pageFilename: (page: number) => string;
   pageHref?: (page: number) => string;
   channel: RssChannel;
 }): Promise<void> {
-  const { config, posts, outputDir, limit, pageFilename, pageHref, channel } = opts;
+  const {
+    config,
+    content,
+    posts,
+    outputDir,
+    limit,
+    previousFeeds,
+    nextFeeds,
+    pageFilename,
+    pageHref,
+    channel,
+  } = opts;
   // `base` is the configured public site URL with a stable slashless shape.
   // Route URLs go through `absoluteUrl`; feed body assets still use the lighter
   // root-relative attribute rewrite because they are not route permalinks.
@@ -153,9 +186,6 @@ async function emitRssFeed(opts: {
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = posts.slice(start, start + perPage);
-    const items = pagePosts
-      .map((post) => renderItem(post, config, base, fullContent, basePath))
-      .join('');
     const filename = pageFilename(page);
     const selfHref = filenameHref(page);
     const atomLinks: string[] = [
@@ -173,20 +203,36 @@ async function emitRssFeed(opts: {
         `<atom:link href="${escapeXml(nextHref)}" rel="next" type="application/rss+xml"/>`,
       );
     }
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
-<channel>
-<title>${escapeXml(channel.title)}</title>
-<link>${escapeXml(channel.link)}</link>
-<description>${escapeXml(channel.description)}</description>
-<language>${escapeXml(config.site.locale)}</language>
-<lastBuildDate>${lastBuildDate}</lastBuildDate>
-<generator>Nectar</generator>
-${atomLinks.join('\n')}${imageBlock}
-${items}
-</channel>
-</rss>`;
-    await writeHtml(outputDir, filename, xml);
+    const hash = computeFeedHash({
+      type: 'rss',
+      filename,
+      page,
+      channel,
+      config: rssHashConfig(config),
+      imageBlock,
+      atomLinks,
+      fullContent,
+      posts: pagePosts.map((post) => rssPostHashInput(post, fullContent)),
+      sources: collectRssSourceFingerprints(pagePosts, content),
+    });
+    const key = `rss:${filename}`;
+    recordFeedManifest(nextFeeds, key, { hash, outputPath: filename });
+    if (await shouldSkipFeedWrite({ outputDir, outputPath: filename, hash, previousFeeds, key })) {
+      continue;
+    }
+    await writeTextStream(outputDir, filename, (writer) =>
+      writeRssPage(writer, {
+        config,
+        pagePosts,
+        base,
+        fullContent,
+        basePath,
+        channel,
+        lastBuildDate,
+        imageBlock,
+        atomLinks,
+      }),
+    );
   }
 }
 
@@ -195,9 +241,11 @@ async function emitCollectionRssFeeds(opts: {
   content: ContentGraph;
   outputDir: string;
   limit: number;
+  previousFeeds?: FeedManifestMap | undefined;
+  nextFeeds?: FeedManifestMap | undefined;
   collections: readonly ResolvedCollection[];
 }): Promise<void> {
-  const { config, content, outputDir, limit, collections } = opts;
+  const { config, content, outputDir, limit, previousFeeds, nextFeeds, collections } = opts;
   if (collections.length === 0) return;
   const assignments = assignPostUrls(content.posts, collections);
 
@@ -209,9 +257,12 @@ async function emitCollectionRssFeeds(opts: {
     if (collectionPosts.length === 0) continue;
     await emitRssFeed({
       config,
+      content,
       posts: collectionPosts,
       outputDir,
       limit,
+      previousFeeds,
+      nextFeeds,
       pageFilename: (page) => collectionRssPageFilename(collection.url, page),
       pageHref: (page) => collectionRssPageHref(collection.url, page, config),
       channel: {
@@ -221,6 +272,106 @@ async function emitCollectionRssFeeds(opts: {
       },
     });
   }
+}
+
+function collectRssSourceFingerprints(
+  posts: Post[],
+  content: ContentGraph,
+): Record<string, unknown[]> {
+  const postIds = new Set<string>();
+  const tagIds = new Set<string>();
+  const authorIds = new Set<string>();
+  for (const post of posts) {
+    postIds.add(post.id);
+    for (const tag of post.tags) tagIds.add(tag.id);
+    for (const author of post.authors) authorIds.add(author.id);
+  }
+  return {
+    posts: collectSourcesById(postIds, content.sources?.posts),
+    tags: collectSourcesById(tagIds, content.sources?.tags),
+    authors: collectSourcesById(authorIds, content.sources?.authors),
+  };
+}
+
+function collectSourcesById<T>(
+  ids: Set<string>,
+  sources: Map<string, T> | undefined,
+): Array<{ id: string; source: T }> {
+  if (!sources) return [];
+  return [...ids]
+    .sort((a, b) => a.localeCompare(b))
+    .flatMap((id) => {
+      const source = sources.get(id);
+      return source ? [{ id, source }] : [];
+    });
+}
+
+async function writeRssPage(
+  writer: TextStreamWriter,
+  opts: {
+    config: NectarConfig;
+    pagePosts: Post[];
+    base: string;
+    fullContent: boolean;
+    basePath: string;
+    channel: RssChannel;
+    lastBuildDate: string;
+    imageBlock: string;
+    atomLinks: string[];
+  },
+): Promise<void> {
+  await writer.write(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
+<channel>
+<title>${escapeXml(opts.channel.title)}</title>
+<link>${escapeXml(opts.channel.link)}</link>
+<description>${escapeXml(opts.channel.description)}</description>
+<language>${escapeXml(opts.config.site.locale)}</language>
+<lastBuildDate>${opts.lastBuildDate}</lastBuildDate>
+<generator>Nectar</generator>
+${opts.atomLinks.join('\n')}${opts.imageBlock}
+`);
+  for (const post of opts.pagePosts) {
+    await writer.write(renderItem(post, opts.config, opts.base, opts.fullContent, opts.basePath));
+  }
+  await writer.write(`
+</channel>
+</rss>`);
+}
+
+function rssHashConfig(config: NectarConfig): Record<string, unknown> {
+  return {
+    siteUrl: config.site.url,
+    basePath: config.build.base_path,
+    trailingSlash: config.build.trailing_slash,
+    locale: config.site.locale,
+    logo: config.site.logo,
+  };
+}
+
+function rssPostHashInput(post: Post, fullContent: boolean): Record<string, unknown> {
+  return {
+    id: post.id,
+    uuid: post.uuid,
+    title: post.title,
+    url: post.url,
+    published_at: post.published_at,
+    updated_at: post.updated_at,
+    authors: post.authors.map((author) => ({
+      id: author.id,
+      slug: author.slug,
+      name: author.name,
+    })),
+    tags: post.tags.map((tag) => ({
+      id: tag.id,
+      slug: tag.slug,
+      name: tag.name,
+      visibility: tag.visibility,
+    })),
+    feature_image: post.feature_image,
+    feed_excerpt: post.feed_excerpt,
+    feed_html: fullContent ? post.feed_html : undefined,
+  };
 }
 
 // Use the most recent post timestamp so lastBuildDate is deterministic across

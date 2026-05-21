@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
+import { once } from 'node:events';
+import { createWriteStream } from 'node:fs';
 import { copyFile, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { finished } from 'node:stream/promises';
+import { createGzip } from 'node:zlib';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { NectarError } from '~/util/errors.ts';
@@ -54,6 +58,72 @@ export async function writeHtml(
   assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
   await writeFile(dest, html, 'utf8');
+}
+
+export interface TextStreamWriter {
+  write(chunk: string): Promise<void>;
+}
+
+export async function writeTextStream(
+  outputDir: string,
+  outputPath: string,
+  write: (writer: TextStreamWriter) => Promise<void> | void,
+): Promise<void> {
+  const dest = join(outputDir, outputPath);
+  assertWithinOutputDir(outputDir, dest);
+  await ensureDir(dirname(dest));
+  const stream = createWriteStream(dest, { encoding: 'utf8' });
+  let ended = false;
+  try {
+    await write({
+      write: async (chunk: string) => {
+        if (!stream.write(chunk, 'utf8')) await once(stream, 'drain');
+      },
+    });
+    stream.end();
+    ended = true;
+    await finished(stream);
+  } catch (err) {
+    if (!ended) stream.destroy();
+    throw err;
+  }
+}
+
+export async function writeTextAndGzipStreams(
+  outputDir: string,
+  outputPath: string,
+  write: (writer: TextStreamWriter) => Promise<void> | void,
+): Promise<void> {
+  const dest = join(outputDir, outputPath);
+  const gzipDest = join(outputDir, `${outputPath}.gz`);
+  assertWithinOutputDir(outputDir, dest);
+  assertWithinOutputDir(outputDir, gzipDest);
+  await ensureDir(dirname(dest));
+  await ensureDir(dirname(gzipDest));
+  const textStream = createWriteStream(dest, { encoding: 'utf8' });
+  const gzip = createGzip();
+  const gzipStream = createWriteStream(gzipDest);
+  gzip.pipe(gzipStream);
+  let ended = false;
+  try {
+    await write({
+      write: async (chunk: string) => {
+        if (!textStream.write(chunk, 'utf8')) await once(textStream, 'drain');
+        if (!gzip.write(chunk, 'utf8')) await once(gzip, 'drain');
+      },
+    });
+    textStream.end();
+    gzip.end();
+    ended = true;
+    await Promise.all([finished(textStream), finished(gzipStream)]);
+  } catch (err) {
+    if (!ended) {
+      textStream.destroy();
+      gzip.destroy();
+      gzipStream.destroy();
+    }
+    throw err;
+  }
 }
 
 // Sibling of writeHtml for binary payloads (sitemap `.xml.gz` companions,
