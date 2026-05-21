@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -172,6 +172,54 @@ describe('cli serve — request path confinement', () => {
       const baseUrl = `http://127.0.0.1:${port}`;
       await waitForServe(`${baseUrl}/`);
       const response = await fetch(`http://127.0.0.1:${port}/..%2f..%2fetc%2fpasswd`);
+      expect(response.status).toBe(403);
+      expect(await response.text()).toBe('Forbidden');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited.catch(() => undefined);
+    }
+  }, 15_000);
+
+  test('rejects encoded Windows separators before filesystem lookup', async () => {
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`${baseUrl}/..%5c..%5csecret.txt`);
+      expect(response.status).toBe(403);
+      expect(await response.text()).toBe('Forbidden');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited.catch(() => undefined);
+    }
+  }, 15_000);
+
+  test('rejects symlinks that resolve outside dist', async () => {
+    await mkdir(join(dir, 'distOther'), { recursive: true });
+    await writeFile(join(dir, 'distOther/secret.txt'), 'secret');
+    await symlink(join(dir, 'distOther/secret.txt'), join(dir, 'dist/secret.txt'));
+
+    const port = pickPort();
+    const proc = Bun.spawn(
+      ['bun', CLI_ENTRY, 'serve', '--port', String(port), '--host', '127.0.0.1'],
+      {
+        cwd: dir,
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    );
+    try {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await waitForServe(`${baseUrl}/`);
+      const response = await fetch(`${baseUrl}/secret.txt`);
       expect(response.status).toBe(403);
       expect(await response.text()).toBe('Forbidden');
     } finally {

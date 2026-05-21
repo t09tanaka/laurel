@@ -1,6 +1,6 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, normalize, relative } from 'node:path';
+import { readFile, realpath } from 'node:fs/promises';
+import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -170,6 +170,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
 
   const simulation =
     simulateTarget !== undefined ? await loadServeSimulation(distDir, simulateTarget) : null;
+  const serveRoot = await realpath(distDir);
   if (simulation !== null) {
     logger.info(
       t('serve.simulating', {
@@ -240,18 +241,18 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
           const target = effectivePathname.endsWith('/')
             ? `${effectivePathname}index.html`
             : effectivePathname;
-          let decodedTarget: string;
-          try {
-            decodedTarget = decodeURIComponent(target);
-          } catch {
+          const filePath = decodeServeRequestPath(serveRoot, target);
+          if (filePath === 'bad-request') {
             return finish(new Response('Bad Request', { status: 400 }));
           }
-          const filePath = normalize(join(distDir, decodedTarget));
-          if (!isInsideServeRoot(distDir, filePath)) {
+          if (filePath === null) {
             return finish(new Response('Forbidden', { status: 403 }));
           }
           const file = Bun.file(filePath);
           if (await file.exists()) {
+            if (!(await isResolvedFileInsideServeRoot(serveRoot, filePath))) {
+              return finish(new Response('Forbidden', { status: 403 }));
+            }
             if (watchMode && filePath.endsWith('.html')) {
               const html = await file.text();
               return finish(
@@ -266,8 +267,12 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
               new Response(file, { headers: serveFileHeaders(simulatedHeaders, filePath) }),
             );
           }
-          const fallback = Bun.file(join(distDir, '404.html'));
+          const fallbackPath = resolve(serveRoot, '404.html');
+          const fallback = Bun.file(fallbackPath);
           if (await fallback.exists()) {
+            if (!(await isResolvedFileInsideServeRoot(serveRoot, fallbackPath))) {
+              return finish(new Response('Forbidden', { status: 403 }));
+            }
             if (watchMode) {
               const html = await fallback.text();
               return finish(
@@ -282,7 +287,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             return finish(
               new Response(fallback, {
                 status: 404,
-                headers: serveFileHeaders(simulatedHeaders, '404.html'),
+                headers: serveFileHeaders(simulatedHeaders, fallbackPath),
               }),
             );
           }
@@ -448,8 +453,35 @@ export function inferServeContentType(filePath: string): string | undefined {
 }
 
 export function isInsideServeRoot(rootDir: string, candidatePath: string): boolean {
-  const relativePath = relative(rootDir, candidatePath);
+  const relativePath = relative(resolve(rootDir), resolve(candidatePath));
   return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
+
+export function decodeServeRequestPath(
+  rootDir: string,
+  requestPathname: string,
+): string | 'bad-request' | null {
+  let decodedPathname: string;
+  try {
+    decodedPathname = decodeURIComponent(requestPathname);
+  } catch {
+    return 'bad-request';
+  }
+  if (decodedPathname.includes('\\')) return null;
+  const rootRelativePath = decodedPathname.startsWith('/')
+    ? `.${decodedPathname}`
+    : decodedPathname;
+  const candidatePath = resolve(rootDir, rootRelativePath);
+  if (!isInsideServeRoot(rootDir, candidatePath)) return null;
+  return candidatePath;
+}
+
+async function isResolvedFileInsideServeRoot(rootDir: string, filePath: string): Promise<boolean> {
+  try {
+    return isInsideServeRoot(rootDir, await realpath(filePath));
+  } catch {
+    return false;
+  }
 }
 
 export function parseServeSimulationTarget(value: string): ServeSimulationTarget | undefined {
