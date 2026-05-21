@@ -860,6 +860,17 @@ describe('comments helper', () => {
     expect(out).toContain('"post-42"');
   });
 
+  test('disqus canonical URL refuses non-http schemes from route data', () => {
+    const engine = makeEngineWithComments({ provider: 'disqus', shortname: 'mysite' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')(
+      { id: 'post-42' },
+      { data: { route: { url: 'javascript:alert(1)' } } },
+    );
+    expect(out).toContain('"https://example.com"');
+    expect(out).not.toContain('javascript:');
+  });
+
   test('disqus identifier override wins over post id', () => {
     const engine = makeEngineWithComments({
       provider: 'disqus',
@@ -933,6 +944,17 @@ describe('comments helper', () => {
     expect(out).toContain('data-nectar-webmentions');
     expect(out).toContain('data-target="https://example.com/post/"');
     expect(out).toContain('data-username="me.example.com"');
+  });
+
+  test('webmention.io canonical target refuses non-http schemes from route data', () => {
+    const engine = makeEngineWithComments({ provider: 'webmention.io' });
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{comments}}')(
+      {},
+      { data: { route: { url: 'data:text/html,<svg onload=alert(1)>' } } },
+    );
+    expect(out).toContain('data-target="https://example.com"');
+    expect(out).not.toContain('data:text/html');
   });
 
   test('webmention.io works without a username (target alone is sufficient)', () => {

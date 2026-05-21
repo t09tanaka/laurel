@@ -1927,15 +1927,22 @@ export function htmlToPlaintext(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(
+      /&(nbsp|amp|lt|gt|quot|#39);/g,
+      (_match, entity: string) => HTML_ENTITY_TEXT[entity] ?? '',
+    )
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+const HTML_ENTITY_TEXT: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  '#39': "'",
+};
 
 // Whitespace tokenisation returns 1 for an entire CJK essay because Japanese,
 // Chinese, and Korean don't put spaces between words. Intl.Segmenter with

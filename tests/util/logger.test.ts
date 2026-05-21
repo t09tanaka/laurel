@@ -8,6 +8,7 @@ import {
   hasWarningsAsErrorsFailure,
   logger,
   refreshColorFromEnv,
+  refreshLogLevelFromEnv,
   resetWarningCount,
   resetWarningsAsErrorsFailure,
   setColorEnabled,
@@ -286,6 +287,16 @@ describe('setLogLevel', () => {
     expect(getLogLevel()).toBe('warn');
     setLogLevel('trace');
     expect(getLogLevel()).toBe('trace');
+  });
+
+  test('refreshLogLevelFromEnv warns on unknown NECTAR_LOG_LEVEL and falls back to info', () => {
+    setLogLevel('trace');
+    const { stderr } = captureStreams(() => {
+      refreshLogLevelFromEnv({ NECTAR_LOG_LEVEL: 'verbose' });
+    });
+
+    expect(getLogLevel()).toBe('info');
+    expect(stderr).toContain('Invalid NECTAR_LOG_LEVEL="verbose"');
   });
 });
 

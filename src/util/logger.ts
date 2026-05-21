@@ -10,10 +10,16 @@ const order: Record<Level, number> = {
 
 function parseLevel(raw: string | undefined): Level | undefined {
   if (raw === undefined) return undefined;
-  return raw in order ? (raw as Level) : undefined;
+  const normalized = raw.trim().toLowerCase();
+  return normalized in order ? (normalized as Level) : undefined;
 }
 
 const envLevel = parseLevel(process.env.NECTAR_LOG_LEVEL);
+if (process.env.NECTAR_LOG_LEVEL !== undefined && !envLevel) {
+  process.stderr.write(
+    `Invalid NECTAR_LOG_LEVEL=${JSON.stringify(process.env.NECTAR_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.\n`,
+  );
+}
 let threshold = envLevel ? order[envLevel] : order.info;
 
 let warningCount = 0;
@@ -274,6 +280,16 @@ export const logger = {
 
 export function setLogLevel(level: Level): void {
   threshold = order[level];
+}
+
+export function refreshLogLevelFromEnv(env: NodeJS.ProcessEnv = process.env): void {
+  const level = parseLevel(env.NECTAR_LOG_LEVEL);
+  if (env.NECTAR_LOG_LEVEL !== undefined && !level) {
+    logger.warn(
+      `Invalid NECTAR_LOG_LEVEL=${JSON.stringify(env.NECTAR_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.`,
+    );
+  }
+  threshold = level ? order[level] : order.info;
 }
 
 export function getLogLevel(): Level {

@@ -21,16 +21,16 @@ interface AssetCacheEntry {
 }
 
 interface AssetCacheFile {
-  version: 1;
+  version: 2;
   entries: Record<string, AssetCacheEntry>;
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_FILENAME = 'asset-cache.json';
-// Bounded concurrency for the per-file stat + sha1 fan-out. 16 is well under
+// Bounded concurrency for the per-file stat + sha256 fan-out. 16 is well under
 // the typical soft fd limit (1024) and large enough to saturate disk
 // throughput on real themes (hundreds of small fonts/CSS/JS assets) while
-// keeping memory bounded — combined with streaming sha1 below, peak heap is
+// keeping memory bounded — combined with streaming sha256 below, peak heap is
 // HASH_CONCURRENCY x chunk size rather than scaling with asset size or count.
 const HASH_CONCURRENCY = 16;
 
@@ -83,7 +83,7 @@ export async function loadThemeAssets(
           integrity = cached.integrity;
         } else {
           const digests = await assetDigestsStream(file);
-          hash = digests.sha1Short;
+          hash = digests.sha256Short;
           integrity = digests.integrity;
         }
         return { rel, file, mtimeMs, size, hash, integrity };
@@ -183,17 +183,19 @@ function shouldFingerprint(ext: string): boolean {
 // Stream the file through Bun.CryptoHasher instead of buffering the whole
 // payload into a Buffer first. For a 40MB asset this keeps memory at the
 // stream's chunk size (tens of KB) instead of 40MB resident per file.
-async function assetDigestsStream(file: string): Promise<{ sha1Short: string; integrity: string }> {
-  const sha1 = new Bun.CryptoHasher('sha1');
+async function assetDigestsStream(
+  file: string,
+): Promise<{ sha256Short: string; integrity: string }> {
+  const sha256 = new Bun.CryptoHasher('sha256');
   const sha384 = new Bun.CryptoHasher('sha384');
   const stream = Bun.file(file).stream();
   for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
-    sha1.update(chunk);
+    sha256.update(chunk);
     sha384.update(chunk);
   }
-  const digest = sha1.digest('hex');
+  const digest = sha256.digest('hex');
   return {
-    sha1Short: digest.slice(0, 10),
+    sha256Short: digest.slice(0, 16),
     integrity: `sha384-${sha384.digest('base64')}`,
   };
 }

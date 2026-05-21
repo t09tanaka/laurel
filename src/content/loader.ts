@@ -847,8 +847,17 @@ const MARKDOWN_LOAD_CONCURRENCY = 32;
 // cheap compared to a full read+normalize and keeps the pool from spawning
 // workers for sites that wouldn't amortise the spawn cost.
 async function countMarkdownFiles(dir: string): Promise<number> {
-  if (!existsSync(dir)) return 0;
-  const rels = await scanGlob('**/*.md', { cwd: dir });
+  let rels: string[];
+  try {
+    rels = await scanGlob('**/*.md', { cwd: dir });
+  } catch (err) {
+    if (!isFsErrnoCode(err, 'ENOENT')) {
+      logger.warn(
+        `loadContent: failed to scan markdown directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return 0;
+  }
   let count = 0;
   for (const rel of rels) {
     if (pathContainsSymlink(dir, rel)) continue;
@@ -918,8 +927,17 @@ async function loadMarkdownDir<T>(
   ) => Promise<T | undefined>,
   maxBytes: number,
 ): Promise<T[]> {
-  if (!existsSync(dir)) return [];
-  const rels = await scanGlob('**/*.md', { cwd: dir });
+  let rels: string[];
+  try {
+    rels = await scanGlob('**/*.md', { cwd: dir });
+  } catch (err) {
+    if (!isFsErrnoCode(err, 'ENOENT')) {
+      logger.warn(
+        `loadContent: failed to scan markdown directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return [];
+  }
   const files: string[] = [];
   for (const rel of rels) {
     if (pathContainsSymlink(dir, rel)) {
@@ -1003,6 +1021,15 @@ function formatBytes(bytes: number): string {
   }
   const rounded = value >= 10 ? value.toFixed(0) : value.toFixed(1);
   return `${rounded} ${units[i]}`;
+}
+
+function isFsErrnoCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === code
+  );
 }
 
 function slugFromPath(filePath: string, rootDir: string): string {

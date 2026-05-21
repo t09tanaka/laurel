@@ -644,6 +644,22 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
+  test('rejects site.url values that use non-http schemes', async () => {
+    await withTempDir(async (cwd) => {
+      const file = join(cwd, 'nectar.toml');
+      await writeFile(file, `[site]\ntitle = "Blog"\nurl = "file:///etc/passwd"\n`, 'utf8');
+      try {
+        await loadConfig({ cwd });
+        throw new Error('expected loadConfig to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NectarError);
+        const ne = err as NectarError;
+        expect(ne.message).toMatch(/site\.url/);
+        expect(ne.message).toMatch(/http or https/);
+      }
+    });
+  });
+
   test('rejects site.accent_color values that are not hex CSS colors', async () => {
     // Task #1145: accent_color is dropped into theme CSS via @site.accent_color
     // (and some themes use it for inline style attributes). A value like

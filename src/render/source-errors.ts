@@ -35,7 +35,7 @@ export function compileThemeSource(
   source: string,
   info: Omit<ThemeSourceInfo, 'source'>,
 ): Handlebars.TemplateDelegate {
-  const delegate = hb.compile(source, { noEscape: false });
+  const delegate = hb.compile(source);
   return wrapTemplateDelegate(delegate, { ...info, source });
 }
 

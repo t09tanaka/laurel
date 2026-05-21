@@ -1212,6 +1212,30 @@ describe('emitSitemap', () => {
     expect(posts).toContain('<loc>https://example.com/inline/</loc>');
   });
 
+  test('sitemap XML escapes values and strips XML-forbidden control characters', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-xml-escape-'));
+    const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
+    const content = makeGraph();
+
+    await emitSitemap({
+      config,
+      content,
+      outputDir,
+      urls: [
+        {
+          url: '/a&b/"quoted"/',
+          kind: 'posts',
+          images: [{ url: '/content/images/cover.jpg', caption: 'A\u0001&B "caption"' }],
+        },
+      ],
+    });
+
+    const posts = readFileSync(join(outputDir, 'sitemap-posts.xml'), 'utf8');
+    expect(posts).toContain('<loc>https://example.com/a&amp;b/%22quoted%22/</loc>');
+    expect(posts).toContain('<image:caption>A&amp;B &quot;caption&quot;</image:caption>');
+    expect(posts).not.toContain('\u0001');
+  });
+
   test('canonicalizes sitemap route URLs with trailing_slash = never', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-canonical-never-'));
     const config = configSchema.parse({

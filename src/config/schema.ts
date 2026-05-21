@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const navigationItemSchema = z
   .object({
     label: z.string().describe('Anchor text shown in theme navigation.'),
@@ -281,6 +290,7 @@ export const configSchema = z
         url: z
           .string()
           .url('site.url must be an absolute URL (e.g. `https://example.com`)')
+          .refine(isHttpUrl, 'site.url must use http or https')
           .default('http://localhost:4321')
           .transform((value) => value.replace(/\/+$/, ''))
           .describe(

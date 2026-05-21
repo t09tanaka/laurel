@@ -37,7 +37,7 @@ describe('loadThemeAssets fingerprint cache', () => {
     const asset = map.get('assets/images/icon.svg');
 
     expect(asset?.fingerprintedPath).toBe('assets/images/icon.svg');
-    expect(asset?.hash).toMatch(/^[0-9a-f]{10}$/);
+    expect(asset?.hash).toMatch(/^[0-9a-f]{16}$/);
     expect(asset ? assetPublicUrl(asset, '/blog') : '').toBe(
       `/blog/assets/images/icon.svg?v=${asset?.hash}`,
     );
@@ -76,7 +76,7 @@ describe('loadThemeAssets fingerprint cache', () => {
       version: number;
       entries: Record<string, { hash: string; mtimeMs: number; size: number }>;
     };
-    expect(cachePayload.version).toBe(1);
+    expect(cachePayload.version).toBe(2);
     expect(cachePayload.entries[cssPath]?.hash).toBe(initialHash as string);
 
     // Force-set mtime back so a fresh stat returns the same mtime+size; the
@@ -85,7 +85,7 @@ describe('loadThemeAssets fingerprint cache', () => {
     // the cached value instead of re-hashing.
     const entry = cachePayload.entries[cssPath];
     if (!entry) throw new Error('expected cache entry');
-    const sentinelHash = 'deadbeef00';
+    const sentinelHash = 'deadbeef00112233';
     cachePayload.entries[cssPath] = { ...entry, hash: sentinelHash };
     await writeFile(cacheFile, JSON.stringify(cachePayload));
 
@@ -113,7 +113,7 @@ describe('loadThemeAssets fingerprint cache', () => {
     await writeFile(join(cacheDir, 'asset-cache.json'), '{ this is not json');
 
     const map = await loadThemeAssets(themeDir, { cacheDir });
-    expect(map.get('assets/a.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
+    expect(map.get('assets/a.css')?.hash).toMatch(/^[0-9a-f]{16}$/);
   });
 });
 
@@ -129,7 +129,7 @@ describe('loadThemeAssets parallel hashing', () => {
     });
     try {
       const map = await loadThemeAssets(themeDir);
-      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
+      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{16}$/);
     } finally {
       statSync.mockRestore();
     }
@@ -138,7 +138,7 @@ describe('loadThemeAssets parallel hashing', () => {
   // Hash work fans out via Promise.all with a concurrency limit. Iteration
   // order of the returned Map must still be deterministic so downstream code
   // (cache writes, build summaries) doesn't see flaky ordering, and every
-  // file must end up with a well-formed sha1 prefix regardless of how the
+  // file must end up with a well-formed sha256 prefix regardless of how the
   // parallel scheduler interleaves them.
   test('hashes many assets in parallel without losing or reordering entries', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-parallel-'));
@@ -173,7 +173,7 @@ describe('loadThemeAssets parallel hashing', () => {
     for (const k of seenLogical) {
       const a = map.get(k);
       const b = map2.get(k);
-      expect(a?.hash).toMatch(/^[0-9a-f]{10}$/);
+      expect(a?.hash).toMatch(/^[0-9a-f]{16}$/);
       expect(b?.hash).toBe(a?.hash as string);
     }
 
@@ -185,9 +185,9 @@ describe('loadThemeAssets parallel hashing', () => {
 
   // The hash is computed by streaming the file through CryptoHasher rather
   // than buffering the full payload first. The result must match the
-  // equivalent one-shot sha1 of the same bytes, otherwise fingerprinted
+  // equivalent one-shot sha256 of the same bytes, otherwise fingerprinted
   // URLs would shift across implementations and break long-lived caches.
-  test('streaming sha1 matches the equivalent one-shot sha1', async () => {
+  test('streaming sha256 matches the equivalent one-shot sha256', async () => {
     const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-stream-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
@@ -203,9 +203,9 @@ describe('loadThemeAssets parallel hashing', () => {
     const map = await loadThemeAssets(themeDir);
 
     const oneShot = (buf: Buffer): string => {
-      const h = new Bun.CryptoHasher('sha1');
+      const h = new Bun.CryptoHasher('sha256');
       h.update(buf);
-      return h.digest('hex').slice(0, 10);
+      return h.digest('hex').slice(0, 16);
     };
     expect(map.get('assets/built/big.bin')?.hash).toBe(oneShot(big));
     expect(map.get('assets/built/small.css')?.hash).toBe(oneShot(small));
@@ -249,7 +249,7 @@ describe('loadThemeAssets parallel hashing', () => {
     (Bun as unknown as { file: typeof Bun.file }).file = patchedFile;
     try {
       const map = await loadThemeAssets(themeDir);
-      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{10}$/);
+      expect(map.get('assets/built/screen.css')?.hash).toMatch(/^[0-9a-f]{16}$/);
       expect(streamCalls).toBeGreaterThan(0);
       expect(wholeFileReads).toBe(0);
     } finally {

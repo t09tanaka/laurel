@@ -79,19 +79,14 @@ function resolveThemeAsset(
   logical: string,
   hasMinFile: unknown,
 ): ThemeAsset | undefined {
-  for (const key of buildAssetCandidates(logical, hasMinFile)) {
-    const asset = assets.get(key);
-    if (asset) return asset;
+  if (hasMinFile) {
+    const minLogical = withMinFileVariant(logical);
+    if (minLogical) {
+      const minAsset = assets.get(minLogical) ?? assets.get(`assets/${minLogical}`);
+      if (minAsset) return minAsset;
+    }
   }
-  return undefined;
-}
-
-function buildAssetCandidates(logical: string, hasMinFile: unknown): string[] {
-  const candidates: string[] = [];
-  const minLogical = hasMinFile ? withMinFileVariant(logical) : undefined;
-  if (minLogical) candidates.push(minLogical, `assets/${minLogical}`);
-  candidates.push(logical, `assets/${logical}`);
-  return candidates;
+  return assets.get(logical) ?? assets.get(`assets/${logical}`);
 }
 
 function withMinFileVariant(logical: string): string | undefined {

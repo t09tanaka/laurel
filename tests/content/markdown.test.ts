@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { renderMarkdown, sanitizeRenderedHtml, truncateByWords } from '~/content/markdown.ts';
+import {
+  htmlToPlaintext,
+  renderMarkdown,
+  sanitizeRenderedHtml,
+  truncateByWords,
+} from '~/content/markdown.ts';
 
 function normalizeIntertagWhitespace(html: string): string {
   return html.replace(/>\s+</g, '><').trim();
@@ -93,6 +98,16 @@ describe('sanitizeRenderedHtml', () => {
     const out = sanitizeRenderedHtml('<script>x</script><p>ok</p>');
     expect(out).not.toContain('<script');
     expect(out).toContain('<p>ok</p>');
+  });
+});
+
+describe('htmlToPlaintext', () => {
+  test('strips tags and decodes supported HTML entities without leaking script/style bodies', () => {
+    expect(
+      htmlToPlaintext(
+        '<style>.x{}</style><p>A&nbsp;&amp;&lt;&gt;&quot;&#39; B</p><script>alert(1)</script>',
+      ),
+    ).toBe('A &<>"\' B');
   });
 });
 

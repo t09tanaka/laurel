@@ -9,6 +9,11 @@ import { sanitizeHref } from '~/util/safe-href.ts';
 import { type NectarEngine, computePostClass } from '../engine.ts';
 
 export function registerContentHelpers(engine: NectarEngine): void {
+  const tagMarkupCache = new WeakMap<
+    { name: string; url?: string },
+    { name: string; url: string | undefined; escapedName: string; linkedHtml: string | undefined }
+  >();
+
   engine.hb.registerHelper(
     'content',
     function contentHelper(this: unknown, options: Handlebars.HelperOptions) {
@@ -148,13 +153,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
         return new engine.hb.SafeString(fallback ? prefix + escapeHtml(fallback) + suffix : '');
       }
 
-      let items = list.map((tag) => {
-        if (!autolink || typeof tag.url !== 'string' || tag.url.length === 0) {
-          return escapeHtml(tag.name);
-        }
-        const safeHref = sanitizeHref(tag.url, '{{tags}} helper');
-        return `<a href="${engine.hb.escapeExpression(safeHref)}">${escapeHtml(tag.name)}</a>`;
-      });
+      let items = list.map((tag) => renderTagListItem(tag, autolink, tagMarkupCache, engine));
       if (limit !== undefined && limit >= 0) items = items.slice(0, limit);
       const from = fromRaw && fromRaw > 0 ? fromRaw - 1 : 0;
       const to = toRaw && toRaw > 0 ? toRaw : items.length;
@@ -787,11 +786,37 @@ function renderAttrList(attrs: [string, string | null][]): string {
 function buildCanonicalUrl(base: string | undefined, path: string): string {
   if (!base) return path;
   if (/^https?:/i.test(path)) return path;
+  if (URL_SCHEME_RE.test(path)) return base;
   try {
     return new URL(path, base.endsWith('/') ? base : `${base}/`).toString();
   } catch {
     return path;
   }
+}
+
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+function renderTagListItem(
+  tag: { name: string; url?: string },
+  autolink: boolean,
+  cache: WeakMap<
+    { name: string; url?: string },
+    { name: string; url: string | undefined; escapedName: string; linkedHtml: string | undefined }
+  >,
+  engine: NectarEngine,
+): string {
+  let cached = cache.get(tag);
+  if (!cached || cached.name !== tag.name || cached.url !== tag.url) {
+    const escapedName = escapeHtml(tag.name);
+    const linkedHtml =
+      typeof tag.url === 'string' && tag.url.length > 0
+        ? `<a href="${engine.hb.escapeExpression(sanitizeHref(tag.url, '{{tags}} helper'))}">${escapedName}</a>`
+        : undefined;
+    cached = { name: tag.name, url: tag.url, escapedName, linkedHtml };
+    cache.set(tag, cached);
+  }
+  if (!autolink || !cached.linkedHtml) return cached.escapedName;
+  return cached.linkedHtml;
 }
 
 function escapeForScript(json: string): string {

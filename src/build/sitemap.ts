@@ -363,10 +363,34 @@ function formatSitemapPriority(value: number): string {
 }
 
 function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+  let out = '';
+  for (const ch of value) {
+    const escaped = XML_ESCAPE_MAP[ch];
+    if (escaped !== undefined) {
+      out += escaped;
+      continue;
+    }
+    if (isXmlForbiddenControlChar(ch)) continue;
+    out += ch;
+  }
+  return out;
+}
+
+const XML_ESCAPE_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&apos;',
+};
+
+function isXmlForbiddenControlChar(ch: string): boolean {
+  const code = ch.charCodeAt(0);
+  return (
+    (code >= 0x00 && code <= 0x08) ||
+    code === 0x0b ||
+    code === 0x0c ||
+    (code >= 0x0e && code <= 0x1f) ||
+    (code >= 0x7f && code <= 0x9f)
+  );
 }
