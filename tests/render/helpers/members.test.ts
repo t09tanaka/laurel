@@ -136,12 +136,33 @@ describe('member helpers', () => {
     );
   });
 
-  test('member_count safely falls back to zero and rounds configured counts', () => {
+  test('member_count defaults to empty and rounds explicit counts', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
-    expect(engine.hb.compile('{{member_count}}')({})).toBe('0');
+    expect(engine.hb.compile('{{member_count}}')({})).toBe('');
     expect(engine.hb.compile('{{member_count}}')({ member_count: 1234 })).toBe('1,200+');
     expect(engine.hb.compile('{{member_count paid=true}}')({ paid: 87 })).toBe('80+');
+  });
+
+  test('member_count reads the static portal override from @site', () => {
+    const engine = makeEngine({
+      content: {
+        site: {
+          title: 'Example',
+          url: 'https://example.test',
+          locale: 'en',
+          timezone: 'UTC',
+          member_count: 1234,
+        },
+        posts: [],
+        pages: [],
+        tags: [],
+        authors: [],
+        tiers: [],
+      } as unknown as NectarEngine['content'],
+    });
+    registerMemberHelpers(engine);
+    expect(engine.hb.compile('{{member_count}}')({})).toBe('1,200+');
   });
 
   test('signup emits a provider-resolved members form', () => {

@@ -616,6 +616,7 @@ function buildSite(config: NectarConfig): SiteData {
     members_enabled: membersEnabled,
     paid_members_enabled: paidEnabled,
     members_invite_only: inviteOnly,
+    member_count: config.components.portal.member_count,
     comments_enabled: config.site.comments_enabled,
     comments_access: config.site.comments_access,
     portal_button: config.site.portal.portal_button,

@@ -48,6 +48,7 @@ export interface SiteData {
   members_enabled: boolean;
   paid_members_enabled: boolean;
   members_invite_only: boolean;
+  member_count?: number | undefined;
   comments_enabled: boolean;
   comments_access: 'all' | 'members' | 'paid';
   portal_button: boolean;

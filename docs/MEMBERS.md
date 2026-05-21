@@ -84,6 +84,23 @@ When `provider = "ghost"` or `"custom"`, the UI shell appears. The flags
 themselves do not wire any backend — they only tell the theme *what to render*.
 Wiring the actual click handlers is step 3 (see below).
 
+### `{{member_count}}` and `{{comment_count}}`
+
+Static builds cannot know live member or comment totals. `{{member_count}}`
+therefore renders an empty string by default. If you want a manually maintained
+public number, set:
+
+```toml
+[components.portal]
+member_count = 1234
+```
+
+The helper will use that static value and apply Ghost-style rounded display
+(`1,200+` for `1234`). `{{comment_count}}` follows the same static-safe stance:
+without an explicit `comment_count` on the current post context it renders empty
+text, while keeping the optional `data-ghost-comment-count` wrapper so a
+client-side comments integration can hydrate it later.
+
 ### `@member.*`
 
 Always `undefined`. In a static build there is no logged-in viewer, so the

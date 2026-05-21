@@ -21,7 +21,7 @@ export function registerMemberHelpers(engine: NectarEngine): void {
     function memberCountHelper(this: unknown, options: Handlebars.HelperOptions) {
       const hash = options.hash as Record<string, unknown>;
       const paidOnly = toBoolean(hash.paid) || pickString(hash.type, '') === 'paid';
-      const count = resolveMemberCount(this, options.data?.site, paidOnly);
+      const count = resolveMemberCount(this, options.data?.site ?? engine.content.site, paidOnly);
       return new engine.hb.SafeString(formatMemberCount(count));
     },
   );
@@ -122,7 +122,7 @@ function isPostOrPageLike(value: unknown): boolean {
   return typeof obj.id === 'string' && (typeof obj.title === 'string' || 'visibility' in obj);
 }
 
-function resolveMemberCount(ctx: unknown, site: unknown, paidOnly: boolean): number {
+function resolveMemberCount(ctx: unknown, site: unknown, paidOnly: boolean): number | undefined {
   const sources = [ctx, site];
   const keys = paidOnly
     ? ['paid', 'paid_members', 'paid_member_count', 'total_paid_members']
@@ -131,7 +131,7 @@ function resolveMemberCount(ctx: unknown, site: unknown, paidOnly: boolean): num
     const count = readFirstNumeric(source, keys);
     if (count !== undefined) return count;
   }
-  return 0;
+  return undefined;
 }
 
 function readFirstNumeric(source: unknown, keys: readonly string[]): number | undefined {
@@ -159,7 +159,8 @@ function toNonNegativeInteger(value: unknown): number | undefined {
   return undefined;
 }
 
-function formatMemberCount(count: number): string {
+function formatMemberCount(count: number | undefined): string {
+  if (count === undefined) return '';
   if (count <= 50) return count.toLocaleString('en');
   if (count <= 100) return `${roundDown(count, 10).toLocaleString('en')}+`;
   if (count <= 1000) return `${roundDown(count, 50).toLocaleString('en')}+`;

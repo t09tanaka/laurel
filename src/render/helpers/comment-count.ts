@@ -3,10 +3,12 @@ import type { NectarEngine } from '../engine.ts';
 
 // Ghost themes use {{comment_count}} to render the comment tally for a post
 // (e.g. `<span class="post-card-comments">3 comments</span>`). Nectar has no
-// members/comments backend, so the count is always 0 at build time. The wrapper
-// span carries `data-ghost-comment-count` so an optional client-side script
-// (or a future comments provider that surfaces totals) can swap the number in
-// without needing to know the theme's class names.
+// members/comments backend, so a static build cannot know the live count. When
+// the current post context does not carry an explicit `comment_count`, render
+// an empty string inside the optional wrapper rather than asserting "0". The
+// wrapper span carries `data-ghost-comment-count` so an optional client-side
+// script (or a future comments provider that surfaces totals) can swap the
+// number in without needing to know the theme's class names.
 //
 // Hash params mirror Ghost's helper:
 //   class     — extra classes on the wrapper span (default empty)
@@ -34,7 +36,9 @@ export function registerCommentCountHelper(engine: NectarEngine): void {
       const empty = hasEmpty ? pickString(hash.empty) : plural;
 
       let text: string;
-      if (count === 0) {
+      if (count === undefined) {
+        text = '';
+      } else if (count === 0) {
         text = hasEmpty ? formatEmpty(empty, count) : formatCountLabel(empty, count);
       } else if (count === 1) {
         text = formatCountLabel(singular, count);
@@ -55,7 +59,7 @@ export function registerCommentCountHelper(engine: NectarEngine): void {
   );
 }
 
-function normalizeCount(value: unknown): number {
+function normalizeCount(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
     return Math.floor(value);
   }
@@ -63,7 +67,7 @@ function normalizeCount(value: unknown): number {
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
   }
-  return 0;
+  return undefined;
 }
 
 function pickString(value: unknown): string {

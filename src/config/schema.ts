@@ -1656,6 +1656,14 @@ export const configSchema = z
               .describe(
                 'When true, hide the public Subscribe button and only expose Sign in (Ghost\'s invite-only mode). Drives `@site.members_invite_only`. Only meaningful when `provider != "none"`.',
               ),
+            member_count: z
+              .number()
+              .int()
+              .nonnegative()
+              .optional()
+              .describe(
+                'Manual static override for `{{member_count}}` / `@site.member_count`. Static builds cannot know live member totals, so the helper renders an empty string unless this value is set.',
+              ),
             publication: z
               .string()
               .optional()

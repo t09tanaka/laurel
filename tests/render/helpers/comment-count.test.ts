@@ -19,11 +19,11 @@ function makeEngine(): NectarEngine {
 }
 
 describe('comment_count helper', () => {
-  test('default render emits a wrapper span with data-ghost-comment-count and 0', () => {
+  test('default render emits an empty wrapper span when no count source exists', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count plural="comments"}}')({});
-    expect(out).toBe('<span data-ghost-comment-count>0 comments</span>');
+    expect(out).toBe('<span data-ghost-comment-count></span>');
   });
 
   test('honors class= hash and escapes it for attribute context', () => {
@@ -32,14 +32,14 @@ describe('comment_count helper', () => {
     const out = engine.hb.compile('{{comment_count class="post-card-comments" plural="comments"}}')(
       {},
     );
-    expect(out).toBe('<span class="post-card-comments" data-ghost-comment-count>0 comments</span>');
+    expect(out).toBe('<span class="post-card-comments" data-ghost-comment-count></span>');
   });
 
   test('autowrap=false emits bare text without a wrapper span', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count autowrap=false plural="comments"}}')({});
-    expect(out).toBe('0 comments');
+    expect(out).toBe('');
   });
 
   test('selects singular when count is 1', () => {
@@ -60,26 +60,28 @@ describe('comment_count helper', () => {
     expect(out).toBe('<span data-ghost-comment-count>5 comments</span>');
   });
 
-  test('uses empty when count is 0 and empty is provided', () => {
+  test('uses empty when explicit count is 0 and empty is provided', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
-    const out = engine.hb.compile('{{comment_count empty="No comments yet" plural="comments"}}')(
-      {},
-    );
+    const out = engine.hb.compile('{{comment_count empty="No comments yet" plural="comments"}}')({
+      comment_count: 0,
+    });
     expect(out).toBe('<span data-ghost-comment-count>No comments yet</span>');
   });
 
-  test('empty="" renders an empty wrapper so theme layouts can hide it via CSS', () => {
+  test('empty="" renders an empty wrapper for an explicit zero count', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
-    const out = engine.hb.compile('{{comment_count empty="" plural="comments"}}')({});
+    const out = engine.hb.compile('{{comment_count empty="" plural="comments"}}')({
+      comment_count: 0,
+    });
     expect(out).toBe('<span data-ghost-comment-count></span>');
   });
 
   test('falls back to plural when empty hash is omitted (Ghost parity)', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
-    const out = engine.hb.compile('{{comment_count plural="comments"}}')({});
+    const out = engine.hb.compile('{{comment_count plural="comments"}}')({ comment_count: 0 });
     expect(out).toBe('<span data-ghost-comment-count>0 comments</span>');
   });
 
@@ -107,13 +109,14 @@ describe('comment_count helper', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count autowrap="false" plural="comments"}}')({});
-    expect(out).toBe('0 comments');
+    expect(out).toBe('');
   });
 
   test('escapes plural text against accidental HTML injection in the wrapper', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const out = engine.hb.compile('{{comment_count plural=p}}')({
+      comment_count: 0,
       p: '<script>x</script>',
     });
     expect(out).toBe('<span data-ghost-comment-count>0 &lt;script&gt;x&lt;/script&gt;</span>');
@@ -128,12 +131,12 @@ describe('comment_count helper', () => {
     expect(out).toBe('<span data-ghost-comment-count>3 comments</span>');
   });
 
-  test('non-numeric / negative context values fall back to 0', () => {
+  test('non-numeric / negative context values fall back to unknown', () => {
     const engine = makeEngine();
     registerCommentCountHelper(engine);
     const tmpl = engine.hb.compile('{{comment_count empty="none" singular="one" plural="many"}}');
-    expect(tmpl({ comment_count: 'abc' })).toBe('<span data-ghost-comment-count>none</span>');
-    expect(tmpl({ comment_count: -2 })).toBe('<span data-ghost-comment-count>none</span>');
+    expect(tmpl({ comment_count: 'abc' })).toBe('<span data-ghost-comment-count></span>');
+    expect(tmpl({ comment_count: -2 })).toBe('<span data-ghost-comment-count></span>');
   });
 
   test('omitting plural and empty renders an empty wrapper rather than throwing', () => {

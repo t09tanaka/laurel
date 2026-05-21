@@ -772,6 +772,7 @@ About JA.
     expect(graph.site.members_enabled).toBe(false);
     expect(graph.site.paid_members_enabled).toBe(false);
     expect(graph.site.members_invite_only).toBe(false);
+    expect(graph.site.member_count).toBeUndefined();
     expect(graph.site.comments_enabled).toBe(false);
     expect(graph.site.comments_access).toBe('all');
     expect(graph.site.portal_button).toBe(false);
@@ -839,6 +840,23 @@ About JA.
     expect(disabled.site.members_enabled).toBe(false);
     expect(disabled.site.paid_members_enabled).toBe(false);
     expect(disabled.site.members_invite_only).toBe(false);
+  });
+
+  test('components.portal.member_count round-trips to @site for static helper output', async () => {
+    const cwd = await fixture();
+    const graph = await loadContent({
+      cwd,
+      config: configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        components: {
+          portal: {
+            member_count: 1234,
+          },
+        },
+      }),
+    });
+
+    expect(graph.site.member_count).toBe(1234);
   });
 
   // Issue #420 / #962: the `[site]` block accepts explicit `members_enabled` /
