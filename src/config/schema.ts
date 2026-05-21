@@ -642,7 +642,7 @@ export const configSchema = z
           .boolean()
           .default(false)
           .describe(
-            'Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace and strips comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing.',
+            'Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace, whitespace-only blocks, and comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing.',
           ),
         precompress: z
           .boolean()
@@ -722,7 +722,7 @@ export const configSchema = z
           .boolean()
           .default(false)
           .describe(
-            'Emit a sibling `<link rel="preload" as="style" href="X">` for every `<link rel="stylesheet" href="X">` that does not already have one. Helps themes that did not opt into the manual preload pattern (which the Source theme already ships) by letting the browser start the CSS fetch from the preload scan rather than from CSS parsing. Default off because most themes either already include the preload or do not benefit (single tiny stylesheet); flip on for themes with deep critical-CSS where the head is large.',
+            'Emit a sibling `<link rel="preload" as="style" href="X">` for every `<link rel="stylesheet" href="X">` that does not already have one. Helps themes that did not opt into the manual preload pattern (which the Source theme already ships) by letting the browser start the CSS fetch from the preload scan rather than from CSS parsing. Default off because most themes either already include the preload or do not benefit (single tiny stylesheet); flip on for themes with deep critical-CSS where the head is large. This is a resource hint, not automatic critical-CSS extraction or CSS purging; keep those theme-specific transforms in the theme build step.',
           ),
       })
       .strict()
