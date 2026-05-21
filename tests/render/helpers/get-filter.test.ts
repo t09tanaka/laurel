@@ -161,6 +161,20 @@ describe('get helper filter via secondary indexes', () => {
     expect(tpl({})).toBe('b,');
   });
 
+  test('filter="visibility:public" excludes members-only posts', () => {
+    const engine = buildEngine({
+      posts: [
+        { ...samplePosts[0], visibility: 'public' },
+        { ...samplePosts[1], visibility: 'members' },
+        { ...samplePosts[2], visibility: 'public' },
+      ],
+    });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" filter="visibility:public"}}{{#foreach posts}}{{id}},{{/foreach}}{{/get}}`,
+    );
+    expect(tpl({})).toBe('a,c,');
+  });
+
   test('caches the index across calls', () => {
     const engine = buildEngine({ posts: samplePosts });
     const tpl = engine.hb.compile(
