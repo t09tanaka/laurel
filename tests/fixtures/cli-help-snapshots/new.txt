@@ -15,7 +15,7 @@ Options:
   --force             Overwrite the destination file if it already exists
   --slug <slug>       Use this lowercase ASCII slug instead of one derived from the title (post/page/custom kinds only; must match /^[a-z0-9][a-z0-9-]*$/; for tag/author the positional already is the slug)
   --draft             Set frontmatter status to "draft" so the file is excluded from builds until promoted (post/page only)
-  --date <iso>        Override the published date with an ISO-8601 timestamp instead of the current time (post only)
+  --date <iso>        Override the published date with an ISO-8601 timestamp instead of the current time (post only). Without --date, UTC is used unless [site].timezone configures an IANA timezone; use an explicit offset when preserving a source editorial wall-clock value.
   --tags <a,b,c>      Tag slugs to seed in frontmatter (post only); repeat or comma-separate
   --author <slug>     Author slug to seed in frontmatter (post only)
   --open              Open the created file in $VISUAL or $EDITOR after writing it (logs the path when neither is set)

@@ -31,6 +31,35 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
   return { stdout, stderr, exitCode };
 }
 
+async function readUntil(
+  stream: ReadableStream<Uint8Array>,
+  marker: string,
+  timeoutMs: number,
+): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let output = '';
+  const timeout = Symbol('timeout');
+  const deadline = Date.now() + timeoutMs;
+  try {
+    while (Date.now() < deadline) {
+      const remainingMs = Math.max(0, deadline - Date.now());
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise<typeof timeout>((resolve) => setTimeout(() => resolve(timeout), remainingMs)),
+      ]);
+      if (chunk === timeout) break;
+      if (chunk.done) break;
+      output += decoder.decode(chunk.value, { stream: true });
+      if (output.includes(marker)) break;
+    }
+    output += decoder.decode();
+    return output;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function makeServeFixture(): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-int-')));
   await Bun.write(join(dir, 'nectar.toml'), '[site]\ntitle = "x"\n');
@@ -86,17 +115,8 @@ describe('cli integration — serve (#663/#692)', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
-      const decoder = new TextDecoder();
-      let stderr = '';
-      const deadline = Date.now() + 5000;
-      while (Date.now() < deadline) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Watch mode enabled') || stderr.includes('Serving')) break;
-      }
-      reader.releaseLock();
+      const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 5000);
+      expect(stdout).toContain('Serving');
       // Server should still be running when we send SIGINT.
       expect(proc.killed).toBe(false);
       proc.kill('SIGINT');

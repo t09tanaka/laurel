@@ -46,6 +46,7 @@ Global options:
   -V, --verbose               Increase verbosity to debug (stack -VV for trace)
   -j, --json                  Emit one JSON object per log line + JSON-shaped command output where supported
   --log-format <json|pretty>  Choose logger output format without changing command output
+  --locale <tag>              Set the process locale for CLI diagnostics and locale-sensitive output
   --no-color                  Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)
   --debug                     Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)
   --warnings-as-errors        Treat logger warnings as errors and exit 1 if any warning is emitted

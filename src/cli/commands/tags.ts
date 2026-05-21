@@ -616,7 +616,14 @@ function quoteLike(item: string, slug: string): string {
 }
 
 function normalizeTagCliSlug(value: string): string {
-  return slugifyCliValue(value.trim());
+  const trimmed = value.trim();
+  const asciiSlug = slugifyCliValue(trimmed);
+  if (asciiSlug) return asciiSlug;
+  return /^[\p{Letter}\p{Number}](?:[\p{Letter}\p{Number}-]*[\p{Letter}\p{Number}])?$/u.test(
+    trimmed,
+  )
+    ? trimmed
+    : '';
 }
 
 function uniqueSlugs(values: string[]): string[] {

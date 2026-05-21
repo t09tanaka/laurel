@@ -27,6 +27,35 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
   return { stdout, stderr, exitCode };
 }
 
+async function readUntil(
+  stream: ReadableStream<Uint8Array>,
+  marker: string,
+  timeoutMs: number,
+): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let output = '';
+  const timeout = Symbol('timeout');
+  const deadline = Date.now() + timeoutMs;
+  try {
+    while (Date.now() < deadline) {
+      const remainingMs = Math.max(0, deadline - Date.now());
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise<typeof timeout>((resolve) => setTimeout(() => resolve(timeout), remainingMs)),
+      ]);
+      if (chunk === timeout) break;
+      if (chunk.done) break;
+      output += decoder.decode(chunk.value, { stream: true });
+      if (output.includes(marker)) break;
+    }
+    output += decoder.decode();
+    return output;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function makeDevFixture(): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dev-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
@@ -104,27 +133,17 @@ describe('cli dev — help', () => {
         stderr: 'pipe',
       });
       try {
-        const reader = proc.stderr.getReader();
-        const decoder = new TextDecoder();
-        let stderr = '';
-        const deadline = Date.now() + 15000;
-        while (Date.now() < deadline) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          stderr += decoder.decode(value, { stream: true });
-          if (stderr.includes('Watch mode enabled')) break;
-        }
-        expect(stderr).toContain('Listening on');
-        expect(stderr).toContain('Watch mode enabled');
+        const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
+        expect(stdout).toContain('Listening on');
+        expect(stdout).toContain('Watch mode enabled');
         // --port 0 → kernel picks a real port; the announced URL must contain
         // a concrete (non-zero) port so users can actually visit it.
-        const match = stderr.match(/Listening on http:\/\/localhost:(\d+)/);
+        const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
         expect(match).not.toBeNull();
         if (match !== null) {
           const announcedPort = Number(match[1]);
           expect(announcedPort).toBeGreaterThan(0);
         }
-        reader.releaseLock();
       } finally {
         proc.kill('SIGTERM');
         await proc.exited;
@@ -153,22 +172,12 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
-      const decoder = new TextDecoder();
-      let stderr = '';
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Watch mode enabled')) break;
-      }
-      expect(stderr).toContain('Running initial build');
-      expect(stderr).toContain('Initial build complete');
-      expect(stderr).toContain('Listening on');
-      expect(stderr).toContain('Watch mode enabled');
+      const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
+      expect(stdout).toContain('Running initial build');
+      expect(stdout).toContain('Initial build complete');
+      expect(stdout).toContain('Listening on');
+      expect(stdout).toContain('Watch mode enabled');
       expect(proc.killed).toBe(false);
-      reader.releaseLock();
     } finally {
       proc.kill('SIGTERM');
       await proc.exited;
@@ -182,17 +191,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
-      const decoder = new TextDecoder();
-      let stderr = '';
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Listening on')) break;
-      }
-      const match = stderr.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Listening on', 15_000);
+      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
@@ -202,7 +202,6 @@ describe('cli dev — lifecycle', () => {
       const body = await res.text();
       expect(body).toContain('__nectarLiveReload');
       expect(body).toContain('WebSocket');
-      reader.releaseLock();
     } finally {
       proc.kill('SIGTERM');
       await proc.exited;
@@ -216,17 +215,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
-      const decoder = new TextDecoder();
-      let stderr = '';
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Listening on')) break;
-      }
-      const match = stderr.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Listening on', 15_000);
+      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
@@ -234,7 +224,6 @@ describe('cli dev — lifecycle', () => {
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain('/__nectar/livereload.js');
-      reader.releaseLock();
     } finally {
       proc.kill('SIGTERM');
       await proc.exited;
@@ -248,17 +237,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const reader = proc.stderr.getReader();
-      const decoder = new TextDecoder();
-      let stderr = '';
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        stderr += decoder.decode(value, { stream: true });
-        if (stderr.includes('Watch mode enabled')) break;
-      }
-      const match = stderr.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
+      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
@@ -292,7 +272,6 @@ describe('cli dev — lifecycle', () => {
       expect(messages.length).toBeGreaterThan(0);
       const parsed = JSON.parse(messages[0] ?? '{}') as { type?: string };
       expect(parsed.type === 'reload' || parsed.type === 'css').toBe(true);
-      reader.releaseLock();
     } finally {
       proc.kill('SIGTERM');
       await proc.exited;
