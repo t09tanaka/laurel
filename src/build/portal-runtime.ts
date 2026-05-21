@@ -7,6 +7,80 @@ import type { ResolvedPortalUrls } from './portal-urls.ts';
 export const PORTAL_RUNTIME_PATH = 'assets/nectar-portal.js';
 export const PORTAL_RUNTIME_VERSION = '1';
 
+export const INLINE_SUBMIT_RUNTIME_JS = `/* Nectar inline members form submit runtime. */
+(function () {
+  if (typeof window === 'undefined' || !window.fetch || !window.FormData) return;
+  window.NectarInlineSubmit = true;
+
+  function find(form, selector) {
+    return form.querySelector ? form.querySelector(selector) : null;
+  }
+
+  function toggleMessage(el, visible, fallback) {
+    if (!el) return;
+    if (visible && fallback && !el.textContent) el.textContent = fallback;
+    el.hidden = !visible;
+    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  }
+
+  function setState(form, state) {
+    form.classList.remove('loading', 'success', 'error');
+    if (state) form.classList.add(state);
+    form.setAttribute('data-members-form-state', state || '');
+  }
+
+  function submitter(form) {
+    return find(form, '[data-members-submit]') || find(form, 'button[type="submit"]');
+  }
+
+  function withGetParams(action, data) {
+    var query = new URLSearchParams(data).toString();
+    if (!query) return action;
+    return action + (action.indexOf('?') === -1 ? '?' : '&') + query;
+  }
+
+  async function handleSubmit(event) {
+    if (event.defaultPrevented) return;
+    var form = event.target;
+    if (!form || !form.matches || !form.matches('form[data-members-form]')) return;
+    if (form.hasAttribute('data-nectar-noop') || form.classList.contains('loading')) return;
+
+    var action = form.getAttribute('action') || '';
+    if (!action || action === '#') return;
+
+    event.preventDefault();
+    var success = find(form, '[data-members-success]');
+    var error = find(form, '[data-members-error]');
+    var button = submitter(form);
+    var data = new FormData(form);
+    var method = (form.getAttribute('method') || 'post').toUpperCase();
+    var url = method === 'GET' ? withGetParams(action, data) : action;
+    var init = { method: method, headers: { Accept: 'application/json' } };
+    if (method !== 'GET') init.body = data;
+
+    toggleMessage(success, false);
+    toggleMessage(error, false);
+    setState(form, 'loading');
+    if (button) button.disabled = true;
+
+    try {
+      var response = await fetch(url, init);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      setState(form, 'success');
+      toggleMessage(success, true);
+      form.reset();
+    } catch (_err) {
+      setState(form, 'error');
+      toggleMessage(error, true, 'Subscription failed. Please try again.');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  document.addEventListener('submit', handleSubmit);
+})();
+`;
+
 export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
 (function () {
   var cfg = (typeof window !== 'undefined' && window.NectarPortal) || {};

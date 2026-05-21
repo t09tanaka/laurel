@@ -361,6 +361,24 @@ signup_url = "https://eocampaign1.com/form/abc.js"
     });
   });
 
+  test('keeps portal inline_submit off by default and parses opt-in config', async () => {
+    await withTempDir(async (cwd) => {
+      let config = await loadConfig({ cwd });
+      expect(config.components.portal.inline_submit).toBe(false);
+
+      await writeFile(
+        join(cwd, 'nectar.toml'),
+        `[components.portal]
+inline_submit = true
+`,
+        'utf8',
+      );
+
+      config = await loadConfig({ cwd });
+      expect(config.components.portal.inline_submit).toBe(true);
+    });
+  });
+
   test('parses site.icon from nectar.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(

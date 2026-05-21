@@ -187,6 +187,21 @@ ship Ghost's members runtime JavaScript. Without a configured
 `[components.subscribe]` provider or your own JS handler, the form remains
 inert.
 
+If you have a public form endpoint configured through `[components.subscribe]`
+but do not load the provider's JavaScript, opt into Nectar's small inline
+submit handler:
+
+```toml
+[components.portal]
+inline_submit = true
+```
+
+The handler intercepts `data-members-form` submits with `fetch`, toggles the
+Ghost-compatible `loading`, `success`, and `error` form classes, and reveals
+`data-members-success` / `data-members-error` messages. It is off by default so
+plain static sites and provider-hosted forms keep their native browser
+submission behavior unless you explicitly opt in.
+
 ---
 
 ## 3. How the portal adapter rewrites buttons and forms
@@ -239,7 +254,8 @@ already contains an input named `website`, so theme authors can provide their
 own equivalent field without duplication.
 
 Nectar does not rewrite arbitrary forms that lack these members-form markers,
-and it does not implement Ghost's runtime success / error state machine.
+and it does not implement Ghost's runtime success / error state machine unless
+`[components.portal].inline_submit = true` is set. Without that opt-in,
 `data-members-success` and `data-members-error` are static presentation hooks
 until your JavaScript toggles them.
 

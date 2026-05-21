@@ -7,6 +7,7 @@ import {
 } from '~/build/card-assets.ts';
 import type { FaviconLink } from '~/build/favicons.ts';
 import {
+  INLINE_SUBMIT_RUNTIME_JS,
   PORTAL_RUNTIME_PATH,
   PORTAL_RUNTIME_VERSION,
   renderPortalRuntimeConfig,
@@ -286,6 +287,8 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (embedProviderScripts) parts.push(embedProviderScripts);
       const portalRuntime = renderStaticPortalRuntime(engine);
       if (portalRuntime) parts.push(portalRuntime);
+      const inlineSubmitRuntime = renderInlineSubmitRuntime(engine);
+      if (inlineSubmitRuntime) parts.push(inlineSubmitRuntime);
       if (typeof ctx.codeinjection_foot === 'string' && ctx.codeinjection_foot) {
         parts.push(ctx.codeinjection_foot);
       }
@@ -1250,6 +1253,12 @@ function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
     `<script${nonce}>window.NectarPortal=${escapeJsonForScript(configJson)};</script>`,
     `<script src="${escapeAttr(src)}" defer${nonce}></script>`,
   ].join('\n');
+}
+
+function renderInlineSubmitRuntime(engine: NectarEngine): string | undefined {
+  if (engine.config?.components?.portal?.inline_submit !== true) return undefined;
+  const nonce = nonceAttr(engine.config?.build?.csp_nonce);
+  return `<script${nonce}>${INLINE_SUBMIT_RUNTIME_JS}</script>`;
 }
 
 function renderCardAssetsHeadSnippet(engine: NectarEngine, basePath: string): string | undefined {

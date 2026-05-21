@@ -1746,6 +1746,12 @@ export const configSchema = z
               .describe(
                 'When true, inject Ghost\'s Portal client script into every page via `{{ghost_head}}`. The script attaches `data-portal` click handlers (signup / signin / account / upgrade) and renders the modal UI without any further wiring. Defaults to `false` so plain static blogs ship no extra JS; flip on to wire up Ghost Portal against a real backend (Ghost server, ghost-static-portal, or any self-hosted fork). Independent of `provider`: combining `inject_script = true` with `provider = "ghost"` is the canonical Ghost-compat setup, but the flag also works alongside `provider = "custom"` when the operator wires their own handler script through `script_src`.',
               ),
+            inline_submit: z
+              .boolean()
+              .default(false)
+              .describe(
+                'When true, inject a tiny inline `{{ghost_foot}}` runtime that intercepts `data-members-form` submissions with `fetch`, toggles Ghost-compatible `loading` / `success` / `error` form classes, and reveals `data-members-success` / `data-members-error` messages. Defaults to `false` so provider-hosted forms keep native browser submission unless the operator explicitly opts into client-side success/error UX.',
+              ),
             script_src: z
               .string()
               .default('https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js')

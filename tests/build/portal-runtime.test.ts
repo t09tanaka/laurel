@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  INLINE_SUBMIT_RUNTIME_JS,
   PORTAL_RUNTIME_JS,
   PORTAL_RUNTIME_PATH,
   emitPortalRuntime,
@@ -60,6 +61,30 @@ describe('PORTAL_RUNTIME_JS', () => {
     expect(PORTAL_RUNTIME_JS).toContain("'nectar:portal'");
     expect(PORTAL_RUNTIME_JS).toContain('cancelable: true');
     expect(PORTAL_RUNTIME_JS).toContain('preventDefault');
+  });
+});
+
+describe('INLINE_SUBMIT_RUNTIME_JS', () => {
+  test('is valid browser JavaScript', () => {
+    expect(() => new Function(INLINE_SUBMIT_RUNTIME_JS)).not.toThrow();
+  });
+
+  test('submits Ghost members forms with fetch and updates theme state hooks', () => {
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('form[data-members-form]');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('new FormData(form)');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('fetch(url');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('loading');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('success');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('error');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-members-success');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-members-error');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-members-form-state');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('button.disabled');
+  });
+
+  test('does not hijack disabled no-op forms or empty actions', () => {
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-nectar-noop');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain("action === '#'");
   });
 });
 

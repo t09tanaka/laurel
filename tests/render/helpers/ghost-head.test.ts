@@ -2437,6 +2437,43 @@ describe('ghost_foot static Portal runtime injection (issue #123)', () => {
   });
 });
 
+describe('ghost_foot inline subscribe submit injection (issue #1166)', () => {
+  test('omits the inline submit runtime by default', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        site: { members_enabled: true },
+        config: {
+          build: { base_path: '/' },
+          components: { portal: { provider: 'custom', inline_submit: false } },
+          recommendations: [],
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html).not.toContain('NectarInlineSubmit');
+    expect(html).not.toContain('form[data-members-form]');
+  });
+
+  test('emits a nonce-bearing inline submit runtime only when opted in', () => {
+    const html = renderGhostFoot(
+      {},
+      {
+        config: {
+          build: { csp_nonce: 'nonce-1166' },
+          components: { portal: { inline_submit: true } },
+        } as unknown as Partial<NectarEngine['config']>,
+      },
+    );
+
+    expect(html).toContain('<script nonce="nonce-1166">');
+    expect(html).toContain('NectarInlineSubmit');
+    expect(html).toContain('form[data-members-form]');
+    expect(html).toContain('data-members-error');
+    expect(html).not.toContain('src=');
+  });
+});
+
 // Issue #462: [components.portal].inject_script wires Ghost's Portal client
 // script into every page via {{ghost_head}} so themes that ship
 // `data-portal="…"` triggers (Source, Casper) light up against a real
