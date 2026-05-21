@@ -236,6 +236,14 @@ describe('date helper', () => {
     expect(out).toBe('a day ago');
   });
 
+  test('timeago returns future phrasing for future dates', () => {
+    const engine = makeEngine('en');
+    registerDateHelpers(engine);
+    const future = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const out = engine.hb.compile('{{date ts timeago=true}}')({ ts: future });
+    expect(out).toBe('in 2 hours');
+  });
+
   test('timeago output is localized', () => {
     const engine = makeEngine('ja');
     registerDateHelpers(engine);
