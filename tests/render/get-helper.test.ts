@@ -239,6 +239,15 @@ describe('get helper slug= hash', () => {
   });
 });
 
+describe('get helper unknown resources', () => {
+  test('renders the inverse block for unknown resources', () => {
+    const engine = buildEngine({});
+    const tpl = engine.hb.compile(`{{#get "unknowns"}}A{{else}}B{{/get}}`);
+
+    expect(tpl({})).toBe('B');
+  });
+});
+
 describe('get helper pagination metadata', () => {
   function buildPosts(n: number): { id: string; published_at: string }[] {
     return Array.from({ length: n }, (_, i) => ({
