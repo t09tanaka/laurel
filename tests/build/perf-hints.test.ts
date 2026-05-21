@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   injectStylesheetPreload,
   injectSubresourceIntegrity,
+  normalizeResourceTagAttributes,
   removeRedundantScriptPreload,
 } from '~/build/perf-hints.ts';
 import type { ThemeAsset } from '~/theme/types.ts';
@@ -151,5 +152,35 @@ describe('injectSubresourceIntegrity', () => {
     const out = injectSubresourceIntegrity(html, [screenAsset, fontAsset], '/');
 
     expect(out).toBe(html);
+  });
+});
+
+describe('normalizeResourceTagAttributes', () => {
+  test('adds stylesheet type and defers classic scripts without changing explicit attrs', () => {
+    const html = [
+      '<link rel="stylesheet" href="/built/screen.css">',
+      '<script src="/built/source.js"></script>',
+      '<script async src="/built/analytics.js"></script>',
+      '<script type="application/json" src="/data/config.json"></script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).toContain('<link rel="stylesheet" href="/built/screen.css" type="text/css">');
+    expect(out).toContain('<script src="/built/source.js" defer></script>');
+    expect(out).toContain('<script async src="/built/analytics.js"></script>');
+    expect(out).toContain('<script type="application/json" src="/data/config.json"></script>');
+  });
+
+  test('marks .mjs scripts as modules and leaves nomodule fallbacks alone', () => {
+    const html = [
+      '<script src="/built/app.mjs"></script>',
+      '<script nomodule src="/built/legacy.js"></script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).toContain('<script src="/built/app.mjs" type="module"></script>');
+    expect(out).toContain('<script nomodule src="/built/legacy.js"></script>');
   });
 });

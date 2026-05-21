@@ -21,6 +21,23 @@ function makeEngine(locale: string, timezone = 'UTC'): NectarEngine {
 }
 
 describe('date helper', () => {
+  test('restores timezone plugin methods if module ordering drops them (#1626)', () => {
+    const originalTz = dayjs.tz;
+    try {
+      (dayjs as unknown as { tz?: unknown }).tz = undefined;
+      const engine = makeEngine('en', 'UTC');
+      registerDateHelpers(engine);
+      const out = engine.hb.compile('{{date published_at format="YYYY-MM-DD"}}')({
+        published_at: '2026-01-02T00:00:00Z',
+      });
+
+      expect(out).toBe('2026-01-02');
+      expect(typeof dayjs.tz).toBe('function');
+    } finally {
+      (dayjs as unknown as { tz?: typeof originalTz }).tz = originalTz;
+    }
+  });
+
   test('default format uses Ghost localized short date token for locale=en', () => {
     const engine = makeEngine('en');
     registerDateHelpers(engine);

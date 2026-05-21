@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { constants, createWriteStream } from 'node:fs';
-import { copyFile, readFile, stat, utimes, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { finished } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
@@ -51,6 +51,58 @@ async function ensureDirs(dirs: Iterable<string>): Promise<void> {
   await Promise.all(Array.from(new Set(dirs), (d) => ensureDir(d)));
 }
 
+function tempSiblingPath(dest: string): string {
+  const suffix = `${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}`;
+  return join(dirname(dest), `.${basename(dest)}.${suffix}.tmp`);
+}
+
+async function removeTempFile(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (err) {
+    if (!isFsErrnoCode(err, 'ENOENT')) throw err;
+  }
+}
+
+async function atomicWriteFile(
+  dest: string,
+  data: string | Uint8Array,
+  encoding?: BufferEncoding,
+): Promise<void> {
+  const tmp = tempSiblingPath(dest);
+  try {
+    if (encoding) await writeFile(tmp, data, encoding);
+    else await writeFile(tmp, data);
+    await rename(tmp, dest);
+  } catch (err) {
+    await removeTempFile(tmp);
+    throw err;
+  }
+}
+
+async function atomicBunWrite(dest: string, data: string | Uint8Array): Promise<void> {
+  const tmp = tempSiblingPath(dest);
+  try {
+    await Bun.write(tmp, data);
+    await rename(tmp, dest);
+  } catch (err) {
+    await removeTempFile(tmp);
+    throw err;
+  }
+}
+
+async function atomicCopyFile(src: string, dest: string, mode?: number): Promise<void> {
+  const tmp = tempSiblingPath(dest);
+  try {
+    if (mode === undefined) await copyFile(src, tmp);
+    else await copyFile(src, tmp, mode);
+    await rename(tmp, dest);
+  } catch (err) {
+    await removeTempFile(tmp);
+    throw err;
+  }
+}
+
 export async function writeHtml(
   outputDir: string,
   outputPath: string,
@@ -59,7 +111,7 @@ export async function writeHtml(
   const dest = join(outputDir, outputPath);
   assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
-  await writeFile(dest, stripLeadingBom(html), 'utf8');
+  await atomicWriteFile(dest, stripLeadingBom(html), 'utf8');
 }
 
 export interface TextStreamWriter {
@@ -74,7 +126,8 @@ export async function writeTextStream(
   const dest = join(outputDir, outputPath);
   assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
-  const stream = createWriteStream(dest, { encoding: 'utf8' });
+  const tmp = tempSiblingPath(dest);
+  const stream = createWriteStream(tmp, { encoding: 'utf8' });
   let ended = false;
   try {
     await write({
@@ -85,8 +138,10 @@ export async function writeTextStream(
     stream.end();
     ended = true;
     await finished(stream);
+    await rename(tmp, dest);
   } catch (err) {
     if (!ended) stream.destroy();
+    await removeTempFile(tmp);
     throw err;
   }
 }
@@ -102,9 +157,11 @@ export async function writeTextAndGzipStreams(
   assertWithinOutputDir(outputDir, gzipDest);
   await ensureDir(dirname(dest));
   await ensureDir(dirname(gzipDest));
-  const textStream = createWriteStream(dest, { encoding: 'utf8' });
+  const textTmp = tempSiblingPath(dest);
+  const gzipTmp = tempSiblingPath(gzipDest);
+  const textStream = createWriteStream(textTmp, { encoding: 'utf8' });
   const gzip = createGzip();
-  const gzipStream = createWriteStream(gzipDest);
+  const gzipStream = createWriteStream(gzipTmp);
   gzip.pipe(gzipStream);
   let ended = false;
   try {
@@ -118,12 +175,14 @@ export async function writeTextAndGzipStreams(
     gzip.end();
     ended = true;
     await Promise.all([finished(textStream), finished(gzipStream)]);
+    await Promise.all([rename(textTmp, dest), rename(gzipTmp, gzipDest)]);
   } catch (err) {
     if (!ended) {
       textStream.destroy();
       gzip.destroy();
       gzipStream.destroy();
     }
+    await Promise.all([removeTempFile(textTmp), removeTempFile(gzipTmp)]);
     throw err;
   }
 }
@@ -139,7 +198,7 @@ export async function writeBytes(
   const dest = join(outputDir, outputPath);
   assertWithinOutputDir(outputDir, dest);
   await ensureDir(dirname(dest));
-  await writeFile(dest, data);
+  await atomicWriteFile(dest, data);
 }
 
 export interface HtmlOutput {
@@ -195,7 +254,7 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
           throw new Error('writeHtmlBatch: chunk entry missing');
         }
         if (entry.reused) return Promise.resolve();
-        return Bun.write(dest, stripLeadingBom(entry.html));
+        return atomicBunWrite(dest, stripLeadingBom(entry.html));
       }),
     );
   }
@@ -229,7 +288,7 @@ export async function copyAssets(theme: ThemeBundle, outputDir: string): Promise
 
 async function emitAsset(asset: ThemeAsset, outputDir: string): Promise<void> {
   const dest = join(outputDir, asset.fingerprintedPath);
-  await copyFile(asset.sourcePath, dest);
+  await atomicCopyFile(asset.sourcePath, dest);
 }
 
 export interface CopyContentAssetsOptions {
@@ -559,7 +618,7 @@ async function copyContentAssetFile(
 ): Promise<void> {
   if (await contentAssetNeedsSanitization(src, stripMetadata)) {
     const bytes = await readFile(src);
-    await writeFile(
+    await atomicWriteFile(
       dst,
       sanitizeImageAssetBytes(bytes, src, '', {
         stripMetadata,
@@ -571,8 +630,9 @@ async function copyContentAssetFile(
 }
 
 async function copyContentAssetStream(src: string, dst: string): Promise<void> {
+  const tmp = tempSiblingPath(dst);
   try {
-    const writer = Bun.file(dst).writer({ highWaterMark: COPY_STREAM_HIGH_WATER_MARK });
+    const writer = Bun.file(tmp).writer({ highWaterMark: COPY_STREAM_HIGH_WATER_MARK });
     try {
       for await (const chunk of Bun.file(src).stream()) {
         writer.write(chunk);
@@ -583,8 +643,10 @@ async function copyContentAssetStream(src: string, dst: string): Promise<void> {
       await writer.end(err instanceof Error ? err : new Error(String(err)));
       throw err;
     }
+    await rename(tmp, dst);
   } catch {
-    await copyFile(src, dst, constants.COPYFILE_FICLONE);
+    await removeTempFile(tmp);
+    await atomicCopyFile(src, dst, constants.COPYFILE_FICLONE);
   }
 }
 

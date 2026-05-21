@@ -545,9 +545,16 @@ Emits inside `<head>`:
   `twitter:description`, `twitter:image`
 - `<link rel="alternate" type="application/rss+xml">` for RSS autodiscovery,
   unless `[components.rss] enabled = false`
+- `<link rel="alternate" hreflang="…">` for routes that have locale
+  alternates in the route plan
 - A JSON-LD `<script type="application/ld+json">` (Article on post routes,
   WebSite otherwise)
 - The current context's `codeinjection_head` string, verbatim
+
+Nectar does not emit `<link rel="amphtml">` unless a future AMP route emitter
+also produces the target route. Emitting an AMP link without `/amp/` HTML would
+create a crawler-visible 404, so current builds intentionally keep AMP out of
+`{{ghost_head}}`.
 
 Source values, in priority order:
 - Title: `meta_title` → `og_title` → `title` → `site.title`
@@ -796,6 +803,22 @@ undeclared key currently warns rather than hard-fails.
   `font_display = "swap" | "optional"`: `swap` avoids invisible text while fonts
   load, while `optional` can reduce late layout/typography changes at the cost
   of the custom font never appearing on slow connections.
+
+## 7.4 Theme asset performance
+
+Nectar keeps theme-authored CSS and JavaScript under the theme's control.
+Rendered HTML is post-processed to add safe resource metadata where it is
+unambiguous: stylesheet links get `type="text/css"` when missing, classic
+external scripts get `defer` when they have no loading attribute, and `.mjs`
+scripts get `type="module"`.
+
+Use `[build].minify_html = true` to collapse whitespace and comments in emitted
+HTML. Use `[performance].preload_stylesheet = true` when a theme does not
+already preload its render-blocking stylesheet. Nectar does not automatically
+purge CSS, inline critical CSS, or bundle/minify arbitrary theme JavaScript:
+those steps require route-aware theme analysis and can easily remove selectors
+or change script execution order. Put those optimizations in the theme build
+step, then reference the built files through `{{asset}}`.
 
 ## 8. Locales
 

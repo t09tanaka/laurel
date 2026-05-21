@@ -86,6 +86,28 @@ export function injectSubresourceIntegrity(
   });
 }
 
+export function normalizeResourceTagAttributes(html: string): string {
+  const tags = scanLinkAndScriptTags(html);
+  if (tags.length === 0) return html;
+  return rewriteTags(html, tags, (tag) => {
+    if (tag.kind === 'link') {
+      if (!isStylesheet(tag)) return null;
+      if (extractAttrValue(tag.openTag, 'type')) return null;
+      return appendAttributes(tag.openTag, ' type="text/css"');
+    }
+    const src = extractAttrValue(tag.openTag, 'src');
+    if (!src) return null;
+    if (extractAttrValue(tag.openTag, 'type')) return null;
+    if (hasBooleanAttr(tag.openTag, 'async')) return null;
+    if (hasBooleanAttr(tag.openTag, 'defer')) return null;
+    if (hasBooleanAttr(tag.openTag, 'nomodule')) return null;
+    if (scriptLooksLikeModule(src)) {
+      return appendAttributes(tag.openTag, ' type="module"');
+    }
+    return appendAttributes(tag.openTag, ' defer');
+  });
+}
+
 export interface HtmlPreloadLink {
   href: string;
   as: string;
@@ -333,8 +355,53 @@ function buildIntegrityUrlMap(assets: Iterable<ThemeAsset>, basePath: string): M
 function appendSriAttrs(tag: string, integrity: string): string {
   const crossorigin = extractAttrValue(tag, 'crossorigin') ? '' : ' crossorigin="anonymous"';
   const attrs = ` integrity="${escapeAttr(integrity)}"${crossorigin}`;
+  return appendAttributes(tag, attrs);
+}
+
+function appendAttributes(tag: string, attrs: string): string {
   if (tag.endsWith('/>')) return `${tag.slice(0, -2)}${attrs}>`;
   return `${tag.slice(0, -1)}${attrs}>`;
+}
+
+function hasBooleanAttr(tag: string, name: string): boolean {
+  const lower = tag.toLowerCase();
+  const needle = name.toLowerCase();
+  let i = 0;
+  while (i < lower.length) {
+    const at = lower.indexOf(needle, i);
+    if (at === -1) return false;
+    const prev = at === 0 ? 0 : lower.charCodeAt(at - 1);
+    if (
+      at !== 0 &&
+      prev !== 0x20 &&
+      prev !== 0x09 &&
+      prev !== 0x0a &&
+      prev !== 0x0d &&
+      prev !== 0x2f
+    ) {
+      i = at + needle.length;
+      continue;
+    }
+    const after = at + needle.length;
+    const next = lower.charCodeAt(after);
+    if (
+      next === 0x20 ||
+      next === 0x09 ||
+      next === 0x0a ||
+      next === 0x0d ||
+      next === 0x2f ||
+      next === 0x3e
+    ) {
+      return true;
+    }
+    i = after;
+  }
+  return false;
+}
+
+function scriptLooksLikeModule(src: string): boolean {
+  const path = src.split('#')[0]?.split('?')[0] ?? src;
+  return /\.mjs$/i.test(path);
 }
 
 function collectScriptSrcs(tags: readonly ScriptOrLink[]): Set<string> {

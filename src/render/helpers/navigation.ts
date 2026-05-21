@@ -262,10 +262,23 @@ function currentPaginationPageUrl(
 }
 
 function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w]+/g, '-')
-    .replace(/(^-+|-+$)/g, '');
+  const tokens: string[] = [];
+  let ascii = '';
+  for (const char of text.normalize('NFKC').toLowerCase()) {
+    if (/^[a-z0-9_]$/.test(char)) {
+      ascii += char;
+      continue;
+    }
+    if (ascii) {
+      tokens.push(ascii);
+      ascii = '';
+    }
+    if (/\p{Letter}|\p{Number}/u.test(char)) {
+      tokens.push(`u${char.codePointAt(0)?.toString(16) ?? ''}`);
+    }
+  }
+  if (ascii) tokens.push(ascii);
+  return tokens.filter(Boolean).join('-') || 'item';
 }
 
 function escapeHtml(value: string): string {

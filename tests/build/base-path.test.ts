@@ -63,7 +63,7 @@ describe('normalizeBasePath', () => {
       const result = normalizeBasePath('blog');
       expect(result).toBe('/blog/');
       expect(cap.output).toContain('does not start with "/"');
-      expect(cap.output).toContain('[warn]');
+      expect(cap.output).toContain(' warn ');
     } finally {
       cap.restore();
     }

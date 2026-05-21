@@ -23,6 +23,7 @@ const DATE_FORMAT_CACHE_LIMIT = 4096;
 type DateInput = Date | string | number;
 
 export function registerDateHelpers(engine: NectarEngine): void {
+  ensureTimezonePlugin();
   const dayjsLocale = loadDayjsLocale(engine.content.site.locale);
   const formattedDateCache = new Map<string, string>();
 
@@ -99,6 +100,7 @@ function hasBareTimeagoInput(inputs: readonly unknown[]): boolean {
 }
 
 function parseDateValue(value: DateInput | undefined, timezoneName: string): dayjs.Dayjs {
+  ensureTimezonePlugin();
   if (typeof value === 'string' && !hasExplicitTimezone(value)) {
     try {
       const zoned = dayjs.tz(value, timezoneName);
@@ -108,6 +110,21 @@ function parseDateValue(value: DateInput | undefined, timezoneName: string): day
     }
   }
   return dayjs(value).tz(timezoneName);
+}
+
+function ensureTimezonePlugin(): void {
+  const dayjsWithTimezone = dayjs as typeof dayjs & { tz?: unknown };
+  if (typeof dayjsWithTimezone.tz === 'function' && typeof dayjs().tz === 'function') return;
+  resetDayjsPluginInstallFlag(utc);
+  resetDayjsPluginInstallFlag(timezone);
+  dayjs.extend(utc);
+  dayjs.extend(timezone);
+}
+
+function resetDayjsPluginInstallFlag(plugin: unknown): void {
+  if (typeof plugin === 'function' && '$i' in plugin) {
+    (plugin as { $i?: boolean }).$i = false;
+  }
 }
 
 function hasExplicitTimezone(value: string): boolean {

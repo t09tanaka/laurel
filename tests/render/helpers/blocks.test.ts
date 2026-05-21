@@ -1238,6 +1238,32 @@ describe('get helper', () => {
     const tpl = engine.hb.compile('{{#get "posts"}}HIT{{else}}EMPTY{{/get}}');
     expect(tpl({})).toBe('EMPTY');
   });
+
+  test('presents cloned resources so block mutation does not alter the content graph (#1627)', () => {
+    const post = {
+      id: 'p1',
+      title: 'Original',
+      slug: 'original',
+      html: '<p>body</p>',
+      authors: [{ name: 'Ada' }],
+    };
+    const engine = makeEngine({
+      content: {
+        posts: [post],
+      } as unknown as Partial<ContentGraph>,
+    });
+    registerBlockHelpers(engine);
+    engine.hb.registerHelper('mutate', (item: Record<string, unknown>) => {
+      item.title = 'Mutated';
+      (item.authors as Record<string, unknown>[])[0].name = 'Changed';
+      return '';
+    });
+
+    engine.hb.compile('{{#get "posts" as |posts|}}{{mutate posts.[0]}}{{/get}}')({});
+
+    expect(post.title).toBe('Original');
+    expect(post.authors[0]?.name).toBe('Ada');
+  });
 });
 
 describe('data helper', () => {

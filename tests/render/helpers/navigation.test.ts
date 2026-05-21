@@ -107,6 +107,13 @@ describe('navigation helper', () => {
     expect(html).toContain('aria-current="page"');
   });
 
+  test('derives stable ASCII class slugs for unicode labels (#1367)', () => {
+    const html = renderNavigation([{ label: 'カテゴリ', url: '/category/' }], undefined);
+
+    expect(html).toContain('class="nav-u30ab-u30c6-u30b4-u30ea"');
+    expect(html).not.toContain('class="nav-"');
+  });
+
   test('reuses cached default markup for equivalent navigation state', () => {
     const engine = makeEngine();
     registerNavigationHelpers(engine);

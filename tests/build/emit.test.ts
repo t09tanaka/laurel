@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import { mkdir, mkdtemp, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import {
   copyAssets,
   copyContentAssets,
@@ -86,6 +86,14 @@ describe('writeHtml', () => {
     await expect(writeHtml(dir, 'foo/../../bar/index.html', 'pwned')).rejects.toThrow(
       /Refusing to write outside output directory/,
     );
+  });
+
+  test('writes through a sibling temp file before renaming into place (#1370)', async () => {
+    const source = await readFile(resolve(import.meta.dir, '../../src/build/emit.ts'), 'utf8');
+
+    expect(source).toContain('async function atomicWriteFile');
+    expect(source).toContain('await rename(tmp, dest)');
+    expect(source).not.toContain('await writeFile(dest, html,');
   });
 });
 
@@ -413,7 +421,8 @@ describe('copyContentAssets', () => {
     const patchedFile = ((...args: Parameters<typeof Bun.file>): ReturnType<typeof Bun.file> => {
       const file = originalFile(...args);
       const path = String(args[0]);
-      if (path !== src && path !== dst) return file;
+      const isAtomicDst = path.startsWith(join(dirname(dst), `.${basename(dst)}.`));
+      if (path !== src && !isAtomicDst) return file;
       return new Proxy(file, {
         get(target, prop, receiver) {
           if (path === src && prop === 'stream') {
@@ -422,7 +431,7 @@ describe('copyContentAssets', () => {
               return target.stream(...streamArgs);
             };
           }
-          if (path === dst && prop === 'writer') {
+          if (isAtomicDst && prop === 'writer') {
             return (...writerArgs: Parameters<typeof target.writer>) => {
               destWriterCalls += 1;
               return target.writer(...writerArgs);
@@ -459,7 +468,9 @@ describe('copyContentAssets', () => {
     let destWriterCalls = 0;
     const patchedFile = ((...args: Parameters<typeof Bun.file>): ReturnType<typeof Bun.file> => {
       const file = originalFile(...args);
-      if (String(args[0]) !== dst) return file;
+      const path = String(args[0]);
+      const isAtomicDst = path.startsWith(join(dirname(dst), `.${basename(dst)}.`));
+      if (!isAtomicDst) return file;
       return new Proxy(file, {
         get(target, prop, receiver) {
           if (prop === 'writer') {

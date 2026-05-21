@@ -233,6 +233,8 @@ These are static build artifacts, not Ghost Content API endpoints.
 Nectar does not emit:
 
 - AMP routes such as `/post-slug/amp/`
+- `<link rel="amphtml">` in `{{ghost_head}}`, because there is no generated
+  AMP target for crawlers to fetch
 - Ghost Image API resize URLs like `/content/images/size/w600/...`
 - `GET /oembed/?url=...`
 - Ghost Admin API webhooks or integration endpoints

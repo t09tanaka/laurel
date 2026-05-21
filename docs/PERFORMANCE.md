@@ -90,6 +90,36 @@ Host-specific notes:
 - Keep redirects and trailing-slash rewrites at the edge. A static file host
   should not need an origin function for normal page requests.
 
+## HTML, CSS, and JavaScript output
+
+For production builds, start with:
+
+```toml
+[build]
+minify_html = true
+precompress = true
+
+[performance]
+preload_stylesheet = true # only when the theme does not already preload CSS
+```
+
+`minify_html` removes whitespace-only blocks and comments from rendered HTML.
+`precompress` emits `.br` and `.gz` sidecars for text assets. Nectar also
+normalizes final HTML resource tags so stylesheet links carry `type="text/css"`
+and external scripts are either `defer` or `type="module"` when the file shape
+is clear.
+
+Nectar intentionally does not purge CSS, inline critical CSS, or bundle/minify
+theme JavaScript automatically. Those optimizations are theme-specific: a static
+analyzer can remove selectors that only appear after Portal/search/card runtime
+hydration, and JS bundling can change execution order for classic Ghost themes.
+Run those transforms in the theme's own build pipeline, commit the resulting
+assets, and reference them with `{{asset}}`.
+
+Global RSS feeds are paginated when they exceed `[components.rss].items`; page
+1 stays at `rss.xml`, overflow pages use `rss-2.xml`, `rss-3.xml`, and so on,
+with RFC 5005 `atom:link rel="prev"` / `rel="next"` links between pages.
+
 ## Image guidance
 
 Images dominate output size and build time once a site grows past a few hundred

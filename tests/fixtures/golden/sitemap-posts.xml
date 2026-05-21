@@ -1,43 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://nectar.example.com/hello-nectar/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/welcome-cover.svg</image:loc>
+        <image:caption>Cover art by Casper.</image:caption>
+      </image:image>
     <lastmod>2026-05-19T09:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/migrating-from-ghost/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/migration-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-05-15T11:30:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/writing-with-markdown/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/markdown-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-05-10T15:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/ghost-theme-compatibility/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/compat-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-05-05T08:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/optional-components/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/components-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-04-28T12:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/static-runtime/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/static-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-04-20T14:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nectar.example.com/markdown-meets-git/</loc>
+      <image:image>
+        <image:loc>https://nectar.example.com/content/images/git-cover.svg</image:loc>
+      </image:image>
     <lastmod>2026-04-12T07:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

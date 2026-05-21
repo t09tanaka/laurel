@@ -118,6 +118,7 @@ import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
 import {
   injectStylesheetPreload,
   injectSubresourceIntegrity,
+  normalizeResourceTagAttributes,
   removeRedundantScriptPreload,
 } from './perf-hints.ts';
 import { assignPostUrls } from './permalinks.ts';
@@ -961,6 +962,7 @@ async function runBuild({
         if (config.performance.preload_stylesheet) {
           html = injectStylesheetPreload(html);
         }
+        html = normalizeResourceTagAttributes(html);
         html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
         html = rewriteBasePathUrls(html, config.build.base_path);
         html = rewriteImageCdnUrls(html, { config });

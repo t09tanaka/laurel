@@ -196,16 +196,16 @@ describe('buildContentApiHeadersBody', () => {
     const body = buildContentApiHeadersBody();
 
     expect(body).toContain(
-      `/content/posts/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.posts}`,
+      `/content/posts/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Access-Control-Max-Age: 86400\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.posts}`,
     );
     expect(body).toContain(
-      `/content/tags/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.tags}`,
+      `/content/tags/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Access-Control-Max-Age: 86400\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.tags}`,
     );
     expect(body).toContain(
-      `/content/authors/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.authors}`,
+      `/content/authors/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Access-Control-Max-Age: 86400\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.authors}`,
     );
     expect(body).toContain(
-      `/content/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.catchAll}`,
+      `/content/*\n  Access-Control-Allow-Origin: *\n  Access-Control-Allow-Methods: GET, HEAD, OPTIONS\n  Access-Control-Allow-Headers: Content-Type, Authorization\n  Access-Control-Max-Age: 86400\n  Cache-Control: public, max-age=${CONTENT_API_CACHE_TTL.catchAll}`,
     );
 
     // Specificity ordering: posts / tags / authors must all precede the

@@ -220,7 +220,8 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     if (paged.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    const presented = presentGetResource(engine, resource, paged);
+    const cloned = cloneGetResults(paged);
+    const presented = presentGetResource(engine, resource, cloned);
     const included = applyGetIncludes(engine, resource, presented, include);
     const results = exposeGetResource(resource, applyGetFields(included, fields));
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
@@ -428,6 +429,31 @@ function applyGetFields(results: readonly unknown[], fields: readonly string[]):
     }
     return projected;
   });
+}
+
+function cloneGetResults(results: readonly unknown[]): unknown[] {
+  const seen = new WeakMap<object, unknown>();
+  return results.map((item) => cloneGetValue(item, seen));
+}
+
+function cloneGetValue(value: unknown, seen: WeakMap<object, unknown>): unknown {
+  if (!value || typeof value !== 'object') return value;
+  if (isHandlebarsSafeString(value)) return value;
+  if (value instanceof Date) return new Date(value.getTime());
+  const cached = seen.get(value);
+  if (cached !== undefined) return cached;
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(value, out);
+    for (const item of value) out.push(cloneGetValue(item, seen));
+    return out;
+  }
+  const out: Record<string, unknown> = {};
+  seen.set(value, out);
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = cloneGetValue(item, seen);
+  }
+  return out;
 }
 
 // Ghost's `include=` query string surfaces relations / counts that aren't part
