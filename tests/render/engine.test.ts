@@ -200,6 +200,59 @@ describe('buildContext', () => {
     expect(ctx.post).toBeUndefined();
   });
 
+  test('post and page routes keep Ghost root and nested title lookups compatible', () => {
+    const tpl = Handlebars.compile('{{title}}|{{post.title}}|{{page.title}}');
+    const post = makePost({ title: 'Nested post title' });
+    const page = makePage({ title: 'Nested page title' });
+
+    const postContext = buildContext(engine, {
+      kind: 'post',
+      url: '/p1/',
+      outputPath: 'p1/index.html',
+      template: 'post',
+      data: { post },
+      meta: baseMeta,
+    });
+    const pageContext = buildContext(engine, {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page },
+      meta: baseMeta,
+    });
+
+    expect(tpl(postContext)).toBe('Nested post title|Nested post title|');
+    expect(tpl(pageContext)).toBe('Nested page title||Nested page title');
+  });
+
+  test('page root copy does not read the page flag before setting ctx.page', () => {
+    const page = makePage();
+    let pageFlagReads = 0;
+    Object.defineProperty(page, 'page', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        pageFlagReads += 1;
+        return true;
+      },
+    });
+    const route: RouteContext = {
+      kind: 'page',
+      url: '/pg1/',
+      outputPath: 'pg1/index.html',
+      template: 'page',
+      data: { page },
+      meta: baseMeta,
+    };
+
+    const ctx = buildContext(engine, route);
+
+    expect(ctx.title).toBe(page.title);
+    expect(ctx.page).toBe(page);
+    expect(pageFlagReads).toBe(1);
+  });
+
   test('routes without pagination still expose a page-1 pagination context (issue #1709)', () => {
     const homeRoute: RouteContext = {
       kind: 'home',

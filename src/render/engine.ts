@@ -402,7 +402,7 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   }
   if (data.page) {
     const page = withTrustedCaptionHtml(engine.hb, data.page);
-    Object.assign(ctx, page);
+    assignRootFields(ctx, page, 'page');
     ctx.page = page;
   }
   if (route.kind === 'home') {
@@ -470,6 +470,14 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   // with `{{#if is_popup}}` and should deterministically take the static path.
   ctx.is_popup = false;
   return ctx;
+}
+
+function assignRootFields(ctx: Record<string, unknown>, value: object, skipKey?: string): void {
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key === skipKey) continue;
+    ctx[key] = record[key];
+  }
 }
 
 function defaultPaginationContext(): { page: number; pages: number; total: number } {
