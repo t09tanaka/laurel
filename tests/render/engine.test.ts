@@ -756,6 +756,21 @@ describe('buildContext', () => {
     expect(authorTokens).toContain('archive-template');
   });
 
+  test('author template body_class includes author-<slug> token (issue #1177)', () => {
+    const route: RouteContext = {
+      kind: 'author',
+      url: '/author/jane-doe/',
+      outputPath: 'author/jane-doe/index.html',
+      template: 'author',
+      data: { author: makeAuthor({ slug: 'jane-doe' }) },
+      meta: baseMeta,
+    };
+
+    const tokens = String(buildContext(engine, route).body_class).split(' ');
+    expect(tokens).toContain('author-template');
+    expect(tokens).toContain('author-jane-doe');
+  });
+
   test('resource routes include per-resource body_class slug modifiers (issue #979)', () => {
     const postRoute: RouteContext = {
       kind: 'post',
