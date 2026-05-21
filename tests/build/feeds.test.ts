@@ -524,7 +524,7 @@ describe('emitRss', () => {
     expect(xml).toContain('<link>https://example.com/hello-world/</link>');
   });
 
-  test('declares dc and media namespaces and emits <generator>', async () => {
+  test('declares dc and media namespaces and emits channel metadata', async () => {
     // Issue #428: Ghost-conformant channel declares dc / atom / media / content
     // namespaces and a <generator> element.
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
@@ -539,6 +539,22 @@ describe('emitRss', () => {
     expect(xml).toContain('xmlns:content="http://purl.org/rss/1.0/modules/content/"');
     expect(xml).toContain('xmlns:atom="http://www.w3.org/2005/Atom"');
     expect(xml).toContain('<generator>Nectar</generator>');
+    expect(xml).toContain('<docs>https://www.rssboard.org/rss-specification</docs>');
+    expect(xml).toContain('<ttl>60</ttl>');
+  });
+
+  test('emits configured RSS ttl in channel metadata', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-ttl-'));
+    const config = configSchema.parse({
+      site: { title: 'T', url: 'https://example.com' },
+      components: { rss: { ttl: 15 } },
+    });
+    const content = makeGraph();
+
+    await emitRss({ config, content, outputDir, limit: 10 });
+    const xml = readFileSync(join(outputDir, 'rss.xml'), 'utf8');
+
+    expect(xml).toContain('<ttl>15</ttl>');
   });
 
   test('wraps content:encoded HTML in CDATA, not entity-escaped', async () => {

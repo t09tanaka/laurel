@@ -329,6 +329,8 @@ async function writeRssPage(
 <language>${escapeXml(opts.config.site.locale)}</language>
 <lastBuildDate>${opts.lastBuildDate}</lastBuildDate>
 <generator>Nectar</generator>
+<docs>https://www.rssboard.org/rss-specification</docs>
+<ttl>${opts.config.components.rss.ttl}</ttl>
 ${opts.atomLinks.join('\n')}${opts.imageBlock}
 `);
   for (const post of opts.pagePosts) {
@@ -346,6 +348,8 @@ function rssHashConfig(config: NectarConfig): Record<string, unknown> {
     trailingSlash: config.build.trailing_slash,
     locale: config.site.locale,
     logo: config.site.logo,
+    channelDocs: 'https://www.rssboard.org/rss-specification',
+    ttl: config.components.rss.ttl,
   };
 }
 

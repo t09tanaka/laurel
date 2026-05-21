@@ -1171,6 +1171,14 @@ export const configSchema = z
               .number()
               .default(20)
               .describe('Maximum number of posts per RSS page; overflow paginates into rss-N.xml.'),
+            ttl: z
+              .number()
+              .int()
+              .positive()
+              .default(60)
+              .describe(
+                'RSS channel time-to-live in minutes, emitted as `<ttl>`. Defaults to `60` so feed readers can safely cache generated feeds for one hour.',
+              ),
             full_content: z
               .boolean()
               .default(false)
