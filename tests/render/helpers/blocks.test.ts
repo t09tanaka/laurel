@@ -798,6 +798,16 @@ describe('has helper', () => {
     expect(tpl({ twitter: '', facebook: null })).toBe('MISS');
   });
 
+  test('any="tag,author" matches when either Ghost collection is populated', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has any="tag,author"}}HIT{{else}}MISS{{/has}}');
+    expect(tpl({ tags: [{ slug: 'news' }], authors: [] })).toBe('HIT');
+    expect(tpl({ tags: [], authors: [{ slug: 'jane' }] })).toBe('HIT');
+    expect(tpl({ tags: [], authors: [] })).toBe('MISS');
+    expect(tpl({})).toBe('MISS');
+  });
+
   test('all="twitter, facebook" requires every listed property to be truthy', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);

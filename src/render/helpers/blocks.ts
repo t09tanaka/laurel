@@ -671,11 +671,11 @@ function evaluateSingleNumberPattern(actual: number, trimmed: string): boolean {
   }
 }
 
-// `{{#has any="twitter, facebook"}}` / `all="..."` check the truthiness of a
-// list of property paths. Paths starting with `@` resolve against the data
+// `{{#has any="twitter, facebook"}}` / `all="..."` check whether a list of
+// property paths is populated. Paths starting with `@` resolve against the data
 // frame (`@labs.foo` → `options.data.labs.foo`); bare paths walk the current
-// context. This matches Ghost's helper, which themes use to gate flag-driven
-// blocks (`@labs.x`) and presence checks (`twitter`, `facebook`).
+// context. Ghost documents singular `tag` / `author` names for post resources,
+// so those aliases check the populated `tags` / `authors` collections too.
 function evaluateAnyAll(
   ctx: Record<string, unknown>,
   data: Record<string, unknown> | undefined,
@@ -694,12 +694,12 @@ function evaluateAnyAll(
     const useData = path.startsWith('@');
     const segs = (useData ? path.slice(1) : path).split('.');
     const root: unknown = useData ? data : ctx;
-    let cursor: unknown = root;
-    for (const seg of segs) {
-      if (cursor == null || typeof cursor !== 'object') return false;
-      cursor = (cursor as Record<string, unknown>)[seg];
-    }
-    return Boolean(cursor);
+    const resolved = resolvePathValue(root, segs);
+    if (isPopulatedValue(resolved)) return true;
+    if (useData || path.includes('.')) return false;
+    if (path === 'tag') return isPopulatedValue(ctx.tags);
+    if (path === 'author') return isPopulatedValue(ctx.authors);
+    return false;
   };
   return mode === 'any' ? paths.some(check) : paths.every(check);
 }
@@ -717,6 +717,20 @@ function evaluateAnyAllCollectionPrefix(
     default:
       return undefined;
   }
+}
+
+function resolvePathValue(root: unknown, segments: string[]): unknown {
+  let cursor: unknown = root;
+  for (const seg of segments) {
+    if (cursor == null || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[seg];
+  }
+  return cursor;
+}
+
+function isPopulatedValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  return Boolean(value);
 }
 
 // Ghost themes write `{{#has count:tags=">2"}}` to branch on collection size.
