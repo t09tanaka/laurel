@@ -580,6 +580,13 @@ describe('has helper', () => {
     expect(tpl(ctx)).toBe('yes');
   });
 
+  test('slug= matches the current resource slug', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#has slug="welcome"}}yes{{/has}}');
+    expect(tpl({ slug: 'welcome' })).toBe('yes');
+  });
+
   test('visibility="members" matches the current context visibility', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
