@@ -74,6 +74,30 @@ describe('t helper', () => {
     ).toBe('A collection of 3 posts');
   });
 
+  test('keeps double-stash interpolation values as plain text for Handlebars escaping', () => {
+    const engine = makeEngine({
+      en: { 'Math says {value}': 'Math says {value}' },
+    });
+    registerI18nHelpers(engine);
+
+    expect(
+      engine.hb.compile('{{t "Math says {value}" value=value}}')({ value: '2 > 1 && 1 < 2' }),
+    ).toBe('Math says 2 &gt; 1 &amp;&amp; 1 &lt; 2');
+  });
+
+  test('strips markup from named interpolation values before triple-stash output', () => {
+    const engine = makeEngine({
+      en: { 'Hello {name}': 'Hello {name}' },
+    });
+    registerI18nHelpers(engine);
+
+    expect(
+      engine.hb.compile('{{{t "Hello {name}" name=name}}}')({
+        name: '<img src=x onerror=alert(1)>Alice <strong>Admin</strong>',
+      }),
+    ).toBe('Hello Alice Admin');
+  });
+
   // Casper-family themes use Ghost's positional `%` placeholder with
   // additional positional args: `{{t "Powered by %" "Ghost"}}`. The previous
   // implementation only consulted `options.hash`, so positional invocations
@@ -82,6 +106,14 @@ describe('t helper', () => {
     const engine = makeEngine({ en: { 'Powered by %': 'Powered by %' } }, 'en');
     registerI18nHelpers(engine);
     expect(engine.hb.compile('{{t "Powered by %" "Ghost"}}')({})).toBe('Powered by Ghost');
+  });
+
+  test('strips markup from positional interpolation values before triple-stash output', () => {
+    const engine = makeEngine({ en: { 'Powered by %': 'Powered by <strong>%</strong>' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(
+      engine.hb.compile('{{{t "Powered by %" "<em>Ghost</em><script>alert(1)</script>"}}}')({}),
+    ).toBe('Powered by <strong>Ghost</strong>');
   });
 
   test('positional `%` arg wins over a hash entry, but hash still fills {name} placeholders', () => {

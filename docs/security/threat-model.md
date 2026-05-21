@@ -173,15 +173,17 @@ to mention separately because `{{t}}` looks like a string-formatting helper,
 not an HTML helper — but in practice it routes raw HTML to the DOM.
 
 The render helper returns a plain string (not a `SafeString`) and performs
-`{name}` and `%` placeholder substitution with no escaping. Implications:
+`{name}` and `%` placeholder substitution with interpolated values treated as
+text. Tags in hash and positional values are stripped before substitution.
+Implications:
 
 - `{{t "Search"}}` (double-stash) — output is HTML-escaped by Handlebars.
   If a locale file shipped `Search: "<img onerror=alert(1) src=x>"`, the page
   would render the literal text, not the tag. Safe by default.
 - `{{{t "Powered by {ghostlink}" ghostlink="<a href=…>Ghost</a>"}}}`
-  (triple-stash) — output is **emitted raw**. Both the locale value and any
-  hash values interpolated into it land in the DOM unescaped. This is the
-  shape the Ghost Source theme uses on purpose; locale strings like
+  (triple-stash) — output is **emitted raw**, but interpolated hash values are
+  treated as text, so the link tag is stripped before it can reach the DOM.
+  Locale values themselves can still include trusted markup; strings like
   `<strong>%</strong>` are part of Ghost's translation conventions.
 
 The triple-stash form turns `themes/<name>/locales/<locale>.json` into a
@@ -190,13 +192,11 @@ path: treat the JSON files as code, vet third-party translations like you'd
 vet a `<script>` tag, and prefer the double-stash `{{t}}` form unless the
 translation deliberately ships markup.
 
-There is one additional pitfall when `{{{t}}}` is used: any hash value
-passed in is also interpolated raw. If a theme writes
-`{{{t "Hello {name}" name=user.name}}}` and `user.name` ever holds
-attacker-controlled content, that content reaches the DOM unescaped. The
-Source theme avoids this by only passing helper-emitted SafeString-ish
-values (`authors`, `tags`) and theme-author-controlled literals into
-`{{{t}}}`. Themes that do their own templating should keep that discipline.
+Interpolated values are deliberately not a way to smuggle HTML through
+`{{{t}}}`. If a theme writes `{{{t "Hello {name}" name=user.name}}}` and
+`user.name` contains `<img onerror=...>`, Nectar strips the tag and emits only
+text. Themes that need link markup in translations should keep that markup in
+trusted locale files rather than content-derived helper arguments.
 
 ## Surface 3: `nectar.toml`
 

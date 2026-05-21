@@ -563,8 +563,11 @@ it can be surprising for labels such as `"Featured": ""`.
 
 Interpolation:
 - `{name}` placeholders are replaced by `name=` hash values.
-- `%` is replaced by the first hash value, in declaration order — Ghost's
-  positional placeholder.
+- `%` is replaced by the first positional value, with count-like hash values as
+  a compatibility fallback — Ghost's positional placeholder.
+- Interpolated hash and positional values are treated as text. HTML tags in
+  those values are stripped before substitution so `{{{t}}}` cannot emit
+  content-derived markup.
 
 ```hbs
 <button>{{t "Read more"}}</button>
@@ -576,10 +579,11 @@ Missing locale files are tolerated — every theme should ship at least `en.json
 even if it's empty.
 
 **Escaping.** `{{t}}` returns a plain string, not a `SafeString`. Double-stash
-output is HTML-escaped by Handlebars. Triple-stash output is emitted raw —
-both the locale value and any hash values are interpolated unescaped, which
-is how Ghost themes ship strings like `<strong>%</strong>`. That makes locale
-files (and any content-derived hash value passed into `{{{t}}}`) part of the
+output is HTML-escaped by Handlebars. Triple-stash output is emitted raw, so
+locale values may intentionally contain trusted theme markup such as
+`<strong>%</strong>`. Interpolated hash and positional values are not a markup
+channel: Nectar strips tags from those values before substitution, including
+when the helper is rendered with triple-stash. Locale files remain part of the
 theme trust boundary; see
 [`docs/security/threat-model.md` § Locale files](security/threat-model.md#locale-files-themesnamelocalesjson-and-t).
 

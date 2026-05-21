@@ -1,4 +1,5 @@
 import type Handlebars from 'handlebars';
+import { parseDocument } from 'htmlparser2';
 import type { ThemeLocale, ThemeLocaleValue } from '~/theme/types.ts';
 import type { NectarEngine } from '../engine.ts';
 
@@ -48,7 +49,7 @@ function interpolate(
 ): string {
   let out = template;
   for (const [key, value] of Object.entries(hash)) {
-    out = out.replaceAll(`{${key}}`, String(value));
+    out = out.replaceAll(`{${key}}`, stringifyInterpolationValue(value));
   }
   // Ghost's `%` is a positional placeholder. Prefer explicit positional args
   // (`{{t "Powered by %" "Ghost"}}` -> `Powered by Ghost`) since that is how
@@ -58,13 +59,42 @@ function interpolate(
   if (out.includes('%')) {
     out = out.replace(/%([1-9]\d*)/g, (match, rawIndex: string) => {
       const value = positional[Number(rawIndex) - 1];
-      return value === undefined ? match : String(value);
+      return value === undefined ? match : stringifyInterpolationValue(value);
     });
 
     const firstPositional = positional.find((v) => v !== undefined);
     const value = firstPositional ?? barePercentHashValue(hash);
     if (value !== undefined) {
-      out = out.replace(/%(?!\d)/g, String(value));
+      out = out.replace(/%(?!\d)/g, stringifyInterpolationValue(value));
+    }
+  }
+  return out;
+}
+
+function stringifyInterpolationValue(value: unknown): string {
+  const raw = String(value);
+  return textOnly(parseDocument(raw, { decodeEntities: false }).children as readonly DomNode[]);
+}
+
+type DomNode = {
+  readonly type?: string;
+  readonly name?: string;
+  readonly data?: string;
+  readonly children?: readonly DomNode[];
+};
+
+function textOnly(nodes: readonly DomNode[]): string {
+  let out = '';
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      out += node.data ?? '';
+      continue;
+    }
+    if (node.name === 'script' || node.name === 'style') {
+      continue;
+    }
+    if (node.children) {
+      out += textOnly(node.children);
     }
   }
   return out;
