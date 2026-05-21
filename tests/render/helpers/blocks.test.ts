@@ -1025,6 +1025,13 @@ describe('match helper', () => {
     expect(tpl({ a: 'x', b: 'y' })).toBe('');
   });
 
+  test('two-argument equality returns false for mismatched non-boolean types', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#if (match a b)}}HIT{{else}}MISS{{/if}}');
+    expect(tpl({ a: 1, b: '1' })).toBe('MISS');
+  });
+
   test('three-argument inline form honours the comparison operator', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
@@ -1034,6 +1041,41 @@ describe('match helper', () => {
     expect(ge({ a: 1, b: 3 })).toBe('');
     expect(tilde({ a: 'hello world', b: 'world' })).toBe('true');
     expect(tilde({ a: 'hello', b: 'world' })).toBe('');
+  });
+
+  test('three-argument block form honours <, >=, and <= operators', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const lt = engine.hb.compile('{{#match a "<" b}}LT{{else}}MISS{{/match}}');
+    const ge = engine.hb.compile('{{#match a ">=" b}}GE{{else}}MISS{{/match}}');
+    const le = engine.hb.compile('{{#match a "<=" b}}LE{{else}}MISS{{/match}}');
+    expect(lt({ a: 2, b: 3 })).toBe('LT');
+    expect(ge({ a: 3, b: 3 })).toBe('GE');
+    expect(le({ a: 3, b: 3 })).toBe('LE');
+  });
+
+  test('three-argument > operator compares numeric operands', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match a ">" b}}HIT{{else}}MISS{{/match}}');
+    expect(tpl({ a: 10, b: 9 })).toBe('HIT');
+    expect(tpl({ a: 9, b: 10 })).toBe('MISS');
+  });
+
+  test('three-argument ~ operator matches substrings', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#match title "~" needle}}HIT{{else}}MISS{{/match}}');
+    expect(tpl({ title: 'Static runtime for Ghost themes', needle: 'runtime' })).toBe('HIT');
+    expect(tpl({ title: 'Static runtime for Ghost themes', needle: 'database' })).toBe('MISS');
+  });
+
+  test('inline no-block form is usable as a boolean subexpression', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#if (match a ">" b)}}YES{{else}}NO{{/if}}');
+    expect(tpl({ a: 2, b: 1 })).toBe('YES');
+    expect(tpl({ a: 1, b: 2 })).toBe('NO');
   });
 
   test('one-argument inline form returns the truthy operand and empty string for falsy values', () => {
@@ -1202,6 +1244,22 @@ describe('post/page/tag/author context helpers', () => {
     registerBlockHelpers(engine);
     const tpl = engine.hb.compile('{{#post}}HIT{{else}}NONE{{/post}}');
     expect(tpl({}, { data: { route: {} } })).toBe('NONE');
+  });
+
+  test('page block exposes the page attached to route data', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#page}}{{title}}{{else}}NONE{{/page}}');
+    const data = { route: { kind: 'page', data: { page: { title: 'About' } } } };
+    expect(tpl({}, { data })).toBe('About');
+  });
+
+  test('tag block exposes the tag attached to route data', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile('{{#tag}}{{name}}{{else}}NONE{{/tag}}');
+    const data = { route: { kind: 'tag', data: { tag: { name: 'News' } } } };
+    expect(tpl({}, { data })).toBe('News');
   });
 
   test('author block prefers the current post author inside foreach posts', () => {

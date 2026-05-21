@@ -424,6 +424,20 @@ describe('reading_time helper', () => {
     const out = engine.hb.compile('{{reading_time}}')({ reading_time: 7 });
     expect(out).toBe('7 min read');
   });
+
+  test('uses the custom minute hash for a 1-minute post', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{reading_time minute="1 minute"}}')({ reading_time: 1 });
+    expect(out).toBe('1 minute');
+  });
+
+  test('uses the custom minutes template and replaces % for plural posts', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{reading_time minutes="% minutes"}}')({ reading_time: 4 });
+    expect(out).toBe('4 minutes');
+  });
 });
 
 describe('meta_title helper pagination', () => {
@@ -1313,6 +1327,23 @@ describe('tags helper', () => {
     expect(out).toBe('News, Hidden');
   });
 
+  test('includeHidden=true surfaces hashtag-prefixed internal tags', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{tags includeHidden=true autolink=false}}')({
+      tags: [
+        { name: 'News', slug: 'news', url: '/tag/news/', visibility: 'public' },
+        {
+          name: '#Featured',
+          slug: 'hash-featured',
+          url: '/tag/hash-featured/',
+          visibility: 'internal',
+        },
+      ],
+    });
+    expect(out).toBe('News, #Featured');
+  });
+
   test('visibility="internal" returns only internal tags', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
@@ -1398,6 +1429,17 @@ describe('post_class helper', () => {
     expect(tokens).toContain('post');
     expect(tokens).toContain('image');
     expect(tokens).not.toContain('no-image');
+  });
+
+  test('emits `page` when the current context is a page', () => {
+    const engine = makeEngine();
+    registerContentHelpers(engine);
+    const out = engine.hb.compile('{{post_class}}')({
+      page: true,
+      tags: [],
+      html: '<p>x</p>',
+    });
+    expect(out.split(' ')).toContain('page');
   });
 
   test('emits `no-image` and `no-content` when the iterated post is empty', () => {

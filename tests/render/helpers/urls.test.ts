@@ -142,6 +142,43 @@ describe('social_url helper', () => {
     expect(tpl({ mastodon: '@alice@hachyderm.io' })).toBe('https://hachyderm.io/@alice');
   });
 
+  test('builds supported social URLs from handles', () => {
+    const engine = makeEngine();
+    registerUrlHelpers(engine);
+    const tpl = engine.hb.compile(
+      [
+        '{{social_url type="bluesky"}}',
+        '{{social_url type="facebook"}}',
+        '{{social_url type="instagram"}}',
+        '{{social_url type="linkedin"}}',
+        '{{social_url type="threads"}}',
+        '{{social_url type="tiktok"}}',
+        '{{social_url type="youtube"}}',
+      ].join('|'),
+    );
+    expect(
+      tpl({
+        bluesky: 'alice.example',
+        facebook: 'alice.page',
+        instagram: '@alice',
+        linkedin: 'alice-writes',
+        threads: '@alice',
+        tiktok: '@alice',
+        youtube: '@alice',
+      }),
+    ).toBe(
+      [
+        'https://bsky.app/profile/alice.example',
+        'https://facebook.com/alice.page',
+        'https://www.instagram.com/alice',
+        'https://www.linkedin.com/in/alice-writes',
+        'https://www.threads.net/@alice',
+        'https://www.tiktok.com/@alice',
+        'https://www.youtube.com/alice',
+      ].join('|'),
+    );
+  });
+
   test('returns an empty string for a Mastodon handle without a host', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);

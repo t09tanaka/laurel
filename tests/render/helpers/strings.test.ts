@@ -194,6 +194,13 @@ describe('plural helper', () => {
     expect(withoutEmpty({ count: 0 })).toBe('0 posts');
   });
 
+  test('missing empty hash falls back to the plural template for zero', () => {
+    const engine = makeEngine();
+    registerStringHelpers(engine);
+    const tpl = engine.hb.compile('{{plural 0 singular="% post" plural="% posts"}}');
+    expect(tpl({})).toBe('0 posts');
+  });
+
   test('non-numeric count is coerced via Number() (NaN takes the plural branch)', () => {
     const engine = makeEngine();
     registerStringHelpers(engine);

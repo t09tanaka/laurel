@@ -20,6 +20,12 @@ function makeEngine(locales: ThemeLocaleMap, locale = 'en'): NectarEngine {
 }
 
 describe('t helper', () => {
+  test('lang helper returns the active site locale code', () => {
+    const engine = makeEngine({ en: {} }, 'pt-BR');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{lang}}')({})).toBe('pt-BR');
+  });
+
   test('returns the active locale value when present', () => {
     const engine = makeEngine({ en: { Search: '' }, fr: { Search: 'Rechercher' } }, 'fr');
     registerI18nHelpers(engine);
@@ -154,6 +160,24 @@ describe('t helper', () => {
     const engine = makeEngine({ en: { 'Page %': 'Page %' } }, 'en');
     registerI18nHelpers(engine);
     expect(engine.hb.compile('{{t "Page %" current=2}}')({})).toBe('Page 2');
+  });
+
+  test('escapes HTML in translation output through normal Handlebars rendering', () => {
+    const engine = makeEngine({ en: { Alert: '<strong>Alert</strong>' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Alert"}}')({})).toBe('&lt;strong&gt;Alert&lt;/strong&gt;');
+  });
+
+  test('substitutes the first count-like hash value into a `%` placeholder', () => {
+    const engine = makeEngine({ en: { 'Page %': 'Page %' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Page %" page=3}}')({})).toBe('Page 3');
+  });
+
+  test('fills named placeholders and uses the first count-like hash value for `%`', () => {
+    const engine = makeEngine({ en: { 'Page % of {pages}': 'Page % of {pages}' } }, 'en');
+    registerI18nHelpers(engine);
+    expect(engine.hb.compile('{{t "Page % of {pages}" page=4 pages=9}}')({})).toBe('Page 4 of 9');
   });
 
   test('Casper de.json placeholder is rendered when active locale is de', () => {

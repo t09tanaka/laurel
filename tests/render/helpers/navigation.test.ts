@@ -258,6 +258,62 @@ describe('navigation helper href sanitisation', () => {
   });
 });
 
+describe('link helper', () => {
+  test('adds a class attribute when class hash is supplied', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const html = engine.hb.compile('{{#link href="/about/" class="button primary"}}About{{/link}}')(
+      {},
+    );
+    expect(html).toBe('<a href="/about/" class="button primary">About</a>');
+  });
+
+  test('adds target and protective rel attributes when target hash is supplied', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const html = engine.hb.compile(
+      '{{#link href="https://example.com" target="_blank"}}Go{{/link}}',
+    )({});
+    expect(html).toBe(
+      '<a href="https://example.com" target="_blank" rel="noopener noreferrer">Go</a>',
+    );
+  });
+
+  test('escapes href and class values to prevent attribute injection', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const html = engine.hb.compile('{{#link href=href class=className}}Safe{{/link}}')({
+      href: '/tag/"><img src=x onerror=alert(1)>',
+      className: 'btn" onclick="alert(1)',
+    });
+    expect(html).toContain('href="/tag/&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"');
+    expect(html).toContain('class="btn&quot; onclick=&quot;alert(1)"');
+    expect(html).not.toContain('"><img');
+  });
+});
+
+describe('link_class helper', () => {
+  test('treats a paged route path as matching its section base', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const html = engine.hb.compile('{{link_class for="/tag/news/"}}')(
+      {},
+      { data: { route: { url: '/tag/news/page/2/' } } },
+    );
+    expect(html).toBe('nav-current');
+  });
+
+  test('returns an empty string when route and target paths differ', () => {
+    const engine = makeEngine();
+    registerNavigationHelpers(engine);
+    const html = engine.hb.compile('{{link_class for="/tag/news/"}}')(
+      {},
+      { data: { route: { url: '/tag/updates/' } } },
+    );
+    expect(html).toBe('');
+  });
+});
+
 function renderPagination(pagination: {
   page: number;
   pages: number;

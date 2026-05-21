@@ -113,7 +113,12 @@ export function registerContentHelpers(engine: NectarEngine): void {
       };
       // Ghost's tags helper hides `internal` tags by default; visibility="all"
       // or a comma-separated list (e.g. "public,internal") opts back in.
-      const visibility = parseVisibility(options.hash.visibility);
+      // Some themes use includeHidden=true for the same intent; treat it as
+      // the documented all-visibility path rather than adding another filter.
+      const visibility =
+        options.hash.includeHidden === true || options.hash.includeHidden === 'true'
+          ? 'all'
+          : parseVisibility(options.hash.visibility);
       const list = (ctx.tags ?? []).filter((tag) => {
         if (visibility === 'all') return true;
         const v = tag.visibility ?? 'public';
