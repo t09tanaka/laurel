@@ -253,6 +253,15 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('2:c|5:f|');
   });
 
+  test('columns=3 wraps rows starting at index 0', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach items columns=3}}{{#if @rowStart}}[{{/if}}{{this}}{{#if @rowEnd}}]{{/if}}{{/foreach}}',
+    );
+    expect(tpl({ items: [1, 2, 3, 4, 5, 6, 7] })).toBe('[123][456][7]');
+  });
+
   test('columns marks the final item as rowEnd for incomplete rows', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
