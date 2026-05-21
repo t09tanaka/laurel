@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import dayjs from 'dayjs';
 import Handlebars from 'handlebars';
 import type { NectarEngine } from '~/render/engine.ts';
 import { registerDateHelpers } from '~/render/helpers/date.ts';
@@ -15,6 +16,7 @@ function makeEngine(locale: string, timezone = 'UTC'): NectarEngine {
     render() {
       throw new Error('not used');
     },
+    sortedCache: new Map(),
   };
 }
 
@@ -149,6 +151,63 @@ describe('date helper', () => {
     registerDateHelpers(engine);
     const out = engine.hb.compile('{{date "2026-05-05T00:00:00Z"}}')({});
     expect(out).toBe('May 5, 2026');
+  });
+
+  test('reuses formatted output for repeated identical format calls', () => {
+    const engine = makeEngine('en', 'Asia/Tokyo');
+    registerDateHelpers(engine);
+    const template = engine.hb.compile(
+      '{{date ts format="YYYY-MM-DD"}}|{{date ts format="YYYY-MM-DD"}}|{{date ts format="YYYY-MM-DD"}}',
+    );
+    const originalTz = dayjs.prototype.tz;
+    let timezoneConversions = 0;
+    dayjs.prototype.tz = function patchedTz(
+      this: dayjs.Dayjs,
+      ...args: Parameters<typeof originalTz>
+    ) {
+      timezoneConversions += 1;
+      return originalTz.apply(this, args);
+    };
+
+    try {
+      const out = template({ ts: '2026-05-04T20:00:00Z' });
+
+      expect(out).toBe('2026-05-05|2026-05-05|2026-05-05');
+      expect(timezoneConversions).toBe(1);
+    } finally {
+      dayjs.prototype.tz = originalTz;
+    }
+  });
+
+  test('date format cache keys include format, locale, and timezone', () => {
+    const engine = makeEngine('en', 'UTC');
+    registerDateHelpers(engine);
+    const defaultTemplate = engine.hb.compile('{{date ts format="YYYY-MM-DD"}}');
+    const formatTemplate = engine.hb.compile('{{date ts format="MMMM"}}');
+    const localeTemplate = engine.hb.compile('{{date ts format="MMMM" locale="ja"}}');
+    const originalTz = dayjs.prototype.tz;
+    let timezoneConversions = 0;
+    dayjs.prototype.tz = function patchedTz(
+      this: dayjs.Dayjs,
+      ...args: Parameters<typeof originalTz>
+    ) {
+      timezoneConversions += 1;
+      return originalTz.apply(this, args);
+    };
+
+    try {
+      expect(defaultTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('2026-05-04');
+      expect(defaultTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('2026-05-04');
+      expect(formatTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('May');
+      expect(localeTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('5月');
+
+      engine.content.site.timezone = 'Asia/Tokyo';
+      expect(defaultTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('2026-05-05');
+      expect(defaultTemplate({ ts: '2026-05-04T20:00:00Z' })).toBe('2026-05-05');
+      expect(timezoneConversions).toBe(4);
+    } finally {
+      dayjs.prototype.tz = originalTz;
+    }
   });
 
   test('timeago returns Day.js relative unit text', () => {

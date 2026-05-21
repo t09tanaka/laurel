@@ -17,9 +17,14 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const requireDayjsLocale = createRequire(import.meta.url);
+const DEFAULT_DATE_FORMAT = 'll';
+const DATE_FORMAT_CACHE_LIMIT = 4096;
+
+type DateInput = Date | string | number;
 
 export function registerDateHelpers(engine: NectarEngine): void {
   const dayjsLocale = loadDayjsLocale(engine.content.site.locale);
+  const formattedDateCache = new Map<string, string>();
 
   engine.hb.registerHelper('date', function dateHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
@@ -43,11 +48,46 @@ export function registerDateHelpers(engine: NectarEngine): void {
     if (options.hash.timeago === true || options.hash.timeago === 'true') {
       return dayjs(value).locale(activeLocale).fromNow();
     }
-    if (typeof options.hash.format === 'string') {
-      return dayjs(value).tz(timezoneName).locale(activeLocale).format(options.hash.format);
+    const format =
+      typeof options.hash.format === 'string' ? options.hash.format : DEFAULT_DATE_FORMAT;
+    const cacheKey = buildDateFormatCacheKey(value, format, timezoneName, activeLocale);
+    const cached = formattedDateCache.get(cacheKey);
+    if (cached !== undefined) {
+      formattedDateCache.delete(cacheKey);
+      formattedDateCache.set(cacheKey, cached);
+      return cached;
     }
-    return dayjs(value).tz(timezoneName).locale(activeLocale).format('ll');
+
+    const formatted = dayjs(value).tz(timezoneName).locale(activeLocale).format(format);
+    rememberFormattedDate(formattedDateCache, cacheKey, formatted);
+    return formatted;
   });
+}
+
+function rememberFormattedDate(cache: Map<string, string>, key: string, value: string): void {
+  if (cache.size >= DATE_FORMAT_CACHE_LIMIT) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      cache.delete(oldestKey);
+    }
+  }
+  cache.set(key, value);
+}
+
+function buildDateFormatCacheKey(
+  value: DateInput | undefined,
+  format: string,
+  timezoneName: string,
+  locale: string,
+): string {
+  return `${serializeDateInput(value)}|${format}|${timezoneName}|${locale}`;
+}
+
+function serializeDateInput(value: DateInput | undefined): string {
+  if (value instanceof Date) {
+    return `date:${value.getTime()}`;
+  }
+  return `${typeof value}:${String(value)}`;
 }
 
 function resolveDateLocale(hashLocale: unknown, fallback: string): string {
