@@ -54,6 +54,18 @@ describe('foreach helper', () => {
     expect(out).toBe('First Post:1:first:1|Second Post:2::2|');
   });
 
+  test('nested foreach preserves outer @index via ../ path lookup (issue #1189)', () => {
+    const engine = makeEngine();
+    registerBlockHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#foreach outer}}{{@index}}|{{#foreach inner}}{{@../index}}-{{@index}};{{/foreach}}{{/foreach}}',
+    );
+    const out = tpl({
+      outer: [{ inner: ['a', 'b'] }, { inner: ['c'] }],
+    });
+    expect(out).toBe('0|0-0;0-1;1|1-0;');
+  });
+
   test('renders the inverse block when the input is empty', () => {
     const engine = makeEngine();
     registerBlockHelpers(engine);
