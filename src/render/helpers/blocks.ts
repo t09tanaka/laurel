@@ -846,6 +846,7 @@ function compareByOrder(a: unknown, b: unknown, order: string): number {
 function resolveOrderValue(item: unknown, field: string): unknown {
   if (!item || typeof item !== 'object' || field === '') return undefined;
   const record = item as Record<string, unknown>;
+  if (field === 'featured') return Boolean(record.featured);
   if (Object.prototype.hasOwnProperty.call(record, field)) return record[field];
   if (!field.includes('.')) return record[field];
 

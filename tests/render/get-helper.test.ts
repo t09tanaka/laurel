@@ -133,6 +133,26 @@ describe('get helper memoization', () => {
     expect(tpl({})).toBe('upper-alpha,lower-alpha,upper-beta,lower-beta,');
   });
 
+  test('orders posts by featured desc then published_at desc across mixed featured values', () => {
+    const posts = [
+      { id: 'new-unfeatured', title: 'A', published_at: '2026-05-20T00:00:00.000Z' },
+      { id: 'old-featured', title: 'B', featured: true, published_at: '2026-05-17T00:00:00.000Z' },
+      { id: 'new-featured', title: 'C', featured: true, published_at: '2026-05-19T00:00:00.000Z' },
+      {
+        id: 'old-unfeatured',
+        title: 'D',
+        featured: false,
+        published_at: '2026-05-18T00:00:00.000Z',
+      },
+    ];
+    const engine = buildEngine({ posts });
+    const tpl = engine.hb.compile(
+      `{{#get "posts" order="featured desc, published_at desc" as |items|}}{{#foreach items}}{{id}},{{/foreach}}{{/get}}`,
+    );
+
+    expect(tpl({})).toBe('new-featured,old-featured,new-unfeatured,old-unfeatured,');
+  });
+
   test('applying a filter does not change the sorted-then-filtered output', () => {
     const posts = [
       { id: 'a', title: 'A', featured: true, published_at: '2026-05-19T00:00:00.000Z' },
