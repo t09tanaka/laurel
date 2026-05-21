@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import yaml from 'js-yaml';
 import slugify from 'slugify';
@@ -15,6 +16,7 @@ import type {
   Post,
   Tag,
 } from '~/content/model.ts';
+import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -25,9 +27,15 @@ const DEFAULT_PORT = 4322;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PER_PAGE = 12;
 const MAX_PER_PAGE = 100;
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+const ACTIVITY_LIMIT = 50;
+const WATCH_DEBOUNCE_MS = 100;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const SITE_SETTINGS_FIELDS = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
 
 type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
+type DashboardContentKind = 'posts' | 'pages';
+type DashboardSort = 'created_desc' | 'created_asc' | 'updated_desc' | 'title_asc';
 
 export interface DashboardStateOptions {
   cwd: string;
@@ -36,17 +44,31 @@ export interface DashboardStateOptions {
   postsPage?: number;
   pagesPage?: number;
   perPage?: number;
+  kind?: DashboardContentKind;
+  status?: string;
+  search?: string;
+  sort?: DashboardSort;
+  sync?: DashboardSyncSnapshot;
+  requestOrigin?: string;
 }
 
-interface DashboardList<T> {
+export interface DashboardStateQuery {
+  kind?: DashboardContentKind;
+  status?: string;
+  search?: string;
+  sort?: DashboardSort;
+}
+
+export interface DashboardList<T> {
   items: T[];
   total: number;
   page: number;
   perPage: number;
   pages: number;
+  query: DashboardStateQuery;
 }
 
-interface DashboardContentSummary {
+export interface DashboardContentSummary {
   slug: string;
   title: string;
   status: string;
@@ -60,16 +82,37 @@ interface DashboardContentSummary {
   words: number;
 }
 
-interface DashboardTaxonomySummary {
+export interface DashboardTaxonomySummary {
   slug: string;
   name: string;
   count: number;
   path: string;
   url: string;
   editable: boolean;
+  missing: boolean;
+  generated: boolean;
+  orphaned: boolean;
 }
 
-interface DashboardState {
+export interface DashboardSyncEvent {
+  reason: string;
+  at: string;
+  kind?: EditableKind | 'settings' | 'project';
+  changedPath?: string;
+}
+
+export interface DashboardSyncSnapshot {
+  status: 'synced' | 'reading' | 'changed-on-disk' | 'conflict' | 'save-failed';
+  watchedPaths: string[];
+  watchWarnings: string[];
+  warnings: string[];
+  lastEvent?: DashboardSyncEvent;
+  activity: DashboardSyncEvent[];
+  loadStartedAt: string;
+  loadFinishedAt: string;
+}
+
+export interface DashboardState {
   site: {
     title: string;
     description: string;
@@ -92,6 +135,15 @@ interface DashboardState {
     outputDir: string;
     theme: string;
   };
+  sync: DashboardSyncSnapshot;
+  build: {
+    outputDir: string;
+    theme: string;
+    previewUrl: string;
+    routeCount: number | null;
+    warnings: string[];
+  };
+  git: DashboardGitStatus;
   generatedAt: string;
 }
 
@@ -105,9 +157,15 @@ export interface DashboardContentItem {
 }
 
 export type DashboardWriteResult =
-  | { ok: true; fingerprint: ContentSourceFingerprint }
-  | { ok: false; reason: 'conflict'; current: DashboardContentItem }
-  | { ok: false; reason: 'not-found' | 'invalid-kind' };
+  | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
+  | {
+      ok: false;
+      reason: 'conflict';
+      changedPath: string;
+      current: DashboardContentItem;
+      conflict: DashboardConflictDiff;
+    }
+  | { ok: false; reason: 'not-found' | 'invalid-kind' | 'forbidden'; changedPath?: string };
 
 export interface DashboardSettings {
   configPath: string;
@@ -123,8 +181,47 @@ export interface DashboardSettings {
 }
 
 export type DashboardSettingsWriteResult =
-  | { ok: true; fingerprint: ContentSourceFingerprint }
-  | { ok: false; reason: 'conflict'; current: DashboardSettings };
+  | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
+  | { ok: false; reason: 'conflict'; changedPath: string; current: DashboardSettings };
+
+export interface DashboardConflictDiff {
+  frontmatter: {
+    current: Record<string, unknown>;
+    draft: Record<string, unknown>;
+  };
+  body: {
+    current: string;
+    draft: string;
+  };
+}
+
+export interface DashboardGitStatus {
+  isRepo: boolean;
+  branch?: string;
+  dirty: boolean;
+  changedFiles: number;
+  lastCommit?: string;
+}
+
+interface DashboardWatchMetadata {
+  watchedPaths: string[];
+  warnings: string[];
+}
+
+export interface DashboardSecurityContext {
+  origin: string;
+  token: string;
+  lanExposed: boolean;
+}
+
+export interface DashboardRequestContext {
+  cwd: string;
+  configPath?: string;
+  changeBus: ChangeBus;
+  watch?: DashboardWatchMetadata;
+  security?: DashboardSecurityContext;
+  maxBodyBytes?: number;
+}
 
 export async function runDashboard(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -164,26 +261,49 @@ export async function runDashboard(args: string[]): Promise<number> {
   }
 
   const changeBus = createChangeBus();
-  const watchers = await watchDashboardFiles({ cwd, configPath, changeBus });
+  const cleanup = createCleanupRegistry();
+  const watchSetup = await watchDashboardFiles({ cwd, configPath, changeBus });
+  cleanup.register(
+    () => {
+      for (const watcher of watchSetup.watchers) watcher.close();
+    },
+    { name: 'dashboard-watchers' },
+  );
+  const token = createDashboardToken();
+  const lanExposed = isLanExposedHost(host);
   const server = Bun.serve({
     port,
     hostname: host,
     idleTimeout: 255,
-    async fetch(request) {
-      return handleDashboardRequest(request, { cwd, configPath, changeBus });
+    async fetch(request): Promise<Response> {
+      return handleDashboardRequest(request, {
+        cwd,
+        configPath,
+        changeBus,
+        watch: watchSetup,
+        security: {
+          origin: new URL(request.url).origin,
+          token,
+          lanExposed,
+        },
+      });
     },
   });
+  cleanup.register(() => server.stop(true), { name: 'dashboard-server' });
 
   const displayHost = host === '0.0.0.0' ? 'localhost' : host;
   const url = `http://${displayHost}:${server.port}/`;
   logger.info(`Dashboard listening on ${url}`);
+  if (lanExposed) {
+    logger.warn(
+      'Dashboard is listening on a LAN-facing host. Keep the startup URL private because this process can write local project files.',
+    );
+  }
   if (parsed.values.open === true) {
     openBrowser(url);
   }
 
-  await waitForShutdownSignal();
-  for (const watcher of watchers) watcher.close();
-  server.stop(true);
+  await cleanup.waitForSignal({ signals: ['SIGINT', 'SIGTERM'] });
   return 0;
 }
 
@@ -194,7 +314,14 @@ export async function loadDashboardState({
   postsPage,
   pagesPage,
   perPage,
+  kind,
+  status,
+  search,
+  sort,
+  sync,
+  requestOrigin,
 }: DashboardStateOptions): Promise<DashboardState> {
+  const loadStartedAt = new Date().toISOString();
   const config = await loadConfig({ cwd, configPath });
   const graph = await loadContent({
     cwd,
@@ -205,9 +332,25 @@ export async function loadDashboardState({
   const safePerPage = clampPositiveInt(perPage, DEFAULT_PER_PAGE, MAX_PER_PAGE);
   const postPage = clampPositiveInt(postsPage ?? page, 1, Number.MAX_SAFE_INTEGER);
   const pagePage = clampPositiveInt(pagesPage ?? page, 1, Number.MAX_SAFE_INTEGER);
+  const query: DashboardStateQuery = {};
+  if (kind !== undefined) query.kind = kind;
+  if (status !== undefined && status.trim().length > 0) query.status = status.trim();
+  if (search !== undefined && search.trim().length > 0) query.search = search.trim();
+  query.sort = sort ?? 'created_desc';
 
-  const posts = sortByCreatedAt(graph.posts).map((post) => postSummary(post, graph, config));
-  const pages = sortByCreatedAt(graph.pages).map((item) => pageSummary(item, graph, config));
+  const posts = applyContentQuery(
+    graph.posts.map((post) => postSummary(post, graph, config)),
+    'posts',
+    query,
+  );
+  const pages = applyContentQuery(
+    graph.pages.map((item) => pageSummary(item, graph, config)),
+    'pages',
+    query,
+  );
+  const loadFinishedAt = new Date().toISOString();
+  const syncSnapshot = sync ?? defaultSyncSnapshot({ loadStartedAt, loadFinishedAt });
+  const git = await readGitStatus(cwd);
 
   return {
     site: {
@@ -216,14 +359,15 @@ export async function loadDashboardState({
       url: graph.site.url,
       accentColor: graph.site.accent_color,
     },
-    posts: paginate(posts, postPage, safePerPage),
-    pages: paginate(pages, pagePage, safePerPage),
+    posts: paginate(posts, postPage, safePerPage, query),
+    pages: paginate(pages, pagePage, safePerPage, query),
     authors: paginate(
       graph.authors
         .map((author) => taxonomySummary(author, graph, config, 'authors'))
         .sort((a, b) => a.name.localeCompare(b.name)),
       1,
       MAX_PER_PAGE,
+      query,
     ),
     tags: paginate(
       graph.tags
@@ -231,6 +375,7 @@ export async function loadDashboardState({
         .sort((a, b) => a.name.localeCompare(b.name)),
       1,
       MAX_PER_PAGE,
+      query,
     ),
     settings: {
       configPath: relativePath(cwd, resolveConfigPath(cwd, configPath)),
@@ -244,7 +389,21 @@ export async function loadDashboardState({
       outputDir: config.build.output_dir,
       theme: config.theme.name,
     },
-    generatedAt: new Date().toISOString(),
+    sync: {
+      ...syncSnapshot,
+      loadStartedAt,
+      loadFinishedAt,
+      warnings: syncSnapshot.warnings,
+    },
+    build: {
+      outputDir: config.build.output_dir,
+      theme: config.theme.name,
+      previewUrl: requestOrigin ?? graph.site.url,
+      routeCount: null,
+      warnings: [],
+    },
+    git,
+    generatedAt: loadFinishedAt,
   };
 }
 
@@ -261,6 +420,9 @@ export async function readDashboardContentItem({
 }): Promise<DashboardContentItem> {
   const filePath = await resolveEditablePath(cwd, config, kind, slug);
   if (filePath === undefined) throw new Response('Not Found', { status: 404 });
+  if (!(await isEditableRealPath(cwd, config, kind, filePath))) {
+    throw new Response('Forbidden', { status: 403 });
+  }
   const raw = await readFile(filePath, 'utf8');
   const parsed = parseFrontmatter(raw, { filePath });
   return {
@@ -292,16 +454,32 @@ export async function writeDashboardContentItem({
 }): Promise<DashboardWriteResult> {
   const filePath = await resolveEditablePath(cwd, config, kind, slug);
   if (filePath === undefined) return { ok: false, reason: 'not-found' };
+  if (!(await isEditableRealPath(cwd, config, kind, filePath))) {
+    return { ok: false, reason: 'forbidden', changedPath: relativePath(cwd, filePath) };
+  }
   const current = await readDashboardContentItem({ cwd, config, kind, slug });
   if (!sameFingerprint(current.fingerprint, expectedFingerprint)) {
-    return { ok: false, reason: 'conflict', current };
+    return {
+      ok: false,
+      reason: 'conflict',
+      changedPath: current.path,
+      current,
+      conflict: {
+        frontmatter: { current: current.frontmatter, draft: frontmatter },
+        body: { current: current.body, draft: body },
+      },
+    };
   }
   const yamlText = yaml
     .dump(frontmatter, { lineWidth: -1, noRefs: true, sortKeys: false })
     .trimEnd();
   const normalizedBody = body.endsWith('\n') ? body : `${body}\n`;
   await writeFile(filePath, `---\n${yamlText}\n---\n\n${normalizedBody}`, 'utf8');
-  return { ok: true, fingerprint: await fingerprintFor(cwd, filePath) };
+  return {
+    ok: true,
+    fingerprint: await fingerprintFor(cwd, filePath),
+    changedPath: relativePath(cwd, filePath),
+  };
 }
 
 export async function readDashboardSettings({
@@ -341,22 +519,34 @@ export async function writeDashboardSiteSettings({
   const filePath = resolveConfigPath(cwd, configPath);
   const current = await readDashboardSettings({ cwd, configPath });
   if (!sameFingerprint(current.fingerprint, expectedFingerprint)) {
-    return { ok: false, reason: 'conflict', current };
+    return { ok: false, reason: 'conflict', changedPath: current.configPath, current };
   }
   await writeSiteSettingsFile(filePath, updates);
-  return { ok: true, fingerprint: await optionalFingerprintFor(cwd, filePath) };
+  return {
+    ok: true,
+    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    changedPath: relativePath(cwd, filePath),
+  };
 }
 
-async function handleDashboardRequest(
+export async function handleDashboardRequest(
   request: Request,
-  ctx: { cwd: string; configPath?: string; changeBus: ChangeBus },
+  ctx: DashboardRequestContext,
 ): Promise<Response> {
   const url = new URL(request.url);
   try {
     if (request.method === 'GET' && url.pathname === '/') {
-      return htmlResponse(renderDashboardHtml());
+      return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
     if (request.method === 'GET' && url.pathname === '/api/state') {
+      const kind = stateKindParam(url);
+      if (url.searchParams.has('kind') && kind === undefined) {
+        return jsonResponse({ error: 'invalid kind query' }, 400);
+      }
+      const sort = sortParam(url);
+      if (url.searchParams.has('sort') && sort === undefined) {
+        return jsonResponse({ error: 'invalid sort query' }, 400);
+      }
       return jsonResponse(
         await loadDashboardState({
           cwd: ctx.cwd,
@@ -364,6 +554,12 @@ async function handleDashboardRequest(
           postsPage: numberParam(url, 'posts_page'),
           pagesPage: numberParam(url, 'pages_page'),
           perPage: numberParam(url, 'per_page'),
+          kind,
+          status: stringParam(url, 'status'),
+          search: stringParam(url, 'search'),
+          sort,
+          sync: ctx.changeBus.snapshot(ctx.watch),
+          requestOrigin: `${url.protocol}//${url.host}`,
         }),
       );
     }
@@ -381,11 +577,14 @@ async function handleDashboardRequest(
         return jsonResponse(await readDashboardContentItem({ cwd: ctx.cwd, config, kind, slug }));
       }
       if (request.method === 'PUT') {
-        const payload = (await request.json()) as {
+        const blocked = validateWriteRequest(request, ctx.security);
+        if (blocked) return blocked;
+        const payload = await readJsonPayload<{
           fingerprint?: ContentSourceFingerprint;
           frontmatter?: Record<string, unknown>;
           body?: string;
-        };
+        }>(request, ctx.maxBodyBytes);
+        if (payload instanceof Response) return payload;
         if (!payload.fingerprint || !payload.frontmatter || typeof payload.body !== 'string') {
           return jsonResponse({ error: 'fingerprint, frontmatter, and body are required' }, 400);
         }
@@ -399,8 +598,13 @@ async function handleDashboardRequest(
           body: payload.body,
         });
         if (!result.ok && result.reason === 'conflict') return jsonResponse(result, 409);
+        if (!result.ok && result.reason === 'forbidden') return jsonResponse(result, 403);
         if (!result.ok) return jsonResponse(result, 404);
-        ctx.changeBus.broadcast('dashboard-write');
+        ctx.changeBus.broadcast({
+          reason: 'dashboard-write',
+          kind,
+          changedPath: result.changedPath,
+        });
         return jsonResponse(result);
       }
     }
@@ -410,23 +614,40 @@ async function handleDashboardRequest(
       );
     }
     if (request.method === 'POST' && url.pathname === '/api/content') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
-      const payload = (await request.json()) as {
+      const payload = await readJsonPayload<{
         kind?: EditableKind;
         title?: string;
         slug?: string;
-      };
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
       const result = await createDashboardContentItem({ cwd: ctx.cwd, config, payload });
-      ctx.changeBus.broadcast('dashboard-create');
+      ctx.changeBus.broadcast({
+        reason: 'dashboard-create',
+        kind: result.kind,
+        changedPath: result.path,
+      });
       return jsonResponse(result, 201);
     }
     if (request.method === 'PATCH' && url.pathname === '/api/settings/site') {
-      const payload = (await request.json()) as {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const payload = await readJsonPayload<{
         fingerprint?: ContentSourceFingerprint;
         updates?: Record<string, unknown>;
-      };
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
       if (!payload.fingerprint || !payload.updates) {
         return jsonResponse({ error: 'fingerprint and updates are required' }, 400);
+      }
+      const invalidSettingsFields = findInvalidSettingsFields(payload.updates);
+      if (invalidSettingsFields.length > 0) {
+        return jsonResponse(
+          { error: 'unknown settings fields', fields: invalidSettingsFields },
+          400,
+        );
       }
       const result = await writeDashboardSiteSettings({
         cwd: ctx.cwd,
@@ -435,7 +656,11 @@ async function handleDashboardRequest(
         updates: payload.updates,
       });
       if (!result.ok) return jsonResponse(result, 409);
-      ctx.changeBus.broadcast('settings-write');
+      ctx.changeBus.broadcast({
+        reason: 'settings-write',
+        kind: 'settings',
+        changedPath: result.changedPath,
+      });
       return jsonResponse(result);
     }
     return new Response('Not Found', { status: 404 });
@@ -461,6 +686,9 @@ async function createDashboardContentItem({
   const slug = (payload.slug?.trim() || slugify(title, { lower: true, strict: true })).trim();
   if (!SLUG_RE.test(slug)) throw new Error('invalid slug');
   const dir = editableDir(cwd, config, kind);
+  if (!(await isEditableRootInsideProject(cwd, config, kind))) {
+    throw new Response('Forbidden', { status: 403 });
+  }
   const filePath = join(dir, `${slug}.md`);
   if (existsSync(filePath)) throw new Error(`content already exists: ${slug}`);
   await mkdir(dir, { recursive: true });
@@ -526,6 +754,7 @@ function taxonomySummary(
 ): DashboardTaxonomySummary {
   const source =
     kind === 'authors' ? graph.sources?.authors.get(item.id) : graph.sources?.tags.get(item.id);
+  const editable = source !== undefined;
   return {
     slug: item.slug,
     name: item.name,
@@ -535,19 +764,49 @@ function taxonomySummary(
       source,
     ),
     url: item.url,
-    editable: source !== undefined,
+    editable,
+    missing: !editable,
+    generated: !editable,
+    orphaned: editable && item.count.posts === 0,
   };
 }
 
-function sortByCreatedAt<T extends { created_at: string; published_at: string }>(items: T[]): T[] {
+function applyContentQuery(
+  items: DashboardContentSummary[],
+  itemKind: DashboardContentKind,
+  query: DashboardStateQuery,
+): DashboardContentSummary[] {
+  const needle = query.search?.toLowerCase();
+  const filtered = items.filter((item) => {
+    if (query.kind !== undefined && query.kind !== itemKind) return false;
+    if (query.status !== undefined && item.status !== query.status) return false;
+    if (needle === undefined) return true;
+    return [item.slug, item.title, item.path, item.url, ...item.authors, ...item.tags].some(
+      (value) => value.toLowerCase().includes(needle),
+    );
+  });
+  return sortContentSummaries(filtered, query.sort ?? 'created_desc');
+}
+
+function sortContentSummaries(
+  items: DashboardContentSummary[],
+  sort: DashboardSort,
+): DashboardContentSummary[] {
   return [...items].sort((a, b) => {
-    const created = Date.parse(b.created_at) - Date.parse(a.created_at);
-    if (created !== 0) return created;
-    return Date.parse(b.published_at) - Date.parse(a.published_at);
+    if (sort === 'title_asc') return a.title.localeCompare(b.title);
+    if (sort === 'updated_desc') return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+    const created = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+    if (sort === 'created_asc') return created;
+    return -created || Date.parse(b.publishedAt) - Date.parse(a.publishedAt);
   });
 }
 
-function paginate<T>(items: T[], page: number, perPage: number): DashboardList<T> {
+function paginate<T>(
+  items: T[],
+  page: number,
+  perPage: number,
+  query: DashboardStateQuery,
+): DashboardList<T> {
   const pages = Math.max(1, Math.ceil(items.length / perPage));
   const safePage = Math.min(Math.max(page, 1), pages);
   const start = (safePage - 1) * perPage;
@@ -557,6 +816,7 @@ function paginate<T>(items: T[], page: number, perPage: number): DashboardList<T
     page: safePage,
     perPage,
     pages,
+    query,
   };
 }
 
@@ -591,6 +851,45 @@ async function resolveEditablePath(
   }
   const fast = join(editableDir(cwd, config, kind), `${slug}.md`);
   return existsSync(fast) ? fast : undefined;
+}
+
+async function isEditableRealPath(
+  cwd: string,
+  config: NectarConfig,
+  kind: EditableKind,
+  filePath: string,
+): Promise<boolean> {
+  try {
+    const [projectRoot, root, target] = await Promise.all([
+      realpath(cwd),
+      realpath(editableDir(cwd, config, kind)),
+      realpath(filePath),
+    ]);
+    return isInsidePath(projectRoot, root) && isInsidePath(root, target);
+  } catch {
+    return false;
+  }
+}
+
+async function isEditableRootInsideProject(
+  cwd: string,
+  config: NectarConfig,
+  kind: EditableKind,
+): Promise<boolean> {
+  try {
+    const [projectRoot, root] = await Promise.all([
+      realpath(cwd),
+      realpath(editableDir(cwd, config, kind)),
+    ]);
+    return isInsidePath(projectRoot, root);
+  } catch {
+    return false;
+  }
+}
+
+function isInsidePath(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 async function fingerprintFor(cwd: string, filePath: string): Promise<ContentSourceFingerprint> {
@@ -630,15 +929,19 @@ async function writeSiteSettingsFile(
   target: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const allowed = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
   const updates = new Map<string, string>();
-  for (const key of allowed) {
+  for (const key of SITE_SETTINGS_FIELDS) {
     const value = payload[key];
     if (typeof value === 'string') updates.set(key, value);
   }
   if (updates.size === 0) return;
   const raw = existsSync(target) ? await readFile(target, 'utf8') : '';
   await writeFile(target, updateTomlSection(raw, 'site', updates), 'utf8');
+}
+
+function findInvalidSettingsFields(payload: Record<string, unknown>): string[] {
+  const allowed = new Set(SITE_SETTINGS_FIELDS);
+  return Object.keys(payload).filter((key) => !allowed.has(key));
 }
 
 function updateTomlSection(raw: string, section: string, updates: Map<string, string>): string {
@@ -695,6 +998,31 @@ function numberParam(url: URL, key: string): number | undefined {
   return Number.isInteger(value) ? value : undefined;
 }
 
+function stringParam(url: URL, key: string): string | undefined {
+  const raw = url.searchParams.get(key);
+  const value = raw?.trim();
+  return value ? value : undefined;
+}
+
+function stateKindParam(url: URL): DashboardContentKind | undefined {
+  const value = stringParam(url, 'kind');
+  if (value === 'posts' || value === 'pages') return value;
+  return undefined;
+}
+
+function sortParam(url: URL): DashboardSort | undefined {
+  const value = stringParam(url, 'sort');
+  if (
+    value === 'created_desc' ||
+    value === 'created_asc' ||
+    value === 'updated_desc' ||
+    value === 'title_asc'
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
 function clampPositiveInt(value: number | undefined, fallback: number, max: number): number {
   if (!Number.isInteger(value) || value === undefined || value < 1) return fallback;
   return Math.min(value, max);
@@ -717,6 +1045,38 @@ function parseHost(value: unknown): string | CliUsageError {
   return value.trim();
 }
 
+function createDashboardToken(): string {
+  return randomBytes(24).toString('base64url');
+}
+
+function isLanExposedHost(host: string): boolean {
+  return host !== '127.0.0.1' && host !== 'localhost' && host !== '::1';
+}
+
+async function readGitStatus(cwd: string): Promise<DashboardGitStatus> {
+  const inside = await gitOutput(cwd, ['rev-parse', '--is-inside-work-tree']);
+  if (inside?.trim() !== 'true') return { isRepo: false, dirty: false, changedFiles: 0 };
+  const [branch, dirty, lastCommit] = await Promise.all([
+    gitOutput(cwd, ['branch', '--show-current']),
+    gitOutput(cwd, ['status', '--porcelain']),
+    gitOutput(cwd, ['rev-parse', '--short', 'HEAD']),
+  ]);
+  const changedFiles = dirty ? dirty.split('\n').filter(Boolean).length : 0;
+  return {
+    isRepo: true,
+    branch: branch?.trim() || undefined,
+    dirty: changedFiles > 0,
+    changedFiles,
+    lastCommit: lastCommit?.trim() || undefined,
+  };
+}
+
+async function gitOutput(cwd: string, args: string[]): Promise<string | undefined> {
+  const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'ignore' });
+  const [output, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  return exitCode === 0 ? output : undefined;
+}
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -726,30 +1086,130 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function htmlResponse(html: string): Response {
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy':
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+    },
   });
 }
 
-interface ChangeBus {
-  broadcast(reason: string): void;
+function defaultSyncSnapshot(values: Partial<DashboardSyncSnapshot> = {}): DashboardSyncSnapshot {
+  const now = new Date().toISOString();
+  return {
+    status:
+      values.status ?? (values.lastEvent?.reason === 'file-change' ? 'changed-on-disk' : 'synced'),
+    watchedPaths: values.watchedPaths ?? [],
+    watchWarnings: values.watchWarnings ?? [],
+    warnings: values.warnings ?? [],
+    lastEvent: values.lastEvent,
+    activity: values.activity ?? [],
+    loadStartedAt: values.loadStartedAt ?? now,
+    loadFinishedAt: values.loadFinishedAt ?? now,
+  };
+}
+
+async function readJsonPayload<T>(
+  request: Request,
+  maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
+): Promise<T | Response> {
+  const length = request.headers.get('content-length');
+  if (length !== null && Number(length) > maxBodyBytes) {
+    return jsonResponse({ error: `request body exceeds ${maxBodyBytes} bytes` }, 413);
+  }
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > maxBodyBytes) {
+    return jsonResponse({ error: `request body exceeds ${maxBodyBytes} bytes` }, 413);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return jsonResponse({ error: 'invalid JSON body' }, 400);
+  }
+}
+
+function validateWriteRequest(
+  request: Request,
+  security: DashboardSecurityContext | undefined,
+): Response | undefined {
+  if (security === undefined) return undefined;
+  const token = request.headers.get('x-nectar-dashboard-token');
+  if (token !== security.token) return jsonResponse({ error: 'dashboard token is required' }, 403);
+  const origin = request.headers.get('origin');
+  if (origin !== null && origin !== security.origin) {
+    return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
+  }
+  const referer = request.headers.get('referer');
+  if (origin === null && referer !== null) {
+    try {
+      if (new URL(referer).origin !== security.origin) {
+        return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
+      }
+    } catch {
+      return jsonResponse({ error: 'invalid referer' }, 403);
+    }
+  }
+  return undefined;
+}
+
+interface ChangeBusEventInput {
+  reason: string;
+  kind?: EditableKind | 'settings' | 'project';
+  changedPath?: string;
+}
+
+export interface ChangeBus {
+  broadcast(event: ChangeBusEventInput | string): void;
+  snapshot(watch?: DashboardWatchMetadata): DashboardSyncSnapshot;
   stream(): Response;
 }
 
-function createChangeBus(): ChangeBus {
+export function createChangeBus(options: { debounceMs?: number } = {}): ChangeBus {
   const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
   const encoder = new TextEncoder();
-  return {
-    broadcast(reason: string) {
-      const payload = encoder.encode(
-        `event: sync\ndata: ${JSON.stringify({ reason, at: new Date().toISOString() })}\n\n`,
-      );
-      for (const client of clients) {
-        try {
-          client.enqueue(payload);
-        } catch {
-          clients.delete(client);
-        }
+  const activity: DashboardSyncEvent[] = [];
+  let lastEvent: DashboardSyncEvent | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: ChangeBusEventInput | undefined;
+  const debounceMs = options.debounceMs ?? WATCH_DEBOUNCE_MS;
+  const emit = (input: ChangeBusEventInput): void => {
+    const event: DashboardSyncEvent = { ...input, at: new Date().toISOString() };
+    lastEvent = event;
+    activity.unshift(event);
+    if (activity.length > ACTIVITY_LIMIT) activity.length = ACTIVITY_LIMIT;
+    const payload = encoder.encode(`event: sync\ndata: ${JSON.stringify(event)}\n\n`);
+    for (const client of clients) {
+      try {
+        client.enqueue(payload);
+      } catch {
+        clients.delete(client);
       }
+    }
+  };
+  return {
+    broadcast(event: ChangeBusEventInput | string) {
+      const input = typeof event === 'string' ? { reason: event } : event;
+      if (input.reason === 'file-change') {
+        pending = input;
+        if (timer !== undefined) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = undefined;
+          if (pending) emit(pending);
+          pending = undefined;
+        }, debounceMs);
+        return;
+      }
+      emit(input);
+    },
+    snapshot(watch?: DashboardWatchMetadata) {
+      return defaultSyncSnapshot({
+        watchedPaths: watch?.watchedPaths ?? [],
+        watchWarnings: watch?.warnings ?? [],
+        warnings: watch?.warnings ?? [],
+        lastEvent,
+        activity: [...activity],
+      });
     },
     stream() {
       const stream = new ReadableStream<Uint8Array>({
@@ -780,7 +1240,7 @@ async function watchDashboardFiles({
   cwd: string;
   configPath?: string;
   changeBus: ChangeBus;
-}): Promise<FSWatcher[]> {
+}): Promise<DashboardWatchMetadata & { watchers: FSWatcher[] }> {
   const config = await loadConfig({ cwd, configPath });
   const paths = [
     resolveConfigPath(cwd, configPath),
@@ -790,31 +1250,32 @@ async function watchDashboardFiles({
     absolutise(cwd, config.content.tags_dir),
   ];
   const watchers: FSWatcher[] = [];
+  const watchedPaths: string[] = [];
+  const warnings: string[] = [];
   for (const path of paths) {
     if (!existsSync(path)) continue;
     try {
-      watchers.push(fsWatch(path, { recursive: true }, () => changeBus.broadcast('file-change')));
-    } catch (err) {
-      logger.warn(
-        `Dashboard could not watch ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      watchers.push(
+        fsWatch(path, { recursive: true }, (_event, filename) => {
+          changeBus.broadcast({
+            reason: 'file-change',
+            changedPath:
+              filename === null || filename === undefined
+                ? relativePath(cwd, path)
+                : relativePath(cwd, join(path, String(filename))),
+          });
+        }),
       );
+      watchedPaths.push(relativePath(cwd, path));
+    } catch (err) {
+      const warning = `Dashboard could not watch ${path}: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+      warnings.push(warning);
+      logger.warn(warning);
     }
   }
-  return watchers;
-}
-
-function waitForShutdownSignal(): Promise<NodeJS.Signals> {
-  return new Promise((resolveSignal) => {
-    const done = (signal: NodeJS.Signals): void => {
-      process.off('SIGINT', onInt);
-      process.off('SIGTERM', onTerm);
-      resolveSignal(signal);
-    };
-    const onInt = (): void => done('SIGINT');
-    const onTerm = (): void => done('SIGTERM');
-    process.once('SIGINT', onInt);
-    process.once('SIGTERM', onTerm);
-  });
+  return { watchers, watchedPaths, warnings };
 }
 
 function openBrowser(url: string): void {
@@ -827,7 +1288,8 @@ function openBrowser(url: string): void {
   Bun.spawn(command, { stdout: 'ignore', stderr: 'ignore' });
 }
 
-function renderDashboardHtml(): string {
+function renderDashboardHtml(token: string): string {
+  const escapedToken = JSON.stringify(token);
   return String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -856,6 +1318,8 @@ button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}.shell{
 </div>
 <aside class="editor" id="editor"><div class="panelHead"><h2 id="editorTitle">Editor</h2><button class="btn secondary" id="closeEditor">Close</button></div><div class="fields"><label class="field"><span>Title</span><input id="editTitle"></label><label class="field"><span>Status</span><select id="editStatus"><option>published</option><option>draft</option><option>scheduled</option></select></label></div><textarea id="editBody"></textarea><div><div class="notice" id="notice"></div><button class="btn" id="saveEditor">Save to file</button></div></aside>
 <script>
+const DASHBOARD_TOKEN=${escapedToken};
+const WRITE_HEADERS={'content-type':'application/json','x-nectar-dashboard-token':DASHBOARD_TOKEN};
 let state=null, view='posts', postsPage=1, pagesPage=1, current=null;
 const $=(id)=>document.getElementById(id);
 async function load(){ $('sync').textContent='reading files...'; const r=await fetch('/api/state?posts_page='+postsPage+'&pages_page='+pagesPage+'&per_page=12'); state=await r.json(); render(); $('sync').textContent='synced '+new Date(state.generatedAt).toLocaleTimeString(); }
@@ -864,9 +1328,9 @@ function renderContent(kind){ const list=state[kind]; $('kicker').textContent=ki
 function renderTax(kind){ const list=state[kind]; $('kicker').textContent=kind+' · taxonomy files'; $('newItem').style.display='inline-block'; $('content').innerHTML='<div class="panelHead"><h2>'+kind+'</h2><span class="meta">'+list.total+' files</span></div><table class="table"><thead><tr><th>Name</th><th>Posts</th><th>Path</th><th>URL</th><th></th></tr></thead><tbody>'+list.items.map(item=>'<tr><td><b>'+escapeHtml(item.name)+'</b><div class="slug">'+item.slug+'</div></td><td>'+item.count+'</td><td class="meta">'+escapeHtml(item.path||'generated from content references')+'</td><td class="meta">'+escapeHtml(item.url)+'</td><td>'+(item.editable?'<button class="btn secondary" data-edit="'+item.slug+'">Edit</button>':'<button class="btn secondary" disabled>Missing file</button>')+'</td></tr>').join('')+'</tbody></table>'; document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(kind,b.dataset.edit)); }
 function renderSettings(){ $('kicker').textContent='settings · nectar.toml'; $('newItem').style.display='none'; const s=state.settings; $('content').innerHTML='<div class="panelHead"><h2>Project settings</h2><span class="meta">'+escapeHtml(s.configPath)+'</span></div><div class="settingsGrid"><label class="field"><span>Site title</span><input id="setTitle" value="'+escapeAttr(state.site.title)+'"></label><label class="field"><span>Accent color</span><input id="setAccent" value="'+escapeAttr(state.site.accentColor)+'"></label><label class="field wide"><span>Description</span><input id="setDescription" value="'+escapeAttr(state.site.description)+'"></label><label class="field wide"><span>Site URL</span><input id="setUrl" value="'+escapeAttr(state.site.url)+'"></label><label class="field"><span>Theme</span><input value="'+escapeAttr(s.theme)+'" disabled></label><label class="field"><span>Output</span><input value="'+escapeAttr(s.outputDir)+'" disabled></label><label class="field"><span>Posts dir</span><input value="'+escapeAttr(s.contentDirs.posts)+'" disabled></label><label class="field"><span>Pages dir</span><input value="'+escapeAttr(s.contentDirs.pages)+'" disabled></label><div class="field wide"><span id="settingsNotice" class="notice"></span><button class="btn" id="saveSettings">Save settings</button></div></div>'; $('saveSettings').onclick=saveSettings; }
 async function openEditor(kind,slug){ const r=await fetch('/api/content/'+kind+'/'+slug); current=await r.json(); $('editorTitle').textContent=current.path; $('editTitle').value=current.frontmatter.title||current.frontmatter.name||''; $('editStatus').value=current.frontmatter.status||'published'; $('editStatus').disabled=kind!=='posts'&&kind!=='pages'; $('editBody').value=current.body; $('notice').textContent=''; $('editor').classList.add('open'); }
-async function saveEditor(){ if(!current)return; const fm={...current.frontmatter}; if(current.kind==='posts'||current.kind==='pages'){ fm.title=$('editTitle').value; fm.status=$('editStatus').value; fm.updated_at=new Date().toISOString(); } else { fm.name=$('editTitle').value; } const r=await fetch('/api/content/'+current.kind+'/'+current.slug,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({fingerprint:current.fingerprint,frontmatter:fm,body:$('editBody').value})}); const data=await r.json(); if(r.status===409){ current=data.current; $('notice').textContent='This file changed on disk. Reloaded latest version; review before saving.'; $('editBody').value=current.body; return; } current=null; $('editor').classList.remove('open'); await load(); }
-async function saveSettings(){ const updates={title:$('setTitle').value,description:$('setDescription').value,url:$('setUrl').value,accent_color:$('setAccent').value}; const r=await fetch('/api/settings/site',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({fingerprint:state.settings.fingerprint,updates})}); const data=await r.json(); if(r.status===409){ $('settingsNotice').textContent='nectar.toml changed on disk. Reloaded latest settings; review before saving.'; await load(); return; } if(!r.ok){ $('settingsNotice').textContent=data.error||'Could not save settings'; return; } await load(); if($('settingsNotice')) $('settingsNotice').textContent='Saved to nectar.toml'; }
-async function createItem(){ const title=prompt('Title or name'); if(!title)return; const kind=view==='settings'?'posts':view; const r=await fetch('/api/content',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,title})}); if(!r.ok){ alert((await r.json()).error||'Could not create file'); return; } await load(); }
+async function saveEditor(){ if(!current)return; const fm={...current.frontmatter}; if(current.kind==='posts'||current.kind==='pages'){ fm.title=$('editTitle').value; fm.status=$('editStatus').value; fm.updated_at=new Date().toISOString(); } else { fm.name=$('editTitle').value; } const r=await fetch('/api/content/'+current.kind+'/'+current.slug,{method:'PUT',headers:WRITE_HEADERS,body:JSON.stringify({fingerprint:current.fingerprint,frontmatter:fm,body:$('editBody').value})}); const data=await r.json(); if(r.status===409){ current=data.current; $('notice').textContent='This file changed on disk. Reloaded latest version; review before saving.'; $('editBody').value=current.body; return; } current=null; $('editor').classList.remove('open'); await load(); }
+async function saveSettings(){ const updates={title:$('setTitle').value,description:$('setDescription').value,url:$('setUrl').value,accent_color:$('setAccent').value}; const r=await fetch('/api/settings/site',{method:'PATCH',headers:WRITE_HEADERS,body:JSON.stringify({fingerprint:state.settings.fingerprint,updates})}); const data=await r.json(); if(r.status===409){ $('settingsNotice').textContent='nectar.toml changed on disk. Reloaded latest settings; review before saving.'; await load(); return; } if(!r.ok){ $('settingsNotice').textContent=data.error||'Could not save settings'; return; } await load(); if($('settingsNotice')) $('settingsNotice').textContent='Saved to nectar.toml'; }
+async function createItem(){ const title=prompt('Title or name'); if(!title)return; const kind=view==='settings'?'posts':view; const r=await fetch('/api/content',{method:'POST',headers:WRITE_HEADERS,body:JSON.stringify({kind,title})}); if(!r.ok){ alert((await r.json()).error||'Could not create file'); return; } await load(); }
 function date(v){ return new Date(v).toLocaleDateString(); } function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); } function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{view=b.dataset.view;load();}); $('refresh').onclick=load; $('newItem').onclick=createItem; $('closeEditor').onclick=()=>$('editor').classList.remove('open'); $('saveEditor').onclick=saveEditor;
 new EventSource('/api/events').addEventListener('sync',()=>load()); load();

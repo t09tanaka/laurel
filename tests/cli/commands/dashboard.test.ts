@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  createChangeBus,
+  handleDashboardRequest,
   loadDashboardState,
   readDashboardContentItem,
   readDashboardSettings,
@@ -102,6 +104,69 @@ describe('dashboard data', () => {
       expect(state.tags.items[0]?.editable).toBe(true);
       expect(state.tags.items[0]?.path).toBe('content/tags/news.md');
       expect(state.settings.configPath).toBe('nectar.toml');
+      expect(state.sync.status).toBe('synced');
+      expect(state.sync.loadStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(state.build.outputDir).toBe('dist');
+      expect(state.git.isRepo).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('filters, searches, and sorts dashboard content through the state contract', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const state = await loadDashboardState({
+        cwd: dir,
+        kind: 'posts',
+        status: 'published',
+        search: 'old',
+        sort: 'created_asc',
+        perPage: 10,
+      });
+
+      expect(state.posts.items.map((item) => item.slug)).toEqual(['old']);
+      expect(state.posts.query).toEqual({
+        kind: 'posts',
+        status: 'published',
+        search: 'old',
+        sort: 'created_asc',
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('marks generated and orphaned taxonomy records in the API response', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/tagged.md'),
+        [
+          '---',
+          'title: Tagged Post',
+          'date: 2026-01-04T00:00:00Z',
+          'created_at: 2026-01-04T00:00:00Z',
+          'tags:',
+          '  - Ghosted',
+          '---',
+          '',
+          'Tagged body',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const state = await loadDashboardState({ cwd: dir });
+
+      const fileBacked = state.tags.items.find((item) => item.slug === 'news');
+      expect(fileBacked?.editable).toBe(true);
+      expect(fileBacked?.orphaned).toBe(true);
+      const generated = state.tags.items.find((item) => item.slug === 'ghosted');
+      expect(generated?.editable).toBe(false);
+      expect(generated?.missing).toBe(true);
+      expect(generated?.generated).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -142,6 +207,10 @@ describe('dashboard data', () => {
       expect(stale.ok).toBe(false);
       if (stale.ok) throw new Error('expected conflict');
       expect(stale.reason).toBe('conflict');
+      if (stale.reason !== 'conflict') throw new Error('expected content conflict');
+      expect(stale.changedPath).toBe('content/posts/new.md');
+      expect(stale.conflict.body.current).toContain('Changed outside the dashboard');
+      expect(stale.conflict.body.draft).toBe('Dashboard body');
       expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toContain(
         'Changed outside the dashboard',
       );
@@ -198,11 +267,117 @@ describe('dashboard data', () => {
       });
 
       expect(written.ok).toBe(true);
+      if (!written.ok) throw new Error('expected settings write');
+      expect(written.changedPath).toBe('nectar.toml');
       expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain(
         'title = "Created Dashboard Config"',
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  test('rejects dashboard writes through symlinks that resolve outside content directories', async () => {
+    const dir = await makeDashboardFixture();
+    const outside = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-outside-')));
+    try {
+      await writeFile(join(outside, 'secret.md'), '---\nname: Secret\n---\n', 'utf8');
+      await symlink(join(outside, 'secret.md'), join(dir, 'content/tags/secret.md'));
+
+      const config = await loadConfig({ cwd: dir });
+      const result = await writeDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'tags',
+        slug: 'secret',
+        expectedFingerprint: { path: 'content/tags/secret.md', mtimeMs: 0, size: 0 },
+        frontmatter: { name: 'Leaked' },
+        body: '',
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected forbidden symlink write');
+      expect(result.reason).toBe('forbidden');
+      expect(await readFile(join(outside, 'secret.md'), 'utf8')).toContain('Secret');
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('protects write APIs with same-origin token checks and request body limits', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'new' });
+      const changeBus = createChangeBus({ debounceMs: 1 });
+      const base = {
+        cwd: dir,
+        changeBus,
+        security: {
+          origin: 'http://127.0.0.1:4322',
+          token: 'dashboard-token',
+          lanExposed: false,
+        },
+        maxBodyBytes: 180,
+      };
+      const body = JSON.stringify({
+        fingerprint: item.fingerprint,
+        frontmatter: item.frontmatter,
+        body: 'Saved',
+      });
+
+      const csrf = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/content/posts/new', {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'http://evil.test',
+            'x-nectar-dashboard-token': 'dashboard-token',
+          },
+          body,
+        }),
+        base,
+      );
+      expect(csrf.status).toBe(403);
+
+      const tooLarge = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/content/posts/new', {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'http://127.0.0.1:4322',
+            'x-nectar-dashboard-token': 'dashboard-token',
+            'content-length': '181',
+          },
+          body,
+        }),
+        base,
+      );
+      expect(tooLarge.status).toBe(413);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('records debounced file activity for sync metadata and SSE payloads', async () => {
+    const bus = createChangeBus({ debounceMs: 1 });
+
+    bus.broadcast({
+      reason: 'file-change',
+      kind: 'posts',
+      changedPath: 'content/posts/new.md',
+    });
+    bus.broadcast({
+      reason: 'file-change',
+      kind: 'posts',
+      changedPath: 'content/posts/new.md',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const snapshot = bus.snapshot();
+    expect(snapshot.lastEvent?.reason).toBe('file-change');
+    expect(snapshot.lastEvent?.changedPath).toBe('content/posts/new.md');
+    expect(snapshot.activity).toHaveLength(1);
   });
 });
