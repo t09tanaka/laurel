@@ -212,10 +212,22 @@ export interface Post {
   // and root-level `ctx.access` cover the *site* access policy and are
   // intentionally separate — see #208.
   access: false;
+  email_subject?: string | undefined;
+  send_email_when_published?: boolean | undefined;
+  count?: PostEngagementCount | undefined;
   prev: Post | undefined;
   next: Post | undefined;
   feed_html: string;
   feed_excerpt: string;
+}
+
+export interface PostEngagementCount {
+  signups?: number | undefined;
+  clicks?: number | undefined;
+  comments?: number | undefined;
+  conversions?: number | undefined;
+  positive_feedback?: number | undefined;
+  negative_feedback?: number | undefined;
 }
 
 export interface Page {

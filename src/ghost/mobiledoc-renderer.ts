@@ -26,6 +26,7 @@ import {
   renderImageCardHtml,
   renderMarkdownCardHtml,
   renderProductCardHtml,
+  renderSignupCardHtml,
   renderToggleCardHtml,
   renderVideoCardHtml,
 } from './koenig-card-html.ts';
@@ -240,15 +241,16 @@ function renderCard(name: unknown, payload: Record<string, unknown>): string {
       return renderProductCardHtml(payload);
     case 'header':
       return renderHeaderCardHtml(payload);
+    case 'signup':
+      return renderSignupCardHtml(payload);
     case 'hr':
     case 'horizontalrule':
       return '<hr>';
     case 'paywall':
       return '<!--members-only-->';
-    // Newsletter-only and signup cards should not render on the public web.
+    // Newsletter-only cards should not render on the public web.
     case 'email':
     case 'email-cta':
-    case 'signup':
       return '';
     default:
       return '';

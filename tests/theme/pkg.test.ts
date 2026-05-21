@@ -89,6 +89,17 @@ describe('loadThemePackage schema validation', () => {
     expect(pkg.members).toBe('required');
   });
 
+  test('preserves engines.ghost compatibility range', async () => {
+    const dir = await makeThemeDir({
+      engines: {
+        ghost: '>=5.0.0',
+      },
+    });
+
+    const pkg = await loadThemePackage(dir);
+    expect(pkg.engines?.ghost).toBe('>=5.0.0');
+  });
+
   test('treats legacy card_assets arrays as exclude lists', async () => {
     const dir = await makeThemeDir({
       config: {

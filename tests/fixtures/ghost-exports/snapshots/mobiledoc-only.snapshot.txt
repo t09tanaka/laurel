@@ -21,9 +21,12 @@ slugCollisions: 0
 # tree
 === content/posts/mobiledoc-only.md ===
 ---
+id: "p-md-1"
+uuid: "bbbbbbbb-2222-2222-2222-222222222222"
 slug: "mobiledoc-only"
 title: "Mobiledoc Only Post"
 date: "2020-03-01T09:00:00.000Z"
+created_at: "2020-03-01T08:00:00.000Z"
 updated_at: "2020-03-01T09:00:00.000Z"
 featured: false
 visibility: "public"

@@ -102,8 +102,9 @@ export function renderCodeCardHtml(payload: unknown): string {
   const caption = strProp(payload, 'caption');
   const langClass = language ? ` class="language-${escapeAttr(language)}"` : '';
   const pre = `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
-  if (!caption) return pre;
-  return `<figure class="kg-card kg-code-card kg-card-hascaption">${pre}<figcaption>${caption}</figcaption></figure>`;
+  const button = '<button class="kg-code-card-copy" type="button">Copy</button>';
+  const figcap = caption ? `<figcaption>${caption}</figcaption>` : '';
+  return `<figure class="kg-card kg-code-card${hasCaptionClass(caption)}">${button}${pre}${figcap}</figure>`;
 }
 
 function normalizeCodeLanguage(raw: string): string {
@@ -181,6 +182,43 @@ export function renderHeaderCardHtml(payload: unknown): string {
   const isV2 =
     version === 'v2' || strProp(payload, 'layout') !== '' || strProp(payload, 'alignment') !== '';
   return isV2 ? renderHeaderCardV2Html(payload) : renderHeaderCardV1Html(payload);
+}
+
+export function renderSignupCardHtml(payload: unknown): string {
+  const heading = strProp(payload, 'heading') || strProp(payload, 'title');
+  const subheading = strProp(payload, 'subheading') || strProp(payload, 'description');
+  const buttonText =
+    strProp(payload, 'buttonText') || strProp(payload, 'button_text') || 'Subscribe';
+  const placeholder =
+    strProp(payload, 'emailPlaceholder') ||
+    strProp(payload, 'email_placeholder') ||
+    'you@example.com';
+  const disclaimer = strProp(payload, 'disclaimer');
+  const image =
+    strProp(payload, 'image') || strProp(payload, 'imageUrl') || strProp(payload, 'src');
+  const layout = strProp(payload, 'layout');
+  const style = strProp(payload, 'style');
+  const classes = [
+    'kg-card kg-signup-card',
+    tokenClass('kg-width', strProp(payload, 'cardWidth') || strProp(payload, 'width')),
+    tokenClass('kg-style', style),
+    tokenClass('kg-align', strProp(payload, 'alignment') || strProp(payload, 'align')),
+    layout ? tokenClass('kg-signup-card-image', layout) : '',
+  ].join('');
+  const imageHtml = image
+    ? `<img class="kg-signup-card-image" src="${escapeAttr(image)}" alt="" loading="lazy">`
+    : '';
+  const headingHtml = heading
+    ? `<h2 class="kg-signup-card-heading">${escapeHtml(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<p class="kg-signup-card-subheading">${escapeHtml(subheading)}</p>`
+    : '';
+  const form = `<form class="kg-signup-card-form" data-members-form="signup"><div class="kg-signup-card-fields"><input class="kg-signup-card-input" type="email" name="email" placeholder="${escapeAttr(placeholder)}" required data-members-email></div><button class="kg-signup-card-button" type="submit">${escapeHtml(buttonText)}</button><p class="kg-signup-card-success" data-members-success hidden></p><p class="kg-signup-card-error" data-members-error hidden></p></form>`;
+  const disclaimerHtml = disclaimer
+    ? `<p class="kg-signup-card-disclaimer">${escapeHtml(disclaimer)}</p>`
+    : '';
+  return `<div class="${classes}">${imageHtml}<div class="kg-signup-card-content">${headingHtml}${subheadingHtml}${form}${disclaimerHtml}</div></div>`;
 }
 
 function renderHeaderCardV1Html(payload: unknown): string {

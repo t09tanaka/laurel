@@ -30,6 +30,8 @@ website: "https://example.com/alice"
 
 === content/pages/about.md ===
 ---
+id: "pg-about"
+uuid: "33333333-3333-3333-3333-333333333333"
 slug: "about"
 title: "About Us"
 date: "2024-01-01T08:00:00.000Z"
@@ -45,9 +47,12 @@ A small team writing about software.
 
 === content/posts/draft-post.md ===
 ---
+id: "p-draft"
+uuid: "22222222-2222-2222-2222-222222222222"
 slug: "draft-post"
 title: "Draft Post"
 date: "2024-01-03T10:00:00.000Z"
+created_at: "2024-01-03T10:00:00.000Z"
 featured: false
 visibility: "public"
 status: "draft"
@@ -59,9 +64,12 @@ Still cooking, do not publish yet.
 
 === content/posts/welcome.md ===
 ---
+id: "p-welcome"
+uuid: "11111111-1111-1111-1111-111111111111"
 slug: "welcome"
 title: "Welcome to the Blog"
 date: "2024-01-01T09:00:00.000Z"
+created_at: "2024-01-01T08:00:00.000Z"
 updated_at: "2024-01-02T09:00:00.000Z"
 featured: true
 feature_image: "/content/images/2024/01/cover.jpg"

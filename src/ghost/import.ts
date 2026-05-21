@@ -59,6 +59,7 @@ interface GhostExportDbEntry {
     posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
     posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
     posts_tiers?: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
+    posts_meta?: GhostPostMeta[];
   };
 }
 
@@ -75,6 +76,7 @@ const GHOST_EXPORT_TABLE_KEYS = [
   'posts_tags',
   'posts_authors',
   'posts_tiers',
+  'posts_meta',
 ] as const;
 
 interface MergedGhostData {
@@ -86,6 +88,7 @@ interface MergedGhostData {
   postsTags: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
   postsAuthors: Array<{ post_id: string; user_id: string; sort_order?: number }>;
   postsTiers: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
+  postsMeta: GhostPostMeta[];
 }
 
 interface GhostPost {
@@ -104,6 +107,10 @@ interface GhostPost {
   status?: string;
   visibility?: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
   tiers?: GhostTier[] | null;
+  email_subject?: string | null;
+  email_only?: boolean | 0 | 1 | null;
+  send_email_when_published?: boolean | 0 | 1 | null;
+  show_title_and_feature_image?: boolean | 0 | 1 | null;
   custom_excerpt?: string | null;
   published_at?: string | null;
   updated_at?: string | null;
@@ -119,6 +126,19 @@ interface GhostPost {
   canonical_url?: string | null;
   codeinjection_head?: string | null;
   codeinjection_foot?: string | null;
+}
+
+interface GhostPostMeta {
+  post_id?: string | null;
+  email_subject?: string | null;
+  email_only?: boolean | 0 | 1 | null;
+  send_email_when_published?: boolean | 0 | 1 | null;
+  signups?: number | string | null;
+  clicks?: number | string | null;
+  comments?: number | string | null;
+  conversions?: number | string | null;
+  positive_feedback?: number | string | null;
+  negative_feedback?: number | string | null;
 }
 
 interface GhostTier {
@@ -436,6 +456,7 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     postsTags: [],
     postsAuthors: [],
     postsTiers: [],
+    postsMeta: [],
   };
 
   let sawData = false;
@@ -451,6 +472,7 @@ function mergeGhostDbEntries(db: GhostExportDbEntry[] | undefined): MergedGhostD
     if (d.posts_tags) merged.postsTags.push(...d.posts_tags);
     if (d.posts_authors) merged.postsAuthors.push(...d.posts_authors);
     if (d.posts_tiers) merged.postsTiers.push(...d.posts_tiers);
+    if (d.posts_meta) merged.postsMeta.push(...d.posts_meta);
   }
 
   if (!sawData) {
@@ -600,7 +622,7 @@ async function importFromResolvedInput(
     throw new Error(`Invalid JSON in Ghost export: ${resolved.jsonFile}${reason}`);
   }
   const parsed = validateGhostExportShape(stripGhostUrlPlaceholder(parsedJson));
-  const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers } =
+  const { posts, tags, users, tiers, settings, postsTags, postsAuthors, postsTiers, postsMeta } =
     mergeGhostDbEntries(parsed.db);
   const filters = resolveImportFilters(opts);
 
@@ -658,6 +680,11 @@ async function importFromResolvedInput(
   const postsTagsByPost = groupBySortedByOrder(postsTags, (r) => r.post_id);
   const postsAuthorsByPost = groupBySortedByOrder(postsAuthors, (r) => r.post_id);
   const postsTiersByPost = groupBySortedByOrder(postsTiers, (r) => r.post_id);
+  const postMetaByPost = new Map(
+    postsMeta
+      .filter((row) => typeof row.post_id === 'string' && row.post_id.length > 0)
+      .map((row) => [row.post_id as string, row] as const),
+  );
 
   const tagSlugsForPost = (postId: string): string[] =>
     (postsTagsByPost.get(postId) ?? [])
@@ -722,6 +749,7 @@ async function importFromResolvedInput(
           tagSlugsForPost,
           authorSlugsForPost,
           tierSlugsForPost,
+          metaForPost: (postId) => postMetaByPost.get(postId),
         }).finally(reportPostProgress),
       ),
     ),
@@ -1643,6 +1671,7 @@ interface RenderPostContext {
   tagSlugsForPost: (postId: string) => string[];
   authorSlugsForPost: (postId: string) => string[];
   tierSlugsForPost: (postId: string) => string[];
+  metaForPost: (postId: string) => GhostPostMeta | undefined;
 }
 
 async function resolvePostPageSlugClaim(
@@ -1799,6 +1828,14 @@ async function renderPostRecord(
     ? undefined
     : uniqueStrings([...ctx.tierSlugsForPost(post.id), ...tierSlugsFromPost(post.tiers)]);
   const authorSlugs = ctx.authorSlugsForPost(post.id);
+  const postMeta = ctx.metaForPost(post.id);
+  const emailOnlyRaw = post.email_only ?? postMeta?.email_only;
+  const sendEmailRaw = post.send_email_when_published ?? postMeta?.send_email_when_published;
+  const showTitleRaw = post.show_title_and_feature_image;
+  const emailSubject = post.email_subject ?? postMeta?.email_subject ?? undefined;
+  const emailOnly = boolFromGhost(emailOnlyRaw, false);
+  const sendEmailWhenPublished = boolFromGhost(sendEmailRaw, false);
+  const count = postEngagementCount(postMeta);
   const frontmatter = buildFrontmatter({
     id: post.id,
     uuid: post.uuid ?? undefined,
@@ -1826,6 +1863,19 @@ async function renderPostRecord(
     twitter_description: post.twitter_description ?? undefined,
     twitter_image,
     canonical_url: post.canonical_url ?? undefined,
+    email_subject: isPage ? undefined : emailSubject,
+    email_only:
+      isPage || emailOnlyRaw === undefined || emailOnlyRaw === null ? undefined : emailOnly,
+    send_email_when_published:
+      isPage || sendEmailRaw === undefined || sendEmailRaw === null
+        ? undefined
+        : sendEmailWhenPublished,
+    count: isPage ? undefined : count,
+    show_title_and_feature_image: isPage
+      ? showTitleRaw === undefined || showTitleRaw === null
+        ? undefined
+        : boolFromGhost(showTitleRaw, true)
+      : undefined,
     codeinjection_head,
     codeinjection_foot,
   });
@@ -1951,6 +2001,42 @@ function tierSlug(tier: GhostTier | undefined): string {
 function tierSlugsFromPost(tiers: GhostPost['tiers']): string[] {
   if (!Array.isArray(tiers)) return [];
   return tiers.map(tierSlug).filter((slug): slug is string => slug.length > 0);
+}
+
+function boolFromGhost(value: boolean | 0 | 1 | null | undefined, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (value === 1) return true;
+  if (value === 0) return false;
+  return fallback;
+}
+
+function postEngagementCount(meta: GhostPostMeta | undefined): Record<string, number> | undefined {
+  if (!meta) return undefined;
+  const out: Record<string, number> = {};
+  for (const key of [
+    'signups',
+    'clicks',
+    'comments',
+    'conversions',
+    'positive_feedback',
+    'negative_feedback',
+  ] as const) {
+    const value = nonNegativeInt(meta[key]);
+    if (value !== undefined) out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function nonNegativeInt(value: number | string | null | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const n = Math.trunc(value);
+    return n >= 0 ? n : undefined;
+  }
+  if (typeof value === 'string') {
+    const n = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  }
+  return undefined;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

@@ -241,6 +241,38 @@ describe('renderLexicalToHtml', () => {
     );
   });
 
+  test('renders code cards with Ghost-compatible wrapper and copy control', () => {
+    const out = renderLexicalToHtml(
+      lex([{ type: 'code', code: 'console.log("x")', language: 'js', version: 1 }]),
+    );
+
+    expect(out).toBe(
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-js">console.log("x")</code></pre></figure>',
+    );
+  });
+
+  test('renders signup cards for public web output', () => {
+    const out = renderLexicalToHtml(
+      lex([
+        {
+          type: 'signup',
+          heading: 'Join the newsletter',
+          subheading: 'One short digest.',
+          buttonText: 'Subscribe',
+          emailPlaceholder: 'reader@example.com',
+          cardWidth: 'wide',
+          version: 1,
+        },
+      ]),
+    );
+
+    expect(out).toContain('class="kg-card kg-signup-card kg-width-wide"');
+    expect(out).toContain('<h2 class="kg-signup-card-heading">Join the newsletter</h2>');
+    expect(out).toContain('data-members-form="signup"');
+    expect(out).toContain('data-members-email');
+    expect(out).toContain('placeholder="reader@example.com"');
+  });
+
   test('lazy-loads iframe embed card html', () => {
     const out = renderLexicalToHtml(
       lex([
@@ -342,7 +374,7 @@ describe('renderLexicalToHtml', () => {
       ]),
     );
     expect(out).toBe(
-      '<pre><code class="language-typescript">const answer: number = 42;</code></pre>',
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-typescript">const answer: number = 42;</code></pre></figure>',
     );
   });
 
@@ -493,7 +525,7 @@ describe('renderLexicalToHtml', () => {
     expect(out).toContain('data-button-color="#f6c344"');
   });
 
-  test('preserves paywall card boundary and omits other members-only cards', () => {
+  test('preserves paywall card boundary, renders signup, and omits email-only cards', () => {
     const out = renderLexicalToHtml(
       lex([
         { type: 'paywall', version: 1 },
@@ -503,7 +535,10 @@ describe('renderLexicalToHtml', () => {
         { type: 'paragraph', children: [text('public')], version: 1 },
       ]),
     );
-    expect(out).toBe('<!--members-only--><p>public</p>');
+    expect(out).toContain('<!--members-only-->');
+    expect(out).toContain('class="kg-card kg-signup-card"');
+    expect(out).toContain('data-members-form="signup"');
+    expect(out).toContain('<p>public</p>');
   });
 
   test('walks children of unknown node types so nested text survives', () => {

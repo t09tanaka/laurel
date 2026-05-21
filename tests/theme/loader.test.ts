@@ -130,6 +130,64 @@ describe('loadTheme', () => {
     });
   });
 
+  test('warns when package.json engines.ghost excludes Ghost 5 compatibility', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'ghost-six-only');
+      await mkdir(themeRoot, { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(
+        join(themeRoot, 'package.json'),
+        JSON.stringify({
+          name: 'ghost-six-only',
+          engines: { ghost: '^6.0.0' },
+        }),
+        'utf8',
+      );
+
+      const config = configSchema.parse({
+        theme: { name: 'ghost-six-only', dir: 'themes' },
+        site: { title: 'Ghost Six', url: 'https://ghost-six.example.com' },
+      });
+      const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        await loadTheme({ cwd, config });
+        expect(warn).toHaveBeenCalledWith(
+          'Theme package.json declares engines.ghost = "^6.0.0", which does not include Ghost 5.x; Nectar targets Ghost 5 theme compatibility.',
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  test('accepts package.json engines.ghost ranges that include Ghost 5', async () => {
+    await withTempDir(async (cwd) => {
+      const themeRoot = join(cwd, 'themes', 'ghost-five-compatible');
+      await mkdir(themeRoot, { recursive: true });
+      await writeFile(join(themeRoot, 'default.hbs'), '{{{body}}}', 'utf8');
+      await writeFile(
+        join(themeRoot, 'package.json'),
+        JSON.stringify({
+          name: 'ghost-five-compatible',
+          engines: { ghost: '>=5.0.0 <6.0.0' },
+        }),
+        'utf8',
+      );
+
+      const config = configSchema.parse({
+        theme: { name: 'ghost-five-compatible', dir: 'themes' },
+        site: { title: 'Ghost Five', url: 'https://ghost-five.example.com' },
+      });
+      const warn = spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        await loadTheme({ cwd, config });
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
   test('discovers Headline-style empty custom-* templates as template variants', async () => {
     await withTempDir(async (cwd) => {
       const themeRoot = join(cwd, 'themes', 'headline');

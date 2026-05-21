@@ -96,6 +96,18 @@ const entryBaseFields = {
   ...codeInjectionFields,
 } satisfies z.ZodRawShape;
 
+const postEngagementCountSchema = z
+  .object({
+    signups: z.number().int().nonnegative().optional(),
+    clicks: z.number().int().nonnegative().optional(),
+    comments: z.number().int().nonnegative().optional(),
+    conversions: z.number().int().nonnegative().optional(),
+    positive_feedback: z.number().int().nonnegative().optional(),
+    negative_feedback: z.number().int().nonnegative().optional(),
+  })
+  .optional()
+  .describe('Ghost engagement counters imported from posts_meta.');
+
 export const postFrontmatterSchema = z
   .object({
     ...entryBaseFields,
@@ -113,6 +125,13 @@ export const postFrontmatterSchema = z
       .optional()
       .default(false)
       .describe('Exclude the post from public web routes and collections.'),
+    email_subject: z.string().optional().describe('Ghost newsletter subject override.'),
+    send_email_when_published: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Whether Ghost would send this post as email when published.'),
+    count: postEngagementCountSchema,
   })
   .passthrough()
   .describe('Frontmatter for content/posts/*.md.');

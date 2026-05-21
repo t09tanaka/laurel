@@ -552,6 +552,68 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
   });
 });
 
+describe('importGhostExport — Ghost post metadata compatibility', () => {
+  test('preserves page title/feature-image visibility and post email metadata', async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-meta-')));
+    try {
+      const exportFile = join(cwd, 'export.json');
+      await writeFile(
+        exportFile,
+        JSON.stringify({
+          db: [
+            {
+              data: {
+                posts: [
+                  {
+                    id: 'page-1',
+                    title: 'About',
+                    slug: 'about',
+                    html: '<p>About</p>',
+                    status: 'published',
+                    type: 'page',
+                    show_title_and_feature_image: false,
+                  },
+                  {
+                    id: 'post-1',
+                    title: 'Newsletter',
+                    slug: 'newsletter',
+                    html: '<p>News</p>',
+                    status: 'published',
+                    type: 'post',
+                    email_only: 1,
+                  },
+                ],
+                posts_meta: [
+                  {
+                    post_id: 'post-1',
+                    email_subject: 'Custom subject',
+                    send_email_when_published: 1,
+                    signups: 3,
+                    clicks: '4',
+                    comments: 2,
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+
+      await importGhostExport({ cwd, file: exportFile });
+
+      const page = await readFile(join(cwd, 'content/pages/about.md'), 'utf8');
+      const post = await readFile(join(cwd, 'content/posts/newsletter.md'), 'utf8');
+      expect(page).toContain('show_title_and_feature_image: false');
+      expect(post).toContain('email_only: true');
+      expect(post).toContain('email_subject: "Custom subject"');
+      expect(post).toContain('send_email_when_published: true');
+      expect(post).toContain('count: {"signups":3,"clicks":4,"comments":2}');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('importGhostExport — --keep-html (#808)', () => {
   let cwd: string;
   let exportFile: string;

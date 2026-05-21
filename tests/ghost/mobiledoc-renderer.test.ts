@@ -175,7 +175,9 @@ describe('renderMobiledocToHtml', () => {
         sections: [[10, 0]],
       }),
     );
-    expect(out).toBe('<pre><code class="language-python">x = 1</code></pre>');
+    expect(out).toBe(
+      '<figure class="kg-card kg-code-card"><button class="kg-code-card-copy" type="button">Copy</button><pre><code class="language-python">x = 1</code></pre></figure>',
+    );
   });
 
   test('marks callout cards without an emoji as iconless', () => {
@@ -263,14 +265,14 @@ describe('renderMobiledocToHtml', () => {
     expect(out).toBe('<p>a<br>b</p>');
   });
 
-  test('preserves paywall card boundary and drops other members-only cards', () => {
+  test('preserves paywall card boundary, renders signup, and drops email-only cards', () => {
     const out = renderMobiledocToHtml(
       mobi({
         cards: [
           ['paywall', {}],
           ['email', { html: '<p>x</p>' }],
           ['email-cta', {}],
-          ['signup', {}],
+          ['signup', { heading: 'Join', buttonText: 'Subscribe' }],
         ],
         sections: [
           [10, 0],
@@ -281,6 +283,10 @@ describe('renderMobiledocToHtml', () => {
         ],
       }),
     );
-    expect(out).toBe('<!--members-only--><p>public</p>');
+    expect(out).toContain('<!--members-only-->');
+    expect(out).toContain('class="kg-card kg-signup-card"');
+    expect(out).toContain('data-members-form="signup"');
+    expect(out).toContain('<p>public</p>');
+    expect(out).not.toContain('<p>x</p>');
   });
 });

@@ -22,11 +22,11 @@ const EXPECTED_LOSS = {
     sourceMarkers: ['kg-recommendations-card', 'kg-recommendation'],
     renderedLossMarkers: ['kg-recommendations-card', 'kg-recommendation'],
   },
-  signup: {
+  embed: {
     reason:
-      'Signup card import captures metadata as a Liquid shortcode, but renderMarkdown does not expand that shortcode into a kg-signup-card scaffold yet.',
-    sourceMarkers: ['kg-signup-card', 'data-members-form'],
-    renderedLossMarkers: ['kg-signup-card'],
+      'Unsupported provider embed fallbacks round-trip through Nectar bookmark-style fallback markup so ghost_head can hydrate provider scripts.',
+    sourceMarkers: ['kg-embed-card', 'https://twitter.com/jack/status/20</a>'],
+    renderedLossMarkers: ['https://twitter.com/jack/status/20</a>'],
   },
 } as const;
 
@@ -94,6 +94,9 @@ function canonicalizeNodes(nodes: ChildNode[], depth = 0): string[] {
 }
 
 function canonicalizeNode(node: ChildNode, depth: number): string[] {
+  if (isElement(node) && hasClass(node, 'kg-html-card')) {
+    return canonicalizeNodes(node.children, depth);
+  }
   if (isElement(node)) return canonicalizeElement(node, depth);
   if ('type' in node && node.type === 'comment') return [];
   if (!('data' in node)) return [];
@@ -110,7 +113,9 @@ function canonicalizeElement(node: Element, depth: number): string[] {
 }
 
 function canonicalChildren(node: Element): ChildNode[] {
-  if (!hasClass(node, 'kg-callout-text')) return node.children;
+  if (!hasClass(node, 'kg-callout-text') && !hasClass(node, 'kg-product-card-description')) {
+    return node.children;
+  }
   const significant = node.children.filter((child) => {
     if (!('data' in child)) return true;
     return normalizeText(child.data) !== '';
@@ -127,7 +132,12 @@ function normalizedAttrs(node: Element): string {
     .flatMap(([name, value]): Array<[string, string]> => {
       const normalizedName = name.toLowerCase();
       if (node.name === 'img' && normalizedName === 'loading' && value === 'lazy') return [];
+      if (normalizedName === 'data-nectar-embed-provider') return [];
+      if (normalizedName === 'data-members-email' || normalizedName === 'data-members-submit') {
+        return [];
+      }
       if (normalizedName === 'class') {
+        if (node.name === 'a' && value.split(/\s+/).includes('kg-embed-card-fallback')) return [];
         const classes = normalizeClasses(value);
         return classes ? [[normalizedName, classes]] : [];
       }

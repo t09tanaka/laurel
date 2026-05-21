@@ -25,6 +25,7 @@ import {
   renderImageCardHtml,
   renderMarkdownCardHtml,
   renderProductCardHtml,
+  renderSignupCardHtml,
   renderToggleCardHtml,
   renderVideoCardHtml,
 } from './koenig-card-html.ts';
@@ -132,12 +133,13 @@ function renderNode(node: unknown): string {
       return renderProductCardHtml(node);
     case 'header':
       return renderHeaderCardHtml(node);
+    case 'signup':
+      return renderSignupCardHtml(node);
     case 'paywall':
       return '<!--members-only-->';
-    // Newsletter-only and signup cards should not render on the public web.
+    // Newsletter-only cards should not render on the public web.
     case 'email':
     case 'email-cta':
-    case 'signup':
       return '';
     default:
       // Unknown node: walk children if any so nested text isn't lost. Common

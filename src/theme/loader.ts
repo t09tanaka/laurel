@@ -16,6 +16,7 @@ export interface LoadThemeOptions {
 
 export const THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING =
   'Theme package.json declares config.members = "required", but [components.portal].provider is "none". Configure a Portal provider before building this theme.';
+const GHOST_COMPAT_MAJOR = 5;
 export const THEME_EMAIL_TEMPLATE_NAMES = ['email', 'email-template'] as const;
 
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
@@ -67,6 +68,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
 
   const pkg = await loadThemePackage(rootDir);
   warnIfMembersRequiredWithoutPortal(pkg, config);
+  warnIfGhostEngineUnsupported(pkg);
   const locales = await loadLocales(rootDir);
   const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar-cache') });
 
@@ -90,6 +92,102 @@ function warnIfMembersRequiredWithoutPortal(pkg: ThemeBundle['pkg'], config: Nec
   if (pkg.members !== 'required') return;
   if (config.components.portal.provider !== 'none') return;
   logger.warn(THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING);
+}
+
+function warnIfGhostEngineUnsupported(pkg: ThemeBundle['pkg']): void {
+  const range = pkg.engines?.ghost;
+  if (!range) return;
+  if (ghostEngineAllowsMajor(range, GHOST_COMPAT_MAJOR)) return;
+  logger.warn(
+    `Theme package.json declares engines.ghost = "${range}", which does not include Ghost ${GHOST_COMPAT_MAJOR}.x; Nectar targets Ghost ${GHOST_COMPAT_MAJOR} theme compatibility.`,
+  );
+}
+
+function ghostEngineAllowsMajor(range: string, major: number): boolean {
+  const clauses = range
+    .split('||')
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  if (clauses.length === 0) return true;
+  return clauses.some((clause) => ghostEngineClauseAllowsMajor(clause, major));
+}
+
+function ghostEngineClauseAllowsMajor(clause: string, major: number): boolean {
+  const normalized = clause.replaceAll(/\s+-\s+/g, ' ');
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  return candidateGhostVersions(major).some((candidate) =>
+    tokens.every((token) => ghostEngineTokenAllowsVersion(token, candidate)),
+  );
+}
+
+function candidateGhostVersions(major: number): Array<[number, number, number]> {
+  return [
+    [major, 0, 0],
+    [major, 1, 0],
+    [major, 999, 999],
+  ];
+}
+
+function ghostEngineTokenAllowsVersion(token: string, version: [number, number, number]): boolean {
+  if (token === '*' || /^x$/i.test(token)) return true;
+  const caret = token.match(/^\^(.+)$/);
+  if (caret) {
+    const parsed = parseGhostVersion(caret[1] ?? '');
+    return parsed ? version[0] === parsed[0] && compareVersions(version, parsed) >= 0 : true;
+  }
+  const tilde = token.match(/^~(.+)$/);
+  if (tilde) {
+    const parsed = parseGhostVersion(tilde[1] ?? '');
+    return parsed ? version[0] === parsed[0] && compareVersions(version, parsed) >= 0 : true;
+  }
+  const comparator = token.match(/^(<=|>=|<|>|=)?(.+)$/);
+  if (!comparator) return true;
+  const op = comparator[1] ?? '=';
+  const raw = comparator[2] ?? '';
+  if (/^[x*]$/i.test(raw) || /^[x*]\./i.test(raw)) return true;
+  if (/^\d+\.x$/i.test(raw) || /^\d+$/.test(raw)) {
+    const parsedMajor = Number.parseInt(raw, 10);
+    if (op === '=') return version[0] === parsedMajor;
+  }
+  const parsed = parseGhostVersion(raw);
+  if (!parsed) return true;
+  const cmp = compareVersions(version, parsed);
+  switch (op) {
+    case '<':
+      return cmp < 0;
+    case '<=':
+      return cmp <= 0;
+    case '>':
+      return cmp > 0;
+    case '>=':
+      return cmp >= 0;
+    default:
+      return cmp === 0;
+  }
+}
+
+function parseGhostVersion(raw: string): [number, number, number] | undefined {
+  const match = raw.match(/^(\d+)(?:\.(\d+|x|\*))?(?:\.(\d+|x|\*))?/i);
+  if (!match) return undefined;
+  return [
+    Number.parseInt(match[1] ?? '0', 10),
+    parseVersionPart(match[2]),
+    parseVersionPart(match[3]),
+  ];
+}
+
+function parseVersionPart(raw: string | undefined): number {
+  if (!raw || raw === 'x' || raw === 'X' || raw === '*') return 0;
+  return Number.parseInt(raw, 10);
+}
+
+function compareVersions(a: [number, number, number], b: [number, number, number]): number {
+  for (let i = 0; i < 3; i += 1) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 // Resolve where the theme's files live, allowing three input shapes:

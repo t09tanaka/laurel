@@ -44,6 +44,7 @@ import type {
   ContentSourceFingerprint,
   Page,
   Post,
+  PostEngagementCount,
   SiteData,
   Tag,
   Tier,
@@ -692,10 +693,22 @@ interface RawPost {
   codeinjection_foot: string | undefined;
   custom_template: string | undefined;
   email_only: boolean;
+  email_subject: string | undefined;
+  send_email_when_published: boolean;
+  count: PostEngagementCount | undefined;
   source: ContentSourceFingerprint;
 }
 
-interface RawPage extends Omit<RawPost, 'featured' | 'visibility' | 'email_only'> {
+interface RawPage
+  extends Omit<
+    RawPost,
+    | 'featured'
+    | 'visibility'
+    | 'email_only'
+    | 'email_subject'
+    | 'send_email_when_published'
+    | 'count'
+  > {
   show_title_and_feature_image: boolean;
   status: 'published' | 'draft';
   custom_template: string | undefined;
@@ -1312,9 +1325,44 @@ async function normalizePost(
       filePath,
     ),
     email_only: asBool(data.email_only, false),
+    email_subject: asString(data.email_subject),
+    send_email_when_published: asBool(data.send_email_when_published, false),
+    count: parsePostEngagementCount(data.count),
     source: source ?? contentSourceFingerprint(filePath, rootDir, await stat(filePath)),
     ...resolveCodeInjection(data, filePath, config),
   };
+}
+
+function parsePostEngagementCount(value: unknown): PostEngagementCount | undefined {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const out: PostEngagementCount = {};
+  const record = value as Record<string, unknown>;
+  for (const key of [
+    'signups',
+    'clicks',
+    'comments',
+    'conversions',
+    'positive_feedback',
+    'negative_feedback',
+  ] as const) {
+    const parsed = nonNegativeInt(record[key]);
+    if (parsed !== undefined) out[key] = parsed;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function nonNegativeInt(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const n = Math.trunc(value);
+    return n >= 0 ? n : undefined;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  }
+  return undefined;
 }
 
 // Frontmatter `visibility:` accepts Ghost's full vocabulary, not just the
@@ -1799,6 +1847,9 @@ function resolvePostRelations(
     // the locked branch. See `Post.access` doc comment for the helper /
     // `ctx.access` split.
     access: false,
+    email_subject: raw.email_subject,
+    send_email_when_published: raw.send_email_when_published,
+    count: raw.count,
     prev: undefined,
     next: undefined,
     feed_html: raw.feed_html,

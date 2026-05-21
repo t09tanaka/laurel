@@ -53,6 +53,12 @@ export const themePackageJsonSchema = z
   .object({
     name: z.string().optional(),
     version: z.string().optional(),
+    engines: z
+      .object({
+        ghost: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
     config: z
       .object({
         posts_per_page: z.number().optional(),
@@ -97,6 +103,7 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
   return {
     name: parsed.name ?? 'theme',
     version: parsed.version ?? '0.0.0',
+    engines: { ghost: parsed.engines?.ghost },
     members: normalizeMembersRequirement(cfg.members),
     posts_per_page: cfg.posts_per_page ?? 5,
     image_sizes: cfg.image_sizes ?? {},
@@ -254,6 +261,7 @@ function defaultPackage(): ThemePackage {
   return {
     name: 'theme',
     version: '0.0.0',
+    engines: undefined,
     members: undefined,
     posts_per_page: 5,
     image_sizes: {},

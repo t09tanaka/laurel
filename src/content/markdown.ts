@@ -666,6 +666,7 @@ const VIDEO_TRACK_SHORTCODE_RE =
 const PRODUCT_SHORTCODE_RE = /\{\{<\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const LIQUID_PRODUCT_SHORTCODE_RE =
   /\{%\s+product((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
+const SIGNUP_STATEMENT_RE = /\{%\s+signup((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 const NFT_SHORTCODE_RE = /\{\{<\s+nft((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 
 type ShortcodeSchema = {
@@ -707,6 +708,7 @@ const SHORTCODE_SCHEMAS: readonly ShortcodeSchema[] = [
     name: 'product',
     requiredAttrGroups: [['title', 'description', 'image', 'button-href']],
   },
+  { name: 'signup' },
   { name: 'toggle' },
   { name: 'video', requiredAttrGroups: [['src']] },
   { name: 'video-track', requiredAttrGroups: [['src']] },
@@ -1001,6 +1003,9 @@ export function expandKoenigShortcodes(markdown: string): string {
     )
     .replace(LIQUID_PRODUCT_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderProductHtml(parseShortcodeAttrs(attrsStr)),
+    )
+    .replace(SIGNUP_STATEMENT_RE, (_match, attrsStr: string) =>
+      renderSignupHtml(parseShortcodeAttrs(attrsStr)),
     )
     .replace(NFT_SHORTCODE_RE, (_match, attrsStr: string) =>
       renderNftHtml(parseShortcodeAttrs(attrsStr)),
@@ -1774,6 +1779,23 @@ function renderProductHtml(attrs: Record<string, string>): string {
       ? `<a class="kg-product-card-button kg-product-card-btn-accent" href="${escapeHtmlAttr(buttonHref)}">${escapeHtmlAttr(buttonText)}</a>`
       : '';
   return `\n\n<div class="kg-card kg-product-card${koenigWidthClass(attrs)}"><div class="kg-product-card-container">${imageHtml}${titleHtml}${ratingHtml}${descriptionHtml}${buttonHtml}</div></div>\n\n`;
+}
+
+function renderSignupHtml(attrs: Record<string, string>): string {
+  const heading = attrs.heading ?? attrs.title ?? '';
+  const subheading = attrs.subheading ?? attrs.subtitle ?? '';
+  const button = attrs.button ?? attrs['button-text'] ?? 'Subscribe';
+  const placeholder = attrs.email_placeholder ?? attrs.placeholder ?? 'you@example.com';
+  const styleClass = tokenClass('kg-style', attrs.style);
+  const widthClass = koenigWidthClass(attrs);
+  const headingHtml = heading
+    ? `<h2 class="kg-signup-card-heading">${escapeHtmlAttr(heading)}</h2>`
+    : '';
+  const subheadingHtml = subheading
+    ? `<p class="kg-signup-card-subheading">${escapeHtmlAttr(subheading)}</p>`
+    : '';
+  const form = `<form class="kg-signup-card-form" data-members-form="signup"><input class="kg-signup-card-input" type="email" placeholder="${escapeHtmlAttr(placeholder)}" required /><button class="kg-signup-card-button" type="submit">${escapeHtmlAttr(button)}</button></form>`;
+  return `\n\n<div class="kg-card kg-signup-card${widthClass}${styleClass}">${headingHtml}${subheadingHtml}${form}</div>\n\n`;
 }
 
 function renderNftHtml(attrs: Record<string, string>): string {

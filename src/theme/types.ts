@@ -35,6 +35,7 @@ export interface ThemeContentKindDefinition {
 export interface ThemePackage {
   name: string;
   version: string;
+  engines?: { ghost?: string | undefined } | undefined;
   members?: string | undefined;
   posts_per_page: number;
   image_sizes: Record<string, ThemeImageSize>;

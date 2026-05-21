@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export async function ensureDir(path: string): Promise<void> {
@@ -26,9 +26,51 @@ export async function scanGlob(
   pattern: string,
   options: Parameters<Bun.Glob['scan']>[0],
 ): Promise<string[]> {
-  const rels = await Array.fromAsync(new Bun.Glob(pattern).scan(options));
+  const rels = hasBunGlob()
+    ? await Array.fromAsync(new Bun.Glob(pattern).scan(options))
+    : await scanGlobPortable(pattern, options);
   rels.sort();
   return rels;
+}
+
+function hasBunGlob(): boolean {
+  return typeof Bun !== 'undefined' && typeof Bun.Glob === 'function';
+}
+
+async function scanGlobPortable(
+  pattern: string,
+  options: Parameters<Bun.Glob['scan']>[0],
+): Promise<string[]> {
+  const cwd = typeof options === 'object' && options?.cwd ? String(options.cwd) : process.cwd();
+  const onlyFiles = typeof options === 'object' && options?.onlyFiles === true;
+  const includeDot = typeof options === 'object' && options?.dot === true;
+  const out: string[] = [];
+
+  async function walk(dir: string, prefix: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!includeDot && entry.name.startsWith('.')) continue;
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const abs = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!onlyFiles && matchesSupportedGlob(pattern, rel, false)) out.push(rel);
+        await walk(abs, rel);
+      } else if (matchesSupportedGlob(pattern, rel, true)) {
+        out.push(rel);
+      }
+    }
+  }
+
+  await walk(cwd, '');
+  return out;
+}
+
+function matchesSupportedGlob(pattern: string, rel: string, isFile: boolean): boolean {
+  if (pattern === '**/*') return true;
+  if (pattern === '**/*.md') return isFile && rel.endsWith('.md');
+  if (pattern === '**/*.hbs') return isFile && rel.endsWith('.hbs');
+  if (pattern === '*.json') return isFile && !rel.includes('/') && rel.endsWith('.json');
+  throw new Error(`Portable scanGlob does not support pattern: ${pattern}`);
 }
 
 // Walks each component of `relativePath` under `baseDir` and returns true if any
