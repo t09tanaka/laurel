@@ -330,7 +330,7 @@ describe('renderMarkdown — bookmark shortcode expansion', () => {
     const md = '{{< bookmark url="https://example.com/" title="T" caption="Source: Example" />}}';
     const { html } = await renderMarkdown(md);
     expect(html).toContain('class="kg-card kg-bookmark-card kg-width-regular kg-card-hascaption"');
-    expect(html).toContain('<figcaption>Source: Example</figcaption>');
+    expect(html).toMatch(/<figcaption id="kg-card-caption-[^"]+">Source: Example<\/figcaption>/);
   });
 
   test('expands multiple bookmark shortcodes independently', async () => {
@@ -366,10 +366,10 @@ describe('renderMarkdown — code shortcode expansion', () => {
 
     const { html } = await renderMarkdown(md);
 
-    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers">');
+    expect(html).toContain('<figure class="kg-card kg-code-card kg-card-hascaption line-numbers"');
     expect(html).toContain('<code class="language-javascript">');
     expect(html).toContain('msg');
-    expect(html).toContain('<figcaption>Runnable example</figcaption>');
+    expect(html).toMatch(/<figcaption id="kg-card-caption-[^"]+">Runnable example<\/figcaption>/);
     expect(html).not.toContain('{{< code');
     expect(html).not.toContain('```javascript');
   });
@@ -427,11 +427,11 @@ describe('renderMarkdown — toggle shortcode expansion', () => {
     expect(html).toContain('<code class="language-js">');
     expect(html).toContain('console.');
     expect(html).toContain(
-      '<figure class="kg-card kg-image-card kg-width-regular kg-card-hascaption">',
+      '<figure class="kg-card kg-image-card kg-width-regular kg-card-hascaption"',
     );
     expect(html).toContain('src="https://example.com/toggle.png"');
     expect(html).toContain('alt="Toggle image"');
-    expect(html).toContain('<figcaption>Inside toggle</figcaption>');
+    expect(html).toMatch(/<figcaption id="kg-card-caption-[^"]+">Inside toggle<\/figcaption>/);
     expect(html).not.toContain('{{< figure');
   });
 
@@ -656,8 +656,10 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     ].join('\n');
     const { html } = await renderMarkdown(md);
     expect(html).toContain(
-      '<figure class="kg-card kg-gallery-card kg-width-regular kg-card-hascaption">',
+      '<figure class="kg-card kg-gallery-card kg-width-regular kg-card-hascaption"',
     );
+    expect(html).toContain('role="group"');
+    expect(html).toContain('aria-labelledby="kg-card-caption-');
     expect(html).toContain('<div class="kg-gallery-container">');
     expect((html.match(/kg-gallery-row/g) ?? []).length).toBe(2);
     expect((html.match(/kg-gallery-image/g) ?? []).length).toBe(3);
@@ -666,7 +668,7 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     );
     expect(html).toContain('src="https://cdn.test/a.jpg"');
     expect(html).toContain('alt="C"');
-    expect(html).toContain('<figcaption>Trio</figcaption>');
+    expect(html).toMatch(/<figcaption id="kg-card-caption-[^"]+">Trio<\/figcaption>/);
   });
 
   test('preserves gallery image responsive attributes', async () => {
@@ -707,7 +709,7 @@ describe('renderMarkdown — gallery shortcode expansion', () => {
     ].join('\n');
     const { html } = await renderMarkdown(md);
     expect(html).toContain(
-      '<figure class="kg-card kg-gallery-card kg-width-full kg-card-hascaption">',
+      '<figure class="kg-card kg-gallery-card kg-width-full kg-card-hascaption"',
     );
   });
 
@@ -823,13 +825,13 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
       '{{< figure src="https://cdn.test/hero.jpg" alt="Hero" width="1600" height="900" size="wide" caption="Hero caption" href="https://example.com" />}}';
     const { html } = await renderMarkdown(md);
     expect(html).toContain(
-      '<figure class="kg-card kg-image-card kg-width-wide kg-card-hascaption">',
+      '<figure class="kg-card kg-image-card kg-width-wide kg-card-hascaption"',
     );
     expect(html).toContain('<a href="https://example.com"><img class="kg-image"');
     expect(html).toContain('src="https://cdn.test/hero.jpg"');
     expect(html).toContain('width="1600"');
     expect(html).toContain('height="900"');
-    expect(html).toContain('<figcaption>Hero caption</figcaption>');
+    expect(html).toMatch(/<figcaption id="kg-card-caption-[^"]+">Hero caption<\/figcaption>/);
   });
 
   test('keeps imported html card wrappers so theme width classes apply', async () => {
@@ -954,7 +956,9 @@ describe('renderMarkdown — imported Koenig media/product shortcode expansion',
     expect(html).toContain(
       '<track src="https://cdn.test/video/captions.vtt" kind="captions" srclang="en" label="English" default></track>',
     );
-    expect(html).toContain('<figcaption>Sample video caption.</figcaption>');
+    expect(html).toMatch(
+      /<figcaption id="kg-card-caption-[^"]+">Sample video caption\.<\/figcaption>/,
+    );
     expect(html).not.toContain('{{< video');
   });
 
