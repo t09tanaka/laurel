@@ -61,6 +61,9 @@ jobs:
       - name: Build example site
         run: bun run build:example
 
+      - name: Theme bundle size gate (example/dist)
+        run: bun run size:theme-bundle
+
       - name: html-validate (example/dist)
         run: bun run lint:html
 
