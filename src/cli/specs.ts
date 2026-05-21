@@ -361,6 +361,46 @@ export const SERVE_SPEC: CommandSpec = {
   ],
 };
 
+export const DASHBOARD_SPEC: CommandSpec = {
+  name: 'dashboard',
+  summary: 'Run the local file-backed editorial dashboard',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    port: {
+      type: 'string',
+      description:
+        'Port to listen on (0..65535 integer; defaults to 4322; pass 0 to let the kernel pick a free port)',
+      placeholder: '<n>',
+    },
+    host: {
+      type: 'string',
+      description:
+        'Hostname to bind to (defaults to 127.0.0.1 for local-only file editing; pass 0.0.0.0 to expose on the LAN)',
+      placeholder: '<host>',
+    },
+    open: {
+      type: 'boolean',
+      description: 'Open the dashboard in the default browser after the server starts',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Switch logger output (lifecycle events) to one JSON object per line for CI / log forwarders',
+    },
+  },
+  positionals: [],
+  examples: [
+    'nectar dashboard                             # http://127.0.0.1:4322 local dashboard',
+    'nectar dashboard --open                      # launch the browser after startup',
+    'nectar dashboard --port 0                    # pick a free port for smoke tests',
+    'nectar dashboard --host 0.0.0.0              # expose on the LAN',
+  ],
+};
+
 export const TEST_SPEC: CommandSpec = {
   name: 'test',
   summary: 'Run the project test suite via Bun test (passthrough placeholder)',
@@ -1619,6 +1659,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   test: TEST_SPEC,
   dev: DEV_SPEC,
   serve: SERVE_SPEC,
+  dashboard: DASHBOARD_SPEC,
   check: CHECK_SPEC,
   doctor: DOCTOR_SPEC,
   diagnostics: DIAGNOSTICS_SPEC,

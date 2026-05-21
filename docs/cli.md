@@ -178,6 +178,7 @@ when prompts are enabled.
 | [`nectar test`](#nectar-test) | Run the project test suite via Bun test (passthrough placeholder) |
 | [`nectar dev`](#nectar-dev) | Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser |
 | [`nectar serve`](#nectar-serve) | Serve the built site as a local preview server; not for production hosting |
+| [`nectar dashboard`](#nectar-dashboard) | Run the local file-backed editorial dashboard |
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
@@ -481,6 +482,35 @@ nectar serve --proxy https://ghost.example.com
 nectar serve --tls-cert cert.pem --tls-key key.pem
 nectar serve --build                         # build first, then serve
 nectar serve --port 8080 --host 0.0.0.0
+```
+
+### `nectar dashboard`
+
+Run the local file-backed editorial dashboard
+
+Usage:
+
+```
+nectar dashboard [--config <path>] [--port <n>] [--host <host>] [--open] [--json]
+```
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_DASHBOARD_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `-p, --port <n>` | string | `NECTAR_DASHBOARD_PORT` | Port to listen on (0..65535 integer; defaults to 4322; pass 0 to let the kernel pick a free port) |
+| `--host <host>` | string | `NECTAR_DASHBOARD_HOST` | Hostname to bind to (defaults to 127.0.0.1 for local-only file editing; pass 0.0.0.0 to expose on the LAN) |
+| `--open` | boolean | `NECTAR_DASHBOARD_OPEN` | Open the dashboard in the default browser after the server starts |
+| `-j, --json` | boolean | `NECTAR_DASHBOARD_JSON` | Switch logger output (lifecycle events) to one JSON object per line for CI / log forwarders |
+
+Examples:
+
+```
+nectar dashboard                             # http://127.0.0.1:4322 local dashboard
+nectar dashboard --open                      # launch the browser after startup
+nectar dashboard --port 0                    # pick a free port for smoke tests
+nectar dashboard --host 0.0.0.0              # expose on the LAN
 ```
 
 ### `nectar check`

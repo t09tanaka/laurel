@@ -237,6 +237,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runDev } = await import('./commands/dev.js');
       return runDev(rest);
     }
+    case 'dashboard': {
+      const { runDashboard } = await import('./commands/dashboard.js');
+      return runDashboard(rest);
+    }
     case 'doctor': {
       const { runDoctor } = await import('./commands/doctor.js');
       return runDoctor(rest);
