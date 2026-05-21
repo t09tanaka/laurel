@@ -360,10 +360,21 @@ describe('ghost_head JSON-LD escaping', () => {
     const html = renderGhostHead({
       id: 'p1',
       title: 'Twitter card',
+      feature_image: '/content/images/share.png',
       published_at: '2026-01-01',
       updated_at: '2026-01-01',
     });
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
+  });
+
+  test('emits compact twitter:card summary when the route has no image', () => {
+    const html = renderGhostHead({
+      id: 'p1',
+      title: 'Twitter card',
+      published_at: '2026-01-01',
+      updated_at: '2026-01-01',
+    });
+    expect(html).toContain('<meta name="twitter:card" content="summary">');
   });
 
   test('escapes </script> in post title so it cannot break out of the script tag', () => {
@@ -752,6 +763,7 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
     expect(parsed.keywords).toBe('Company, Docs');
     expect(parsed.wordCount).toBe(321);
     expect(parsed.commentCount).toBe(0);
+    expect(html).toContain('<meta property="og:type" content="article">');
   });
 
   test('emits publisher.sameAs from site-level social fields (issue #867)', () => {
@@ -838,6 +850,44 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
       '@type': 'WebPage',
       '@id': 'https://example.com/a-post/',
     });
+  });
+});
+
+describe('ghost_head web standards metadata', () => {
+  test('emits theme-color from the sanitized site accent color', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { accent_color: '#ffcc00' },
+    });
+
+    expect(html).toContain('<meta name="theme-color" content="#ffcc00">');
+  });
+
+  test('emits og:locale using Open Graph underscore casing', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      site: { locale: 'en-gb' },
+    });
+
+    expect(html).toContain('<meta property="og:locale" content="en_GB">');
+  });
+
+  test('links the generated web manifest when the theme does not provide one', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+    });
+
+    expect(html).toContain('<link rel="manifest" href="/blog/site.webmanifest">');
+  });
+
+  test('does not add a generated manifest link when the theme already provides one', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      favicons: {
+        links: [{ rel: 'manifest', href: '/manifest.webmanifest' }],
+        copies: [],
+      },
+    });
+
+    expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest">');
+    expect(html).not.toContain('/site.webmanifest');
   });
 });
 
@@ -1954,13 +2004,15 @@ describe('ghost_head article:* OG tags on post pages', () => {
     expect(authorHtml).not.toContain('article:');
   });
 
-  test('omits article:* tags on static pages (page route)', () => {
+  test('emits article:* tags on static pages (page route)', () => {
     const html = renderGhostHead(
       { id: 'pg1', title: 'About', published_at: '2026-01-01', updated_at: '2026-01-01' },
       '/about/',
       { routeData: { page: { id: 'pg1', slug: 'about', title: 'About' } } },
     );
-    expect(html).not.toContain('article:');
+    expect(html).toContain('<meta property="og:type" content="article">');
+    expect(html).toContain('<meta property="article:published_time"');
+    expect(html).toContain('<meta property="article:modified_time"');
   });
 });
 

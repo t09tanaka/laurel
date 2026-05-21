@@ -91,6 +91,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // injecting. Anything that fails the allowlist is silently dropped.
       const accentColor = sanitizeAccentColor(site.accent_color);
       if (accentColor) {
+        parts.push(`<meta name="theme-color" content="${escapeAttr(accentColor)}">`);
         parts.push(`<style>:root{--ghost-accent-color:${accentColor}}</style>`);
       }
       const cardAssetsSnippet = renderCardAssetsHeadSnippet(engine, basePath);
@@ -105,6 +106,11 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
       for (const link of engine.favicons?.links ?? []) {
         parts.push(renderFaviconLink(link, engine.config?.build?.base_path ?? '/'));
+      }
+      if (!hasManifestLink(engine.favicons?.links ?? [])) {
+        parts.push(
+          `<link rel="manifest" href="${escapeAttr(joinPath(basePath, 'site.webmanifest'))}">`,
+        );
       }
       // rel="prev"/"next" for paginated archives. Google deprecated these as a
       // ranking signal, but Bing and feed crawlers still honour them.
@@ -124,6 +130,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       }
       parts.push(`<meta property="og:site_name" content="${escapeAttr(site.title)}">`);
       parts.push(`<meta property="og:type" content="${meta.ogType}">`);
+      parts.push(
+        `<meta property="og:locale" content="${escapeAttr(formatOgLocale(site.locale))}">`,
+      );
       parts.push(`<meta property="og:title" content="${escapeAttr(meta.title)}">`);
       if (meta.description) {
         parts.push(`<meta property="og:description" content="${escapeAttr(meta.description)}">`);
@@ -179,7 +188,9 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
           }
         }
       }
-      parts.push(`<meta name="twitter:card" content="summary_large_image">`);
+      parts.push(
+        `<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">`,
+      );
       parts.push(`<meta name="twitter:title" content="${escapeAttr(meta.title)}">`);
       if (meta.description) {
         parts.push(`<meta name="twitter:description" content="${escapeAttr(meta.description)}">`);
@@ -368,7 +379,7 @@ function computeMeta(
       : (route?.meta?.canonical ?? absoluteUrlWithBasePath(site.url, basePath, route?.url ?? '/'));
 
   let ogType = 'website';
-  if (route?.data?.post) ogType = 'article';
+  if (route?.data?.post || route?.data?.page) ogType = 'article';
 
   // Final fallback chain: per-route ctx -> [site].meta_* / og_* / twitter_*
   // -> site.title / site.description. The site-level meta_title / og_title /
@@ -1169,6 +1180,19 @@ function renderFaviconLink(link: FaviconLink, basePath: string): string {
   if (link.sizes) attrs.push(`sizes="${escapeAttr(link.sizes)}"`);
   if (link.color) attrs.push(`color="${escapeAttr(link.color)}"`);
   return `<link ${attrs.join(' ')}>`;
+}
+
+function hasManifestLink(links: readonly FaviconLink[]): boolean {
+  return links.some((link) => link.rel.split(/\s+/).includes('manifest'));
+}
+
+function formatOgLocale(locale: unknown): string {
+  if (typeof locale !== 'string' || !locale.trim()) return 'en_US';
+  const normalized = locale.trim().replace('-', '_');
+  const [language, region] = normalized.split('_');
+  if (!language) return 'en_US';
+  if (!region) return language.toLowerCase();
+  return `${language.toLowerCase()}_${region.toUpperCase()}`;
 }
 
 // Defense-in-depth allowlist for accent_color before it lands inside a <style>

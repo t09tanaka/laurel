@@ -490,13 +490,15 @@ Intro.
       'Theme assets',
       'Ghost card assets',
       'Favicons',
+      'Web manifest',
       'Portal runtime',
     ]);
     expect(assetEvents.map((event) => `${event.step}/${event.totalSteps}`)).toEqual([
-      '1/4',
-      '2/4',
-      '3/4',
-      '4/4',
+      '1/5',
+      '2/5',
+      '3/5',
+      '4/5',
+      '5/5',
     ]);
   });
 
@@ -1132,7 +1134,7 @@ date: 2026-01-01T00:00:00Z
     ) as Record<string, { path: string; integrity: string }>;
 
     expect(manifest['assets/built/screen.css']?.path).toMatch(
-      /^assets\/built\/screen\.[0-9a-f]{10}\.css$/,
+      /^assets\/built\/screen\.[0-9a-f]{16}\.css$/,
     );
     expect(manifest['assets/built/screen.css']?.integrity).toMatch(/^sha384-[A-Za-z0-9+/]+=*$/);
     expect(

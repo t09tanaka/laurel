@@ -67,12 +67,14 @@ import {
 } from './emitters/registry.ts';
 import { emitDefault404 } from './error-page.ts';
 import { computeFavicons, copyFavicons } from './favicons.ts';
+import { emitFeedAlias } from './feed-alias.ts';
 import { SITEMAP_MAX_URLS_PER_FILE, type SitemapKind, emitRss, emitSitemap } from './feeds.ts';
 import { emitFirebaseJson } from './firebase.ts';
 import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
 import { collectContentApiHeaderRules } from './headers.ts';
 import { runPostBuildHook } from './hooks.ts';
+import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { emitHumans } from './humans.ts';
 import { collectImageAltWarnings, formatImageAltWarning } from './image-alt-lint.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
@@ -154,6 +156,7 @@ import {
   findMissingThemeAssetReferences,
   formatMissingThemeAssetReference,
 } from './theme-asset-references.ts';
+import { GENERATED_WEB_MANIFEST_PATH, emitWebManifest } from './web-manifest.ts';
 
 export interface BuildOptions {
   cwd: string;
@@ -972,6 +975,7 @@ async function runBuild({
           if (typeof next === 'string') html = next;
         }
         html = rewriteBasePathUrls(html, config.build.base_path);
+        html = injectHtmlBuildAttribute(html, htmlBuildId(html));
         const bytes = Buffer.byteLength(html, 'utf8');
         stop?.({ bytes, reused: false });
         completedRoutes += 1;
@@ -1206,6 +1210,15 @@ async function runBuild({
           },
         },
         {
+          label: 'Web manifest',
+          run: async () => {
+            const emitted = await timed(profiler, 'web_manifest', () =>
+              emitWebManifest({ outputDir, config, favicons }),
+            );
+            if (emitted) keepOutput(GENERATED_WEB_MANIFEST_PATH);
+          },
+        },
+        {
           label: 'Portal runtime',
           run: async () => {
             const emitted = await timed(profiler, 'portal_runtime', () =>
@@ -1341,6 +1354,14 @@ async function runBuild({
           routesYaml,
           previousFeeds,
           nextFeeds,
+        }),
+      );
+      keepOutput('feed/index.html');
+      await timed(profiler, 'feed_alias', () =>
+        emitFeedAlias({
+          outputDir,
+          enabled: true,
+          basePath: config.build.base_path,
         }),
       );
     }
