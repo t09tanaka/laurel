@@ -317,6 +317,23 @@ async function withProgressPhase<T>(
   }
 }
 
+type SettledBuildTask<T> = Promise<{ ok: true; value: T } | { ok: false; error: unknown }>;
+
+function startSettledBuildTask<T>(fn: () => Promise<T> | T): SettledBuildTask<T> {
+  return Promise.resolve()
+    .then(fn)
+    .then(
+      (value) => ({ ok: true, value }) as const,
+      (error) => ({ ok: false, error }) as const,
+    );
+}
+
+async function awaitSettledBuildTask<T>(task: SettledBuildTask<T>): Promise<T> {
+  const result = await task;
+  if (!result.ok) throw result.error;
+  return result.value;
+}
+
 // Maps the internal RouteKind taxonomy onto Ghost's four sitemap sections.
 // home/index/custom land in 'pages' because they are page-like entry points
 // from a crawler's perspective; sitemapindex pagination is keyed on this
@@ -719,6 +736,60 @@ async function runBuild({
   let skippedCount = 0;
   let renderedCount = 0;
   const inlineScriptCspHashes = new Set<string>();
+  const sitemapUrls = config.components.sitemap.enabled
+    ? routes
+        .filter((r) => r.indexable !== false)
+        .map((r) => {
+          const post = r.kind === 'post' ? r.data.post : undefined;
+          return {
+            url: r.url,
+            lastmod: r.lastmod,
+            kind: routeKindToSitemapKind(r.kind),
+            images: post?.feature_image
+              ? [{ url: post.feature_image, caption: post.feature_image_caption }]
+              : undefined,
+          };
+        })
+    : [];
+  let earlyThemeAssetCopy: SettledBuildTask<number> | undefined;
+  let earlyContentAssetCopy: SettledBuildTask<number> | undefined;
+  let earlySitemapEmit: SettledBuildTask<void> | undefined;
+  if (!dryRun) {
+    earlyThemeAssetCopy = startSettledBuildTask(() =>
+      timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir)),
+    );
+    if (config.build.copy_content_assets) {
+      earlyContentAssetCopy = startSettledBuildTask(() =>
+        timed(profiler, 'copy_content_assets', () =>
+          copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+            maxImageBytes: config.build.max_image_bytes,
+            stripMetadata: imagesCfg.strip_metadata,
+            onOutputPath: keepOutput,
+            contentImagePlan,
+          }),
+        ),
+      );
+    }
+    if (config.components.sitemap.enabled) {
+      markPlannedSitemapOutputs({ routes, keepOutput });
+      earlySitemapEmit = startSettledBuildTask(() =>
+        timed(profiler, 'sitemap', () =>
+          emitSitemap({
+            config,
+            content,
+            outputDir,
+            previousFeeds,
+            nextFeeds,
+            // `indexable: false` excludes pagination tails (`/page/N/`,
+            // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
+            // sitemap discovery surfaces; routes without the flag default to
+            // indexable. See #781.
+            urls: sitemapUrls,
+          }),
+        ),
+      );
+    }
+  }
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
   // per-route `Bun.file().exists()` / `.text()` I/O for reused entries instead
@@ -1065,7 +1136,12 @@ async function runBuild({
         {
           label: 'Theme assets',
           run: async () => {
-            assetCount = await timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir));
+            assetCount = await awaitSettledBuildTask(
+              earlyThemeAssetCopy ??
+                startSettledBuildTask(() =>
+                  timed(profiler, 'copy_assets', () => copyAssets(theme, outputDir)),
+                ),
+            );
             for (const asset of theme.assets.values()) keepOutput(asset.fingerprintedPath);
           },
         },
@@ -1103,13 +1179,18 @@ async function runBuild({
         assetSteps.push({
           label: 'Content assets',
           run: async () => {
-            await timed(profiler, 'copy_content_assets', () =>
-              copyContentAssets(cwd, config.content.assets_dir, outputDir, {
-                maxImageBytes: config.build.max_image_bytes,
-                stripMetadata: imagesCfg.strip_metadata,
-                onOutputPath: keepOutput,
-                contentImagePlan,
-              }),
+            await awaitSettledBuildTask(
+              earlyContentAssetCopy ??
+                startSettledBuildTask(() =>
+                  timed(profiler, 'copy_content_assets', () =>
+                    copyContentAssets(cwd, config.content.assets_dir, outputDir, {
+                      maxImageBytes: config.build.max_image_bytes,
+                      stripMetadata: imagesCfg.strip_metadata,
+                      onOutputPath: keepOutput,
+                      contentImagePlan,
+                    }),
+                  ),
+                ),
             );
           },
         });
@@ -1188,33 +1269,25 @@ async function runBuild({
 
   await timed(profiler, 'feedEmit', async () => {
     if (config.components.sitemap.enabled) {
-      markPlannedSitemapOutputs({ routes, keepOutput });
-      await timed(profiler, 'sitemap', () =>
-        emitSitemap({
-          config,
-          content,
-          outputDir,
-          previousFeeds,
-          nextFeeds,
-          // `indexable: false` excludes pagination tails (`/page/N/`,
-          // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
-          // sitemap discovery surfaces; routes without the flag default to
-          // indexable. See #781.
-          urls: routes
-            .filter((r) => r.indexable !== false)
-            .map((r) => {
-              const post = r.kind === 'post' ? r.data.post : undefined;
-              return {
-                url: r.url,
-                lastmod: r.lastmod,
-                kind: routeKindToSitemapKind(r.kind),
-                images: post?.feature_image
-                  ? [{ url: post.feature_image, caption: post.feature_image_caption }]
-                  : undefined,
-              };
-            }),
-        }),
-      );
+      if (earlySitemapEmit) {
+        await awaitSettledBuildTask(earlySitemapEmit);
+      } else {
+        markPlannedSitemapOutputs({ routes, keepOutput });
+        await timed(profiler, 'sitemap', () =>
+          emitSitemap({
+            config,
+            content,
+            outputDir,
+            previousFeeds,
+            nextFeeds,
+            // `indexable: false` excludes pagination tails (`/page/N/`,
+            // `/tag/<slug>/page/N/`, `/author/<slug>/page/N/`) and the 404 from
+            // sitemap discovery surfaces; routes without the flag default to
+            // indexable. See #781.
+            urls: sitemapUrls,
+          }),
+        );
+      }
     }
     if (config.components.rss.enabled) {
       markPlannedRssOutputs({ config, content, routesYaml, keepOutput });

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -497,6 +498,74 @@ Intro.
       '3/4',
       '4/4',
     ]);
+  });
+
+  test('starts theme and content asset copies while routes are rendering', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await mkdir(join(cwd, 'content/images'), { recursive: true });
+    await writeFile(join(cwd, 'content/images/overlap.txt'), 'OVERLAP', 'utf8');
+    const contentAssetHash = createHash('sha256').update('OVERLAP').digest('hex').slice(0, 16);
+    const expectedContentAsset = `_images/${contentAssetHash}/overlap.txt`;
+    const pluginPath = join(cwd, 'asset-overlap-plugin.mjs');
+    await writeFile(
+      pluginPath,
+      `
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export default {
+  name: 'asset-overlap-fixture',
+  async beforeRender(ctx) {
+    const state = globalThis.__nectar_asset_overlap_state;
+    if (!state || state.checked) return;
+    state.checked = true;
+    const firstThemeAsset = ctx.theme.assets.values().next().value?.fingerprintedPath;
+    const expected = [firstThemeAsset, ...state.expectedContentAssets].filter(Boolean);
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const missing = expected.filter((path) => !existsSync(join(ctx.outputDir, path)));
+      if (missing.length === 0) {
+        state.assetsVisibleDuringRender = true;
+        return;
+      }
+      await sleep(10);
+    }
+    state.missingDuringRender = expected.filter((path) => !existsSync(join(ctx.outputDir, path)));
+    throw new Error(\`assets were not copied before render: \${state.missingDuringRender.join(', ')}\`);
+  },
+};
+`,
+      'utf8',
+    );
+    await prependTomlTopLevel(cwd, 'plugins = ["./asset-overlap-plugin.mjs"]');
+    const state = {
+      checked: false,
+      assetsVisibleDuringRender: false,
+      expectedContentAssets: [expectedContentAsset],
+      missingDuringRender: [] as string[],
+    };
+    (
+      globalThis as unknown as {
+        __nectar_asset_overlap_state?: typeof state;
+      }
+    ).__nectar_asset_overlap_state = state;
+
+    try {
+      const summary = await build({ cwd, concurrency: 1 });
+
+      expect(state.checked).toBe(true);
+      expect(state.assetsVisibleDuringRender).toBe(true);
+      expect(state.missingDuringRender).toEqual([]);
+      expect(existsSync(join(summary.outputDir, expectedContentAsset))).toBe(true);
+    } finally {
+      (
+        globalThis as unknown as {
+          __nectar_asset_overlap_state?: typeof state;
+        }
+      ).__nectar_asset_overlap_state = undefined;
+    }
   });
 
   test('reports expensive load substeps through build progress events', async () => {
