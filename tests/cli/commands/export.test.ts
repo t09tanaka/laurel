@@ -26,6 +26,7 @@ async function makeFixture(): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-export-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
+  await mkdir(join(dir, 'content/images'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await writeFile(
@@ -78,12 +79,14 @@ async function makeFixture(): Promise<string> {
       'title: About',
       'slug: about',
       'published_at: 2025-01-01T00:00:00Z',
+      'feature_image: /content/images/about.txt',
       '---',
       '',
-      'About page body.',
+      'About page body with ![Cover](/content/images/about.txt).',
       '',
     ].join('\n'),
   );
+  await writeFile(join(dir, 'content/images/about.txt'), 'about asset\n');
   return dir;
 }
 
@@ -227,6 +230,41 @@ describe('cli export', () => {
       const { stdout: pretty } = await runCli(['export', 'json', '--pretty'], dir);
       expect(compact.includes('\n  "')).toBe(false);
       expect(pretty).toContain('\n  "');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export page emits a collaboration bundle for one page', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['export', 'page', 'about', '--pretty'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as {
+        nectar: { schema: string };
+        page: { slug: string; path: string; frontmatter: Record<string, unknown>; body: string };
+        assets: Array<{ path: string; encoding: string; content: string }>;
+      };
+      expect(parsed.nectar.schema).toBe('nectar.page.v1');
+      expect(parsed.page.slug).toBe('about');
+      expect(parsed.page.path).toBe('content/pages/about.md');
+      expect(parsed.page.frontmatter.feature_image).toBe('/content/images/about.txt');
+      expect(parsed.page.body).toContain('About page body');
+      expect(parsed.assets).toEqual([
+        { path: 'content/images/about.txt', encoding: 'utf8', content: 'about asset\n' },
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export page --no-assets omits local asset payloads', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['export', 'page', 'about', '--no-assets'], dir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { assets: unknown[] };
+      expect(parsed.assets).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

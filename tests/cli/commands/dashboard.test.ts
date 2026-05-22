@@ -573,6 +573,95 @@ describe('dashboard data', () => {
     }
   });
 
+  test('exports and imports page collaboration bundles through the dashboard API', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(join(dir, 'content/images/about.txt'), 'about asset\n', 'utf8');
+      await writeFile(
+        join(dir, 'content/pages/about.md'),
+        [
+          '---',
+          'title: About',
+          'slug: about',
+          'feature_image: /content/images/about.txt',
+          '---',
+          '',
+          'About dashboard body.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const exported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/page-bundles/export/about'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(exported.status).toBe(200);
+      const bundle = (await exported.json()) as {
+        nectar: { schema: string };
+        page: { slug: string; body: string };
+        assets: Array<{ path: string; content: string }>;
+      };
+      expect(bundle.nectar.schema).toBe('nectar.page.v1');
+      expect(bundle.page.slug).toBe('about');
+      expect(bundle.page.body).toContain('About dashboard body');
+      expect(bundle.assets[0]?.path).toBe('content/images/about.txt');
+
+      const bundlePath = join(dir, 'about.page.json');
+      await writeFile(
+        bundlePath,
+        JSON.stringify({
+          ...bundle,
+          page: {
+            ...bundle.page,
+            frontmatter: { title: 'Imported Dashboard About', slug: 'about' },
+            body: 'Imported dashboard body.\n',
+          },
+        }),
+        'utf8',
+      );
+
+      const preview = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/page-bundles/import', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ file: bundlePath, dryRun: true, onConflict: 'rename' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(preview.status).toBe(200);
+      const previewBody = (await preview.json()) as {
+        dryRun: boolean;
+        result: { pagePath: string };
+      };
+      expect(previewBody.dryRun).toBe(true);
+      expect(previewBody.result.pagePath).toBe('content/pages/about-2.md');
+      await expect(access(join(dir, 'content/pages/about-2.md'))).rejects.toThrow();
+
+      const applied = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/page-bundles/import', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ file: bundlePath, dryRun: false, onConflict: 'rename' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(applied.status).toBe(200);
+      const appliedBody = (await applied.json()) as {
+        dryRun: boolean;
+        result: { pagePath: string };
+      };
+      expect(appliedBody.dryRun).toBe(false);
+      expect(appliedBody.result.pagePath).toBe('content/pages/about-2.md');
+      expect(await readFile(join(dir, 'content/pages/about-2.md'), 'utf8')).toContain(
+        'Imported dashboard body.',
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('writes content only when the source fingerprint still matches', async () => {
     const dir = await makeDashboardFixture();
     try {
@@ -1245,6 +1334,18 @@ describe('dashboard data', () => {
     expect(html).toContain('id="applyGhostImport"');
     expect(html).toContain('/api/import/ghost');
     expect(html).toContain('renderGhostImportResult');
+  });
+
+  test('renders page bundle controls for focused collaboration', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('data-export-page=');
+    expect(html).toContain('id="pageBundleImportFile"');
+    expect(html).toContain('id="previewPageBundleImport"');
+    expect(html).toContain('id="applyPageBundleImport"');
+    expect(html).toContain('/api/page-bundles/export/');
+    expect(html).toContain('/api/page-bundles/import');
+    expect(html).toContain('renderPageBundleImportResult');
   });
 });
 

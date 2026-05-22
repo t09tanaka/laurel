@@ -313,6 +313,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runExport } = await import('./commands/export.js');
       return runExport(rest);
     }
+    case 'import': {
+      const { runImport } = await import('./commands/import.js');
+      return runImport(rest);
+    }
     case 'upgrade': {
       const { runUpgrade } = await import('./commands/upgrade.js');
       return runUpgrade(rest);

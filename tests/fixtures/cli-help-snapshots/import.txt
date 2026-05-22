@@ -1,0 +1,33 @@
+Import a Nectar collaboration bundle
+
+Usage:
+  nectar import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
+
+Arguments:
+  kind                Import kind. Currently only `page` is supported
+  file                Path to a `nectar.page.v1` page collaboration bundle
+
+End of options:
+  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+
+Options:
+  -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
+  --on-conflict <skip|overwrite|rename>  How to handle existing page files: skip (default), overwrite, or rename
+  --dry-run           Validate the bundle and report planned writes without changing files
+  -j, --json          No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error
+  -h, --help          Show help for this command
+
+Environment variables:
+  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
+  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → NECTAR_IMPORT_CONFIG
+
+Repeated flags:
+  Scalar string flags use the last value.
+  List-style string flags accumulate as comma-separated values in argv order.
+  Boolean flags use the last positive or negated spelling.
+
+Examples:
+  nectar import page about.page.json --dry-run
+  nectar import page about.page.json --on-conflict rename
+  nectar import page about.page.json --on-conflict overwrite

@@ -197,7 +197,8 @@ when prompts are enabled.
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
-| [`nectar export`](#nectar-export) | Dump the loaded content as JSON or regenerate the RSS feed without running a full build |
+| [`nectar export`](#nectar-export) | Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build |
+| [`nectar import`](#nectar-import) | Import a Nectar collaboration bundle |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar plugins`](#nectar-plugins) | Inspect future Nectar plugins |
@@ -1131,19 +1132,20 @@ nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight
 
 ### `nectar export`
 
-Dump the loaded content as JSON or regenerate the RSS feed without running a full build
+Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build
 
 Usage:
 
 ```
-nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--json] <format>
+nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--json] <format> [slug]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML) |
+| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle) |
+| `[slug]` | optional | Page slug when format is `page` |
 
 Options:
 
@@ -1153,6 +1155,8 @@ Options:
 | `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
+| `--assets` | boolean | `NECTAR_EXPORT_ASSETS` | Include local content assets referenced by `nectar export page <slug>`. Enabled by default |
+| `--no-assets` | boolean | `NECTAR_EXPORT_ASSETS=0` | Omit local asset payloads from a page collaboration bundle |
 | `-j, --json` | boolean | `NECTAR_EXPORT_JSON` | No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error |
 
 Examples:
@@ -1162,6 +1166,41 @@ nectar export json > content.json
 nectar export json --pretty -o snapshot.json
 nectar export ghost-json -o ghost-backup.json
 nectar export rss -o feed.xml
+nectar export page about -o about.page.json
+```
+
+### `nectar import`
+
+Import a Nectar collaboration bundle
+
+Usage:
+
+```
+nectar import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<kind>` | required | Import kind. Currently only `page` is supported |
+| `<file>` | required | Path to a `nectar.page.v1` page collaboration bundle |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `-c, --config <path>` | string | `NECTAR_IMPORT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_ON_CONFLICT` | How to handle existing page files: skip (default), overwrite, or rename |
+| `--dry-run` | boolean | `NECTAR_IMPORT_DRY_RUN` | Validate the bundle and report planned writes without changing files |
+| `-j, --json` | boolean | `NECTAR_IMPORT_JSON` | No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error |
+
+Examples:
+
+```
+nectar import page about.page.json --dry-run
+nectar import page about.page.json --on-conflict rename
+nectar import page about.page.json --on-conflict overwrite
 ```
 
 ### `nectar upgrade`
