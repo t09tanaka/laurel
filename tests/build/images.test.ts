@@ -219,6 +219,44 @@ describe('injectImageDimensionsIntoContent', () => {
     expect(page.html).toContain('width="640"');
     expect(page.html).toContain('height="360"');
   });
+
+  test('adds lazy loading and async decoding hints without overriding explicit priority', () => {
+    const cwd = makeAssetsRoot();
+    const post = {
+      id: 'post-x',
+      slug: 'x',
+      html: [
+        '<img src="https://cdn.test/body.jpg" alt="Body">',
+        '<img src="https://cdn.test/priority.jpg" alt="Priority" loading="eager" fetchpriority="high">',
+        '<img src="https://cdn.test/custom.jpg" alt="Custom" loading="eager" decoding="sync">',
+      ].join(''),
+    } as unknown as Post;
+    const content: ContentGraph = {
+      posts: [post],
+      pages: [],
+      tags: [],
+      authors: [],
+      tiers: [],
+      bySlug: { posts: new Map(), pages: new Map(), tags: new Map(), authors: new Map() },
+      postsByTag: new Map(),
+      postsByAuthor: new Map(),
+      emailOnlyPosts: [],
+      site: {} as ContentGraph['site'],
+    };
+    const config = { content: { assets_dir: 'content/images' } } as unknown as NectarConfig;
+
+    injectImageDimensionsIntoContent({ content, cwd, config });
+
+    expect(post.html).toContain(
+      '<img src="https://cdn.test/body.jpg" alt="Body" loading="lazy" decoding="async">',
+    );
+    expect(post.html).toContain(
+      '<img src="https://cdn.test/priority.jpg" alt="Priority" loading="eager" fetchpriority="high" decoding="async">',
+    );
+    expect(post.html).toContain(
+      '<img src="https://cdn.test/custom.jpg" alt="Custom" loading="eager" decoding="sync">',
+    );
+  });
 });
 
 describe('planImageVariants', () => {
