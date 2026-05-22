@@ -49,11 +49,11 @@ jobs:
       - name: Run tests with coverage (text + lcov)
         run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage
 
-      # Enforce a hard floor on line + function coverage (#665). The gate
-      # parses coverage/lcov.info and exits non-zero when either falls below
-      # the threshold configured in scripts/coverage-gate.ts (default 85%).
-      # This is a separate step from `bun test --coverage` because Bun 1.3.x
-      # does not yet honour [test.coverageThreshold] in its own exit code.
+      # Enforce a hard aggregate floor on line + function coverage (#665).
+      # The gate parses coverage/lcov.info and exits non-zero when either
+      # falls below the thresholds configured in scripts/coverage-gate.ts
+      # (default 85%). Thresholds live there instead of bunfig so the project
+      # can keep explicit aggregate semantics and child-process CLI exclusions.
       - name: Enforce coverage threshold
         run: bun scripts/coverage-gate.ts
 
