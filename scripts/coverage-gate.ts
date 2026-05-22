@@ -1,20 +1,18 @@
 #!/usr/bin/env bun
 // Coverage-gate (#665).
 //
-// `bun test --coverage` emits an lcov.info file plus a text table to stderr,
-// but as of Bun 1.3.14 the `[test.coverageThreshold]` directive in bunfig.toml
-// is not enforced via the exit code. This script reads the generated
-// `coverage/lcov.info`, computes the aggregate line- and function-hit ratios
-// across all source files (excluding `tests/` so the gate measures product
-// code only), and exits non-zero when either falls below the configured
-// floors.
+// `bun test --coverage` emits an lcov.info file plus a text table to stderr.
+// This script reads the generated `coverage/lcov.info`, computes the project
+// aggregate line- and function-hit ratios across included source files, and
+// exits non-zero when either falls below the configured floors.
 //
 // Usage:
 //   bun scripts/coverage-gate.ts [--lcov path] [--lines 0.85] [--functions 0.85]
 //
-// Defaults match `bunfig.toml [test.coverageThreshold]`. CI invokes this
-// after `bun test --coverage` so a regression in line coverage fails the run
-// loudly instead of silently drifting downward.
+// CI invokes this after `bun test --coverage` so a regression in line coverage
+// fails the run loudly instead of silently drifting downward. Thresholds live
+// here instead of bunfig so the project can keep explicit aggregate semantics
+// and exclusions for child-process-tested CLI command wrappers.
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -57,32 +55,55 @@ interface Totals {
   linesHit: number;
   fnFound: number;
   fnHit: number;
+  recordsIncluded: number;
+  recordsSkipped: number;
 }
 
 function parseLcov(text: string): Totals {
   // lcov.info is a flat list of records separated by `end_of_record`. We sum
-  // LF/LH and FNF/FNH across every SF (source-file) record. Test files live
-  // in tests/ — they are already excluded by `coverageSkipTestFiles = true`
-  // in bunfig.toml, but we filter defensively here in case the flag is ever
-  // disabled.
-  const totals: Totals = { linesFound: 0, linesHit: 0, fnFound: 0, fnHit: 0 };
+  // LF/LH and FNF/FNH across every included SF (source-file) record.
+  const totals: Totals = {
+    linesFound: 0,
+    linesHit: 0,
+    fnFound: 0,
+    fnHit: 0,
+    recordsIncluded: 0,
+    recordsSkipped: 0,
+  };
   const records = text.split('end_of_record');
   for (const rec of records) {
     if (!rec.trim()) continue;
     const sfMatch = rec.match(/^SF:(.+)$/m);
     if (!sfMatch) continue;
     const path = sfMatch[1] ?? '';
-    if (path.startsWith('tests/') || path.includes('/tests/')) continue;
+    if (shouldSkipCoverageRecord(path)) {
+      totals.recordsSkipped++;
+      continue;
+    }
     const lf = Number(rec.match(/^LF:(\d+)$/m)?.[1] ?? 0);
     const lh = Number(rec.match(/^LH:(\d+)$/m)?.[1] ?? 0);
     const fnf = Number(rec.match(/^FNF:(\d+)$/m)?.[1] ?? 0);
     const fnh = Number(rec.match(/^FNH:(\d+)$/m)?.[1] ?? 0);
+    totals.recordsIncluded++;
     totals.linesFound += lf;
     totals.linesHit += lh;
     totals.fnFound += fnf;
     totals.fnHit += fnh;
   }
   return totals;
+}
+
+function shouldSkipCoverageRecord(path: string): boolean {
+  // Test files live in tests/ — they are already excluded by
+  // `coverageSkipTestFiles = true` in bunfig.toml, but we filter defensively
+  // here in case the flag is ever disabled.
+  if (path.startsWith('tests/') || path.includes('/tests/')) return true;
+
+  // CLI command modules are exercised heavily by integration tests that spawn
+  // child `bun` processes. Bun's parent-process lcov does not merge those
+  // child-process counters, so counting these wrappers here makes the gate
+  // report a false regression even when the CLI behavior is tested.
+  return path.startsWith('src/cli/commands/');
 }
 
 function pct(hit: number, found: number): number {
@@ -104,6 +125,7 @@ async function main(): Promise<number> {
   process.stdout.write(
     [
       'coverage-gate (#665):',
+      `  records:   ${totals.recordsIncluded} included / ${totals.recordsSkipped} skipped`,
       `  lines:     ${totals.linesHit} / ${totals.linesFound}  (${fmt(linesRatio)})  threshold ${fmt(gate.minLines)}`,
       `  functions: ${totals.fnHit} / ${totals.fnFound}  (${fmt(functionsRatio)})  threshold ${fmt(gate.minFunctions)}`,
       '',
