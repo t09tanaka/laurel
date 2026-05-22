@@ -5,6 +5,7 @@
     "heading-level": ["error", { "minInitialRank": "h2" }],
     "element-permitted-content": "off",
     "long-title": "off",
+    "no-inline-style": "off",
     "no-implicit-button-type": "off",
     "no-trailing-whitespace": "off",
     "unique-landmark": "off",

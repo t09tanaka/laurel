@@ -91,6 +91,10 @@ bun run check           # biome check (lint + format check)
 bun run format          # biome format --write
 bun run typecheck       # tsc --noEmit
 bun run lint:html       # html-validate against example/dist (run build:example first)
+bun run lint:a11y       # axe against example/dist (run build:example first)
+bun run lint:lighthouse # Lighthouse 100 gate against example/dist
+bun run size:theme-bundle
+bun run size:pages      # generated page weight gate against example/dist
 ```
 
 ## Repo Layout

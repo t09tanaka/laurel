@@ -783,6 +783,39 @@ describe('generateImageVariants metadata policy', () => {
     expect(existsSync(out)).toBe(true);
     expect(await hasExifMetadata(out)).toBe(true);
   });
+
+  test('caches same-format responsive variants by source content hash', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-cache-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'article/hero.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const cacheDir = join(cwd, '.nectar-cache/images');
+    const config = {
+      content: { assets_dir: assetsDir },
+      components: { images: { cache_dir: cacheDir, strip_metadata: true } },
+    } as unknown as NectarConfig;
+    const plan = new Map([['article/hero.png', [600]]]);
+
+    const firstCount = await generateImageVariants({ cwd, config, outputDir, plan });
+    expect(firstCount).toBe(1);
+
+    const cacheFiles = await Array.fromAsync(
+      new Bun.Glob('*').scan({ cwd: cacheDir, onlyFiles: true }),
+    );
+    expect(cacheFiles).toHaveLength(1);
+    expect(cacheFiles[0]).toContain('w600');
+    expect(existsSync(join(outputDir, 'content/images/size/w600/article/hero.png'))).toBe(true);
+
+    await rm(outputDir, { recursive: true, force: true });
+    const secondCount = await generateImageVariants({ cwd, config, outputDir, plan });
+
+    expect(secondCount).toBe(1);
+    expect(existsSync(join(outputDir, 'content/images/size/w600/article/hero.png'))).toBe(true);
+    const cacheFilesAfter = await Array.fromAsync(
+      new Bun.Glob('*').scan({ cwd: cacheDir, onlyFiles: true }),
+    );
+    expect(cacheFilesAfter).toEqual(cacheFiles);
+  });
 });
 
 describe('generateThemeImageSizeVariants', () => {
