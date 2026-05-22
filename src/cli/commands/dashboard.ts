@@ -17,6 +17,12 @@ import { loadRedirects } from '~/build/redirects.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import {
+  type ApprovalState,
+  readApprovalState,
+  sameContentFingerprint,
+  writeApprovalReceipt,
+} from '~/content/approvals.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadContent } from '~/content/loader.ts';
@@ -127,6 +133,7 @@ export interface DashboardContentSummary {
   internalLink: DashboardInternalLink;
   renamePreview: DashboardSlugRenamePreview;
   preview: DashboardPreviewArtifact;
+  approval: ApprovalState | null;
 }
 
 export type DashboardPreviewState = 'current' | 'stale' | 'missing' | 'build-required';
@@ -723,11 +730,22 @@ export async function loadDashboardState({
     'posts',
     query,
   );
-  const pages = applyContentQuery(
-    graph.pages.map((item) => pageSummary(cwd, item, graph, config)),
-    'pages',
-    query,
+  const pageSummaries = await Promise.all(
+    graph.pages.map(async (item) => {
+      const summary = pageSummary(cwd, item, graph, config);
+      return {
+        ...summary,
+        approval: await readApprovalState({
+          cwd,
+          kind: 'pages',
+          slug: summary.slug,
+          path: summary.path,
+          fingerprint: summary.preview.contentFingerprint,
+        }),
+      };
+    }),
   );
+  const pages = applyContentQuery(pageSummaries, 'pages', query);
   const paginatedPosts = await withPreviewArtifacts(
     cwd,
     config,
@@ -1301,6 +1319,40 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result, 201);
     }
+    const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
+    if (request.method === 'POST' && approvalMatch) {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const slug = decodeURIComponent(approvalMatch[1] ?? '');
+      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid page slug' }, 400);
+      const payload = await readJsonPayload<{
+        fingerprint?: ContentSourceFingerprint;
+        approvedBy?: string;
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
+      if (!payload.fingerprint) return jsonResponse({ error: 'fingerprint is required' }, 400);
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const current = await readDashboardContentItem({ cwd: ctx.cwd, config, kind: 'pages', slug });
+      if (!sameContentFingerprint(current.fingerprint, payload.fingerprint)) {
+        return jsonResponse({ ok: false, reason: 'conflict', current }, 409);
+      }
+      const raw = await readFile(resolve(ctx.cwd, current.path), 'utf8');
+      const result = await writeApprovalReceipt({
+        cwd: ctx.cwd,
+        kind: 'pages',
+        slug,
+        path: current.path,
+        fingerprint: current.fingerprint,
+        approvedBy: payload.approvedBy,
+        markdown: raw,
+      });
+      ctx.changeBus.broadcast({
+        reason: 'page-approval-write',
+        kind: 'pages',
+        changedPath: result.changedPath,
+      });
+      return jsonResponse({ ok: true, ...result }, 201);
+    }
     if (request.method === 'PATCH' && url.pathname === '/api/settings/site') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
@@ -1868,6 +1920,7 @@ function postSummary(
     internalLink: internalLinkForSummary('posts', post),
     renamePreview: renamePreviewFor(config, post.slug, post.slug, post.url),
     preview: previewPlaceholder(post.url, contentFingerprint(config.content.posts_dir, source)),
+    approval: null,
   };
 }
 
@@ -1897,6 +1950,7 @@ function pageSummary(
     internalLink: internalLinkForSummary('pages', page),
     renamePreview: renamePreviewFor(config, page.slug, page.slug, page.url),
     preview: previewPlaceholder(page.url, contentFingerprint(config.content.pages_dir, source)),
+    approval: null,
   };
 }
 

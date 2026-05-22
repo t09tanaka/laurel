@@ -1,7 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { chmod, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BUILD_MANIFEST_VERSION, buildManifestRelPath } from '~/build/build-manifest.ts';
@@ -1850,6 +1860,124 @@ describe('build pipeline 404 emission', () => {
     const html = readFileSync(file, 'utf8');
     expect(html).toContain('href="/my-blog/"');
     expect(html).toContain('content="noindex"');
+  });
+});
+
+describe('build pipeline page approvals', () => {
+  test('uses the approved page snapshot while the current page is waiting for review', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const pagePath = join(cwd, 'content/pages/about.md');
+    const approvedMarkdown = [
+      '---',
+      'title: About',
+      'date: 2026-01-02T00:00:00Z',
+      '---',
+      '',
+      'Approved page body',
+      '',
+    ].join('\n');
+    await writeFile(pagePath, approvedMarkdown, 'utf8');
+    const approvedStat = await stat(pagePath);
+    await mkdir(join(cwd, '.nectar/approvals/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, '.nectar/approvals/pages/about.json'),
+      JSON.stringify(
+        {
+          kind: 'pages',
+          slug: 'about',
+          path: 'content/pages/about.md',
+          fingerprint: {
+            path: 'content/pages/about.md',
+            mtimeMs: approvedStat.mtimeMs,
+            size: approvedStat.size,
+          },
+          approvedAt: '2026-05-22T08:50:00.000Z',
+          approvedBy: 'Takuto',
+          source: 'dashboard',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(cwd, '.nectar/approvals/pages/about.md'), approvedMarkdown, 'utf8');
+
+    await writeFile(
+      pagePath,
+      [
+        '---',
+        'title: About',
+        'date: 2026-01-02T00:00:00Z',
+        '---',
+        '',
+        'Unapproved page body',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'about/index.html'), 'utf8');
+
+    expect(html).toContain('Approved page body');
+    expect(html).not.toContain('Unapproved page body');
+  });
+
+  test('does not reuse a default-locale page approval for a localized page', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    const defaultPagePath = join(cwd, 'content/pages/about.md');
+    const approvedMarkdown = [
+      '---',
+      'title: About',
+      'date: 2026-01-02T00:00:00Z',
+      '---',
+      '',
+      'Approved default page body',
+      '',
+    ].join('\n');
+    await writeFile(defaultPagePath, approvedMarkdown, 'utf8');
+    const approvedStat = await stat(defaultPagePath);
+    await mkdir(join(cwd, 'content/fr/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/fr/pages/about.md'),
+      [
+        '---',
+        'title: A propos',
+        'date: 2026-01-02T00:00:00Z',
+        '---',
+        '',
+        'Unapproved localized page body',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await mkdir(join(cwd, '.nectar/approvals/pages'), { recursive: true });
+    await writeFile(
+      join(cwd, '.nectar/approvals/pages/about.json'),
+      JSON.stringify(
+        {
+          kind: 'pages',
+          slug: 'about',
+          path: 'content/pages/about.md',
+          fingerprint: {
+            path: 'content/pages/about.md',
+            mtimeMs: approvedStat.mtimeMs,
+            size: approvedStat.size,
+          },
+          approvedAt: '2026-05-22T08:50:00.000Z',
+          approvedBy: 'Takuto',
+          source: 'dashboard',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(cwd, '.nectar/approvals/pages/about.md'), approvedMarkdown, 'utf8');
+
+    const summary = await build({ cwd });
+
+    expect(existsSync(join(summary.outputDir, 'fr/about/index.html'))).toBe(false);
   });
 });
 

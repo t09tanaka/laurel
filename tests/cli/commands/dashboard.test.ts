@@ -853,6 +853,69 @@ describe('dashboard data', () => {
     }
   });
 
+  test('approves a saved page snapshot and marks later edits as stale', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const current = await readDashboardContentItem({
+        cwd: dir,
+        config: await loadConfig({ cwd: dir }),
+        kind: 'pages',
+        slug: 'about',
+      });
+      const changeBus = createChangeBus({ debounceMs: 1 });
+
+      const approved = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/approvals/pages/about', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            fingerprint: current.fingerprint,
+            approvedBy: 'Takuto',
+          }),
+        }),
+        { cwd: dir, changeBus },
+      );
+
+      expect(approved.status).toBe(201);
+      expect(await readFile(join(dir, '.nectar/approvals/pages/about.json'), 'utf8')).toContain(
+        '"approvedBy": "Takuto"',
+      );
+      expect(await readFile(join(dir, '.nectar/approvals/pages/about.md'), 'utf8')).toContain(
+        'About body',
+      );
+
+      let state = await loadDashboardState({ cwd: dir, perPage: 10 });
+      const approvedPage = state.pages.items.find((page) => page.slug === 'about');
+      expect(approvedPage?.approval?.status).toBe('approved');
+
+      await writeFile(
+        join(dir, 'content/pages/about.md'),
+        [
+          '---',
+          'title: About',
+          'date: 2026-01-02T00:00:00Z',
+          'created_at: 2026-01-02T00:00:00Z',
+          '---',
+          '',
+          'Changed after approval',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      state = await loadDashboardState({ cwd: dir, perPage: 10 });
+      const stalePage = state.pages.items.find((page) => page.slug === 'about');
+      expect(stalePage?.approval?.status).toBe('stale');
+      expect(changeBus.snapshot().lastEvent).toMatchObject({
+        reason: 'page-approval-write',
+        kind: 'pages',
+        changedPath: '.nectar/approvals/pages/about.json',
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('appends a missing theme section without moving top-level config keys', async () => {
     const dir = await makeDashboardFixture();
     try {
@@ -1315,6 +1378,7 @@ describe('dashboard data', () => {
     expect(html).toContain('id="restoreDraft"');
     expect(html).toContain('id="rollbackEditor"');
     expect(html).toContain('id="previewEditor"');
+    expect(html).toContain('id="approvePage"');
     expect(html).toContain('data-snippet="bold"');
     expect(html).toContain('data-snippet="callout"');
     expect(html).toContain('id="editFeatureImage"');
@@ -1322,6 +1386,7 @@ describe('dashboard data', () => {
     expect(html).toContain('id="editFeatureImageCaption"');
     expect(html).toContain('id="insertMedia"');
     expect(html).toContain('aria-label="Editor shortcuts"');
+    expect(html).toContain('Approve saved page');
     expect(html).toContain('position:sticky');
     expect(html).toContain('max-height:100dvh');
   });
