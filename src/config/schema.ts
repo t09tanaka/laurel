@@ -704,7 +704,7 @@ export const configSchema = z
           .boolean()
           .default(true)
           .describe(
-            'Inject `<link rel="preload" as="image" fetchpriority="high" href="…">` into `{{ghost_head}}` for the current route\'s `feature_image`. Mirrors the `<img fetchpriority="high">` the Source theme already emits on the feature image so the LCP image starts downloading from the HTML preload scan, not from after CSS / theme JS lands. Only fires on post / page routes that actually have a `feature_image`; disable when a custom theme already emits its own LCP preload to avoid double-fetching.',
+            'Inject `<link rel="preload" as="image" fetchpriority="high" href="…">` into `{{ghost_head}}` for the current route\'s `feature_image`, then align it with the final rendered `<img fetchpriority="high">` candidate when the theme emits a resized `src`, `srcset`, or `sizes`. This starts the LCP image from the HTML preload scan without preloading a stale full-size source. Only fires on post / page routes that actually have a `feature_image`; disable when a custom theme already emits its own LCP preload to avoid double-fetching.',
           ),
         preconnect_image_origins: z
           .boolean()

@@ -49,6 +49,7 @@ export function injectStylesheetPreload(html: string): string {
   for (const tag of tags) {
     if (tag.kind !== 'link') continue;
     if (!isStylesheet(tag)) continue;
+    if (!shouldPreloadStylesheet(tag)) continue;
     const href = extractAttrValue(tag.openTag, 'href');
     if (!href) continue;
     const normalised = normaliseHref(href);
@@ -62,6 +63,35 @@ export function injectStylesheetPreload(html: string): string {
   if (!touched) return html;
   out += html.slice(cursor);
   return out;
+}
+
+export function syncPriorityImagePreload(html: string): string {
+  const tags = scanLinkAndScriptTags(html);
+  if (tags.length === 0) return html;
+  const image = firstHighPriorityImage(tags);
+  if (!image) return html;
+  let synced = false;
+
+  return rewriteTags(html, tags, (tag) => {
+    if (tag.kind !== 'link') return null;
+    if (synced) return null;
+    if (!isHighPriorityImagePreload(tag)) return null;
+    if (
+      extractAttrValue(tag.openTag, 'imagesrcset') ||
+      extractAttrValue(tag.openTag, 'imagesizes')
+    ) {
+      return null;
+    }
+
+    let next = replaceAttrValue(tag.openTag, 'href', image.src);
+    const additions: string[] = [];
+    if (image.srcset) additions.push(`imagesrcset="${escapeAttr(image.srcset)}"`);
+    if (image.sizes) additions.push(`imagesizes="${escapeAttr(image.sizes)}"`);
+    if (additions.length > 0) next = appendAttributes(next, ` ${additions.join(' ')}`);
+    if (next === tag.openTag) return null;
+    synced = true;
+    return next;
+  });
 }
 
 export function injectSubresourceIntegrity(
@@ -95,6 +125,7 @@ export function normalizeResourceTagAttributes(html: string): string {
       if (extractAttrValue(tag.openTag, 'type')) return null;
       return appendAttributes(tag.openTag, ' type="text/css"');
     }
+    if (tag.kind !== 'script') return null;
     const src = extractAttrValue(tag.openTag, 'src');
     if (!src) return null;
     if (extractAttrValue(tag.openTag, 'type')) return null;
@@ -142,7 +173,7 @@ export function collectHtmlPreloadLinks(html: string): HtmlPreloadLink[] {
 }
 
 interface ScriptOrLink {
-  kind: 'script' | 'link';
+  kind: 'script' | 'link' | 'img';
   // Byte offsets in the input string of the entire `<…>` open tag (link is
   // void so end equals the end of `>`; script includes only the open tag,
   // not the `</script>` close — preload removal targets `<script>` declarations
@@ -152,8 +183,8 @@ interface ScriptOrLink {
   openTag: string;
 }
 
-// Cheap-and-correct-enough single-pass tag scanner. Only looks for `<link …>`
-// and `<script …>` open tags; everything else is skipped. Quoted attribute
+// Cheap-and-correct-enough single-pass tag scanner. Only looks for `<link …>`,
+// `<script …>`, and `<img …>` open tags; everything else is skipped. Quoted attribute
 // values may contain `>` so we tokenise attribute-aware. Comments and CDATA
 // are skipped wholesale. This is not a full HTML parser — it does not need to
 // be — but it correctly handles the open-tag shapes Ghost themes emit.
@@ -181,11 +212,10 @@ function scanLinkAndScriptTags(html: string): ScriptOrLink[] {
     const next = lt + 1;
     if (next >= len) break;
     const ch = html.charCodeAt(next);
-    // Only `<link` and `<script` openers are interesting; `</…>` closers and
-    // any other tag are skipped past the next `>` (attribute-aware).
     const isLink = matchTagName(html, next, 'link');
     const isScript = matchTagName(html, next, 'script');
-    if (!isLink && !isScript) {
+    const isImg = matchTagName(html, next, 'img');
+    if (!isLink && !isScript && !isImg) {
       // `</…>` and other tags — advance to the next `>` while respecting quoted
       // attribute values so a `>` inside a string literal does not end the tag
       // prematurely.
@@ -195,7 +225,7 @@ function scanLinkAndScriptTags(html: string): ScriptOrLink[] {
     }
     // Char after tag name must be whitespace or `>` to count as the tag name
     // boundary (avoids matching `<linkthing>` as `<link>`).
-    const tagNameLen = isLink ? 4 : 6;
+    const tagNameLen = isLink ? 4 : isImg ? 3 : 6;
     const boundary = html.charCodeAt(next + tagNameLen);
     if (
       ch !== 0 &&
@@ -213,7 +243,7 @@ function scanLinkAndScriptTags(html: string): ScriptOrLink[] {
     const tagEnd = skipPastTag(html, lt);
     if (tagEnd <= lt) break;
     out.push({
-      kind: isLink ? 'link' : 'script',
+      kind: isLink ? 'link' : isImg ? 'img' : 'script',
       start: lt,
       end: tagEnd,
       openTag: html.slice(lt, tagEnd),
@@ -332,6 +362,44 @@ function isStylesheet(tag: ScriptOrLink): boolean {
   return !!rel && rel.split(/\s+/).includes('stylesheet');
 }
 
+function shouldPreloadStylesheet(tag: ScriptOrLink): boolean {
+  const rel = extractAttrValue(tag.openTag, 'rel');
+  if (!rel) return false;
+  const tokens = rel.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.includes('alternate')) return false;
+  if (hasBooleanAttr(tag.openTag, 'disabled')) return false;
+  const media = extractAttrValue(tag.openTag, 'media')?.trim().toLowerCase();
+  return !media || media === 'all' || media === 'screen';
+}
+
+interface PriorityImage {
+  src: string;
+  srcset?: string | undefined;
+  sizes?: string | undefined;
+}
+
+function firstHighPriorityImage(tags: readonly ScriptOrLink[]): PriorityImage | undefined {
+  for (const tag of tags) {
+    if (tag.kind !== 'img') continue;
+    if (extractAttrValue(tag.openTag, 'fetchpriority')?.toLowerCase() !== 'high') continue;
+    const src = extractAttrValue(tag.openTag, 'src');
+    if (!src || /^(?:data|blob):/i.test(src)) continue;
+    return {
+      src,
+      srcset: extractAttrValue(tag.openTag, 'srcset'),
+      sizes: extractAttrValue(tag.openTag, 'sizes'),
+    };
+  }
+  return undefined;
+}
+
+function isHighPriorityImagePreload(tag: ScriptOrLink): boolean {
+  if (!isPreload(tag)) return false;
+  const asAttr = extractAttrValue(tag.openTag, 'as');
+  if (asAttr?.toLowerCase() !== 'image') return false;
+  return extractAttrValue(tag.openTag, 'fetchpriority')?.toLowerCase() === 'high';
+}
+
 function isSriLink(tag: ScriptOrLink): boolean {
   if (isStylesheet(tag)) return true;
   const rel = extractAttrValue(tag.openTag, 'rel');
@@ -361,6 +429,66 @@ function appendSriAttrs(tag: string, integrity: string): string {
 function appendAttributes(tag: string, attrs: string): string {
   if (tag.endsWith('/>')) return `${tag.slice(0, -2)}${attrs}>`;
   return `${tag.slice(0, -1)}${attrs}>`;
+}
+
+interface AttrValueSpan {
+  rawStart: number;
+  rawEnd: number;
+}
+
+function replaceAttrValue(tag: string, name: string, value: string): string {
+  const span = findAttrValueSpan(tag, name);
+  if (!span) return appendAttributes(tag, ` ${name}="${escapeAttr(value)}"`);
+  return `${tag.slice(0, span.rawStart)}"${escapeAttr(value)}"${tag.slice(span.rawEnd)}`;
+}
+
+function findAttrValueSpan(tag: string, name: string): AttrValueSpan | undefined {
+  const lower = tag.toLowerCase();
+  const needle = name.toLowerCase();
+  let i = 0;
+  while (i < lower.length) {
+    const at = lower.indexOf(needle, i);
+    if (at === -1) return undefined;
+    const prev = at === 0 ? 0 : lower.charCodeAt(at - 1);
+    if (
+      at !== 0 &&
+      prev !== 0x20 &&
+      prev !== 0x09 &&
+      prev !== 0x0a &&
+      prev !== 0x0d &&
+      prev !== 0x2f
+    ) {
+      i = at + needle.length;
+      continue;
+    }
+    const after = at + needle.length;
+    let j = after;
+    while (j < lower.length && isAttrWs(lower.charCodeAt(j))) j++;
+    if (lower.charCodeAt(j) !== 0x3d) {
+      i = j;
+      continue;
+    }
+    j++;
+    while (j < lower.length && isAttrWs(lower.charCodeAt(j))) j++;
+    if (j >= lower.length) return undefined;
+    const q = lower.charCodeAt(j);
+    if (q === 0x22 || q === 0x27) {
+      const quote = q === 0x22 ? '"' : "'";
+      const end = tag.indexOf(quote, j + 1);
+      if (end === -1) return undefined;
+      return { rawStart: j, rawEnd: end + 1 };
+    }
+    let end = j;
+    while (end < lower.length) {
+      const c = lower.charCodeAt(end);
+      if (c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d || c === 0x3e || c === 0x2f) {
+        break;
+      }
+      end++;
+    }
+    return { rawStart: j, rawEnd: end };
+  }
+  return undefined;
 }
 
 function hasBooleanAttr(tag: string, name: string): boolean {

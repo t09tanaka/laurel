@@ -124,6 +124,7 @@ import {
   injectSubresourceIntegrity,
   normalizeResourceTagAttributes,
   removeRedundantScriptPreload,
+  syncPriorityImagePreload,
 } from './perf-hints.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
@@ -699,7 +700,7 @@ async function runBuild({
     if (plugin.afterContentLoad) await plugin.afterContentLoad(pluginCtx, content);
   });
 
-  for (const ref of findMissingAssetReferences({ cwd, config, content })) {
+  for (const ref of findMissingAssetReferences({ cwd, config, content, outputDir })) {
     logger.warn(formatMissingAssetReference(ref));
   }
   for (const ref of findMissingThemeAssetReferences(theme)) {
@@ -1011,6 +1012,9 @@ async function runBuild({
           }
           html = normalizeResourceTagAttributes(html);
           html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+          if (config.performance.preload_lcp_image !== false) {
+            html = syncPriorityImagePreload(html);
+          }
           html = rewriteBasePathUrls(html, config.build.base_path);
           html = rewriteImageCdnUrls(html, { config });
           html = rewriteContentImageUrls(html, { config, plan: contentImagePlan });
