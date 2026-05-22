@@ -246,9 +246,9 @@ async function prepareScenario(
   }
   if (scenario.name === 'empty') {
     await page.evaluate(
-      "view='posts'; query='__nectar_visual_qa_empty__'; postsPage=1; pagesPage=1; load()",
+      "(async()=>{ dispatch({type:'view/set',view:'posts'}); dispatch({type:'search/set',query:'__nectar_visual_qa_empty__'}); document.getElementById('search').value=ui.query; await load(); })()",
     );
-    await page.waitFor("document.querySelector('.empty') !== null");
+    await page.waitFor("document.querySelector('.statePanel.empty') !== null");
     return;
   }
   if (scenario.name === 'conflict') {
