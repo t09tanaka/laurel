@@ -1444,20 +1444,20 @@ describe('dashboard data', () => {
   test('renders dashboard shell with the note-derived design system tokens', () => {
     const html = renderDashboardHtml();
 
-    expect(html).toContain('--text-primary:#08131a');
-    expect(html).toContain('--background-secondary:#ebe6dc');
-    expect(html).toContain('--surface-raised:#ffffff');
-    expect(html).toContain('--border-default:rgba(8,19,26,.14)');
-    expect(html).toContain('--success:#1e7b65');
-    expect(html).toContain('--danger:#b22323');
-    expect(html).toContain('--focus:#292d9e');
-    expect(html).toContain('--main-width:1180px');
-    expect(html).toContain('--sidebar-width:264px');
-    expect(html).toContain('--surface-secondary:#79d5bd');
+    expect(html).toContain('--text-primary:#15171a');
+    expect(html).toContain('--background-secondary:#f5f6f8');
+    expect(html).toContain('--surface-raised:#fff');
+    expect(html).toContain('--border-default:#e5e8eb');
+    expect(html).toContain('--success:#179c47');
+    expect(html).toContain('--danger:#e5484d');
+    expect(html).toContain('--focus:#30cf43');
+    expect(html).toContain('--main-width:1040px');
+    expect(html).toContain('--sidebar-width:232px');
+    expect(html).toContain('--surface-secondary:#58d66d');
     expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
-    expect(html).toContain('--article-width:620px');
-    expect(html).toContain('font:16px/1.5 var(--font-sans)');
+    expect(html).toContain('--article-width:720px');
+    expect(html).toContain('font:15px/1.5 var(--font-sans)');
     expect(html).toContain('max-width:var(--main-width)');
     expect(html).toContain('max-width:620px');
     expect(html).toContain('line-height:2');
