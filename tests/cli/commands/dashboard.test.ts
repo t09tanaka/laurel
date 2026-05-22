@@ -1351,13 +1351,12 @@ describe('dashboard data', () => {
     const html = renderDashboardHtml();
 
     expect(html).toContain('href="#main"');
-    expect(html).toContain('data-theme="system"');
+    expect(html).toContain('data-theme="light"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('role="status" aria-live="polite"');
-    expect(html).toContain('id="paletteModal"');
-    expect(html).toContain('id="density"');
-    expect(html).toContain('id="theme"');
     expect(html).toContain('id="search"');
+    expect(html).not.toContain('id="density"');
+    expect(html).not.toContain('id="theme"');
     expect(html).toContain('overflow-wrap:anywhere');
     expect(html).toContain('prefers-color-scheme:dark');
     expect(html).toContain('prefers-reduced-motion');
@@ -1384,6 +1383,9 @@ describe('dashboard data', () => {
     expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
     expect(html).toContain('--article-width:620px');
+    expect(html).toContain('font:16px/1.5 var(--font-sans)');
+    expect(html).toContain('max-width:var(--main-width)');
+    expect(html).toContain('max-width:620px');
     expect(html).toContain('line-height:2');
     expect(html).not.toContain('Avenir Next');
     expect(html).not.toContain('font-family:Georgia');
@@ -1392,8 +1394,9 @@ describe('dashboard data', () => {
   test('renders compact toolbar controls without escaped icon text or drawer opacity', () => {
     const html = renderDashboardHtml();
 
-    expect(html).toContain('id="density"');
-    expect(html).toContain('id="command"');
+    expect(html).not.toContain('id="density"');
+    expect(html).not.toContain('id="theme"');
+    expect(html).not.toContain('id="command"');
     expect(html).not.toContain('\\u2195');
     expect(html).not.toContain('\\u2318K');
     expect(html).not.toContain('from{transform:translateX(18px);opacity:.7');
@@ -1406,6 +1409,19 @@ describe('dashboard data', () => {
     expect(html).toContain('.nav button span{display:inline}');
     expect(html).toContain("document.body.classList.add('editorOpen')");
     expect(html).toContain("document.body.classList.remove('editorOpen')");
+  });
+
+  test('keeps list rows focused and hides file details until requested', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('<details class="listFilters"><summary>Filters</summary>');
+    expect(html).toContain('<table class="table contentTable">');
+    expect(html).toContain('<th>Title</th><th>Status</th><th>Created</th>');
+    expect(html).toContain('<details class="rowDetails"><summary>Details</summary>');
+    expect(html).toContain('function primaryActionsCell');
+    expect(html).toContain('function rowDetailsCell');
+    expect(html).not.toContain('<th>Preview</th><th>Path</th>');
+    expect(html).not.toContain('id="contentSearch"');
   });
 
   test('renders editor and create flows as independent dashboard pages', () => {
@@ -1433,16 +1449,32 @@ describe('dashboard data', () => {
     expect(html).toContain('id="rollbackEditor"');
     expect(html).toContain('id="previewEditor"');
     expect(html).toContain('id="approvePage"');
+    expect(html).toContain('<details class="advancedPanel" id="mediaPanel">');
+    expect(html).toContain('<details class="advancedPanel" id="formatPanel">');
+    expect(html).toContain('<details class="advancedPanel" id="recoveryPanel">');
     expect(html).toContain('data-snippet="bold"');
     expect(html).toContain('data-snippet="callout"');
     expect(html).toContain('id="editFeatureImage"');
     expect(html).toContain('id="editFeatureImageAlt"');
     expect(html).toContain('id="editFeatureImageCaption"');
     expect(html).toContain('id="insertMedia"');
-    expect(html).toContain('aria-label="Editor shortcuts"');
+    expect(html).not.toContain('aria-label="Editor shortcuts"');
+    expect(html).not.toContain('Cmd/Ctrl');
     expect(html).toContain('Approve saved page');
     expect(html).toContain('position:sticky');
     expect(html).toContain('class="editor editorPage"');
+  });
+
+  test('opens editor preview from saved artifact state instead of route shortcuts', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('currentPreview=null');
+    expect(html).toContain('currentPreview=findSummary(kind,slug)?.preview||null');
+    expect(html).toContain('if(!currentPreview?.artifactPath)');
+    expect(html).toContain("window.open(currentPreview.openUrl,'_blank','noopener')");
+    expect(html).not.toContain('function findCurrentRoute()');
+    expect(html).not.toContain("key==='p'");
+    expect(html).not.toContain("key==='k'");
   });
 
   test('renders Ghost import controls for review-first dashboard imports', () => {
@@ -1479,7 +1511,7 @@ describe('dashboard frontend state helpers', () => {
     expect(state.view).toBe('posts');
     expect(state.postsPage).toBe(1);
     expect(state.pagesPage).toBe(1);
-    expect(state.theme).toBe('system');
+    expect(state.theme).toBe('light');
   });
 
   test('reduces search, paging, density, theme, and conflict state predictably', () => {
