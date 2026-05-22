@@ -40,6 +40,13 @@ import {
   type OnConflict,
   importGhostExport,
 } from '~/ghost/import.ts';
+import {
+  type ImportPageBundleResult,
+  type PageBundleConflictPolicy,
+  exportPageBundle,
+  importPageBundle,
+  parsePageBundle,
+} from '~/page-bundle/index.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
@@ -559,6 +566,18 @@ export interface DashboardGhostImportResult {
   mode: 'dry-run' | 'apply';
   target: string;
   summary: ImportSummary;
+}
+
+export interface DashboardPageBundleImportPayload {
+  file?: string;
+  dryRun?: boolean;
+  onConflict?: PageBundleConflictPolicy;
+}
+
+export interface DashboardPageBundleImportResult {
+  ok: true;
+  dryRun: boolean;
+  result: ImportPageBundleResult;
 }
 
 interface DashboardWatchMetadata {
@@ -1183,6 +1202,39 @@ export async function handleDashboardRequest(
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
       }
     }
+    const pageBundleExportMatch = url.pathname.match(/^\/api\/page-bundles\/export\/([^/]+)$/);
+    if (request.method === 'GET' && pageBundleExportMatch) {
+      const slug = decodeURIComponent(pageBundleExportMatch[1] ?? '');
+      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid page slug' }, 400);
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      try {
+        return jsonResponse(await exportPageBundle({ cwd: ctx.cwd, config, slug }));
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
+      }
+    }
+    if (request.method === 'POST' && url.pathname === '/api/page-bundles/import') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const payload = await readJsonPayload<DashboardPageBundleImportPayload>(
+        request,
+        ctx.maxBodyBytes,
+      );
+      if (payload instanceof Response) return payload;
+      try {
+        const result = await runDashboardPageBundleImport({
+          cwd: ctx.cwd,
+          configPath: ctx.configPath,
+          payload,
+        });
+        if (!result.dryRun) {
+          ctx.changeBus.broadcast({ reason: 'page-bundle-import', kind: 'pages' });
+        }
+        return jsonResponse(result);
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {
       return jsonResponse(
         await readDashboardSettings({ cwd: ctx.cwd, configPath: ctx.configPath }),
@@ -1411,6 +1463,29 @@ export async function runDashboardGhostImport({
     target: outputDir ?? 'content/',
     summary,
   };
+}
+
+export async function runDashboardPageBundleImport({
+  cwd,
+  configPath,
+  payload,
+}: {
+  cwd: string;
+  configPath?: string;
+  payload: DashboardPageBundleImportPayload;
+}): Promise<DashboardPageBundleImportResult> {
+  const file = typeof payload.file === 'string' ? payload.file.trim() : '';
+  if (!file) throw new Error('file is required');
+  const onConflict = payload.onConflict ?? 'skip';
+  if (!['skip', 'overwrite', 'rename'].includes(onConflict)) {
+    throw new Error(`invalid onConflict: ${String(payload.onConflict)}`);
+  }
+  const dryRun = payload.dryRun !== false;
+  const config = await loadConfig({ cwd, configPath });
+  const bundlePath = isAbsolute(file) ? file : resolve(cwd, file);
+  const bundle = parsePageBundle(JSON.parse(await readFile(bundlePath, 'utf8')));
+  const result = await importPageBundle({ cwd, config, bundle, onConflict, dryRun });
+  return { ok: true, dryRun, result };
 }
 
 function cleanOptionalString(value: unknown): string | undefined {

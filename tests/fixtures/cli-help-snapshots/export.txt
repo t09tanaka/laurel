@@ -1,10 +1,11 @@
-Dump the loaded content as JSON or regenerate the RSS feed without running a full build
+Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build
 
 Usage:
-  nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--json] <format>
+  nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--json] <format> [slug]
 
 Arguments:
-  format              Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML)
+  format              Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle)
+  slug                Page slug when format is `page`
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
@@ -14,6 +15,8 @@ Options:
   -o, --output <path> Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten
   --pretty            Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON
   --include-drafts    Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`
+  --assets            Include local content assets referenced by `nectar export page <slug>`. Enabled by default
+  --no-assets         Omit local asset payloads from a page collaboration bundle
   -j, --json          No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error
   -h, --help          Show help for this command
 
@@ -32,3 +35,4 @@ Examples:
   nectar export json --pretty -o snapshot.json
   nectar export ghost-json -o ghost-backup.json
   nectar export rss -o feed.xml
+  nectar export page about -o about.page.json

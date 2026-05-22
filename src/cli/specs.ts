@@ -1556,7 +1556,7 @@ export const DEPLOY_SPEC: CommandSpec = {
 export const EXPORT_SPEC: CommandSpec = {
   name: 'export',
   summary:
-    'Dump the loaded content as JSON or regenerate the RSS feed without running a full build',
+    'Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build',
   options: {
     config: {
       type: 'string',
@@ -1580,6 +1580,13 @@ export const EXPORT_SPEC: CommandSpec = {
       description:
         'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
     },
+    assets: {
+      type: 'boolean',
+      default: true,
+      description:
+        'Include local content assets referenced by `nectar export page <slug>`. Enabled by default',
+      negatedDescription: 'Omit local asset payloads from a page collaboration bundle',
+    },
     json: {
       type: 'boolean',
       description:
@@ -1590,8 +1597,13 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), or `rss` (RSS 2.0 XML)',
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle)',
       required: true,
+    },
+    {
+      name: 'slug',
+      description: 'Page slug when format is `page`',
+      required: false,
     },
   ],
   examples: [
@@ -1599,6 +1611,50 @@ export const EXPORT_SPEC: CommandSpec = {
     'nectar export json --pretty -o snapshot.json',
     'nectar export ghost-json -o ghost-backup.json',
     'nectar export rss -o feed.xml',
+    'nectar export page about -o about.page.json',
+  ],
+};
+
+export const IMPORT_SPEC: CommandSpec = {
+  name: 'import',
+  summary: 'Import a Nectar collaboration bundle',
+  options: {
+    config: {
+      type: 'string',
+      description: 'Config path(s); repeat or comma-separate to deep-merge in order',
+      placeholder: '<path>',
+    },
+    'on-conflict': {
+      type: 'string',
+      description: 'How to handle existing page files: skip (default), overwrite, or rename',
+      placeholder: '<skip|overwrite|rename>',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Validate the bundle and report planned writes without changing files',
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error',
+    },
+  },
+  positionals: [
+    {
+      name: 'kind',
+      description: 'Import kind. Currently only `page` is supported',
+      required: true,
+    },
+    {
+      name: 'file',
+      description: 'Path to a `nectar.page.v1` page collaboration bundle',
+      required: true,
+    },
+  ],
+  examples: [
+    'nectar import page about.page.json --dry-run',
+    'nectar import page about.page.json --on-conflict rename',
+    'nectar import page about.page.json --on-conflict overwrite',
   ],
 };
 
@@ -1679,6 +1735,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   migrate: MIGRATE_SPEC,
   deploy: DEPLOY_SPEC,
   export: EXPORT_SPEC,
+  import: IMPORT_SPEC,
   upgrade: UPGRADE_SPEC,
   telemetry: TELEMETRY_SPEC,
   plugins: PLUGINS_SPEC,
