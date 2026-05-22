@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
+import { type Dirent, type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import {
   mkdir,
   readFile,
@@ -183,6 +183,12 @@ interface DashboardSettingsCard {
   status: DashboardCardStatus;
   values: DashboardCardValue[];
   command?: string;
+}
+
+export interface DashboardThemeOption {
+  name: string;
+  path: string;
+  active: boolean;
 }
 
 interface DashboardReadinessItem {
@@ -396,7 +402,11 @@ export interface DashboardState {
       assets: string;
     };
     outputDir: string;
-    theme: string;
+    theme: {
+      name: string;
+      dir: string;
+      available: DashboardThemeOption[];
+    };
     cards: DashboardSettingsCard[];
     operations: DashboardOperations;
   };
@@ -450,11 +460,23 @@ export interface DashboardSettings {
     timezone: string;
     accentColor: string;
   };
+  theme: {
+    name: string;
+    dir: string;
+    available: DashboardThemeOption[];
+  };
 }
 
 export type DashboardSettingsWriteResult =
   | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
-  | { ok: false; reason: 'conflict'; changedPath: string; current: DashboardSettings };
+  | { ok: false; reason: 'conflict'; changedPath: string; current: DashboardSettings }
+  | {
+      ok: false;
+      reason: 'invalid-theme';
+      changedPath: string;
+      current: DashboardSettings;
+      theme: string;
+    };
 
 export type DashboardSlugRenameResult =
   | {
@@ -704,7 +726,7 @@ export async function loadDashboardState({
   const loadFinishedAt = new Date().toISOString();
   const syncSnapshot = sync ?? defaultSyncSnapshot({ loadStartedAt, loadFinishedAt });
   const git = await readGitStatus(cwd);
-  const settingsFingerprint = await optionalFingerprintFor(cwd, resolveConfigPath(cwd, configPath));
+  const settingsFingerprint = await settingsFingerprintFor(cwd, configPath);
   const operations = await buildDashboardOperations({
     cwd,
     configPath,
@@ -752,7 +774,11 @@ export async function loadDashboardState({
         assets: config.content.assets_dir,
       },
       outputDir: config.build.output_dir,
-      theme: config.theme.name,
+      theme: {
+        name: config.theme.name,
+        dir: config.theme.dir,
+        available: await listDashboardThemes(cwd, config.theme.dir, config.theme.name),
+      },
       cards: await buildSettingsCards({ cwd, configPath, config, operations }),
       operations,
     },
@@ -866,7 +892,7 @@ export async function readDashboardSettings({
   const filePath = resolveConfigPath(cwd, configPath);
   return {
     configPath: relativePath(cwd, filePath),
-    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
     site: {
       title: config.site.title,
       description: config.site.description,
@@ -874,6 +900,11 @@ export async function readDashboardSettings({
       locale: config.site.locale,
       timezone: config.site.timezone,
       accentColor: config.site.accent_color,
+    },
+    theme: {
+      name: config.theme.name,
+      dir: config.theme.dir,
+      available: await listDashboardThemes(cwd, config.theme.dir, config.theme.name),
     },
   };
 }
@@ -897,7 +928,42 @@ export async function writeDashboardSiteSettings({
   await writeSiteSettingsFile(filePath, updates);
   return {
     ok: true,
-    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
+    changedPath: relativePath(cwd, filePath),
+  };
+}
+
+export async function writeDashboardThemeSettings({
+  cwd,
+  configPath,
+  expectedFingerprint,
+  updates,
+}: {
+  cwd: string;
+  configPath?: string;
+  expectedFingerprint: ContentSourceFingerprint;
+  updates: Record<string, unknown>;
+}): Promise<DashboardSettingsWriteResult> {
+  const filePath = resolveConfigPath(cwd, configPath);
+  const current = await readDashboardSettings({ cwd, configPath });
+  if (!sameFingerprint(current.fingerprint, expectedFingerprint)) {
+    return { ok: false, reason: 'conflict', changedPath: current.configPath, current };
+  }
+  const name = typeof updates.name === 'string' ? updates.name.trim() : '';
+  const exists = current.theme.available.some((theme) => theme.name === name);
+  if (!name || !exists) {
+    return {
+      ok: false,
+      reason: 'invalid-theme',
+      changedPath: current.configPath,
+      current,
+      theme: name,
+    };
+  }
+  await writeThemeSettingsFile(filePath, { name });
+  return {
+    ok: true,
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
     changedPath: relativePath(cwd, filePath),
   };
 }
@@ -1210,6 +1276,38 @@ export async function handleDashboardRequest(
       if (!result.ok) return jsonResponse(result, 409);
       ctx.changeBus.broadcast({
         reason: 'settings-write',
+        kind: 'settings',
+        changedPath: result.changedPath,
+      });
+      return jsonResponse(result);
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/settings/theme') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const payload = await readJsonPayload<{
+        fingerprint?: ContentSourceFingerprint;
+        updates?: Record<string, unknown>;
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
+      if (!payload.fingerprint || !payload.updates) {
+        return jsonResponse({ error: 'fingerprint and updates are required' }, 400);
+      }
+      const invalidSettingsFields = findInvalidThemeSettingsFields(payload.updates);
+      if (invalidSettingsFields.length > 0) {
+        return jsonResponse(
+          { error: 'unknown theme settings fields', fields: invalidSettingsFields },
+          400,
+        );
+      }
+      const result = await writeDashboardThemeSettings({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        expectedFingerprint: payload.fingerprint,
+        updates: payload.updates,
+      });
+      if (!result.ok) return jsonResponse(result, result.reason === 'conflict' ? 409 : 400);
+      ctx.changeBus.broadcast({
+        reason: 'theme-settings-write',
         kind: 'settings',
         changedPath: result.changedPath,
       });
@@ -2341,13 +2439,19 @@ async function buildSettingsCards({
       id: 'theme',
       section: 'Theme',
       title: 'Active theme and design surface',
-      summary: themeInfo.error ?? 'Theme metadata, template count, assets, and custom settings.',
+      summary: themeInfo.error ?? 'Switch active theme from installed theme directories.',
       source: `${config.theme.dir}/${config.theme.name}`,
-      mode: 'read-only',
+      mode: 'editable',
       status: themeInfo.error ? 'danger' : 'ok',
       values: [
         { label: 'name', value: config.theme.name },
         { label: 'dir', value: config.theme.dir },
+        {
+          label: 'available',
+          value: String(
+            (await listDashboardThemes(cwd, config.theme.dir, config.theme.name)).length,
+          ),
+        },
         { label: 'package', value: themeInfo.packageName },
         { label: 'templates', value: String(themeInfo.templates) },
         { label: 'partials', value: String(themeInfo.partials) },
@@ -3274,9 +3378,61 @@ async function writeSiteSettingsFile(
   await writeFile(target, updateTomlSection(raw, 'site', updates), 'utf8');
 }
 
+async function writeThemeSettingsFile(
+  target: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const updates = new Map<string, string>();
+  const value = payload.name;
+  if (typeof value === 'string') updates.set('name', value);
+  if (updates.size === 0) return;
+  const raw = existsSync(target) ? await readFile(target, 'utf8') : '';
+  await writeFile(target, updateTomlSection(raw, 'theme', updates), 'utf8');
+}
+
 function findInvalidSettingsFields(payload: Record<string, unknown>): string[] {
   const allowed = new Set(SITE_SETTINGS_FIELDS);
   return Object.keys(payload).filter((key) => !allowed.has(key));
+}
+
+function findInvalidThemeSettingsFields(payload: Record<string, unknown>): string[] {
+  return Object.keys(payload).filter((key) => key !== 'name');
+}
+
+async function listDashboardThemes(
+  cwd: string,
+  themesDir: string,
+  activeTheme: string,
+): Promise<DashboardThemeOption[]> {
+  const root = isAbsolute(themesDir) ? themesDir : join(cwd, themesDir);
+  if (!existsSync(root)) return [];
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const themes: DashboardThemeOption[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const themeRoot = join(root, entry.name);
+    if (!(await isDashboardThemeDirectory(themeRoot))) continue;
+    themes.push({
+      name: entry.name,
+      path: relativePath(cwd, themeRoot),
+      active: entry.name === activeTheme,
+    });
+  }
+  return themes.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function isDashboardThemeDirectory(themeRoot: string): Promise<boolean> {
+  try {
+    const entries = await readdir(themeRoot, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && entry.name.endsWith('.hbs'));
+  } catch {
+    return false;
+  }
 }
 
 function updateTomlSection(raw: string, section: string, updates: Map<string, string>): string {
@@ -3289,11 +3445,12 @@ function updateTomlSection(raw: string, section: string, updates: Map<string, st
       ...[...updates].map(([key, value]) => `${key} = ${tomlString(value)}`),
       '',
     ];
-    return `${inserted.join('\n')}${raw ? `\n${raw}` : ''}`;
+    if (!raw.trim()) return `${inserted.join('\n')}`;
+    return `${raw.replace(/\n*$/, '\n\n')}${inserted.join('\n')}`;
   }
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^\s*\[[^\]]+\]\s*$/.test(lines[i] ?? '')) {
+    if (/^\s*\[\[?[^\]]+\]\]?\s*$/.test(lines[i] ?? '')) {
       end = i;
       break;
     }
@@ -3318,8 +3475,32 @@ function tomlString(value: string): string {
 }
 
 function resolveConfigPath(cwd: string, configPath: string | undefined): string {
-  const first = configPath?.split(',')[0]?.trim() || 'nectar.toml';
-  return isAbsolute(first) ? first : resolve(cwd, first);
+  const paths = resolveConfigPaths(cwd, configPath);
+  return paths.at(-1) ?? resolve(cwd, 'nectar.toml');
+}
+
+function resolveConfigPaths(cwd: string, configPath: string | undefined): string[] {
+  const paths = configPath
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const targets = paths && paths.length > 0 ? paths : ['nectar.toml'];
+  return targets.map((target) => (isAbsolute(target) ? target : resolve(cwd, target)));
+}
+
+async function settingsFingerprintFor(
+  cwd: string,
+  configPath: string | undefined,
+): Promise<ContentSourceFingerprint> {
+  const paths = resolveConfigPaths(cwd, configPath);
+  if (paths.length === 1)
+    return optionalFingerprintFor(cwd, paths[0] ?? resolve(cwd, 'nectar.toml'));
+  const fingerprints = await Promise.all(paths.map((path) => optionalFingerprintFor(cwd, path)));
+  return {
+    path: fingerprints.map((fingerprint) => fingerprint.path).join(','),
+    mtimeMs: fingerprints.reduce((sum, fingerprint) => sum + fingerprint.mtimeMs, 0),
+    size: fingerprints.reduce((sum, fingerprint) => sum + fingerprint.size, 0),
+  };
 }
 
 function relativePath(cwd: string, filePath: string): string {
@@ -3764,12 +3945,12 @@ async function watchDashboardFiles({
 }): Promise<DashboardWatchMetadata & { watchers: FSWatcher[] }> {
   const config = await loadConfig({ cwd, configPath });
   const paths = [
-    resolveConfigPath(cwd, configPath),
+    ...resolveConfigPaths(cwd, configPath),
     absolutise(cwd, config.content.posts_dir),
     absolutise(cwd, config.content.pages_dir),
     absolutise(cwd, config.content.authors_dir),
     absolutise(cwd, config.content.tags_dir),
-  ];
+  ].filter((path, index, self) => self.indexOf(path) === index);
   const watchers: FSWatcher[] = [];
   const watchedPaths: string[] = [];
   const warnings: string[] = [];
