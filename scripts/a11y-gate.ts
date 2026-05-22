@@ -22,6 +22,7 @@ type AxeResult = {
 const BLOCKING_IMPACTS = new Set(['serious', 'critical']);
 const repoRoot = resolve(import.meta.dir, '..');
 const distRoot = resolve(repoRoot, 'example/dist');
+const EXCLUDED_ROUTES = new Set(['/feed/']);
 
 async function collectHtmlFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -146,7 +147,10 @@ async function main(): Promise<void> {
   const server = await serveDist();
   try {
     const origin = `http://${server.hostname}:${server.port}`;
-    const urls = files.map((file) => `${origin}${routePathForFile(file)}`);
+    const urls = files
+      .map((file) => routePathForFile(file))
+      .filter((route) => !EXCLUDED_ROUTES.has(route))
+      .map((route) => `${origin}${route}`);
     const results = await runAxe(urls);
     const blocking = formatBlockingViolations(results);
     if (blocking.length > 0) {

@@ -18,7 +18,7 @@ export async function emitFeedAlias(opts: {
 export function feedAliasHtml(target: string): string {
   const escaped = escapeHtml(target);
   return [
-    '<!doctype html>',
+    '<!DOCTYPE html>',
     '<html lang="en">',
     '<head>',
     '<meta charset="utf-8">',
