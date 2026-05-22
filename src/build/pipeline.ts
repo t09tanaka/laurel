@@ -16,17 +16,14 @@ import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
-import { NectarError, isNectarError } from '~/util/errors.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
-import { injectSkipLink } from './a11y.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitApacheHtaccess } from './apache.ts';
 import { emitContentApiShadows } from './api.ts';
 import { emitAssetManifest } from './asset-manifest.ts';
 import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
-import { rewriteBasePathUrls } from './base-path-urls.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
@@ -42,7 +39,6 @@ import { CLOUDFLARE_WORKERS_MANIFEST_FILE } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
-import { rewriteContentImageUrls } from './content-image-urls.ts';
 import {
   type RouteEarlyHints,
   buildEarlyHintsHeaderRules,
@@ -77,20 +73,15 @@ import { generateOgImages } from './generate-og-images.ts';
 import { emitGithubPagesRedirects, githubPagesRedirectOutputPath } from './github-pages.ts';
 import { type HeaderRule, collectContentApiHeaderRules } from './headers.ts';
 import { runPostBuildHook } from './hooks.ts';
-import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { emitHumans } from './humans.ts';
 import { collectImageAltWarnings, formatImageAltWarning } from './image-alt-lint.ts';
-import { rewriteImageCdnUrls } from './image-cdn.ts';
 import {
   type ImageFormat,
-  collapseDegenerateSrcset,
   collapseDegenerateSrcsetIntoContent,
   generateImageFormatVariants,
   generateImageVariants,
   generateThemeImageSizeVariants,
-  injectImageDimensions,
   injectImageDimensionsIntoContent,
-  injectImageLqip,
   injectImagePictureSourcesIntoContent,
   injectImageSrcsetIntoContent,
   isSharpAvailable,
@@ -98,7 +89,6 @@ import {
   resolveCacheDir,
 } from './images.ts';
 import { collectInlineScriptCspHashes, withInlineScriptCspHashes } from './inline-script-csp.ts';
-import { stripUnusedLightbox } from './lightbox.ts';
 import { emitLunrIndex, emitLunrWidget } from './lunr.ts';
 import {
   type BuildManifest,
@@ -119,17 +109,9 @@ import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
-import {
-  injectStylesheetPreload,
-  injectSubresourceIntegrity,
-  normalizeResourceTagAttributes,
-  removeRedundantScriptPreload,
-  syncPriorityImagePreload,
-} from './perf-hints.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
-import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.ts';
 import { resolvePortalUrls } from './portal-urls.ts';
 import { precompressOutput } from './precompress.ts';
 import { loadPreservePatterns } from './preserve.ts';
@@ -146,19 +128,18 @@ import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
 import { type RedirectRule, buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
+import { isHtmlRoute, renderRouteHtml } from './route-render.ts';
 import { loadRoutesYaml, resolveCollections, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import {
   emitSearchJson,
   emitSearchShim,
   emitSearchUiCss,
-  injectPagefindSkipMeta,
-  injectSearchShimScript,
   runPagefind,
   searchEngineUsesNectarGhostSearchShim,
 } from './search.ts';
 import { copyStaticDir, resolveStaticPassthroughDirs } from './static-passthrough.ts';
-import { containsSubscribeFormMarkup, transformSubscribeForms } from './subscribe-forms.ts';
+import { containsSubscribeFormMarkup } from './subscribe-forms.ts';
 import {
   findMissingThemeAssetReferences,
   formatMissingThemeAssetReference,
@@ -380,10 +361,6 @@ function routeKindToSitemapKind(kind: RouteContext['kind']): SitemapKind | undef
 function isSitemapIndexableRoute(route: RouteContext): boolean {
   if (route.indexable === false) return false;
   return (route.data.pagination?.page ?? 1) <= 1;
-}
-
-function isHtmlRoute(route: RouteContext): boolean {
-  return route.outputContentType === undefined || route.outputContentType === 'text/html';
 }
 
 function collectRouteContentTypeHeaderRules(
@@ -877,7 +854,6 @@ async function runBuild({
     earlyHints: RouteEarlyHints | null;
   };
   let completedRoutes = 0;
-  const renderedImageAssetsRoot = resolve(cwd, config.content.assets_dir);
   const renderedImageDimensionCache = new Map();
   const renderedImageLqipCache = new Map<string, string | null>();
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
@@ -950,89 +926,22 @@ async function runBuild({
         kind: route.kind,
       });
       try {
-        // Per-route plugin hook. Sequential per route; routes still render in
-        // parallel because each route's hook chain awaits independently.
-        for (const plugin of pluginSet.plugins) {
-          if (plugin.beforeRender) await plugin.beforeRender(pluginCtx, route);
-        }
-        let html = engine.render(route);
-        if (isHtmlRoute(route)) {
-          const renderedHtml = injectSkipLink(html, config.build.csp_nonce);
-          warnSubscribeNoopIfNeeded(renderedHtml);
-          html = collapseDegenerateSrcset(
-            rewritePortalLinks({
-              html: rewriteRecommendationsButton({
-                html: stripUnusedLightbox(transformSubscribeForms(renderedHtml, subscribeConfig)),
-                basePath: config.build.base_path,
-                enabled: recommendationsEnabled,
-              }),
-              urls: portalUrls,
-              inviteOnly: content.site.members_invite_only,
-            }),
-          );
-          html = injectImageDimensions(html, {
-            assetsRoot: renderedImageAssetsRoot,
-            cache: renderedImageDimensionCache,
-          });
-          if (imagesCfg.lqip) {
-            html = await injectImageLqip(html, {
-              assetsRoot: renderedImageAssetsRoot,
-              cache: renderedImageLqipCache,
-              width: imagesCfg.lqip_width,
-              quality: imagesCfg.lqip_quality,
-            });
-          }
-          // Search integration: inject the runtime shim script on any page that
-          // has a `[data-ghost-search]` trigger. Pagefind engines also tag
-          // non-public post HTML with `<meta name="pagefind-skip">` so Pagefind
-          // drops those pages from the public index.
-          if (
-            config.components.search.enabled &&
-            searchEngineUsesNectarGhostSearchShim(config.components.search.engine)
-          ) {
-            html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
-            if (
-              config.components.search.engine === 'pagefind' ||
-              config.components.search.engine === 'json+pagefind'
-            ) {
-              const post = route.kind === 'post' ? route.data.post : undefined;
-              if (post && post.visibility !== 'public') {
-                html = injectPagefindSkipMeta(html);
-              }
-            }
-          }
-          // Resource-hint post-processing. Runs after every theme-side or
-          // injected script/link has landed so we see the final document shape,
-          // but before plugin afterRender so plugins can still react to the
-          // rewritten head.
-          if (config.performance.dedupe_script_preload) {
-            html = removeRedundantScriptPreload(html);
-          }
-          if (config.performance.preload_stylesheet) {
-            html = injectStylesheetPreload(html);
-          }
-          html = normalizeResourceTagAttributes(html);
-          html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
-          if (config.performance.preload_lcp_image !== false) {
-            html = syncPriorityImagePreload(html);
-          }
-          html = rewriteBasePathUrls(html, config.build.base_path);
-          html = rewriteImageCdnUrls(html, { config });
-          html = rewriteContentImageUrls(html, { config, plan: contentImagePlan });
-        }
-        // afterRender chain: each plugin sees the previous transform's output
-        // (including the Pagefind shim above when enabled). Returning anything
-        // other than a string is treated as a pass-through so a plugin that
-        // just wants to observe the HTML can omit the return.
-        for (const plugin of pluginSet.plugins) {
-          if (!plugin.afterRender) continue;
-          const next = await plugin.afterRender(pluginCtx, route, html);
-          if (typeof next === 'string') html = next;
-        }
-        if (isHtmlRoute(route)) {
-          html = rewriteBasePathUrls(html, config.build.base_path);
-          html = injectHtmlBuildAttribute(html, htmlBuildId(html));
-        }
+        const html = await renderRouteHtml({
+          cwd,
+          config,
+          content,
+          theme,
+          engine,
+          route,
+          plugins: pluginSet.plugins,
+          pluginCtx,
+          contentImagePlan,
+          portalUrls,
+          recommendationsEnabled,
+          warnSubscribeNoop: warnSubscribeNoopIfNeeded,
+          imageDimensionCache: renderedImageDimensionCache,
+          imageLqipCache: renderedImageLqipCache,
+        });
         const bytes = Buffer.byteLength(html, 'utf8');
         stop?.({ bytes, reused: false });
         completedRoutes += 1;
@@ -1064,7 +973,7 @@ async function runBuild({
         };
       } catch (err) {
         stop?.();
-        throw wrapRenderError(err, route.url, route.template);
+        throw err;
       }
     });
 
@@ -2198,7 +2107,7 @@ async function invokeHook(
 // `Record<string, Function>` for modules that prefer not to use named exports.
 // A path that fails to import warns and is skipped so a broken helper file
 // never bricks the build.
-async function loadInlineHelpers(
+export async function loadInlineHelpers(
   cwd: string,
   paths: readonly string[],
   engine: ReturnType<typeof createEngine>,
@@ -2248,24 +2157,4 @@ async function loadInlineHelpers(
       logger.warn(`failed to load helpers from '${rawPath}': ${msg}`);
     }
   }
-}
-
-function wrapRenderError(err: unknown, url: string, template: string): NectarError {
-  const prefix = `failed to render ${url} (${template})`;
-  if (isNectarError(err)) {
-    return new NectarError({
-      message: `${prefix}: ${err.message}`,
-      file: err.file,
-      line: err.line,
-      col: err.col,
-      hint: err.hint,
-      cause: err.cause ?? err,
-      code: err.code ?? 'render',
-    });
-  }
-  return new NectarError({
-    message: err instanceof Error ? `${prefix}: ${err.message}` : `${prefix}: ${String(err)}`,
-    cause: err,
-    code: 'render',
-  });
 }

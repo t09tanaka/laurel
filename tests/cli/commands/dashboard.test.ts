@@ -115,8 +115,19 @@ async function makeDashboardFixture(): Promise<string> {
 }
 
 async function writeDashboardThemeFixture(dir: string, name: string): Promise<void> {
-  await mkdir(join(dir, 'themes', name), { recursive: true });
+  await mkdir(join(dir, 'themes', name, 'assets'), { recursive: true });
   await writeFile(join(dir, 'themes', name, 'index.hbs'), `<h1>${name}</h1>\n`, 'utf8');
+  await writeFile(
+    join(dir, 'themes', name, 'post.hbs'),
+    '<!doctype html><html><head>{{ghost_head}}</head><body><main><h1>{{title}}</h1>{{content}}</main></body></html>',
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'themes', name, 'page.hbs'),
+    '<!doctype html><html><head>{{ghost_head}}</head><body><main><h1>{{title}}</h1>{{content}}</main></body></html>',
+    'utf8',
+  );
+  await writeFile(join(dir, 'themes', name, 'assets/app.css'), 'body { color: black; }', 'utf8');
 }
 
 async function makeGhostExportZip(zipPath: string, sourceDir: string): Promise<void> {
@@ -181,9 +192,9 @@ describe('dashboard data', () => {
       expect(state.sync.loadStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.build.outputDir).toBe('dist');
-      expect(state.build.freshness['build-required']).toBe(2);
-      expect(state.posts.items[0]?.preview.state).toBe('build-required');
-      expect(state.posts.items[0]?.preview.detail).toContain('No build output directory');
+      expect(state.build.freshness.current).toBe(2);
+      expect(state.posts.items[0]?.preview.state).toBe('current');
+      expect(state.posts.items[0]?.preview.detail).toContain('saved Markdown');
       expect(state.git.isRepo).toBe(false);
       expect(state.settings.cards.map((card) => card.id)).toContain('content-health');
       expect(state.settings.cards.map((card) => card.id)).toEqual(
@@ -1190,31 +1201,52 @@ describe('dashboard data', () => {
     }
   });
 
-  test('serves saved build artifact previews without allowing route traversal', async () => {
+  test('renders Markdown previews through the active theme without reading dist', async () => {
     const dir = await makeDashboardFixture();
     try {
+      await writeDashboardThemeFixture(dir, 'source');
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(join(dir, 'content/images/cover.jpg'), 'image-bytes', 'utf8');
       await mkdir(join(dir, 'dist/new'), { recursive: true });
-      await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Built New</p>', 'utf8');
+      await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Stale dist</p>', 'utf8');
       await writeFile(join(dir, 'dist/secret.html'), '<!doctype html><p>Secret</p>', 'utf8');
 
       const state = await loadDashboardState({ cwd: dir, perPage: 10 });
       const item = state.posts.items.find((post) => post.slug === 'new');
       expect(item?.preview.state).toBe('current');
-      expect(item?.preview.artifactPath).toBe('dist/new/index.html');
-      expect(item?.preview.openUrl).toBe('/preview/artifact?route=%2Fnew%2F');
+      expect(item?.preview.artifactPath).toBeNull();
+      expect(item?.preview.sourcePath).toBe('content/posts/new.md');
+      expect(item?.preview.openUrl).toBe('/preview/content?route=%2Fnew%2F');
       expect(item?.preview.sandbox.allowScripts).toBe(true);
       expect(item?.preview.sandbox.allowSameOrigin).toBe(false);
-      expect(state.build.freshness.current).toBe(1);
+      expect(state.build.freshness.current).toBe(3);
 
       const ok = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/preview/artifact?route=%2Fnew%2F'),
+        new Request('http://127.0.0.1:4322/preview/content?route=%2Fnew%2F'),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(ok.status).toBe(200);
-      expect(await ok.text()).toContain('Built New');
+      const html = await ok.text();
+      expect(html).toContain('<h1>New Post</h1>');
+      expect(html).toContain('<p>New body</p>');
+      expect(html).not.toContain('Stale dist');
+
+      const contentAsset = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/content/images/cover.jpg'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(contentAsset.status).toBe(200);
+      expect(await contentAsset.text()).toBe('image-bytes');
+
+      const themeAsset = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/assets/app.css'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(themeAsset.status).toBe(200);
+      expect(await themeAsset.text()).toContain('color: black');
 
       const traversal = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/preview/artifact?route=%2F..%2Fsecret'),
+        new Request('http://127.0.0.1:4322/preview/content?route=%2F..%2Fsecret'),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(traversal.status).toBe(404);
@@ -1223,9 +1255,10 @@ describe('dashboard data', () => {
     }
   });
 
-  test('marks build artifact previews stale when saved content is newer', async () => {
+  test('keeps Markdown previews current when dist is stale', async () => {
     const dir = await makeDashboardFixture();
     try {
+      await writeDashboardThemeFixture(dir, 'source');
       await mkdir(join(dir, 'dist/new'), { recursive: true });
       await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Old build</p>', 'utf8');
       await new Promise((resolve) => setTimeout(resolve, 15));
@@ -1246,15 +1279,20 @@ describe('dashboard data', () => {
 
       const state = await loadDashboardState({ cwd: dir, perPage: 10 });
       const item = state.posts.items.find((post) => post.slug === 'new');
-      expect(item?.preview.state).toBe('stale');
-      expect(item?.preview.detail).toContain('Saved source is newer');
-      expect(state.build.freshness.stale).toBe(1);
+      expect(item?.preview.state).toBe('current');
+      expect(item?.preview.detail).toContain('saved Markdown');
+      expect(state.build.freshness.current).toBe(3);
+      const ok = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/preview/content?route=%2Fnew%2F'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(await ok.text()).toContain('Saved after the build artifact');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('resolves preview artifacts from base-path URLs to output_dir routes', async () => {
+  test('resolves Markdown preview routes from base-path URLs', async () => {
     const dir = await makeDashboardFixture();
     try {
       await writeFile(

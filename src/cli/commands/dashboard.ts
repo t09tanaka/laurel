@@ -12,9 +12,23 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
-import { resolveOutputDir } from '~/build/output-dir.ts';
+import { type ContentImageAssetPlan, planContentImageAssets } from '~/build/emit.ts';
+import { computeFavicons } from '~/build/favicons.ts';
+import {
+  type ImageFormat,
+  collapseDegenerateSrcsetIntoContent,
+  injectImageDimensionsIntoContent,
+  injectImagePictureSourcesIntoContent,
+  injectImageSrcsetIntoContent,
+  isSharpAvailable,
+  planImageVariants,
+} from '~/build/images.ts';
+import { loadInlineHelpers } from '~/build/pipeline.ts';
+import { resolvePortalUrls } from '~/build/portal-urls.ts';
 import { loadRedirects } from '~/build/redirects.ts';
+import { renderRouteHtml } from '~/build/route-render.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
+import { planRoutes } from '~/build/routes.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import {
@@ -25,7 +39,7 @@ import {
 } from '~/content/approvals.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
-import { loadContent } from '~/content/loader.ts';
+import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
 import type {
   Author,
   ContentGraph,
@@ -47,7 +61,13 @@ import {
   importPageBundle,
   parsePageBundle,
 } from '~/page-bundle/index.ts';
+import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
+import type { BuildContext } from '~/plugin/types.ts';
+import { type NectarEngine, createEngine } from '~/render/engine.ts';
+import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
+import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
@@ -58,6 +78,7 @@ import { DASHBOARD_SPEC } from '../specs.ts';
 import { renameAuthor } from './authors.ts';
 import { rewriteFrontmatterSlug } from './content.ts';
 import { type CheckResult, runChecks } from './doctor.ts';
+import { inferServeContentType } from './serve.ts';
 import { renameTag } from './tags.ts';
 
 const DEFAULT_PORT = 4322;
@@ -76,7 +97,7 @@ const DASHBOARD_PREVIEW_SANDBOX_POLICY: DashboardPreviewSandboxPolicy = {
   attributes: ['allow-scripts', 'allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox'],
   allowScripts: true,
   allowSameOrigin: false,
-  note: 'Build artifact previews run in a sandboxed iframe without allow-same-origin, so theme scripts cannot read or operate the dashboard document.',
+  note: 'Markdown previews render through the active theme in a sandboxed iframe without allow-same-origin, so theme scripts cannot read or operate the dashboard document.',
 };
 
 type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
@@ -153,6 +174,7 @@ export interface DashboardPreviewArtifact {
   openUrl: string;
   artifactPath: string | null;
   artifactMtimeMs: number | null;
+  sourcePath: string | null;
   contentFingerprint: ContentSourceFingerprint | null;
   detail: string;
   sandbox: DashboardPreviewSandboxPolicy;
@@ -1042,13 +1064,24 @@ export async function handleDashboardRequest(
     if (request.method === 'GET' && url.pathname === '/api/events') {
       return ctx.changeBus.stream();
     }
-    if (request.method === 'GET' && url.pathname === '/preview/artifact') {
+    if (
+      request.method === 'GET' &&
+      (url.pathname === '/preview/content' || url.pathname === '/preview/artifact')
+    ) {
       const route = stringParam(url, 'route') ?? '/';
-      return serveDashboardPreviewArtifact({
+      return serveDashboardContentPreview({
         cwd: ctx.cwd,
         configPath: ctx.configPath,
         route,
       });
+    }
+    if (request.method === 'GET') {
+      const asset = await serveDashboardPreviewAsset({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        pathname: url.pathname,
+      });
+      if (asset) return asset;
     }
     const contentMatch = url.pathname.match(/^\/api\/content\/([^/]+)\/([^/]+)$/);
     if (contentMatch) {
@@ -2135,14 +2168,15 @@ function previewPlaceholder(
   contentFingerprint: ContentSourceFingerprint | null,
 ): DashboardPreviewArtifact {
   return {
-    state: 'build-required',
-    label: 'Build required',
+    state: 'current',
+    label: 'Markdown preview',
     route,
     openUrl: '',
     artifactPath: null,
     artifactMtimeMs: null,
+    sourcePath: contentFingerprint?.path ?? null,
     contentFingerprint,
-    detail: 'Run nectar build to create a saved output artifact for this file.',
+    detail: 'Preview renders the saved Markdown through the active theme without reading dist.',
     sandbox: DASHBOARD_PREVIEW_SANDBOX_POLICY,
   };
 }
@@ -2318,47 +2352,21 @@ async function resolveDashboardPreviewArtifact(
   item: DashboardContentSummary,
 ): Promise<DashboardPreviewArtifact> {
   const route = routePathFromContentUrl(item.url, config);
-  const openUrl = `/preview/artifact?route=${encodeURIComponent(route)}`;
-  const outputRoot = resolveOutputDir(cwd, config.build.output_dir);
-  const missingRoot = await outputRootStatus(cwd, outputRoot);
-  if (missingRoot !== undefined) {
-    return {
-      ...item.preview,
-      state: missingRoot.state,
-      label: missingRoot.label,
-      route,
-      openUrl,
-      detail: missingRoot.detail,
-    };
-  }
-  const artifact = await findRouteHtmlArtifact(cwd, outputRoot, route, config.build.trailing_slash);
-  if (artifact === undefined) {
-    return {
-      ...item.preview,
-      state: 'missing',
-      label: 'Preview missing',
-      route,
-      openUrl,
-      detail: `No saved HTML artifact exists for ${route} in ${config.build.output_dir}.`,
-    };
-  }
-  const contentMtimeMs = item.preview.contentFingerprint?.mtimeMs ?? 0;
-  const stale = contentMtimeMs > 0 && artifact.mtimeMs + 1 < contentMtimeMs;
+  const openUrl = `/preview/content?route=${encodeURIComponent(route)}`;
   return {
     ...item.preview,
-    state: stale ? 'stale' : 'current',
-    label: stale ? 'Preview stale' : 'Preview current',
+    state: item.preview.contentFingerprint ? 'current' : 'missing',
+    label: item.preview.contentFingerprint ? 'Markdown preview' : 'Preview unavailable',
     route,
     openUrl,
-    artifactPath: artifact.relativePath,
-    artifactMtimeMs: artifact.mtimeMs,
-    detail: stale
-      ? 'Saved source is newer than the built HTML artifact; run nectar build before treating preview as published output.'
-      : 'Preview shows the latest saved build artifact, not unsaved editor changes.',
+    sourcePath: item.preview.contentFingerprint?.path ?? item.path,
+    detail: item.preview.contentFingerprint
+      ? 'Preview renders the latest saved Markdown with the active theme and source assets; dist remains the prebuilt deploy output.'
+      : 'No saved Markdown source is available for this preview.',
   };
 }
 
-async function serveDashboardPreviewArtifact({
+async function serveDashboardContentPreview({
   cwd,
   configPath,
   route,
@@ -2367,14 +2375,9 @@ async function serveDashboardPreviewArtifact({
   configPath?: string;
   route: string;
 }): Promise<Response> {
-  const config = await loadConfig({ cwd, configPath });
-  const outputRoot = resolveOutputDir(cwd, config.build.output_dir);
-  const rootStatus = await outputRootStatus(cwd, outputRoot);
-  if (rootStatus !== undefined) return new Response(rootStatus.detail, { status: 404 });
-  const artifact = await findRouteHtmlArtifact(cwd, outputRoot, route, config.build.trailing_slash);
-  if (artifact === undefined) return new Response('Preview artifact not found', { status: 404 });
-  const html = await readFile(artifact.absolutePath, 'utf8');
-  return new Response(html, {
+  const preview = await renderDashboardContentPreview({ cwd, configPath, route });
+  if (!preview) return new Response('Preview route not found', { status: 404 });
+  return new Response(preview.html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
@@ -2384,33 +2387,218 @@ async function serveDashboardPreviewArtifact({
   });
 }
 
-async function outputRootStatus(
-  cwd: string,
-  outputRoot: string,
-): Promise<{ state: 'build-required' | 'missing'; label: string; detail: string } | undefined> {
+interface DashboardPreviewRenderContext {
+  config: NectarConfig;
+  content: ContentGraph;
+  theme: ThemeBundle;
+  engine: NectarEngine;
+  routes: RouteContext[];
+  pluginSet: LoadedPluginSet;
+  pluginCtx: BuildContext;
+  contentImagePlan: ContentImageAssetPlan;
+}
+
+async function renderDashboardContentPreview({
+  cwd,
+  configPath,
+  route,
+}: {
+  cwd: string;
+  configPath?: string;
+  route: string;
+}): Promise<{ html: string; route: RouteContext } | undefined> {
+  const ctx = await loadDashboardPreviewRenderContext({ cwd, configPath });
+  const target = findDashboardPreviewRoute(ctx.routes, route);
+  if (!target) return undefined;
+  const html = await renderRouteHtml({
+    cwd,
+    config: ctx.config,
+    content: ctx.content,
+    theme: ctx.theme,
+    engine: ctx.engine,
+    route: target,
+    plugins: ctx.pluginSet.plugins,
+    pluginCtx: ctx.pluginCtx,
+    contentImagePlan: ctx.contentImagePlan,
+    portalUrls: resolvePortalUrls(ctx.config.components.portal),
+    recommendationsEnabled: ctx.config.recommendations.length > 0,
+  });
+  return { html, route: target };
+}
+
+async function loadDashboardPreviewRenderContext({
+  cwd,
+  configPath,
+}: {
+  cwd: string;
+  configPath?: string;
+}): Promise<DashboardPreviewRenderContext> {
+  const config = await loadConfig({ cwd, configPath });
+  const routesYaml = await loadRoutesYaml(cwd);
+  const pluginSet = await loadPlugins({
+    cwd,
+    specs: config.plugins,
+    autoDetect: config.plugin_auto_detect,
+  });
+  const markdownTransforms: MarkdownTransformHook[] = [];
+  for (const plugin of pluginSet.plugins) {
+    if (typeof plugin.transformMarkdown === 'function') {
+      const fn = plugin.transformMarkdown.bind(plugin);
+      markdownTransforms.push((input, ctx) => fn(input, ctx));
+    }
+  }
+  const [content, theme] = await Promise.all([
+    loadContent({
+      cwd,
+      config,
+      routesYaml,
+      includeDrafts: true,
+      includeFuturePosts: true,
+      markdownTransforms,
+      pageApprovalGate: true,
+    }),
+    loadTheme({ cwd, config }),
+  ]);
+  validateThemeCustom({ config, pkg: theme.pkg });
+  injectImageDimensionsIntoContent({ content, cwd, config });
+  const imageVariantPlan = await planImageVariants({ cwd, config });
+  injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
+  collapseDegenerateSrcsetIntoContent({ content });
+  const imagesCfg = config.components.images;
+  const formatVariants: readonly ImageFormat[] =
+    imagesCfg.enabled && imagesCfg.formats.length > 0 && (await isSharpAvailable())
+      ? imagesCfg.formats
+      : [];
+  if (formatVariants.length > 0) {
+    injectImagePictureSourcesIntoContent({
+      content,
+      plan: imageVariantPlan,
+      formats: formatVariants,
+    });
+  }
+  const favicons = computeFavicons({ config, theme, cwd });
+  const engine = createEngine({ config, content, theme, favicons, cwd });
+  await loadInlineHelpers(cwd, config.components.helpers.paths, engine);
+  const outputDir = isAbsolute(config.build.output_dir)
+    ? config.build.output_dir
+    : resolve(cwd, config.build.output_dir);
+  const pluginCtx: BuildContext = { cwd, outputDir, config, content, theme, engine };
+  await invokeDashboardPreviewHook(pluginSet, async (plugin) => {
+    if (plugin.beforeBuild) await plugin.beforeBuild(pluginCtx);
+  });
+  await invokeDashboardPreviewHook(pluginSet, async (plugin) => {
+    if (plugin.afterContentLoad) await plugin.afterContentLoad(pluginCtx, content);
+  });
+  const routes = planRoutes({ config, content, theme, routesYaml });
+  const contentImagePlan = config.build.copy_content_assets
+    ? await planContentImageAssets(cwd, config.content.assets_dir, {
+        maxImageBytes: config.build.max_image_bytes,
+        stripMetadata: config.components.images.strip_metadata,
+      })
+    : { entries: [], byRel: new Map() };
+  return { config, content, theme, engine, routes, pluginSet, pluginCtx, contentImagePlan };
+}
+
+async function invokeDashboardPreviewHook(
+  set: LoadedPluginSet,
+  fn: (plugin: LoadedPluginSet['plugins'][number]) => Promise<void> | void,
+): Promise<void> {
+  for (const plugin of set.plugins) await fn(plugin);
+}
+
+function findDashboardPreviewRoute(
+  routes: readonly RouteContext[],
+  requested: string,
+): RouteContext | undefined {
+  const normalized = normalizePreviewRoutePath(requested);
+  if (!normalized) return undefined;
+  return routes.find((route) => normalizePreviewRoutePath(route.url) === normalized);
+}
+
+async function serveDashboardPreviewAsset({
+  cwd,
+  configPath,
+  pathname,
+}: {
+  cwd: string;
+  configPath?: string;
+  pathname: string;
+}): Promise<Response | undefined> {
+  const config = await loadConfig({ cwd, configPath });
+  const normalized = stripPreviewBasePath(safeDecodeRoutePath(pathname), config);
+  if (normalized.startsWith('/assets/')) {
+    const theme = await loadTheme({ cwd, config });
+    const rel = normalized.slice(1);
+    const asset = [...theme.assets.values()].find(
+      (item) => item.fingerprintedPath === rel || item.logicalPath === rel,
+    );
+    if (!asset) return undefined;
+    return fileResponse(theme.rootDir, asset.sourcePath);
+  }
+  const contentAssetsPrefix = `/${config.content.assets_dir.replace(/^\/+|\/+$/g, '')}/`;
+  if (normalized.startsWith(contentAssetsPrefix)) {
+    const rel = stripGhostImageTransformSegments(normalized.slice(contentAssetsPrefix.length));
+    return fileResponse(
+      resolve(cwd, config.content.assets_dir),
+      resolve(cwd, config.content.assets_dir, rel),
+    );
+  }
+  if (normalized.startsWith('/_images/')) {
+    const plan = await planContentImageAssets(cwd, config.content.assets_dir, {
+      maxImageBytes: config.build.max_image_bytes,
+      stripMetadata: config.components.images.strip_metadata,
+    });
+    const outputRel = normalized.slice(1);
+    const entry = plan.entries.find((item) => item.outputRel === outputRel);
+    if (!entry) return undefined;
+    return fileResponse(resolve(cwd, config.content.assets_dir), entry.sourcePath);
+  }
+  return undefined;
+}
+
+function stripPreviewBasePath(pathname: string, config: NectarConfig): string {
+  const basePath = normalizeBasePathForPreview(config.build.base_path);
+  if (basePath === '/') return pathname;
+  if (pathname === basePath.slice(0, -1)) return '/';
+  if (!pathname.startsWith(basePath)) return pathname;
+  return `/${pathname.slice(basePath.length).replace(/^\/+/, '')}`;
+}
+
+function stripGhostImageTransformSegments(rel: string): string {
+  const parts = rel.split('/').filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i];
+    if (part === 'size' && parts[i + 1]?.startsWith('w')) {
+      i += 1;
+      continue;
+    }
+    if (part === 'format' && parts[i + 1]) {
+      i += 1;
+      continue;
+    }
+    out.push(part);
+  }
+  return out.join('/');
+}
+
+async function fileResponse(root: string, filePath: string): Promise<Response | undefined> {
   try {
-    const [projectRoot, root, info] = await Promise.all([
-      realpath(cwd),
-      realpath(outputRoot),
-      stat(outputRoot),
+    const [safeRoot, safeFile, info] = await Promise.all([
+      realpath(root),
+      realpath(filePath),
+      stat(filePath),
     ]);
-    if (!info.isDirectory() || !isInsidePath(projectRoot, root)) {
-      return {
-        state: 'missing',
-        label: 'Preview unavailable',
-        detail: 'Configured build.output_dir is not a safe directory inside this project.',
-      };
-    }
+    if (!info.isFile() || !isInsidePath(safeRoot, safeFile)) return undefined;
+    const headers: Record<string, string> = {
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    };
+    const contentType = inferServeContentType(safeFile);
+    if (contentType) headers['Content-Type'] = contentType;
+    return new Response(Bun.file(safeFile), { headers });
+  } catch {
     return undefined;
-  } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
-      return {
-        state: 'build-required',
-        label: 'Build required',
-        detail: 'No build output directory exists yet; run nectar build to create previews.',
-      };
-    }
-    throw err;
   }
 }
 
@@ -2443,39 +2631,6 @@ function safeDecodeRoutePath(pathname: string): string {
   }
 }
 
-async function findRouteHtmlArtifact(
-  cwd: string,
-  outputRoot: string,
-  route: string,
-  trailingSlash: NectarConfig['build']['trailing_slash'],
-): Promise<{ absolutePath: string; relativePath: string; mtimeMs: number } | undefined> {
-  const outputRootReal = await realpath(outputRoot);
-  for (const candidate of routeHtmlCandidates(outputRoot, route, trailingSlash)) {
-    if (!existsSync(candidate)) continue;
-    const [targetReal, info] = await Promise.all([realpath(candidate), stat(candidate)]);
-    if (!info.isFile() || !isInsidePath(outputRootReal, targetReal)) continue;
-    return {
-      absolutePath: targetReal,
-      relativePath: relativePath(cwd, targetReal),
-      mtimeMs: Math.round(info.mtimeMs * 1000) / 1000,
-    };
-  }
-  return undefined;
-}
-
-function routeHtmlCandidates(
-  outputRoot: string,
-  route: string,
-  trailingSlash: NectarConfig['build']['trailing_slash'],
-): string[] {
-  const segments = safeRouteSegments(route);
-  if (segments === undefined) return [];
-  if (segments.length === 0) return [join(outputRoot, 'index.html')];
-  return trailingSlash === 'never'
-    ? [join(outputRoot, `${segments.join('/')}.html`), join(outputRoot, ...segments, 'index.html')]
-    : [join(outputRoot, ...segments, 'index.html'), join(outputRoot, `${segments.join('/')}.html`)];
-}
-
 function safeRouteSegments(route: string): string[] | undefined {
   const decoded = safeDecodeRoutePath(route);
   if (decoded.includes('\0')) return undefined;
@@ -2485,6 +2640,15 @@ function safeRouteSegments(route: string): string[] | undefined {
     return undefined;
   }
   return segments;
+}
+
+function normalizePreviewRoutePath(route: string): string | undefined {
+  const segments = safeRouteSegments(route);
+  if (!segments) return undefined;
+  if (segments.length === 0) return '/';
+  const joined = `/${segments.join('/')}`;
+  const last = segments[segments.length - 1] ?? '';
+  return extname(last) ? joined : `${joined}/`;
 }
 
 function serializeContentSource(frontmatter: Record<string, unknown>, body: string): string {
@@ -3319,11 +3483,11 @@ function readinessItems({
   });
   items.push({
     id: 'preview-output',
-    label: 'HTML output preview',
-    status: existsSync(join(cwd, config.build.output_dir)) ? 'ok' : 'warn',
+    label: 'Markdown preview',
+    status: 'ok',
     detail: existsSync(join(cwd, config.build.output_dir))
-      ? `Build artifacts found in ${config.build.output_dir}`
-      : `Run nectar build before opening saved-output previews for ${graph.posts.length + graph.pages.length} content item(s)`,
+      ? `Preview renders Markdown on demand; ${config.build.output_dir} remains the prebuilt deploy output.`
+      : `Preview renders ${graph.posts.length + graph.pages.length} content item(s) from Markdown before any build output exists.`,
     command: 'nectar build',
   });
   return items;
@@ -3333,9 +3497,9 @@ function cliAssetLedger(): DashboardCliAsset[] {
   return [
     {
       command: 'build',
-      adminSurface: 'Build readiness and saved-output preview',
+      adminSurface: 'Build readiness and prebuilt dist output',
       exposure: 'read-only',
-      note: 'Show output_dir, base_path, recent artifacts, and dry-run command examples.',
+      note: 'Show output_dir, base_path, and dry-run command examples without treating dist as the editor preview source.',
     },
     {
       command: 'check / doctor',
