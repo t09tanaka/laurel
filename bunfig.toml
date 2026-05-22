@@ -43,8 +43,9 @@ functions = 0.85
 # [install.security]
 # scanner = "@aikidosec/safe-chain"
 #
-# CI also runs `bun pm scan` (see .github/workflows/security.yml) which uses
-# whichever scanner is configured here. With no scanner configured, `bun pm
-# scan` still provides defense in depth alongside osv-scanner, bun audit, and
-# CodeQL by verifying lockfile integrity.
+# CI also runs a `bun pm scan` wrapper (see .github/workflows/security.yml)
+# which uses whichever scanner is configured here. With no scanner configured,
+# Bun exits non-zero, so the wrapper records that exact state as an explicit
+# skip while osv-scanner, bun audit, frozen installs, and CodeQL continue to
+# provide the baseline supply-chain gate.
 # ---------------------------------------------------------------------------
