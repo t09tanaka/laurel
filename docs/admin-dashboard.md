@@ -108,6 +108,17 @@ Nectar の責務境界:
 | Save | fingerprint 照合後に書き込む。衝突時は overwrite しない。 |
 | Build | static build freshness と diagnostics を editor から確認できるようにする。 |
 
+Editor recovery の境界:
+
+- Autosave でファイルへ書き込まない。未保存本文は `localStorage / sessionStorage` の draft として
+  fingerprint と path 単位で保持し、保存成功時だけ削除する。
+- 保存前 snapshot は browser local revisions として直近分だけ残す。rollback は editor へ復元するだけで、
+  明示的な Save と fingerprint 照合を通るまで disk へ書かない。
+- 外部編集で現在 fingerprint が変わった場合、古い fingerprint の draft は警告付きの復元候補として扱い、
+  自動で現在ファイルを上書きしない。
+- draft / revision は本文や frontmatter を含むため、機密情報をブラウザ storage に残すリスクがある。
+  共有端末では手動削除や保存成功後の削除を前提にし、server-side history へ拡張する場合も明示的な opt-in にする。
+
 Ghost から取り込む体験:
 
 - title と本文に集中できる広い編集面。

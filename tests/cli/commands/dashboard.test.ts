@@ -726,6 +726,26 @@ describe('dashboard data', () => {
     expect(html).toContain('renderStatePanelHtml');
     expect(html).toContain('warningBadge');
   });
+
+  test('renders recovery, guard, keyboard, media, and snippet editor affordances', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('NECTAR_DRAFT_PREFIX');
+    expect(html).toContain('NECTAR_REVISION_PREFIX');
+    expect(html).toContain('beforeunload');
+    expect(html).toContain('id="restoreDraft"');
+    expect(html).toContain('id="rollbackEditor"');
+    expect(html).toContain('id="previewEditor"');
+    expect(html).toContain('data-snippet="bold"');
+    expect(html).toContain('data-snippet="callout"');
+    expect(html).toContain('id="editFeatureImage"');
+    expect(html).toContain('id="editFeatureImageAlt"');
+    expect(html).toContain('id="editFeatureImageCaption"');
+    expect(html).toContain('id="insertMedia"');
+    expect(html).toContain('aria-label="Editor shortcuts"');
+    expect(html).toContain('position:sticky');
+    expect(html).toContain('max-height:100dvh');
+  });
 });
 
 describe('dashboard frontend state helpers', () => {

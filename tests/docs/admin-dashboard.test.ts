@@ -50,4 +50,14 @@ describe('Admin dashboard design docs', () => {
     expect(readme).toContain('./docs/admin-dashboard.md');
     expect(design).toContain('./admin-dashboard.md');
   });
+
+  test('documents local editor recovery and history privacy boundaries', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'admin-dashboard.md'), 'utf8');
+
+    expect(doc).toContain('localStorage / sessionStorage');
+    expect(doc).toContain('保存前 snapshot');
+    expect(doc).toContain('fingerprint と path');
+    expect(doc).toContain('機密情報');
+    expect(doc).toContain('Autosave でファイルへ書き込まない');
+  });
 });
