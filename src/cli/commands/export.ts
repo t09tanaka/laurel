@@ -6,14 +6,15 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
+import { exportPageBundle } from '~/page-bundle/index.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { EXPORT_SPEC } from '../specs.ts';
 
-export type ExportFormat = 'json' | 'ghost-json' | 'rss';
+export type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'page';
 
-const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss'];
+const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss', 'page'];
 
 export interface RunExportOptions {
   /** Override `process.cwd()` (tests). */
@@ -57,12 +58,16 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
   const outputPath = typeof parsed.values.output === 'string' ? parsed.values.output : undefined;
   const pretty = parsed.values.pretty === true;
   const includeDrafts = parsed.values['include-drafts'] === true;
+  const includeAssets = parsed.values.assets !== false;
 
   let config: NectarConfig;
   let content: ContentGraph;
   try {
     config = await loadConfig({ cwd, configPath });
-    content = await loadContent({ cwd, config, includeDrafts });
+    content =
+      format === 'page'
+        ? ({ posts: [], pages: [], tags: [], authors: [] } as unknown as ContentGraph)
+        : await loadContent({ cwd, config, includeDrafts });
   } catch (err) {
     reportError(err, cwd);
     return exitCodeForError(err);
@@ -70,6 +75,22 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
 
   let body: string;
   switch (format) {
+    case 'page': {
+      const slug = parsed.positionals[1];
+      if (!slug) {
+        process.stderr.write('Missing required argument for page export: <slug>\n\n');
+        process.stderr.write(formatCommandHelp(EXPORT_SPEC));
+        return EXIT_CODES.usage;
+      }
+      try {
+        const bundle = await exportPageBundle({ cwd, config, slug, includeAssets });
+        body = JSON.stringify(bundle, null, pretty ? 2 : 0);
+      } catch (err) {
+        reportError(err, cwd);
+        return exitCodeForError(err);
+      }
+      break;
+    }
     case 'json':
       body = renderJson(content, config, { pretty });
       break;
