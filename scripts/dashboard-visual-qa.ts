@@ -164,12 +164,23 @@ async function smokeDashboard(origin: string): Promise<Record<string, unknown>> 
   }
   const state = (await fetchJson(`${origin}/api/state?per_page=12`)) as {
     site?: { title?: unknown };
-    posts?: { total?: unknown };
+    posts?: {
+      total?: unknown;
+      items?: Array<{ preview?: { openUrl?: unknown } }>;
+    };
     pages?: { total?: unknown };
     settings?: { cards?: unknown[] };
   };
   if (!state.posts || !state.pages || !state.settings) {
     throw new Error('Dashboard API smoke failed: missing posts, pages, or settings.');
+  }
+  const previewUrl = state.posts.items?.[0]?.preview?.openUrl;
+  if (typeof previewUrl !== 'string' || !previewUrl.startsWith('/preview/content?')) {
+    throw new Error('Dashboard API smoke failed: missing Markdown preview URL for the first post.');
+  }
+  const previewHtml = await fetchText(`${origin}${previewUrl}`);
+  if (!previewHtml.includes('<html') || !previewHtml.includes('Nectar')) {
+    throw new Error('Dashboard preview smoke failed: active theme preview did not render HTML.');
   }
   return {
     origin,
@@ -183,7 +194,7 @@ async function smokeDashboard(origin: string): Promise<Record<string, unknown>> 
 async function copyProjectFixture(project: string, output: string): Promise<string> {
   const workingProject = join(output, '.work', 'project');
   await mkdir(dirname(workingProject), { recursive: true });
-  await cp(project, workingProject, { recursive: true });
+  await cp(project, workingProject, { recursive: true, dereference: true });
   return workingProject;
 }
 

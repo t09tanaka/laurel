@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { existsSync, lstatSync, readlinkSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   createDashboardVisualPlan,
   dashboardVisualScenarios,
@@ -31,6 +32,17 @@ describe('dashboard visual QA script helpers', () => {
     expect(plan.htmlSnapshots).toContain(join(output, 'mobile-empty.html'));
     expect(plan.commands).toContain(
       'bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',
+    );
+  });
+
+  test('fixture resolves its active theme for Markdown previews', () => {
+    const project = join(import.meta.dir, '..', '..', 'fixtures', 'dashboard-visual-project');
+    const themePath = join(project, 'themes', 'source');
+
+    expect(existsSync(themePath)).toBe(true);
+    expect(lstatSync(themePath).isSymbolicLink()).toBe(true);
+    expect(resolve(join(project, 'themes'), readlinkSync(themePath))).toBe(
+      resolve(import.meta.dir, '..', '..', '..', 'example', 'themes', 'source'),
     );
   });
 });
