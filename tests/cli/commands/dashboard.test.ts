@@ -1444,24 +1444,23 @@ describe('dashboard data', () => {
   test('renders dashboard shell with the note-derived design system tokens', () => {
     const html = renderDashboardHtml();
 
-    expect(html).toContain('--text-primary:#15171a');
-    expect(html).toContain('--background-secondary:#f5f6f8');
-    expect(html).toContain('--surface-raised:#fff');
-    expect(html).toContain('--border-default:#e5e8eb');
-    expect(html).toContain('--success:#179c47');
-    expect(html).toContain('--danger:#e5484d');
-    expect(html).toContain('--focus:#30cf43');
-    expect(html).toContain('--main-width:1040px');
-    expect(html).toContain('--sidebar-width:232px');
+    expect(html).toContain('--text-primary:#111318');
+    expect(html).toContain('--background-secondary:#f2f5f4');
+    expect(html).toContain('--surface-raised:#f7f9f8');
+    expect(html).toContain('--border-default:#dfe5e3');
+    expect(html).toContain('--success:#148a50');
+    expect(html).toContain('--danger:#d92d3d');
+    expect(html).toContain('--focus:#18b86d');
+    expect(html).toContain('--main-width:1120px');
+    expect(html).toContain('--sidebar-width:248px');
     expect(html).toContain('--surface-secondary:#58d66d');
-    expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
+    expect(html).toContain('"Avenir Next","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
     expect(html).toContain('--article-width:720px');
     expect(html).toContain('font:15px/1.5 var(--font-sans)');
     expect(html).toContain('max-width:var(--main-width)');
     expect(html).toContain('max-width:620px');
     expect(html).toContain('line-height:2');
-    expect(html).not.toContain('Avenir Next');
     expect(html).not.toContain('font-family:Georgia');
   });
 
@@ -1477,6 +1476,9 @@ describe('dashboard data', () => {
     expect(html).toContain('@keyframes slideIn{from{transform:translateX(18px)}');
     expect(html).toContain('.panel{min-width:0');
     expect(html).toContain('@media (max-width:560px)');
+    expect(html).toContain(
+      '.editorScroll{overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) 320px',
+    );
     expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
     expect(html).toContain('min-height:calc(100dvh - 48px)');
     expect(html).toContain('body.editorOpen .shell');
