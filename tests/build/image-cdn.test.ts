@@ -29,7 +29,7 @@ describe('rewriteImageCdnUrls', () => {
   test('rewrites local image attributes through Cloudflare shape', () => {
     const config = makeConfig();
     const html = [
-      '<link rel="preload" as="image" href="/content/images/hero.jpg">',
+      '<link rel="preload" as="image" href="/content/images/hero.jpg" imagesrcset="/content/images/hero.jpg 600w, /content/images/hero@2x.jpg 1200w">',
       '<meta property="og:image" content="/content/images/hero.jpg">',
       '<picture>',
       '<source srcset="/content/images/hero.jpg 600w, /content/images/hero@2x.jpg 1200w">',
@@ -40,6 +40,9 @@ describe('rewriteImageCdnUrls', () => {
     const out = rewriteImageCdnUrls(html, { config });
 
     expect(out).toContain('href="/cdn-cgi/image/format=auto,quality=85/content/images/hero.jpg"');
+    expect(out).toContain(
+      'imagesrcset="/cdn-cgi/image/format=auto,quality=85,width=600/content/images/hero.jpg 600w, /cdn-cgi/image/format=auto,quality=85,width=1200/content/images/hero@2x.jpg 1200w"',
+    );
     expect(out).toContain(
       'content="/cdn-cgi/image/format=auto,quality=85/content/images/hero.jpg"',
     );

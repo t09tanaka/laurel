@@ -98,14 +98,12 @@ jobs:
           bun-version: "1.3.14"
 
       # `bun pm scan` invokes the security scanner configured in bunfig.toml
-      # under [install.security] (see bunfig.toml for the opt-in note). If no
-      # scanner is configured, this command still validates that every package
-      # listed in bun.lock can be fetched and its tarball hash matches the
-      # lockfile — a meaningful integrity check on its own. When a scanner is
-      # later wired up (e.g. @aikidosec/safe-chain), this same step
-      # automatically gains advisory enforcement without further CI changes.
+      # under [install.security] (see bunfig.toml for the opt-in note). Bun
+      # exits non-zero when no scanner is configured, so the wrapper treats
+      # that exact state as an explicit skip while still failing real scanner
+      # errors and findings once an organization-approved scanner is enabled.
       - name: bun pm scan
-        run: bun pm scan
+        run: bun run security:pm-scan
 
   codeql:
     name: CodeQL (javascript-typescript)

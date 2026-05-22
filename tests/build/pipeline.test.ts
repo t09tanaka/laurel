@@ -176,7 +176,7 @@ Body
     const summary = await build({ cwd });
 
     expect(summary.routeCount).toBeGreaterThan(0);
-    expect(summary.warningCount).toBe(3);
+    expect(summary.warningCount).toBe(1);
   });
 
   test('warns when rendered post HTML contains an image without alt text', async () => {

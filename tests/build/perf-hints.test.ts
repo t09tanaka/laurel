@@ -4,6 +4,7 @@ import {
   injectSubresourceIntegrity,
   normalizeResourceTagAttributes,
   removeRedundantScriptPreload,
+  syncPriorityImagePreload,
 } from '~/build/perf-hints.ts';
 import type { ThemeAsset } from '~/theme/types.ts';
 
@@ -94,6 +95,64 @@ describe('injectStylesheetPreload', () => {
     const out = injectStylesheetPreload(html);
     expect(out).toContain('rel="preload" as="style" href="/a.css?x=1&amp;y=2"');
   });
+
+  test('does not preload non-rendering alternate or print stylesheets', () => {
+    const html = [
+      '<link rel="stylesheet" href="/print.css" media="print">',
+      '<link rel="alternate stylesheet" href="/contrast.css">',
+      '<link rel="stylesheet" href="/screen.css" media="screen">',
+    ].join('');
+
+    const out = injectStylesheetPreload(html);
+
+    expect(out).not.toContain('as="style" href="/print.css"');
+    expect(out).not.toContain('as="style" href="/contrast.css"');
+    expect(out).toContain('as="style" href="/screen.css"');
+  });
+});
+
+describe('syncPriorityImagePreload', () => {
+  test('aligns the high-priority image preload with the rendered LCP image candidate', () => {
+    const html = [
+      '<head>',
+      '<link rel="preload" as="image" href="https://example.com/content/images/hero.jpg" fetchpriority="high">',
+      '</head><body>',
+      '<img src="/content/images/size/w1200/hero.jpg" srcset="/content/images/size/w600/hero.jpg 600w, /content/images/size/w1200/hero.jpg 1200w" sizes="(min-width: 720px) 720px" fetchpriority="high">',
+      '</body>',
+    ].join('');
+
+    const out = syncPriorityImagePreload(html);
+
+    expect(out).toContain(
+      '<link rel="preload" as="image" href="/content/images/size/w1200/hero.jpg" fetchpriority="high" imagesrcset="/content/images/size/w600/hero.jpg 600w, /content/images/size/w1200/hero.jpg 1200w" imagesizes="(min-width: 720px) 720px">',
+    );
+  });
+
+  test('preserves explicit image preload candidates', () => {
+    const html = [
+      '<link rel="preload" as="image" href="/manual.jpg" fetchpriority="high" imagesrcset="/manual-small.jpg 600w" imagesizes="100vw">',
+      '<img src="/rendered.jpg" srcset="/rendered-small.jpg 600w" sizes="50vw" fetchpriority="high">',
+    ].join('');
+
+    expect(syncPriorityImagePreload(html)).toBe(html);
+  });
+
+  test('syncs only the first bare high-priority image preload', () => {
+    const html = [
+      '<link rel="preload" as="image" href="/full-size-a.jpg" fetchpriority="high">',
+      '<link rel="preload" as="image" href="/manual-b.jpg" fetchpriority="high">',
+      '<img src="/resized-a.jpg" fetchpriority="high">',
+    ].join('');
+
+    const out = syncPriorityImagePreload(html);
+
+    expect(out).toContain(
+      '<link rel="preload" as="image" href="/resized-a.jpg" fetchpriority="high">',
+    );
+    expect(out).toContain(
+      '<link rel="preload" as="image" href="/manual-b.jpg" fetchpriority="high">',
+    );
+  });
 });
 
 describe('injectSubresourceIntegrity', () => {
@@ -182,5 +241,11 @@ describe('normalizeResourceTagAttributes', () => {
 
     expect(out).toContain('<script src="/built/app.mjs" type="module"></script>');
     expect(out).toContain('<script nomodule src="/built/legacy.js"></script>');
+  });
+
+  test('does not treat images as scripts', () => {
+    const html = '<img src="/hero.jpg" alt="Hero">';
+
+    expect(normalizeResourceTagAttributes(html)).toBe(html);
   });
 });

@@ -76,6 +76,7 @@ function rewriteTag(tag: TagSpan, config: NectarConfig): string {
   } else if (tag.name === 'link') {
     if (isImagePreload(byName)) {
       rewriteAttr(byName.get('href'), replacements, config, {});
+      rewriteSrcsetAttr(byName.get('imagesrcset'), replacements, config);
     }
   } else if (tag.name === 'meta' && isImageMeta(byName)) {
     rewriteAttr(byName.get('content'), replacements, config, {});

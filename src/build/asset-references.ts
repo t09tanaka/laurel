@@ -13,18 +13,21 @@ export function findMissingAssetReferences({
   cwd,
   config,
   content,
+  outputDir,
 }: {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;
+  outputDir?: string | undefined;
 }): MissingAssetReference[] {
   const missing: MissingAssetReference[] = [];
   const assetsRoot = resolve(cwd, config.content.assets_dir);
+  const outputAssetsRoot = outputDir ? resolve(outputDir, 'content/images') : undefined;
 
   const report = (url: string | undefined, owner: string): void => {
-    const file = resolveLocalContentImage(url, assetsRoot);
-    if (file === undefined || existsSync(file)) return;
-    missing.push({ owner, url: url ?? '', file });
+    const ref = resolveLocalContentImage(url, assetsRoot, outputAssetsRoot);
+    if (ref === undefined || existsSync(ref.sourceFile) || outputExists(ref.outputFile)) return;
+    missing.push({ owner, url: url ?? '', file: ref.sourceFile });
   };
 
   for (const post of content.posts) {
@@ -55,7 +58,16 @@ export function formatMissingAssetReference(ref: MissingAssetReference): string 
   return `${ref.owner} references image '${ref.url}' but ${ref.file} is missing on disk.`;
 }
 
-function resolveLocalContentImage(url: string | undefined, assetsRoot: string): string | undefined {
+interface LocalContentImageRef {
+  sourceFile: string;
+  outputFile?: string | undefined;
+}
+
+function resolveLocalContentImage(
+  url: string | undefined,
+  assetsRoot: string,
+  outputAssetsRoot: string | undefined,
+): LocalContentImageRef | undefined {
   if (!url) return undefined;
   if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return undefined;
   if (url.startsWith('//')) return undefined;
@@ -71,7 +83,11 @@ function resolveLocalContentImage(url: string | undefined, assetsRoot: string): 
   if (fromRoot === '' || fromRoot.startsWith('..') || fromRoot.includes(`..${'/'}`)) {
     return undefined;
   }
-  return file;
+
+  return {
+    sourceFile: file,
+    outputFile: outputAssetsRoot ? resolveOutputContentImage(rel, outputAssetsRoot) : undefined,
+  };
 }
 
 function contentImageRelativePath(pathPart: string): string | undefined {
@@ -83,4 +99,17 @@ function contentImageRelativePath(pathPart: string): string | undefined {
   const rest = normalized.slice(idx + marker.length);
   if (rest === '' || rest.split('/').includes('..')) return undefined;
   return rest;
+}
+
+function resolveOutputContentImage(rest: string, outputAssetsRoot: string): string | undefined {
+  const file = resolve(outputAssetsRoot, rest);
+  const fromRoot = relative(outputAssetsRoot, file);
+  if (fromRoot === '' || fromRoot.startsWith('..') || fromRoot.includes(`..${'/'}`)) {
+    return undefined;
+  }
+  return file;
+}
+
+function outputExists(file: string | undefined): boolean {
+  return file !== undefined && existsSync(file);
 }

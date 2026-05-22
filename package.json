@@ -88,6 +88,7 @@
     "size:pages": "bun scripts/page-weight-gate.ts",
     "verify:lockfile": "bun install --frozen-lockfile",
     "verify:bun-path-alias": "bun scripts/verify-bun-path-alias.ts",
+    "security:pm-scan": "bun scripts/bun-pm-scan.ts",
     "lint:a11y": "bun run scripts/a11y-gate.ts",
     "lint:lighthouse": "bun run scripts/lighthouse-gate.ts",
     "qa:dashboard-visual": "bun scripts/dashboard-visual-qa.ts"
