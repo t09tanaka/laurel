@@ -114,6 +114,11 @@ async function makeDashboardFixture(): Promise<string> {
   return dir;
 }
 
+async function writeDashboardThemeFixture(dir: string, name: string): Promise<void> {
+  await mkdir(join(dir, 'themes', name), { recursive: true });
+  await writeFile(join(dir, 'themes', name, 'index.hbs'), `<h1>${name}</h1>\n`, 'utf8');
+}
+
 async function makeGhostExportZip(zipPath: string, sourceDir: string): Promise<void> {
   await mkdir(sourceDir, { recursive: true });
   await writeFile(
@@ -652,12 +657,17 @@ describe('dashboard data', () => {
   test('switches the active theme only to an existing theme directory', async () => {
     const dir = await makeDashboardFixture();
     try {
-      await mkdir(join(dir, 'themes/source'), { recursive: true });
-      await mkdir(join(dir, 'themes/casper'), { recursive: true });
+      await writeDashboardThemeFixture(dir, 'source');
+      await writeDashboardThemeFixture(dir, 'casper');
+      await mkdir(join(dir, 'themes/not-a-theme'), { recursive: true });
 
       const settings = await readDashboardSettings({ cwd: dir });
       expect(settings.theme.name).toBe('source');
       expect(settings.theme.available.map((theme) => theme.name)).toEqual(['casper', 'source']);
+      expect(settings.theme.available.find((theme) => theme.name === 'source')).toMatchObject({
+        path: 'themes/source',
+        active: true,
+      });
 
       const written = await writeDashboardThemeSettings({
         cwd: dir,
@@ -682,6 +692,215 @@ describe('dashboard data', () => {
       if (missing.ok) throw new Error('expected invalid theme result');
       expect(missing.reason).toBe('invalid-theme');
       expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "casper"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('writes theme settings through the dashboard API with conflict and validation guards', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      await writeDashboardThemeFixture(dir, 'casper');
+      const settings = await readDashboardSettings({ cwd: dir });
+      const changeBus = createChangeBus({ debounceMs: 1 });
+
+      const invalid = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/settings/theme', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            fingerprint: settings.fingerprint,
+            updates: { name: 'casper', dir: 'themes' },
+          }),
+        }),
+        { cwd: dir, changeBus },
+      );
+      expect(invalid.status).toBe(400);
+
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        (await readFile(join(dir, 'nectar.toml'), 'utf8')).replace(
+          'name = "source"',
+          'name = "casper"',
+        ),
+        'utf8',
+      );
+      const stale = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/settings/theme', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            fingerprint: settings.fingerprint,
+            updates: { name: 'source' },
+          }),
+        }),
+        { cwd: dir, changeBus },
+      );
+      expect(stale.status).toBe(409);
+      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "casper"');
+
+      const current = await readDashboardSettings({ cwd: dir });
+      const ok = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/settings/theme', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            fingerprint: current.fingerprint,
+            updates: { name: 'source' },
+          }),
+        }),
+        { cwd: dir, changeBus },
+      );
+      expect(ok.status).toBe(200);
+      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "source"');
+      expect(changeBus.snapshot().lastEvent).toMatchObject({
+        reason: 'theme-settings-write',
+        kind: 'settings',
+        changedPath: 'nectar.toml',
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('appends a missing theme section without moving top-level config keys', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'casper');
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        [
+          'plugins = []',
+          '',
+          '[site]',
+          'title = "Dashboard Test"',
+          'url = "https://dashboard.test"',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const settings = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardThemeSettings({
+        cwd: dir,
+        expectedFingerprint: settings.fingerprint,
+        updates: { name: 'casper' },
+      });
+
+      expect(written.ok).toBe(true);
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw.indexOf('plugins = []')).toBeLessThan(raw.indexOf('[site]'));
+      expect(raw.indexOf('[theme]')).toBeGreaterThan(raw.indexOf('[site]'));
+      expect(raw).toContain('name = "casper"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('inserts missing theme keys before TOML array tables', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        [
+          '[site]',
+          'title = "Dashboard Test"',
+          'url = "https://dashboard.test"',
+          '',
+          '[theme]',
+          'dir = "themes"',
+          '',
+          '[[navigation]]',
+          'label = "Home"',
+          'url = "/"',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const settings = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardThemeSettings({
+        cwd: dir,
+        expectedFingerprint: settings.fingerprint,
+        updates: { name: 'source' },
+      });
+
+      expect(written.ok).toBe(true);
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw.indexOf('name = "source"')).toBeGreaterThan(raw.indexOf('[theme]'));
+      expect(raw.indexOf('name = "source"')).toBeLessThan(raw.indexOf('[[navigation]]'));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('writes theme settings to the last explicit config layer', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      await writeDashboardThemeFixture(dir, 'casper');
+      const basePath = join(dir, 'base.toml');
+      const localPath = join(dir, 'local.toml');
+      await writeFile(
+        basePath,
+        '[site]\ntitle = "Layered"\nurl = "https://dashboard.test"\n\n[theme]\nname = "source"\ndir = "themes"\n',
+        'utf8',
+      );
+      await writeFile(localPath, '[theme]\nname = "source"\n', 'utf8');
+
+      const settings = await readDashboardSettings({
+        cwd: dir,
+        configPath: 'base.toml,local.toml',
+      });
+      expect(settings.configPath).toBe('local.toml');
+
+      await writeFile(
+        basePath,
+        '[site]\ntitle = "Changed Outside"\nurl = "https://dashboard.test"\n\n[theme]\nname = "source"\ndir = "themes"\n',
+        'utf8',
+      );
+      const stale = await writeDashboardThemeSettings({
+        cwd: dir,
+        configPath: 'base.toml,local.toml',
+        expectedFingerprint: settings.fingerprint,
+        updates: { name: 'casper' },
+      });
+      expect(stale.ok).toBe(false);
+      if (stale.ok) throw new Error('expected layered settings conflict');
+      expect(stale.reason).toBe('conflict');
+
+      const current = await readDashboardSettings({
+        cwd: dir,
+        configPath: 'base.toml,local.toml',
+      });
+      const written = await writeDashboardThemeSettings({
+        cwd: dir,
+        configPath: 'base.toml,local.toml',
+        expectedFingerprint: current.fingerprint,
+        updates: { name: 'casper' },
+      });
+
+      expect(written.ok).toBe(true);
+      expect(await readFile(basePath, 'utf8')).toContain('name = "source"');
+      expect(await readFile(localPath, 'utf8')).toContain('name = "casper"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('keeps settings readable when theme.dir is not a directory', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeFile(join(dir, 'themes-file'), 'not a directory\n', 'utf8');
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        '[site]\ntitle = "Dashboard Test"\nurl = "https://dashboard.test"\n\n[theme]\nname = "source"\ndir = "themes-file"\n',
+        'utf8',
+      );
+
+      const settings = await readDashboardSettings({ cwd: dir });
+      expect(settings.theme.available).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
+import { type Dirent, type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import {
   mkdir,
   readFile,
@@ -726,7 +726,7 @@ export async function loadDashboardState({
   const loadFinishedAt = new Date().toISOString();
   const syncSnapshot = sync ?? defaultSyncSnapshot({ loadStartedAt, loadFinishedAt });
   const git = await readGitStatus(cwd);
-  const settingsFingerprint = await optionalFingerprintFor(cwd, resolveConfigPath(cwd, configPath));
+  const settingsFingerprint = await settingsFingerprintFor(cwd, configPath);
   const operations = await buildDashboardOperations({
     cwd,
     configPath,
@@ -892,7 +892,7 @@ export async function readDashboardSettings({
   const filePath = resolveConfigPath(cwd, configPath);
   return {
     configPath: relativePath(cwd, filePath),
-    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
     site: {
       title: config.site.title,
       description: config.site.description,
@@ -928,7 +928,7 @@ export async function writeDashboardSiteSettings({
   await writeSiteSettingsFile(filePath, updates);
   return {
     ok: true,
-    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
     changedPath: relativePath(cwd, filePath),
   };
 }
@@ -963,7 +963,7 @@ export async function writeDashboardThemeSettings({
   await writeThemeSettingsFile(filePath, { name });
   return {
     ok: true,
-    fingerprint: await optionalFingerprintFor(cwd, filePath),
+    fingerprint: await settingsFingerprintFor(cwd, configPath),
     changedPath: relativePath(cwd, filePath),
   };
 }
@@ -3406,15 +3406,33 @@ async function listDashboardThemes(
 ): Promise<DashboardThemeOption[]> {
   const root = isAbsolute(themesDir) ? themesDir : join(cwd, themesDir);
   if (!existsSync(root)) return [];
-  const entries = await readdir(root, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const themes: DashboardThemeOption[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const themeRoot = join(root, entry.name);
+    if (!(await isDashboardThemeDirectory(themeRoot))) continue;
+    themes.push({
       name: entry.name,
-      path: relativePath(cwd, join(root, entry.name)),
+      path: relativePath(cwd, themeRoot),
       active: entry.name === activeTheme,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    });
+  }
+  return themes.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function isDashboardThemeDirectory(themeRoot: string): Promise<boolean> {
+  try {
+    const entries = await readdir(themeRoot, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && entry.name.endsWith('.hbs'));
+  } catch {
+    return false;
+  }
 }
 
 function updateTomlSection(raw: string, section: string, updates: Map<string, string>): string {
@@ -3427,11 +3445,12 @@ function updateTomlSection(raw: string, section: string, updates: Map<string, st
       ...[...updates].map(([key, value]) => `${key} = ${tomlString(value)}`),
       '',
     ];
-    return `${inserted.join('\n')}${raw ? `\n${raw}` : ''}`;
+    if (!raw.trim()) return `${inserted.join('\n')}`;
+    return `${raw.replace(/\n*$/, '\n\n')}${inserted.join('\n')}`;
   }
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^\s*\[[^\]]+\]\s*$/.test(lines[i] ?? '')) {
+    if (/^\s*\[\[?[^\]]+\]\]?\s*$/.test(lines[i] ?? '')) {
       end = i;
       break;
     }
@@ -3456,8 +3475,32 @@ function tomlString(value: string): string {
 }
 
 function resolveConfigPath(cwd: string, configPath: string | undefined): string {
-  const first = configPath?.split(',')[0]?.trim() || 'nectar.toml';
-  return isAbsolute(first) ? first : resolve(cwd, first);
+  const paths = resolveConfigPaths(cwd, configPath);
+  return paths.at(-1) ?? resolve(cwd, 'nectar.toml');
+}
+
+function resolveConfigPaths(cwd: string, configPath: string | undefined): string[] {
+  const paths = configPath
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const targets = paths && paths.length > 0 ? paths : ['nectar.toml'];
+  return targets.map((target) => (isAbsolute(target) ? target : resolve(cwd, target)));
+}
+
+async function settingsFingerprintFor(
+  cwd: string,
+  configPath: string | undefined,
+): Promise<ContentSourceFingerprint> {
+  const paths = resolveConfigPaths(cwd, configPath);
+  if (paths.length === 1)
+    return optionalFingerprintFor(cwd, paths[0] ?? resolve(cwd, 'nectar.toml'));
+  const fingerprints = await Promise.all(paths.map((path) => optionalFingerprintFor(cwd, path)));
+  return {
+    path: fingerprints.map((fingerprint) => fingerprint.path).join(','),
+    mtimeMs: fingerprints.reduce((sum, fingerprint) => sum + fingerprint.mtimeMs, 0),
+    size: fingerprints.reduce((sum, fingerprint) => sum + fingerprint.size, 0),
+  };
 }
 
 function relativePath(cwd: string, filePath: string): string {
@@ -3902,12 +3945,12 @@ async function watchDashboardFiles({
 }): Promise<DashboardWatchMetadata & { watchers: FSWatcher[] }> {
   const config = await loadConfig({ cwd, configPath });
   const paths = [
-    resolveConfigPath(cwd, configPath),
+    ...resolveConfigPaths(cwd, configPath),
     absolutise(cwd, config.content.posts_dir),
     absolutise(cwd, config.content.pages_dir),
     absolutise(cwd, config.content.authors_dir),
     absolutise(cwd, config.content.tags_dir),
-  ];
+  ].filter((path, index, self) => self.indexOf(path) === index);
   const watchers: FSWatcher[] = [];
   const watchedPaths: string[] = [];
   const warnings: string[] = [];
