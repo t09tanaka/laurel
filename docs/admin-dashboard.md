@@ -139,6 +139,39 @@ Premium feel は主観ではなく、次の基準でレビューする。
 - border と shadow は階層表現のためだけに使う。
 - icon は既存 icon library を優先し、未知 icon には tooltip を付ける。
 
+## Frontend Architecture Policy
+
+Dashboard shell は `renderDashboardHtml()` を公開契約にし続ける。ただし保守単位は
+`src/cli/dashboard/` 配下の shell、style、script、state、view-state helper に分割する。
+追加の build step は導入しない。CLI が返す HTML/CSS/JS は引き続き単一 response だが、
+実装は TypeScript module として lint、format、typecheck の対象にする。
+
+UI 状態は framework を導入せず、vanilla JS と reducer/helper で扱う。検索、status filter、
+posts/pages pagination、density、theme、loading/error/conflict は reducer の action として
+更新し、DOM 操作は render helper 側に寄せる。Loading / Error / Conflict / Empty は
+同じ state panel の体系で表示し、toast だけに依存しない。
+
+Dark mode は opt-in ではなく system preference を既定にする。手動 toggle は
+`localStorage` に `system` / `light` / `dark` を保存するだけで、Nectar config や content file は
+変更しない。テーマ token は最小限に留め、静的サイトの active theme とは別概念として扱う。
+
+Iconography は dashboard 内で一貫した nav/toolbar の小さな icon surface に限定する。
+追加の icon bundle は持たず、外部ライブラリを導入する場合は別タスクで bundle strategy と
+アクセシビリティ label を同時に決める。
+
+## I18n, Feature Flags, Telemetry
+
+Admin UI copy は当面 English を fallback とする。サイト本文、frontmatter、`nectar.toml` の
+`locale` は保持するが、CMS 的な翻訳管理 UI は作らない。i18n を入れる場合は file-backed な
+Admin catalog を source of truth にし、実行時に外部 service から文言を取得しない。
+
+Feature flag は local-only / file-first にする。必要になった場合は明示的な config または
+dashboard state の settings surface に出し、remote rollout や hosted flag service は使わない。
+
+Telemetry は dashboard から収集しない。Admin は local process が local files を扱う道具であり、
+利用状況、content title、file path、編集イベントを外部送信しない。将来 opt-in telemetry を検討する
+場合も、既定 off、送信内容の明示、file-first な設定、テスト可能な no-network 契約を必須にする。
+
 ## Ghost Reference Board
 
 Ghost 比較は好みではなく、画面単位の比較軸で扱う。
