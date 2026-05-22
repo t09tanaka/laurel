@@ -1418,9 +1418,20 @@ describe('dashboard data', () => {
     expect(html).toContain('href="/tags" data-view="tags"');
     expect(html).toContain('href="/settings" data-view="settings"');
     expect(html).toContain('function initialViewFromPath');
+    expect(html).toContain('function editorRouteFromPath');
     expect(html).toContain('function syncPathForView');
 
-    for (const path of ['/posts', '/pages', '/authors', '/tags', '/settings']) {
+    for (const path of [
+      '/posts',
+      '/pages',
+      '/authors',
+      '/tags',
+      '/settings',
+      '/posts/future-post/edit',
+      '/pages/about/edit',
+      '/authors/alice/edit',
+      '/tags/news/edit',
+    ]) {
       const response = await handleDashboardRequest(new Request(`http://127.0.0.1:4322${path}`), {
         cwd: process.cwd(),
         changeBus: createChangeBus(),
@@ -1498,6 +1509,10 @@ describe('dashboard data', () => {
     expect(html).toContain('renderCreatePage');
     expect(html).toContain('id="createPage"');
     expect(html).toContain('submitCreateItem');
+    expect(html).toContain('pathForEditor(kind,item.slug)');
+    expect(html).toContain('/edit');
+    expect(html).toContain('openRouteEditor');
+    expect(html).toContain('syncPathForEditor');
     expect(html).toContain('openEditor(data.kind,data.slug)');
     expect(html).not.toContain("prompt('Title or name')");
   });

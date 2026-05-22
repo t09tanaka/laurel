@@ -1035,7 +1035,8 @@ export async function handleDashboardRequest(
   try {
     if (
       request.method === 'GET' &&
-      ['/', '/posts', '/pages', '/authors', '/tags', '/settings'].includes(url.pathname)
+      (['/', '/posts', '/pages', '/authors', '/tags', '/settings'].includes(url.pathname) ||
+        /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
       return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
