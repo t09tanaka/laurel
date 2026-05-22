@@ -186,6 +186,60 @@ Ghost 比較は好みではなく、画面単位の比較軸で扱う。
 Nectar 側 screenshot は同じ viewport で保存し、density、hierarchy、whitespace、
 affordance、state visibility を記録してから実装判断する。
 
+## Executable Visual QA
+
+Dashboard visual QA は Browser plugin に依存しない。CI/local では Bun script が
+dashboard server を一時起動し、HTML/API smoke を通したうえで Chrome DevTools Protocol
+から screenshot と HTML snapshot を保存する。Browser plugin が使える場合は同じ URL を
+開いて目視確認してよいが、必須の実行経路にはしない。
+
+標準コマンド:
+
+- `bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project`
+- `bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project --smoke-only`
+- `bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project --dry-run`
+
+出力先は既定で `.nectar/dashboard-visual-qa`。この directory は git 管理外で、
+`smoke.json`、`plan.json`、`<viewport>-<screen>.png`、`<viewport>-<screen>.html` を
+保存する。fixture は出力先の `.work/project` にコピーしてから使うため、Conflict 画面の
+外部変更再現で `tests/fixtures/dashboard-visual-project` は変更しない。server と Chrome は
+script の `finally` で停止する。
+
+対象 viewport:
+
+| Viewport | Size | Purpose |
+| --- | --- | --- |
+| desktop | 1440x1100 | Ghost Admin desktop baseline と比較する |
+| laptop | 1280x900 | 一般的な作業 laptop で密度と折り返しを見る |
+| mobile | 390x844 | 狭幅 nav、toolbar、table scroll、editor drawer を見る |
+
+対象画面は Posts / Pages / Settings / Editor / Conflict / Empty。Posts と Pages は一覧密度、
+Settings は card grouping、Editor は Markdown-first の集中感、Conflict は fingerprint
+保護の可視性、Empty は検索結果ゼロ時の余白と行動導線を見る。
+
+Ghost comparison pass line:
+
+- Ghost の模倣ではなく、file path、sync state、build/source 情報が自然に読める。
+- title/path/status/date が desktop/laptop/mobile で重ならず、長い日本語と slug が折り返す。
+- Posts / Pages / Settings / Editor / Conflict / Empty の主要操作が viewport 変更で消えない。
+- 色は neutral foundation を主役にし、sync green、conflict amber/red、file blue を状態表示に限定する。
+- card 内 card、過剰な gradient、説明過多の hero、viewport 幅連動 font-size を使わない。
+- Editor は Ghost の集中感を参考にするが、保存済み Preview と fingerprint safety を
+  Nectar 固有価値として Ghost より明確にする。
+
+Fallback 手順:
+
+1. Browser plugin が使える場合は script の smoke URL または dashboard URL を開いて追加確認する。
+2. Browser plugin がない場合は標準 script の Chrome DevTools Protocol capture を使う。
+3. Chrome/Chromium が見つからない CI では `--smoke-only` で HTML/API smoke と docs/test を通し、
+   visual artifact は Chrome がある local runner で作る。
+4. Chrome の場所が標準検出できない場合は `NECTAR_CHROME_PATH=/path/to/chrome` を指定する。
+
+Screenshot regression は現時点では強制 pixel gate にしない。OS font、Chrome version、
+antialiasing の差分で不安定になりやすいため、まず review artifact と checklist を gate にする。
+pixel comparison を導入する場合は Docker image、font、viewport、threshold を固定してから
+別 PR で CI 必須化する。
+
 ## Rollout Plan
 
 巨大 PR を避ける。PR #504 の次フェーズは次の順で小さく進める。

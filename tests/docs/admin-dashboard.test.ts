@@ -27,6 +27,22 @@ describe('Admin dashboard design docs', () => {
     expect(doc).toContain('API/test foundation');
   });
 
+  test('documents executable visual QA, Ghost comparison criteria, and browser fallbacks', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'admin-dashboard.md'), 'utf8');
+
+    expect(doc).toContain('## Executable Visual QA');
+    expect(doc).toContain(
+      'bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',
+    );
+    expect(doc).toContain('1440x1100');
+    expect(doc).toContain('1280x900');
+    expect(doc).toContain('390x844');
+    expect(doc).toContain('Posts / Pages / Settings / Editor / Conflict / Empty');
+    expect(doc).toContain('Browser plugin');
+    expect(doc).toContain('Chrome DevTools Protocol');
+    expect(doc).toContain('Ghost comparison pass line');
+  });
+
   test('links the Admin design doc from top-level docs', async () => {
     const readme = await readFile(join(ROOT, 'README.md'), 'utf8');
     const design = await readFile(join(ROOT, 'docs', 'DESIGN.md'), 'utf8');
