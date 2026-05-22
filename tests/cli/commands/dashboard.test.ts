@@ -1409,18 +1409,40 @@ describe('dashboard data', () => {
     expect(html).not.toContain('allow-same-origin');
   });
 
+  test('serves dashboard sections as independent pages', async () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('href="/posts" data-view="posts"');
+    expect(html).toContain('href="/pages" data-view="pages"');
+    expect(html).toContain('href="/authors" data-view="authors"');
+    expect(html).toContain('href="/tags" data-view="tags"');
+    expect(html).toContain('href="/settings" data-view="settings"');
+    expect(html).toContain('function initialViewFromPath');
+    expect(html).toContain('function syncPathForView');
+
+    for (const path of ['/posts', '/pages', '/authors', '/tags', '/settings']) {
+      const response = await handleDashboardRequest(new Request(`http://127.0.0.1:4322${path}`), {
+        cwd: process.cwd(),
+        changeBus: createChangeBus(),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('<title>Nectar Dashboard</title>');
+    }
+  });
+
   test('renders dashboard shell with the note-derived design system tokens', () => {
     const html = renderDashboardHtml();
 
     expect(html).toContain('--text-primary:#08131a');
-    expect(html).toContain('--background-secondary:#f5f8fa');
+    expect(html).toContain('--background-secondary:#ebe6dc');
+    expect(html).toContain('--surface-raised:#ffffff');
     expect(html).toContain('--border-default:rgba(8,19,26,.14)');
     expect(html).toContain('--success:#1e7b65');
     expect(html).toContain('--danger:#b22323');
     expect(html).toContain('--focus:#292d9e');
-    expect(html).toContain(
-      'html[data-theme=dark],html.theme-dark{color-scheme:dark;--text-primary:hsla(0,0%,100%,.9);--text-secondary:hsla(0,0%,100%,.66);--text-muted:hsla(0,0%,100%,.5);--text-invert:#08131a',
-    );
+    expect(html).toContain('--main-width:1180px');
+    expect(html).toContain('--sidebar-width:264px');
+    expect(html).toContain('--surface-secondary:#79d5bd');
     expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
     expect(html).toContain('--article-width:620px');
@@ -1447,7 +1469,7 @@ describe('dashboard data', () => {
     expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
     expect(html).toContain('min-height:calc(100dvh - 48px)');
     expect(html).toContain('body.editorOpen .shell');
-    expect(html).toContain('.nav button span{display:inline}');
+    expect(html).toContain('.nav a span{display:inline;');
     expect(html).toContain("document.body.classList.add('editorOpen')");
     expect(html).toContain("document.body.classList.remove('editorOpen')");
   });

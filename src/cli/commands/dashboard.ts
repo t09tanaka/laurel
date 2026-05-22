@@ -1033,7 +1033,10 @@ export async function handleDashboardRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   try {
-    if (request.method === 'GET' && url.pathname === '/') {
+    if (
+      request.method === 'GET' &&
+      ['/', '/posts', '/pages', '/authors', '/tags', '/settings'].includes(url.pathname)
+    ) {
       return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
     if (request.method === 'GET' && url.pathname === '/api/state') {
