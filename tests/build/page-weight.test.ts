@@ -77,4 +77,18 @@ describe('page weight gate helpers', () => {
     expect(failures).toContain('external script');
     expect(failures).toContain('external stylesheet');
   });
+
+  test('ignores data URI srcset entries without treating their commas as assets', async () => {
+    const distRoot = makeDist();
+    const html = [
+      '<!doctype html>',
+      '<img srcset="data:image/png;base64,AAAA 1x, data:image/png;base64,BBBB 2x">',
+    ].join('');
+    writeFileSync(join(distRoot, 'index.html'), html, 'utf8');
+
+    const summary = await summarizePageWeight({ distRoot, htmlFile: join(distRoot, 'index.html') });
+
+    expect(summary.localAssets).toEqual([]);
+    expect(summary.missingAssets).toEqual([]);
+  });
 });

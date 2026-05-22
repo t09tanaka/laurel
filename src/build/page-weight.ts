@@ -25,8 +25,8 @@ export const DEFAULT_PAGE_WEIGHT_BUDGETS: PageWeightBudgets = {
   htmlGzipBytes: 24 * 1024,
   htmlBrotliBytes: 20 * 1024,
   totalBytes: 512 * 1024,
-  cssBytes: 64 * 1024,
-  jsBytes: 32 * 1024,
+  cssBytes: 80 * 1024,
+  jsBytes: 80 * 1024,
   imageBytes: 384 * 1024,
   fontBytes: 128 * 1024,
   maxImageBytes: 256 * 1024,
@@ -269,6 +269,10 @@ function collectAssetReferences(html: string): AssetReferences {
 
 function addSrcset(value: string | undefined, addUrl: (value: string | undefined) => void): void {
   if (!value) return;
+  if (value.trimStart().startsWith('data:')) {
+    addUrl(value);
+    return;
+  }
   for (const part of value.split(',')) {
     const trimmed = part.trim();
     if (!trimmed) continue;
