@@ -120,6 +120,29 @@ Global RSS feeds are paginated when they exceed `[components.rss].items`; page
 1 stays at `rss.xml`, overflow pages use `rss-2.xml`, `rss-3.xml`, and so on,
 with RFC 5005 `atom:link rel="prev"` / `rel="next"` links between pages.
 
+## Generated page quality gates
+
+The example site is the reference output for page weight, accessibility, HTML
+validity, and Lighthouse scores. After `bun run build:example`, run:
+
+```sh
+bun run size:theme-bundle
+bun run size:pages
+bun run lint:html
+bun run lint:a11y
+bun run lint:lighthouse
+```
+
+`size:theme-bundle` keeps the built Source runtime below the JavaScript budget.
+`size:pages` inspects every generated HTML route and budgets the page's local
+CSS, JS, images, fonts, raw/compressed HTML, missing local assets, and external
+blocking assets. It counts emitted local assets strictly, so a large `srcset`
+surface is visible even when a browser would download only one candidate.
+
+The Lighthouse gate audits the generated example routes and expects all
+categories to score 100. Treat failures as a regression in the generated output
+or in the reference theme fixture before relaxing the budgets.
+
 ## Image guidance
 
 Images dominate output size and build time once a site grows past a few hundred
@@ -132,6 +155,9 @@ posts.
   balance; add AVIF only when the extra encoding time is acceptable.
 - Resize originals before committing when the image will never display above
   roughly 2400px wide.
+- Nectar caches responsive same-format variants by source content, output
+  width, and metadata policy. A no-change rebuild should copy cached variants
+  instead of decoding and re-encoding every article image again.
 - Keep SVGs for logos and simple illustrations. They are copied as scalable
   assets and are not raster-resized.
 - For image-heavy sites on Cloudflare Pages, check the file count before
