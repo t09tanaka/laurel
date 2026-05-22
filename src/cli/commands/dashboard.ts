@@ -12,6 +12,7 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
+import { resolveOutputDir } from '~/build/output-dir.ts';
 import { loadRedirects } from '~/build/redirects.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -51,6 +52,13 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const SITE_SETTINGS_FIELDS = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const IMAGE_EXTENSIONS = new Set(['.avif', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
+const DASHBOARD_PREVIEW_SANDBOX_POLICY: DashboardPreviewSandboxPolicy = {
+  mode: 'iframe-sandbox',
+  attributes: ['allow-scripts', 'allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox'],
+  allowScripts: true,
+  allowSameOrigin: false,
+  note: 'Build artifact previews run in a sandboxed iframe without allow-same-origin, so theme scripts cannot read or operate the dashboard document.',
+};
 
 type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
 type DashboardContentKind = 'posts' | 'pages';
@@ -105,6 +113,29 @@ export interface DashboardContentSummary {
   featureImage: DashboardAssetReference;
   internalLink: DashboardInternalLink;
   renamePreview: DashboardSlugRenamePreview;
+  preview: DashboardPreviewArtifact;
+}
+
+export type DashboardPreviewState = 'current' | 'stale' | 'missing' | 'build-required';
+
+export interface DashboardPreviewSandboxPolicy {
+  mode: 'iframe-sandbox';
+  attributes: string[];
+  allowScripts: boolean;
+  allowSameOrigin: false;
+  note: string;
+}
+
+export interface DashboardPreviewArtifact {
+  state: DashboardPreviewState;
+  label: string;
+  route: string;
+  openUrl: string;
+  artifactPath: string | null;
+  artifactMtimeMs: number | null;
+  contentFingerprint: ContentSourceFingerprint | null;
+  detail: string;
+  sandbox: DashboardPreviewSandboxPolicy;
 }
 
 export interface DashboardTaxonomySummary {
@@ -370,6 +401,8 @@ export interface DashboardState {
     previewUrl: string;
     routeCount: number | null;
     warnings: string[];
+    freshness: Record<DashboardPreviewState, number>;
+    previewSandbox: DashboardPreviewSandboxPolicy;
   };
   git: DashboardGitStatus;
   generatedAt: string;
@@ -626,6 +659,20 @@ export async function loadDashboardState({
     'pages',
     query,
   );
+  const paginatedPosts = await withPreviewArtifacts(
+    cwd,
+    config,
+    paginate(posts, postPage, safePerPage, query),
+  );
+  const paginatedPages = await withPreviewArtifacts(
+    cwd,
+    config,
+    paginate(pages, pagePage, safePerPage, query),
+  );
+  const previewFreshness = countPreviewFreshness([
+    ...paginatedPosts.items,
+    ...paginatedPages.items,
+  ]);
   const loadFinishedAt = new Date().toISOString();
   const syncSnapshot = sync ?? defaultSyncSnapshot({ loadStartedAt, loadFinishedAt });
   const git = await readGitStatus(cwd);
@@ -648,8 +695,8 @@ export async function loadDashboardState({
       url: graph.site.url,
       accentColor: graph.site.accent_color,
     },
-    posts: paginate(posts, postPage, safePerPage, query),
-    pages: paginate(pages, pagePage, safePerPage, query),
+    posts: paginatedPosts,
+    pages: paginatedPages,
     authors: paginate(
       graph.authors
         .map((author) => taxonomySummary(author, graph, config, 'authors'))
@@ -691,8 +738,10 @@ export async function loadDashboardState({
       outputDir: config.build.output_dir,
       theme: config.theme.name,
       previewUrl: requestOrigin ?? graph.site.url,
-      routeCount: null,
+      routeCount: previewFreshness.current + previewFreshness.stale,
       warnings: [],
+      freshness: previewFreshness,
+      previewSandbox: DASHBOARD_PREVIEW_SANDBOX_POLICY,
     },
     git,
     generatedAt: loadFinishedAt,
@@ -861,6 +910,14 @@ export async function handleDashboardRequest(
     }
     if (request.method === 'GET' && url.pathname === '/api/events') {
       return ctx.changeBus.stream();
+    }
+    if (request.method === 'GET' && url.pathname === '/preview/artifact') {
+      const route = stringParam(url, 'route') ?? '/';
+      return serveDashboardPreviewArtifact({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        route,
+      });
     }
     const contentMatch = url.pathname.match(/^\/api\/content\/([^/]+)\/([^/]+)$/);
     if (contentMatch) {
@@ -1520,6 +1577,7 @@ function postSummary(
   graph: ContentGraph,
   config: NectarConfig,
 ): DashboardContentSummary {
+  const source = graph.sources?.posts.get(post.id);
   return {
     slug: post.slug,
     title: post.title,
@@ -1527,7 +1585,7 @@ function postSummary(
     createdAt: post.created_at,
     updatedAt: post.updated_at,
     publishedAt: post.published_at,
-    path: contentPath(config.content.posts_dir, graph.sources?.posts.get(post.id)),
+    path: contentPath(config.content.posts_dir, source),
     url: post.url,
     authors: post.authors.map((author) => author.name),
     authorSlugs: post.authors.map((author) => author.slug),
@@ -1538,6 +1596,7 @@ function postSummary(
     featureImage: assetReference(cwd, config, post.feature_image),
     internalLink: internalLinkForSummary('posts', post),
     renamePreview: renamePreviewFor(config, post.slug, post.slug, post.url),
+    preview: previewPlaceholder(post.url, contentFingerprint(config.content.posts_dir, source)),
   };
 }
 
@@ -1547,6 +1606,7 @@ function pageSummary(
   graph: ContentGraph,
   config: NectarConfig,
 ): DashboardContentSummary {
+  const source = graph.sources?.pages.get(page.id);
   return {
     slug: page.slug,
     title: page.title,
@@ -1554,7 +1614,7 @@ function pageSummary(
     createdAt: page.created_at,
     updatedAt: page.updated_at,
     publishedAt: page.published_at,
-    path: contentPath(config.content.pages_dir, graph.sources?.pages.get(page.id)),
+    path: contentPath(config.content.pages_dir, source),
     url: page.url,
     authors: page.authors.map((author) => author.name),
     authorSlugs: page.authors.map((author) => author.slug),
@@ -1565,6 +1625,7 @@ function pageSummary(
     featureImage: assetReference(cwd, config, page.feature_image),
     internalLink: internalLinkForSummary('pages', page),
     renamePreview: renamePreviewFor(config, page.slug, page.slug, page.url),
+    preview: previewPlaceholder(page.url, contentFingerprint(config.content.pages_dir, source)),
   };
 }
 
@@ -1736,6 +1797,31 @@ function renamePreviewFor(
   };
 }
 
+function contentFingerprint(
+  dir: string,
+  source: ContentSourceFingerprint | undefined,
+): ContentSourceFingerprint | null {
+  if (source === undefined) return null;
+  return { ...source, path: contentPath(dir, source) };
+}
+
+function previewPlaceholder(
+  route: string,
+  contentFingerprint: ContentSourceFingerprint | null,
+): DashboardPreviewArtifact {
+  return {
+    state: 'build-required',
+    label: 'Build required',
+    route,
+    openUrl: '',
+    artifactPath: null,
+    artifactMtimeMs: null,
+    contentFingerprint,
+    detail: 'Run nectar build to create a saved output artifact for this file.',
+    sandbox: DASHBOARD_PREVIEW_SANDBOX_POLICY,
+  };
+}
+
 function contentWarnings(item: Post | Page): DashboardContentWarning[] {
   const warnings: DashboardContentWarning[] = [];
   if (item.title.trim().length === 0) {
@@ -1871,6 +1957,209 @@ function paginate<T>(
     pages,
     query,
   };
+}
+
+async function withPreviewArtifacts(
+  cwd: string,
+  config: NectarConfig,
+  list: DashboardList<DashboardContentSummary>,
+): Promise<DashboardList<DashboardContentSummary>> {
+  return {
+    ...list,
+    items: await Promise.all(
+      list.items.map(async (item) => ({
+        ...item,
+        preview: await resolveDashboardPreviewArtifact(cwd, config, item),
+      })),
+    ),
+  };
+}
+
+function countPreviewFreshness(
+  items: DashboardContentSummary[],
+): Record<DashboardPreviewState, number> {
+  return items.reduce<Record<DashboardPreviewState, number>>(
+    (counts, item) => {
+      counts[item.preview.state] += 1;
+      return counts;
+    },
+    { current: 0, stale: 0, missing: 0, 'build-required': 0 },
+  );
+}
+
+async function resolveDashboardPreviewArtifact(
+  cwd: string,
+  config: NectarConfig,
+  item: DashboardContentSummary,
+): Promise<DashboardPreviewArtifact> {
+  const route = routePathFromContentUrl(item.url, config);
+  const openUrl = `/preview/artifact?route=${encodeURIComponent(route)}`;
+  const outputRoot = resolveOutputDir(cwd, config.build.output_dir);
+  const missingRoot = await outputRootStatus(cwd, outputRoot);
+  if (missingRoot !== undefined) {
+    return {
+      ...item.preview,
+      state: missingRoot.state,
+      label: missingRoot.label,
+      route,
+      openUrl,
+      detail: missingRoot.detail,
+    };
+  }
+  const artifact = await findRouteHtmlArtifact(cwd, outputRoot, route, config.build.trailing_slash);
+  if (artifact === undefined) {
+    return {
+      ...item.preview,
+      state: 'missing',
+      label: 'Preview missing',
+      route,
+      openUrl,
+      detail: `No saved HTML artifact exists for ${route} in ${config.build.output_dir}.`,
+    };
+  }
+  const contentMtimeMs = item.preview.contentFingerprint?.mtimeMs ?? 0;
+  const stale = contentMtimeMs > 0 && artifact.mtimeMs + 1 < contentMtimeMs;
+  return {
+    ...item.preview,
+    state: stale ? 'stale' : 'current',
+    label: stale ? 'Preview stale' : 'Preview current',
+    route,
+    openUrl,
+    artifactPath: artifact.relativePath,
+    artifactMtimeMs: artifact.mtimeMs,
+    detail: stale
+      ? 'Saved source is newer than the built HTML artifact; run nectar build before treating preview as published output.'
+      : 'Preview shows the latest saved build artifact, not unsaved editor changes.',
+  };
+}
+
+async function serveDashboardPreviewArtifact({
+  cwd,
+  configPath,
+  route,
+}: {
+  cwd: string;
+  configPath?: string;
+  route: string;
+}): Promise<Response> {
+  const config = await loadConfig({ cwd, configPath });
+  const outputRoot = resolveOutputDir(cwd, config.build.output_dir);
+  const rootStatus = await outputRootStatus(cwd, outputRoot);
+  if (rootStatus !== undefined) return new Response(rootStatus.detail, { status: 404 });
+  const artifact = await findRouteHtmlArtifact(cwd, outputRoot, route, config.build.trailing_slash);
+  if (artifact === undefined) return new Response('Preview artifact not found', { status: 404 });
+  const html = await readFile(artifact.absolutePath, 'utf8');
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "frame-ancestors 'self'",
+    },
+  });
+}
+
+async function outputRootStatus(
+  cwd: string,
+  outputRoot: string,
+): Promise<{ state: 'build-required' | 'missing'; label: string; detail: string } | undefined> {
+  try {
+    const [projectRoot, root, info] = await Promise.all([
+      realpath(cwd),
+      realpath(outputRoot),
+      stat(outputRoot),
+    ]);
+    if (!info.isDirectory() || !isInsidePath(projectRoot, root)) {
+      return {
+        state: 'missing',
+        label: 'Preview unavailable',
+        detail: 'Configured build.output_dir is not a safe directory inside this project.',
+      };
+    }
+    return undefined;
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+      return {
+        state: 'build-required',
+        label: 'Build required',
+        detail: 'No build output directory exists yet; run nectar build to create previews.',
+      };
+    }
+    throw err;
+  }
+}
+
+function routePathFromContentUrl(url: string, config: NectarConfig): string {
+  let pathname = '/';
+  try {
+    pathname = new URL(url, config.site.url).pathname;
+  } catch {
+    pathname = url.startsWith('/') ? url : `/${url}`;
+  }
+  const decoded = safeDecodeRoutePath(pathname);
+  const basePath = normalizeBasePathForPreview(config.build.base_path);
+  if (basePath !== '/' && (decoded === basePath.slice(0, -1) || decoded.startsWith(basePath))) {
+    return `/${decoded.slice(basePath.length).replace(/^\/+/, '')}` || '/';
+  }
+  return decoded;
+}
+
+function normalizeBasePathForPreview(basePath: string): string {
+  const trimmed = basePath.trim();
+  if (trimmed === '' || trimmed === '/') return '/';
+  return `/${trimmed.replace(/^\/+|\/+$/g, '')}/`;
+}
+
+function safeDecodeRoutePath(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
+}
+
+async function findRouteHtmlArtifact(
+  cwd: string,
+  outputRoot: string,
+  route: string,
+  trailingSlash: NectarConfig['build']['trailing_slash'],
+): Promise<{ absolutePath: string; relativePath: string; mtimeMs: number } | undefined> {
+  const outputRootReal = await realpath(outputRoot);
+  for (const candidate of routeHtmlCandidates(outputRoot, route, trailingSlash)) {
+    if (!existsSync(candidate)) continue;
+    const [targetReal, info] = await Promise.all([realpath(candidate), stat(candidate)]);
+    if (!info.isFile() || !isInsidePath(outputRootReal, targetReal)) continue;
+    return {
+      absolutePath: targetReal,
+      relativePath: relativePath(cwd, targetReal),
+      mtimeMs: Math.round(info.mtimeMs * 1000) / 1000,
+    };
+  }
+  return undefined;
+}
+
+function routeHtmlCandidates(
+  outputRoot: string,
+  route: string,
+  trailingSlash: NectarConfig['build']['trailing_slash'],
+): string[] {
+  const segments = safeRouteSegments(route);
+  if (segments === undefined) return [];
+  if (segments.length === 0) return [join(outputRoot, 'index.html')];
+  return trailingSlash === 'never'
+    ? [join(outputRoot, `${segments.join('/')}.html`), join(outputRoot, ...segments, 'index.html')]
+    : [join(outputRoot, ...segments, 'index.html'), join(outputRoot, `${segments.join('/')}.html`)];
+}
+
+function safeRouteSegments(route: string): string[] | undefined {
+  const decoded = safeDecodeRoutePath(route);
+  if (decoded.includes('\0')) return undefined;
+  const normalized = decoded.startsWith('/') ? decoded : `/${decoded}`;
+  const segments = normalized.split('/').filter(Boolean);
+  if (segments.some((segment) => segment === '.' || segment === '..' || segment.includes('\\'))) {
+    return undefined;
+  }
+  return segments;
 }
 
 function serializeContentSource(frontmatter: Record<string, unknown>, body: string): string {

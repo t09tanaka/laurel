@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  type DashboardState,
   applyDashboardBulkAction,
   createChangeBus,
   createDashboardTaxonomyFile,
@@ -126,6 +127,9 @@ describe('dashboard data', () => {
       expect(state.sync.loadStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.build.outputDir).toBe('dist');
+      expect(state.build.freshness['build-required']).toBe(2);
+      expect(state.posts.items[0]?.preview.state).toBe('build-required');
+      expect(state.posts.items[0]?.preview.detail).toContain('No build output directory');
       expect(state.git.isRepo).toBe(false);
       expect(state.settings.cards.map((card) => card.id)).toContain('content-health');
       expect(state.settings.cards.map((card) => card.id)).toEqual(
@@ -687,6 +691,142 @@ describe('dashboard data', () => {
     }
   });
 
+  test('serves saved build artifact previews without allowing route traversal', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'dist/new'), { recursive: true });
+      await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Built New</p>', 'utf8');
+      await writeFile(join(dir, 'dist/secret.html'), '<!doctype html><p>Secret</p>', 'utf8');
+
+      const state = await loadDashboardState({ cwd: dir, perPage: 10 });
+      const item = state.posts.items.find((post) => post.slug === 'new');
+      expect(item?.preview.state).toBe('current');
+      expect(item?.preview.artifactPath).toBe('dist/new/index.html');
+      expect(item?.preview.openUrl).toBe('/preview/artifact?route=%2Fnew%2F');
+      expect(item?.preview.sandbox.allowScripts).toBe(true);
+      expect(item?.preview.sandbox.allowSameOrigin).toBe(false);
+      expect(state.build.freshness.current).toBe(1);
+
+      const ok = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/preview/artifact?route=%2Fnew%2F'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(ok.status).toBe(200);
+      expect(await ok.text()).toContain('Built New');
+
+      const traversal = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/preview/artifact?route=%2F..%2Fsecret'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(traversal.status).toBe(404);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('marks build artifact previews stale when saved content is newer', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'dist/new'), { recursive: true });
+      await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Old build</p>', 'utf8');
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      await writeFile(
+        join(dir, 'content/posts/new.md'),
+        [
+          '---',
+          'title: New Post',
+          'date: 2026-01-03T00:00:00Z',
+          'created_at: 2026-01-03T00:00:00Z',
+          '---',
+          '',
+          'Saved after the build artifact',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const state = await loadDashboardState({ cwd: dir, perPage: 10 });
+      const item = state.posts.items.find((post) => post.slug === 'new');
+      expect(item?.preview.state).toBe('stale');
+      expect(item?.preview.detail).toContain('Saved source is newer');
+      expect(state.build.freshness.stale).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('resolves preview artifacts from base-path URLs to output_dir routes', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        [
+          '[site]',
+          'title = "Dashboard Test"',
+          'description = "Local editorial surface"',
+          'url = "https://dashboard.test"',
+          '',
+          '[theme]',
+          'name = "source"',
+          'dir = "themes"',
+          '',
+          '[build]',
+          'base_path = "/blog/"',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await mkdir(join(dir, 'dist/new'), { recursive: true });
+      await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Base path</p>', 'utf8');
+
+      const state = await loadDashboardState({ cwd: dir, perPage: 10 });
+      const item = state.posts.items.find((post) => post.slug === 'new');
+      expect(item?.url).toBe('/blog/new/');
+      expect(item?.preview.route).toBe('/new/');
+      expect(item?.preview.state).toBe('current');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('measures /api/state latency for a large content set without a cache layer', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      for (let i = 0; i < 300; i += 1) {
+        const id = String(i).padStart(3, '0');
+        await writeFile(
+          join(dir, `content/posts/bench-${id}.md`),
+          [
+            '---',
+            `title: Bench ${id}`,
+            `date: 2026-02-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`,
+            `created_at: 2026-02-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`,
+            '---',
+            '',
+            `Bench body ${id}`,
+            '',
+          ].join('\n'),
+          'utf8',
+        );
+      }
+
+      const started = performance.now();
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/state?per_page=12'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      const latencyMs = performance.now() - started;
+      const state = (await response.json()) as DashboardState;
+
+      expect(response.status).toBe(200);
+      expect(state.posts.total).toBe(302);
+      expect(state.posts.items).toHaveLength(12);
+      expect(latencyMs).toBeLessThan(4000);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('records debounced file activity for sync metadata and SSE payloads', async () => {
     const bus = createChangeBus({ debounceMs: 1 });
 
@@ -725,6 +865,9 @@ describe('dashboard data', () => {
     expect(html).toContain('createDashboardUiState');
     expect(html).toContain('renderStatePanelHtml');
     expect(html).toContain('warningBadge');
+    expect(html).toContain('previewCell');
+    expect(html).toContain('sandbox="');
+    expect(html).not.toContain('allow-same-origin');
   });
 
   test('renders recovery, guard, keyboard, media, and snippet editor affordances', () => {
