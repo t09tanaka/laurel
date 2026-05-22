@@ -1152,7 +1152,6 @@ async function createDashboardContentItem({
   const now = new Date().toISOString();
   const scaffold = await scaffoldDashboardContent({
     cwd,
-    config,
     kind,
     title,
     slug,
@@ -3061,7 +3060,6 @@ function trashEntryFromMetadata(
 
 async function scaffoldDashboardContent({
   cwd,
-  config,
   kind,
   title,
   slug,
@@ -3069,7 +3067,6 @@ async function scaffoldDashboardContent({
   template,
 }: {
   cwd: string;
-  config: NectarConfig;
   kind: EditableKind;
   title: string;
   slug: string;
