@@ -1369,6 +1369,60 @@ describe('dashboard data', () => {
     expect(html).not.toContain('allow-same-origin');
   });
 
+  test('renders dashboard shell with the note-derived design system tokens', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('--text-primary:#08131a');
+    expect(html).toContain('--background-secondary:#f5f8fa');
+    expect(html).toContain('--border-default:rgba(8,19,26,.14)');
+    expect(html).toContain('--success:#1e7b65');
+    expect(html).toContain('--danger:#b22323');
+    expect(html).toContain('--focus:#292d9e');
+    expect(html).toContain(
+      'html[data-theme=dark]{color-scheme:dark;--text-primary:hsla(0,0%,100%,.9);--text-secondary:hsla(0,0%,100%,.66);--text-muted:hsla(0,0%,100%,.5);--text-invert:#08131a',
+    );
+    expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
+    expect(html).toContain('font-feature-settings:"palt"');
+    expect(html).toContain('--article-width:620px');
+    expect(html).toContain('line-height:2');
+    expect(html).not.toContain('Avenir Next');
+    expect(html).not.toContain('font-family:Georgia');
+  });
+
+  test('renders compact toolbar controls without escaped icon text or drawer opacity', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('id="density"');
+    expect(html).toContain('id="command"');
+    expect(html).not.toContain('\\u2195');
+    expect(html).not.toContain('\\u2318K');
+    expect(html).not.toContain('from{transform:translateX(18px);opacity:.7');
+    expect(html).toContain('@keyframes slideIn{from{transform:translateX(18px)}');
+    expect(html).toContain('.panel{min-width:0');
+    expect(html).toContain('@media (max-width:560px)');
+    expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
+    expect(html).toContain('min-height:calc(100dvh - 48px)');
+    expect(html).toContain('body.editorOpen .shell');
+    expect(html).toContain('.nav button span{display:inline}');
+    expect(html).toContain("document.body.classList.add('editorOpen')");
+    expect(html).toContain("document.body.classList.remove('editorOpen')");
+  });
+
+  test('renders editor and create flows as independent dashboard pages', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('<section class="editor editorPage" id="editor"');
+    expect(html).not.toContain('<aside class="editor"');
+    expect(html).not.toContain('<section class="editor editorPage" id="editor" role="dialog"');
+    expect(html).toContain('body.editorOpen .top');
+    expect(html).toContain('body.editorOpen #contentPanel');
+    expect(html).toContain('renderCreatePage');
+    expect(html).toContain('id="createPage"');
+    expect(html).toContain('submitCreateItem');
+    expect(html).toContain('openEditor(data.kind,data.slug)');
+    expect(html).not.toContain("prompt('Title or name')");
+  });
+
   test('renders recovery, guard, keyboard, media, and snippet editor affordances', () => {
     const html = renderDashboardHtml();
 
@@ -1388,7 +1442,7 @@ describe('dashboard data', () => {
     expect(html).toContain('aria-label="Editor shortcuts"');
     expect(html).toContain('Approve saved page');
     expect(html).toContain('position:sticky');
-    expect(html).toContain('max-height:100dvh');
+    expect(html).toContain('class="editor editorPage"');
   });
 
   test('renders Ghost import controls for review-first dashboard imports', () => {

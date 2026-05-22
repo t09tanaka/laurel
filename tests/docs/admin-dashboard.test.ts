@@ -25,6 +25,19 @@ describe('Admin dashboard design docs', () => {
     expect(doc).toContain('## Ghost Reference Board');
     expect(doc).toContain('## Rollout Plan');
     expect(doc).toContain('API/test foundation');
+    expect(doc).toContain('./admin-dashboard-design-system.md');
+  });
+
+  test('documents the Admin dashboard design system tokens', async () => {
+    const doc = await readFile(join(ROOT, 'docs', 'admin-dashboard-design-system.md'), 'utf8');
+
+    expect(doc).toContain('# Nectar Admin Dashboard Design System');
+    expect(doc).toContain('note (https://note.com/)');
+    expect(doc).toContain('Text primary: #08131a');
+    expect(doc).toContain('Article body: 18px / line-height 2');
+    expect(doc).toContain('font-feature-settings "palt"');
+    expect(doc).toContain('Readable article width: 620px');
+    expect(doc).toContain('prefers-color-scheme: dark');
   });
 
   test('documents executable visual QA, Ghost comparison criteria, and browser fallbacks', async () => {

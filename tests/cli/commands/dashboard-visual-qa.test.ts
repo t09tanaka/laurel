@@ -21,11 +21,13 @@ describe('dashboard visual QA script helpers', () => {
       'posts',
       'pages',
       'settings',
+      'create',
       'editor',
       'conflict',
       'empty',
     ]);
     expect(plan.screenshots).toContain(join(output, 'desktop-posts.png'));
+    expect(plan.screenshots).toContain(join(output, 'desktop-create.png'));
     expect(plan.htmlSnapshots).toContain(join(output, 'mobile-empty.html'));
     expect(plan.commands).toContain(
       'bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',

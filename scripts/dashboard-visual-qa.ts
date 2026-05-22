@@ -15,7 +15,7 @@ export interface DashboardVisualViewport {
 }
 
 export interface DashboardVisualScenario {
-  name: 'posts' | 'pages' | 'settings' | 'editor' | 'conflict' | 'empty';
+  name: 'posts' | 'pages' | 'settings' | 'create' | 'editor' | 'conflict' | 'empty';
   label: string;
 }
 
@@ -50,7 +50,8 @@ export const dashboardVisualScenarios: DashboardVisualScenario[] = [
   { name: 'posts', label: 'Posts list' },
   { name: 'pages', label: 'Pages list' },
   { name: 'settings', label: 'Settings cards' },
-  { name: 'editor', label: 'Editor drawer' },
+  { name: 'create', label: 'Create page' },
+  { name: 'editor', label: 'Editor page' },
   { name: 'conflict', label: 'Fingerprint conflict notice' },
   { name: 'empty', label: 'Empty search state' },
 ];
@@ -242,6 +243,11 @@ async function prepareScenario(
   if (scenario.name === 'editor') {
     await page.evaluate("openEditor('posts', state.posts.items[0].slug)");
     await page.waitFor("document.getElementById('editor').classList.contains('open')");
+    return;
+  }
+  if (scenario.name === 'create') {
+    await page.evaluate('renderCreatePage()');
+    await page.waitFor("document.getElementById('createPage') !== null");
     return;
   }
   if (scenario.name === 'empty') {
