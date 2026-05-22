@@ -1351,9 +1351,12 @@ describe('dashboard data', () => {
     const html = renderDashboardHtml();
 
     expect(html).toContain('href="#main"');
-    expect(html).toContain('data-theme="light"');
+    expect(html).toContain('data-theme="system"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('role="status" aria-live="polite"');
+    expect(html).toContain('aria-label="File-backed status"');
+    expect(html).toContain('id="buildStatus"');
+    expect(html).toContain('id="previewStatus"');
     expect(html).toContain('id="search"');
     expect(html).not.toContain('id="density"');
     expect(html).not.toContain('id="theme"');
@@ -1378,7 +1381,7 @@ describe('dashboard data', () => {
     expect(html).toContain('--danger:#b22323');
     expect(html).toContain('--focus:#292d9e');
     expect(html).toContain(
-      'html[data-theme=dark]{color-scheme:dark;--text-primary:hsla(0,0%,100%,.9);--text-secondary:hsla(0,0%,100%,.66);--text-muted:hsla(0,0%,100%,.5);--text-invert:#08131a',
+      'html[data-theme=dark],html.theme-dark{color-scheme:dark;--text-primary:hsla(0,0%,100%,.9);--text-secondary:hsla(0,0%,100%,.66);--text-muted:hsla(0,0%,100%,.5);--text-invert:#08131a',
     );
     expect(html).toContain('"Helvetica Neue","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
@@ -1511,7 +1514,7 @@ describe('dashboard frontend state helpers', () => {
     expect(state.view).toBe('posts');
     expect(state.postsPage).toBe(1);
     expect(state.pagesPage).toBe(1);
-    expect(state.theme).toBe('light');
+    expect(state.theme).toBe('system');
   });
 
   test('reduces search, paging, density, theme, and conflict state predictably', () => {

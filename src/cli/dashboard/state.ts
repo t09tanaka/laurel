@@ -37,7 +37,7 @@ export const DEFAULT_DASHBOARD_UI_STATE: DashboardUiState = {
   density: 'comfortable',
   query: '',
   statusFilter: '',
-  theme: 'light',
+  theme: 'system',
   loadStatus: 'idle',
   lastError: '',
   conflictMessage: '',
