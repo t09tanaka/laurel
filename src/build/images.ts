@@ -46,6 +46,18 @@ export function injectImageDimensions(html: string, options: InjectImageDimensio
   });
 }
 
+export function injectImageLoadingHints(html: string): string {
+  if (!html.includes('<img')) return html;
+  return html.replace(/<img\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string, selfClose: string) => {
+    const attrs = parseImgAttrs(attrsRaw);
+    const additions: string[] = [];
+    if (!attrs.has('loading') && !attrs.has('fetchpriority')) additions.push('loading="lazy"');
+    if (!attrs.has('decoding')) additions.push('decoding="async"');
+    if (additions.length === 0) return match;
+    return appendImgAttrs(attrsRaw, additions.join(' '), selfClose);
+  });
+}
+
 export interface InjectIntoContentOptions {
   content: ContentGraph;
   cwd: string;
@@ -62,13 +74,15 @@ export function injectImageDimensionsIntoContent({
   const assetsRoot = resolve(cwd, config.content.assets_dir);
   const cache = new Map<string, ImageDimensions | null>();
   for (const post of content.posts) {
-    post.html = injectImageDimensions(post.html, { assetsRoot, cache });
+    post.html = injectImageLoadingHints(injectImageDimensions(post.html, { assetsRoot, cache }));
     if (post.feed_html && post.feed_html !== post.html) {
-      post.feed_html = injectImageDimensions(post.feed_html, { assetsRoot, cache });
+      post.feed_html = injectImageLoadingHints(
+        injectImageDimensions(post.feed_html, { assetsRoot, cache }),
+      );
     }
   }
   for (const page of content.pages) {
-    page.html = injectImageDimensions(page.html, { assetsRoot, cache });
+    page.html = injectImageLoadingHints(injectImageDimensions(page.html, { assetsRoot, cache }));
   }
 }
 
