@@ -1,7 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
 import { loadRedirects } from '~/build/redirects.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
@@ -26,7 +35,10 @@ import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/ht
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DASHBOARD_SPEC } from '../specs.ts';
+import { renameAuthor } from './authors.ts';
+import { rewriteFrontmatterSlug } from './content.ts';
 import { type CheckResult, runChecks } from './doctor.ts';
+import { renameTag } from './tags.ts';
 
 const DEFAULT_PORT = 4322;
 const DEFAULT_HOST = '127.0.0.1';
@@ -37,6 +49,8 @@ const ACTIVITY_LIMIT = 50;
 const WATCH_DEBOUNCE_MS = 100;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const SITE_SETTINGS_FIELDS = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const IMAGE_EXTENSIONS = new Set(['.avif', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 
 type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
 type DashboardContentKind = 'posts' | 'pages';
@@ -88,6 +102,9 @@ export interface DashboardContentSummary {
   tagSlugs: string[];
   words: number;
   warnings: DashboardContentWarning[];
+  featureImage: DashboardAssetReference;
+  internalLink: DashboardInternalLink;
+  renamePreview: DashboardSlugRenamePreview;
 }
 
 export interface DashboardTaxonomySummary {
@@ -182,6 +199,11 @@ interface DashboardOperations {
     bodySearch: 'deferred';
     resultCount: number;
   };
+  assets: DashboardAssetInventory;
+  bulkActions: DashboardBulkActionDescriptor[];
+  trash: DashboardTrashInventory;
+  contentTemplates: DashboardContentTemplate[];
+  internalLinks: DashboardInternalLink[];
   collaboration: {
     editorCommand: string;
     lockPolicy: string;
@@ -194,6 +216,94 @@ interface DashboardOperations {
     portalProvider: string;
     note: string;
   };
+}
+
+export interface DashboardAssetReference {
+  value: string;
+  kind: 'none' | 'remote' | 'data' | 'asset' | 'project' | 'external';
+  exists: boolean | null;
+  path: string | null;
+  publicPath: string | null;
+  markdown: string | null;
+  warning: string | null;
+}
+
+export interface DashboardAssetInventory {
+  dir: string;
+  exists: boolean;
+  files: number;
+  images: number;
+  bytes: number;
+  featureImages: {
+    referenced: number;
+    missing: number;
+  };
+  markdownInsertPrefix: string;
+}
+
+export interface DashboardBulkActionDescriptor {
+  id: DashboardBulkAction;
+  label: string;
+  danger: boolean;
+  requiresConfirmation: boolean;
+}
+
+type DashboardBulkAction = 'set-status' | 'add-tag' | 'remove-tag' | 'touch-updated-at';
+
+export interface DashboardBulkTarget {
+  kind: DashboardContentKind;
+  slug: string;
+  fingerprint: ContentSourceFingerprint;
+}
+
+export type DashboardBulkResult =
+  | {
+      ok: true;
+      changed: Array<{ kind: DashboardContentKind; slug: string; path: string }>;
+      skipped: Array<{ kind: DashboardContentKind; slug: string; reason: string }>;
+    }
+  | { ok: false; reason: 'invalid-action' | 'invalid-payload' };
+
+export interface DashboardTrashEntry {
+  id: string;
+  slug: string;
+  kind: DashboardContentKind | null;
+  originalPath: string;
+  trashPath: string;
+  metadataPath: string;
+  trashedAt: string;
+  purgeAfter: string;
+  restoreBlocked: boolean;
+}
+
+export interface DashboardTrashInventory {
+  path: string;
+  exists: boolean;
+  entries: DashboardTrashEntry[];
+}
+
+export interface DashboardContentTemplate {
+  id: string;
+  name: string;
+  kind: DashboardContentKind | 'any';
+  source: 'builtin' | 'project';
+  description: string;
+}
+
+export interface DashboardInternalLink {
+  kind: DashboardContentKind;
+  slug: string;
+  title: string;
+  url: string;
+  path: string;
+  markdown: string;
+}
+
+export interface DashboardSlugRenamePreview {
+  currentSlug: string;
+  currentUrl: string;
+  redirectFrom: string;
+  redirectTo: string;
 }
 
 export interface DashboardSyncEvent {
@@ -272,6 +382,11 @@ export interface DashboardContentItem {
   fingerprint: ContentSourceFingerprint;
   frontmatter: Record<string, unknown>;
   body: string;
+  assets: {
+    featureImage: DashboardAssetReference;
+    markdownImages: DashboardAssetReference[];
+  };
+  internalLinks: DashboardInternalLink[];
 }
 
 export type DashboardWriteResult =
@@ -301,6 +416,41 @@ export interface DashboardSettings {
 export type DashboardSettingsWriteResult =
   | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
   | { ok: false; reason: 'conflict'; changedPath: string; current: DashboardSettings };
+
+export type DashboardSlugRenameResult =
+  | {
+      ok: true;
+      kind: EditableKind;
+      oldSlug: string;
+      newSlug: string;
+      oldPath: string;
+      newPath: string;
+      redirectAppended: string | null;
+      redirectSuggestion: DashboardSlugRenamePreview;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'conflict'
+        | 'not-found'
+        | 'already-exists'
+        | 'invalid-kind'
+        | 'invalid-slug'
+        | 'forbidden';
+      current?: DashboardContentItem;
+      changedPath?: string;
+    };
+
+export type DashboardTrashResult =
+  | {
+      ok: true;
+      entry: DashboardTrashEntry;
+    }
+  | {
+      ok: false;
+      reason: 'conflict' | 'not-found' | 'already-exists' | 'invalid-kind' | 'forbidden';
+      current?: DashboardContentItem;
+    };
 
 export interface DashboardConflictDiff {
   frontmatter: {
@@ -467,12 +617,12 @@ export async function loadDashboardState({
   query.sort = sort ?? 'created_desc';
 
   const posts = applyContentQuery(
-    graph.posts.map((post) => postSummary(post, graph, config)),
+    graph.posts.map((post) => postSummary(cwd, post, graph, config)),
     'posts',
     query,
   );
   const pages = applyContentQuery(
-    graph.pages.map((item) => pageSummary(item, graph, config)),
+    graph.pages.map((item) => pageSummary(cwd, item, graph, config)),
     'pages',
     query,
   );
@@ -567,13 +717,20 @@ export async function readDashboardContentItem({
   }
   const raw = await readFile(filePath, 'utf8');
   const parsed = parseFrontmatter(raw, { filePath });
+  const path = relativePath(cwd, filePath);
   return {
     kind,
     slug,
-    path: relativePath(cwd, filePath),
+    path,
     fingerprint: await fingerprintFor(cwd, filePath),
     frontmatter: parsed.data,
     body: parsed.body,
+    assets: {
+      featureImage: assetReference(cwd, config, stringValue(parsed.data.feature_image)),
+      markdownImages: markdownImageReferences(cwd, config, parsed.body),
+    },
+    internalLinks:
+      kind === 'posts' || kind === 'pages' ? await listDashboardInternalLinks({ cwd, config }) : [],
   };
 }
 
@@ -747,9 +904,139 @@ export async function handleDashboardRequest(
         return jsonResponse(result);
       }
     }
+    const contentRenameMatch = url.pathname.match(/^\/api\/content\/([^/]+)\/([^/]+)\/rename$/);
+    if (request.method === 'POST' && contentRenameMatch) {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const kind = parseEditableKind(contentRenameMatch[1] ?? '');
+      const slug = decodeURIComponent(contentRenameMatch[2] ?? '');
+      if (kind === undefined || !SLUG_RE.test(slug)) {
+        return jsonResponse({ error: 'invalid content path' }, 400);
+      }
+      const payload = await readJsonPayload<{
+        fingerprint?: ContentSourceFingerprint;
+        newSlug?: string;
+        redirect?: boolean;
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
+      if (!payload.fingerprint || typeof payload.newSlug !== 'string') {
+        return jsonResponse({ error: 'fingerprint and newSlug are required' }, 400);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const result = await renameDashboardContentSlug({
+        cwd: ctx.cwd,
+        config,
+        kind,
+        oldSlug: slug,
+        newSlug: payload.newSlug,
+        expectedFingerprint: payload.fingerprint,
+        redirect: payload.redirect === true,
+      });
+      if (!result.ok && result.reason === 'conflict') return jsonResponse(result, 409);
+      if (!result.ok && result.reason === 'already-exists') return jsonResponse(result, 409);
+      if (!result.ok && result.reason === 'forbidden') return jsonResponse(result, 403);
+      if (!result.ok && (result.reason === 'invalid-kind' || result.reason === 'invalid-slug')) {
+        return jsonResponse(result, 400);
+      }
+      if (!result.ok) return jsonResponse(result, 404);
+      ctx.changeBus.broadcast({
+        reason: 'content-rename',
+        kind,
+        changedPath: result.newPath,
+      });
+      return jsonResponse(result);
+    }
+    const contentTrashMatch = url.pathname.match(/^\/api\/content\/(posts|pages)\/([^/]+)\/trash$/);
+    if (request.method === 'POST' && contentTrashMatch) {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const kind = contentTrashMatch[1] as DashboardContentKind;
+      const slug = decodeURIComponent(contentTrashMatch[2] ?? '');
+      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid content path' }, 400);
+      const payload = await readJsonPayload<{ fingerprint?: ContentSourceFingerprint }>(
+        request,
+        ctx.maxBodyBytes,
+      );
+      if (payload instanceof Response) return payload;
+      if (!payload.fingerprint) return jsonResponse({ error: 'fingerprint is required' }, 400);
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const result = await trashDashboardContentItem({
+        cwd: ctx.cwd,
+        config,
+        kind,
+        slug,
+        expectedFingerprint: payload.fingerprint,
+        now: new Date(),
+      });
+      if (!result.ok && result.reason === 'conflict') return jsonResponse(result, 409);
+      if (!result.ok && result.reason === 'forbidden') return jsonResponse(result, 403);
+      if (!result.ok) return jsonResponse(result, 404);
+      ctx.changeBus.broadcast({
+        reason: 'content-trash',
+        kind,
+        changedPath: result.entry.originalPath,
+      });
+      return jsonResponse(result);
+    }
+    if (request.method === 'POST' && url.pathname === '/api/content/bulk') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const payload = await readJsonPayload<{
+        action?: DashboardBulkAction;
+        targets?: DashboardBulkTarget[];
+        value?: string;
+      }>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const result = await applyDashboardBulkAction({
+        cwd: ctx.cwd,
+        config,
+        action: payload.action,
+        targets: payload.targets,
+        value: payload.value,
+      });
+      if (!result.ok) return jsonResponse(result, 400);
+      ctx.changeBus.broadcast({ reason: 'content-bulk', kind: 'project' });
+      return jsonResponse(result);
+    }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {
       return jsonResponse(
         await readDashboardSettings({ cwd: ctx.cwd, configPath: ctx.configPath }),
+      );
+    }
+    if (request.method === 'GET' && url.pathname === '/api/trash') {
+      return jsonResponse(await listDashboardTrash({ cwd: ctx.cwd }));
+    }
+    const trashRestoreMatch = url.pathname.match(/^\/api\/trash\/([^/]+)\/restore$/);
+    if (request.method === 'POST' && trashRestoreMatch) {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const result = await restoreDashboardTrashEntry({
+        cwd: ctx.cwd,
+        id: decodeURIComponent(trashRestoreMatch[1] ?? ''),
+      });
+      if (!result.ok && result.reason === 'already-exists') return jsonResponse(result, 409);
+      if (!result.ok && result.reason === 'forbidden') return jsonResponse(result, 403);
+      if (!result.ok) return jsonResponse(result, 404);
+      ctx.changeBus.broadcast({
+        reason: 'content-restore',
+        kind: result.entry.kind ?? 'project',
+        changedPath: result.entry.originalPath,
+      });
+      return jsonResponse(result);
+    }
+    if (request.method === 'GET' && url.pathname === '/api/internal-links') {
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const links = await listDashboardInternalLinks({ cwd: ctx.cwd, config });
+      const query = stringParam(url, 'q')?.toLowerCase();
+      return jsonResponse(
+        query
+          ? links.filter((link) =>
+              [link.title, link.slug, link.url, link.path].some((value) =>
+                value.toLowerCase().includes(query),
+              ),
+            )
+          : links,
       );
     }
     const taxonomyMaterializeMatch = url.pathname.match(
@@ -785,6 +1072,7 @@ export async function handleDashboardRequest(
         kind?: EditableKind;
         title?: string;
         slug?: string;
+        template?: string;
       }>(request, ctx.maxBodyBytes);
       if (payload instanceof Response) return payload;
       const result = await createDashboardContentItem({ cwd: ctx.cwd, config, payload });
@@ -841,10 +1129,15 @@ async function createDashboardContentItem({
 }: {
   cwd: string;
   config: NectarConfig;
-  payload: { kind?: EditableKind; title?: string; slug?: string };
+  payload: { kind?: EditableKind; title?: string; slug?: string; template?: string };
 }): Promise<{ ok: true; kind: EditableKind; slug: string; path: string }> {
   const kind = parseEditableKind(payload.kind ?? '');
   if (kind === undefined) throw new Error('invalid kind');
+  if (kind === 'authors' || kind === 'tags') {
+    if (payload.template && payload.template !== 'default') {
+      throw new Error('templates are only available for posts and pages');
+    }
+  }
   const title = (payload.title ?? '').trim();
   if (!title) throw new Error('title is required');
   const slug = (payload.slug?.trim() || slugify(title, { lower: true, strict: true })).trim();
@@ -857,13 +1150,16 @@ async function createDashboardContentItem({
   if (existsSync(filePath)) throw new Error(`content already exists: ${slug}`);
   await mkdir(dir, { recursive: true });
   const now = new Date().toISOString();
-  const frontmatter =
-    kind === 'authors'
-      ? { slug, name: title }
-      : kind === 'tags'
-        ? { slug, name: title }
-        : { title, slug, date: now, created_at: now, updated_at: now, status: 'draft' };
-  await writeFile(filePath, serializeContentSource(frontmatter, '\n'), 'utf8');
+  const scaffold = await scaffoldDashboardContent({
+    cwd,
+    config,
+    kind,
+    title,
+    slug,
+    now,
+    template: payload.template,
+  });
+  await writeFile(filePath, scaffold, 'utf8');
   return { ok: true, kind, slug, path: relativePath(cwd, filePath) };
 }
 
@@ -915,7 +1211,312 @@ export async function createDashboardTaxonomyFile({
   };
 }
 
+export async function applyDashboardBulkAction({
+  cwd,
+  config,
+  action,
+  targets,
+  value,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  action?: DashboardBulkAction;
+  targets?: DashboardBulkTarget[];
+  value?: string;
+}): Promise<DashboardBulkResult> {
+  if (
+    action !== 'set-status' &&
+    action !== 'add-tag' &&
+    action !== 'remove-tag' &&
+    action !== 'touch-updated-at'
+  ) {
+    return { ok: false, reason: 'invalid-action' };
+  }
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return { ok: false, reason: 'invalid-payload' };
+  }
+  const changed: Array<{ kind: DashboardContentKind; slug: string; path: string }> = [];
+  const skipped: Array<{ kind: DashboardContentKind; slug: string; reason: string }> = [];
+  const now = new Date().toISOString();
+  for (const target of targets) {
+    if (!isDashboardContentKind(target.kind) || !SLUG_RE.test(target.slug) || !target.fingerprint) {
+      skipped.push({
+        kind: isDashboardContentKind(target.kind) ? target.kind : 'posts',
+        slug: target.slug ?? '',
+        reason: 'invalid-target',
+      });
+      continue;
+    }
+    const current = await readDashboardContentItem({
+      cwd,
+      config,
+      kind: target.kind,
+      slug: target.slug,
+    }).catch(() => undefined);
+    if (!current) {
+      skipped.push({ kind: target.kind, slug: target.slug, reason: 'not-found' });
+      continue;
+    }
+    if (!sameFingerprint(current.fingerprint, target.fingerprint)) {
+      skipped.push({ kind: target.kind, slug: target.slug, reason: 'conflict' });
+      continue;
+    }
+    const frontmatter = { ...current.frontmatter };
+    if (action === 'set-status') {
+      const status = value?.trim();
+      if (status !== 'published' && status !== 'draft' && status !== 'scheduled') {
+        skipped.push({ kind: target.kind, slug: target.slug, reason: 'invalid-status' });
+        continue;
+      }
+      frontmatter.status = status;
+      frontmatter.updated_at = now;
+    } else if (action === 'touch-updated-at') {
+      frontmatter.updated_at = value?.trim() || now;
+    } else {
+      const tag = slugify(value ?? '', { lower: true, strict: true });
+      if (!SLUG_RE.test(tag)) {
+        skipped.push({ kind: target.kind, slug: target.slug, reason: 'invalid-tag' });
+        continue;
+      }
+      const tags = stringArrayValue(frontmatter.tags);
+      frontmatter.tags =
+        action === 'add-tag'
+          ? [...new Set([...tags, tag])]
+          : tags.filter((existing) => existing !== tag);
+      frontmatter.updated_at = now;
+    }
+    const result = await writeDashboardContentItem({
+      cwd,
+      config,
+      kind: target.kind,
+      slug: target.slug,
+      expectedFingerprint: current.fingerprint,
+      frontmatter,
+      body: current.body,
+    });
+    if (result.ok) changed.push({ kind: target.kind, slug: target.slug, path: result.changedPath });
+    else skipped.push({ kind: target.kind, slug: target.slug, reason: result.reason });
+  }
+  return { ok: true, changed, skipped };
+}
+
+export async function renameDashboardContentSlug({
+  cwd,
+  config,
+  kind,
+  oldSlug,
+  newSlug,
+  expectedFingerprint,
+  redirect,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  kind: EditableKind;
+  oldSlug: string;
+  newSlug: string;
+  expectedFingerprint: ContentSourceFingerprint;
+  redirect?: boolean;
+}): Promise<DashboardSlugRenameResult> {
+  const normalizedNewSlug = newSlug.trim();
+  if (!SLUG_RE.test(oldSlug) || !SLUG_RE.test(normalizedNewSlug)) {
+    return { ok: false, reason: 'invalid-slug' };
+  }
+  if (oldSlug === normalizedNewSlug) return { ok: false, reason: 'invalid-slug' };
+  const current = await readDashboardContentItem({ cwd, config, kind, slug: oldSlug }).catch(
+    () => undefined,
+  );
+  if (!current) return { ok: false, reason: 'not-found' };
+  if (!sameFingerprint(current.fingerprint, expectedFingerprint)) {
+    return { ok: false, reason: 'conflict', current, changedPath: current.path };
+  }
+  if (!(await isEditableRootInsideProject(cwd, config, kind))) {
+    return { ok: false, reason: 'forbidden', changedPath: current.path };
+  }
+
+  if (kind === 'authors') {
+    const dest = join(editableDir(cwd, config, kind), `${normalizedNewSlug}.md`);
+    if (existsSync(dest))
+      return { ok: false, reason: 'already-exists', changedPath: relativePath(cwd, dest) };
+    await renameAuthor({
+      cwd,
+      postsDir: config.content.posts_dir,
+      pagesDir: config.content.pages_dir,
+      authorsDir: config.content.authors_dir,
+      oldSlug,
+      newSlug: normalizedNewSlug,
+      dryRun: false,
+    });
+    return slugRenameSuccess(
+      cwd,
+      config,
+      kind,
+      oldSlug,
+      normalizedNewSlug,
+      current.path,
+      dest,
+      null,
+    );
+  }
+  if (kind === 'tags') {
+    const dest = join(editableDir(cwd, config, kind), `${normalizedNewSlug}.md`);
+    if (existsSync(dest))
+      return { ok: false, reason: 'already-exists', changedPath: relativePath(cwd, dest) };
+    await renameTag({
+      cwd,
+      postsDir: config.content.posts_dir,
+      pagesDir: config.content.pages_dir,
+      tagsDir: config.content.tags_dir,
+      oldSlug,
+      newSlug: normalizedNewSlug,
+      dryRun: false,
+    });
+    return slugRenameSuccess(
+      cwd,
+      config,
+      kind,
+      oldSlug,
+      normalizedNewSlug,
+      current.path,
+      dest,
+      null,
+    );
+  }
+
+  const source = await resolveEditablePath(cwd, config, kind, oldSlug);
+  if (source === undefined) return { ok: false, reason: 'not-found' };
+  if (!(await isEditableRealPath(cwd, config, kind, source))) {
+    return { ok: false, reason: 'forbidden', changedPath: relativePath(cwd, source) };
+  }
+  const dest = join(editableDir(cwd, config, kind), `${normalizedNewSlug}.md`);
+  if (existsSync(dest))
+    return { ok: false, reason: 'already-exists', changedPath: relativePath(cwd, dest) };
+  const raw = await readFile(source, 'utf8');
+  await writeFile(dest, rewriteFrontmatterSlug(raw, normalizedNewSlug), 'utf8');
+  await unlink(source);
+  const preview = renamePreviewFor(
+    config,
+    oldSlug,
+    normalizedNewSlug,
+    current.internalLinks[0]?.url,
+  );
+  const redirectAppended = redirect
+    ? await appendDashboardRedirect(cwd, preview.redirectFrom, preview.redirectTo)
+    : null;
+  return {
+    ok: true,
+    kind,
+    oldSlug,
+    newSlug: normalizedNewSlug,
+    oldPath: current.path,
+    newPath: relativePath(cwd, dest),
+    redirectAppended,
+    redirectSuggestion: preview,
+  };
+}
+
+export async function trashDashboardContentItem({
+  cwd,
+  config,
+  kind,
+  slug,
+  expectedFingerprint,
+  now,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  kind: DashboardContentKind;
+  slug: string;
+  expectedFingerprint: ContentSourceFingerprint;
+  now: Date;
+}): Promise<DashboardTrashResult> {
+  const current = await readDashboardContentItem({ cwd, config, kind, slug }).catch(
+    () => undefined,
+  );
+  if (!current) return { ok: false, reason: 'not-found' };
+  if (!sameFingerprint(current.fingerprint, expectedFingerprint)) {
+    return { ok: false, reason: 'conflict', current };
+  }
+  const source = await resolveEditablePath(cwd, config, kind, slug);
+  if (source === undefined) return { ok: false, reason: 'not-found' };
+  if (!(await isEditableRealPath(cwd, config, kind, source)))
+    return { ok: false, reason: 'forbidden' };
+
+  const trashedAt = now.toISOString();
+  const purgeAfter = new Date(now.getTime() + TRASH_RETENTION_MS).toISOString();
+  const trashDir = resolveDashboardTrashDir(cwd, now);
+  const trashPath = join(trashDir, `${slug}.md`);
+  const metadataPath = join(trashDir, `${slug}.meta.json`);
+  await mkdir(trashDir, { recursive: true });
+  await rename(source, trashPath);
+  const metadata = {
+    slug,
+    kind,
+    original_path: current.path,
+    trash_path: relativePath(cwd, trashPath),
+    trashed_at: trashedAt,
+    purge_after: purgeAfter,
+  };
+  await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  const entry = trashEntryFromMetadata(cwd, metadataPath, metadata);
+  if (!entry) return { ok: false, reason: 'forbidden' };
+  return { ok: true, entry };
+}
+
+export async function listDashboardTrash({
+  cwd,
+}: {
+  cwd: string;
+}): Promise<DashboardTrashInventory> {
+  const root = join(cwd, '.nectar', 'trash');
+  if (!existsSync(root)) return { path: '.nectar/trash', exists: false, entries: [] };
+  const entries: DashboardTrashEntry[] = [];
+  for (const dirent of await readdir(root, { withFileTypes: true })) {
+    if (!dirent.isDirectory()) continue;
+    const dir = join(root, dirent.name);
+    for (const file of await readdir(dir)) {
+      if (!file.endsWith('.meta.json')) continue;
+      try {
+        const metadataPath = join(dir, file);
+        const parsed = JSON.parse(await readFile(metadataPath, 'utf8')) as Record<string, unknown>;
+        const entry = trashEntryFromMetadata(cwd, metadataPath, parsed);
+        if (entry) entries.push(entry);
+      } catch {
+        // Ignore malformed trash metadata; `nectar content delete --purge` remains the repair path.
+      }
+    }
+  }
+  entries.sort((a, b) => b.trashedAt.localeCompare(a.trashedAt));
+  return { path: '.nectar/trash', exists: true, entries };
+}
+
+export async function restoreDashboardTrashEntry({
+  cwd,
+  id,
+}: {
+  cwd: string;
+  id: string;
+}): Promise<DashboardTrashResult> {
+  const inventory = await listDashboardTrash({ cwd });
+  const entry = inventory.entries.find((item) => item.id === id);
+  if (!entry) return { ok: false, reason: 'not-found' };
+  if (entry.restoreBlocked || existsSync(resolve(cwd, entry.originalPath))) {
+    return { ok: false, reason: 'already-exists' };
+  }
+  const trashPath = resolve(cwd, entry.trashPath);
+  const originalPath = resolve(cwd, entry.originalPath);
+  if (
+    !isInsidePath(resolve(cwd, '.nectar', 'trash'), trashPath) ||
+    !isInsidePath(cwd, originalPath)
+  ) {
+    return { ok: false, reason: 'forbidden' };
+  }
+  await mkdir(dirname(originalPath), { recursive: true });
+  await rename(trashPath, originalPath);
+  return { ok: true, entry: { ...entry, restoreBlocked: true } };
+}
+
 function postSummary(
+  cwd: string,
   post: Post,
   graph: ContentGraph,
   config: NectarConfig,
@@ -935,10 +1536,14 @@ function postSummary(
     tagSlugs: post.tags.map((tag) => tag.slug),
     words: post.word_count,
     warnings: contentWarnings(post),
+    featureImage: assetReference(cwd, config, post.feature_image),
+    internalLink: internalLinkForSummary('posts', post),
+    renamePreview: renamePreviewFor(config, post.slug, post.slug, post.url),
   };
 }
 
 function pageSummary(
+  cwd: string,
   page: Page,
   graph: ContentGraph,
   config: NectarConfig,
@@ -958,6 +1563,177 @@ function pageSummary(
     tagSlugs: page.tags.map((tag) => tag.slug),
     words: page.word_count,
     warnings: contentWarnings(page),
+    featureImage: assetReference(cwd, config, page.feature_image),
+    internalLink: internalLinkForSummary('pages', page),
+    renamePreview: renamePreviewFor(config, page.slug, page.slug, page.url),
+  };
+}
+
+function internalLinkForSummary(
+  kind: DashboardContentKind,
+  item: Pick<Post | Page, 'slug' | 'title' | 'url'>,
+): DashboardInternalLink {
+  return {
+    kind,
+    slug: item.slug,
+    title: item.title,
+    url: item.url,
+    path: '',
+    markdown: `[${item.title || item.slug}](${item.url})`,
+  };
+}
+
+export async function listDashboardInternalLinks({
+  cwd,
+  config,
+}: {
+  cwd: string;
+  config: NectarConfig;
+}): Promise<DashboardInternalLink[]> {
+  const graph = await loadContent({
+    cwd,
+    config,
+    includeDrafts: true,
+    includeFuturePosts: true,
+  });
+  return [
+    ...graph.posts.map((post) => ({
+      ...internalLinkForSummary('posts', post),
+      path: contentPath(config.content.posts_dir, graph.sources?.posts.get(post.id)),
+    })),
+    ...graph.pages.map((page) => ({
+      ...internalLinkForSummary('pages', page),
+      path: contentPath(config.content.pages_dir, graph.sources?.pages.get(page.id)),
+    })),
+  ].sort((a, b) => a.title.localeCompare(b.title) || a.slug.localeCompare(b.slug));
+}
+
+function assetReference(
+  cwd: string,
+  config: NectarConfig,
+  value: string | undefined,
+): DashboardAssetReference {
+  const raw = value?.trim() ?? '';
+  if (!raw) return emptyAssetReference();
+  if (/^https?:\/\//i.test(raw)) return remoteAssetReference(raw);
+  if (/^data:/i.test(raw)) {
+    return {
+      value: raw,
+      kind: 'data',
+      exists: null,
+      path: null,
+      publicPath: raw,
+      markdown: null,
+      warning: 'Data URLs are allowed but cannot be validated against content assets.',
+    };
+  }
+
+  const assetsDir = config.content.assets_dir.replace(/^\/+|\/+$/g, '');
+  const assetsRoot = absolutise(cwd, config.content.assets_dir);
+  const publicRoot = `/${assetsDir}/`;
+  const assetRel = raw.startsWith(publicRoot)
+    ? raw.slice(publicRoot.length)
+    : raw.startsWith('/')
+      ? null
+      : raw.replace(/^\.?\//, '');
+  if (assetRel === null) {
+    return {
+      value: raw,
+      kind: 'external',
+      exists: null,
+      path: null,
+      publicPath: raw,
+      markdown: null,
+      warning: `Path is outside ${publicRoot}.`,
+    };
+  }
+  const decoded = safeDecodePath(assetRel);
+  if (decoded === null) {
+    return {
+      value: raw,
+      kind: 'external',
+      exists: false,
+      path: null,
+      publicPath: raw,
+      markdown: null,
+      warning: 'Asset path could not be decoded safely.',
+    };
+  }
+  const filePath = resolve(assetsRoot, decoded);
+  if (!isInsidePath(assetsRoot, filePath)) {
+    return {
+      value: raw,
+      kind: 'external',
+      exists: false,
+      path: null,
+      publicPath: raw,
+      markdown: null,
+      warning: 'Asset path escapes the configured assets directory.',
+    };
+  }
+  const publicPath = `${publicRoot}${decoded.replaceAll('\\', '/')}`;
+  return {
+    value: raw,
+    kind: 'asset',
+    exists: existsSync(filePath),
+    path: relativePath(cwd, filePath),
+    publicPath,
+    markdown: `![${basename(decoded, extname(decoded))}](${publicPath})`,
+    warning: IMAGE_EXTENSIONS.has(extname(decoded).toLowerCase())
+      ? null
+      : 'Asset is not a known image type.',
+  };
+}
+
+function markdownImageReferences(
+  cwd: string,
+  config: NectarConfig,
+  body: string,
+): DashboardAssetReference[] {
+  const refs: DashboardAssetReference[] = [];
+  const markdownImageRe = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  for (const match of body.matchAll(markdownImageRe)) {
+    refs.push(assetReference(cwd, config, match[1]));
+  }
+  return refs;
+}
+
+function emptyAssetReference(): DashboardAssetReference {
+  return {
+    value: '',
+    kind: 'none',
+    exists: null,
+    path: null,
+    publicPath: null,
+    markdown: null,
+    warning: null,
+  };
+}
+
+function remoteAssetReference(value: string): DashboardAssetReference {
+  return {
+    value,
+    kind: 'remote',
+    exists: null,
+    path: null,
+    publicPath: value,
+    markdown: `![image](${value})`,
+    warning: null,
+  };
+}
+
+function renamePreviewFor(
+  config: NectarConfig,
+  oldSlug: string,
+  newSlug: string,
+  currentUrl: string | undefined,
+): DashboardSlugRenamePreview {
+  const basePath = normaliseBasePath(config.build.base_path);
+  return {
+    currentSlug: oldSlug,
+    currentUrl: currentUrl ?? `${basePath}${oldSlug}/`,
+    redirectFrom: `${basePath}${oldSlug}/`,
+    redirectTo: `${basePath}${newSlug}/`,
   };
 }
 
@@ -1302,6 +2078,53 @@ async function buildSettingsCards({
       ],
     },
     {
+      id: 'assets-images',
+      section: 'Operations',
+      title: 'Assets and images',
+      summary: 'Content image references are checked against the configured assets directory.',
+      source: operations.assets.dir,
+      mode: 'cli-action',
+      status: operations.assets.featureImages.missing > 0 ? 'warn' : 'ok',
+      values: [
+        { label: 'asset files', value: String(operations.assets.files) },
+        { label: 'images', value: String(operations.assets.images) },
+        { label: 'feature images', value: String(operations.assets.featureImages.referenced) },
+        { label: 'missing feature images', value: String(operations.assets.featureImages.missing) },
+      ],
+    },
+    {
+      id: 'content-operations',
+      section: 'Operations',
+      title: 'Bulk actions, templates, and internal links',
+      summary: 'Safe content operations remain fingerprint-gated and Markdown-first.',
+      source: 'Dashboard API',
+      mode: 'cli-action',
+      status: 'ok',
+      values: [
+        { label: 'bulk actions', value: String(operations.bulkActions.length) },
+        { label: 'templates', value: String(operations.contentTemplates.length) },
+        { label: 'internal links', value: String(operations.internalLinks.length) },
+      ],
+    },
+    {
+      id: 'trash-restore',
+      section: 'Operations',
+      title: 'Trash and restore',
+      summary:
+        'Deleted content is moved to .nectar/trash with restore metadata; purge stays CLI-only.',
+      source: operations.trash.path,
+      mode: 'dangerous-cli-only',
+      status: operations.trash.entries.length > 0 ? 'warn' : 'info',
+      values: [
+        { label: 'trash entries', value: String(operations.trash.entries.length) },
+        {
+          label: 'blocked restores',
+          value: String(operations.trash.entries.filter((entry) => entry.restoreBlocked).length),
+        },
+      ],
+      command: 'nectar content delete --purge',
+    },
+    {
       id: 'deploy',
       section: 'Operations',
       title: 'Deploy readiness',
@@ -1449,12 +2272,17 @@ async function buildDashboardOperations({
   query: string;
   status: string;
 }): Promise<DashboardOperations> {
-  const [doctor, cache, redirects, routes] = await Promise.all([
-    runChecks({ cwd, configPath, skipNetwork: true }),
-    readCacheStats(resolve(cwd, '.nectar-cache')),
-    readRedirectInventory(cwd),
-    readRoutesInventory(cwd),
-  ]);
+  const [doctor, cache, redirects, routes, assets, trash, contentTemplates, internalLinks] =
+    await Promise.all([
+      runChecks({ cwd, configPath, skipNetwork: true }),
+      readCacheStats(resolve(cwd, '.nectar-cache')),
+      readRedirectInventory(cwd),
+      readRoutesInventory(cwd),
+      readAssetInventory(cwd, config, [...posts, ...pages]),
+      listDashboardTrash({ cwd }),
+      listDashboardContentTemplates({ cwd }),
+      listDashboardInternalLinks({ cwd, config }),
+    ]);
   const inventory = contentInventory(graph);
   return {
     readiness: readinessItems({ cwd, config, graph, doctor, inventory, redirects, routes }),
@@ -1471,6 +2299,26 @@ async function buildDashboardOperations({
       bodySearch: 'deferred',
       resultCount: posts.length + pages.length,
     },
+    assets,
+    bulkActions: [
+      {
+        id: 'set-status',
+        label: 'Set status',
+        danger: false,
+        requiresConfirmation: false,
+      },
+      { id: 'add-tag', label: 'Add tag', danger: false, requiresConfirmation: false },
+      { id: 'remove-tag', label: 'Remove tag', danger: false, requiresConfirmation: false },
+      {
+        id: 'touch-updated-at',
+        label: 'Touch updated_at',
+        danger: false,
+        requiresConfirmation: false,
+      },
+    ],
+    trash,
+    contentTemplates,
+    internalLinks,
     collaboration: {
       editorCommand: 'nectar open <slug> --kind posts',
       lockPolicy: 'No filesystem lock; saves remain fingerprint-gated.',
@@ -1568,6 +2416,112 @@ async function scanFiles(path: string): Promise<{ files: number; bytes: number }
     }
   }
   return { files, bytes };
+}
+
+async function readAssetInventory(
+  cwd: string,
+  config: NectarConfig,
+  content: DashboardContentSummary[],
+): Promise<DashboardAssetInventory> {
+  const root = absolutise(cwd, config.content.assets_dir);
+  const scanned = existsSync(root) ? await scanAssetFiles(root) : { files: 0, images: 0, bytes: 0 };
+  const featureImages = content
+    .map((item) => item.featureImage)
+    .filter((ref) => ref.kind !== 'none');
+  return {
+    dir: config.content.assets_dir,
+    exists: existsSync(root),
+    files: scanned.files,
+    images: scanned.images,
+    bytes: scanned.bytes,
+    featureImages: {
+      referenced: featureImages.length,
+      missing: featureImages.filter((ref) => ref.exists === false).length,
+    },
+    markdownInsertPrefix: `/${config.content.assets_dir.replace(/^\/+|\/+$/g, '')}/`,
+  };
+}
+
+async function scanAssetFiles(
+  path: string,
+): Promise<{ files: number; images: number; bytes: number }> {
+  const info = await stat(path);
+  if (info.isFile()) {
+    const image = IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
+    return { files: 1, images: image ? 1 : 0, bytes: info.size };
+  }
+  if (!info.isDirectory()) return { files: 0, images: 0, bytes: 0 };
+  let files = 0;
+  let images = 0;
+  let bytes = 0;
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    const child = join(path, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await scanAssetFiles(child);
+      files += nested.files;
+      images += nested.images;
+      bytes += nested.bytes;
+    } else if (entry.isFile()) {
+      const childStat = await stat(child);
+      files += 1;
+      bytes += childStat.size;
+      if (IMAGE_EXTENSIONS.has(extname(entry.name).toLowerCase())) images += 1;
+    }
+  }
+  return { files, images, bytes };
+}
+
+export async function listDashboardContentTemplates({
+  cwd,
+}: {
+  cwd: string;
+}): Promise<DashboardContentTemplate[]> {
+  const builtins: DashboardContentTemplate[] = [
+    {
+      id: 'default',
+      name: 'Default draft',
+      kind: 'any',
+      source: 'builtin',
+      description: 'A minimal draft with title, slug, dates, and status.',
+    },
+    {
+      id: 'image-story',
+      name: 'Image story',
+      kind: 'posts',
+      source: 'builtin',
+      description: 'A post scaffold with feature image fields and an image placeholder.',
+    },
+    {
+      id: 'landing-page',
+      name: 'Landing page',
+      kind: 'pages',
+      source: 'builtin',
+      description: 'A page scaffold for a static landing page.',
+    },
+    {
+      id: 'changelog',
+      name: 'Changelog',
+      kind: 'posts',
+      source: 'builtin',
+      description: 'A terse release-note style post scaffold.',
+    },
+  ];
+  const projectDir = join(cwd, '.nectar', 'templates', 'content');
+  if (!existsSync(projectDir)) return builtins;
+  const projectTemplates: DashboardContentTemplate[] = [];
+  for (const entry of await readdir(projectDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    const id = basename(entry.name, '.md');
+    if (!SLUG_RE.test(id)) continue;
+    projectTemplates.push({
+      id: `project:${id}`,
+      name: titleFromSlug(id),
+      kind: 'any',
+      source: 'project',
+      description: `.nectar/templates/content/${entry.name}`,
+    });
+  }
+  return [...builtins, ...projectTemplates.sort((a, b) => a.id.localeCompare(b.id))];
 }
 
 async function readRedirectInventory(cwd: string): Promise<DashboardOperations['redirects']> {
@@ -1982,6 +2936,194 @@ function resolveConfigPath(cwd: string, configPath: string | undefined): string 
 
 function relativePath(cwd: string, filePath: string): string {
   return relative(cwd, filePath).replaceAll('\\', '/');
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => slugify(item, { lower: true, strict: true }))
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => slugify(item.trim(), { lower: true, strict: true }))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function isDashboardContentKind(value: unknown): value is DashboardContentKind {
+  return value === 'posts' || value === 'pages';
+}
+
+function safeDecodePath(value: string): string | null {
+  try {
+    const decoded = decodeURIComponent(value);
+    if (decoded.includes('\0')) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+function normaliseBasePath(base: string): string {
+  if (!base || base === '/') return '/';
+  const withLead = base.startsWith('/') ? base : `/${base}`;
+  return withLead.endsWith('/') ? withLead : `${withLead}/`;
+}
+
+async function appendDashboardRedirect(cwd: string, from: string, to: string): Promise<string> {
+  const file = join(cwd, 'redirects.yaml');
+  const line = `- { from: "${from}", to: "${to}", status: 301 }\n`;
+  if (existsSync(file)) {
+    const existing = await readFile(file, 'utf8');
+    const suffix = existing.endsWith('\n') || existing.length === 0 ? '' : '\n';
+    await writeFile(file, `${existing}${suffix}${line}`, 'utf8');
+  } else {
+    await writeFile(file, line, 'utf8');
+  }
+  return relativePath(cwd, file);
+}
+
+function slugRenameSuccess(
+  cwd: string,
+  config: NectarConfig,
+  kind: EditableKind,
+  oldSlug: string,
+  newSlug: string,
+  oldPath: string,
+  newFile: string,
+  redirectAppended: string | null,
+): DashboardSlugRenameResult {
+  return {
+    ok: true,
+    kind,
+    oldSlug,
+    newSlug,
+    oldPath,
+    newPath: relativePath(cwd, newFile),
+    redirectAppended,
+    redirectSuggestion: renamePreviewFor(config, oldSlug, newSlug, undefined),
+  };
+}
+
+function timestampForTrashPath(now: Date): string {
+  return now.toISOString().replaceAll(':', '-').replaceAll('.', '-');
+}
+
+function resolveDashboardTrashDir(cwd: string, now: Date): string {
+  const trashRoot = join(cwd, '.nectar', 'trash');
+  for (let offsetMs = 0; offsetMs < 1000; offsetMs += 1) {
+    const candidate = join(trashRoot, timestampForTrashPath(new Date(now.getTime() + offsetMs)));
+    if (!existsSync(candidate)) return candidate;
+  }
+  throw new Error('could not allocate a unique trash directory');
+}
+
+function trashEntryFromMetadata(
+  cwd: string,
+  metadataPath: string,
+  metadata: Record<string, unknown>,
+): DashboardTrashEntry | null {
+  const slug = stringValue(metadata.slug);
+  const originalPath = stringValue(metadata.original_path);
+  const trashPath = stringValue(metadata.trash_path);
+  const trashedAt = stringValue(metadata.trashed_at);
+  const purgeAfter = stringValue(metadata.purge_after);
+  const kindRaw = metadata.kind;
+  const kind = kindRaw === 'posts' || kindRaw === 'pages' ? kindRaw : null;
+  if (!slug || !originalPath || !trashPath || !trashedAt || !purgeAfter) return null;
+  if (isAbsolute(originalPath) || isAbsolute(trashPath)) return null;
+  const trashAbs = resolve(cwd, trashPath);
+  const originalAbs = resolve(cwd, originalPath);
+  if (!isInsidePath(resolve(cwd, '.nectar', 'trash'), trashAbs)) return null;
+  if (!isInsidePath(cwd, originalAbs)) return null;
+  const dirId = basename(dirname(metadataPath));
+  const id = `${dirId}--${slug}`;
+  return {
+    id,
+    slug,
+    kind,
+    originalPath,
+    trashPath,
+    metadataPath: relativePath(cwd, metadataPath),
+    trashedAt,
+    purgeAfter,
+    restoreBlocked: existsSync(originalAbs),
+  };
+}
+
+async function scaffoldDashboardContent({
+  cwd,
+  config,
+  kind,
+  title,
+  slug,
+  now,
+  template,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  kind: EditableKind;
+  title: string;
+  slug: string;
+  now: string;
+  template?: string;
+}): Promise<string> {
+  if (kind === 'authors') return serializeContentSource({ slug, name: title }, '\n');
+  if (kind === 'tags') return serializeContentSource({ slug, name: title }, '\n');
+  const normalizedTemplate = template?.trim() || 'default';
+  if (normalizedTemplate.startsWith('project:')) {
+    const id = normalizedTemplate.slice('project:'.length);
+    if (!SLUG_RE.test(id)) throw new Error('invalid template');
+    const file = join(cwd, '.nectar', 'templates', 'content', `${id}.md`);
+    if (!existsSync(file)) throw new Error(`template does not exist: ${normalizedTemplate}`);
+    const raw = await readFile(file, 'utf8');
+    return renderTemplateScaffold(raw, { title, slug, now, kind });
+  }
+  const base = { title, slug, date: now, created_at: now, updated_at: now, status: 'draft' };
+  if (normalizedTemplate === 'image-story' && kind === 'posts') {
+    return serializeContentSource(
+      { ...base, feature_image: '', feature_image_alt: '' },
+      '\nStart with the image, then write the story.\n',
+    );
+  }
+  if (normalizedTemplate === 'landing-page' && kind === 'pages') {
+    return serializeContentSource(
+      { ...base, template: 'page' },
+      '\n## Overview\n\nDescribe the page purpose here.\n',
+    );
+  }
+  if (normalizedTemplate === 'changelog' && kind === 'posts') {
+    return serializeContentSource(base, '\n## Changed\n\n- \n\n## Fixed\n\n- \n');
+  }
+  return serializeContentSource(base, '\n');
+}
+
+function renderTemplateScaffold(
+  raw: string,
+  values: { title: string; slug: string; now: string; kind: EditableKind },
+): string {
+  return raw
+    .replaceAll('{{title}}', values.title)
+    .replaceAll('{{slug}}', values.slug)
+    .replaceAll('{{date}}', values.now)
+    .replaceAll('{{created_at}}', values.now)
+    .replaceAll('{{updated_at}}', values.now)
+    .replaceAll('{{kind}}', values.kind);
+}
+
+function titleFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
 }
 
 function numberParam(url: URL, key: string): number | undefined {

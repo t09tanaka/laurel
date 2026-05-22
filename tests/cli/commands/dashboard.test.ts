@@ -3,13 +3,20 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  applyDashboardBulkAction,
   createChangeBus,
   createDashboardTaxonomyFile,
   handleDashboardRequest,
+  listDashboardContentTemplates,
+  listDashboardInternalLinks,
+  listDashboardTrash,
   loadDashboardState,
   readDashboardContentItem,
   readDashboardSettings,
+  renameDashboardContentSlug,
   renderDashboardHtml,
+  restoreDashboardTrashEntry,
+  trashDashboardContentItem,
   writeDashboardContentItem,
   writeDashboardSiteSettings,
 } from '~/cli/commands/dashboard.ts';
@@ -273,6 +280,195 @@ describe('dashboard data', () => {
         'inline-image-alt',
         'missing-description',
       ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('reports image assets, feature image existence, and markdown insert helpers', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(join(dir, 'content/images/cover.svg'), '<svg></svg>', 'utf8');
+      await writeFile(
+        join(dir, 'content/posts/new.md'),
+        [
+          '---',
+          'title: New Post',
+          'date: 2026-01-03T00:00:00Z',
+          'created_at: 2026-01-03T00:00:00Z',
+          'feature_image: /content/images/cover.svg',
+          'feature_image_alt: Cover',
+          '---',
+          '',
+          '![Inline](/content/images/missing.png)',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const state = await loadDashboardState({ cwd: dir });
+      const item = state.posts.items.find((post) => post.slug === 'new');
+      expect(item?.featureImage.exists).toBe(true);
+      expect(item?.featureImage.markdown).toBe('![cover](/content/images/cover.svg)');
+      expect(state.settings.operations.assets.images).toBe(1);
+      expect(state.settings.operations.assets.featureImages.missing).toBe(0);
+
+      const config = await loadConfig({ cwd: dir });
+      const current = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        slug: 'new',
+      });
+      expect(current.assets.markdownImages[0]?.exists).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('applies safe bulk actions only when each fingerprint matches', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const oldPost = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        slug: 'old',
+      });
+      const newPost = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        slug: 'new',
+      });
+      await writeFile(
+        join(dir, 'content/posts/new.md'),
+        '---\ntitle: Changed\n---\n\nOutside\n',
+        'utf8',
+      );
+
+      const result = await applyDashboardBulkAction({
+        cwd: dir,
+        config,
+        action: 'add-tag',
+        value: 'Bulk Tag',
+        targets: [
+          { kind: 'posts', slug: 'old', fingerprint: oldPost.fingerprint },
+          { kind: 'posts', slug: 'new', fingerprint: newPost.fingerprint },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('expected bulk action');
+      expect(result.changed.map((item) => item.slug)).toEqual(['old']);
+      expect(result.skipped).toEqual([{ kind: 'posts', slug: 'new', reason: 'conflict' }]);
+      expect(await readFile(join(dir, 'content/posts/old.md'), 'utf8')).toContain('bulk-tag');
+      expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toContain('Outside');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('moves dashboard content to trash and restores through metadata without purge', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'old' });
+
+      const trashed = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        slug: 'old',
+        expectedFingerprint: item.fingerprint,
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+
+      expect(trashed.ok).toBe(true);
+      if (!trashed.ok) throw new Error('expected trash result');
+      expect(trashed.entry.originalPath).toBe('content/posts/old.md');
+      expect(await listDashboardTrash({ cwd: dir })).toMatchObject({
+        exists: true,
+        entries: [expect.objectContaining({ slug: 'old', kind: 'posts' })],
+      });
+      expect(await readFile(join(dir, trashed.entry.trashPath), 'utf8')).toContain('Old Post');
+
+      const restored = await restoreDashboardTrashEntry({ cwd: dir, id: trashed.entry.id });
+      expect(restored.ok).toBe(true);
+      expect(await readFile(join(dir, 'content/posts/old.md'), 'utf8')).toContain('Old Post');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('renames slugs with fingerprint checks and optional redirect suggestions', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({ cwd: dir, config, kind: 'posts', slug: 'old' });
+
+      const renamed = await renameDashboardContentSlug({
+        cwd: dir,
+        config,
+        kind: 'posts',
+        oldSlug: 'old',
+        newSlug: 'renamed-old',
+        expectedFingerprint: item.fingerprint,
+        redirect: true,
+      });
+
+      expect(renamed.ok).toBe(true);
+      if (!renamed.ok) throw new Error('expected rename result');
+      expect(renamed.newPath).toBe('content/posts/renamed-old.md');
+      expect(renamed.redirectSuggestion).toMatchObject({
+        redirectFrom: '/old/',
+        redirectTo: '/renamed-old/',
+      });
+      expect(await readFile(join(dir, 'content/posts/renamed-old.md'), 'utf8')).toContain(
+        'slug: renamed-old',
+      );
+      expect(await readFile(join(dir, 'redirects.yaml'), 'utf8')).toContain('from: "/old/"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('loads content templates and internal link helpers for markdown-first creation', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, '.nectar/templates/content'), { recursive: true });
+      await writeFile(
+        join(dir, '.nectar/templates/content/review.md'),
+        '---\ntitle: {{title}}\nslug: {{slug}}\nstatus: draft\n---\n\nReview {{title}}\n',
+        'utf8',
+      );
+
+      const templates = await listDashboardContentTemplates({ cwd: dir });
+      expect(templates.map((template) => template.id)).toContain('project:review');
+      const links = await listDashboardInternalLinks({
+        cwd: dir,
+        config: await loadConfig({ cwd: dir }),
+      });
+      expect(links.find((link) => link.slug === 'about')?.markdown).toBe('[About](/about/)');
+
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/content', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'posts',
+            title: 'Template Post',
+            template: 'project:review',
+          }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(response.status).toBe(201);
+      expect(await readFile(join(dir, 'content/posts/template-post.md'), 'utf8')).toContain(
+        'Review Template Post',
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
