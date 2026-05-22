@@ -244,8 +244,8 @@ function collectAssetReferences(html: string): AssetReferences {
           return;
         }
         if (name === 'meta') {
-          const key = `${attrs.property ?? ''} ${attrs.name ?? ''}`.toLowerCase();
-          if (key.includes('image')) addUrl(attrs.content);
+          const key = (attrs.property ?? attrs.name ?? '').toLowerCase();
+          if (IMAGE_META_KEYS.has(key)) addUrl(attrs.content);
         }
       },
     },
@@ -325,6 +325,13 @@ function classifyAsset(path: string): PageAssetKind {
 
 const IMAGE_EXTS = new Set(['.avif', '.gif', '.ico', '.jpg', '.jpeg', '.png', '.svg', '.webp']);
 const FONT_EXTS = new Set(['.woff', '.woff2', '.ttf', '.otf', '.eot']);
+const IMAGE_META_KEYS = new Set([
+  'og:image',
+  'og:image:url',
+  'og:image:secure_url',
+  'twitter:image',
+  'twitter:image:src',
+]);
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

@@ -91,4 +91,22 @@ describe('page weight gate helpers', () => {
     expect(summary.localAssets).toEqual([]);
     expect(summary.missingAssets).toEqual([]);
   });
+
+  test('counts image URL meta tags but ignores image metadata fields', async () => {
+    const distRoot = makeDist();
+    writeAsset(distRoot, 'content/images/og.png', 2000);
+    const html = [
+      '<!doctype html>',
+      '<meta property="og:image" content="/content/images/og.png">',
+      '<meta property="og:image:type" content="image/png">',
+      '<meta property="og:image:alt" content="Readable alternate text">',
+      '<meta name="twitter:image:alt" content="Readable alternate text">',
+    ].join('');
+    writeFileSync(join(distRoot, 'index.html'), html, 'utf8');
+
+    const summary = await summarizePageWeight({ distRoot, htmlFile: join(distRoot, 'index.html') });
+
+    expect(summary.assetBytes.image).toBe(2000);
+    expect(summary.missingAssets).toEqual([]);
+  });
 });
