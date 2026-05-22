@@ -85,6 +85,7 @@
     "lint": "biome lint src tests",
     "lint:html": "html-validate \"example/dist/**/*.html\"",
     "size:theme-bundle": "bun scripts/theme-bundle-size.ts",
+    "size:pages": "bun scripts/page-weight-gate.ts",
     "verify:lockfile": "bun install --frozen-lockfile",
     "verify:bun-path-alias": "bun scripts/verify-bun-path-alias.ts",
     "lint:a11y": "bun run scripts/a11y-gate.ts",
