@@ -594,6 +594,7 @@ async function runBuild({
           routesYaml,
           includeDrafts,
           markdownTransforms,
+          pageApprovalGate: true,
         });
         return Promise.all([contentPromise, themePromise]);
       });

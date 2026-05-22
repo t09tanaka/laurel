@@ -22,6 +22,7 @@ import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
+import { approvalDir, resolveApprovalBuildGate } from './approvals.ts';
 import {
   asBool,
   asDateISO,
@@ -109,6 +110,10 @@ export interface LoadContentOptions {
   // `Plugin.transformMarkdown` declarations and passes them through. Compose
   // in registration order so each transform sees the previous output.
   markdownTransforms?: readonly MarkdownTransformHook[];
+  // When enabled, pages are loaded through `.nectar/approvals/pages`.
+  // Approved pages use the current Markdown only when its fingerprint still
+  // matches the receipt; stale pages render the approved snapshot instead.
+  pageApprovalGate?: boolean;
 }
 
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
@@ -140,6 +145,7 @@ export async function loadContent({
   includeDrafts,
   includeFuturePosts,
   markdownTransforms,
+  pageApprovalGate,
 }: LoadContentOptions): Promise<ContentGraph> {
   resetAutoCreationWarnings();
   const site = buildSite(config);
@@ -177,6 +183,7 @@ export async function loadContent({
       includeDrafts: includeDrafts === true,
       includeFuturePosts: includeFuture,
       markdownTransforms: markdownTransforms ?? [],
+      pageApprovalGate: pageApprovalGate === true,
     });
   } finally {
     await pool.close();
@@ -193,6 +200,7 @@ async function loadContentWithPool({
   includeDrafts,
   includeFuturePosts,
   markdownTransforms,
+  pageApprovalGate,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
@@ -201,6 +209,7 @@ async function loadContentWithPool({
   includeDrafts: boolean;
   includeFuturePosts: boolean;
   markdownTransforms: readonly MarkdownTransformHook[];
+  pageApprovalGate: boolean;
 }): Promise<ContentGraph> {
   // Normalised `build.base_path` is set by the pipeline before `loadContent`
   // runs; defaulting here keeps unit tests that hand-roll a partial config
@@ -210,7 +219,7 @@ async function loadContentWithPool({
     loadAuthors(cwd, config),
     loadTags(cwd, config),
     loadPosts(cwd, config, pool, markdownTransforms),
-    loadPages(cwd, config, pool, markdownTransforms),
+    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate),
   ]);
 
   const localeInfo = resolveLocaleRouting(config.site.locale, [
@@ -875,23 +884,47 @@ async function loadPages(
   config: NectarConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  approvalGate: boolean,
 ): Promise<RawPage[]> {
   const dirs = await discoverContentDirs(cwd, config.content.pages_dir);
+  const approvalsEnabled = approvalGate && existsSync(approvalDir(cwd, 'pages'));
   return loadMarkdownDirs(
     dirs,
-    async (file, raw, dir, sourceStat, source) =>
-      normalizePage(
+    async (file, raw, dir, sourceStat, source) => {
+      let rawForBuild = raw;
+      let sourceStatForBuild = sourceStat;
+      let sourceForBuild = source;
+      if (approvalsEnabled) {
+        const slug = slugFromMarkdown(file, raw, dir.dir);
+        const path = projectRelativePath(cwd, file);
+        const currentFingerprint = { ...source, path };
+        const gate = await resolveApprovalBuildGate({
+          cwd,
+          kind: 'pages',
+          slug,
+          path,
+          fingerprint: currentFingerprint,
+        });
+        if (gate.mode === 'skip') return undefined;
+        if (gate.mode === 'snapshot' && gate.snapshotMarkdown && gate.receipt) {
+          rawForBuild = gate.snapshotMarkdown;
+          sourceForBuild = loaderFingerprintFromProjectPath(cwd, dir.dir, gate.receipt.fingerprint);
+          sourceStatForBuild = statsFromFingerprint(gate.receipt.fingerprint);
+        }
+      }
+      return normalizePage(
         file,
-        raw,
-        sourceStat,
+        rawForBuild,
+        sourceStatForBuild,
         cwd,
         dir.dir,
         config,
         pool,
         transforms,
         dir.locale,
-        source,
-      ),
+        sourceForBuild,
+      );
+    },
     config.content.max_markdown_bytes,
   );
 }
@@ -1092,6 +1125,36 @@ function contentSourceFingerprint(
     mtimeMs: Math.round(info.mtimeMs * 1000) / 1000,
     size: info.size,
   };
+}
+
+function projectRelativePath(cwd: string, filePath: string): string {
+  return relative(cwd, filePath).replaceAll('\\', '/');
+}
+
+function slugFromMarkdown(filePath: string, raw: string, rootDir: string): string {
+  const { data } = parseFrontmatter(raw, { filePath });
+  return (
+    sanitizeUserSlug(asString(data.slug), `${filePath} frontmatter slug`) ??
+    slugFromPath(filePath, rootDir)
+  );
+}
+
+function loaderFingerprintFromProjectPath(
+  cwd: string,
+  rootDir: string,
+  fingerprint: ContentSourceFingerprint,
+): ContentSourceFingerprint {
+  return {
+    ...fingerprint,
+    path: relative(rootDir, resolve(cwd, fingerprint.path)).replaceAll('\\', '/'),
+  };
+}
+
+function statsFromFingerprint(fingerprint: ContentSourceFingerprint): Stats {
+  return {
+    mtimeMs: fingerprint.mtimeMs,
+    size: fingerprint.size,
+  } as Stats;
 }
 
 function formatBytes(bytes: number): string {
