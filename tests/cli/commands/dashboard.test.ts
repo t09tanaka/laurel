@@ -29,6 +29,7 @@ import {
   trashDashboardContentItem,
   writeDashboardContentItem,
   writeDashboardSiteSettings,
+  writeDashboardThemeSettings,
 } from '~/cli/commands/dashboard.ts';
 import { createDashboardUiState, reduceDashboardUiState } from '~/cli/dashboard/state.ts';
 import { renderDashboardSurfaceStateHtml } from '~/cli/dashboard/view-state.ts';
@@ -643,6 +644,44 @@ describe('dashboard data', () => {
       if (stale.ok) throw new Error('expected settings conflict');
       expect(stale.reason).toBe('conflict');
       expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('Changed Outside');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('switches the active theme only to an existing theme directory', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'themes/source'), { recursive: true });
+      await mkdir(join(dir, 'themes/casper'), { recursive: true });
+
+      const settings = await readDashboardSettings({ cwd: dir });
+      expect(settings.theme.name).toBe('source');
+      expect(settings.theme.available.map((theme) => theme.name)).toEqual(['casper', 'source']);
+
+      const written = await writeDashboardThemeSettings({
+        cwd: dir,
+        expectedFingerprint: settings.fingerprint,
+        updates: { name: 'casper' },
+      });
+
+      expect(written.ok).toBe(true);
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('[theme]');
+      expect(raw).toContain('name = "casper"');
+      expect(raw).toContain('dir = "themes"');
+      expect(raw).toContain('title = "Dashboard Test"');
+
+      const missing = await writeDashboardThemeSettings({
+        cwd: dir,
+        expectedFingerprint: written.ok ? written.fingerprint : settings.fingerprint,
+        updates: { name: 'missing-theme' },
+      });
+
+      expect(missing.ok).toBe(false);
+      if (missing.ok) throw new Error('expected invalid theme result');
+      expect(missing.reason).toBe('invalid-theme');
+      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "casper"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
