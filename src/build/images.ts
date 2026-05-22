@@ -249,19 +249,56 @@ export async function generateImageVariants(opts: GenerateImageVariantsOptions):
 
   const assetsRoot = resolve(opts.cwd, opts.config.content.assets_dir);
   const outRoot = join(opts.outputDir, 'content/images');
+  const cacheDirConfig = configuredImageCacheDir(opts.config);
+  const cacheDir = cacheDirConfig ? resolveCacheDir(opts.cwd, cacheDirConfig) : null;
+  const stripMetadata = opts.stripMetadata !== false;
+  if (cacheDir) mkdirSync(cacheDir, { recursive: true });
   let count = 0;
 
   for (const [rel, widths] of opts.plan) {
     const sourcePath = join(assetsRoot, rel);
     if (!existsSync(sourcePath)) continue;
+    let sha: string | null = null;
+    if (cacheDir) {
+      try {
+        sha = hashSourceFile(sourcePath);
+      } catch (err) {
+        logger.warn(
+          `Failed to hash ${rel} for responsive image variants: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     for (const w of widths) {
       const outPath = join(outRoot, 'size', `w${w}`, rel);
+      const cacheFile =
+        cacheDir && sha
+          ? join(
+              cacheDir,
+              `${IMAGE_VARIANT_CACHE_VERSION}-${sha}-w${w}-strip${stripMetadata ? '1' : '0'}${extname(rel).toLowerCase()}`,
+            )
+          : null;
       mkdirSync(dirname(outPath), { recursive: true });
+      if (cacheFile && existsSync(cacheFile)) {
+        try {
+          copyFileSync(cacheFile, outPath);
+          count += 1;
+          continue;
+        } catch (err) {
+          logger.warn(
+            `Failed to copy cached responsive variant w${w} for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          continue;
+        }
+      }
       try {
-        await applyImageMetadataPolicy(
-          sharpFn(sourcePath).resize(w),
-          opts.stripMetadata !== false,
-        ).toFile(outPath);
+        const pipeline = applyImageMetadataPolicy(sharpFn(sourcePath).resize(w), stripMetadata);
+        if (cacheFile) {
+          mkdirSync(dirname(cacheFile), { recursive: true });
+          await pipeline.toFile(cacheFile);
+          copyFileSync(cacheFile, outPath);
+        } else {
+          await pipeline.toFile(outPath);
+        }
         count += 1;
       } catch (err) {
         logger.warn(
@@ -577,6 +614,7 @@ interface SourceCacheEntry {
   sha256: string;
 }
 const sourceHashCache = new Map<string, SourceCacheEntry>();
+const IMAGE_VARIANT_CACHE_VERSION = 'v1';
 
 function hashSourceFile(filePath: string): string {
   const stat = statSync(filePath);
@@ -589,6 +627,13 @@ function hashSourceFile(filePath: string): string {
 
 export function resolveCacheDir(cwd: string, cacheDir: string): string {
   return isAbsolute(cacheDir) ? cacheDir : join(cwd, cacheDir);
+}
+
+function configuredImageCacheDir(config: NectarConfig): string | undefined {
+  const images = (config as { components?: { images?: { cache_dir?: string } } }).components
+    ?.images;
+  const cacheDir = images?.cache_dir;
+  return typeof cacheDir === 'string' && cacheDir.trim() ? cacheDir : undefined;
 }
 
 // Emit `<original>.<format>` variants for every (width, format) pair the
