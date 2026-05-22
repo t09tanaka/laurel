@@ -28,6 +28,12 @@ import type {
   Post,
   Tag,
 } from '~/content/model.ts';
+import {
+  type ImportSummary,
+  ON_CONFLICT_VALUES,
+  type OnConflict,
+  importGhostExport,
+} from '~/ghost/import.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
@@ -502,6 +508,28 @@ export interface DashboardGitStatus {
   dirty: boolean;
   changedFiles: number;
   lastCommit?: string;
+}
+
+export interface DashboardGhostImportPayload {
+  file?: string;
+  dryRun?: boolean;
+  onConflict?: OnConflict;
+  outputDir?: string;
+  assetsDir?: string;
+  downloadImages?: boolean;
+  sourceUrl?: string;
+  keepCodeInjection?: boolean;
+  keepHtml?: boolean;
+  maxFileSizeBytes?: number;
+  maxPostHtmlSizeBytes?: number;
+  maxImageSizeBytes?: number;
+}
+
+export interface DashboardGhostImportResult {
+  ok: true;
+  mode: 'dry-run' | 'apply';
+  target: string;
+  summary: ImportSummary;
 }
 
 interface DashboardWatchMetadata {
@@ -1056,6 +1084,21 @@ export async function handleDashboardRequest(
       ctx.changeBus.broadcast({ reason: 'content-bulk', kind: 'project' });
       return jsonResponse(result);
     }
+    if (request.method === 'POST' && url.pathname === '/api/import/ghost') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const payload = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
+      if (payload instanceof Response) return payload;
+      try {
+        const result = await runDashboardGhostImport({ cwd: ctx.cwd, payload });
+        if (result.mode === 'apply') {
+          ctx.changeBus.broadcast({ reason: 'dashboard-import', kind: 'project' });
+        }
+        return jsonResponse(result);
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {
       return jsonResponse(
         await readDashboardSettings({ cwd: ctx.cwd, configPath: ctx.configPath }),
@@ -1177,6 +1220,61 @@ export async function handleDashboardRequest(
     if (err instanceof Response) return err;
     return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
+}
+
+export async function runDashboardGhostImport({
+  cwd,
+  payload,
+}: {
+  cwd: string;
+  payload: DashboardGhostImportPayload;
+}): Promise<DashboardGhostImportResult> {
+  const file = typeof payload.file === 'string' ? payload.file.trim() : '';
+  if (!file) throw new Error('file is required');
+  const onConflict = payload.onConflict ?? 'skip';
+  if (!ON_CONFLICT_VALUES.includes(onConflict)) {
+    throw new Error(`invalid onConflict: ${String(payload.onConflict)}`);
+  }
+  const dryRun = payload.dryRun !== false;
+  const outputDir = cleanOptionalString(payload.outputDir);
+  const summary = await importGhostExport({
+    cwd,
+    file,
+    onConflict,
+    dryRun,
+    outputDir,
+    assetsDir: cleanOptionalString(payload.assetsDir),
+    downloadImages: payload.downloadImages === true,
+    sourceUrl: cleanOptionalString(payload.sourceUrl),
+    keepCodeInjection: payload.keepCodeInjection === true,
+    keepHtml: payload.keepHtml === true,
+    maxFileSizeBytes: optionalNonNegativeInteger(payload.maxFileSizeBytes, 'maxFileSizeBytes'),
+    maxPostHtmlSizeBytes: optionalNonNegativeInteger(
+      payload.maxPostHtmlSizeBytes,
+      'maxPostHtmlSizeBytes',
+    ),
+    maxImageSizeBytes: optionalNonNegativeInteger(payload.maxImageSizeBytes, 'maxImageSizeBytes'),
+  });
+  return {
+    ok: true,
+    mode: dryRun ? 'dry-run' : 'apply',
+    target: outputDir ?? 'content/',
+    summary,
+  };
+}
+
+function cleanOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function optionalNonNegativeInteger(value: unknown, label: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative integer`);
+  }
+  return value;
 }
 
 async function createDashboardContentItem({
@@ -2446,16 +2544,18 @@ async function buildSettingsCards({
       id: 'import-export-diagnostics',
       section: 'Advanced',
       title: 'Import, export, diagnostics',
-      summary: 'Potentially destructive workflows are discoverable as CLI examples only.',
+      summary:
+        'Ghost imports use a review-first dashboard action; other import/export workflows stay CLI-first.',
       source: 'CLI assets',
       mode: 'dangerous-cli-only',
       status: 'info',
       values: [
-        { label: 'import', value: 'import-ghost / import-wordpress' },
-        { label: 'export', value: 'export' },
+        { label: 'ghost import', value: 'dashboard dry-run + apply' },
+        { label: 'other import', value: 'import-wordpress via CLI' },
+        { label: 'export', value: 'CLI only' },
         { label: 'diagnostics', value: 'redacted bundle via CLI' },
       ],
-      command: 'nectar diagnostics bundle --dry-run',
+      command: 'nectar import-ghost <export.zip> --dry-run',
     },
     {
       id: 'dashboard-frontend-bundle',
@@ -3032,7 +3132,7 @@ function cliAssetLedger(): DashboardCliAsset[] {
       command: 'import-ghost / import-wordpress / export',
       adminSurface: 'Import/export',
       exposure: 'dangerous-cli-only',
-      note: 'Discovery and command examples only; file picker/upload is a separate design.',
+      note: 'Ghost import has a review-first local-path action; WordPress import and export remain CLI-only.',
     },
     {
       command: 'diagnostics',
