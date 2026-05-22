@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   type DashboardState,
   applyDashboardBulkAction,
@@ -102,6 +111,45 @@ async function makeDashboardFixture(): Promise<string> {
   await writeFile(join(dir, 'content/authors/casper.md'), '---\nname: Casper\n---\n', 'utf8');
   await writeFile(join(dir, 'content/tags/news.md'), '---\nname: News\n---\n', 'utf8');
   return dir;
+}
+
+async function makeGhostExportZip(zipPath: string, sourceDir: string): Promise<void> {
+  await mkdir(sourceDir, { recursive: true });
+  await writeFile(
+    join(sourceDir, 'dashboard.ghost.2026-05-22.json'),
+    JSON.stringify({
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p-dashboard-import',
+                title: 'Dashboard Import',
+                slug: 'dashboard-import',
+                html: '<p>Imported from the dashboard.</p>',
+                status: 'published',
+                type: 'post',
+              },
+            ],
+          },
+        },
+      ],
+    }),
+    'utf8',
+  );
+  const cwd = dirname(sourceDir);
+  const target = sourceDir.slice(cwd.length + 1);
+  const proc = Bun.spawn(['zip', '-rq', zipPath, target], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  await proc.exited;
+  if (proc.exitCode !== 0) {
+    throw new Error(
+      `Failed to build dashboard import test zip: ${await new Response(proc.stderr).text()}`,
+    );
+  }
 }
 
 describe('dashboard data', () => {
@@ -472,6 +520,47 @@ describe('dashboard data', () => {
       expect(response.status).toBe(201);
       expect(await readFile(join(dir, 'content/posts/template-post.md'), 'utf8')).toContain(
         'Review Template Post',
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('previews and applies a Ghost zip import through the dashboard API', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const exportDir = join(dir, 'tmp-ghost-export');
+      const zipPath = join(dir, 'dashboard-import.zip');
+      await makeGhostExportZip(zipPath, exportDir);
+
+      const preview = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ file: zipPath, dryRun: true, onConflict: 'overwrite' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+
+      expect(preview.status).toBe(200);
+      const previewBody = (await preview.json()) as { summary: { dryRun: boolean; posts: number } };
+      expect(previewBody.summary).toMatchObject({ dryRun: true, posts: 1 });
+      await expect(access(join(dir, 'content/posts/dashboard-import.md'))).rejects.toThrow();
+
+      const applied = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ file: zipPath, dryRun: false, onConflict: 'overwrite' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+
+      expect(applied.status).toBe(200);
+      const appliedBody = (await applied.json()) as { summary: { dryRun: boolean; posts: number } };
+      expect(appliedBody.summary).toMatchObject({ dryRun: false, posts: 1 });
+      expect(await readFile(join(dir, 'content/posts/dashboard-import.md'), 'utf8')).toContain(
+        'Imported from the dashboard.',
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -888,6 +977,16 @@ describe('dashboard data', () => {
     expect(html).toContain('aria-label="Editor shortcuts"');
     expect(html).toContain('position:sticky');
     expect(html).toContain('max-height:100dvh');
+  });
+
+  test('renders Ghost import controls for review-first dashboard imports', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('id="ghostImportFile"');
+    expect(html).toContain('id="previewGhostImport"');
+    expect(html).toContain('id="applyGhostImport"');
+    expect(html).toContain('/api/import/ghost');
+    expect(html).toContain('renderGhostImportResult');
   });
 });
 

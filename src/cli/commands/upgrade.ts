@@ -124,7 +124,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (lower.includes('/.bun/install/cache/') || userAgent.startsWith('bunx/')) {
+  if (lower.includes('/.bun/install/cache/')) {
     return {
       method: 'bunx',
       command: ['bunx', `${PACKAGE_NAME}@latest`],
@@ -133,12 +133,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (
-    lower.includes('/.bun/install/global/') ||
-    lower.includes('/.bun/bin/nectar') ||
-    execPath.includes('/bun') ||
-    userAgent.startsWith('bun/')
-  ) {
+  if (lower.includes('/.bun/install/global/') || lower.includes('/.bun/bin/nectar')) {
     return {
       method: 'bun-global',
       command: ['bun', 'install', '-g', `${PACKAGE_NAME}@latest`],
@@ -147,12 +142,34 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (
-    lower.includes('/node_modules/nectar/') ||
-    lower.includes('/node_modules/.bin/nectar') ||
-    execPath.includes('/npm') ||
-    userAgent.startsWith('npm/')
-  ) {
+  if (lower.includes('/node_modules/nectar/') || lower.includes('/node_modules/.bin/nectar')) {
+    return {
+      method: 'npm-global',
+      command: ['npm', 'install', '-g', `${PACKAGE_NAME}@latest`],
+      selfUpdatable: true,
+      reason: '`npm install -g` install detected.',
+    };
+  }
+
+  if (userAgent.startsWith('bunx/')) {
+    return {
+      method: 'bunx',
+      command: ['bunx', `${PACKAGE_NAME}@latest`],
+      selfUpdatable: false,
+      reason: '`bunx` install detected; one-shot installs are not upgraded in place.',
+    };
+  }
+
+  if (execPath.includes('/bun') || userAgent.startsWith('bun/')) {
+    return {
+      method: 'bun-global',
+      command: ['bun', 'install', '-g', `${PACKAGE_NAME}@latest`],
+      selfUpdatable: true,
+      reason: '`bun install -g` install detected.',
+    };
+  }
+
+  if (execPath.includes('/npm') || userAgent.startsWith('npm/')) {
     return {
       method: 'npm-global',
       command: ['npm', 'install', '-g', `${PACKAGE_NAME}@latest`],
