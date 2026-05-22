@@ -64,6 +64,9 @@ jobs:
       - name: Theme bundle size gate (example/dist)
         run: bun run size:theme-bundle
 
+      - name: Page weight gate (example/dist)
+        run: bun run size:pages
+
       - name: html-validate (example/dist)
         run: bun run lint:html
 
