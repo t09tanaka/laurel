@@ -29,6 +29,17 @@ describe('dashboard visual QA script helpers', () => {
       'conflict',
       'empty',
     ]);
+    expect(dashboardVisualScenarios.map((scenario) => scenario.route)).toEqual([
+      '/posts',
+      '/pages',
+      '/authors',
+      '/tags',
+      '/settings',
+      '/posts/new',
+      '/posts/future-post/edit',
+      '/posts/future-post/edit',
+      '/posts',
+    ]);
     expect(plan.screenshots).toContain(join(output, 'desktop-posts.png'));
     expect(plan.screenshots).toContain(join(output, 'desktop-authors.png'));
     expect(plan.screenshots).toContain(join(output, 'desktop-tags.png'));

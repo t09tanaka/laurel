@@ -1419,6 +1419,7 @@ describe('dashboard data', () => {
     expect(html).toContain('href="/settings" data-view="settings"');
     expect(html).toContain('function initialViewFromPath');
     expect(html).toContain('function editorRouteFromPath');
+    expect(html).toContain('function createRouteFromPath');
     expect(html).toContain('function syncPathForView');
 
     for (const path of [
@@ -1427,6 +1428,10 @@ describe('dashboard data', () => {
       '/authors',
       '/tags',
       '/settings',
+      '/posts/new',
+      '/pages/new',
+      '/authors/new',
+      '/tags/new',
       '/posts/future-post/edit',
       '/pages/about/edit',
       '/authors/alice/edit',
@@ -1453,6 +1458,10 @@ describe('dashboard data', () => {
     expect(html).toContain('--focus:#18b86d');
     expect(html).toContain('--main-width:1120px');
     expect(html).toContain('--sidebar-width:248px');
+    expect(html).toContain('--sidebar-bg:#121719');
+    expect(html).toContain('--action:#10b981');
+    expect(html).toContain('box-shadow:0 18px 44px rgba(17,19,24,.08)');
+    expect(html).toContain('.toolbar #newItem{background:var(--action)');
     expect(html).toContain('--surface-secondary:#58d66d');
     expect(html).toContain('"Avenir Next","Hiragino Sans","Hiragino Kaku Gothic ProN"');
     expect(html).toContain('font-feature-settings:"palt"');
@@ -1483,6 +1492,8 @@ describe('dashboard data', () => {
     expect(html).toContain('min-height:calc(100dvh - 48px)');
     expect(html).toContain('body.editorOpen .shell');
     expect(html).toContain('.nav a span{display:inline;');
+    expect(html).toContain('.nav a.active,.nav a[aria-current=page]{color:var(--sidebar-ink)');
+    expect(html).toContain('.table tbody td{border:0');
     expect(html).toContain("document.body.classList.add('editorOpen')");
     expect(html).toContain("document.body.classList.remove('editorOpen')");
   });

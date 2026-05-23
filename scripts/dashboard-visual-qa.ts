@@ -26,6 +26,7 @@ export interface DashboardVisualScenario {
     | 'conflict'
     | 'empty';
   label: string;
+  route: string;
 }
 
 export interface DashboardVisualPlanOptions {
@@ -56,15 +57,15 @@ export const dashboardVisualViewports: DashboardVisualViewport[] = [
 ];
 
 export const dashboardVisualScenarios: DashboardVisualScenario[] = [
-  { name: 'posts', label: 'Posts list' },
-  { name: 'pages', label: 'Pages list' },
-  { name: 'authors', label: 'Authors list' },
-  { name: 'tags', label: 'Tags list' },
-  { name: 'settings', label: 'Settings cards' },
-  { name: 'create', label: 'Create page' },
-  { name: 'editor', label: 'Editor page' },
-  { name: 'conflict', label: 'Fingerprint conflict notice' },
-  { name: 'empty', label: 'Empty search state' },
+  { name: 'posts', label: 'Posts list', route: '/posts' },
+  { name: 'pages', label: 'Pages list', route: '/pages' },
+  { name: 'authors', label: 'Authors list', route: '/authors' },
+  { name: 'tags', label: 'Tags list', route: '/tags' },
+  { name: 'settings', label: 'Settings cards', route: '/settings' },
+  { name: 'create', label: 'Create page', route: '/posts/new' },
+  { name: 'editor', label: 'Editor page', route: '/posts/future-post/edit' },
+  { name: 'conflict', label: 'Fingerprint conflict notice', route: '/posts/future-post/edit' },
+  { name: 'empty', label: 'Empty search state', route: '/posts' },
 ];
 
 export function createDashboardVisualPlan({
@@ -234,7 +235,7 @@ async function captureScenario({
       deviceScaleFactor: 1,
       mobile: viewport.mobile,
     });
-    await page.send('Page.navigate', { url: origin });
+    await page.send('Page.navigate', { url: `${origin}${scenario.route}` });
     await waitForDashboard(page);
     await prepareScenario(page, project, scenario);
     await waitForDashboard(page);
@@ -257,23 +258,19 @@ async function prepareScenario(
   project: string,
   scenario: DashboardVisualScenario,
 ): Promise<void> {
-  if (scenario.name === 'posts') return;
   if (
+    scenario.name === 'posts' ||
     scenario.name === 'pages' ||
     scenario.name === 'authors' ||
     scenario.name === 'tags' ||
     scenario.name === 'settings'
-  ) {
-    await page.evaluate(`setView(${JSON.stringify(scenario.name)})`);
+  )
     return;
-  }
   if (scenario.name === 'editor') {
-    await page.evaluate("openEditor('posts', state.posts.items[0].slug)");
     await page.waitFor("document.getElementById('editor').classList.contains('open')");
     return;
   }
   if (scenario.name === 'create') {
-    await page.evaluate('renderCreatePage()');
     await page.waitFor("document.getElementById('createPage') !== null");
     return;
   }
