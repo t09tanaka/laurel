@@ -15,7 +15,16 @@ export interface DashboardVisualViewport {
 }
 
 export interface DashboardVisualScenario {
-  name: 'posts' | 'pages' | 'settings' | 'create' | 'editor' | 'conflict' | 'empty';
+  name:
+    | 'posts'
+    | 'pages'
+    | 'authors'
+    | 'tags'
+    | 'settings'
+    | 'create'
+    | 'editor'
+    | 'conflict'
+    | 'empty';
   label: string;
 }
 
@@ -49,6 +58,8 @@ export const dashboardVisualViewports: DashboardVisualViewport[] = [
 export const dashboardVisualScenarios: DashboardVisualScenario[] = [
   { name: 'posts', label: 'Posts list' },
   { name: 'pages', label: 'Pages list' },
+  { name: 'authors', label: 'Authors list' },
+  { name: 'tags', label: 'Tags list' },
   { name: 'settings', label: 'Settings cards' },
   { name: 'create', label: 'Create page' },
   { name: 'editor', label: 'Editor page' },
@@ -247,7 +258,12 @@ async function prepareScenario(
   scenario: DashboardVisualScenario,
 ): Promise<void> {
   if (scenario.name === 'posts') return;
-  if (scenario.name === 'pages' || scenario.name === 'settings') {
+  if (
+    scenario.name === 'pages' ||
+    scenario.name === 'authors' ||
+    scenario.name === 'tags' ||
+    scenario.name === 'settings'
+  ) {
     await page.evaluate(`setView(${JSON.stringify(scenario.name)})`);
     return;
   }

@@ -21,6 +21,8 @@ describe('dashboard visual QA script helpers', () => {
     expect(dashboardVisualScenarios.map((scenario) => scenario.name)).toEqual([
       'posts',
       'pages',
+      'authors',
+      'tags',
       'settings',
       'create',
       'editor',
@@ -28,6 +30,8 @@ describe('dashboard visual QA script helpers', () => {
       'empty',
     ]);
     expect(plan.screenshots).toContain(join(output, 'desktop-posts.png'));
+    expect(plan.screenshots).toContain(join(output, 'desktop-authors.png'));
+    expect(plan.screenshots).toContain(join(output, 'desktop-tags.png'));
     expect(plan.screenshots).toContain(join(output, 'desktop-create.png'));
     expect(plan.htmlSnapshots).toContain(join(output, 'mobile-empty.html'));
     expect(plan.commands).toContain(
