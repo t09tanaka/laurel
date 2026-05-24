@@ -769,12 +769,10 @@ export async function loadDashboardState({
   );
   const pages = applyContentQuery(pageSummaries, 'pages', query);
   const paginatedPosts = await withPreviewArtifacts(
-    cwd,
     config,
     paginate(posts, postPage, safePerPage, query),
   );
   const paginatedPages = await withPreviewArtifacts(
-    cwd,
     config,
     paginate(pages, pagePage, safePerPage, query),
   );
@@ -1033,7 +1031,12 @@ export async function handleDashboardRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   try {
-    if (request.method === 'GET' && url.pathname === '/') {
+    if (
+      request.method === 'GET' &&
+      (['/', '/posts', '/pages', '/authors', '/tags', '/settings'].includes(url.pathname) ||
+        /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
+        /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
+    ) {
       return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
     if (request.method === 'GET' && url.pathname === '/api/state') {
@@ -2319,7 +2322,6 @@ function paginate<T>(
 }
 
 async function withPreviewArtifacts(
-  cwd: string,
   config: NectarConfig,
   list: DashboardList<DashboardContentSummary>,
 ): Promise<DashboardList<DashboardContentSummary>> {
@@ -2328,7 +2330,7 @@ async function withPreviewArtifacts(
     items: await Promise.all(
       list.items.map(async (item) => ({
         ...item,
-        preview: await resolveDashboardPreviewArtifact(cwd, config, item),
+        preview: await resolveDashboardPreviewArtifact(config, item),
       })),
     ),
   };
@@ -2347,7 +2349,6 @@ function countPreviewFreshness(
 }
 
 async function resolveDashboardPreviewArtifact(
-  cwd: string,
   config: NectarConfig,
   item: DashboardContentSummary,
 ): Promise<DashboardPreviewArtifact> {
@@ -2569,6 +2570,7 @@ function stripGhostImageTransformSegments(rel: string): string {
   const out: string[] = [];
   for (let i = 0; i < parts.length; i += 1) {
     const part = parts[i];
+    if (!part) continue;
     if (part === 'size' && parts[i + 1]?.startsWith('w')) {
       i += 1;
       continue;

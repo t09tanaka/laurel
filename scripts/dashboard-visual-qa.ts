@@ -15,8 +15,18 @@ export interface DashboardVisualViewport {
 }
 
 export interface DashboardVisualScenario {
-  name: 'posts' | 'pages' | 'settings' | 'editor' | 'conflict' | 'empty';
+  name:
+    | 'posts'
+    | 'pages'
+    | 'authors'
+    | 'tags'
+    | 'settings'
+    | 'create'
+    | 'editor'
+    | 'conflict'
+    | 'empty';
   label: string;
+  route: string;
 }
 
 export interface DashboardVisualPlanOptions {
@@ -47,12 +57,15 @@ export const dashboardVisualViewports: DashboardVisualViewport[] = [
 ];
 
 export const dashboardVisualScenarios: DashboardVisualScenario[] = [
-  { name: 'posts', label: 'Posts list' },
-  { name: 'pages', label: 'Pages list' },
-  { name: 'settings', label: 'Settings cards' },
-  { name: 'editor', label: 'Editor drawer' },
-  { name: 'conflict', label: 'Fingerprint conflict notice' },
-  { name: 'empty', label: 'Empty search state' },
+  { name: 'posts', label: 'Posts list', route: '/posts' },
+  { name: 'pages', label: 'Pages list', route: '/pages' },
+  { name: 'authors', label: 'Authors list', route: '/authors' },
+  { name: 'tags', label: 'Tags list', route: '/tags' },
+  { name: 'settings', label: 'Settings cards', route: '/settings' },
+  { name: 'create', label: 'Create page', route: '/posts/new' },
+  { name: 'editor', label: 'Editor page', route: '/posts/future-post/edit' },
+  { name: 'conflict', label: 'Fingerprint conflict notice', route: '/posts/future-post/edit' },
+  { name: 'empty', label: 'Empty search state', route: '/posts' },
 ];
 
 export function createDashboardVisualPlan({
@@ -163,12 +176,23 @@ async function smokeDashboard(origin: string): Promise<Record<string, unknown>> 
   }
   const state = (await fetchJson(`${origin}/api/state?per_page=12`)) as {
     site?: { title?: unknown };
-    posts?: { total?: unknown };
+    posts?: {
+      total?: unknown;
+      items?: Array<{ preview?: { openUrl?: unknown } }>;
+    };
     pages?: { total?: unknown };
     settings?: { cards?: unknown[] };
   };
   if (!state.posts || !state.pages || !state.settings) {
     throw new Error('Dashboard API smoke failed: missing posts, pages, or settings.');
+  }
+  const previewUrl = state.posts.items?.[0]?.preview?.openUrl;
+  if (typeof previewUrl !== 'string' || !previewUrl.startsWith('/preview/content?')) {
+    throw new Error('Dashboard API smoke failed: missing Markdown preview URL for the first post.');
+  }
+  const previewHtml = await fetchText(`${origin}${previewUrl}`);
+  if (!previewHtml.includes('<html') || !previewHtml.includes('Nectar')) {
+    throw new Error('Dashboard preview smoke failed: active theme preview did not render HTML.');
   }
   return {
     origin,
@@ -182,7 +206,7 @@ async function smokeDashboard(origin: string): Promise<Record<string, unknown>> 
 async function copyProjectFixture(project: string, output: string): Promise<string> {
   const workingProject = join(output, '.work', 'project');
   await mkdir(dirname(workingProject), { recursive: true });
-  await cp(project, workingProject, { recursive: true });
+  await cp(project, workingProject, { recursive: true, dereference: true });
   return workingProject;
 }
 
@@ -211,7 +235,7 @@ async function captureScenario({
       deviceScaleFactor: 1,
       mobile: viewport.mobile,
     });
-    await page.send('Page.navigate', { url: origin });
+    await page.send('Page.navigate', { url: `${origin}${scenario.route}` });
     await waitForDashboard(page);
     await prepareScenario(page, project, scenario);
     await waitForDashboard(page);
@@ -234,14 +258,20 @@ async function prepareScenario(
   project: string,
   scenario: DashboardVisualScenario,
 ): Promise<void> {
-  if (scenario.name === 'posts') return;
-  if (scenario.name === 'pages' || scenario.name === 'settings') {
-    await page.evaluate(`setView(${JSON.stringify(scenario.name)})`);
+  if (
+    scenario.name === 'posts' ||
+    scenario.name === 'pages' ||
+    scenario.name === 'authors' ||
+    scenario.name === 'tags' ||
+    scenario.name === 'settings'
+  )
+    return;
+  if (scenario.name === 'editor') {
+    await page.waitFor("document.getElementById('editor').classList.contains('open')");
     return;
   }
-  if (scenario.name === 'editor') {
-    await page.evaluate("openEditor('posts', state.posts.items[0].slug)");
-    await page.waitFor("document.getElementById('editor').classList.contains('open')");
+  if (scenario.name === 'create') {
+    await page.waitFor("document.getElementById('createPage') !== null");
     return;
   }
   if (scenario.name === 'empty') {

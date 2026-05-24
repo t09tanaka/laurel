@@ -1392,10 +1392,12 @@ describe('dashboard data', () => {
     expect(html).toContain('data-theme="system"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('role="status" aria-live="polite"');
-    expect(html).toContain('id="paletteModal"');
-    expect(html).toContain('id="density"');
-    expect(html).toContain('id="theme"');
+    expect(html).toContain('aria-label="File-backed status"');
+    expect(html).toContain('id="buildStatus"');
+    expect(html).toContain('id="previewStatus"');
     expect(html).toContain('id="search"');
+    expect(html).not.toContain('id="density"');
+    expect(html).not.toContain('id="theme"');
     expect(html).toContain('overflow-wrap:anywhere');
     expect(html).toContain('prefers-color-scheme:dark');
     expect(html).toContain('prefers-reduced-motion');
@@ -1405,6 +1407,127 @@ describe('dashboard data', () => {
     expect(html).toContain('previewCell');
     expect(html).toContain('sandbox="');
     expect(html).not.toContain('allow-same-origin');
+  });
+
+  test('serves dashboard sections as independent pages', async () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('href="/posts" data-view="posts"');
+    expect(html).toContain('href="/pages" data-view="pages"');
+    expect(html).toContain('href="/authors" data-view="authors"');
+    expect(html).toContain('href="/tags" data-view="tags"');
+    expect(html).toContain('href="/settings" data-view="settings"');
+    expect(html).toContain('function initialViewFromPath');
+    expect(html).toContain('function editorRouteFromPath');
+    expect(html).toContain('function createRouteFromPath');
+    expect(html).toContain('function syncPathForView');
+
+    for (const path of [
+      '/posts',
+      '/pages',
+      '/authors',
+      '/tags',
+      '/settings',
+      '/posts/new',
+      '/pages/new',
+      '/authors/new',
+      '/tags/new',
+      '/posts/future-post/edit',
+      '/pages/about/edit',
+      '/authors/alice/edit',
+      '/tags/news/edit',
+    ]) {
+      const response = await handleDashboardRequest(new Request(`http://127.0.0.1:4322${path}`), {
+        cwd: process.cwd(),
+        changeBus: createChangeBus(),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('<title>Nectar Dashboard</title>');
+    }
+  });
+
+  test('renders dashboard shell with the note-derived design system tokens', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('--text-primary:#111318');
+    expect(html).toContain('--background-secondary:#f2f5f4');
+    expect(html).toContain('--surface-raised:#f7f9f8');
+    expect(html).toContain('--border-default:#dfe5e3');
+    expect(html).toContain('--success:#148a50');
+    expect(html).toContain('--danger:#d92d3d');
+    expect(html).toContain('--focus:#18b86d');
+    expect(html).toContain('--main-width:1120px');
+    expect(html).toContain('--sidebar-width:248px');
+    expect(html).toContain('--sidebar-bg:#121719');
+    expect(html).toContain('--action:#10b981');
+    expect(html).toContain('box-shadow:0 18px 44px rgba(17,19,24,.08)');
+    expect(html).toContain('.toolbar #newItem{background:var(--action)');
+    expect(html).toContain('--surface-secondary:#58d66d');
+    expect(html).toContain('"Avenir Next","Hiragino Sans","Hiragino Kaku Gothic ProN"');
+    expect(html).toContain('font-feature-settings:"palt"');
+    expect(html).toContain('--article-width:720px');
+    expect(html).toContain('font:15px/1.5 var(--font-sans)');
+    expect(html).toContain('max-width:var(--main-width)');
+    expect(html).toContain('max-width:620px');
+    expect(html).toContain('line-height:2');
+    expect(html).not.toContain('font-family:Georgia');
+  });
+
+  test('renders compact toolbar controls without escaped icon text or drawer opacity', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).not.toContain('id="density"');
+    expect(html).not.toContain('id="theme"');
+    expect(html).not.toContain('id="command"');
+    expect(html).not.toContain('\\u2195');
+    expect(html).not.toContain('\\u2318K');
+    expect(html).not.toContain('from{transform:translateX(18px);opacity:.7');
+    expect(html).toContain('@keyframes slideIn{from{transform:translateX(18px)}');
+    expect(html).toContain('.panel{min-width:0');
+    expect(html).toContain('@media (max-width:560px)');
+    expect(html).toContain(
+      '.editorScroll{overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) 320px',
+    );
+    expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
+    expect(html).toContain('min-height:calc(100dvh - 48px)');
+    expect(html).toContain('body.editorOpen .shell');
+    expect(html).toContain('.nav a span{display:inline;');
+    expect(html).toContain('.nav a.active,.nav a[aria-current=page]{color:var(--sidebar-ink)');
+    expect(html).toContain('.table tbody td{border:0');
+    expect(html).toContain("document.body.classList.add('editorOpen')");
+    expect(html).toContain("document.body.classList.remove('editorOpen')");
+  });
+
+  test('keeps list rows focused and hides file details until requested', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('<details class="listFilters"><summary>Filters</summary>');
+    expect(html).toContain('<table class="table contentTable">');
+    expect(html).toContain('<th>Title</th><th>Status</th><th>Created</th>');
+    expect(html).toContain('<details class="rowDetails"><summary>Details</summary>');
+    expect(html).toContain('function primaryActionsCell');
+    expect(html).toContain('function rowDetailsCell');
+    expect(html).not.toContain('<th>Preview</th><th>Path</th>');
+    expect(html).not.toContain('id="contentSearch"');
+  });
+
+  test('renders editor and create flows as independent dashboard pages', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('<section class="editor editorPage" id="editor"');
+    expect(html).not.toContain('<aside class="editor"');
+    expect(html).not.toContain('<section class="editor editorPage" id="editor" role="dialog"');
+    expect(html).toContain('body.editorOpen .top');
+    expect(html).toContain('body.editorOpen #contentPanel');
+    expect(html).toContain('renderCreatePage');
+    expect(html).toContain('id="createPage"');
+    expect(html).toContain('submitCreateItem');
+    expect(html).toContain('pathForEditor(kind,item.slug)');
+    expect(html).toContain('/edit');
+    expect(html).toContain('openRouteEditor');
+    expect(html).toContain('syncPathForEditor');
+    expect(html).toContain('openEditor(data.kind,data.slug)');
+    expect(html).not.toContain("prompt('Title or name')");
   });
 
   test('renders recovery, guard, keyboard, media, and snippet editor affordances', () => {
@@ -1417,16 +1540,33 @@ describe('dashboard data', () => {
     expect(html).toContain('id="rollbackEditor"');
     expect(html).toContain('id="previewEditor"');
     expect(html).toContain('id="approvePage"');
+    expect(html).toContain('<details class="advancedPanel" id="mediaPanel">');
+    expect(html).toContain('<details class="advancedPanel" id="formatPanel">');
+    expect(html).toContain('<details class="advancedPanel" id="recoveryPanel">');
     expect(html).toContain('data-snippet="bold"');
     expect(html).toContain('data-snippet="callout"');
     expect(html).toContain('id="editFeatureImage"');
     expect(html).toContain('id="editFeatureImageAlt"');
     expect(html).toContain('id="editFeatureImageCaption"');
     expect(html).toContain('id="insertMedia"');
-    expect(html).toContain('aria-label="Editor shortcuts"');
+    expect(html).not.toContain('aria-label="Editor shortcuts"');
+    expect(html).not.toContain('Cmd/Ctrl');
     expect(html).toContain('Approve saved page');
     expect(html).toContain('position:sticky');
-    expect(html).toContain('max-height:100dvh');
+    expect(html).toContain('class="editor editorPage"');
+  });
+
+  test('opens editor preview through the active theme route', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('currentPreview=null');
+    expect(html).toContain('currentPreview=findSummary(kind,slug)?.preview||null');
+    expect(html).toContain('function findCurrentPreviewUrl');
+    expect(html).toContain("window.open(route,'_blank','noopener')");
+    expect(html).toContain('saved Markdown through active theme');
+    expect(html).not.toContain('function findCurrentRoute()');
+    expect(html).not.toContain("key==='p'");
+    expect(html).not.toContain("key==='k'");
   });
 
   test('renders Ghost import controls for review-first dashboard imports', () => {
