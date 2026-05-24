@@ -174,8 +174,12 @@ Card baseline:
 ### Navigation
 
 Navigation uses a white background, `rgba(8, 19, 26, 0.14)` bottom border, and
-compact height: 64px on desktop, 48px on mobile. Keep labels direct and
-operational: Posts, Pages, Authors, Tags, Settings, Sync.
+compact height: 64px on desktop, 48px on mobile. The sidebar exposes only the
+three top-level sections — Posts, Pages, Settings — with right-aligned subdued
+counts. Authors and Tags live as Settings sub-views (`Settings > Authors`,
+`Settings > Tags`) so the `/authors` and `/tags` URLs keep working without
+inflating the top-level surface. Sync is communicated through the persistent
+status rail below the nav, never as a competing top-level button.
 
 ### Status Badges
 

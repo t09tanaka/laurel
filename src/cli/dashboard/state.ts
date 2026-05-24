@@ -1,5 +1,7 @@
 export type DashboardView = 'posts' | 'pages' | 'authors' | 'tags' | 'settings';
 export type DashboardContentView = 'posts' | 'pages';
+export type DashboardShellSection = 'posts' | 'pages' | 'settings';
+export type DashboardSettingsSubview = 'site' | 'authors' | 'tags';
 export type DashboardDensity = 'comfortable' | 'compact';
 export type DashboardTheme = 'system' | 'light' | 'dark';
 export type DashboardLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'conflict';
@@ -47,6 +49,18 @@ export function normalizeDashboardView(view: string | undefined): DashboardView 
   return view === 'pages' || view === 'authors' || view === 'tags' || view === 'settings'
     ? view
     : 'posts';
+}
+
+export function dashboardShellSectionFor(view: DashboardView): DashboardShellSection {
+  if (view === 'pages') return 'pages';
+  if (view === 'authors' || view === 'tags' || view === 'settings') return 'settings';
+  return 'posts';
+}
+
+export function dashboardSettingsSubviewFor(view: DashboardView): DashboardSettingsSubview {
+  if (view === 'authors') return 'authors';
+  if (view === 'tags') return 'tags';
+  return 'site';
 }
 
 export function createDashboardUiState(
@@ -143,6 +157,8 @@ export function dashboardStateHelperScript(): string {
   return [
     `const DEFAULT_DASHBOARD_UI_STATE=${JSON.stringify(DEFAULT_DASHBOARD_UI_STATE)};`,
     normalizeDashboardView.toString(),
+    dashboardShellSectionFor.toString(),
+    dashboardSettingsSubviewFor.toString(),
     createDashboardUiState.toString(),
     reduceDashboardUiState.toString(),
   ].join('\n');
