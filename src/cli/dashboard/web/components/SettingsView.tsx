@@ -1,14 +1,12 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import {
-  type GhostImportPayload,
-  type PageBundleImportPayload,
-  importGhost,
-  importPageBundle,
-  saveSiteSettings,
-  saveThemeSettings,
-} from '../lib/api.ts';
-import type { DashboardState, SettingsCard } from '../types.ts';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { saveSiteSettings, saveThemeSettings } from '../lib/api.ts';
+import type {
+  DashboardState,
+  SettingsCard,
+  SettingsCardCategory,
+  SettingsCardSourceKind,
+} from '../types.ts';
 import { StatePanel } from './StatePanel.tsx';
 
 interface SettingsViewProps {
@@ -17,16 +15,196 @@ interface SettingsViewProps {
   onConflict: (message: string) => void;
   onSiteDirtyChange: (dirty: boolean) => void;
   onThemeDirtyChange: (dirty: boolean) => void;
+  onOpenMigration: () => void;
 }
+
+interface CategoryDefinition {
+  id: SettingsCardCategory;
+  label: string;
+  hint: string;
+}
+
+const CATEGORY_DEFINITIONS: ReadonlyArray<CategoryDefinition> = [
+  { id: 'general', label: 'General', hint: 'Site identity and defaults you edit often.' },
+  { id: 'content', label: 'Content', hint: 'Where Markdown content lives on disk.' },
+  { id: 'theme', label: 'Theme', hint: 'Active theme and design surface stats.' },
+  { id: 'build', label: 'Build', hint: 'Output, URL shape, and generated surfaces.' },
+  { id: 'structure', label: 'Structure', hint: 'Navigation, redirects, and routes.' },
+  { id: 'operations', label: 'Operations', hint: 'Health checks, assets, bulk actions.' },
+  { id: 'advanced', label: 'Advanced', hint: 'Rarely-touched, dangerous, or scope notes.' },
+];
+
+const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
+  config: 'nectar.toml',
+  theme: 'themes/',
+  content: 'content/',
+  runtime: 'runtime',
+  cli: 'CLI',
+  docs: 'docs/',
+};
 
 export function SettingsView(props: SettingsViewProps): JSX.Element {
   const settings = props.state.settings;
   const site = props.state.site;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategory, setActiveCategory] = useState<SettingsCardCategory>('general');
+
+  const cardsByCategory = useMemo(() => groupByCategory(settings.cards), [settings.cards]);
+  const categories = useMemo(
+    () => CATEGORY_DEFINITIONS.filter((category) => cardsByCategory.has(category.id)),
+    [cardsByCategory],
+  );
+
+  useEffect(() => {
+    if (!cardsByCategory.has(activeCategory)) {
+      const fallback = categories[0]?.id ?? 'general';
+      setActiveCategory(fallback);
+    }
+  }, [cardsByCategory, categories, activeCategory]);
+
+  const trimmedSearch = searchTerm.trim().toLowerCase();
+  const searchMatches = useMemo(() => {
+    if (!trimmedSearch) return null;
+    return settings.cards.filter((card) => matchesSearch(card, trimmedSearch));
+  }, [settings.cards, trimmedSearch]);
+
+  useEffect(() => {
+    if (!searchMatches || searchMatches.length === 0) return;
+    if (!searchMatches.some((card) => card.category === activeCategory)) {
+      setActiveCategory(searchMatches[0]?.category ?? activeCategory);
+    }
+  }, [searchMatches, activeCategory]);
+
+  const visibleCards = trimmedSearch
+    ? (searchMatches ?? [])
+    : (cardsByCategory.get(activeCategory) ?? []);
+  const activeCategoryDef =
+    CATEGORY_DEFINITIONS.find((category) => category.id === activeCategory) ??
+    CATEGORY_DEFINITIONS[0];
+
+  return (
+    <div class="settingsLayout" data-active-category={activeCategory}>
+      <details class="settingsCategoryDrawer">
+        <summary>
+          <span class="settingsCategoryDrawerLabel">{activeCategoryDef?.label ?? 'General'}</span>
+          <span class="settingsCategoryDrawerHint">Tap to switch category</span>
+        </summary>
+        <CategoryNav
+          categories={categories}
+          activeCategory={activeCategory}
+          onSelect={setActiveCategory}
+          counts={cardsByCategory}
+        />
+      </details>
+      <aside class="settingsCategoryNav" aria-label="Settings categories">
+        <CategoryNav
+          categories={categories}
+          activeCategory={activeCategory}
+          onSelect={setActiveCategory}
+          counts={cardsByCategory}
+        />
+      </aside>
+      <div class="settingsDetail">
+        <div class="panelHead settingsDetailHead">
+          <div>
+            <h2>{trimmedSearch ? 'Search results' : (activeCategoryDef?.label ?? 'Settings')}</h2>
+            <span class="meta">
+              {trimmedSearch
+                ? `${visibleCards.length} match${visibleCards.length === 1 ? '' : 'es'} across all settings`
+                : (activeCategoryDef?.hint ?? settings.configPath)}
+            </span>
+          </div>
+          <span class="settingsConfigPath" title="Active config">
+            {settings.configPath}
+          </span>
+        </div>
+        <label class="field settingsSearch">
+          <span>Search settings</span>
+          <input
+            id="settingsSearch"
+            placeholder="Press / to search across all settings"
+            value={searchTerm}
+            onInput={(event) => setSearchTerm((event.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+        {!trimmedSearch && activeCategory === 'general' ? (
+          <SiteIdentityPanel
+            state={props.state}
+            site={site}
+            onSettingsSaved={props.onSettingsSaved}
+            onConflict={props.onConflict}
+            onSiteDirtyChange={props.onSiteDirtyChange}
+          />
+        ) : null}
+        {!trimmedSearch && activeCategory === 'theme' ? (
+          <ThemeSwitcherPanel
+            state={props.state}
+            onSettingsSaved={props.onSettingsSaved}
+            onConflict={props.onConflict}
+            onThemeDirtyChange={props.onThemeDirtyChange}
+          />
+        ) : null}
+        {!trimmedSearch && activeCategory === 'advanced' ? (
+          <MigrationEntryCard onOpen={props.onOpenMigration} />
+        ) : null}
+        <SettingsCardsGrid cards={visibleCards} />
+      </div>
+    </div>
+  );
+}
+
+interface CategoryNavProps {
+  categories: ReadonlyArray<CategoryDefinition>;
+  activeCategory: SettingsCardCategory;
+  onSelect: (category: SettingsCardCategory) => void;
+  counts: Map<SettingsCardCategory, SettingsCard[]>;
+}
+
+function CategoryNav(props: CategoryNavProps): JSX.Element {
+  return (
+    <ul class="settingsCategoryList">
+      {props.categories.map((category) => {
+        const count = props.counts.get(category.id)?.length ?? 0;
+        const isActive = category.id === props.activeCategory;
+        return (
+          <li key={category.id}>
+            <button
+              type="button"
+              class={`settingsCategoryItem${isActive ? ' active' : ''}`}
+              aria-current={isActive ? 'true' : undefined}
+              data-category={category.id}
+              onClick={() => {
+                props.onSelect(category.id);
+                const drawer =
+                  document.querySelector<HTMLDetailsElement>('.settingsCategoryDrawer');
+                if (drawer?.open) drawer.open = false;
+              }}
+            >
+              <span class="settingsCategoryItemLabel">{category.label}</span>
+              <span class="settingsCategoryItemCount">{count}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+interface SiteIdentityProps {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onSiteDirtyChange: (dirty: boolean) => void;
+}
+
+function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
+  const { site } = props;
+  const settings = props.state.settings;
   const [setTitle, setSetTitle] = useState(site.title);
   const [setAccent, setSetAccent] = useState(site.accentColor);
   const [setDescription, setSetDescription] = useState(site.description);
   const [setUrl, setSetUrl] = useState(site.url);
-  const [searchTerm, setSearchTerm] = useState('');
   const [siteNotice, setSiteNotice] = useState('');
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
 
@@ -78,21 +256,15 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
   }
 
   return (
-    <div>
-      <div class="panelHead">
-        <h2>Project settings</h2>
-        <span class="meta">{settings.configPath}</span>
-      </div>
-      <div class="settingsGrid">
-        <label class="field">
-          <span>Search settings</span>
-          <input
-            id="settingsSearch"
-            placeholder="Press / to search"
-            value={searchTerm}
-            onInput={(event) => setSearchTerm((event.currentTarget as HTMLInputElement).value)}
-          />
-        </label>
+    <section class="siteIdentityPanel" aria-label="Site identity inline edit">
+      <header class="settingsPanelHead">
+        <div>
+          <h3>Site identity</h3>
+          <p class="meta">Inline edits write straight to [site] in nectar.toml.</p>
+        </div>
+        <SourcePill kind="config" label={SOURCE_KIND_LABEL.config} />
+      </header>
+      <div class="settingsGrid siteIdentityGrid">
         <label class="field">
           <span>Site title</span>
           <input id="setTitle" value={setTitle} onInput={markDirty(setSetTitle)} />
@@ -113,7 +285,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
           <span>Site URL</span>
           <input id="setUrl" value={setUrl} onInput={markDirty(setSetUrl)} />
         </label>
-        <div class="field wide">
+        <div class="field wide siteIdentityActions">
           <output id="settingsNotice" class="notice">
             {siteNotice}
           </output>
@@ -130,16 +302,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
           </button>
         </div>
       </div>
-      <ThemeSwitcherPanel
-        state={props.state}
-        onSettingsSaved={props.onSettingsSaved}
-        onConflict={props.onConflict}
-        onThemeDirtyChange={props.onThemeDirtyChange}
-      />
-      <PageBundleImportPanel onApplied={props.onSettingsSaved} />
-      <GhostImportPanel onApplied={props.onSettingsSaved} />
-      <SettingsCardsGrid cards={settings.cards} term={searchTerm} />
-    </div>
+    </section>
   );
 }
 
@@ -191,13 +354,17 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
 
   const noOptions = available.length === 0 && !missingActive;
   return (
-    <div class="settingsGrid">
-      <article class="settingsCard field wide">
+    <section class="themeSwitcherPanel" aria-label="Theme switcher">
+      <header class="settingsPanelHead">
         <div>
           <h3>Active theme</h3>
-          <span class="pill">nectar.toml</span>
+          <p class="meta">
+            Preview uses this theme immediately after saving; dist updates after the next build.
+          </p>
         </div>
-        <p class="meta">Choose the theme used by preview and the next build.</p>
+        <SourcePill kind="config" label={SOURCE_KIND_LABEL.config} />
+      </header>
+      <article class="settingsCard field wide">
         <div class="fields">
           <label class="field">
             <span>Theme directory</span>
@@ -253,399 +420,62 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             ? `No theme directories found under ${theme.dir ?? 'themes'}.`
             : missingActive
               ? 'Active theme is missing. Choose an installed theme before saving.'
-              : 'Preview uses this theme immediately after saving; dist changes only after build.'}
+              : null}
         </div>
       </article>
-    </div>
+    </section>
   );
 }
 
-interface ImportPanelProps {
-  onApplied: () => Promise<void> | void;
-}
-
-function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
-  const [file, setFile] = useState('');
-  const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{
-    error?: string;
-    result?: {
-      written?: boolean;
-      pagePath?: string;
-      skipped?: boolean;
-      renamed?: boolean;
-      assetPaths?: string[];
-    };
-    dryRun?: boolean;
-  } | null>(null);
-
-  async function run(dryRun: boolean) {
-    if (!file.trim()) {
-      setResult({ error: 'Page bundle path is required.' });
-      return;
-    }
-    if (
-      !dryRun &&
-      onConflict === 'overwrite' &&
-      !confirm('Overwrite an existing page if the bundle slug already exists?')
-    ) {
-      return;
-    }
-    if (
-      !dryRun &&
-      !confirm('Import writes one Page and bundled assets into this project. Continue?')
-    ) {
-      return;
-    }
-    setBusy(true);
-    setNotice(dryRun ? 'Previewing page import...' : 'Importing page...');
-    try {
-      const { status, data } = await importPageBundle({
-        file: file.trim(),
-        dryRun,
-        onConflict,
-      } as PageBundleImportPayload);
-      if (status >= 400) {
-        const error = (data as { error?: string }).error;
-        setResult({ error: error ?? 'Page import failed' });
-        return;
-      }
-      setResult(data as typeof result);
-      if (!dryRun) await props.onApplied();
-    } catch (err) {
-      setResult({ error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-      setNotice('');
-    }
-  }
-
+function MigrationEntryCard({ onOpen }: { onOpen: () => void }): JSX.Element {
   return (
-    <div class="settingsGrid">
-      <article class="settingsCard field wide">
-        <div>
-          <h3>Page bundle import</h3>
-          <span class="pill">Focused</span>
-        </div>
+    <section class="migrationEntryCard" aria-label="Migration entry">
+      <div>
+        <h3>Migration</h3>
         <p class="meta">
-          Import one saved Page collaboration bundle from a local path. Preview does not write
-          files.
+          Ghost JSON/ZIP and Page bundle imports moved to a dedicated page. They write Markdown and
+          assets — full-screen confirmation gates apply.
         </p>
-        <label class="field wide">
-          <span>Bundle path</span>
-          <input
-            id="pageBundleImportFile"
-            placeholder="/path/to/about.page.json"
-            value={file}
-            onInput={(event) => setFile((event.currentTarget as HTMLInputElement).value)}
-          />
-        </label>
-        <div class="fields">
-          <label class="field">
-            <span>Conflict policy</span>
-            <select
-              id="pageBundleImportConflict"
-              value={onConflict}
-              onChange={(event) =>
-                setOnConflict(
-                  (event.currentTarget as HTMLSelectElement).value as
-                    | 'skip'
-                    | 'rename'
-                    | 'overwrite',
-                )
-              }
-            >
-              <option value="skip">skip</option>
-              <option value="rename">rename</option>
-              <option value="overwrite">overwrite</option>
-            </select>
-          </label>
-        </div>
-        <div class="editorActions">
-          <button
-            class="btn secondary"
-            id="previewPageBundleImport"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void run(true);
-            }}
-          >
-            Preview import
-          </button>
-          <button
-            class="btn"
-            id="applyPageBundleImport"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void run(false);
-            }}
-          >
-            Import page
-          </button>
-        </div>
-        <output class="notice" id="pageBundleImportNotice">
-          {notice}
-        </output>
-        <div id="pageBundleImportResult">
-          {result?.error ? (
-            <div class="statePanel error">
-              <b>Import failed</b>
-              <p>{result.error}</p>
-            </div>
-          ) : result?.result ? (
-            <table class="table">
-              <tbody>
-                <tr>
-                  <th>mode</th>
-                  <td>{result.dryRun ? 'dry-run' : 'apply'}</td>
-                </tr>
-                <tr>
-                  <th>page path</th>
-                  <td>{result.result.pagePath ?? ''}</td>
-                </tr>
-                <tr>
-                  <th>written</th>
-                  <td>{result.result.written ? 'yes' : 'no'}</td>
-                </tr>
-                <tr>
-                  <th>skipped</th>
-                  <td>{result.result.skipped ? 'yes' : 'no'}</td>
-                </tr>
-                <tr>
-                  <th>renamed</th>
-                  <td>{result.result.renamed ? 'yes' : 'no'}</td>
-                </tr>
-                <tr>
-                  <th>assets</th>
-                  <td>{(result.result.assetPaths ?? []).length}</td>
-                </tr>
-              </tbody>
-            </table>
-          ) : null}
-        </div>
-      </article>
-    </div>
+      </div>
+      <button type="button" class="btn" id="openMigrationPage" onClick={onOpen}>
+        Open Migration page
+      </button>
+    </section>
   );
 }
 
-function GhostImportPanel(props: ImportPanelProps): JSX.Element {
-  const [file, setFile] = useState('');
-  const [outputDir, setOutputDir] = useState('');
-  const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{
-    error?: string;
-    mode?: string;
-    target?: string;
-    summary?: Record<string, unknown>;
-  } | null>(null);
-
-  async function run(dryRun: boolean) {
-    if (!file.trim()) {
-      setResult({ error: 'Ghost export path is required.' });
-      return;
-    }
-    if (
-      !dryRun &&
-      !confirm('Import writes Markdown and assets into the selected target. Continue?')
-    ) {
-      return;
-    }
-    setBusy(true);
-    setNotice(dryRun ? 'Previewing import...' : 'Importing files...');
-    try {
-      const payload: GhostImportPayload = {
-        file: file.trim(),
-        dryRun,
-        onConflict,
-      };
-      if (outputDir.trim()) payload.outputDir = outputDir.trim();
-      const { status, data } = await importGhost(payload);
-      if (status >= 400) {
-        const error = (data as { error?: string }).error;
-        setResult({ error: error ?? 'Import failed' });
-        return;
-      }
-      setResult(data as typeof result);
-      if (!dryRun) await props.onApplied();
-    } catch (err) {
-      setResult({ error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-      setNotice('');
-    }
-  }
-
-  return (
-    <div class="settingsGrid">
-      <article class="settingsCard field wide">
-        <div>
-          <h3>Ghost import</h3>
-          <span class="pill draft">Review first</span>
-        </div>
-        <p class="meta">
-          Run a Ghost JSON, folder, or ZIP import from a local path. Preview does not write files.
-        </p>
-        <label class="field wide">
-          <span>Export path</span>
-          <input
-            id="ghostImportFile"
-            placeholder="/path/to/ghost-export.zip"
-            value={file}
-            onInput={(event) => setFile((event.currentTarget as HTMLInputElement).value)}
-          />
-        </label>
-        <div class="fields">
-          <label class="field">
-            <span>Conflict policy</span>
-            <select
-              id="ghostImportConflict"
-              value={onConflict}
-              onChange={(event) =>
-                setOnConflict(
-                  (event.currentTarget as HTMLSelectElement).value as
-                    | 'skip'
-                    | 'rename'
-                    | 'overwrite',
-                )
-              }
-            >
-              <option value="skip">skip</option>
-              <option value="rename">rename</option>
-              <option value="overwrite">overwrite</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Output dir</span>
-            <input
-              id="ghostImportOutput"
-              placeholder="content/"
-              value={outputDir}
-              onInput={(event) => setOutputDir((event.currentTarget as HTMLInputElement).value)}
-            />
-          </label>
-        </div>
-        <div class="editorActions">
-          <button
-            class="btn secondary"
-            id="previewGhostImport"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void run(true);
-            }}
-          >
-            Preview import
-          </button>
-          <button
-            class="btn"
-            id="applyGhostImport"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void run(false);
-            }}
-          >
-            Import files
-          </button>
-        </div>
-        <output class="notice" id="ghostImportNotice">
-          {notice}
-        </output>
-        <div id="ghostImportResult">
-          {result?.error ? (
-            <div class="statePanel error">
-              <b>Import failed</b>
-              <p>{result.error}</p>
-            </div>
-          ) : result?.summary ? (
-            <GhostImportResultTable
-              result={
-                result as { mode?: string; target?: string; summary: Record<string, unknown> }
-              }
-            />
-          ) : null}
-        </div>
-      </article>
-    </div>
-  );
-}
-
-function GhostImportResultTable({
-  result,
-}: { result: { mode?: string; target?: string; summary: Record<string, unknown> } }): JSX.Element {
-  const s = result.summary;
-  const rows: Array<[string, string | number]> = [
-    ['mode', result.mode ?? ''],
-    ['target', result.target ?? 'content/'],
-    ['posts', Number(s.posts ?? 0)],
-    ['pages', Number(s.pages ?? 0)],
-    ['drafts', Number(s.drafts ?? 0)],
-    ['tags', Number(s.tags ?? 0)],
-    ['authors', Number(s.authors ?? 0)],
-    ['assets copied', Number(s.assetsCopied ?? 0)],
-    ['images downloaded', Number(s.imagesDownloaded ?? 0)],
-    ['images failed', Number(s.imagesFailed ?? 0)],
-    ['skipped', Number(s.skipped ?? 0)],
-    ['overwritten', Number(s.overwritten ?? 0)],
-    ['renamed', Number(s.renamed ?? 0)],
-    ['status filtered', Number(s.statusFiltered ?? 0)],
-    ['tag filtered', Number(s.tagFiltered ?? 0)],
-    ['date filtered', Number(s.dateFiltered ?? 0)],
-    ['empty bodies', Number(s.bodiesEmpty ?? 0)],
-    ['slug collisions', Number(s.slugCollisions ?? 0)],
-    ['redirects', Number(s.redirectsImported ?? 0)],
-    ['slug redirects', Number(s.slugRedirects ?? 0)],
-    ['code injection skipped', Number(s.codeInjectionSkipped ?? 0)],
-    ['HTML preserved', Number(s.htmlPreserved ?? 0)],
-  ];
-  const plannedPaths = Array.isArray(s.plannedPaths) ? (s.plannedPaths as unknown[]).length : 0;
-  return (
-    <>
-      <table class="table">
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <th>{label}</th>
-              <td>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {plannedPaths ? <div class="meta">{plannedPaths} planned path(s)</div> : null}
-    </>
-  );
-}
-
-function SettingsCardsGrid({ cards, term }: { cards: SettingsCard[]; term: string }): JSX.Element {
-  const q = term.toLowerCase();
-  const filtered = cards.filter((card) =>
-    `${card.section} ${card.title} ${card.summary} ${card.source} ${card.values.map((v) => `${v.label} ${v.value}`).join(' ')}`
-      .toLowerCase()
-      .includes(q),
-  );
+function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
   return (
     <div class="settingsGrid" id="settingsCards">
-      {filtered.length === 0 ? (
-        <StatePanel kind="empty" message="No settings match this search." />
+      {cards.length === 0 ? (
+        <StatePanel kind="empty" message="No settings in this category." />
       ) : (
-        filtered.map((card) => (
-          <article class="settingsCard" key={card.id}>
-            <div>
-              <h3>{card.title}</h3>
+        cards.map((card) => (
+          <article
+            class="settingsCard"
+            key={card.id}
+            data-category={card.category}
+            data-source-kind={card.sourceKind}
+            data-mode={card.mode}
+          >
+            <header class="settingsCardHead">
+              <div>
+                <h3>{card.title}</h3>
+                <span class="settingsCardSection">{card.section}</span>
+              </div>
               <span
                 class={`pill ${card.status === 'warn' || card.status === 'danger' ? 'draft' : ''}`}
               >
-                {card.section}
+                {modeLabel(card.mode)}
               </span>
-            </div>
+            </header>
             <p class="meta">{card.summary}</p>
-            <div class="slug">{card.source}</div>
+            <div class="settingsCardSource">
+              <SourcePill kind={card.sourceKind} label={SOURCE_KIND_LABEL[card.sourceKind]} />
+              <code class="settingsCardSourcePath" title={card.source}>
+                {card.source}
+              </code>
+            </div>
             <table class="table">
               <tbody>
                 {card.values.map((value) => (
@@ -662,4 +492,49 @@ function SettingsCardsGrid({ cards, term }: { cards: SettingsCard[]; term: strin
       )}
     </div>
   );
+}
+
+function SourcePill({
+  kind,
+  label,
+}: { kind: SettingsCardSourceKind | string; label: string }): JSX.Element {
+  return (
+    <span class={`sourcePill sourcePill-${kind}`} data-source={kind}>
+      {label}
+    </span>
+  );
+}
+
+function modeLabel(mode: SettingsCard['mode']): string {
+  switch (mode) {
+    case 'editable':
+      return 'editable';
+    case 'cli-action':
+      return 'CLI action';
+    case 'dangerous-cli-only':
+      return 'dangerous · CLI';
+    case 'scope-note':
+      return 'scope note';
+    case 'read-only':
+      return 'read-only';
+    default:
+      return 'card';
+  }
+}
+
+function matchesSearch(card: SettingsCard, query: string): boolean {
+  const haystack = `${card.section} ${card.title} ${card.summary} ${card.source} ${card.values
+    .map((value) => `${value.label} ${value.value}`)
+    .join(' ')}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function groupByCategory(cards: SettingsCard[]): Map<SettingsCardCategory, SettingsCard[]> {
+  const map = new Map<SettingsCardCategory, SettingsCard[]>();
+  for (const card of cards) {
+    const list = map.get(card.category);
+    if (list) list.push(card);
+    else map.set(card.category, [card]);
+  }
+  return map;
 }

@@ -16,6 +16,7 @@ const ENTRIES: ReadonlyArray<Entry> = [
   { subview: 'site', label: 'Site', href: '/settings' },
   { subview: 'authors', label: 'Authors', href: '/authors' },
   { subview: 'tags', label: 'Tags', href: '/tags' },
+  { subview: 'migration', label: 'Migration', href: '/settings/migration' },
 ];
 
 export function SettingsSubnav(props: SettingsSubnavProps): JSX.Element {

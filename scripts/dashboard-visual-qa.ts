@@ -21,6 +21,7 @@ export interface DashboardVisualScenario {
     | 'authors'
     | 'tags'
     | 'settings'
+    | 'migration'
     | 'create'
     | 'editor'
     | 'conflict'
@@ -62,6 +63,7 @@ export const dashboardVisualScenarios: DashboardVisualScenario[] = [
   { name: 'authors', label: 'Authors list', route: '/authors' },
   { name: 'tags', label: 'Tags list', route: '/tags' },
   { name: 'settings', label: 'Settings cards', route: '/settings' },
+  { name: 'migration', label: 'Migration page', route: '/settings/migration' },
   { name: 'create', label: 'Create page', route: '/posts/new' },
   { name: 'editor', label: 'Editor page', route: '/posts/future-post/edit' },
   { name: 'conflict', label: 'Fingerprint conflict notice', route: '/posts/future-post/edit' },

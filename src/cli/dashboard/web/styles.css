@@ -1355,6 +1355,253 @@
     min-height: 44px;
   }
 
+  .settingsLayout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 24px;
+    padding-top: 12px;
+    align-items: start;
+  }
+  .settingsCategoryNav {
+    position: sticky;
+    top: 18px;
+    align-self: start;
+    padding: 4px 0;
+    border-right: 1px solid var(--border-default);
+  }
+  .settingsCategoryDrawer {
+    display: none;
+  }
+  .settingsCategoryList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .settingsCategoryItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px 10px 18px;
+    background: transparent;
+    border: 0;
+    border-left: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .settingsCategoryItem:hover {
+    background: var(--background-secondary);
+    color: var(--text-primary);
+  }
+  .settingsCategoryItem.active {
+    background: var(--background-secondary);
+    color: var(--text-primary);
+    border-left-color: var(--accent, currentColor);
+  }
+  .settingsCategoryItemLabel {
+    letter-spacing: 0.01em;
+    font-feature-settings: "palt";
+  }
+  .settingsCategoryItemCount {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    padding: 1px 7px;
+    min-width: 22px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .settingsCategoryItem.active .settingsCategoryItemCount {
+    color: var(--text-primary);
+  }
+  .settingsDetail {
+    min-width: 0;
+    display: grid;
+    gap: 14px;
+  }
+  .settingsDetailHead {
+    align-items: flex-start;
+    gap: 16px;
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: 10px;
+  }
+  .settingsConfigPath {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+  }
+  .settingsSearch {
+    max-width: 420px;
+  }
+  .settingsPanelHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+  }
+  .settingsPanelHead h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+  .siteIdentityPanel,
+  .themeSwitcherPanel {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+    box-shadow: var(--elevation-1);
+  }
+  .siteIdentityGrid {
+    padding: 0;
+    gap: 12px;
+  }
+  .siteIdentityActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .settingsCardHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .settingsCardSection {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+  .settingsCardSource {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+    border-top: 1px dashed var(--border-default);
+    border-bottom: 1px dashed var(--border-default);
+  }
+  .settingsCardSourcePath {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+  .sourcePill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-default);
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    font-feature-settings: "palt";
+    white-space: nowrap;
+  }
+  .sourcePill-config {
+    border-color: color-mix(in srgb, var(--accent, #4f6bed) 35%, var(--border-default));
+    color: color-mix(in srgb, var(--accent, #4f6bed) 70%, var(--text-primary));
+  }
+  .sourcePill-theme {
+    border-color: color-mix(in srgb, #b07a3e 40%, var(--border-default));
+    color: color-mix(in srgb, #b07a3e 70%, var(--text-primary));
+  }
+  .sourcePill-content {
+    border-color: color-mix(in srgb, #2f8a4d 40%, var(--border-default));
+    color: color-mix(in srgb, #2f8a4d 70%, var(--text-primary));
+  }
+  .sourcePill-runtime {
+    border-color: color-mix(in srgb, #6f6f6f 40%, var(--border-default));
+    color: var(--text-muted);
+  }
+  .sourcePill-cli {
+    border-color: color-mix(in srgb, #5a39c2 40%, var(--border-default));
+    color: color-mix(in srgb, #5a39c2 70%, var(--text-primary));
+  }
+  .sourcePill-docs {
+    border-color: color-mix(in srgb, #2c6e85 40%, var(--border-default));
+    color: color-mix(in srgb, #2c6e85 70%, var(--text-primary));
+  }
+  .settingsCard[data-mode="dangerous-cli-only"] {
+    border-color: color-mix(in srgb, var(--danger, #c4504b) 35%, var(--border-default));
+  }
+  .settingsCard[data-mode="dangerous-cli-only"]::before {
+    content: "";
+    display: block;
+    height: 3px;
+    margin: -17px -17px 6px;
+    background: color-mix(in srgb, var(--danger, #c4504b) 60%, transparent);
+    border-top-left-radius: var(--radius);
+    border-top-right-radius: var(--radius);
+  }
+  .migrationEntryCard {
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius);
+    background: var(--background-secondary);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .migrationEntryCard h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+  }
+  .migrationPage {
+    display: grid;
+    gap: 16px;
+  }
+  .migrationGrid {
+    display: grid;
+    gap: 14px;
+  }
+  .migrationCard {
+    border-color: color-mix(in srgb, var(--accent, #4f6bed) 25%, var(--border-default));
+  }
+  .migrationCardHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .migrationCardHead h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 700;
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .btn,
     .nav a,
@@ -1440,6 +1687,72 @@
     }
     .toolbar {
       grid-template-columns: 1fr auto auto;
+    }
+    .settingsLayout {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .settingsCategoryNav {
+      display: none;
+    }
+    .settingsCategoryDrawer {
+      display: block;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      background: var(--background-secondary);
+      padding: 4px;
+    }
+    .settingsCategoryDrawer > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      list-style: none;
+      border-radius: var(--radius);
+    }
+    .settingsCategoryDrawer > summary::-webkit-details-marker {
+      display: none;
+    }
+    .settingsCategoryDrawerLabel {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .settingsCategoryDrawerHint {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .settingsCategoryDrawer[open] > summary {
+      border-bottom: 1px solid var(--border-default);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .settingsCategoryDrawer .settingsCategoryList {
+      padding: 6px;
+    }
+    .settingsCategoryDrawer .settingsCategoryItem {
+      border-radius: var(--radius);
+      border-left: 0;
+      padding: 12px 14px;
+    }
+    .settingsCategoryDrawer .settingsCategoryItem.active {
+      background: var(--surface-normal);
+      box-shadow: var(--elevation-1);
+    }
+    .settingsDetailHead {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .migrationEntryCard {
+      align-items: flex-start;
+    }
+    .migrationCardHead {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
   }
 

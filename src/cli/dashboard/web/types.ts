@@ -78,12 +78,33 @@ export interface SettingsCardValue {
   status?: string;
 }
 
+export type SettingsCardCategory =
+  | 'general'
+  | 'content'
+  | 'theme'
+  | 'build'
+  | 'structure'
+  | 'operations'
+  | 'advanced';
+
+export type SettingsCardSourceKind = 'config' | 'theme' | 'content' | 'runtime' | 'cli' | 'docs';
+
+export type SettingsCardMode =
+  | 'editable'
+  | 'read-only'
+  | 'cli-action'
+  | 'dangerous-cli-only'
+  | 'scope-note';
+
 export interface SettingsCard {
   id: string;
+  category: SettingsCardCategory;
   section: string;
   title: string;
   summary: string;
   source: string;
+  sourceKind: SettingsCardSourceKind;
+  mode?: SettingsCardMode;
   status?: string;
   values: SettingsCardValue[];
   command?: string;

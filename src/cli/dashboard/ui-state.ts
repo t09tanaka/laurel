@@ -2,11 +2,11 @@
 // and the test suite. No Preact imports — kept free of DOM types so it can be
 // compiled under the CLI tsconfig.
 
-export type DashboardView = 'posts' | 'pages' | 'authors' | 'tags' | 'settings';
+export type DashboardView = 'posts' | 'pages' | 'authors' | 'tags' | 'settings' | 'migration';
 export type DashboardContentView = 'posts' | 'pages';
 export type DashboardEditorKind = 'posts' | 'pages' | 'authors' | 'tags';
 export type DashboardShellSection = 'posts' | 'pages' | 'settings';
-export type DashboardSettingsSubview = 'site' | 'authors' | 'tags';
+export type DashboardSettingsSubview = 'site' | 'authors' | 'tags' | 'migration';
 export type DashboardDensity = 'comfortable' | 'compact';
 export type DashboardTheme = 'system' | 'light' | 'dark';
 export type DashboardLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'conflict';
@@ -51,20 +51,27 @@ export const DEFAULT_DASHBOARD_UI_STATE: DashboardUiState = {
 };
 
 export function normalizeDashboardView(view: string | undefined): DashboardView {
-  return view === 'pages' || view === 'authors' || view === 'tags' || view === 'settings'
+  return view === 'pages' ||
+    view === 'authors' ||
+    view === 'tags' ||
+    view === 'settings' ||
+    view === 'migration'
     ? view
     : 'posts';
 }
 
 export function dashboardShellSectionFor(view: DashboardView): DashboardShellSection {
   if (view === 'pages') return 'pages';
-  if (view === 'authors' || view === 'tags' || view === 'settings') return 'settings';
+  if (view === 'authors' || view === 'tags' || view === 'settings' || view === 'migration') {
+    return 'settings';
+  }
   return 'posts';
 }
 
 export function dashboardSettingsSubviewFor(view: DashboardView): DashboardSettingsSubview {
   if (view === 'authors') return 'authors';
   if (view === 'tags') return 'tags';
+  if (view === 'migration') return 'migration';
   return 'site';
 }
 

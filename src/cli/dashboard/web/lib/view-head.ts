@@ -32,6 +32,11 @@ const VIEW_HEAD: Record<DashboardView, ViewHeadCopy> = {
     title: 'Tags',
     meta: 'Tag files in content/tags. Inferred tags from posts appear until you materialize a file.',
   },
+  migration: {
+    kicker: 'Settings · Migration',
+    title: 'Migration',
+    meta: 'Ghost JSON/ZIP and Page bundle imports. Preview always; apply only writes after confirmation.',
+  },
 };
 
 export function viewHeadFor(view: DashboardView): ViewHeadCopy {

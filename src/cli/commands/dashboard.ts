@@ -210,6 +210,15 @@ type DashboardCardMode =
   | 'dangerous-cli-only'
   | 'scope-note';
 type DashboardCardStatus = 'ok' | 'warn' | 'danger' | 'info';
+type DashboardCardCategory =
+  | 'general'
+  | 'content'
+  | 'theme'
+  | 'build'
+  | 'structure'
+  | 'operations'
+  | 'advanced';
+type DashboardCardSourceKind = 'config' | 'theme' | 'content' | 'runtime' | 'cli' | 'docs';
 
 interface DashboardCardValue {
   label: string;
@@ -219,10 +228,12 @@ interface DashboardCardValue {
 
 interface DashboardSettingsCard {
   id: string;
+  category: DashboardCardCategory;
   section: string;
   title: string;
   summary: string;
   source: string;
+  sourceKind: DashboardCardSourceKind;
   mode: DashboardCardMode;
   status: DashboardCardStatus;
   values: DashboardCardValue[];
@@ -2717,10 +2728,12 @@ async function buildSettingsCards({
   return [
     {
       id: 'site',
+      category: 'general',
       section: 'Site',
       title: 'Site identity',
       summary: 'Core public metadata written to [site].',
       source: configSource,
+      sourceKind: 'config',
       mode: 'editable',
       status: 'ok',
       values: [
@@ -2733,10 +2746,12 @@ async function buildSettingsCards({
     },
     {
       id: 'content-paths',
+      category: 'content',
       section: 'Content paths',
       title: 'File-backed content directories',
       summary: 'Posts, pages, authors, tags, and assets remain the source of truth.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'read-only',
       status: missingDirs.length > 0 ? 'warn' : 'ok',
       values: [
@@ -2769,10 +2784,12 @@ async function buildSettingsCards({
     },
     {
       id: 'theme',
+      category: 'theme',
       section: 'Theme',
       title: 'Active theme and design surface',
       summary: themeInfo.error ?? 'Switch active theme from installed theme directories.',
       source: `${config.theme.dir}/${config.theme.name}`,
+      sourceKind: 'theme',
       mode: 'editable',
       status: themeInfo.error ? 'danger' : 'ok',
       values: [
@@ -2794,10 +2811,12 @@ async function buildSettingsCards({
     },
     {
       id: 'build-output',
+      category: 'build',
       section: 'Build',
       title: 'Build output and URL shape',
       summary: 'Read-only build settings that affect generated files and public URLs.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'read-only',
       status: 'info',
       values: [
@@ -2812,10 +2831,12 @@ async function buildSettingsCards({
     },
     {
       id: 'navigation',
+      category: 'structure',
       section: 'Site structure',
       title: 'Navigation',
       summary: 'Primary and secondary navigation are config-backed arrays.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'read-only',
       status: 'ok',
       values: [
@@ -2829,11 +2850,13 @@ async function buildSettingsCards({
     },
     {
       id: 'redirects',
+      category: 'structure',
       section: 'Site structure',
       title: 'Redirects manager',
       summary:
         operations.redirects.error ?? 'Canonical redirects.yaml inventory and validation state.',
       source: operations.redirects.path ?? 'redirects.yaml',
+      sourceKind: 'config',
       mode: 'cli-action',
       status: operations.redirects.error
         ? 'danger'
@@ -2849,10 +2872,12 @@ async function buildSettingsCards({
     },
     {
       id: 'routes',
+      category: 'structure',
       section: 'Site structure',
       title: 'Routes and collections',
       summary: operations.routes.error ?? 'routes.yaml collections are read-only in the dashboard.',
       source: operations.routes.path ?? 'routes.yaml',
+      sourceKind: 'config',
       mode: 'read-only',
       status: operations.routes.error ? 'danger' : 'ok',
       values: [
@@ -2862,10 +2887,12 @@ async function buildSettingsCards({
     },
     {
       id: 'content-health',
+      category: 'operations',
       section: 'Operations',
       title: 'Content health and readiness',
       summary: 'Doctor, link checks, taxonomy coverage, and stale draft signals.',
       source: 'CLI checks',
+      sourceKind: 'cli',
       mode: 'cli-action',
       status: operations.readiness.some((item) => item.status === 'danger')
         ? 'danger'
@@ -2885,10 +2912,12 @@ async function buildSettingsCards({
     },
     {
       id: 'feeds-search-images',
-      section: 'Operations',
+      category: 'build',
+      section: 'Build',
       title: 'Generated surfaces',
       summary: 'RSS, sitemap, site search, image processing, and cache status.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'read-only',
       status: 'info',
       values: [
@@ -2901,10 +2930,12 @@ async function buildSettingsCards({
     },
     {
       id: 'assets-images',
+      category: 'operations',
       section: 'Operations',
       title: 'Assets and images',
       summary: 'Content image references are checked against the configured assets directory.',
       source: operations.assets.dir,
+      sourceKind: 'content',
       mode: 'cli-action',
       status: operations.assets.featureImages.missing > 0 ? 'warn' : 'ok',
       values: [
@@ -2916,10 +2947,12 @@ async function buildSettingsCards({
     },
     {
       id: 'content-operations',
+      category: 'operations',
       section: 'Operations',
       title: 'Bulk actions, templates, and internal links',
       summary: 'Safe content operations remain fingerprint-gated and Markdown-first.',
       source: 'Dashboard API',
+      sourceKind: 'runtime',
       mode: 'cli-action',
       status: 'ok',
       values: [
@@ -2930,11 +2963,13 @@ async function buildSettingsCards({
     },
     {
       id: 'trash-restore',
-      section: 'Operations',
+      category: 'advanced',
+      section: 'Advanced',
       title: 'Trash and restore',
       summary:
         'Deleted content is moved to .nectar/trash with restore metadata; purge stays CLI-only.',
       source: operations.trash.path,
+      sourceKind: 'content',
       mode: 'dangerous-cli-only',
       status: operations.trash.entries.length > 0 ? 'warn' : 'info',
       values: [
@@ -2948,10 +2983,12 @@ async function buildSettingsCards({
     },
     {
       id: 'deploy',
-      section: 'Operations',
+      category: 'advanced',
+      section: 'Advanced',
       title: 'Deploy readiness',
       summary: 'Provider configuration is visible, but deploy execution stays CLI-only.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'dangerous-cli-only',
       status: deployEnabled.length > 0 ? 'ok' : 'info',
       values: [
@@ -2963,10 +3000,12 @@ async function buildSettingsCards({
     },
     {
       id: 'advanced-security',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Advanced and code injection',
       summary: 'Dangerous or experimental settings are grouped instead of scattered.',
       source: configSource,
+      sourceKind: 'config',
       mode: 'read-only',
       status: config.build.allow_code_injection ? 'warn' : 'ok',
       values: [
@@ -2978,11 +3017,13 @@ async function buildSettingsCards({
     },
     {
       id: 'import-export-diagnostics',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Import, export, diagnostics',
       summary:
         'Ghost imports use a review-first dashboard action; other import/export workflows stay CLI-first.',
       source: 'CLI assets',
+      sourceKind: 'cli',
       mode: 'dangerous-cli-only',
       status: 'info',
       values: [
@@ -2995,11 +3036,13 @@ async function buildSettingsCards({
     },
     {
       id: 'dashboard-frontend-bundle',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Dashboard frontend bundle',
       summary:
         'The dashboard stays dependency-light: generated shell, style, script, state, and view-state helpers are TypeScript modules with no extra build step.',
       source: 'src/cli/dashboard',
+      sourceKind: 'runtime',
       mode: 'read-only',
       status: 'ok',
       values: [
@@ -3011,11 +3054,13 @@ async function buildSettingsCards({
     },
     {
       id: 'dashboard-i18n-policy',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Dashboard internationalization policy',
       summary:
         'Admin copy remains English in this local CLI surface until file-backed translation catalogs exist.',
       source: 'docs/admin-dashboard.md',
+      sourceKind: 'docs',
       mode: 'scope-note',
       status: 'info',
       values: [
@@ -3030,11 +3075,13 @@ async function buildSettingsCards({
     },
     {
       id: 'dashboard-rollout-telemetry',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Feature flags and telemetry',
       summary:
         'Progressive rollout is local and explicit. Telemetry is not collected by the dashboard.',
       source: 'local settings and docs',
+      sourceKind: 'docs',
       mode: 'scope-note',
       status: 'ok',
       values: [
@@ -3046,10 +3093,12 @@ async function buildSettingsCards({
     },
     {
       id: 'members-policy',
+      category: 'advanced',
       section: 'Advanced',
       title: 'Members and newsletter scope',
       summary: operations.membersPolicy.note,
       source: configSource,
+      sourceKind: 'config',
       mode: 'scope-note',
       status: 'info',
       values: [
@@ -3061,10 +3110,12 @@ async function buildSettingsCards({
     },
     {
       id: 'collaboration',
-      section: 'Advanced',
+      category: 'operations',
+      section: 'Operations',
       title: 'External editor and conflict policy',
       summary: operations.collaboration.safety,
       source: 'local filesystem',
+      sourceKind: 'runtime',
       mode: 'cli-action',
       status: 'ok',
       values: [

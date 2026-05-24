@@ -13,6 +13,7 @@ const PAGE_PATHS: Record<DashboardView, string> = {
   authors: '/authors',
   tags: '/tags',
   settings: '/settings',
+  migration: '/settings/migration',
 };
 
 const EDITOR_KINDS: ReadonlyArray<DashboardEditorKind> = ['posts', 'pages', 'authors', 'tags'];
@@ -35,7 +36,8 @@ function isEditorKind(value: string): value is DashboardEditorKind {
 
 export function routeFromPath(pathname: string): DashboardRoute {
   const parts = pathname.split('/').filter(Boolean).map(decode);
-  const view = normalizeView(parts[0] || 'posts');
+  const settingsNested = parts[0] === 'settings' && parts[1] === 'migration';
+  const view = settingsNested ? 'migration' : normalizeView(parts[0] || 'posts');
   const editorKind = parts[0];
   const create =
     parts.length === 2 && parts[1] === 'new' && editorKind && isEditorKind(editorKind)

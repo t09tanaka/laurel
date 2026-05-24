@@ -203,6 +203,20 @@ describe('dashboard data', () => {
           'dashboard-rollout-telemetry',
         ]),
       );
+      // every settings card now carries a category bucket and a sourceKind label
+      const settingsCategories = new Set(state.settings.cards.map((card) => card.category));
+      expect(settingsCategories).toEqual(
+        new Set(['general', 'content', 'theme', 'build', 'structure', 'operations', 'advanced']),
+      );
+      expect(state.settings.cards.find((card) => card.id === 'site')?.category).toBe('general');
+      expect(state.settings.cards.find((card) => card.id === 'site')?.sourceKind).toBe('config');
+      expect(state.settings.cards.find((card) => card.id === 'theme')?.sourceKind).toBe('theme');
+      expect(state.settings.cards.find((card) => card.id === 'content-paths')?.category).toBe(
+        'content',
+      );
+      // migration tooling is intentionally NOT a settings card — it moved to /settings/migration
+      expect(state.settings.cards.map((card) => card.id)).not.toContain('ghost-import');
+      expect(state.settings.cards.map((card) => card.id)).not.toContain('page-bundle-import');
       expect(state.settings.operations.cliAssets.map((asset) => asset.command)).toContain('deploy');
     } finally {
       await rm(dir, { recursive: true, force: true });
