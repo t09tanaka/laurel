@@ -26,5 +26,11 @@
     }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "example/dist", "example/themes/source"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "example/dist",
+    "example/themes/source",
+    "src/cli/dashboard/web/**/*"
+  ]
 }

@@ -1,5 +1,10 @@
+// Pure reducer + types shared between the Preact bundle (src/cli/dashboard/web/)
+// and the test suite. No Preact imports — kept free of DOM types so it can be
+// compiled under the CLI tsconfig.
+
 export type DashboardView = 'posts' | 'pages' | 'authors' | 'tags' | 'settings';
 export type DashboardContentView = 'posts' | 'pages';
+export type DashboardEditorKind = 'posts' | 'pages' | 'authors' | 'tags';
 export type DashboardShellSection = 'posts' | 'pages' | 'settings';
 export type DashboardSettingsSubview = 'site' | 'authors' | 'tags';
 export type DashboardDensity = 'comfortable' | 'compact';
@@ -88,32 +93,16 @@ export function reduceDashboardUiState(
         statusFilter: '',
       };
     case 'search/set':
-      return {
-        ...state,
-        query: action.query,
-        postsPage: 1,
-        pagesPage: 1,
-      };
+      return { ...state, query: action.query, postsPage: 1, pagesPage: 1 };
     case 'status/set':
-      return {
-        ...state,
-        statusFilter: action.statusFilter,
-        postsPage: 1,
-        pagesPage: 1,
-      };
+      return { ...state, statusFilter: action.statusFilter, postsPage: 1, pagesPage: 1 };
     case 'page/next': {
-      const pageKey = action.kind === 'posts' ? 'postsPage' : 'pagesPage';
-      return {
-        ...state,
-        [pageKey]: Math.min(state[pageKey] + 1, Math.max(1, action.pages)),
-      };
+      const key = action.kind === 'posts' ? 'postsPage' : 'pagesPage';
+      return { ...state, [key]: Math.min(state[key] + 1, Math.max(1, action.pages)) };
     }
     case 'page/prev': {
-      const pageKey = action.kind === 'posts' ? 'postsPage' : 'pagesPage';
-      return {
-        ...state,
-        [pageKey]: Math.max(1, state[pageKey] - 1),
-      };
+      const key = action.kind === 'posts' ? 'postsPage' : 'pagesPage';
+      return { ...state, [key]: Math.max(1, state[key] - 1) };
     }
     case 'density/toggle':
       return {
@@ -121,45 +110,14 @@ export function reduceDashboardUiState(
         density: state.density === 'compact' ? 'comfortable' : 'compact',
       };
     case 'theme/set':
-      return {
-        ...state,
-        theme: action.theme,
-      };
+      return { ...state, theme: action.theme };
     case 'load/start':
-      return {
-        ...state,
-        loadStatus: 'loading',
-        lastError: '',
-        conflictMessage: '',
-      };
+      return { ...state, loadStatus: 'loading', lastError: '', conflictMessage: '' };
     case 'load/success':
-      return {
-        ...state,
-        loadStatus: 'ready',
-        lastError: '',
-      };
+      return { ...state, loadStatus: 'ready', lastError: '' };
     case 'load/error':
-      return {
-        ...state,
-        loadStatus: 'error',
-        lastError: action.message,
-      };
+      return { ...state, loadStatus: 'error', lastError: action.message };
     case 'conflict':
-      return {
-        ...state,
-        loadStatus: 'conflict',
-        conflictMessage: action.message,
-      };
+      return { ...state, loadStatus: 'conflict', conflictMessage: action.message };
   }
-}
-
-export function dashboardStateHelperScript(): string {
-  return [
-    `const DEFAULT_DASHBOARD_UI_STATE=${JSON.stringify(DEFAULT_DASHBOARD_UI_STATE)};`,
-    normalizeDashboardView.toString(),
-    dashboardShellSectionFor.toString(),
-    dashboardSettingsSubviewFor.toString(),
-    createDashboardUiState.toString(),
-    reduceDashboardUiState.toString(),
-  ].join('\n');
 }
