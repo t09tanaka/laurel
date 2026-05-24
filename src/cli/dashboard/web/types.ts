@@ -55,6 +55,13 @@ export interface TaxonomySummary {
   [key: string]: unknown;
 }
 
+export interface DashboardStatusCounts {
+  all: number;
+  draft: number;
+  published: number;
+  scheduled: number;
+}
+
 export interface DashboardList<T> {
   items: T[];
   total: number;
@@ -62,6 +69,7 @@ export interface DashboardList<T> {
   perPage: number;
   pages: number;
   query?: Record<string, unknown>;
+  statusCounts?: DashboardStatusCounts;
 }
 
 export interface SettingsCardValue {

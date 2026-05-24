@@ -553,6 +553,10 @@
     align-items: center;
     min-width: 0;
   }
+  .searchWrap {
+    position: relative;
+    min-width: 0;
+  }
   .search {
     width: 100%;
     min-height: 40px;
@@ -564,8 +568,37 @@
     min-width: 0;
     box-shadow: var(--elevation-1);
   }
+  .searchWrap .search {
+    padding-left: 34px;
+    padding-right: 40px;
+  }
   .search::placeholder {
     color: var(--text-muted);
+  }
+  .searchIcon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
+    pointer-events: none;
+  }
+  .searchHint {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 1px 6px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    pointer-events: none;
   }
   .btn {
     min-height: 40px;
@@ -632,10 +665,10 @@
   }
   .panelHead {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 12px;
-    padding: 0 0 14px;
+    padding: 0;
     margin-bottom: 4px;
     border-bottom: 1px solid var(--border-default);
     background: transparent;
@@ -648,124 +681,265 @@
     letter-spacing: 0;
     font-feature-settings: "palt";
   }
-  .listFilters {
-    position: relative;
-    min-width: 150px;
+  .listHead {
+    padding-bottom: 0;
   }
-  .listFilters summary {
-    min-height: 40px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    padding: 9px 14px;
-    list-style: none;
-    cursor: pointer;
+  .listHeadMeta {
+    padding-bottom: 12px;
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .listHeadTitle {
+    font-size: 11px;
+    line-height: 16px;
     font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--surface-normal);
-    box-shadow: var(--elevation-1);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
   }
-  .listFilters summary::-webkit-details-marker {
+  .listHeadCount {
+    font-variant-numeric: tabular-nums;
+  }
+  .statusTabs {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: -1px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .statusTabs::-webkit-scrollbar {
     display: none;
   }
-  .listFilters[open] {
-    z-index: 3;
+  .statusTab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
   }
-  .listFilters[open] .field {
-    position: absolute;
-    right: 0;
-    top: 46px;
-    width: 250px;
-    padding: 14px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
-    box-shadow: var(--elevation-4);
+  .statusTab:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--border-strong);
+  }
+  .statusTab[data-active="true"] {
+    color: var(--text-primary);
+    border-bottom-color: var(--text-primary);
+  }
+  .statusTabCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-quaternary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .statusTab[data-active="true"] .statusTabCount {
+    background: var(--surface-primary);
+    color: var(--text-invert);
   }
   .tableWrap {
     min-width: 0;
     max-width: 100%;
     overflow: auto;
-    padding: 0 0 2px;
+    padding: 0;
+    margin-top: 6px;
   }
   .table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0 10px;
-    min-width: 760px;
+    border-collapse: collapse;
+    border-spacing: 0;
+    min-width: 640px;
   }
   .contentTable {
-    min-width: 760px;
+    min-width: 640px;
+    table-layout: fixed;
   }
   .contentTable th:nth-child(1) {
-    width: 54%;
+    width: auto;
   }
-  .contentTable th:nth-child(2) {
-    width: 14%;
+  .contentTable th.dateCol {
+    width: 132px;
+    text-align: right;
   }
   .contentTable th:nth-child(3) {
-    width: 14%;
-  }
-  .contentTable th:nth-child(4) {
-    width: 18%;
+    width: 184px;
   }
   .table th,
   .table td {
-    padding: var(--space) 14px;
+    padding: 12px 12px;
     border-bottom: 0;
     text-align: left;
     vertical-align: middle;
   }
   .table th {
-    font-size: 11px;
+    font-size: 10.5px;
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.08em;
     font-weight: 700;
-    padding-top: 4px;
-    padding-bottom: 7px;
-  }
-  .table tbody tr {
-    background: var(--surface-normal);
-    box-shadow: 0 18px 44px rgba(17, 19, 24, 0.08);
-  }
-  .table tbody td {
-    border-top: 1px solid var(--border-default);
+    padding: 6px 12px 8px;
     border-bottom: 1px solid var(--border-default);
   }
-  .table tbody td:first-child {
-    border-left: 1px solid var(--border-default);
-    border-radius: var(--radius) 0 0 var(--radius);
+  .contentRow {
+    background: transparent;
+    border-bottom: 1px solid var(--border-weak);
+    cursor: pointer;
   }
-  .table tbody td:last-child {
-    border-right: 1px solid var(--border-default);
-    border-radius: 0 var(--radius) var(--radius) 0;
+  .contentRow:hover,
+  .contentRow:focus-visible {
+    background: var(--surface-raised);
+    outline: none;
   }
-  .table tr:hover td {
-    background: linear-gradient(90deg, #fbfffd, var(--surface-normal) 72%);
+  .contentRow:focus-visible {
+    box-shadow: inset 2px 0 0 var(--focus);
   }
   .titleCell {
-    max-width: 560px;
+    min-width: 0;
+    max-width: 100%;
   }
-  .titleCell b {
-    display: block;
-    overflow-wrap: anywhere;
-    font-size: 16px;
-    line-height: 23px;
+  .titleLine {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .titleText {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    line-height: 22px;
     font-weight: 700;
     letter-spacing: 0;
+    font-feature-settings: "palt";
+    color: var(--text-primary);
   }
-  .slug,
+  .slugLine {
+    margin-top: 2px;
+    min-width: 0;
+  }
+  .slug {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    unicode-bidi: plaintext;
+  }
   .pathText {
     font-family: var(--font-mono);
     font-size: 12px;
     color: var(--text-muted);
     overflow-wrap: anywhere;
   }
+  .dateCell {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-right: 12px;
+  }
+  .actionsCell {
+    padding-right: 12px;
+  }
   .rowActions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+  .contentRow:hover .rowActions,
+  .contentRow:focus-within .rowActions {
+    opacity: 1;
+  }
+  .btnCompact {
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+  .btnIcon {
+    min-width: 32px;
+    padding: 5px 8px;
+    text-align: center;
+  }
+  .warnDot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--danger);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .warnDotMark {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+  }
+  .pillCompact {
+    padding: 2px 7px;
+    font-size: 11px;
+  }
+  .overflowMenu {
+    position: relative;
+    display: inline-block;
+  }
+  .overflowMenuList {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    min-width: 160px;
+    padding: 4px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    box-shadow: var(--elevation-4);
+  }
+  .overflowMenuItem {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    border: 0;
+    cursor: pointer;
+  }
+  .overflowMenuItem:hover,
+  .overflowMenuItem:focus-visible {
+    background: var(--reaction);
   }
   .rowDetails {
     margin-top: 6px;
@@ -1422,30 +1596,74 @@
     }
     .table td .btn,
     .table td a.btn {
-      width: 100%;
+      width: auto;
+    }
+    .contentRow {
+      border-bottom: 0;
+    }
+    .titleText {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: 15px;
+      line-height: 21px;
+    }
+    .titleLine {
+      align-items: flex-start;
+    }
+    .dateCell {
+      text-align: left;
+      padding: 8px 0 0;
+      border-top: 1px solid var(--border-weak);
+      margin-top: 6px;
+    }
+    .actionsCell {
+      padding: 8px 0 0;
     }
     .rowActions {
       justify-content: stretch;
+      opacity: 1;
+      flex-wrap: wrap;
     }
     .rowActions .btn {
       flex: 1 1 120px;
+      min-height: 40px;
+    }
+    .rowActions .btnIcon {
+      flex: 0 0 40px;
+      min-width: 40px;
     }
     .detailGrid {
       grid-template-columns: 1fr;
     }
-    .listFilters {
+    .statusTabs {
       width: 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
     }
-    .listFilters[open] .field {
-      position: static;
-      width: 100%;
-      margin-top: 8px;
-      box-shadow: none;
+    .statusTab {
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+    .searchHint {
+      display: none;
     }
     .panelHead,
     .editorTop {
       align-items: flex-start;
       flex-direction: column;
+    }
+    .listHead {
+      gap: 0;
+    }
+    .listHeadMeta {
+      padding-bottom: 8px;
+    }
+    .overflowMenuList {
+      right: auto;
+      left: 0;
     }
     .editorPage {
       padding: 12px 0;
