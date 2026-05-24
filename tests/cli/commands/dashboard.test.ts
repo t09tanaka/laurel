@@ -31,8 +31,7 @@ import {
   writeDashboardSiteSettings,
   writeDashboardThemeSettings,
 } from '~/cli/commands/dashboard.ts';
-import { createDashboardUiState, reduceDashboardUiState } from '~/cli/dashboard/state.ts';
-import { renderDashboardSurfaceStateHtml } from '~/cli/dashboard/view-state.ts';
+import { createDashboardUiState, reduceDashboardUiState } from '~/cli/dashboard/ui-state.ts';
 import { loadConfig } from '~/config/loader.ts';
 
 async function makeDashboardFixture(): Promise<string> {
@@ -1385,74 +1384,34 @@ describe('dashboard data', () => {
     expect(snapshot.activity).toHaveLength(1);
   });
 
-  test('renders dashboard shell with accessibility and responsive QA hooks', () => {
-    const html = renderDashboardHtml();
+  test('renders the minimal Preact dashboard shell with token meta and bundle references', () => {
+    const html = renderDashboardHtml('token-xyz');
 
-    expect(html).toContain('href="#main"');
+    expect(html).toContain('<title>Nectar Dashboard</title>');
     expect(html).toContain('data-theme="system"');
-    expect(html).toContain('aria-current="page"');
-    expect(html).toContain('role="status" aria-live="polite"');
-    expect(html).toContain('aria-label="File-backed status"');
-    expect(html).toContain('id="buildStatus"');
-    expect(html).toContain('id="previewStatus"');
-    expect(html).toContain('id="search"');
-    expect(html).not.toContain('id="density"');
-    expect(html).not.toContain('id="theme"');
-    expect(html).toContain('overflow-wrap:anywhere');
-    expect(html).toContain('prefers-color-scheme:dark');
-    expect(html).toContain('prefers-reduced-motion');
-    expect(html).toContain('createDashboardUiState');
-    expect(html).toContain('renderStatePanelHtml');
-    expect(html).toContain('warningBadge');
-    expect(html).toContain('previewCell');
-    expect(html).toContain('sandbox="');
-    expect(html).not.toContain('allow-same-origin');
+    expect(html).toContain('<meta name="nectar-dashboard-token" content="token-xyz">');
+    expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css">');
+    expect(html).toContain('<script type="module" src="/assets/dashboard.js"></script>');
+    expect(html).toContain('<div id="root"></div>');
+    expect(html).toContain('href="#main"');
+
+    // Inline `<style>` tag and bundled vanilla JS are gone — the shell only
+    // loads the Preact bundle from the served assets.
+    expect(html).not.toContain('<style>');
+    expect(html).not.toContain('createDashboardUiState');
+    expect(html).not.toContain('renderStatePanelHtml');
   });
 
-  test('slims the dashboard shell to three sidebar items, drops the hero, and removes the top stats', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('class="viewHead"');
-    expect(html).toContain('id="viewTitle"');
-    expect(html).toContain('id="viewMeta"');
-    expect(html).not.toContain('class="top"');
-    expect(html).not.toContain('class="title" id="siteTitle"');
-    expect(html).not.toContain('class="sub" id="siteSub"');
-    expect(html).not.toContain('class="stats"');
-    expect(html).not.toContain('id="postCount"');
-    expect(html).not.toContain('id="pageCount"');
-    expect(html).not.toContain('id="authorCount"');
-    expect(html).not.toContain('id="tagCount"');
-
-    expect(html).toContain('id="navPostCount"');
-    expect(html).toContain('id="navPageCount"');
-    expect(html).toContain('id="navSettingsCount"');
-
-    expect(html).toContain('id="settingsSubnav"');
-    expect(html).toContain('data-subview="site"');
-    expect(html).toContain('data-subview="authors"');
-    expect(html).toContain('data-subview="tags"');
-    expect(html).toContain('dashboardShellSectionFor');
-    expect(html).toContain('dashboardSettingsSubviewFor');
+  test('escapes the dashboard token in the meta attribute', () => {
+    const html = renderDashboardHtml('"><script>x</script>');
+    expect(html).toContain(
+      '<meta name="nectar-dashboard-token" content="&quot;&gt;&lt;script&gt;x&lt;/script&gt;">',
+    );
   });
 
-  test('serves dashboard sections as independent pages', async () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('href="/posts" data-view="posts" data-section="posts"');
-    expect(html).toContain('href="/pages" data-view="pages" data-section="pages"');
-    expect(html).toContain('href="/settings" data-view="settings" data-section="settings"');
-    expect(html).not.toContain('data-view="authors"');
-    expect(html).not.toContain('data-view="tags"');
-    expect(html).toContain('id="settingsSubnav"');
-    expect(html).toContain('href="/authors" data-subview="authors"');
-    expect(html).toContain('href="/tags" data-subview="tags"');
-    expect(html).toContain('function initialViewFromPath');
-    expect(html).toContain('function editorRouteFromPath');
-    expect(html).toContain('function createRouteFromPath');
-    expect(html).toContain('function syncPathForView');
-
+  test('serves the same shell HTML for all dashboard URL routes', async () => {
     for (const path of [
+      '/',
       '/posts',
       '/pages',
       '/authors',
@@ -1472,155 +1431,32 @@ describe('dashboard data', () => {
         changeBus: createChangeBus(),
       });
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain('<title>Nectar Dashboard</title>');
+      const body = await response.text();
+      expect(body).toContain('<title>Nectar Dashboard</title>');
+      expect(body).toContain('<div id="root"></div>');
     }
   });
 
-  test('renders dashboard shell with the note-derived design system tokens', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('--text-primary:#111318');
-    expect(html).toContain('--background-secondary:#f2f5f4');
-    expect(html).toContain('--surface-raised:#f7f9f8');
-    expect(html).toContain('--border-default:#dfe5e3');
-    expect(html).toContain('--success:#148a50');
-    expect(html).toContain('--danger:#d92d3d');
-    expect(html).toContain('--focus:#18b86d');
-    expect(html).toContain('--main-width:1120px');
-    expect(html).toContain('--sidebar-width:248px');
-    expect(html).toContain('--sidebar-bg:#121719');
-    expect(html).toContain('--action:#10b981');
-    expect(html).toContain('box-shadow:0 18px 44px rgba(17,19,24,.08)');
-    expect(html).toContain('.toolbar #newItem{background:var(--action)');
-    expect(html).toContain('--surface-secondary:#58d66d');
-    expect(html).toContain('"Avenir Next","Hiragino Sans","Hiragino Kaku Gothic ProN"');
-    expect(html).toContain('font-feature-settings:"palt"');
-    expect(html).toContain('--article-width:720px');
-    expect(html).toContain('font:15px/1.5 var(--font-sans)');
-    expect(html).toContain('max-width:var(--main-width)');
-    expect(html).toContain('max-width:620px');
-    expect(html).toContain('line-height:2');
-    expect(html).not.toContain('font-family:Georgia');
-  });
-
-  test('renders compact toolbar controls without escaped icon text or drawer opacity', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).not.toContain('id="density"');
-    expect(html).not.toContain('id="theme"');
-    expect(html).not.toContain('id="command"');
-    expect(html).not.toContain('\\u2195');
-    expect(html).not.toContain('\\u2318K');
-    expect(html).not.toContain('from{transform:translateX(18px);opacity:.7');
-    expect(html).toContain('@keyframes slideIn{from{transform:translateX(18px)}');
-    expect(html).toContain('.panel{min-width:0');
-    expect(html).toContain('@media (max-width:560px)');
-    expect(html).toContain(
-      '.editorScroll{overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) 320px',
-    );
-    expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
-    expect(html).toContain('min-height:calc(100dvh - 48px)');
-    expect(html).toContain('body.editorOpen .shell');
-    expect(html).toContain('.nav .navLabel{font-size:11px}');
-    expect(html).toContain(
-      '.nav a.active .navLabel,.nav a[aria-current=page] .navLabel{color:var(--sidebar-ink)}',
-    );
-    expect(html).toContain('.table tbody td{border:0');
-    expect(html).toContain("document.body.classList.add('editorOpen')");
-    expect(html).toContain("document.body.classList.remove('editorOpen')");
-  });
-
-  test('keeps list rows focused and hides file details until requested', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('<details class="listFilters"><summary>Filters</summary>');
-    expect(html).toContain('<table class="table contentTable">');
-    expect(html).toContain('<th>Title</th><th>Status</th><th>Created</th>');
-    expect(html).toContain('<details class="rowDetails"><summary>Details</summary>');
-    expect(html).toContain('function primaryActionsCell');
-    expect(html).toContain('function rowDetailsCell');
-    expect(html).not.toContain('<th>Preview</th><th>Path</th>');
-    expect(html).not.toContain('id="contentSearch"');
-  });
-
-  test('renders editor and create flows as independent dashboard pages', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('<section class="editor editorPage" id="editor"');
-    expect(html).not.toContain('<aside class="editor"');
-    expect(html).not.toContain('<section class="editor editorPage" id="editor" role="dialog"');
-    expect(html).toContain('body.editorOpen .viewHead');
-    expect(html).toContain('body.editorOpen #contentPanel');
-    expect(html).toContain('renderCreatePage');
-    expect(html).toContain('id="createPage"');
-    expect(html).toContain('submitCreateItem');
-    expect(html).toContain('pathForEditor(kind,item.slug)');
-    expect(html).toContain('/edit');
-    expect(html).toContain('openRouteEditor');
-    expect(html).toContain('syncPathForEditor');
-    expect(html).toContain('openEditor(data.kind,data.slug)');
-    expect(html).not.toContain("prompt('Title or name')");
-  });
-
-  test('renders recovery, guard, keyboard, media, and snippet editor affordances', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('NECTAR_DRAFT_PREFIX');
-    expect(html).toContain('NECTAR_REVISION_PREFIX');
-    expect(html).toContain('beforeunload');
-    expect(html).toContain('id="restoreDraft"');
-    expect(html).toContain('id="rollbackEditor"');
-    expect(html).toContain('id="previewEditor"');
-    expect(html).toContain('id="approvePage"');
-    expect(html).toContain('<details class="advancedPanel" id="mediaPanel">');
-    expect(html).toContain('<details class="advancedPanel" id="formatPanel">');
-    expect(html).toContain('<details class="advancedPanel" id="recoveryPanel">');
-    expect(html).toContain('data-snippet="bold"');
-    expect(html).toContain('data-snippet="callout"');
-    expect(html).toContain('id="editFeatureImage"');
-    expect(html).toContain('id="editFeatureImageAlt"');
-    expect(html).toContain('id="editFeatureImageCaption"');
-    expect(html).toContain('id="insertMedia"');
-    expect(html).not.toContain('aria-label="Editor shortcuts"');
-    expect(html).not.toContain('Cmd/Ctrl');
-    expect(html).toContain('Approve saved page');
-    expect(html).toContain('position:sticky');
-    expect(html).toContain('class="editor editorPage"');
-  });
-
-  test('opens editor preview through the active theme route', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('currentPreview=null');
-    expect(html).toContain('currentPreview=findSummary(kind,slug)?.preview||null');
-    expect(html).toContain('function findCurrentPreviewUrl');
-    expect(html).toContain("window.open(route,'_blank','noopener')");
-    expect(html).toContain('saved Markdown through active theme');
-    expect(html).not.toContain('function findCurrentRoute()');
-    expect(html).not.toContain("key==='p'");
-    expect(html).not.toContain("key==='k'");
-  });
-
-  test('renders Ghost import controls for review-first dashboard imports', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('id="ghostImportFile"');
-    expect(html).toContain('id="previewGhostImport"');
-    expect(html).toContain('id="applyGhostImport"');
-    expect(html).toContain('/api/import/ghost');
-    expect(html).toContain('renderGhostImportResult');
-  });
-
-  test('renders page bundle controls for focused collaboration', () => {
-    const html = renderDashboardHtml();
-
-    expect(html).toContain('data-export-page=');
-    expect(html).toContain('id="pageBundleImportFile"');
-    expect(html).toContain('id="previewPageBundleImport"');
-    expect(html).toContain('id="applyPageBundleImport"');
-    expect(html).toContain('/api/page-bundles/export/');
-    expect(html).toContain('/api/page-bundles/import');
-    expect(html).toContain('renderPageBundleImportResult');
+  test('reports a clear error when the dashboard bundle is missing on disk', async () => {
+    const tmpCwd = await mkdtemp(join(tmpdir(), 'nectar-bundle-'));
+    try {
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/assets/dashboard.js'),
+        { cwd: tmpCwd, changeBus: createChangeBus() },
+      );
+      // The route is independent of cwd; it points at the published bundle
+      // dir. When the bundle is absent the response is 503 with a build hint.
+      if (response.status === 503) {
+        expect(await response.text()).toContain('bun run build:dashboard-bundle');
+      } else {
+        // If the bundle is present (developer ran build before tests), the
+        // response is 200 application/javascript — also acceptable.
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('javascript');
+      }
+    } finally {
+      await rm(tmpCwd, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1661,15 +1497,5 @@ describe('dashboard frontend state helpers', () => {
     });
     expect(state.loadStatus).toBe('conflict');
     expect(state.conflictMessage).toBe('Changed on disk');
-  });
-
-  test('renders escaped dashboard surface states', () => {
-    const html = renderDashboardSurfaceStateHtml('error', {
-      message: '<script>alert(1)</script>',
-    });
-
-    expect(html).toContain('statePanel error');
-    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-    expect(html).toContain('data-state-action="error"');
   });
 });

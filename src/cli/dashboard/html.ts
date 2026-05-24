@@ -1,26 +1,25 @@
-import { renderDashboardScript } from './script.ts';
-import { DASHBOARD_STYLES } from './styles.ts';
-
 export function renderDashboardHtml(token = ''): string {
   return String.raw`<!doctype html>
 <html lang="en" data-theme="system">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="nectar-dashboard-token" content="${escapeAttr(token)}">
 <title>Nectar Dashboard</title>
-<style>
-${DASHBOARD_STYLES}
-</style>
+<link rel="stylesheet" href="/assets/dashboard.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="shell">
-  <aside class="side" aria-label="Dashboard navigation"><div class="sideTop"><div class="brand">Nectar</div><div class="tagline" id="brandTagline">file-backed editorial dashboard</div></div><nav class="nav" aria-label="Primary"><a href="/posts" data-view="posts" data-section="posts" class="active" aria-current="page"><span class="navLabel">Posts</span><span class="navCount" id="navPostCount" aria-hidden="true"></span></a><a href="/pages" data-view="pages" data-section="pages"><span class="navLabel">Pages</span><span class="navCount" id="navPageCount" aria-hidden="true"></span></a><a href="/settings" data-view="settings" data-section="settings"><span class="navLabel">Settings</span><span class="navCount" id="navSettingsCount" aria-hidden="true"></span></a></nav><div class="statusRail" aria-label="File-backed status"><div class="railItem" id="syncRail" data-state="reading"><span>Sync</span><b class="sync" id="sync" role="status" aria-live="polite">reading disk</b></div><div class="railItem" id="buildRail" data-state="neutral"><span>Build</span><b id="buildStatus">waiting</b></div><div class="railItem" id="previewRail" data-state="neutral"><span>Preview</span><b id="previewStatus">saved output</b></div></div></aside>
-  <main class="main" id="main" tabindex="-1"><header class="viewHead" id="viewHead"><div class="viewHeadCopy"><span class="kicker" id="kicker">Local workspace</span><h1 class="viewTitle" id="viewTitle">Posts</h1><p class="viewMeta" id="viewMeta">Reading content files directly from this repository.</p></div><div class="toolbar" aria-label="Dashboard tools"><label class="srOnly" for="search">Filter current view</label><input class="search" id="search" placeholder="Filter current view"><button class="btn secondary" id="refresh">Refresh</button><button class="btn" id="newItem">New</button></div></header><nav class="subnav" id="settingsSubnav" aria-label="Settings sections" hidden><a href="/settings" data-subview="site" class="active" aria-current="page">Site</a><a href="/authors" data-subview="authors">Authors</a><a href="/tags" data-subview="tags">Tags</a></nav><section class="panel" id="contentPanel" aria-live="polite" aria-busy="true"></section><section class="editor editorPage" id="editor" aria-labelledby="editorTitle"><div class="editorTop"><div><h2 id="editorTitle">Editor</h2><div class="meta" id="editorMeta">Saved file preview uses disk state.</div></div><div class="editorActions"><button class="btn secondary" id="previewEditor">Preview</button><button class="btn secondary" id="closeEditor">Close</button></div></div><div class="editorScroll"><div class="fields"><label class="field"><span>Title</span><input id="editTitle"></label><label class="field"><span>Status</span><select id="editStatus"><option>published</option><option>draft</option><option>scheduled</option></select></label></div><textarea id="editBody" aria-label="Markdown body"></textarea><div class="warningList" id="editorWarnings" role="status" aria-live="polite"></div><details class="advancedPanel" id="mediaPanel"><summary>Media</summary><div class="mediaGrid" aria-label="Media fields"><label class="field"><span>Feature image path</span><input id="editFeatureImage" placeholder="/content/images/cover.jpg"></label><label class="field"><span>Feature image alt</span><input id="editFeatureImageAlt"></label><label class="field wide"><span>Feature image caption</span><input id="editFeatureImageCaption"></label></div></details><details class="advancedPanel" id="formatPanel"><summary>Markdown tools</summary><div class="snippetBar" aria-label="Markdown snippets"><button class="btn secondary" data-snippet="bold" title="Bold">B</button><button class="btn secondary" data-snippet="link" title="Link">Link</button><button class="btn secondary" data-snippet="code" title="Inline code">Code</button><button class="btn secondary" data-snippet="heading" title="Heading">H2</button><button class="btn secondary" data-snippet="list" title="List">List</button><button class="btn secondary" data-snippet="image" title="Image">Image</button><button class="btn secondary" data-snippet="callout" title="Callout">Callout</button><button class="btn secondary" id="insertMedia">Insert media</button></div></details><details class="advancedPanel" id="previewPanel"><summary>Preview status</summary><div class="previewBox" id="artifactPreview"></div></details><details class="advancedPanel" id="recoveryPanel"><summary>Recovery</summary><div class="editorActions"><button class="btn secondary" id="restoreDraft" disabled>Restore draft</button><button class="btn secondary" id="rollbackEditor" disabled>Rollback</button></div><div class="storageNotice" id="draftNotice" role="status" aria-live="polite"></div><div class="editorHistory" id="editorHistory" role="status" aria-live="polite"></div></details></div><div class="editorFooter"><div class="notice" id="notice" role="status" aria-live="polite"></div><div class="editorActions"><button class="btn secondary" id="approvePage" disabled>Approve saved page</button><button class="btn" id="saveEditor">Save to file</button></div></div></section></main>
-</div>
-<script>
-${renderDashboardScript(token)}
-</script>
+<div id="root"></div>
+<script type="module" src="/assets/dashboard.js"></script>
 </body>
 </html>`;
+}
+
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

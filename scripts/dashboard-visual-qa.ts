@@ -275,21 +275,24 @@ async function prepareScenario(
     return;
   }
   if (scenario.name === 'empty') {
+    // Drive the empty state through real DOM input events. The Preact
+    // dashboard listens on `input` and debounces a `/api/state?search=...`
+    // request that returns zero results, surfacing `.statePanel.empty`.
     await page.evaluate(
-      "(async()=>{ dispatch({type:'view/set',view:'posts'}); dispatch({type:'search/set',query:'__nectar_visual_qa_empty__'}); document.getElementById('search').value=ui.query; await load(); })()",
+      "(()=>{ const s=document.getElementById('search'); s.value='__nectar_visual_qa_empty__'; s.dispatchEvent(new Event('input',{bubbles:true})); })()",
     );
     await page.waitFor("document.querySelector('.statePanel.empty') !== null");
     return;
   }
   if (scenario.name === 'conflict') {
-    const changedPath = await page.evaluateString(
-      "(async()=>{ await openEditor('posts', state.posts.items[0].slug); return current.path; })()",
-    );
-    const filePath = join(project, changedPath);
+    // The route points at /posts/future-post/edit so we know the file path
+    // without reading any in-page globals. Modify the file out-of-band, then
+    // click Save and wait for the conflict notice to surface.
+    const filePath = join(project, 'content/posts/future-post.md');
     const raw = await readFile(filePath, 'utf8');
     await writeFile(filePath, `${raw}\nExternal visual QA change ${randomUUID()}\n`, 'utf8');
     await page.evaluate(
-      "document.getElementById('editBody').value='Dashboard draft from visual QA'; saveEditor()",
+      "(()=>{ const body=document.getElementById('editBody'); body.value='Dashboard draft from visual QA'; body.dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('saveEditor').click(); })()",
     );
     await page.waitFor("document.getElementById('notice').textContent.includes('changed on disk')");
   }
@@ -393,8 +396,11 @@ class CdpPage {
 }
 
 async function waitForDashboard(page: CdpPage): Promise<void> {
+  // After the Preact bundle mounts and `/api/state` resolves, either the
+  // content panel reports `aria-busy="false"` (list/settings views) or the
+  // editor surface mounts (`#editor.open`). Wait for either signal.
   await page.waitFor(
-    "document.readyState === 'complete' && typeof state !== 'undefined' && state && document.getElementById('contentPanel').getAttribute('aria-busy') === 'false'",
+    "document.readyState === 'complete' && ((document.getElementById('contentPanel') && document.getElementById('contentPanel').getAttribute('aria-busy') !== 'true') || (document.getElementById('editor') && document.getElementById('editor').classList.contains('open')))",
   );
 }
 

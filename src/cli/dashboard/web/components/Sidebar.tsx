@@ -1,0 +1,164 @@
+import type { JSX } from 'preact';
+import type { DashboardShellSection, DashboardState } from '../types.ts';
+
+interface SidebarProps {
+  section: DashboardShellSection;
+  siteTitle: string;
+  postsTotal?: number;
+  pagesTotal?: number;
+  syncLabel: string;
+  syncState: string;
+  buildLabel: string;
+  buildState: string;
+  previewLabel: string;
+  previewState: string;
+  onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
+}
+
+export function Sidebar(props: SidebarProps): JSX.Element {
+  return (
+    <aside class="side" aria-label="Dashboard navigation">
+      <div class="sideTop">
+        <div class="brand">Nectar</div>
+        <div class="tagline">{props.siteTitle || 'file-backed editorial dashboard'}</div>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <NavLink
+          href="/posts"
+          view="posts"
+          section="posts"
+          active={props.section === 'posts'}
+          label="Posts"
+          count={props.postsTotal}
+          onNavigate={() => props.onNavigate('posts')}
+        />
+        <NavLink
+          href="/pages"
+          view="pages"
+          section="pages"
+          active={props.section === 'pages'}
+          label="Pages"
+          count={props.pagesTotal}
+          onNavigate={() => props.onNavigate('pages')}
+        />
+        <NavLink
+          href="/settings"
+          view="settings"
+          section="settings"
+          active={props.section === 'settings'}
+          label="Settings"
+          onNavigate={() => props.onNavigate('settings')}
+        />
+      </nav>
+      <div class="statusRail" aria-label="File-backed status">
+        <RailItem id="syncRail" label="Sync" value={props.syncLabel} state={props.syncState} live />
+        <RailItem id="buildRail" label="Build" value={props.buildLabel} state={props.buildState} />
+        <RailItem
+          id="previewRail"
+          label="Preview"
+          value={props.previewLabel}
+          state={props.previewState}
+        />
+      </div>
+    </aside>
+  );
+}
+
+interface NavLinkProps {
+  href: string;
+  view: string;
+  section: string;
+  active: boolean;
+  label: string;
+  count?: number | undefined;
+  onNavigate: () => void;
+}
+
+function NavLink(props: NavLinkProps): JSX.Element {
+  const attrs: Record<string, string> = {
+    'data-view': props.view,
+    'data-section': props.section,
+  };
+  if (props.active) attrs['aria-current'] = 'page';
+  return (
+    <a
+      href={props.href}
+      class={props.active ? 'active' : ''}
+      {...attrs}
+      onClick={(event) => {
+        event.preventDefault();
+        props.onNavigate();
+      }}
+    >
+      <span class="navLabel">{props.label}</span>
+      <span class="navCount" aria-hidden="true">
+        {typeof props.count === 'number' ? String(props.count) : ''}
+      </span>
+    </a>
+  );
+}
+
+interface RailItemProps {
+  id: string;
+  label: string;
+  value: string;
+  state: string;
+  live?: boolean;
+}
+
+function RailItem(props: RailItemProps): JSX.Element {
+  return (
+    <div class="railItem" id={props.id} data-state={props.state}>
+      <span>{props.label}</span>
+      {props.live ? (
+        <output>
+          <b>{props.value}</b>
+        </output>
+      ) : (
+        <b>{props.value}</b>
+      )}
+    </div>
+  );
+}
+
+export interface StatusRailValues {
+  sync: { label: string; state: string };
+  build: { label: string; state: string };
+  preview: { label: string; state: string };
+}
+
+export function computeStatusRail(state: DashboardState | null): StatusRailValues {
+  if (!state) {
+    return {
+      sync: { label: 'reading disk', state: 'reading' },
+      build: { label: 'waiting', state: 'neutral' },
+      preview: { label: 'saved output', state: 'neutral' },
+    };
+  }
+  const freshness = state.build?.freshness ?? {};
+  const pending =
+    (freshness.stale ?? 0) + (freshness.missing ?? 0) + (freshness['build-required'] ?? 0);
+  const current = freshness.current ?? 0;
+  const syncStatus = state.sync?.status ?? 'synced';
+  const syncLabel =
+    syncStatus === 'changed-on-disk' ? 'changed on disk' : String(syncStatus).replace(/-/g, ' ');
+  const syncState =
+    syncStatus === 'synced'
+      ? 'success'
+      : syncStatus === 'changed-on-disk'
+        ? 'caution'
+        : syncStatus === 'conflict' || syncStatus === 'save-failed'
+          ? 'danger'
+          : 'reading';
+  return {
+    sync: { label: syncLabel, state: syncState },
+    build: {
+      label: pending ? `${pending} pending` : `${state.build?.routeCount ?? 0} current`,
+      state: pending ? 'caution' : 'success',
+    },
+    preview: {
+      label: current ? `${current} current` : pending ? 'build required' : '0 current',
+      state: current || !pending ? 'success' : 'caution',
+    },
+  };
+}

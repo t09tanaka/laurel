@@ -163,15 +163,41 @@ Premium feel は主観ではなく、次の基準でレビューする。
 
 ## Frontend Architecture Policy
 
-Dashboard shell は `renderDashboardHtml()` を公開契約にし続ける。ただし保守単位は
-`src/cli/dashboard/` 配下の shell、style、script、state、view-state helper に分割する。
-追加の build step は導入しない。CLI が返す HTML/CSS/JS は引き続き単一 response だが、
-実装は TypeScript module として lint、format、typecheck の対象にする。
+Dashboard shell は `renderDashboardHtml()` を公開契約にし続ける。返す HTML は
+`<div id="root"></div>` と `/assets/dashboard.js` / `/assets/dashboard.css` への
+参照だけを持つ最小シェルで、UI 本体は **Preact + JSX** で書かれたバンドルが
+クライアント側で `<div id="root">` にマウントする。`renderDashboardHtml()` の
+契約 (CSP、token meta、skip link、`#root`) は変えない。
 
-UI 状態は framework を導入せず、vanilla JS と reducer/helper で扱う。検索、status filter、
-posts/pages pagination、density、theme、loading/error/conflict は reducer の action として
-更新し、DOM 操作は render helper 側に寄せる。Loading / Error / Conflict / Empty は
-同じ state panel の体系で表示し、toast だけに依存しない。
+実装単位は `src/cli/dashboard/web/` 配下で次のように分割する。
+
+- `entry.tsx` — Preact `render(<DashboardApp/>, root)` のマウント点
+- `DashboardApp.tsx` — ルート、ルーティング、shell layout
+- `components/` — `Sidebar` / `PageHeader` / `Toolbar` / `SettingsSubnav` /
+  `ContentTable` / `TaxonomyView` / `SettingsView` / `CreateView` / `EditorView`
+  / `StatePanel`
+- `hooks/` — `useUiReducer` / `useEventStream`
+- `lib/` — `api` (fetch wrappers) / `routes` (path 解決) / `format` (date,
+  fingerprint) / `storage` (draft/revision/theme localStorage) / `view-head`
+- `styles.css` — note 由来の design token と既存 component class を移植したもの
+
+UI 状態は `useReducer` で `reduceDashboardUiState` を回し、純粋関数本体は
+`src/cli/dashboard/ui-state.ts` (Preact 非依存) に置く。これにより DOM lib を
+持たない CLI 側 tsconfig からも import でき、`bun test` で reducer を直接
+ユニットテストできる。検索、status filter、posts/pages pagination、density、
+theme、loading/error/conflict は同じ reducer の action として更新する。
+Loading / Error / Conflict / Empty は `StatePanel` component を 1 系統だけ使う。
+
+ビルドは `bun run build:dashboard-bundle` で `dist/dashboard-bundle/` に
+`dashboard.js` (Preact + entry) と `dashboard.css` (token + component CSS) を
+出力する。`prepublishOnly` 経由で npm パッケージにも同梱され、CLI 配布時に
+ビルドステップを要求しない。dashboard サーバは `/assets/dashboard.{js,css}` を
+`Bun.file` でストリーム配信し、バンドルが未生成の場合は明示的に
+`Run \`bun run build:dashboard-bundle\` ...` のヒントを返す。
+
+`tsc --noEmit` は 2 段で走る。`src/cli/dashboard/web/` は DOM lib が必要なので
+専用 `tsconfig.json` を持ち、ルート tsconfig は web ディレクトリを exclude する。
+biome の format/lint は両方をカバーする。
 
 Dark mode は opt-in ではなく system preference を既定にする。手動 toggle は
 `localStorage` に `system` / `light` / `dark` を保存するだけで、Nectar config や content file は
