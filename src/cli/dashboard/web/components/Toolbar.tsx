@@ -25,11 +25,10 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         Refresh
       </button>
       <button
-        class="btn"
+        class={`btn${props.showNew ? '' : ' hidden'}`}
         id="newItem"
         onClick={props.onNew}
         type="button"
-        style={props.showNew ? undefined : 'display:none'}
       >
         New
       </button>

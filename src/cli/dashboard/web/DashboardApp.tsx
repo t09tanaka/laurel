@@ -299,7 +299,6 @@ export function DashboardApp(): JSX.Element {
     dispatch({ type: 'theme/set', theme: next });
     writeThemePreference(next);
   }
-  void cycleTheme;
 
   const rail = computeStatusRail(state);
   const section = shellSectionFor(ui.view);
@@ -322,7 +321,9 @@ export function DashboardApp(): JSX.Element {
         buildState={rail.build.state}
         previewLabel={rail.preview.label}
         previewState={rail.preview.state}
+        theme={ui.theme}
         onNavigate={(target) => navigateView(target)}
+        onCycleTheme={cycleTheme}
       />
       <main class="main" id="main" tabIndex={-1}>
         {editor ? null : (

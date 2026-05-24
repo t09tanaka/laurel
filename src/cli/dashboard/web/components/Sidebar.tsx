@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import type { DashboardShellSection, DashboardState } from '../types.ts';
+import type { DashboardShellSection, DashboardState, DashboardTheme } from '../types.ts';
 
 interface SidebarProps {
   section: DashboardShellSection;
@@ -12,8 +12,22 @@ interface SidebarProps {
   buildState: string;
   previewLabel: string;
   previewState: string;
+  theme: DashboardTheme;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
+  onCycleTheme: () => void;
 }
+
+const THEME_LABEL: Record<DashboardTheme, string> = {
+  system: 'System',
+  light: 'Light',
+  dark: 'Dark',
+};
+
+const THEME_NEXT: Record<DashboardTheme, DashboardTheme> = {
+  system: 'dark',
+  dark: 'light',
+  light: 'system',
+};
 
 export function Sidebar(props: SidebarProps): JSX.Element {
   return (
@@ -59,6 +73,17 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           value={props.previewLabel}
           state={props.previewState}
         />
+        <button
+          type="button"
+          class="themeToggle"
+          data-theme={props.theme}
+          aria-label={`Theme: ${THEME_LABEL[props.theme]}. Switch to ${THEME_LABEL[THEME_NEXT[props.theme]]}.`}
+          title={`Theme: ${THEME_LABEL[props.theme]}`}
+          onClick={props.onCycleTheme}
+        >
+          <span class="themeMark" aria-hidden="true" />
+          <span>{THEME_LABEL[props.theme]}</span>
+        </button>
       </div>
     </aside>
   );

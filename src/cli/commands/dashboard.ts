@@ -4122,7 +4122,7 @@ function htmlResponse(html: string): Response {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
       'Content-Security-Policy':
-        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'",
     },
   });
 }
