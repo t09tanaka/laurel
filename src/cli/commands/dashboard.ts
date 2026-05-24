@@ -1057,7 +1057,9 @@ export async function handleDashboardRequest(
   try {
     if (
       request.method === 'GET' &&
-      (['/', '/posts', '/pages', '/authors', '/tags', '/settings'].includes(url.pathname) ||
+      (['/', '/posts', '/pages', '/authors', '/tags', '/settings', '/settings/migration'].includes(
+        url.pathname,
+      ) ||
         /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
         /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
