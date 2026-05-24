@@ -1090,27 +1090,25 @@
   }
   .editorScroll {
     overflow: auto;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 16px 22px;
-    align-items: start;
-    padding-right: 2px;
+    display: block;
+    padding: 0 4px 0 0;
   }
   .editor textarea {
     width: 100%;
-    max-width: var(--article-width);
+    max-width: 65ch;
     min-height: 480px;
     height: 62vh;
     resize: vertical;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-weak);
     border-radius: var(--radius);
     background: var(--surface-normal);
     color: var(--text-primary);
-    padding: 22px 24px;
+    padding: 32px 40px;
     font-family: var(--font-mono);
     font-size: 15px;
     overflow-wrap: anywhere;
-    line-height: 1.8;
+    line-height: 1.7;
+    letter-spacing: 0.01em;
     box-shadow: var(--elevation-1);
   }
   .fields {
@@ -1125,13 +1123,7 @@
     gap: 10px;
     max-width: none;
   }
-  .fields,
-  .editor textarea,
-  .warningList {
-    grid-column: 1;
-  }
   .advancedPanel {
-    grid-column: 2;
     max-width: none;
     border: 1px solid var(--border-default);
     border-radius: var(--radius);
@@ -1231,6 +1223,304 @@
     padding-top: 12px;
     justify-content: space-between;
     backdrop-filter: blur(12px);
+  }
+  .editorTopRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0 4px;
+    min-width: 0;
+  }
+  .editorMetaRow {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+  }
+  .editorFocusBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .exitFocusPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    background: var(--surface-normal);
+    color: var(--text-secondary);
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+  }
+  .exitFocusPill:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+  .exitFocusPill kbd {
+    font: 600 10.5px / 1 var(--font-mono);
+    padding: 2px 5px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-muted);
+  }
+  .saveChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px 0 8px;
+    border-radius: 999px;
+    font: 600 11.5px / 1 var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    transition: color 160ms ease, background 160ms ease;
+  }
+  .saveChip::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+  .saveChip[data-state="idle"] {
+    color: var(--text-muted);
+  }
+  .saveChip[data-state="dirty"] {
+    color: var(--caution);
+    background: var(--caution-subdued);
+  }
+  .saveChip[data-state="saving"] {
+    color: var(--point);
+  }
+  .saveChip[data-state="saving"]::before {
+    animation: saveChipPulse 1.1s ease-in-out infinite;
+  }
+  .saveChip[data-state="saved"] {
+    color: var(--success);
+  }
+  .saveChip[data-state="error"] {
+    color: var(--danger);
+    background: var(--danger-subdued);
+  }
+  @keyframes saveChipPulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.18);
+    }
+  }
+  .bodyWrap {
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+  }
+  .saveHairline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: transparent;
+    pointer-events: none;
+    transition: background 200ms ease, opacity 200ms ease;
+    opacity: 0;
+  }
+  .saveHairline[data-state="dirty"] {
+    opacity: 1;
+    background: var(--caution);
+  }
+  .saveHairline[data-state="saving"] {
+    opacity: 1;
+    background: linear-gradient(90deg, transparent, var(--point), transparent);
+    background-size: 200% 100%;
+    animation: saveHairlineSweep 1.4s linear infinite;
+  }
+  .saveHairline[data-state="saved"] {
+    opacity: 1;
+    background: var(--success);
+  }
+  .saveHairline[data-state="error"] {
+    opacity: 1;
+    background: var(--danger);
+  }
+  @keyframes saveHairlineSweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  .titleBlock {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 760px;
+    border-bottom: 1px solid var(--border-weak);
+    padding: 6px 0 12px;
+    margin-top: 6px;
+  }
+  .titleInput {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 30px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.012em;
+    padding: 4px 0;
+    outline: none;
+    font-feature-settings: "palt";
+  }
+  .titleInput::placeholder {
+    color: var(--text-muted);
+    font-weight: 600;
+    opacity: 0.55;
+  }
+  .statusPill {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    background: var(--surface-normal);
+    color: var(--text-secondary);
+    font: 600 12px / 1 var(--font-sans);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+      linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 26px;
+  }
+  .statusPill:hover {
+    border-color: var(--border-strong);
+  }
+  .statusPill:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .warningsInline {
+    display: none;
+    max-width: 760px;
+    margin-top: 10px;
+    padding: 9px 13px;
+    border-radius: var(--radius);
+    border: 1px solid var(--caution);
+    background: var(--caution-subdued);
+    color: var(--caution);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .warningsInline.active {
+    display: block;
+  }
+  .metadataPanel {
+    margin-top: 22px;
+    border: 1px solid var(--border-weak);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    overflow: hidden;
+    max-width: 760px;
+  }
+  .metadataPanel > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    font: 600 12.5px / 1 var(--font-sans);
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .metadataPanel > summary::-webkit-details-marker {
+    display: none;
+  }
+  .metadataPanel > summary::after {
+    content: "+";
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-muted);
+    transition: transform 180ms ease;
+  }
+  .metadataPanel[open] > summary::after {
+    content: "−";
+  }
+  .metadataPanel[open] > summary {
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .metadataPanel .metadataBody {
+    display: grid;
+    gap: 18px;
+    padding: 16px;
+  }
+  .metadataPanel .metadataSection {
+    display: grid;
+    gap: 8px;
+  }
+  .metadataPanel .metadataSection > h4 {
+    margin: 0;
+    font: 600 11px / 1 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  /* Transition lives on the base .side so the initial state is rendered
+   * faded synchronously when body.editorFocus is set; only the hover/leave
+   * deltas animate. */
+  .side {
+    transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1), transform 220ms
+      cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  body.editorFocus .side {
+    opacity: 0.22;
+    transform: translateX(-4px);
+  }
+  body.editorFocus .side:hover,
+  body.editorFocus .side:focus-within {
+    opacity: 1;
+    transform: none;
+  }
+  body.editorFocus .main {
+    transition: padding 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  body.editorFocus .editor textarea {
+    border-color: transparent;
+    box-shadow: none;
+    background: var(--surface-normal);
+  }
+  body.editorFocus .editor textarea:focus {
+    border-color: var(--border-weak);
   }
   .createPage {
     padding: 18px 0;
@@ -1629,15 +1919,6 @@
     .main {
       padding: 24px 28px 48px;
     }
-    .editorScroll {
-      grid-template-columns: 1fr;
-    }
-    .advancedPanel,
-    .fields,
-    .editor textarea,
-    .warningList {
-      grid-column: 1;
-    }
     .advancedPanel {
       max-width: var(--article-width);
     }
@@ -1988,7 +2269,28 @@
       height: 46vh;
       min-height: 300px;
       max-width: 100%;
-      padding: 18px;
+      padding: 18px 16px;
+    }
+    .titleBlock {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .titleInput {
+      flex: 1 1 100%;
+      font-size: 24px;
+    }
+    .statusPill {
+      flex: 0 0 auto;
+    }
+    .editorFocusBar {
+      gap: 6px;
+    }
+    .exitFocusPill kbd {
+      display: none;
+    }
+    body.editorFocus .side {
+      opacity: 1;
+      transform: none;
     }
     .snippetBar .btn {
       min-width: 44px;

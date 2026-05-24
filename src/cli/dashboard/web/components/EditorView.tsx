@@ -1,5 +1,10 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
+import {
+  DEFAULT_EDITOR_FOCUS_STATE,
+  type EditorSaveState,
+  reduceEditorFocus,
+} from '../../editor-focus.ts';
 import { approvePage, saveContent } from '../lib/api.ts';
 import { fingerprintToken, normalizeMediaPath } from '../lib/format.ts';
 import {
@@ -25,6 +30,24 @@ interface EditorViewProps {
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
 }
+
+const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
+  idle: 'Ready',
+  dirty: 'Unsaved',
+  saving: 'Saving…',
+  saved: 'Saved',
+  error: 'Error',
+};
+
+const SNIPPETS: ReadonlyArray<[string, string, string]> = [
+  ['bold', 'B', 'Bold'],
+  ['link', 'Link', 'Link'],
+  ['code', 'Code', 'Inline code'],
+  ['heading', 'H2', 'Heading'],
+  ['list', 'List', 'List'],
+  ['image', 'Image', 'Image'],
+  ['callout', 'Callout', 'Callout'],
+];
 
 function snapshotFromItem(item: DashboardContentItem): EditorSnapshot {
   const fm = item.frontmatter;
@@ -52,7 +75,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);
   const [notice, setNotice] = useState('');
   const [pendingDraft, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
+  const [focus, dispatchFocus] = useReducer(reduceEditorFocus, DEFAULT_EDITOR_FOCUS_STATE);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isContent = current.kind === 'posts' || current.kind === 'pages';
 
   useEffect(() => {
@@ -62,11 +87,30 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (focus.focusMode) {
+      document.body.classList.add('editorFocus');
+      return () => document.body.classList.remove('editorFocus');
+    }
+    document.body.classList.remove('editorFocus');
+    return undefined;
+  }, [focus.focusMode]);
+
+  useEffect(() => {
+    return () => {
+      if (savedFlashTimerRef.current) {
+        clearTimeout(savedFlashTimerRef.current);
+        savedFlashTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const dirty = !snapshotsEqual(snapshot, baseline);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-signal when dirty boolean flips
   useEffect(() => {
     props.onDirtyChange(dirty);
+    if (dirty) dispatchFocus({ type: 'save/state', value: 'dirty' });
   }, [dirty]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: snapshot/dirty drive persistence; the rest of current.* is stable per editor session
@@ -88,11 +132,19 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') props.onCloseEditor();
+      if (event.key !== 'Escape') return;
+      // Staged dismissal: first Escape exits focus mode, second Escape closes the editor.
+      if (focus.focusMode) {
+        event.preventDefault();
+        dispatchFocus({ type: 'focus/set', value: false });
+      } else {
+        event.preventDefault();
+        props.onCloseEditor();
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [props.onCloseEditor]);
+  }, [focus.focusMode, props.onCloseEditor]);
 
   function patchSnapshot(part: Partial<EditorSnapshot>) {
     setSnapshot((prev) => ({ ...prev, ...part }));
@@ -129,6 +181,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     };
     appendRevision(current, revision);
     const fm = buildFrontmatter();
+    dispatchFocus({ type: 'save/state', value: 'saving' });
     const { status, data } = await saveContent({
       kind: current.kind,
       slug: current.slug,
@@ -140,6 +193,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       const message =
         'This file changed on disk. Your browser draft was kept; review before restoring or saving.';
       setNotice(message);
+      dispatchFocus({ type: 'save/state', value: 'error' });
       props.onConflict(message, data.current);
       return;
     }
@@ -147,9 +201,16 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       const errorMessage =
         (data as { error?: string }).error ?? 'Could not save file. Browser draft was kept.';
       setNotice(errorMessage);
+      dispatchFocus({ type: 'save/state', value: 'error' });
       return;
     }
     clearDraftsForPath(current.path);
+    dispatchFocus({ type: 'save/state', value: 'saved' });
+    if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current);
+    savedFlashTimerRef.current = setTimeout(() => {
+      dispatchFocus({ type: 'save/state', value: 'idle' });
+      savedFlashTimerRef.current = null;
+    }, 1500);
     await props.onSaved();
   }
 
@@ -289,17 +350,30 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   const revisions = readRevisions(current);
   const warnings = computeWarnings(snapshot.body);
   const previewMeta = currentPreviewMeta(state, current);
+  const saveState = focus.saveState;
 
   return (
     <section class="editor editorPage open" id="editor" aria-labelledby="editorTitle">
-      <div class="editorTop">
-        <div>
-          <h2 id="editorTitle">{current.path}</h2>
-          <div class="meta" id="editorMeta">
-            {current.path} · fingerprint {fingerprintToken(current.fingerprint)}
-          </div>
+      <div class="editorTopRow">
+        <div class="editorMetaRow" id="editorMeta">
+          <span id="editorTitle" class="srOnly">
+            {current.path}
+          </span>
+          {current.path} · fingerprint {fingerprintToken(current.fingerprint)}
         </div>
-        <div class="editorActions">
+        <div class="editorFocusBar">
+          <span class="saveChip" data-state={saveState} aria-live="polite">
+            {SAVE_CHIP_LABEL[saveState]}
+          </span>
+          <button
+            type="button"
+            class="exitFocusPill"
+            onClick={() => dispatchFocus({ type: 'focus/toggle' })}
+            aria-pressed={focus.focusMode}
+          >
+            {focus.focusMode ? 'Exit focus' : 'Enter focus'}
+            <kbd>Esc</kbd>
+          </button>
           <button
             class="btn secondary"
             id="previewEditor"
@@ -320,189 +394,199 @@ export function EditorView(props: EditorViewProps): JSX.Element {
         </div>
       </div>
       <div class="editorScroll">
-        <div class="fields">
-          <label class="field">
-            <span>Title</span>
-            <input
-              id="editTitle"
-              value={snapshot.title}
-              onInput={(event) =>
-                patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
+        <div class="titleBlock">
+          <input
+            class="titleInput"
+            id="editTitle"
+            placeholder="Untitled"
+            value={snapshot.title}
+            onInput={(event) =>
+              patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
+            }
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                event.preventDefault();
+                textareaRef.current?.focus();
               }
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === 'ArrowDown') {
-                  event.preventDefault();
-                  textareaRef.current?.focus();
-                }
-              }}
-            />
-          </label>
-          <label class="field">
-            <span>Status</span>
-            <select
-              id="editStatus"
-              value={snapshot.status}
-              disabled={!isContent}
-              onChange={(event) =>
-                patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
-              }
-            >
-              <option>published</option>
-              <option>draft</option>
-              <option>scheduled</option>
-            </select>
-          </label>
+            }}
+          />
+          <select
+            class="statusPill"
+            id="editStatus"
+            disabled={!isContent}
+            value={snapshot.status}
+            onChange={(event) =>
+              patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+            }
+          >
+            <option>published</option>
+            <option>draft</option>
+            <option>scheduled</option>
+          </select>
         </div>
-        <textarea
-          id="editBody"
-          aria-label="Markdown body"
-          ref={textareaRef}
-          value={snapshot.body}
-          onInput={(event) =>
-            patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
-          }
-        />
-        <output class={`warningList ${warnings.length ? 'active' : ''}`} id="editorWarnings">
+        <div class="bodyWrap">
+          <textarea
+            id="editBody"
+            aria-label="Markdown body"
+            ref={textareaRef}
+            value={snapshot.body}
+            onInput={(event) =>
+              patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
+            }
+          />
+          <span class="saveHairline" data-state={saveState} aria-hidden="true" />
+        </div>
+        <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
           {warnings.join(' ')}
         </output>
-        <details class="advancedPanel" id="mediaPanel">
-          <summary>Media</summary>
-          <div class="mediaGrid" aria-label="Media fields">
-            <label class="field">
-              <span>Feature image path</span>
-              <input
-                id="editFeatureImage"
-                placeholder="/content/images/cover.jpg"
-                disabled={!isContent}
-                value={snapshot.featureImage}
-                onInput={(event) =>
-                  patchSnapshot({ featureImage: (event.currentTarget as HTMLInputElement).value })
-                }
-              />
-            </label>
-            <label class="field">
-              <span>Feature image alt</span>
-              <input
-                id="editFeatureImageAlt"
-                disabled={!isContent}
-                value={snapshot.featureImageAlt}
-                onInput={(event) =>
-                  patchSnapshot({
-                    featureImageAlt: (event.currentTarget as HTMLInputElement).value,
-                  })
-                }
-              />
-            </label>
-            <label class="field wide">
-              <span>Feature image caption</span>
-              <input
-                id="editFeatureImageCaption"
-                disabled={!isContent}
-                value={snapshot.featureImageCaption}
-                onInput={(event) =>
-                  patchSnapshot({
-                    featureImageCaption: (event.currentTarget as HTMLInputElement).value,
-                  })
-                }
-              />
-            </label>
-          </div>
-        </details>
-        <details class="advancedPanel" id="formatPanel">
-          <summary>Markdown tools</summary>
-          <div class="snippetBar" aria-label="Markdown snippets">
-            {(
-              [
-                ['bold', 'B', 'Bold'],
-                ['link', 'Link', 'Link'],
-                ['code', 'Code', 'Inline code'],
-                ['heading', 'H2', 'Heading'],
-                ['list', 'List', 'List'],
-                ['image', 'Image', 'Image'],
-                ['callout', 'Callout', 'Callout'],
-              ] as ReadonlyArray<[string, string, string]>
-            ).map(([name, label, title]) => (
-              <button
-                key={name}
-                class="btn secondary"
-                type="button"
-                data-snippet={name}
-                title={title}
-                onClick={() => applySnippet(name)}
-              >
-                {label}
-              </button>
-            ))}
-            <button class="btn secondary" id="insertMedia" type="button" onClick={insertMedia}>
-              Insert media
-            </button>
-          </div>
-        </details>
-        <details class="advancedPanel" id="previewPanel">
-          <summary>Preview status</summary>
-          <div class={`previewBox ${previewMeta ? 'active' : ''}`} id="artifactPreview">
-            {previewMeta ? (
-              <>
-                <div class="previewMeta">
-                  <span>{previewMeta.label} · saved Markdown through active theme</span>
-                  {previewMeta.openUrl ? (
-                    <a
-                      class="previewLink"
-                      href={previewMeta.openUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open
-                    </a>
-                  ) : null}
+        <details
+          class="metadataPanel"
+          id="metadataPanel"
+          open={focus.metadataExpanded}
+          onToggle={(event) =>
+            dispatchFocus({
+              type: 'metadata/set',
+              value: (event.currentTarget as HTMLDetailsElement).open,
+            })
+          }
+        >
+          <summary>More metadata{pendingDraft ? ' · draft available' : ''}</summary>
+          <div class="metadataBody">
+            {isContent ? (
+              <section class="metadataSection" aria-label="Media">
+                <h4>Media</h4>
+                <div class="mediaGrid">
+                  <label class="field">
+                    <span>Feature image path</span>
+                    <input
+                      id="editFeatureImage"
+                      placeholder="/content/images/cover.jpg"
+                      disabled={!isContent}
+                      value={snapshot.featureImage}
+                      onInput={(event) =>
+                        patchSnapshot({
+                          featureImage: (event.currentTarget as HTMLInputElement).value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label class="field">
+                    <span>Feature image alt</span>
+                    <input
+                      id="editFeatureImageAlt"
+                      disabled={!isContent}
+                      value={snapshot.featureImageAlt}
+                      onInput={(event) =>
+                        patchSnapshot({
+                          featureImageAlt: (event.currentTarget as HTMLInputElement).value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label class="field wide">
+                    <span>Feature image caption</span>
+                    <input
+                      id="editFeatureImageCaption"
+                      disabled={!isContent}
+                      value={snapshot.featureImageCaption}
+                      onInput={(event) =>
+                        patchSnapshot({
+                          featureImageCaption: (event.currentTarget as HTMLInputElement).value,
+                        })
+                      }
+                    />
+                  </label>
                 </div>
-                {previewMeta.openUrl ? (
-                  <iframe
-                    class="previewFrame"
-                    title="Markdown preview"
-                    src={previewMeta.openUrl}
-                    sandbox={(previewMeta.sandbox?.attributes ?? []).join(' ')}
-                    referrerpolicy="no-referrer"
-                  />
-                ) : (
-                  <div class="empty">{previewMeta.detail}</div>
-                )}
-              </>
+              </section>
             ) : null}
+            <section class="metadataSection" aria-label="Markdown tools">
+              <h4>Markdown tools</h4>
+              <div class="snippetBar" aria-label="Markdown snippets">
+                {SNIPPETS.map(([name, label, title]) => (
+                  <button
+                    key={name}
+                    class="btn secondary"
+                    type="button"
+                    data-snippet={name}
+                    title={title}
+                    onClick={() => applySnippet(name)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button class="btn secondary" id="insertMedia" type="button" onClick={insertMedia}>
+                  Insert media
+                </button>
+              </div>
+            </section>
+            {previewMeta ? (
+              <section class="metadataSection" aria-label="Preview">
+                <h4>Preview</h4>
+                <div class="previewBox active" id="artifactPreview">
+                  <div class="previewMeta">
+                    <span>{previewMeta.label} · saved Markdown through active theme</span>
+                    {previewMeta.openUrl ? (
+                      <a
+                        class="previewLink"
+                        href={previewMeta.openUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open
+                      </a>
+                    ) : null}
+                  </div>
+                  {previewMeta.openUrl ? (
+                    <iframe
+                      class="previewFrame"
+                      title="Markdown preview"
+                      src={previewMeta.openUrl}
+                      sandbox={(previewMeta.sandbox?.attributes ?? []).join(' ')}
+                      referrerpolicy="no-referrer"
+                    />
+                  ) : (
+                    <div class="empty">{previewMeta.detail}</div>
+                  )}
+                </div>
+              </section>
+            ) : null}
+            <section class="metadataSection" aria-label="Recovery">
+              <h4>Recovery</h4>
+              <div class="editorActions">
+                <button
+                  class="btn secondary"
+                  id="restoreDraft"
+                  type="button"
+                  disabled={!pendingDraft}
+                  onClick={restoreDraft}
+                >
+                  Restore draft
+                </button>
+                <button
+                  class="btn secondary"
+                  id="rollbackEditor"
+                  type="button"
+                  disabled={revisions.length === 0}
+                  onClick={rollback}
+                >
+                  Rollback
+                </button>
+              </div>
+              <output class={`storageNotice ${pendingDraft ? 'active' : ''}`} id="draftNotice">
+                {pendingDraft
+                  ? `Browser draft available for ${pendingDraft.path}${draftMatchesFingerprint ? '.' : ' from an older fingerprint; compare before saving.'}`
+                  : ''}
+              </output>
+              <output
+                class={`editorHistory ${revisions.length ? 'active' : ''}`}
+                id="editorHistory"
+              >
+                {revisions.length
+                  ? `${revisions.length} local revision(s) kept in this browser before saves.`
+                  : ''}
+              </output>
+            </section>
           </div>
-        </details>
-        <details class="advancedPanel" id="recoveryPanel">
-          <summary>Recovery</summary>
-          <div class="editorActions">
-            <button
-              class="btn secondary"
-              id="restoreDraft"
-              type="button"
-              disabled={!pendingDraft}
-              onClick={restoreDraft}
-            >
-              Restore draft
-            </button>
-            <button
-              class="btn secondary"
-              id="rollbackEditor"
-              type="button"
-              disabled={revisions.length === 0}
-              onClick={rollback}
-            >
-              Rollback
-            </button>
-          </div>
-          <output class={`storageNotice ${pendingDraft ? 'active' : ''}`} id="draftNotice">
-            {pendingDraft
-              ? `Browser draft available for ${pendingDraft.path}${draftMatchesFingerprint ? '.' : ' from an older fingerprint; compare before saving.'}`
-              : ''}
-          </output>
-          <output class={`editorHistory ${revisions.length ? 'active' : ''}`} id="editorHistory">
-            {revisions.length
-              ? `${revisions.length} local revision(s) kept in this browser before saves.`
-              : ''}
-          </output>
         </details>
       </div>
       <div class="editorFooter">
