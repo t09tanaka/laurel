@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hoo
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
+import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
@@ -304,7 +305,7 @@ export function DashboardApp(): JSX.Element {
   const section = shellSectionFor(ui.view);
   const inSettings = section === 'settings';
   const headCopy = createMode ? CREATE_HEAD : viewHeadFor(ui.view);
-  const showNewButton = !createMode && !editor && ui.view !== 'settings';
+  const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
 
@@ -405,6 +406,8 @@ export function DashboardApp(): JSX.Element {
                   void handleMaterialize(ui.view as 'authors' | 'tags', slug);
                 }}
               />
+            ) : ui.view === 'migration' ? (
+              <MigrationView onSettingsSaved={() => load({ force: true })} />
             ) : (
               <SettingsView
                 state={state}
@@ -412,6 +415,7 @@ export function DashboardApp(): JSX.Element {
                 onConflict={(message) => dispatch({ type: 'conflict', message })}
                 onSiteDirtyChange={setSiteSettingsDirty}
                 onThemeDirtyChange={setThemeSettingsDirty}
+                onOpenMigration={() => navigateView('migration')}
               />
             )}
           </section>
