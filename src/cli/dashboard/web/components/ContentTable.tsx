@@ -40,9 +40,12 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
     <div>
       <div class="panelHead listHead">
         <div class="listHeadMeta">
-          <h2 class="listHeadTitle">{kind}</h2>
-          <span class="meta listHeadCount">
-            {props.resultCount} result(s) · page {list.page} of {list.pages}
+          <h2 class="listHeadTitle srOnly">{kind}</h2>
+          <span class="listHeadCount">
+            <span class="listHeadNumeral">{props.resultCount}</span>
+            <span class="listHeadCountLabel">
+              {props.resultCount === 1 ? 'entry' : 'entries'} · page {list.page} of {list.pages}
+            </span>
           </span>
         </div>
         <StatusTabs

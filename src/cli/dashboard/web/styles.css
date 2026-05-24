@@ -65,11 +65,17 @@
   --color-reaction: #f1f4f7;
   --color-modal: rgba(10, 13, 18, 0.46);
 
-  --font-sans: "Avenir Next", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo,
-    sans-serif;
-  --font-serif: "Hiragino Mincho ProN", "Hiragino Mincho Pro", HGSMinchoE, "Yu Mincho", YuMincho,
-    "MS PMincho", serif;
-  --font-mono: SFMono-Regular, Consolas, Menlo, Courier, monospace;
+  /* Sans: Avenir Next on macOS, system-ui everywhere else (SF Pro on Apple,
+   * Segoe UI on Windows, Roboto on Android). No webfonts. */
+  --font-sans: "Avenir Next", "SF Pro Text", system-ui, -apple-system, "Helvetica Neue",
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  /* Serif: Charter (macOS) → Iowan Old Style (iOS) → Georgia (everywhere).
+   * Used for editorial display headings and italic kickers. */
+  --font-serif: "Charter", "Source Serif Pro", "Iowan Old Style", "Sitka Text", Georgia, Cambria,
+    "Hiragino Mincho ProN", "Yu Mincho", serif;
+  /* Mono: ui-monospace = SF Mono on macOS, Cascadia Mono on Windows. */
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", "IBM Plex Mono", Menlo,
+    Consolas, monospace;
 
   --radius-card: 6px;
 
@@ -190,8 +196,8 @@
     margin: 0;
     background: linear-gradient(180deg, #f6f8f7 0, #fff 38%, var(--background-secondary));
     color: var(--text-primary);
-    font: 15px / 1.5 var(--font-sans);
-    letter-spacing: 0;
+    font: 14.5px / 1.55 var(--font-sans);
+    letter-spacing: -0.002em;
     text-rendering: optimizeLegibility;
     word-wrap: break-word;
     font-kerning: auto;
@@ -282,8 +288,8 @@
   .brand {
     font-size: 17px;
     line-height: 1.2;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 600;
+    letter-spacing: -0.003em;
     font-feature-settings: "palt";
     color: var(--sidebar-ink);
   }
@@ -311,17 +317,18 @@
   }
   .nav a {
     width: 100%;
-    min-height: 40px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     gap: 10px;
     text-align: left;
-    padding: 8px 12px;
+    padding: 7px 12px;
     border-radius: var(--radius);
     background: transparent;
     color: var(--sidebar-muted);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-decoration: none;
   }
   .nav a:before {
@@ -348,10 +355,10 @@
   }
   .nav a.active,
   .nav a[aria-current="page"] {
-    background: #fff;
-    color: #111318;
-    font-weight: 700;
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+    background: #ffffff;
+    color: #0a0d12;
+    font-weight: 600;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.06);
   }
   .nav .navLabel {
     flex: 1 1 auto;
@@ -488,29 +495,36 @@
     gap: 4px;
   }
   .kicker {
-    font-size: 11px;
-    line-height: 16px;
+    /* Editorial italic serif kicker — small caps abandoned in favor of
+     * lowercase italic for a more refined, less SaaS-template feel. */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--text-muted);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
   }
   .viewTitle {
-    font-size: 22px;
-    line-height: 30px;
-    margin: 0;
-    font-weight: 700;
-    letter-spacing: 0;
-    font-feature-settings: "palt";
+    /* Display serif. Refined weight (no bold-on-bold cacophony) and tighter
+     * tracking. The single most identity-defining typographic move. */
+    font-family: var(--font-serif);
+    font-weight: 500;
+    font-size: 32px;
+    line-height: 38px;
+    letter-spacing: -0.008em;
+    margin: 6px 0 0;
+    font-feature-settings: "palt", "ss01";
     max-width: 100%;
     overflow-wrap: anywhere;
     color: var(--text-primary);
   }
   .viewMeta {
-    margin: 0;
+    margin: 8px 0 0;
     color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 20px;
+    font-size: 13.5px;
+    line-height: 21px;
     max-width: 620px;
     overflow-wrap: anywhere;
   }
@@ -606,14 +620,16 @@
     pointer-events: none;
   }
   .btn {
-    min-height: 40px;
+    min-height: 38px;
     border-radius: var(--radius);
-    padding: 9px 16px;
+    padding: 8px 16px;
     background: var(--surface-primary);
     color: var(--text-invert);
     box-shadow: none;
     white-space: nowrap;
-    font-weight: 700;
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-decoration: none;
   }
   .btn:hover {
@@ -631,7 +647,7 @@
     color: var(--text-primary);
     border: 1px solid var(--border-default);
     box-shadow: var(--elevation-1);
-    font-weight: 700;
+    font-weight: 500;
   }
   .btn.secondary:hover {
     background: var(--reaction);
@@ -680,30 +696,45 @@
   }
   .panelHead h2 {
     margin: 0;
-    font-size: 18px;
+    font-family: var(--font-serif);
+    font-size: 20px;
     line-height: 26px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.008em;
     font-feature-settings: "palt";
   }
   .listHead {
     padding-bottom: 0;
   }
   .listHeadMeta {
-    padding-bottom: 12px;
-    display: grid;
-    gap: 2px;
+    padding-bottom: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
     min-width: 0;
   }
-  .listHeadTitle {
-    font-size: 11px;
-    line-height: 16px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
+  /* The h2 inside listHeadMeta stays in DOM for a11y but visually replaced
+   * by the editorial numeral + label below. */
   .listHeadCount {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 18px;
+  }
+  /* Editorial drop-numeral — the count gets a serif treatment that turns
+   * "3 entries · page 1 of 1" into a real piece of typography. */
+  .listHeadNumeral {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    font-size: 22px;
+    line-height: 22px;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .listHeadCountLabel {
     font-variant-numeric: tabular-nums;
   }
   .statusTabs {
@@ -720,15 +751,15 @@
   .statusTab {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     padding: 8px 14px;
     background: transparent;
     color: var(--text-muted);
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-bottom: 1.5px solid transparent;
     font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     white-space: nowrap;
     cursor: pointer;
   }
@@ -738,6 +769,7 @@
   }
   .statusTab[data-active="true"] {
     color: var(--text-primary);
+    font-weight: 600;
     border-bottom-color: var(--text-primary);
   }
   .statusTabCount {
@@ -991,10 +1023,12 @@
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    padding: 3px 9px;
-    font-size: 12px;
+    padding: 2px 9px;
+    font-size: 11px;
+    line-height: 17px;
+    letter-spacing: -0.002em;
     white-space: nowrap;
-    font-weight: 700;
+    font-weight: 500;
   }
   .pill {
     background: var(--success-subdued);
