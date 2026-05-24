@@ -42,3 +42,4 @@ coverage/
 # Nectar build caches (image transcoder, etc.)
 .nectar-cache/
 .nectar/cache/
+.claude/scheduled_tasks.lock
