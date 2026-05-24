@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { copyFile, mkdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
 const outdir = process.env.NECTAR_BUILD_OUTDIR?.trim() || 'dist';
 const bundleDir = join(outdir, 'dashboard-bundle');
@@ -21,10 +21,20 @@ if (!jsResult.success) {
   process.exit(1);
 }
 
-await copyFile(
-  'src/cli/dashboard/web/styles.css',
-  join(bundleDir, 'dashboard.css'),
-);
+const cssIn = resolve('src/cli/dashboard/web/styles.css');
+const cssOut = resolve(bundleDir, 'dashboard.css');
+const tailwindBin = resolve('node_modules/.bin/tailwindcss');
+
+const css = Bun.spawn([tailwindBin, '--input', cssIn, '--output', cssOut, '--minify'], {
+  stdout: 'pipe',
+  stderr: 'pipe',
+});
+const cssExit = await css.exited;
+if (cssExit !== 0) {
+  const errText = await new Response(css.stderr).text();
+  console.error(errText.trim());
+  process.exit(cssExit);
+}
 
 const sizes = await Promise.all(
   ['dashboard.js', 'dashboard.css'].map(async (name) => {
