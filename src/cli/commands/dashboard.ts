@@ -126,6 +126,13 @@ export interface DashboardStateQuery {
   sort?: DashboardSort;
 }
 
+export interface DashboardStatusCounts {
+  all: number;
+  draft: number;
+  published: number;
+  scheduled: number;
+}
+
 export interface DashboardList<T> {
   items: T[];
   total: number;
@@ -133,6 +140,7 @@ export interface DashboardList<T> {
   perPage: number;
   pages: number;
   query: DashboardStateQuery;
+  statusCounts?: DashboardStatusCounts;
 }
 
 export interface DashboardContentSummary {
@@ -747,11 +755,14 @@ export async function loadDashboardState({
   if (search !== undefined && search.trim().length > 0) query.search = search.trim();
   query.sort = sort ?? 'created_desc';
 
-  const posts = applyContentQuery(
+  const { status: _statusForCounts, ...queryWithoutStatus } = query;
+  const postsSearched = applyContentQuery(
     graph.posts.map((post) => postSummary(cwd, post, graph, config)),
     'posts',
-    query,
+    queryWithoutStatus,
   );
+  const postsStatusCounts = countSummariesByStatus(postsSearched);
+  const posts = filterContentByStatus(postsSearched, query.status);
   const pageSummaries = await Promise.all(
     graph.pages.map(async (item) => {
       const summary = pageSummary(cwd, item, graph, config);
@@ -767,15 +778,17 @@ export async function loadDashboardState({
       };
     }),
   );
-  const pages = applyContentQuery(pageSummaries, 'pages', query);
-  const paginatedPosts = await withPreviewArtifacts(
-    config,
-    paginate(posts, postPage, safePerPage, query),
-  );
-  const paginatedPages = await withPreviewArtifacts(
-    config,
-    paginate(pages, pagePage, safePerPage, query),
-  );
+  const pagesSearched = applyContentQuery(pageSummaries, 'pages', queryWithoutStatus);
+  const pagesStatusCounts = countSummariesByStatus(pagesSearched);
+  const pages = filterContentByStatus(pagesSearched, query.status);
+  const paginatedPosts = await withPreviewArtifacts(config, {
+    ...paginate(posts, postPage, safePerPage, query),
+    statusCounts: postsStatusCounts,
+  });
+  const paginatedPages = await withPreviewArtifacts(config, {
+    ...paginate(pages, pagePage, safePerPage, query),
+    statusCounts: pagesStatusCounts,
+  });
   const previewFreshness = countPreviewFreshness([
     ...paginatedPosts.items,
     ...paginatedPages.items,
@@ -2269,6 +2282,24 @@ function taxonomySummary(
       kind === 'authors' ? config.content.authors_dir : config.content.tags_dir
     }/${item.slug}.md`,
   };
+}
+
+function countSummariesByStatus(items: DashboardContentSummary[]): DashboardStatusCounts {
+  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0, scheduled: 0 };
+  for (const item of items) {
+    if (item.status === 'draft') counts.draft += 1;
+    else if (item.status === 'scheduled') counts.scheduled += 1;
+    else if (item.status === 'published') counts.published += 1;
+  }
+  return counts;
+}
+
+function filterContentByStatus(
+  items: DashboardContentSummary[],
+  status: string | undefined,
+): DashboardContentSummary[] {
+  if (status === undefined) return items;
+  return items.filter((item) => item.status === status);
 }
 
 function applyContentQuery(

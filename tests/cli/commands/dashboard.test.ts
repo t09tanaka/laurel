@@ -233,6 +233,27 @@ describe('dashboard data', () => {
     }
   });
 
+  test('exposes per-status counts that ignore the current status filter', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const unfiltered = await loadDashboardState({ cwd: dir, perPage: 10 });
+      expect(unfiltered.posts.statusCounts).toBeDefined();
+      const counts = unfiltered.posts.statusCounts;
+      if (!counts) throw new Error('statusCounts missing');
+      const totalReported = counts.draft + counts.published + counts.scheduled;
+      expect(counts.all).toBeGreaterThanOrEqual(totalReported);
+      expect(counts.all).toBe(unfiltered.posts.total);
+
+      const draftsOnly = await loadDashboardState({ cwd: dir, status: 'draft', perPage: 10 });
+      expect(draftsOnly.posts.items.every((item) => item.status === 'draft')).toBe(true);
+      expect(draftsOnly.posts.statusCounts?.all).toBe(counts.all);
+      expect(draftsOnly.posts.statusCounts?.draft).toBe(counts.draft);
+      expect(draftsOnly.posts.statusCounts?.published).toBe(counts.published);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('filters content by metadata slug search and status', async () => {
     const dir = await makeDashboardFixture();
     try {

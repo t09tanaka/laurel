@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { useEffect, useRef } from 'preact/hooks';
 
 interface ToolbarProps {
   query: string;
@@ -9,18 +10,54 @@ interface ToolbarProps {
 }
 
 export function Toolbar(props: ToolbarProps): JSX.Element {
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.matches('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const input = searchRef.current;
+      if (!input) return;
+      input.focus();
+      input.select();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div class="toolbar" aria-label="Dashboard tools">
       <label class="srOnly" for="search">
         Filter current view
       </label>
-      <input
-        class="search"
-        id="search"
-        placeholder="Filter current view"
-        value={props.query}
-        onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
-      />
+      <div class="searchWrap">
+        <span class="searchIcon" aria-hidden="true">
+          ⌕
+        </span>
+        <input
+          class="search"
+          id="search"
+          ref={searchRef}
+          placeholder="タイトル / slug / タグで絞り込み"
+          value={props.query}
+          onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && props.query) {
+              event.preventDefault();
+              props.onSearch('');
+            }
+          }}
+        />
+        <span class="searchHint" aria-hidden="true">
+          /
+        </span>
+      </div>
       <button class="btn secondary" id="refresh" onClick={props.onRefresh} type="button">
         Refresh
       </button>
