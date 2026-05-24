@@ -38,16 +38,20 @@ membership billing、real-time analytics、email sending。
 
 ## Information Architecture
 
-Top-level navigation:
+Top-level navigation (sidebar) は意図的に 3 項目に絞る。Authors / Tags は
+Settings 配下の Taxonomy サブビューとして再配置し、Sync は status rail で
+常時可視化することで sidebar を圧迫させない。
 
 | Section | Purpose | Subviews |
 | --- | --- | --- |
 | Posts | 記事の作業台 | All, Drafts, Scheduled, Published |
 | Pages | 固定ページの作業台 | All, Drafts, Published |
-| Authors | `content/authors` の実体管理 | All, Missing metadata, Unused |
-| Tags | `content/tags` と inferred tags の管理 | All, Described, Inferred, Unused |
-| Settings | サイトと build 設定 | Site, Content paths, Theme, Build, Sync, Advanced |
-| Sync | 外部編集と file-backed 状態 | Activity, Conflicts, Git, Build freshness |
+| Settings | サイト、build、taxonomy の集約 | Site, Theme, Authors, Tags, Build, Sync, Advanced |
+
+Authors / Tags は `/authors`、`/tags` の URL を維持しつつ、sidebar 上では
+Settings 配下のサブナビ (`Settings > Site` / `Authors` / `Tags`) として現れる。
+これにより既存リンクと bookmark を壊さず、IA は Ghost Admin の Site Settings
+に近い密度感を保てる。
 
 Posts / Pages 一覧は作成日基準の pagination を持つ。検索、状態 filter、sort は
 API foundation の後に段階導入する。左 nav は Ghost の高密度構造を参考にしつつ、
@@ -57,10 +61,12 @@ Nectar では file-backed state rail を常時表示する。
 
 ### Dashboard Home
 
-専用 Home は必須ではない。最初の安全な実装は Posts を初期表示にし、上部に
-sync/build/preview の compact status を置く。Home を作る場合は marketing hero ではなく、
-unpublished changes、recent file activity、build freshness、content health をまとめる
-作業開始面に限定する。
+専用 Home は持たない。`/` は Posts にリダイレクトし、sync/build/preview は
+sidebar の status rail に常時表示する。各 view top には作業内容を直接示す
+per-view header (kicker + 20px section title + 1 行 meta) だけを置き、巨大な
+site title hero や 4 個並ぶ stats カードは作らない。これは Ghost Admin の
+list-first density と note 系の calm typography を踏襲する判断で、画面の主役
+を当該リストや Settings panel に渡すための制約として運用する。
 
 ### Lists
 

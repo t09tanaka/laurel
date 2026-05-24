@@ -1409,14 +1409,44 @@ describe('dashboard data', () => {
     expect(html).not.toContain('allow-same-origin');
   });
 
+  test('slims the dashboard shell to three sidebar items, drops the hero, and removes the top stats', () => {
+    const html = renderDashboardHtml();
+
+    expect(html).toContain('class="viewHead"');
+    expect(html).toContain('id="viewTitle"');
+    expect(html).toContain('id="viewMeta"');
+    expect(html).not.toContain('class="top"');
+    expect(html).not.toContain('class="title" id="siteTitle"');
+    expect(html).not.toContain('class="sub" id="siteSub"');
+    expect(html).not.toContain('class="stats"');
+    expect(html).not.toContain('id="postCount"');
+    expect(html).not.toContain('id="pageCount"');
+    expect(html).not.toContain('id="authorCount"');
+    expect(html).not.toContain('id="tagCount"');
+
+    expect(html).toContain('id="navPostCount"');
+    expect(html).toContain('id="navPageCount"');
+    expect(html).toContain('id="navSettingsCount"');
+
+    expect(html).toContain('id="settingsSubnav"');
+    expect(html).toContain('data-subview="site"');
+    expect(html).toContain('data-subview="authors"');
+    expect(html).toContain('data-subview="tags"');
+    expect(html).toContain('dashboardShellSectionFor');
+    expect(html).toContain('dashboardSettingsSubviewFor');
+  });
+
   test('serves dashboard sections as independent pages', async () => {
     const html = renderDashboardHtml();
 
-    expect(html).toContain('href="/posts" data-view="posts"');
-    expect(html).toContain('href="/pages" data-view="pages"');
-    expect(html).toContain('href="/authors" data-view="authors"');
-    expect(html).toContain('href="/tags" data-view="tags"');
-    expect(html).toContain('href="/settings" data-view="settings"');
+    expect(html).toContain('href="/posts" data-view="posts" data-section="posts"');
+    expect(html).toContain('href="/pages" data-view="pages" data-section="pages"');
+    expect(html).toContain('href="/settings" data-view="settings" data-section="settings"');
+    expect(html).not.toContain('data-view="authors"');
+    expect(html).not.toContain('data-view="tags"');
+    expect(html).toContain('id="settingsSubnav"');
+    expect(html).toContain('href="/authors" data-subview="authors"');
+    expect(html).toContain('href="/tags" data-subview="tags"');
     expect(html).toContain('function initialViewFromPath');
     expect(html).toContain('function editorRouteFromPath');
     expect(html).toContain('function createRouteFromPath');
@@ -1491,8 +1521,10 @@ describe('dashboard data', () => {
     expect(html).toContain('.table{min-width:100%;table-layout:fixed}');
     expect(html).toContain('min-height:calc(100dvh - 48px)');
     expect(html).toContain('body.editorOpen .shell');
-    expect(html).toContain('.nav a span{display:inline;');
-    expect(html).toContain('.nav a.active,.nav a[aria-current=page]{color:var(--sidebar-ink)');
+    expect(html).toContain('.nav .navLabel{font-size:11px}');
+    expect(html).toContain(
+      '.nav a.active .navLabel,.nav a[aria-current=page] .navLabel{color:var(--sidebar-ink)}',
+    );
     expect(html).toContain('.table tbody td{border:0');
     expect(html).toContain("document.body.classList.add('editorOpen')");
     expect(html).toContain("document.body.classList.remove('editorOpen')");
@@ -1517,7 +1549,7 @@ describe('dashboard data', () => {
     expect(html).toContain('<section class="editor editorPage" id="editor"');
     expect(html).not.toContain('<aside class="editor"');
     expect(html).not.toContain('<section class="editor editorPage" id="editor" role="dialog"');
-    expect(html).toContain('body.editorOpen .top');
+    expect(html).toContain('body.editorOpen .viewHead');
     expect(html).toContain('body.editorOpen #contentPanel');
     expect(html).toContain('renderCreatePage');
     expect(html).toContain('id="createPage"');
