@@ -1,3 +1,4 @@
+import MarkdownIt from 'markdown-it';
 import type { JSX, Ref } from 'preact';
 import { useEffect, useImperativeHandle, useRef } from 'preact/hooks';
 import {
@@ -16,10 +17,12 @@ import { keymap } from 'prosemirror-keymap';
 import {
   MarkdownParser,
   MarkdownSerializer,
+  MarkdownSerializerState,
   defaultMarkdownParser,
   defaultMarkdownSerializer,
 } from 'prosemirror-markdown';
 import { type MarkSpec, type NodeType, Schema } from 'prosemirror-model';
+import { schema as basicSchema } from 'prosemirror-schema-basic';
 import {
   addListNodes,
   liftListItem,
@@ -27,7 +30,6 @@ import {
   splitListItem,
   wrapInList,
 } from 'prosemirror-schema-list';
-import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { type Command, EditorState, type Transaction } from 'prosemirror-state';
 import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
@@ -39,10 +41,15 @@ import { buildInputRules } from '../lib/prose-input-rules.ts';
 // inline marks (em / strong / link / code).
 const baseNodes = basicSchema.spec.nodes;
 const withList = addListNodes(baseNodes, 'paragraph block*', 'block');
+// `cellContent: 'inline*'` lets markdown's inline tokens (text, em,
+// strong, code, links) land directly inside `table_header` /
+// `table_cell` without forcing an extra paragraph wrapper — which
+// matches the GFM model and keeps serialise → parse → serialise
+// stable.
 const fullNodes = withList.append(
   tableNodes({
     tableGroup: 'block',
-    cellContent: 'block+',
+    cellContent: 'inline*',
     cellAttributes: {},
   }),
 );
@@ -67,28 +74,28 @@ function node(name: string): NodeType {
 }
 
 // Markdown parser adapted to the wider schema. prosemirror-markdown
-// doesn't ship built-in token handlers for tables or strikethrough,
-// so we wire the relevant markdown-it tokens here.
-const parserTokens = { ...defaultMarkdownParser.tokens };
-parserTokens.table_open = { block: 'table' };
-parserTokens.thead_open = { ignore: true };
-parserTokens.thead_close = { ignore: true };
-parserTokens.tbody_open = { ignore: true };
-parserTokens.tbody_close = { ignore: true };
-parserTokens.tr_open = { block: 'table_row' };
-parserTokens.tr_close = { ignore: true };
-parserTokens.th_open = { block: 'table_header' };
-parserTokens.th_close = { ignore: true };
-parserTokens.td_open = { block: 'table_cell' };
-parserTokens.td_close = { ignore: true };
-parserTokens.s_open = { mark: 'strikethrough' };
-parserTokens.s_close = { mark: 'strikethrough' };
+// doesn't ship built-in token handlers for tables or strikethrough.
+// NOTE: prosemirror-markdown keys block / mark specs by the *base*
+// token name (e.g. `table`, `tr`) and auto-derives `_open` / `_close`
+// handlers from it — wiring `table_open` directly would never match.
+const parserTokens = {
+  ...defaultMarkdownParser.tokens,
+  table: { block: 'table' },
+  thead: { ignore: true },
+  tbody: { ignore: true },
+  tr: { block: 'table_row' },
+  th: { block: 'table_header' },
+  td: { block: 'table_cell' },
+  s: { mark: 'strikethrough' },
+};
 
-export const markdownParser = new MarkdownParser(
-  proseSchema,
-  defaultMarkdownParser.tokenizer,
-  parserTokens,
-);
+// prosemirror-markdown's `defaultMarkdownParser` is built on the
+// `commonmark` preset, which leaves the GFM `table` rule turned OFF.
+// Run our own MarkdownIt instance with `table` re-enabled so the
+// tokens above actually fire.
+const markdownTokenizer = MarkdownIt('commonmark', { html: false }).enable(['table']);
+
+export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer, parserTokens);
 
 // Tables don't have a stock markdown serializer either. We walk rows
 // and cells, serialise each cell's inline children with the default
@@ -96,10 +103,12 @@ export const markdownParser = new MarkdownParser(
 const baseSerializer = defaultMarkdownSerializer;
 
 function serializeCell(cell: import('prosemirror-model').Node): string {
-  const inner = new MarkdownSerializer(baseSerializer.nodes, baseSerializer.marks)
-    .serialize(cell)
-    .replace(/\n+/g, ' ')
-    .trim();
+  // Cells hold inline content directly. `MarkdownSerializer.serialize`
+  // delegates to `renderContent`, which doesn't apply marks — we need
+  // `renderInline` so emphasis / code / link marks survive the trip.
+  const state = new MarkdownSerializerState(baseSerializer.nodes, baseSerializer.marks, {});
+  state.renderInline(cell);
+  const inner = state.out.replace(/\n+/g, ' ').trim();
   return inner.length === 0 ? ' ' : inner.replace(/\|/g, '\\|');
 }
 
