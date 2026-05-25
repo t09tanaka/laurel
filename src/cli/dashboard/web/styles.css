@@ -926,18 +926,21 @@
     padding: 5px 8px;
     text-align: center;
   }
+  /* Warning count badge — visually a member of the pill family but
+   * inline-only, no bg, just dot + count. Reads as "footnote" not "chip". */
   .warnDot {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     color: var(--danger);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
   }
   .warnDotMark {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: var(--danger);
   }
@@ -1018,30 +1021,41 @@
     color: var(--text-muted);
     font-weight: 700;
   }
-  .pill,
-  .warnBadge {
+  /* Single Badge family. All pills share shape + type metrics; only the
+   * intent (info / success / warn / danger) varies bg + text color. Two
+   * variants supported: solid (default) and subtle (outline). */
+  .pill {
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
     padding: 2px 9px;
     font-size: 11px;
     line-height: 17px;
-    letter-spacing: -0.002em;
+    letter-spacing: 0;
     white-space: nowrap;
     font-weight: 500;
-  }
-  .pill {
+    /* Default intent = success (greeted state, e.g. "published"). */
     background: var(--success-subdued);
     color: var(--success);
+    border: 1px solid transparent;
   }
-  .pill.draft {
-    background: var(--caution-subdued);
+  .pill.draft,
+  .pill.warn {
+    background: var(--warning-subdued, var(--caution-subdued));
     color: var(--caution);
   }
-  .warnBadge {
+  .pill.danger {
     background: var(--danger-subdued);
     color: var(--danger);
-    margin-top: 6px;
+  }
+  .pill.info {
+    background: var(--reaction);
+    color: var(--text-secondary);
+  }
+  .pill.subtle {
+    background: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border-default);
   }
   .meta {
     color: var(--text-muted);

@@ -47,7 +47,11 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                   </td>
                   <td>{item.count}</td>
                   <td>
-                    <span class={`pill ${item.source === 'generated' ? 'draft' : ''}`}>
+                    <span
+                      class={`pill ${
+                        item.orphaned ? 'danger' : item.source === 'generated' ? 'info' : 'subtle'
+                      }`}
+                    >
                       {item.source ?? 'file'}
                       {item.orphaned ? ' · orphaned' : ''}
                     </span>

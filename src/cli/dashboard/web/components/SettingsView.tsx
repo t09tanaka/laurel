@@ -464,7 +464,7 @@ function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
                 <span class="settingsCardSection">{card.section}</span>
               </div>
               <span
-                class={`pill ${card.status === 'warn' || card.status === 'danger' ? 'draft' : ''}`}
+                class={`pill ${card.status === 'danger' ? 'danger' : card.status === 'warn' ? 'warn' : ''}`}
               >
                 {modeLabel(card.mode)}
               </span>

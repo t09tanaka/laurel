@@ -274,7 +274,9 @@ interface ApprovalPillProps {
 function ApprovalPill({ approval, compact }: ApprovalPillProps): JSX.Element {
   const state = approval?.status ?? 'needs-approval';
   const label = state === 'approved' ? 'Approved' : state === 'stale' ? 'Stale' : 'Needs approval';
-  const cls = state === 'approved' ? '' : 'draft';
+  // Secondary metadata — render as subtle outline so the primary status pill
+  // (published / draft / scheduled) stays the visual anchor on each row.
+  const cls = state === 'approved' ? 'subtle' : state === 'stale' ? 'warn' : 'warn';
   return (
     <span class={`pill ${cls} ${compact ? 'pillCompact' : ''}`} data-approval={state}>
       {label}
