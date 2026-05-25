@@ -2209,6 +2209,14 @@
     background: var(--background-secondary);
     color: var(--text-muted);
   }
+  /* Hide the "READY" idle state — confirmation has no information. */
+  .saveChipIdle {
+    visibility: hidden;
+    width: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
   .saveChip {
     display: inline-flex;
     align-items: center;

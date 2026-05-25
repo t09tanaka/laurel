@@ -396,7 +396,15 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           </span>
         </div>
         <div class="editorFocusBar">
-          <span class="saveChip" data-state={saveState} aria-live="polite">
+          {/* saveChip hidden in idle state — "READY" was visual noise
+           * for the default condition. It surfaces only when the writer
+           * needs to know something happened (dirty / saving / saved /
+           * error). */}
+          <span
+            class={`saveChip${saveState === 'idle' ? ' saveChipIdle' : ''}`}
+            data-state={saveState}
+            aria-live="polite"
+          >
             {SAVE_CHIP_LABEL[saveState]}
           </span>
           <button
