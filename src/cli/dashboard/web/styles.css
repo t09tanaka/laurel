@@ -597,15 +597,14 @@
     border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
   .sideFooterSettings {
-    flex: 1;
     display: inline-flex;
     align-items: center;
-    padding: 7px 12px;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border-radius: 6px;
     color: var(--sidebar-muted);
-    font-size: 13.5px;
-    font-weight: 500;
-    letter-spacing: -0.003em;
     text-decoration: none;
     transition: background-color 0.12s ease, color 0.12s ease;
   }
@@ -616,54 +615,27 @@
   .sideFooterSettings.active {
     color: var(--sidebar-ink);
     background: rgba(255, 255, 255, 0.06);
-    /* Match the nav active rail — warm cream rather than --brand
-     * green so it sits in the same palette as Posts / Pages active. */
-    box-shadow: inset 2px 0 0 var(--sidebar-ink);
-    border-radius: 0 6px 6px 0;
-    padding-left: 14px;
+    box-shadow: none;
+    border-radius: 6px;
+    padding: 0;
   }
-  /* Footer "View site" link — peer to Settings, opens the published
-   * URL in a new tab. Italic-serif label + small ↗ glyph that lifts
-   * on hover. */
+  /* Footer "View site" link — icon-only peer to the gear icon. */
   .sideFooterSite {
     display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-    padding: 6px 0;
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 13px;
-    line-height: 1.2;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     color: var(--sidebar-muted, color-mix(in srgb, var(--sidebar-ink) 60%, transparent));
     text-decoration: none;
-    transition: color 0.16s ease;
-    min-width: 0;
+    transition: color 0.16s ease, background 0.16s ease;
   }
   .sideFooterSite:hover,
   .sideFooterSite:focus-visible {
     color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.06);
     outline: none;
-  }
-  .sideFooterSite:hover .sideFooterSiteLabel,
-  .sideFooterSite:focus-visible .sideFooterSiteLabel {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-decoration-thickness: 1px;
-  }
-  .sideFooterSiteLabel {
-    white-space: nowrap;
-  }
-  .sideFooterSiteMark {
-    font-style: normal;
-    font-size: 11px;
-    line-height: 1;
-    opacity: 0.65;
-    transition: transform 0.16s ease, opacity 0.16s ease;
-  }
-  .sideFooterSite:hover .sideFooterSiteMark,
-  .sideFooterSite:focus-visible .sideFooterSiteMark {
-    opacity: 1;
-    transform: translate(1px, -1px);
   }
   .syncPip {
     width: 22px;

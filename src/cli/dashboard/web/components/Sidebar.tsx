@@ -113,6 +113,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           href="/settings"
           class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
           aria-current={props.section === 'settings' ? 'page' : undefined}
+          aria-label="Settings"
+          title="Settings"
           onClick={(event) => {
             event.preventDefault();
             props.onNavigate('settings');
@@ -121,8 +123,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <svg
             class="sideFooterIcon"
             viewBox="0 0 16 16"
-            width="14"
-            height="14"
+            width="16"
+            height="16"
             aria-hidden="true"
           >
             <circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3" />
@@ -134,7 +136,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               fill="none"
             />
           </svg>
-          <span>Settings</span>
         </a>
         {(() => {
           const host = hostnameOf(props.siteUrl);
@@ -146,10 +147,24 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               target="_blank"
               rel="noreferrer noopener"
               aria-label={`Open published site at ${host}`}
-              title={host}
+              title={`View site · ${host}`}
             >
-              <span class="sideFooterSiteLabel">View site</span>
-              <span class="sideFooterSiteMark" aria-hidden="true">↗</span>
+              <svg
+                class="sideFooterIcon"
+                viewBox="0 0 16 16"
+                width="16"
+                height="16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9.5 3.5h3v3M12.3 3.7L7 9M6 4.5H4.2c-.55 0-1 .45-1 1v6.3c0 .55.45 1 1 1h6.3c.55 0 1-.45 1-1V10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </a>
           );
         })()}
