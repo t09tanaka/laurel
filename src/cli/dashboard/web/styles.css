@@ -188,17 +188,13 @@
   body.createOpen .shell {
     min-height: 100vh;
   }
-  /* When the editor is open, the writing surface is the page's purpose.
-   * Drop the list-page main-width cap and let the editor define its own
-   * column (bodyWrap/titleBlock at 820px auto-centered). The page header,
-   * which the editor hides anyway, still benefits from this on the rare
-   * fallback case. */
+  /* When the editor is open, the writing surface IS the page. Drop the
+   * list-page main-width cap entirely; let the .editorCanvas (max-width
+   * 1600px, internal margin auto) define the writing column itself. */
   body.editorOpen .main {
     max-width: none;
-    padding: 40px max(48px, calc((100vw - var(--sidebar-width) - 820px) / 2 - 24px)) 56px;
+    padding: 24px 48px 48px;
   }
-  /* The top "path + buttons" row also gets the full padded width via
-   * the .main rule above — no extra centering needed. */
   body.editorOpen .viewHead,
   body.editorOpen .subnav,
   body.editorOpen #contentPanel {
@@ -1984,10 +1980,10 @@
    * on the right. Sidebar sticks while body scrolls. */
   .editorCanvas {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 240px;
-    gap: 32px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 40px;
     align-items: start;
-    max-width: 1320px;
+    max-width: 1600px;
     margin: 0 auto;
   }
   .editorMain {
@@ -1997,12 +1993,23 @@
     position: sticky;
     top: 24px;
     display: grid;
-    gap: 28px;
+    gap: 0;
     min-width: 0;
+    padding: 4px 0;
   }
+  /* Each metadata stanza is a grouped block separated by a hairline rule.
+   * Label sits italic-serif on top, control directly underneath. */
   .editorMetaSection {
     display: grid;
     gap: 8px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .editorMetaSection:first-child {
+    padding-top: 0;
+  }
+  .editorMetaSection:last-child {
+    border-bottom: 0;
   }
   .editorMetaLabel {
     font-family: var(--font-serif);
@@ -2012,35 +2019,43 @@
     color: var(--text-muted);
     letter-spacing: 0;
   }
-  /* Sidebar text input — same minimal aesthetic as the title input,
-   * sized for the 240px column. */
+  /* Sidebar input — refined, not a default browser chip. Subtle border,
+   * roomy padding, ink-on-focus. */
   .editorMetaInput {
     width: 100%;
     border: 1px solid var(--border-default);
-    border-radius: 4px;
-    padding: 6px 10px;
+    border-radius: 6px;
+    padding: 9px 12px;
     background: var(--surface-normal);
     color: var(--text-primary);
-    font-size: 12.5px;
+    font-family: var(--font-sans);
+    font-size: 13px;
     line-height: 1.4;
     letter-spacing: -0.003em;
+    box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .editorMetaInput:hover {
+    border-color: var(--border-strong);
   }
   .editorMetaInput:focus {
     border-color: var(--text-primary);
     outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
   }
-  /* Status select inside the metadata sidebar — full-width pill that
-   * sits comfortably in the 260px column. */
+  .editorMetaSlugInput {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+  /* Status select sized to the 280px sidebar — full-width control with
+   * the same border + focus treatment as the slug input. */
   .editorMetaStatus {
     width: 100%;
     text-align: left;
-    background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
-    padding-right: 24px;
   }
-  /* Sidebar feature image zone — narrower than the previous full-width
-   * version, fits the 260px column. */
+  /* Sidebar feature image zone — fits the 280px column. */
   .editorMeta .featureImageZone {
-    max-width: 260px;
+    max-width: 280px;
     min-height: 90px;
     margin: 0;
     padding: 12px;
@@ -2601,31 +2616,35 @@
   }
   .statusPill {
     flex: 0 0 auto;
-    height: 28px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--text-muted);
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
+    height: 36px;
+    padding: 0 30px 0 12px;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-weight: 500;
     font-size: 13px;
     line-height: 1;
-    letter-spacing: 0;
+    letter-spacing: -0.003em;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
     background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
       linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
-    padding-right: 26px;
-    transition: color 0.12s ease;
+    box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
   }
   .statusPill:hover {
-    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .statusPill:focus {
+    border-color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
   }
   .statusPill:disabled {
     opacity: 0.6;
