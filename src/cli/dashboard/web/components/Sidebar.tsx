@@ -113,8 +113,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           href="/settings"
           class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
           aria-current={props.section === 'settings' ? 'page' : undefined}
-          aria-label="Settings"
-          title="Settings"
           onClick={(event) => {
             event.preventDefault();
             props.onNavigate('settings');
@@ -123,8 +121,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <svg
             class="sideFooterIcon"
             viewBox="0 0 16 16"
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             aria-hidden="true"
           >
             <circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3" />
@@ -136,6 +134,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               fill="none"
             />
           </svg>
+          <span>Settings</span>
         </a>
         {(() => {
           const host = hostnameOf(props.siteUrl);

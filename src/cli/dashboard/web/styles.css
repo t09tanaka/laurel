@@ -597,14 +597,16 @@
     border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
   .sideFooterSettings {
+    flex: 1;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
+    gap: 8px;
+    padding: 7px 12px;
     border-radius: 6px;
     color: var(--sidebar-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-decoration: none;
     transition: background-color 0.12s ease, color 0.12s ease;
   }
@@ -615,9 +617,9 @@
   .sideFooterSettings.active {
     color: var(--sidebar-ink);
     background: rgba(255, 255, 255, 0.06);
-    box-shadow: none;
-    border-radius: 6px;
-    padding: 0;
+    box-shadow: inset 2px 0 0 var(--sidebar-ink);
+    border-radius: 0 6px 6px 0;
+    padding-left: 14px;
   }
   /* Footer "View site" link — icon-only peer to the gear icon. */
   .sideFooterSite {
