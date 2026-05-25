@@ -140,15 +140,17 @@ export function DashboardApp(): JSX.Element {
   useEffect(() => {
     if (INITIAL_ROUTE.editor && !editor) {
       void (async () => {
+        const initialEditor = INITIAL_ROUTE.editor;
+        if (!initialEditor) return;
         try {
-          if (!INITIAL_ROUTE.editor) return;
-          const item = await fetchContent(INITIAL_ROUTE.editor.kind, INITIAL_ROUTE.editor.slug);
+          const item = await fetchContent(initialEditor.kind, initialEditor.slug);
           setEditor(item);
           dispatch({ type: 'view/set', view: item.kind });
-        } catch (err) {
-          dispatch({
-            type: 'load/error',
-            message: err instanceof Error ? err.message : String(err),
+        } catch {
+          toastHost.api.push({
+            kind: 'error',
+            title: 'Not found',
+            body: `No ${initialEditor.kind === 'pages' ? 'page' : initialEditor.kind === 'authors' ? 'author' : initialEditor.kind === 'tags' ? 'tag' : 'post'} "${initialEditor.slug}".`,
           });
         }
       })();
@@ -178,7 +180,16 @@ export function DashboardApp(): JSX.Element {
           try {
             const item = await fetchContent(routeEditor.kind, routeEditor.slug);
             setEditor(item);
-          } catch {}
+          } catch {
+            // Surface a toast so direct hits on a removed / renamed
+            // slug aren't silent (#2091). URL is left intact so the
+            // user can correct it; the list fallback covers display.
+            toastHost.api.push({
+              kind: 'error',
+              title: 'Not found',
+              body: `No ${routeEditor.kind === 'pages' ? 'page' : routeEditor.kind === 'authors' ? 'author' : routeEditor.kind === 'tags' ? 'tag' : 'post'} "${routeEditor.slug}".`,
+            });
+          }
         })();
       }
     }

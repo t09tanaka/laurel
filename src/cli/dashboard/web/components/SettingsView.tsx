@@ -220,7 +220,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
         </div>
         <button
           type="button"
-          class="btn secondary"
+          class="btn secondary btnCompact"
           onClick={() => setUploadOpen(true)}
         >
           Upload
