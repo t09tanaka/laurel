@@ -417,12 +417,13 @@
   .nav a.active,
   .nav a[aria-current="page"] {
     /* Refined active state — thin warm-cream bg + sharp left rule + ink
-     * label. Less heavy than the previous floating white card; signals
-     * "selected" via geometry, not via shadow theatre. */
+     * label. The rule uses sidebar-ink (warm cream) rather than --brand
+     * (green) so it sits in the same warm palette as the rest of the
+     * sidebar instead of floating above it. */
     background: rgba(255, 255, 255, 0.06);
     color: var(--sidebar-ink);
     font-weight: 500;
-    box-shadow: inset 2px 0 0 var(--brand);
+    box-shadow: inset 2px 0 0 var(--sidebar-ink);
     border-radius: 0 6px 6px 0;
     padding-left: 14px;
   }
@@ -2261,29 +2262,34 @@
    * width: 100% is needed because editorPage is itself a grid container
    * whose items don't justify-stretch by default in every browser. */
   .editorCanvas {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 40px;
-    align-items: start;
+    /* Block layout (no grid) so the metadata aside can pin to the
+     * viewport's right edge via position: fixed instead of being
+     * constrained to a grid column inside the centered editor. */
+    display: block;
     max-width: 1600px;
     width: 100%;
     margin: 0 auto;
+    /* Reserve room on the right for the fixed metadata aside so the
+     * main writing column never slides under it. */
+    padding-right: 320px;
   }
   .editorMain {
     min-width: 0;
   }
   .editorMeta {
-    position: sticky;
-    /* Clears the editor header (≈64px) plus a breathing margin so the
-     * sidebar floats just below the top bar on long-form bodies. */
+    /* Pin the metadata column to the right edge of the viewport so
+     * it stays available no matter how the editor scrolls. */
+    position: fixed;
     top: 84px;
-    align-self: start;
+    right: 24px;
+    width: 280px;
     max-height: calc(100vh - 100px);
     overflow-y: auto;
     display: grid;
     gap: 0;
     min-width: 0;
     padding: 4px 4px 4px 0;
+    z-index: 5;
   }
   /* Each metadata stanza is a grouped block separated by a hairline rule.
    * Label sits italic-serif on top, control directly underneath. */
@@ -2447,11 +2453,15 @@
   }
   @media (max-width: 940px) {
     .editorCanvas {
-      grid-template-columns: 1fr;
-      gap: 24px;
+      padding-right: 0;
     }
     .editorMeta {
       position: static;
+      width: auto;
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+      display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
