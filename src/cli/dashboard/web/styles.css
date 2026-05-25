@@ -1394,8 +1394,6 @@
   }
   .listHeadCountLabel {
     color: var(--text-muted);
-  }
-  .listHeadCountLabel {
     font-variant-numeric: tabular-nums;
   }
   .statusTabs {
