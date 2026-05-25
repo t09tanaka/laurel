@@ -13,7 +13,7 @@ tags:
   - news
   - getting-started
 title: Hello, Nectar
-updated_at: 2026-05-25T04:14:00.639Z
+updated_at: 2026-05-25T04:24:23.572Z
 ---
 
 Welcome to **Nectar** — a static site generator built around Ghost themes and
@@ -33,3 +33,5 @@ Markdown content.
 
 > Nectar is the substance bees turn into honey. We thought it was a fitting
 > name for the substrate a Ghost theme turns into a blog.
+
+

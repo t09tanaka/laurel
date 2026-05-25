@@ -179,8 +179,25 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     });
   }
 
+  /* Upload an image and set it as the post/page feature image. */
+  async function uploadFeatureImage(file: File): Promise<void> {
+    setNotice(`Uploading feature image ${file.name || ''}…`);
+    const result = await uploadImage(file);
+    if (!result.ok) {
+      setNotice(`Feature image upload failed — ${result.error}`);
+      return;
+    }
+    setNotice('');
+    const altFromName = (file.name || 'feature image').replace(/\.[^.]+$/, '');
+    patchSnapshot({
+      featureImage: result.path,
+      featureImageAlt: snapshot.featureImageAlt || altFromName,
+    });
+  }
+
   /* Upload an image to /content/images/ and insert a Markdown image
-   * reference at the caret. Used by paste + drag-drop on the body. */
+   * reference at the caret. Used by paste + drag-drop on the body
+   * and by the body toolbar's Image button. */
   async function insertUploadedImage(file: File): Promise<void> {
     setNotice(`Uploading ${file.name || 'image'}…`);
     const result = await uploadImage(file);
@@ -482,6 +499,68 @@ export function EditorView(props: EditorViewProps): JSX.Element {
         </div>
       </div>
       <div class="editorScroll">
+        {/* Feature image zone — always visible above the title so
+         * uploading the hero image doesn't require digging into More
+         * metadata. Click anywhere to pick a file; drag/drop also works. */}
+        {isContent ? (
+          <label
+            class={`featureImageZone${snapshot.featureImage ? ' filled' : ''}`}
+            aria-label="Feature image — click or drop to upload"
+            onDragOver={(event) => {
+              if (event.dataTransfer?.types?.includes('Files')) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }
+            }}
+            onDrop={(event) => {
+              const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (!file) return;
+              event.preventDefault();
+              void uploadFeatureImage(file);
+            }}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              class="srOnly"
+              onChange={(event) => {
+                const file = (event.currentTarget as HTMLInputElement).files?.[0];
+                if (file) void uploadFeatureImage(file);
+              }}
+            />
+            {snapshot.featureImage ? (
+              <>
+                <img
+                  src={snapshot.featureImage}
+                  alt={snapshot.featureImageAlt || 'Feature image'}
+                  class="featureImagePreview"
+                />
+                <span class="featureImageHint">Click or drop to replace</span>
+                <button
+                  type="button"
+                  class="featureImageRemove"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    patchSnapshot({
+                      featureImage: '',
+                      featureImageAlt: '',
+                      featureImageCaption: '',
+                    });
+                  }}
+                  title="Remove feature image"
+                >
+                  Remove
+                </button>
+              </>
+            ) : (
+              <span class="featureImageEmpty">
+                <em>Feature image</em> — click or drop a file
+              </span>
+            )}
+          </label>
+        ) : null}
         <div class="titleBlock">
           <input
             class="titleInput"
@@ -512,6 +591,52 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             <option>scheduled</option>
           </select>
         </div>
+        {/* Body toolbar — visible formatting + image insert. Keeps the
+         * paste / drag-drop affordances discoverable. */}
+        {isContent ? (
+          <div class="bodyToolbar" aria-label="Body formatting">
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('**', '**')}
+              title="Bold (⌘B)"
+            >
+              <b>B</b>
+            </button>
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('_', '_')}
+              title="Italic (⌘I)"
+            >
+              <i>I</i>
+            </button>
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('[', '](url)')}
+              title="Link"
+            >
+              Link
+            </button>
+            <label class="bodyToolbarBtn bodyToolbarImage" title="Insert image">
+              <input
+                type="file"
+                accept="image/*"
+                class="srOnly"
+                onChange={(event) => {
+                  const file = (event.currentTarget as HTMLInputElement).files?.[0];
+                  if (file) void insertUploadedImage(file);
+                  (event.currentTarget as HTMLInputElement).value = '';
+                }}
+              />
+              Image
+            </label>
+            <span class="bodyToolbarHint">
+              <em>or paste / drop an image directly into the body</em>
+            </span>
+          </div>
+        ) : null}
         <div class="bodyWrap">
           <textarea
             id="editBody"

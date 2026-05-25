@@ -2288,6 +2288,152 @@
     border-bottom: 1px solid var(--border-weak);
     padding-bottom: 1px;
   }
+  /* Feature image upload zone — always visible at the top of the editor
+   * so it doesn't hide behind a metadata details panel. Click anywhere
+   * to pick a file; drag/drop also works. */
+  .featureImageZone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 820px;
+    min-height: 120px;
+    margin: 0 auto 24px;
+    padding: 20px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    text-align: center;
+    background: transparent;
+    transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+    position: relative;
+  }
+  .featureImageZone:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+  .featureImageZone.filled {
+    border: 0;
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+  }
+  .featureImageZone.filled:hover {
+    background: transparent;
+  }
+  .featureImageEmpty {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: 0;
+  }
+  .featureImageEmpty em {
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-right: 4px;
+  }
+  .featureImagePreview {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 360px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  .featureImageHint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-normal) 92%, transparent);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+  }
+  .featureImageZone.filled:hover .featureImageHint {
+    opacity: 1;
+  }
+  .featureImageRemove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--surface-normal) 92%, transparent);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
+  }
+  .featureImageZone.filled:hover .featureImageRemove {
+    opacity: 1;
+  }
+  .featureImageRemove:hover {
+    background: var(--surface-normal);
+    color: var(--text-primary);
+  }
+  /* Body formatting toolbar — sits just above the textarea inside the
+   * writing column. Frameless buttons that match the editorial voice. */
+  .bodyToolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 820px;
+    margin: 0 auto 8px;
+    padding: 0;
+  }
+  .bodyToolbarBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .bodyToolbarBtn:hover {
+    background: var(--reaction);
+    color: var(--text-primary);
+  }
+  .bodyToolbarBtn b {
+    font-weight: 700;
+  }
+  .bodyToolbarBtn i {
+    font-style: italic;
+    font-family: var(--font-serif);
+    font-size: 15px;
+  }
+  .bodyToolbarHint {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+  .bodyToolbarHint em {
+    font-style: italic;
+  }
+  .bodyToolbarImage {
+    cursor: pointer;
+  }
   /* Inline body statistics — words, chars, estimated read time. Reads as
    * a footnote under the writing surface, never competing for attention. */
   .bodyStats {
@@ -2444,9 +2590,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 16px;
-    font: 500 13px / 1 var(--font-sans);
-    letter-spacing: -0.003em;
+    padding: 14px 0;
+    /* Italic serif so the disclosure reads like a "see also" section
+     * marker, visible without being a UI button. */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: 0;
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
