@@ -2535,27 +2535,26 @@
     height: 100%;
     min-height: 0;
   }
-  /* Two-column editor canvas — writing on the left, metadata sidebar
-   * on the right. Sidebar sticks while body scrolls.
-   * width: 100% is needed because editorPage is itself a grid container
-   * whose items don't justify-stretch by default in every browser. */
+  /* Editor canvas — the metadata aside (.editorMeta) is position: fixed
+   * to the viewport's right edge, so we always reserve a right gutter
+   * (280 aside + 24 right gutter = 304) to keep the body from running
+   * underneath it. The left gutter scales with viewport: at wide
+   * widths it matches the right reservation so the writing column
+   * lands near the viewport's optical centre, but it collapses to 0
+   * once the viewport drops below 1264px (= 960 body + 304 aside) so
+   * the body can keep its full width instead of being squeezed. */
   .editorCanvas {
-    /* Block layout (no grid) so the metadata aside can pin to the
-     * viewport's right edge via position: fixed instead of being
-     * constrained to a grid column inside the centered editor.
-     * Symmetric horizontal padding (320 = 280 metadata + 40 gutter)
-     * so the main writing column lands visually under the editor's
-     * top-row centre, with the metadata column anchored to the
-     * mirror image on the right. */
     display: block;
     max-width: 1600px;
     width: 100%;
     margin: 0 auto;
-    padding-left: 320px;
-    padding-right: 320px;
+    padding-left: clamp(0px, calc(100vw - 1264px), 304px);
+    padding-right: 304px;
   }
   .editorMain {
     min-width: 0;
+    max-width: 960px;
+    margin: 0 auto;
   }
   /* Author / Tag editor — editorial colophon page. Large italic
    * display name, bottom-rule columns of credits, paper-textured
