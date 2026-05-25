@@ -1,6 +1,6 @@
 ---
 title: "Migrating from Ghost"
-slug: migrating-from-ghost
+slug: migrating-from-ghost2
 date: 2026-05-15T11:30:00Z
 authors: [honeybee]
 tags: [migration, getting-started]
