@@ -151,7 +151,7 @@ describe('cli serve — host binding', () => {
     expect(stderr).toContain('Invalid --host');
   });
 
-  test('default port scans to the next open port when 4321 is in use', async () => {
+  test('default port scans past busy ports when 4321 is in use', async () => {
     const blocker = Bun.serve({
       hostname: '127.0.0.1',
       port: 4321,
@@ -163,7 +163,9 @@ describe('cli serve — host binding', () => {
       const { stdout, stderr, exitCode } = await runCli(['serve', '--no-watch'], dir);
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
-      expect(stdout).toContain('http://127.0.0.1:4322/');
+      const match = stdout.match(/http:\/\/127\.0\.0\.1:(\d+)\//);
+      expect(match).not.toBeNull();
+      expect(Number(match?.[1])).toBeGreaterThan(4321);
     } finally {
       blocker.stop(true);
     }

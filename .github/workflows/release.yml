@@ -83,7 +83,7 @@ jobs:
         run: bun run typecheck
 
       - name: Unit tests
-        run: bun test
+        run: bun run test
 
   build:
     name: build (${{ matrix.artifact }})

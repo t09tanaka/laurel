@@ -8,12 +8,12 @@ feature_image_alt: A bee carrying a roll of parchment
 feature_image_caption: Cover art by Casper.
 featured: true
 slug: hello-nectar
-status: draft
+status: published
 tags:
   - news
   - getting-started
 title: Hello, Nectar
-updated_at: 2026-05-25T04:42:58.655Z
+updated_at: 2026-05-19T09:00:00.000Z
 ---
 
 Welcome to **Nectar** — a static site generator built around Ghost themes and
@@ -33,5 +33,4 @@ Markdown content.
 
 > Nectar is the substance bees turn into honey. We thought it was a fitting
 > name for the substrate a Ghost theme turns into a blog.
-
 
