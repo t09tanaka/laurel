@@ -17,7 +17,26 @@ import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import { type Mark, type MarkType, type NodeType, type ResolvedPos, type Schema } from 'prosemirror-model';
 import { wrapInList } from 'prosemirror-schema-list';
 import { Plugin, type EditorState } from 'prosemirror-state';
+import {
+  addColumnAfter,
+  addRowAfter,
+  deleteColumn,
+  deleteRow,
+  deleteTable,
+} from 'prosemirror-tables';
 import { type EditorView } from 'prosemirror-view';
+
+// True iff the selection sits anywhere inside a table_cell or
+// table_header. Used to gate the contextual table-action buttons
+// (add row / column, drop row / column, drop table).
+function isInTable(state: EditorState): boolean {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const name = $from.node(depth).type.name;
+    if (name === 'table_cell' || name === 'table_header') return true;
+  }
+  return false;
+}
 
 function activeBlockType(state: EditorState): { name: string; attrs: Record<string, unknown> } {
   const { $from } = state.selection;
@@ -168,7 +187,7 @@ function currentLinkHref(state: EditorState, linkType: MarkType): string | null 
   return href;
 }
 
-type BubbleScope = 'always' | 'range';
+type BubbleScope = 'always' | 'range' | 'table';
 
 interface BubbleButton {
   label: string;
@@ -176,7 +195,8 @@ interface BubbleButton {
   mark?: string;
   /** When this button is meaningful. 'range' = only with a non-empty
    * selection. 'always' = also when the cursor sits inside an
-   * existing inline mark. */
+   * existing inline mark. 'table' = only when the selection is inside
+   * a table cell. */
   scope?: BubbleScope;
   run?: (view: EditorView, ctx: { openLinkEditor: () => void }) => void;
   active?: (state: EditorState) => boolean;
@@ -363,6 +383,12 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         v.dispatch(v.state.tr.replaceSelectionWith(hr.create()).scrollIntoView());
         v.focus();
       };
+      // Thin wrappers so prosemirror-tables commands re-focus the
+      // editor (otherwise mousedown handoff keeps focus on the bubble).
+      const runTable = (cmd: typeof addRowAfter) => (v: EditorView) => {
+        cmd(v.state, v.dispatch);
+        v.focus();
+      };
 
       const buttons: BubbleButton[] = [
         { label: 'B', title: 'Bold (⌘B) — click again to clear', mark: 'strong', scope: 'always' },
@@ -440,6 +466,13 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
           scope: 'range',
           run: insertHr,
         },
+        // Table-only contextual buttons. Visibility gated by
+        // isInTable(state) in the update loop below.
+        { label: '+Row', title: 'Add row below', scope: 'table', run: runTable(addRowAfter) },
+        { label: '+Col', title: 'Add column right', scope: 'table', run: runTable(addColumnAfter) },
+        { label: '−Row', title: 'Delete row', scope: 'table', run: runTable(deleteRow) },
+        { label: '−Col', title: 'Delete column', scope: 'table', run: runTable(deleteColumn) },
+        { label: 'Drop Tbl', title: 'Delete table', scope: 'table', run: runTable(deleteTable) },
         {
           label: 'Clear',
           title: 'Remove formatting at the cursor or selection',
@@ -506,7 +539,8 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         const state = currentView.state;
         const { from, to, empty } = state.selection;
         const focused = currentView.hasFocus() || mode === 'link';
-        const shouldShow = focused && (!empty || anyMarksHere(state) || mode === 'link');
+        const shouldShow =
+          focused && (!empty || anyMarksHere(state) || mode === 'link' || isInTable(state));
         if (!shouldShow) {
           root.style.visibility = 'hidden';
           root.style.pointerEvents = 'none';
@@ -542,11 +576,17 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         // previous frame's wider row, which throws the centering math
         // off by ~80–120px.
         const hasRange = !empty;
+        const inTable = isInTable(state);
         for (let i = 0; i < buttons.length; i += 1) {
           const b = buttons[i];
           const btn = btns[i];
           if (!b || !btn) continue;
-          const visible = b.scope === 'range' ? hasRange : true;
+          const visible =
+            b.scope === 'range'
+              ? hasRange
+              : b.scope === 'table'
+                ? inTable
+                : true;
           btn.hidden = !visible;
           if (!visible) {
             btn.dataset.active = 'false';
