@@ -6,7 +6,11 @@ import {
   reduceEditorFocus,
 } from '../../editor-focus.ts';
 import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
-import { fingerprintToken, normalizeMediaPath } from '../lib/format.ts';
+import {
+  buildFrontmatter as buildFrontmatterFor,
+  snapshotFromItem as snapshotFromItemFor,
+} from '../lib/editor-snapshot.ts';
+import { fingerprintToken } from '../lib/format.ts';
 import {
   appendRevision,
   clearDraftsForPath,
@@ -40,27 +44,7 @@ const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
 };
 
 function snapshotFromItem(item: DashboardContentItem): EditorSnapshot {
-  const fm = item.frontmatter;
-  const list = (value: unknown): string => {
-    if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean).join(', ');
-    if (typeof value === 'string') return value;
-    return '';
-  };
-  return {
-    title: String(fm.title ?? fm.name ?? ''),
-    status: String(fm.status ?? 'published'),
-    featureImage: String(fm.feature_image ?? ''),
-    featureImageAlt: String(fm.feature_image_alt ?? ''),
-    featureImageCaption: String(fm.feature_image_caption ?? ''),
-    excerpt: String(fm.custom_excerpt ?? fm.excerpt ?? ''),
-    tags: list(fm.tags),
-    authors: list(fm.authors ?? fm.author),
-    publishedAt: String(fm.published_at ?? fm.date ?? ''),
-    metaTitle: String(fm.meta_title ?? ''),
-    metaDescription: String(fm.meta_description ?? ''),
-    canonicalUrl: String(fm.canonical_url ?? ''),
-    body: item.body,
-  };
+  return snapshotFromItemFor(item.kind, item);
 }
 
 function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
@@ -296,58 +280,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   function buildFrontmatter(): Record<string, unknown> {
-    const fm: Record<string, unknown> = { ...current.frontmatter };
-    if (current.kind === 'posts' || current.kind === 'pages') {
-      fm.title = snapshot.title;
-      fm.status = snapshot.status;
-      fm.updated_at = new Date().toISOString();
-      setOptional(fm, 'feature_image', normalizeMediaPath(snapshot.featureImage));
-      setOptional(fm, 'feature_image_alt', snapshot.featureImageAlt.trim());
-      setOptional(fm, 'feature_image_caption', snapshot.featureImageCaption.trim());
-      // Editorial metadata
-      setOptional(fm, 'custom_excerpt', snapshot.excerpt.trim());
-      // Convert excerpt → custom_excerpt; remove old "excerpt" alias to
-      // avoid two copies drifting in the frontmatter.
-      if (snapshot.excerpt.trim() && 'excerpt' in fm) dropKey(fm, 'excerpt');
-      const splitList = (input: string): string[] =>
-        input
-          .split(/[,\n]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-      const tagList = splitList(snapshot.tags);
-      if (tagList.length) fm.tags = tagList;
-      else dropKey(fm, 'tags');
-      const authorList = splitList(snapshot.authors);
-      if (authorList.length) {
-        // Prefer `authors` plural when there's more than one entry;
-        // single → `author` for Ghost compatibility.
-        if (authorList.length > 1) {
-          fm.authors = authorList;
-          dropKey(fm, 'author');
-        } else {
-          fm.author = authorList[0];
-          dropKey(fm, 'authors');
-        }
-      } else {
-        dropKey(fm, 'authors');
-        dropKey(fm, 'author');
-      }
-      const publishedAt = snapshot.publishedAt.trim();
-      if (publishedAt) {
-        fm.published_at = publishedAt;
-        dropKey(fm, 'date');
-      } else {
-        dropKey(fm, 'published_at');
-        dropKey(fm, 'date');
-      }
-      // SEO overrides
-      setOptional(fm, 'meta_title', snapshot.metaTitle.trim());
-      setOptional(fm, 'meta_description', snapshot.metaDescription.trim());
-      setOptional(fm, 'canonical_url', snapshot.canonicalUrl.trim());
-    } else {
-      fm.name = snapshot.title;
-    }
-    return fm;
+    return buildFrontmatterFor(current.kind, current.frontmatter, snapshot);
   }
 
   async function handleSave() {
@@ -358,9 +291,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       at: new Date().toISOString(),
       path: current.path,
       kind: current.kind,
-      slug: current.slug,
       frontmatter: { ...current.frontmatter },
       ...onDisk,
+      // onDisk already carries slug from snapshotFromItem.
       body: current.body,
     };
     appendRevision(current, revision);
@@ -662,9 +595,17 @@ export function EditorView(props: EditorViewProps): JSX.Element {
          * are duplicated by the body toolbar; recovery actions remain
          * accessible via browser autosave + the conflict path. */}
         </div>
-        {isContent ? (
-          <aside class="editorMeta" aria-label="Post metadata">
-            {isContent ? (
+        <aside
+          class="editorMeta"
+          aria-label={
+            current.kind === 'authors'
+              ? 'Author metadata'
+              : current.kind === 'tags'
+                ? 'Tag metadata'
+                : 'Post metadata'
+          }
+        >
+            {true ? (
               <div class="editorMetaSection">
                 <div class="editorMetaLabel">Slug (filename)</div>
                 <input
@@ -687,23 +628,26 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 />
               </div>
             ) : null}
+            {isContent ? (
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Status</div>
+                <select
+                  class="statusPill editorMetaStatus"
+                  id="editStatus"
+                  value={snapshot.status}
+                  onChange={(event) =>
+                    patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                  }
+                >
+                  <option>published</option>
+                  <option>draft</option>
+                </select>
+              </div>
+            ) : null}
             <div class="editorMetaSection">
-              <div class="editorMetaLabel">Status</div>
-              <select
-                class="statusPill editorMetaStatus"
-                id="editStatus"
-                disabled={!isContent}
-                value={snapshot.status}
-                onChange={(event) =>
-                  patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
-                }
-              >
-                <option>published</option>
-                <option>draft</option>
-              </select>
-            </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Feature image</div>
+              <div class="editorMetaLabel">
+                {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+              </div>
               <label
                 class={`featureImageZone${snapshot.featureImage ? ' filled' : ''}`}
                 aria-label="Feature image — click or drop to upload"
@@ -776,20 +720,99 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 />
               ) : null}
             </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Description</div>
-              <textarea
-                class="editorMetaInput editorMetaTextarea"
-                rows={3}
-                placeholder="One-line summary for feeds and search results"
-                value={snapshot.excerpt}
-                onInput={(event) =>
-                  patchSnapshot({
-                    excerpt: (event.currentTarget as HTMLTextAreaElement).value,
-                  })
-                }
-              />
-            </div>
+            {current.kind === 'authors' ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Bio</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={4}
+                    placeholder="Short author bio shown on author pages"
+                    value={snapshot.bio}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        bio: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Website</div>
+                  <input
+                    class="editorMetaInput"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={snapshot.website}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        website: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Location</div>
+                  <input
+                    class="editorMetaInput"
+                    type="text"
+                    placeholder="City, country"
+                    value={snapshot.location}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        location: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+            {current.kind === 'tags' ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Description</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={3}
+                    placeholder="Short tag description shown on tag pages"
+                    value={snapshot.description}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        description: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Accent color</div>
+                  <input
+                    class="editorMetaInput editorMetaColor"
+                    type="color"
+                    value={snapshot.accentColor || '#888888'}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        accentColor: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+            {isContent ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Description</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={3}
+                    placeholder="One-line summary for feeds and search results"
+                    value={snapshot.excerpt}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        excerpt: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Tags</div>
               <input
@@ -902,8 +925,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 />
               </div>
             </details>
+              </>
+            ) : null}
           </aside>
-        ) : null}
       </div>
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header
@@ -946,17 +970,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       </div>
     </section>
   );
-}
-
-function setOptional(fm: Record<string, unknown>, key: string, value: string): void {
-  if (value) fm[key] = value;
-  else dropKey(fm, key);
-}
-
-function dropKey(fm: Record<string, unknown>, key: string): void {
-  // Reflect.deleteProperty avoids Biome's noDelete rule and serializes
-  // the frontmatter without the key (rather than leaving `key: null`).
-  Reflect.deleteProperty(fm, key);
 }
 
 function computeWarnings(body: string): string[] {

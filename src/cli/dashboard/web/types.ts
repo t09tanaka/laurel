@@ -164,7 +164,10 @@ export interface DashboardContentItem {
 }
 
 export interface EditorSnapshot {
+  // Shared
   title: string;
+  body: string;
+  // posts/pages
   status: string;
   featureImage: string;
   featureImageAlt: string;
@@ -176,7 +179,13 @@ export interface EditorSnapshot {
   metaTitle: string;
   metaDescription: string;
   canonicalUrl: string;
-  body: string;
+  // taxonomy (authors/tags) — empty strings for posts/pages
+  slug: string;
+  bio: string;
+  description: string;
+  website: string;
+  location: string;
+  accentColor: string;
 }
 
 export interface DraftPayload {
@@ -192,6 +201,6 @@ export interface RevisionPayload extends EditorSnapshot {
   at: string;
   path: string;
   kind: import('../ui-state.ts').DashboardEditorKind;
-  slug: string;
+  // slug now inherited from EditorSnapshot.
   frontmatter: Record<string, unknown>;
 }
