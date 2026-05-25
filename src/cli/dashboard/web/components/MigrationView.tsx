@@ -1,11 +1,6 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
-import {
-  type GhostImportPayload,
-  type PageBundleImportPayload,
-  importGhost,
-  importPageBundle,
-} from '../lib/api.ts';
+import { importGhostUpload, importPageBundleUpload } from '../lib/api.ts';
 import { StatePanel } from './StatePanel.tsx';
 
 interface MigrationViewProps {
@@ -30,7 +25,7 @@ interface ImportPanelProps {
 }
 
 function GhostImportPanel(props: ImportPanelProps): JSX.Element {
-  const [file, setFile] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [outputDir, setOutputDir] = useState('');
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [notice, setNotice] = useState('');
@@ -43,8 +38,8 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
   } | null>(null);
 
   async function run(dryRun: boolean) {
-    if (!file.trim()) {
-      setResult({ error: 'Ghost export path is required.' });
+    if (!file) {
+      setResult({ error: 'Pick a Ghost export (.zip or .json) first.' });
       return;
     }
     if (
@@ -54,15 +49,14 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
       return;
     }
     setBusy(true);
-    setNotice(dryRun ? 'Previewing import...' : 'Importing files...');
+    setNotice(dryRun ? 'Previewing import…' : 'Importing files…');
     try {
-      const payload: GhostImportPayload = {
-        file: file.trim(),
+      const { status, data } = await importGhostUpload({
+        file,
         dryRun,
         onConflict,
-      };
-      if (outputDir.trim()) payload.outputDir = outputDir.trim();
-      const { status, data } = await importGhost(payload);
+        outputDir: outputDir.trim() || undefined,
+      });
       if (status >= 400) {
         const error = (data as { error?: string }).error;
         setResult({ error: error ?? 'Import failed' });
@@ -84,19 +78,18 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
         <div>
           <h3>Ghost import</h3>
           <p class="meta">
-            Run a Ghost JSON, folder, or ZIP import from a local path. Preview never writes files.
+            Drop a Ghost export (.zip or ghost-export.json). Preview never writes files.
           </p>
         </div>
       </header>
-      <label class="field wide">
-        <span>Export path</span>
-        <input
-          id="ghostImportFile"
-          placeholder="/path/to/ghost-export.zip"
-          value={file}
-          onInput={(event) => setFile((event.currentTarget as HTMLInputElement).value)}
-        />
-      </label>
+      <UploadDropzone
+        accept=".zip,.json,application/zip,application/json"
+        file={file}
+        disabled={busy}
+        hint="Click or drop a Ghost export (.zip / .json)"
+        onPick={setFile}
+        match={(name) => /\.(zip|json)$/i.test(name)}
+      />
       <div class="fields">
         <label class="field">
           <span>Conflict policy</span>
@@ -129,7 +122,7 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
           class="btn secondary"
           id="previewGhostImport"
           type="button"
-          disabled={busy}
+          disabled={busy || !file}
           onClick={() => {
             void run(true);
           }}
@@ -140,7 +133,7 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
           class="btn"
           id="applyGhostImport"
           type="button"
-          disabled={busy}
+          disabled={busy || !file}
           onClick={() => {
             void run(false);
           }}
@@ -164,8 +157,59 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
   );
 }
 
+interface UploadDropzoneProps {
+  accept: string;
+  file: File | null;
+  disabled: boolean;
+  hint: string;
+  onPick: (file: File) => void;
+  match: (name: string) => boolean;
+}
+
+function UploadDropzone(props: UploadDropzoneProps): JSX.Element {
+  return (
+    <label
+      class={`themeUploadDrop${props.disabled ? ' busy' : ''}`}
+      onDragOver={(event) => {
+        if (event.dataTransfer?.types?.includes('Files')) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }
+      }}
+      onDrop={(event) => {
+        const candidate = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+          props.match(f.name),
+        );
+        if (!candidate) return;
+        event.preventDefault();
+        props.onPick(candidate);
+      }}
+    >
+      <input
+        type="file"
+        accept={props.accept}
+        class="srOnly"
+        disabled={props.disabled}
+        onChange={(event) => {
+          const picked = (event.currentTarget as HTMLInputElement).files?.[0];
+          if (picked) props.onPick(picked);
+        }}
+      />
+      <span class="themeUploadHint">
+        {props.file ? `${props.file.name} (${formatBytes(props.file.size)})` : props.hint}
+      </span>
+    </label>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
-  const [file, setFile] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -182,8 +226,8 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
   } | null>(null);
 
   async function run(dryRun: boolean) {
-    if (!file.trim()) {
-      setResult({ error: 'Page bundle path is required.' });
+    if (!file) {
+      setResult({ error: 'Pick a page bundle (.json or .zip) first.' });
       return;
     }
     if (
@@ -200,13 +244,13 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
       return;
     }
     setBusy(true);
-    setNotice(dryRun ? 'Previewing page import...' : 'Importing page...');
+    setNotice(dryRun ? 'Previewing page import…' : 'Importing page…');
     try {
-      const { status, data } = await importPageBundle({
-        file: file.trim(),
+      const { status, data } = await importPageBundleUpload({
+        file,
         dryRun,
         onConflict,
-      } as PageBundleImportPayload);
+      });
       if (status >= 400) {
         const error = (data as { error?: string }).error;
         setResult({ error: error ?? 'Page import failed' });
@@ -228,20 +272,18 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
         <div>
           <h3>Page bundle import</h3>
           <p class="meta">
-            Import one saved Page collaboration bundle from a local path. Preview never writes
-            files.
+            Drop one saved Page collaboration bundle (.json or .zip). Preview never writes files.
           </p>
         </div>
       </header>
-      <label class="field wide">
-        <span>Bundle path</span>
-        <input
-          id="pageBundleImportFile"
-          placeholder="/path/to/about.page.json"
-          value={file}
-          onInput={(event) => setFile((event.currentTarget as HTMLInputElement).value)}
-        />
-      </label>
+      <UploadDropzone
+        accept=".json,.zip,application/json,application/zip"
+        file={file}
+        disabled={busy}
+        hint="Click or drop a page bundle (.json / .zip)"
+        onPick={setFile}
+        match={(name) => /\.(json|zip)$/i.test(name)}
+      />
       <div class="fields">
         <label class="field">
           <span>Conflict policy</span>

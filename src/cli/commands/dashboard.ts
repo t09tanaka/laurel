@@ -1258,8 +1258,48 @@ export async function handleDashboardRequest(
     if (request.method === 'POST' && url.pathname === '/api/import/ghost') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const payload = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
-      if (payload instanceof Response) return payload;
+      // Accept either JSON (legacy local-path) or multipart upload.
+      const contentType = request.headers.get('content-type') ?? '';
+      let payload: DashboardGhostImportPayload;
+      let stagedPath: string | undefined;
+      if (contentType.startsWith('multipart/')) {
+        const form = await request.formData().catch(() => null);
+        const file = form?.get('file');
+        if (!(file instanceof File)) {
+          return jsonResponse(
+            { error: 'file field is required (multipart/form-data)' },
+            400,
+          );
+        }
+        const MAX_BYTES = 200 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
+        }
+        const safe = (file.name || 'ghost-export')
+          .replace(/[^a-zA-Z0-9._-]/g, '-')
+          .slice(0, 80);
+        stagedPath = resolve(
+          ctx.cwd,
+          '.nectar',
+          `import-ghost-${Date.now()}-${safe}`,
+        );
+        await mkdir(dirname(stagedPath), { recursive: true });
+        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        payload = {
+          file: stagedPath,
+          dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
+          onConflict:
+            (form?.get('onConflict') as DashboardGhostImportPayload['onConflict']) ?? 'skip',
+          outputDir: (form?.get('outputDir') as string | null) ?? undefined,
+        };
+      } else {
+        const json = await readJsonPayload<DashboardGhostImportPayload>(
+          request,
+          ctx.maxBodyBytes,
+        );
+        if (json instanceof Response) return json;
+        payload = json;
+      }
       try {
         const result = await runDashboardGhostImport({ cwd: ctx.cwd, payload });
         if (result.mode === 'apply') {
@@ -1268,6 +1308,8 @@ export async function handleDashboardRequest(
         return jsonResponse(result);
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      } finally {
+        if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
     const pageBundleExportMatch = url.pathname.match(/^\/api\/page-bundles\/export\/([^/]+)$/);
@@ -1284,11 +1326,47 @@ export async function handleDashboardRequest(
     if (request.method === 'POST' && url.pathname === '/api/page-bundles/import') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const payload = await readJsonPayload<DashboardPageBundleImportPayload>(
-        request,
-        ctx.maxBodyBytes,
-      );
-      if (payload instanceof Response) return payload;
+      const contentType = request.headers.get('content-type') ?? '';
+      let payload: DashboardPageBundleImportPayload;
+      let stagedPath: string | undefined;
+      if (contentType.startsWith('multipart/')) {
+        const form = await request.formData().catch(() => null);
+        const file = form?.get('file');
+        if (!(file instanceof File)) {
+          return jsonResponse(
+            { error: 'file field is required (multipart/form-data)' },
+            400,
+          );
+        }
+        const MAX_BYTES = 50 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          return jsonResponse({ error: 'page bundle exceeds 50MB limit' }, 413);
+        }
+        const safe = (file.name || 'page-bundle')
+          .replace(/[^a-zA-Z0-9._-]/g, '-')
+          .slice(0, 80);
+        stagedPath = resolve(
+          ctx.cwd,
+          '.nectar',
+          `import-bundle-${Date.now()}-${safe}`,
+        );
+        await mkdir(dirname(stagedPath), { recursive: true });
+        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        payload = {
+          file: stagedPath,
+          dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
+          onConflict:
+            (form?.get('onConflict') as DashboardPageBundleImportPayload['onConflict']) ??
+            'skip',
+        };
+      } else {
+        const json = await readJsonPayload<DashboardPageBundleImportPayload>(
+          request,
+          ctx.maxBodyBytes,
+        );
+        if (json instanceof Response) return json;
+        payload = json;
+      }
       try {
         const result = await runDashboardPageBundleImport({
           cwd: ctx.cwd,
@@ -1301,6 +1379,8 @@ export async function handleDashboardRequest(
         return jsonResponse(result);
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      } finally {
+        if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {

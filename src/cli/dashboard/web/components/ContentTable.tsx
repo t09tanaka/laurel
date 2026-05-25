@@ -246,7 +246,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
             </a>
           ) : null}
           <a
-            class="textLink"
+            class="textLink textLinkStrong"
             href={editorHref}
             data-edit={item.slug}
             onClick={(event) => {

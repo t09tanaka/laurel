@@ -261,6 +261,29 @@ export async function importGhost(
   return { status: response.status, data: await response.json() };
 }
 
+export interface GhostImportUploadArgs {
+  file: File;
+  dryRun: boolean;
+  onConflict: 'skip' | 'rename' | 'overwrite';
+  outputDir?: string;
+}
+
+export async function importGhostUpload(
+  args: GhostImportUploadArgs,
+): Promise<{ status: number; data: unknown }> {
+  const fd = new FormData();
+  fd.append('file', args.file);
+  fd.append('dryRun', String(args.dryRun));
+  fd.append('onConflict', args.onConflict);
+  if (args.outputDir) fd.append('outputDir', args.outputDir);
+  const response = await fetch('/api/import/ghost', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  return { status: response.status, data: await response.json() };
+}
+
 export interface PageBundleImportPayload {
   file: string;
   dryRun: boolean;
@@ -274,6 +297,27 @@ export async function importPageBundle(
     method: 'POST',
     headers: writeHeaders(),
     body: JSON.stringify(payload),
+  });
+  return { status: response.status, data: await response.json() };
+}
+
+export interface PageBundleImportUploadArgs {
+  file: File;
+  dryRun: boolean;
+  onConflict: 'skip' | 'rename' | 'overwrite';
+}
+
+export async function importPageBundleUpload(
+  args: PageBundleImportUploadArgs,
+): Promise<{ status: number; data: unknown }> {
+  const fd = new FormData();
+  fd.append('file', args.file);
+  fd.append('dryRun', String(args.dryRun));
+  fd.append('onConflict', args.onConflict);
+  const response = await fetch('/api/page-bundles/import', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
   });
   return { status: response.status, data: await response.json() };
 }

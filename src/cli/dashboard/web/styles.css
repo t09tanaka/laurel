@@ -1937,6 +1937,18 @@
     cursor: not-allowed;
     text-decoration: none;
   }
+  .textLinkStrong {
+    /* Detail link should out-rank Preview in the row — heavier weight,
+     * upright, primary ink. */
+    font-style: normal;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 13.5px;
+  }
+  .textLinkStrong:hover,
+  .textLinkStrong:focus-visible {
+    text-decoration: underline;
+  }
   .editorPreviewLink {
     margin: 0 8px;
   }
@@ -2262,11 +2274,16 @@
   }
   .editorMeta {
     position: sticky;
-    top: 24px;
+    /* Clears the editor header (≈64px) plus a breathing margin so the
+     * sidebar floats just below the top bar on long-form bodies. */
+    top: 84px;
+    align-self: start;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
     display: grid;
     gap: 0;
     min-width: 0;
-    padding: 4px 0;
+    padding: 4px 4px 4px 0;
   }
   /* Each metadata stanza is a grouped block separated by a hairline rule.
    * Label sits italic-serif on top, control directly underneath. */

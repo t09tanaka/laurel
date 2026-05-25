@@ -815,15 +815,30 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 </div>
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Tags</div>
-              <input
-                class="editorMetaInput"
-                type="text"
-                placeholder="comma, separated"
-                value={snapshot.tags}
-                onInput={(event) =>
-                  patchSnapshot({ tags: (event.currentTarget as HTMLInputElement).value })
-                }
-              />
+              {(() => {
+                const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
+                return (
+                  <>
+                    <input
+                      class="editorMetaInput"
+                      type="text"
+                      list="editorTagOptions"
+                      placeholder="comma, separated · existing tags suggest"
+                      value={snapshot.tags}
+                      onInput={(event) =>
+                        patchSnapshot({
+                          tags: (event.currentTarget as HTMLInputElement).value,
+                        })
+                      }
+                    />
+                    <datalist id="editorTagOptions">
+                      {existing.map((slug: string) => (
+                        <option key={slug} value={slug} />
+                      ))}
+                    </datalist>
+                  </>
+                );
+              })()}
             </div>
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Author</div>
@@ -842,27 +857,23 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                     </div>
                   );
                 }
+                const currentValue = selected[0] ?? '';
                 return (
-                  <>
-                    <select
-                      class="editorMetaInput editorMetaSelect"
-                      multiple
-                      size={Math.min(6, Math.max(3, options.length))}
-                      onChange={(event) => {
-                        const next = Array.from(
-                          (event.currentTarget as HTMLSelectElement).selectedOptions,
-                        ).map((o) => o.value);
-                        patchSnapshot({ authors: next.join(', ') });
-                      }}
-                    >
-                      {options.map((slug) => (
-                        <option key={slug} value={slug} selected={selected.includes(slug)}>
-                          {slug}
-                        </option>
-                      ))}
-                    </select>
-                    <div class="editorMetaHelp">⌘-click to select multiple</div>
-                  </>
+                  <select
+                    class="editorMetaInput"
+                    value={currentValue}
+                    onChange={(event) => {
+                      const next = (event.currentTarget as HTMLSelectElement).value;
+                      patchSnapshot({ authors: next });
+                    }}
+                  >
+                    {currentValue === '' ? <option value="">(none)</option> : null}
+                    {options.map((slug) => (
+                      <option key={slug} value={slug}>
+                        {slug}
+                      </option>
+                    ))}
+                  </select>
                 );
               })()}
             </div>
