@@ -914,6 +914,170 @@
       background-position: -200% 0;
     }
   }
+  /* Command palette (⌘K) — modal jump-to / quick-action dialog. */
+  .cmdkBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--color-modal);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 12vh 16px 16px;
+    backdrop-filter: blur(2px);
+    animation: cmdkBackdropIn 0.14s ease-out;
+  }
+  .cmdkPanel {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--elevation-6);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    max-height: min(72vh, 600px);
+    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes cmdkBackdropIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes cmdkPanelIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .cmdkHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .cmdkInput {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: 500 15px / 1.4 var(--font-sans);
+    letter-spacing: -0.005em;
+    outline: none;
+  }
+  .cmdkInput::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-style: italic;
+  }
+  .cmdkEsc {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+  .cmdkList {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .cmdkItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 13.5px;
+    line-height: 18px;
+    letter-spacing: -0.003em;
+    transition: background-color 0.08s ease;
+  }
+  .cmdkItem.active {
+    background: var(--reaction);
+  }
+  .cmdkKind {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: var(--reaction);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .cmdkKind-open {
+    background: color-mix(in srgb, var(--color-focus) 12%, var(--reaction));
+    color: var(--color-focus);
+  }
+  .cmdkKind-action {
+    background: color-mix(in srgb, var(--color-brand) 14%, var(--reaction));
+    color: var(--color-brand);
+  }
+  .cmdkLabel {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .cmdkHint {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+  }
+  .cmdkEmpty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-family: var(--font-serif);
+    font-size: 14px;
+  }
+  .cmdkFooter {
+    display: flex;
+    gap: 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-weak);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-size: 11.5px;
+  }
+  .cmdkFooter kbd {
+    display: inline-block;
+    padding: 0 5px;
+    margin: 0 2px;
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    background: var(--surface-normal);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
   /* Skeleton — first-load placeholder rows. Mirrors the real .contentTable
    * shape so the chrome doesn't reflow when data lands. */
   .skeletonTableWrap {

@@ -6,6 +6,7 @@ import { EditorView } from './components/EditorView.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
+import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
 import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
@@ -59,6 +60,7 @@ export function DashboardApp(): JSX.Element {
   );
   const [editorDirty, setEditorDirty] = useState(false);
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -196,6 +198,19 @@ export function DashboardApp(): JSX.Element {
     }, [load, editorDirty, hasSettingsDirty]),
   );
 
+  // Global ⌘K / Ctrl+K — opens the command palette from anywhere.
+  // Ignored when typing in an editor or input so users can keep typing K.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const isCmdK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      if (!isCmdK) return;
+      event.preventDefault();
+      setCmdkOpen((open) => !open);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
     if (
       !confirmDiscard(
@@ -220,22 +235,26 @@ export function DashboardApp(): JSX.Element {
     }
   }
 
-  function handleNew() {
+  function navigateCreate(kind: DashboardEditorKind) {
     if (
       !confirmDiscard(
         'Open create page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
       )
     )
       return;
-    const kind: DashboardEditorKind =
-      ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags'
-        ? ui.view
-        : 'posts';
     setEditor(null);
     setEditorDirty(false);
     setCreateMode(kind);
     document.body.classList.add('createOpen');
     syncPath(pathForCreate(kind), 'push');
+  }
+
+  function handleNew() {
+    const kind: DashboardEditorKind =
+      ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags'
+        ? ui.view
+        : 'posts';
+    navigateCreate(kind);
   }
 
   function handleCreated(kind: DashboardEditorKind, slug: string) {
@@ -321,6 +340,104 @@ export function DashboardApp(): JSX.Element {
     }
     return items.sort((a, b) => b.ts - a.ts).slice(0, 5);
   })();
+
+  // Command palette items — all posts/pages + workspace actions. Built each
+  // render but cheap (linear in item count).
+  const commandItems: CommandItem[] = [];
+  if (state) {
+    for (const p of state.posts.items) {
+      commandItems.push({
+        id: `post:${p.slug}`,
+        kind: 'open',
+        label: p.title,
+        hint: `post · ${p.slug}`,
+        keywords: `${p.slug} post`,
+        run: () => {
+          void openEditor('posts', p.slug);
+        },
+      });
+    }
+    for (const p of state.pages.items) {
+      commandItems.push({
+        id: `page:${p.slug}`,
+        kind: 'open',
+        label: p.title,
+        hint: `page · ${p.slug}`,
+        keywords: `${p.slug} page`,
+        run: () => {
+          void openEditor('pages', p.slug);
+        },
+      });
+    }
+  }
+  commandItems.push(
+    {
+      id: 'nav:posts',
+      kind: 'navigate',
+      label: 'Go to Posts',
+      hint: 'workspace',
+      keywords: 'navigate posts list',
+      run: () => navigateView('posts'),
+    },
+    {
+      id: 'nav:pages',
+      kind: 'navigate',
+      label: 'Go to Pages',
+      hint: 'workspace',
+      keywords: 'navigate pages list',
+      run: () => navigateView('pages'),
+    },
+    {
+      id: 'nav:settings',
+      kind: 'navigate',
+      label: 'Open Settings',
+      hint: 'workspace',
+      keywords: 'navigate settings configuration',
+      run: () => navigateView('settings'),
+    },
+    {
+      id: 'nav:migration',
+      kind: 'navigate',
+      label: 'Open Migration',
+      hint: 'settings',
+      keywords: 'ghost import wordpress migration',
+      run: () => navigateView('migration'),
+    },
+    {
+      id: 'action:new-post',
+      kind: 'action',
+      label: 'New post',
+      hint: 'create',
+      keywords: 'new create post draft',
+      run: () => navigateCreate('posts'),
+    },
+    {
+      id: 'action:new-page',
+      kind: 'action',
+      label: 'New page',
+      hint: 'create',
+      keywords: 'new create page',
+      run: () => navigateCreate('pages'),
+    },
+    {
+      id: 'action:cycle-theme',
+      kind: 'action',
+      label: 'Switch theme',
+      hint: ui.theme,
+      keywords: 'theme dark light system toggle appearance',
+      run: cycleTheme,
+    },
+    {
+      id: 'action:force-sync',
+      kind: 'action',
+      label: 'Re-read disk',
+      hint: 'sync',
+      keywords: 'force refresh sync reload disk',
+      run: () => {
+        void load({ force: true });
+      },
+    },
+  );
 
   return (
     <div class="shell">
@@ -452,6 +569,11 @@ export function DashboardApp(): JSX.Element {
           />
         ) : null}
       </main>
+      <CommandPalette
+        open={cmdkOpen}
+        items={commandItems}
+        onClose={() => setCmdkOpen(false)}
+      />
     </div>
   );
 }
