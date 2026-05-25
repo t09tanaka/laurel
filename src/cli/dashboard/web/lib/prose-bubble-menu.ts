@@ -473,25 +473,48 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
           if (mode === 'link') closeLinkEditor();
           return;
         }
-        const start = currentView.coordsAtPos(from);
-        const end = currentView.coordsAtPos(empty ? from : to);
         const parent = root.offsetParent as HTMLElement | null;
         const parentRect = parent
           ? parent.getBoundingClientRect()
           : { left: 0, top: 0, width: window.innerWidth };
+        // For an empty selection the browser's own caret rect tracks
+        // text wrapping accurately; coordsAtPos can return the prior
+        // line's edge when the caret sits at a wrap boundary.
+        let anchorCenter = 0;
+        let anchorTop = 0;
+        if (empty) {
+          const sel = window.getSelection();
+          let caretRect: DOMRect | null = null;
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0).cloneRange();
+            range.collapse(true);
+            const rects = range.getClientRects();
+            caretRect =
+              rects.length > 0 ? rects[rects.length - 1] ?? null : range.getBoundingClientRect();
+          }
+          if (!caretRect || (caretRect.left === 0 && caretRect.top === 0)) {
+            const fallback = currentView.coordsAtPos(from);
+            caretRect = new DOMRect(fallback.left, fallback.top, 0, fallback.bottom - fallback.top);
+          }
+          anchorCenter = caretRect.left + caretRect.width / 2 - parentRect.left;
+          anchorTop = caretRect.top - parentRect.top;
+        } else {
+          const start = currentView.coordsAtPos(from);
+          const end = currentView.coordsAtPos(to);
+          anchorCenter = (start.left + end.left) / 2 - parentRect.left;
+          anchorTop = start.top - parentRect.top;
+        }
         // Render then measure so we can clamp into the parent's bounds.
         root.style.visibility = 'visible';
         root.style.pointerEvents = 'auto';
         root.style.transform = 'translate(0, calc(-100% - 10px))';
         const bubbleRect = root.getBoundingClientRect();
-        const anchorX = (start.left + end.left) / 2 - parentRect.left;
         const half = bubbleRect.width / 2;
         const minLeft = 8;
         const maxLeft = Math.max(minLeft, parentRect.width - bubbleRect.width - 8);
-        const left = Math.min(Math.max(anchorX - half, minLeft), maxLeft);
-        const top = start.top - parentRect.top;
+        const left = Math.min(Math.max(anchorCenter - half, minLeft), maxLeft);
         root.style.left = `${left}px`;
-        root.style.top = `${top}px`;
+        root.style.top = `${anchorTop}px`;
         const hasRange = !empty;
         for (let i = 0; i < buttons.length; i += 1) {
           const b = buttons[i];
