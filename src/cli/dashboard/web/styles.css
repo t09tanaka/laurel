@@ -669,11 +669,17 @@
     border-radius: 50%;
     background: var(--sidebar-muted);
   }
+  /* Shape varies per state so the rail is readable without color perception. */
   .railItem[data-state="success"]:before {
     background: var(--success);
   }
   .railItem[data-state="caution"]:before {
-    background: var(--caution);
+    background: transparent;
+    border: 1.4px solid var(--caution);
+    width: 9px;
+    height: 9px;
+    top: 6px;
+    border-radius: 2px; /* square ring distinguishes caution */
   }
   /* "reading" = an active fetch is in flight. Breathing dot communicates
    * liveness so the user knows the sidebar is the live status surface. */
@@ -683,6 +689,13 @@
   }
   .railItem[data-state="danger"]:before {
     background: var(--danger);
+    width: 0;
+    height: 0;
+    border-radius: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 8px solid var(--danger);
+    top: 6px;
   }
   @keyframes railPulse {
     0%,
@@ -1629,7 +1642,7 @@
     box-shadow: inset 2px 0 0 var(--color-ink);
     outline: none;
   }
-  .contentRow:focus-visible {
+  .contentRow:focus-within {
     box-shadow: inset 2px 0 0 var(--focus);
   }
   /* Taxonomy source expressed via cell typography too — generated rows
@@ -1740,6 +1753,19 @@
     font-feature-settings: "palt";
     color: var(--text-primary);
   }
+  .titleLink {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 3px;
+  }
+  .titleLink:hover .titleText {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
   .slugLine {
     margin-top: 2px;
     min-width: 0;
@@ -1847,6 +1873,22 @@
     color: var(--caution);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
+  }
+  .warnDotMark {
+    width: 11px;
+    height: 11px;
+    color: var(--danger);
+    flex: 0 0 auto;
+  }
+  .statusGlyph {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
+    margin-right: 4px;
+    color: currentColor;
+  }
+  .pillLabel {
+    display: inline;
   }
   .pillCompact {
     padding: 2px 7px;
@@ -3521,6 +3563,21 @@
       to {
         transform: none;
       }
+    }
+  }
+
+  /* Honor reduced-motion as a single global override so every transition /
+   * animation in this stylesheet collapses to ~0ms when the OS asks for it.
+   * Keeping this as one rule (instead of per-component disables) means new
+   * animations added later inherit the behavior for free. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 
