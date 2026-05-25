@@ -452,9 +452,11 @@ export function DashboardApp(): JSX.Element {
           title: 'Build complete · downloading zip',
           message: `${event.summary.routeCount} routes · ${formatBuildDuration(event.summary.durationMs)}`,
         });
-        // Auto-download the freshly built site. The sidebar "Zip" pill and
-        // the panel's Download zip button remain available for re-download.
-        handleDownloadZip();
+        // Auto-download the freshly built site after a short delay so the
+        // success toast and final log line land before the browser's
+        // download UI takes focus. The sidebar "Zip" pill and the panel's
+        // Download zip button remain available for re-download.
+        setTimeout(handleDownloadZip, 300);
       } else if (event.type === 'error') {
         setBuildPhase('error');
         setBuildError(event.message);
