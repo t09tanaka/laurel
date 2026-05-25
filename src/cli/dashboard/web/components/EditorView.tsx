@@ -804,15 +804,44 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             </div>
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Author</div>
-              <input
-                class="editorMetaInput"
-                type="text"
-                placeholder="author-slug"
-                value={snapshot.authors}
-                onInput={(event) =>
-                  patchSnapshot({ authors: (event.currentTarget as HTMLInputElement).value })
+              {(() => {
+                const selected = snapshot.authors
+                  .split(/[,\n]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const fromState =
+                  state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
+                const options = Array.from(new Set([...fromState, ...selected])).sort();
+                if (options.length === 0) {
+                  return (
+                    <div class="editorMetaEmpty">
+                      No authors yet. Add one in <code>content/authors/</code>.
+                    </div>
+                  );
                 }
-              />
+                return (
+                  <>
+                    <select
+                      class="editorMetaInput editorMetaSelect"
+                      multiple
+                      size={Math.min(6, Math.max(3, options.length))}
+                      onChange={(event) => {
+                        const next = Array.from(
+                          (event.currentTarget as HTMLSelectElement).selectedOptions,
+                        ).map((o) => o.value);
+                        patchSnapshot({ authors: next.join(', ') });
+                      }}
+                    >
+                      {options.map((slug) => (
+                        <option key={slug} value={slug} selected={selected.includes(slug)}>
+                          {slug}
+                        </option>
+                      ))}
+                    </select>
+                    <div class="editorMetaHelp">⌘-click to select multiple</div>
+                  </>
+                );
+              })()}
             </div>
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Published</div>
