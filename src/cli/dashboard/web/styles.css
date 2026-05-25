@@ -2292,58 +2292,239 @@
   .editorMain {
     min-width: 0;
   }
-  /* Author / Tag editor: compact form layout (no body markdown,
-   * no metadata sidebar — the surface is small enough to fit
-   * the full editor canvas). */
-  .taxonomyEditorForm {
-    display: grid;
-    gap: 22px;
-    max-width: 640px;
+  /* Author / Tag editor — editorial colophon page. Large italic
+   * display name, bottom-rule columns of credits, paper-textured
+   * image well on the right. No form chrome; the surface reads as
+   * the credit page of a literary journal. */
+  .taxonomyPage {
+    max-width: 880px;
     width: 100%;
     margin: 0 auto;
-    padding: 8px 0 64px;
-  }
-  .taxonomyEditorForm .field {
+    padding: 24px 16px 96px;
     display: grid;
-    gap: 6px;
+    gap: 56px;
   }
-  .taxonomyEditorForm .fields {
+  .taxonomyMasthead {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 18px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border-weak);
   }
-  .taxonomyEditorForm input[type="text"],
-  .taxonomyEditorForm input[type="url"],
-  .taxonomyEditorForm input[type="color"],
-  .taxonomyEditorForm textarea {
-    min-height: 38px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    padding: 8px 12px;
-    background: var(--surface-normal);
-    color: var(--text-primary);
+  .taxonomyEyebrow {
     font-family: var(--font-serif);
-    font-size: 14px;
-    box-shadow: var(--elevation-1);
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .taxonomyDisplayName {
+    font-family: var(--font-serif);
+    font-size: clamp(40px, 5vw, 64px);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    line-height: 1.05;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
     width: 100%;
+    outline: none;
+    transition: opacity 0.18s ease;
   }
-  .taxonomyEditorForm input[type="color"] {
-    padding: 4px;
-    width: 80px;
-    height: 38px;
-    cursor: pointer;
+  .taxonomyDisplayName:focus {
+    opacity: 0.92;
   }
-  .taxonomyEditorForm textarea {
-    line-height: 1.55;
-    resize: vertical;
+  .taxonomyDisplayName::placeholder {
+    color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    font-style: italic;
   }
-  .taxonomyEditorForm .taxonomyNameInput {
-    font-size: 18px;
-    font-weight: 500;
+  .taxonomySlugRow {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-muted);
   }
-  .taxonomyEditorForm .taxonomySlugInput {
+  .taxonomySlugLead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .taxonomySlugInput {
     font-family: var(--font-mono);
     font-size: 13px;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 2px 0;
+    min-width: 200px;
+    outline: none;
+    transition: border-color 0.16s ease;
+  }
+  .taxonomySlugInput:hover {
+    border-bottom-color: var(--text-muted);
+  }
+  .taxonomySlugInput:focus {
+    border-bottom-color: var(--text-primary);
+  }
+  .taxonomySlugSuffix {
+    color: color-mix(in srgb, var(--text-muted) 80%, transparent);
+  }
+  .taxonomyBody {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    gap: 64px;
+    align-items: start;
+  }
+  .taxonomyText {
+    display: grid;
+    gap: 36px;
+    min-width: 0;
+  }
+  .taxonomyPair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+  }
+  .taxonomyRow {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .taxonomyLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+  }
+  .taxonomyLine,
+  .taxonomyTextarea,
+  .taxonomyAccentHex {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 6px 0;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.16s ease;
+  }
+  .taxonomyLine:hover,
+  .taxonomyTextarea:hover,
+  .taxonomyAccentHex:hover {
+    border-bottom-color: var(--text-muted);
+  }
+  .taxonomyLine:focus,
+  .taxonomyTextarea:focus,
+  .taxonomyAccentHex:focus {
+    border-bottom-color: var(--text-primary);
+  }
+  .taxonomyTextarea {
+    resize: vertical;
+    min-height: 120px;
+    padding-top: 4px;
+  }
+  .taxonomyAccentRow {
+    grid-template-columns: 1fr;
+  }
+  .taxonomyAccentControl {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: 4px;
+  }
+  .taxonomyAccentColor {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border-default);
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+    flex: 0 0 auto;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .taxonomyAccentColor::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .taxonomyAccentColor::-webkit-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+  .taxonomyAccentColor::-moz-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+  .taxonomyAccentHex {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    flex: 1 1 auto;
+    border-bottom: 0;
+    padding: 4px 0;
+  }
+  .taxonomyAside {
+    min-width: 0;
+  }
+  .taxonomyNotice {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding-top: 12px;
+    border-top: 1px solid var(--border-weak);
+  }
+  /* Shared FeatureImageField label so it matches the editorial frame
+   * even when used outside the taxonomy editor. */
+  .featureImageField {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  .featureImageFieldLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .featureImageAltInput {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 6px 0;
+    width: 100%;
+    outline: none;
+  }
+  .featureImageAltInput:focus {
+    border-bottom-color: var(--text-primary);
+  }
+  @media (max-width: 940px) {
+    .taxonomyBody {
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+    .taxonomyPair {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .taxonomyPage {
+      gap: 36px;
+    }
   }
   .editorMeta {
     /* Pin the metadata column to the right edge of the viewport so

@@ -5,12 +5,11 @@ export function fingerprintToken(fingerprint: ContentFingerprint): string {
 }
 
 // Single formatter used everywhere a date appears in the dashboard.
-// Until #523 adds a locale switcher we follow navigator.language so
-// the relative ("6 days ago" / "6日前") and absolute ("Jan 1, 2026" /
-// "2026年1月1日") halves at least stay in the same language. Cached
-// because Intl constructors are non-trivial.
-const RTF = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-const ABS_FMT = new Intl.DateTimeFormat(undefined, {
+// Pinned to en-US per product direction so the dashboard renders a
+// consistent "Jan 1, 2026" / "6 days ago" voice regardless of the
+// visitor's OS locale.
+const RTF = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
+const ABS_FMT = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   month: 'short',
   day: 'numeric',

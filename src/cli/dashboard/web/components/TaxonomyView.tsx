@@ -37,7 +37,6 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
               <tr>
                 <th>Name</th>
                 <th>Posts ({props.kind === 'authors' ? 'authored' : 'tagged'})</th>
-                <th>File</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -88,14 +87,6 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                     <td class="dateCell taxCountCell" title={`${item.count} posts use this ${props.kind === 'authors' ? 'author' : 'tag'}`}>
                       <span class="taxCountNum">{item.count}</span>
                       <span class="taxCountUnit"> {item.count === 1 ? 'post' : 'posts'}</span>
-                    </td>
-                    <td class="taxPathCell">
-                      <code
-                        class="taxPathText"
-                        title={item.path ?? item.materializePath ?? 'generated from references'}
-                      >
-                        {item.path ?? item.materializePath ?? 'generated'}
-                      </code>
                     </td>
                     <td>
                       {item.editable ? (

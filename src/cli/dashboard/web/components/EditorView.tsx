@@ -6,6 +6,7 @@ import {
   reduceEditorFocus,
 } from '../../editor-focus.ts';
 import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
 import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
@@ -231,22 +232,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     } else {
       await props.onSaved();
     }
-  }
-
-  /* Upload an image and set it as the post/page feature image. */
-  async function uploadFeatureImage(file: File): Promise<void> {
-    setNotice(`Uploading feature image ${file.name || ''}…`);
-    const result = await uploadImage(file);
-    if (!result.ok) {
-      setNotice(`Feature image upload failed — ${result.error}`);
-      return;
-    }
-    setNotice('');
-    const altFromName = (file.name || 'feature image').replace(/\.[^.]+$/, '');
-    patchSnapshot({
-      featureImage: result.path,
-      featureImageAlt: snapshot.featureImageAlt || altFromName,
-    });
   }
 
   /* Upload an image to /content/images/ and insert a Markdown image
@@ -650,77 +635,19 @@ export function EditorView(props: EditorViewProps): JSX.Element {
               <div class="editorMetaLabel">
                 {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
               </div>
-              <label
-                class={`featureImageZone${snapshot.featureImage ? ' filled' : ''}`}
-                aria-label="Feature image — click or drop to upload"
-                onDragOver={(event) => {
-                  if (event.dataTransfer?.types?.includes('Files')) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
-                  }
-                }}
-                onDrop={(event) => {
-                  const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
-                    f.type.startsWith('image/'),
-                  );
-                  if (!file) return;
-                  event.preventDefault();
-                  void uploadFeatureImage(file);
-                }}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="srOnly"
-                  onChange={(event) => {
-                    const file = (event.currentTarget as HTMLInputElement).files?.[0];
-                    if (file) void uploadFeatureImage(file);
-                  }}
-                />
-                {snapshot.featureImage ? (
-                  <>
-                    <img
-                      src={snapshot.featureImage}
-                      alt={snapshot.featureImageAlt || 'Feature image'}
-                      class="featureImagePreview"
-                    />
-                    <span class="featureImageHint">Click or drop to replace</span>
-                    <button
-                      type="button"
-                      class="featureImageRemove"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        patchSnapshot({
-                          featureImage: '',
-                          featureImageAlt: '',
-                          featureImageCaption: '',
-                        });
-                      }}
-                      title="Remove feature image"
-                    >
-                      Remove
-                    </button>
-                  </>
-                ) : (
-                  <span class="featureImageEmpty">
-                    <em>Click or drop</em>
-                  </span>
-                )}
-              </label>
-              {snapshot.featureImage ? (
-                <input
-                  class="editorMetaInput"
-                  type="text"
-                  placeholder="Alt text for screen readers"
-                  value={snapshot.featureImageAlt}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      featureImageAlt: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                  onClick={(event) => event.stopPropagation()}
-                />
-              ) : null}
+              <FeatureImageField
+                value={snapshot.featureImage}
+                alt={snapshot.featureImageAlt}
+                showAlt
+                onChange={({ value, alt }) =>
+                  patchSnapshot({
+                    featureImage: value,
+                    featureImageAlt: alt ?? snapshot.featureImageAlt,
+                    ...(value ? {} : { featureImageCaption: '' }),
+                  })
+                }
+                onStatus={setNotice}
+              />
             </div>
             {current.kind === 'authors' ? (
               <>

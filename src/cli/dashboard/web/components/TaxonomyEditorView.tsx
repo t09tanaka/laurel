@@ -6,6 +6,7 @@ import {
   snapshotFromItem as snapshotFromItemFor,
 } from '../lib/editor-snapshot.ts';
 import type { DashboardContentItem, EditorSnapshot } from '../types.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
 
 interface TaxonomyEditorViewProps {
   current: DashboardContentItem;
@@ -19,13 +20,14 @@ interface TaxonomyEditorViewProps {
   onDirtyChange: (dirty: boolean) => void;
 }
 
-// Author / Tag editing is intentionally separate from the post / page
-// editor. The frontmatter surface is small (name, slug, a single short
-// text field, and an image) and there is no markdown body to author,
-// so the UI here is a compact form rather than a writing surface.
+// Author / Tag editor — laid out like an editorial colophon page:
+// large italic display name as the masthead, bottom-rule inputs that
+// read as columns of credits rather than form chrome, and a shared
+// image dropzone for the cover / feature surface.
 export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element {
   const { current } = props;
-  const kindLabel = current.kind === 'authors' ? 'author' : 'tag';
+  const isAuthor = current.kind === 'authors';
+  const kindLabel = isAuthor ? 'Author' : 'Tag';
 
   const baseline = useMemo(
     () => snapshotFromItemFor(current.kind, current),
@@ -36,7 +38,6 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
 
-  // Reset when the file identity changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: rebaseline on file identity change
   useEffect(() => {
     setSnapshot(baseline);
@@ -111,19 +112,19 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   }
 
   return (
-    <section class="editor editorPage open" id="editor">
+    <section class="editor editorPage open taxonomyEditor" id="editor">
       <div class="editorTopRow">
         <button
           type="button"
           class="editorBack"
           onClick={props.onCloseEditor}
-          aria-label={`Close ${kindLabel} editor`}
+          aria-label={`Close ${kindLabel.toLowerCase()} editor`}
         >
           <span class="editorBackArrow" aria-hidden="true">
             ←
           </span>
           <span class="editorBackLabel">
-            {current.kind === 'authors' ? 'Authors' : 'Tags'}
+            {isAuthor ? 'Authors' : 'Tags'}
           </span>
         </button>
         <span class="editorPath" title={current.path}>
@@ -142,144 +143,162 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
           </button>
         </div>
       </div>
+
       <div class="editorScroll">
-        <div class="taxonomyEditorForm">
-          <label class="field wide">
-            <span>Name</span>
+        <div class="taxonomyPage">
+          <header class="taxonomyMasthead">
+            <span class="taxonomyEyebrow">{kindLabel}</span>
             <input
-              class="taxonomyNameInput"
+              class="taxonomyDisplayName"
               type="text"
               value={snapshot.title}
+              spellcheck={false}
               onInput={(event) =>
                 patch({ title: (event.currentTarget as HTMLInputElement).value })
               }
-              placeholder={current.kind === 'authors' ? 'Author name' : 'Tag name'}
+              placeholder={isAuthor ? 'Author name' : 'Tag name'}
+              aria-label={`${kindLabel} name`}
             />
-          </label>
-          <label class="field wide">
-            <span>Slug (filename)</span>
-            <input
-              class="taxonomySlugInput"
-              type="text"
-              value={slugDraft}
-              spellcheck={false}
-              onInput={(event) =>
-                setSlugDraft((event.currentTarget as HTMLInputElement).value)
-              }
-              onBlur={() => {
-                void commitRename();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  (event.currentTarget as HTMLInputElement).blur();
+            <div class="taxonomySlugRow">
+              <span class="taxonomySlugLead">filename</span>
+              <input
+                class="taxonomySlugInput"
+                type="text"
+                value={slugDraft}
+                spellcheck={false}
+                onInput={(event) =>
+                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
                 }
-              }}
-            />
-          </label>
-          {current.kind === 'authors' ? (
-            <>
-              <label class="field wide">
-                <span>Bio</span>
-                <textarea
-                  rows={4}
-                  value={snapshot.bio}
-                  onInput={(event) =>
-                    patch({
-                      bio: (event.currentTarget as HTMLTextAreaElement).value,
-                    })
+                onBlur={() => {
+                  void commitRename();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
                   }
-                  placeholder="Short bio shown on author pages"
-                />
-              </label>
-              <div class="fields">
-                <label class="field">
-                  <span>Website</span>
-                  <input
-                    type="url"
-                    value={snapshot.website}
-                    onInput={(event) =>
-                      patch({
-                        website: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                    placeholder="https://example.com"
-                  />
-                </label>
-                <label class="field">
-                  <span>Location</span>
-                  <input
-                    type="text"
-                    value={snapshot.location}
-                    onInput={(event) =>
-                      patch({
-                        location: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                    placeholder="City, country"
-                  />
-                </label>
-              </div>
-              <label class="field wide">
-                <span>Cover image (URL)</span>
-                <input
-                  type="text"
-                  value={snapshot.featureImage}
-                  onInput={(event) =>
-                    patch({
-                      featureImage: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                  placeholder="/content/images/author.jpg"
-                />
-              </label>
-            </>
-          ) : (
-            <>
-              <label class="field wide">
-                <span>Description</span>
-                <textarea
-                  rows={3}
-                  value={snapshot.description}
-                  onInput={(event) =>
-                    patch({
-                      description: (event.currentTarget as HTMLTextAreaElement).value,
-                    })
-                  }
-                  placeholder="Short tag description shown on tag pages"
-                />
-              </label>
-              <div class="fields">
-                <label class="field">
-                  <span>Accent color</span>
-                  <input
-                    type="color"
-                    value={snapshot.accentColor || '#888888'}
-                    onInput={(event) =>
-                      patch({
-                        accentColor: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </label>
-                <label class="field">
-                  <span>Feature image (URL)</span>
-                  <input
-                    type="text"
-                    value={snapshot.featureImage}
-                    onInput={(event) =>
-                      patch({
-                        featureImage: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                    placeholder="/content/images/tag.jpg"
-                  />
-                </label>
-              </div>
-            </>
-          )}
+                }}
+              />
+              <span class="taxonomySlugSuffix">.md</span>
+            </div>
+          </header>
+
+          <div class="taxonomyBody">
+            <div class="taxonomyText">
+              {isAuthor ? (
+                <>
+                  <label class="taxonomyRow taxonomyRowLong">
+                    <span class="taxonomyLabel">Bio</span>
+                    <textarea
+                      class="taxonomyTextarea"
+                      rows={5}
+                      value={snapshot.bio}
+                      onInput={(event) =>
+                        patch({
+                          bio: (event.currentTarget as HTMLTextAreaElement).value,
+                        })
+                      }
+                      placeholder="A line or two — what they cover, where they're from, why they write here."
+                    />
+                  </label>
+                  <div class="taxonomyPair">
+                    <label class="taxonomyRow">
+                      <span class="taxonomyLabel">Website</span>
+                      <input
+                        class="taxonomyLine"
+                        type="url"
+                        value={snapshot.website}
+                        onInput={(event) =>
+                          patch({
+                            website: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                        placeholder="https://example.com"
+                      />
+                    </label>
+                    <label class="taxonomyRow">
+                      <span class="taxonomyLabel">Location</span>
+                      <input
+                        class="taxonomyLine"
+                        type="text"
+                        value={snapshot.location}
+                        onInput={(event) =>
+                          patch({
+                            location: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                        placeholder="City, country"
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label class="taxonomyRow taxonomyRowLong">
+                    <span class="taxonomyLabel">Description</span>
+                    <textarea
+                      class="taxonomyTextarea"
+                      rows={4}
+                      value={snapshot.description}
+                      onInput={(event) =>
+                        patch({
+                          description: (event.currentTarget as HTMLTextAreaElement).value,
+                        })
+                      }
+                      placeholder="A short summary that introduces this tag on its archive page."
+                    />
+                  </label>
+                  <label class="taxonomyRow taxonomyAccentRow">
+                    <span class="taxonomyLabel">Accent</span>
+                    <span class="taxonomyAccentControl">
+                      <input
+                        class="taxonomyAccentColor"
+                        type="color"
+                        value={snapshot.accentColor || '#888888'}
+                        onInput={(event) =>
+                          patch({
+                            accentColor: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                        aria-label="Accent color"
+                      />
+                      <input
+                        class="taxonomyAccentHex"
+                        type="text"
+                        value={snapshot.accentColor}
+                        onInput={(event) =>
+                          patch({
+                            accentColor: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                        placeholder="#888888"
+                        spellcheck={false}
+                      />
+                    </span>
+                  </label>
+                </>
+              )}
+            </div>
+
+            <aside class="taxonomyAside">
+              <FeatureImageField
+                label={isAuthor ? 'Cover image' : 'Feature image'}
+                value={snapshot.featureImage}
+                alt={snapshot.featureImageAlt}
+                showAlt
+                onChange={({ value, alt }) =>
+                  patch({
+                    featureImage: value,
+                    featureImageAlt: alt ?? snapshot.featureImageAlt,
+                  })
+                }
+                onStatus={setNotice}
+              />
+            </aside>
+          </div>
+
           {notice ? (
-            <output class="notice" aria-live="polite">
+            <output class="taxonomyNotice" aria-live="polite">
               {notice}
             </output>
           ) : null}
