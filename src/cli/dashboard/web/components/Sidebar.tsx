@@ -64,8 +64,11 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   onClick={() => props.onOpenEntry?.(entry.kind, entry.slug)}
                   title={`${entry.kind === 'posts' ? 'Post' : 'Page'}: ${entry.title}`}
                 >
-                  <span class="recentItemKind" aria-hidden="true">
-                    {entry.kind === 'posts' ? 'P' : 'p'}
+                  <span
+                    class="recentItemKind"
+                    data-kind={entry.kind}
+                  >
+                    {entry.kind === 'posts' ? 'post' : 'page'}
                   </span>
                   <span class="recentItemTitle">{entry.title}</span>
                 </button>

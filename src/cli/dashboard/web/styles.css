@@ -503,7 +503,21 @@
   /* Removed visual kind glyph — kept in DOM for assistive context.
    * The recents list reads as a single editorial column of titles now. */
   .recentItemKind {
-    display: none;
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+  .recentItemKind[data-kind='posts'] {
+    color: var(--accent-color, var(--text-primary));
+    opacity: 0.85;
   }
   .recentItemTitle {
     flex: 1 1 auto;
