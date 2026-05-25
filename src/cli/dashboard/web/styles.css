@@ -2509,6 +2509,14 @@
     overflow: auto;
     display: block;
     padding: 0 4px 0 0;
+    /* The editor grid gives .editorCanvas a fixed 1fr row height; we
+     * must propagate that constraint down to the actual scroll
+     * container or its overflow:auto degenerates into "size to content"
+     * and the page can no longer scroll long bodies. min-height:0 lets
+     * the box shrink below its intrinsic content height under flex /
+     * grid layout contexts (Safari especially). */
+    height: 100%;
+    min-height: 0;
   }
   /* Two-column editor canvas — writing on the left, metadata sidebar
    * on the right. Sidebar sticks while body scrolls.
