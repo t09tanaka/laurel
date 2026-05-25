@@ -2358,14 +2358,18 @@
   }
   .statusPill {
     flex: 0 0 auto;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--border-default);
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
     border-radius: 999px;
-    background: var(--surface-normal);
-    color: var(--text-secondary);
-    font: 600 12px / 1 var(--font-sans);
-    letter-spacing: 0.02em;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1;
+    letter-spacing: 0;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
@@ -2375,9 +2379,10 @@
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
     padding-right: 26px;
+    transition: color 0.12s ease;
   }
   .statusPill:hover {
-    border-color: var(--border-strong);
+    color: var(--text-primary);
   }
   .statusPill:disabled {
     opacity: 0.6;
