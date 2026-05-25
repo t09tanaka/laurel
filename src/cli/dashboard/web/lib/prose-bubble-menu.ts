@@ -480,29 +480,38 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         // For an empty selection the browser's own caret rect tracks
         // text wrapping accurately; coordsAtPos can return the prior
         // line's edge when the caret sits at a wrap boundary.
+        // Resolve the caret to viewport coords. coordsAtPos defaults
+        // to the side that visually contains the cursor; when the
+        // ProseMirror position sits on a wrap boundary, biasing to
+        // the trailing side (+1) keeps the rect on the line the user
+        // actually clicked. For empty selections we also peek at the
+        // browser's caret via getClientRects so the bubble follows
+        // the real caret pixel-for-pixel.
         let anchorCenter = 0;
         let anchorTop = 0;
-        if (empty) {
+        const biased = currentView.coordsAtPos(from, 1);
+        anchorCenter = biased.left - parentRect.left;
+        anchorTop = biased.top - parentRect.top;
+        if (!empty) {
+          const start = currentView.coordsAtPos(from, 1);
+          const end = currentView.coordsAtPos(to, -1);
+          anchorCenter = (start.left + end.left) / 2 - parentRect.left;
+          anchorTop = Math.min(start.top, end.top) - parentRect.top;
+        } else {
           const sel = window.getSelection();
-          let caretRect: DOMRect | null = null;
           if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0).cloneRange();
             range.collapse(true);
             const rects = range.getClientRects();
-            caretRect =
-              rects.length > 0 ? rects[rects.length - 1] ?? null : range.getBoundingClientRect();
+            const rect =
+              rects.length > 0
+                ? rects[rects.length - 1]
+                : null;
+            if (rect && (rect.left !== 0 || rect.top !== 0)) {
+              anchorCenter = rect.left + rect.width / 2 - parentRect.left;
+              anchorTop = rect.top - parentRect.top;
+            }
           }
-          if (!caretRect || (caretRect.left === 0 && caretRect.top === 0)) {
-            const fallback = currentView.coordsAtPos(from);
-            caretRect = new DOMRect(fallback.left, fallback.top, 0, fallback.bottom - fallback.top);
-          }
-          anchorCenter = caretRect.left + caretRect.width / 2 - parentRect.left;
-          anchorTop = caretRect.top - parentRect.top;
-        } else {
-          const start = currentView.coordsAtPos(from);
-          const end = currentView.coordsAtPos(to);
-          anchorCenter = (start.left + end.left) / 2 - parentRect.left;
-          anchorTop = start.top - parentRect.top;
         }
         // Render then measure so we can clamp into the parent's bounds.
         root.style.visibility = 'visible';
