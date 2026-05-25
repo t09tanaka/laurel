@@ -86,6 +86,7 @@ export function DashboardApp(): JSX.Element {
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
+  const [codeInjectionSettingsDirty, setCodeInjectionSettingsDirty] = useState(false);
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle');
   const [buildLog, setBuildLog] = useState<string[]>([]);
   const [buildProgress, setBuildProgress] = useState<{
@@ -100,7 +101,7 @@ export function DashboardApp(): JSX.Element {
   const toastHost = useToastHost();
   const confirmHost = useConfirmHost();
 
-  const hasSettingsDirty = siteSettingsDirty || themeSettingsDirty;
+  const hasSettingsDirty = siteSettingsDirty || themeSettingsDirty || codeInjectionSettingsDirty;
 
   const confirmDiscard = useCallback(
     async (body: string): Promise<boolean> => {
@@ -119,6 +120,7 @@ export function DashboardApp(): JSX.Element {
       }
       setSiteSettingsDirty(false);
       setThemeSettingsDirty(false);
+      setCodeInjectionSettingsDirty(false);
       return true;
     },
     [editorDirty, hasSettingsDirty, editor, confirmHost.api],
@@ -751,6 +753,7 @@ export function DashboardApp(): JSX.Element {
                 onConflict={(message) => dispatch({ type: 'conflict', message })}
                 onSiteDirtyChange={setSiteSettingsDirty}
                 onThemeDirtyChange={setThemeSettingsDirty}
+                onCodeInjectionDirtyChange={setCodeInjectionSettingsDirty}
                 onOpenMigration={() => navigateView('migration')}
               />
             )}
