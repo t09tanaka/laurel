@@ -245,6 +245,18 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
               Preview
             </a>
           ) : null}
+          <a
+            class="textLink"
+            href={editorHref}
+            data-edit={item.slug}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onOpen();
+            }}
+          >
+            Detail
+          </a>
           {isPages ? <ExportOverflow slug={item.slug} /> : null}
         </div>
       </td>
