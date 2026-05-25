@@ -6,7 +6,8 @@ import { StatePanel } from './StatePanel.tsx';
 
 // Read-only list of reusable {slug} component snippets. Mirrors the
 // posts / pages / taxonomy table conventions so the row affordances are
-// familiar (mono slug, faint metadata, click row to open the editor).
+// familiar: click anywhere on the row to open the editor, hover surfaces
+// a right-aligned Detail link, mono slug + faint metadata.
 interface ComponentsViewProps {
   list: DashboardList<ComponentSummary>;
   query: string;
@@ -37,15 +38,32 @@ export function ComponentsView(props: ComponentsViewProps): JSX.Element {
             <thead class="srOnly">
               <tr>
                 <th>Slug</th>
-                <th>Description</th>
                 <th>Payload</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => {
                 const editorHref = pathForEditor('components', item.slug);
+                // Mirror ContentTable / TaxonomyView: clicking anywhere on
+                // the row opens the editor unless the click landed on an
+                // existing anchor / button (the inner title link or the
+                // Detail link in the actions cell), and modifier keys are
+                // passed through so cmd-click still opens in a new tab.
+                const onRowClick = (event: MouseEvent) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  if ((event.target as HTMLElement | null)?.closest('a, button')) return;
+                  event.preventDefault();
+                  props.onEdit(item.slug);
+                };
                 return (
-                  <tr key={item.slug} class="contentRow">
+                  // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; the inner title and Detail anchors retain keyboard / screen-reader semantics
+                  <tr
+                    key={item.slug}
+                    class="contentRow"
+                    data-row-slug={item.slug}
+                    onClick={onRowClick}
+                  >
                     <td class="titleCell">
                       <div class="titleLine">
                         <a
@@ -75,6 +93,23 @@ export function ComponentsView(props: ComponentsViewProps): JSX.Element {
                           .filter(Boolean)
                           .join(' · ') || 'empty'}
                       </span>
+                    </td>
+                    <td class="actionsCell">
+                      <div class="rowActions">
+                        <a
+                          class="textLink textLinkStrong"
+                          href={editorHref}
+                          data-edit={item.slug}
+                          onClick={(event) => {
+                            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+                              return;
+                            event.preventDefault();
+                            props.onEdit(item.slug);
+                          }}
+                        >
+                          Detail
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 );

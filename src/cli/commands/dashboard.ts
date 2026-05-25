@@ -1127,14 +1127,15 @@ export async function handleDashboardRequest(
         '/',
         '/posts',
         '/pages',
+        '/components',
         '/authors',
         '/tags',
         '/settings',
         '/settings/migration',
         '/migration',
       ].includes(url.pathname) ||
-        /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
-        /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
+        /^\/(?:posts|pages|components|authors|tags)\/new$/.test(url.pathname) ||
+        /^\/(?:posts|pages|components|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
       return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
