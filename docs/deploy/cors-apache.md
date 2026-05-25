@@ -9,6 +9,7 @@ Content API file:
 
 ```toml
 [components.content_api]
+enabled = true
 emit_htaccess = true
 ```
 

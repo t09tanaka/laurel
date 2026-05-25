@@ -25,7 +25,7 @@ Options:
   --copy-content-assets  Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build
   --no-copy-content-assets  Skip copying files from content.assets_dir into the output
   -w, --watch         After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop
-  --emit-content-api  Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used
+  --emit-content-api  Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `false`) is used
   --no-emit-content-api  Force Ghost Content API JSON shadows off for this build without editing the config
   -j, --json          Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `nectar build --json > build.jsonl` does not hide failures
   -h, --help          Show help for this command
