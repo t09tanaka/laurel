@@ -1544,7 +1544,7 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result);
     }
-    return new Response('Not Found', { status: 404 });
+    return notFoundResponse(request);
   } catch (err) {
     if (err instanceof Response) return err;
     return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
@@ -4265,6 +4265,40 @@ function htmlResponse(html: string): Response {
       'Cache-Control': 'no-store',
       'Content-Security-Policy':
         "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'",
+    },
+  });
+}
+
+// 404 fallback. JSON for fetch / API clients, a small styled HTML page
+// for browsers — so a direct GET to an unknown URL no longer drops the
+// user onto an unstyled "Not Found" black page (was #1973).
+function notFoundResponse(request: Request): Response {
+  const accept = request.headers.get('accept') ?? '';
+  if (!accept.includes('text/html')) {
+    return jsonResponse({ error: 'Not Found' }, 404);
+  }
+  const path = new URL(request.url).pathname;
+  const safePath = path.replace(/[<>&"']/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  );
+  const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found · Nectar Dashboard</title><style>
+:root { color-scheme: light; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f4ecd9; color: #2a241b; font-family: ui-serif, 'Iowan Old Style', Georgia, serif; }
+main { max-width: 480px; padding: 48px 32px; text-align: left; }
+.kicker { font-family: ui-serif, Georgia, serif; font-style: italic; font-size: 13px; color: #6a5d4a; margin: 0 0 6px; }
+h1 { font-family: ui-serif, Georgia, serif; font-weight: 400; font-size: 44px; line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.01em; }
+p { font-size: 15px; line-height: 1.55; color: #4a4036; margin: 0 0 12px; }
+code { font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; color: #2a241b; }
+a { display: inline-block; margin-top: 20px; padding: 8px 14px; background: #1a1612; color: #f4ecd9; text-decoration: none; border-radius: 6px; font-size: 14px; font-family: ui-sans-serif, system-ui, sans-serif; }
+a:hover { background: #2a241b; }
+</style></head><body><main><p class="kicker">404</p><h1>That page isn't here.</h1><p>The URL <code>${safePath}</code> doesn't match any dashboard route.</p><p>Maybe the post was renamed, or you followed a stale link.</p><a href="/posts">Back to Posts</a></main></body></html>`;
+  return new Response(body, {
+    status: 404,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy':
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'",
     },
   });
 }
