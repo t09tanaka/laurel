@@ -53,13 +53,11 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
       {list.items.length ? (
         <div class="tableWrap">
           <table class="table contentTable">
-            <thead>
+            <thead class="srOnly">
               <tr>
                 <th>Title</th>
                 <th class="dateCol">Updated</th>
-                <th>
-                  <span class="srOnly">Actions</span>
-                </th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -290,60 +288,22 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
   );
 }
 
-type StatusVariant = 'ready' | 'pending' | 'warn' | 'info';
-
 interface StatusPillProps {
   status: string;
 }
 
 function StatusPill({ status }: StatusPillProps): JSX.Element {
-  const variant: StatusVariant =
-    status === 'draft' ? 'pending' : status === 'scheduled' ? 'info' : 'ready';
-  const cls = variant === 'pending' ? 'draft' : '';
+  // Minimal: italic serif text label, no chip / no glyph. The row
+  // itself carries cell-typography (italic + opacity for drafts) so
+  // status is communicated by typography, not decoration.
   return (
-    <span class={`pill ${cls}`} data-variant={variant}>
-      <StatusGlyph variant={variant} />
-      <span class="pillLabel">{status}</span>
+    <span
+      class={`statusLabel statusLabel--${status === 'draft' ? 'draft' : 'published'}`}
+      data-status={status}
+    >
+      {status}
     </span>
   );
-}
-
-function StatusGlyph({ variant }: { variant: StatusVariant }): JSX.Element {
-  // Shape varies per state so color is not the only signal.
-  // ready: filled disc, pending: outlined ring, warn: triangle, info: clock.
-  switch (variant) {
-    case 'ready':
-      return (
-        <svg class="statusGlyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-          <circle cx="5" cy="5" r="4" fill="currentColor" />
-        </svg>
-      );
-    case 'pending':
-      return (
-        <svg class="statusGlyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-          <circle cx="5" cy="5" r="3.4" fill="none" stroke="currentColor" stroke-width="1.4" />
-        </svg>
-      );
-    case 'warn':
-      return (
-        <svg class="statusGlyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-          <path d="M5 1 L9.2 8.6 L0.8 8.6 Z" fill="currentColor" />
-        </svg>
-      );
-    case 'info':
-      return (
-        <svg class="statusGlyph" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-          <circle cx="5" cy="5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.4" />
-          <path
-            d="M5 2.7 L5 5 L7 5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-          />
-        </svg>
-      );
-  }
 }
 
 interface ApprovalPillProps {
@@ -351,19 +311,13 @@ interface ApprovalPillProps {
   compact?: boolean;
 }
 
-function ApprovalPill({ approval, compact }: ApprovalPillProps): JSX.Element {
+function ApprovalPill({ approval, compact: _compact }: ApprovalPillProps): JSX.Element {
   const state = approval?.status ?? 'needs-approval';
   const label = state === 'approved' ? 'Approved' : state === 'stale' ? 'Stale' : 'Needs approval';
-  const variant: StatusVariant = state === 'approved' ? 'ready' : 'pending';
-  const cls = variant === 'pending' ? 'draft' : '';
+  // Minimal: italic serif text label, no chip / no glyph.
   return (
-    <span
-      class={`pill ${cls} ${compact ? 'pillCompact' : ''}`}
-      data-approval={state}
-      data-variant={variant}
-    >
-      <StatusGlyph variant={variant} />
-      <span class="pillLabel">{label}</span>
+    <span class="approvalLabel" data-approval={state}>
+      {label}
     </span>
   );
 }
@@ -384,13 +338,11 @@ function ApprovalDetail({ item }: { item: ContentSummary }): JSX.Element {
 function PreviewDetail({ item }: { item: ContentSummary }): JSX.Element {
   const preview = item.preview ?? null;
   const label = preview?.label ?? 'Markdown preview';
-  const variant: StatusVariant = preview?.state === 'current' ? 'ready' : 'pending';
-  const cls = variant === 'pending' ? 'draft' : '';
+  const state = preview?.state === 'current' ? 'current' : 'stale';
   return (
     <>
-      <span class={`pill ${cls}`} data-variant={variant}>
-        <StatusGlyph variant={variant} />
-        <span class="pillLabel">{label}</span>
+      <span class="previewLabel" data-state={state}>
+        {label}
       </span>
       <div class="meta">{preview?.sourcePath ?? preview?.detail ?? 'Saved Markdown preview'}</div>
       {preview?.openUrl ? (
@@ -403,17 +355,12 @@ function PreviewDetail({ item }: { item: ContentSummary }): JSX.Element {
 }
 
 function WarnDot({ count }: { count: number }): JSX.Element {
+  // Minimal: italic serif "N warning(s)" text only. Color is the
+  // warn ink (already a11y-ok contrast); no glyph, no dot.
   const label = `${count} warning${count === 1 ? '' : 's'}`;
   return (
-    <span class="warnDot" title={label} aria-label={label}>
-      <svg class="warnDotMark" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-        <path d="M5 0.6 L9.6 9 L0.4 9 Z" fill="currentColor" />
-        <rect x="4.4" y="3.4" width="1.2" height="2.6" fill="var(--surface-normal)" />
-        <rect x="4.4" y="6.6" width="1.2" height="1.2" fill="var(--surface-normal)" />
-      </svg>
-      <span class="warnDotCount" aria-hidden="true">
-        {count}
-      </span>
+    <span class="warnInline" title={label}>
+      {label}
     </span>
   );
 }

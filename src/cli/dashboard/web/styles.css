@@ -1830,25 +1830,28 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
   }
-  .warnDotMark {
-    width: 11px;
-    height: 11px;
-    color: var(--danger);
-    flex: 0 0 auto;
+  /* Minimal text-only status / approval / preview labels. The row
+   * itself uses cell-typography (italic + opacity for drafts) so
+   * these are companion text labels, not chips. */
+  .statusLabel,
+  .approvalLabel,
+  .previewLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+    font-weight: 400;
   }
-  .statusGlyph {
-    width: 10px;
-    height: 10px;
-    flex: 0 0 auto;
-    margin-right: 4px;
-    color: currentColor;
+  .statusLabel--draft,
+  .approvalLabel[data-approval="needs-approval"],
+  .previewLabel[data-state="stale"] {
+    color: var(--caution);
   }
-  .pillLabel {
-    display: inline;
-  }
-  .pillCompact {
-    padding: 2px 7px;
-    font-size: 11px;
+  .statusLabel--published,
+  .approvalLabel[data-approval="approved"],
+  .previewLabel[data-state="current"] {
+    color: var(--text-muted);
   }
   .overflowMenu {
     position: relative;
