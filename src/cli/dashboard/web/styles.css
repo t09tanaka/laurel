@@ -29,10 +29,13 @@
   --color-text-secondary: #4f5b66;
   --color-text-muted: #8590a0;
   --color-text-invert: #ffffff;
-  --color-bg-primary: #fafbfb;
-  --color-bg-secondary: #f2f5f4;
+  /* Subtle warm tint across the page surfaces — moves away from the
+   * "cold gray SaaS admin" feel toward an editorial publishing surface.
+   * Hex shifted by a few degrees toward warm without becoming sepia. */
+  --color-bg-primary: #fbfaf7;
+  --color-bg-secondary: #f3f1ec;
   --color-surface-normal: #ffffff;
-  --color-surface-raised: #f7f9f8;
+  --color-surface-raised: #f8f5f0;
   --color-surface-primary: #0a0d12;
   --color-surface-primary-reaction: #1f242b;
   --color-surface-quaternary: #eaf0ee;
@@ -51,9 +54,9 @@
   /* Interactive accent — focus rings + in-progress state. One blue, semantic. */
   --color-focus: #2563eb;
 
-  --color-border-default: #e1e5e8;
-  --color-border-strong: #c5cdd1;
-  --color-border-weak: #eef1f3;
+  --color-border-default: #e3e0d8;
+  --color-border-strong: #c8c4ba;
+  --color-border-weak: #efece5;
   --color-border-primary: #0a0d12;
   --color-success: #117a47;
   --color-success-subdued: #e7f3eb;
@@ -61,8 +64,8 @@
   --color-danger-subdued: #fdf2f1;
   --color-warning: #a86900;
   --color-warning-subdued: #fff6df;
-  --color-disabled: #eef2f1;
-  --color-reaction: #f1f4f7;
+  --color-disabled: #efebe3;
+  --color-reaction: #f0ede6;
   --color-modal: rgba(10, 13, 18, 0.46);
 
   /* Sans: Avenir Next on macOS, system-ui everywhere else (SF Pro on Apple,
@@ -79,10 +82,14 @@
 
   --radius-card: 6px;
 
-  --shadow-row: 0 18px 44px rgba(17, 19, 24, 0.08);
-  --shadow-elevation-1: 0 1px 2px rgba(17, 19, 24, 0.06);
-  --shadow-elevation-4: 0 14px 36px rgba(17, 19, 24, 0.12);
-  --shadow-elevation-6: 0 28px 72px rgba(17, 19, 24, 0.2);
+  /* Elevation scale — warm shadows (slight olive tint) feel less harsh
+   * than pure black drops on the warm surface palette. */
+  --shadow-row: 0 18px 44px rgba(31, 28, 22, 0.07);
+  --shadow-elevation-1: 0 1px 2px rgba(31, 28, 22, 0.06);
+  --shadow-elevation-2: 0 4px 12px rgba(31, 28, 22, 0.06), 0 1px 2px rgba(31, 28, 22, 0.04);
+  --shadow-elevation-3: 0 10px 24px rgba(31, 28, 22, 0.09), 0 2px 4px rgba(31, 28, 22, 0.05);
+  --shadow-elevation-4: 0 14px 36px rgba(31, 28, 22, 0.12);
+  --shadow-elevation-6: 0 28px 72px rgba(31, 28, 22, 0.18);
 }
 
 @layer base {
@@ -128,6 +135,8 @@
     --modal: var(--color-modal);
     --row-shadow: var(--shadow-row);
     --elevation-1: var(--shadow-elevation-1);
+    --elevation-2: var(--shadow-elevation-2);
+    --elevation-3: var(--shadow-elevation-3);
     --elevation-4: var(--shadow-elevation-4);
     --elevation-6: var(--shadow-elevation-6);
 
@@ -197,7 +206,10 @@
   }
   body {
     margin: 0;
-    background: linear-gradient(180deg, #f6f8f7 0, #fff 38%, var(--background-secondary));
+    /* Warm vertical wash — subtly cream at the top, fading to the warm
+     * background-secondary at the bottom. Reads as "publishing paper" not
+     * "cold admin chrome". */
+    background: linear-gradient(180deg, #f7f4ee 0, #ffffff 38%, var(--background-secondary));
     color: var(--text-primary);
     font: 14.5px / 1.55 var(--font-sans);
     letter-spacing: -0.002em;
@@ -306,10 +318,16 @@
     position: sticky;
     top: 0;
     height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     box-shadow: inset -1px 0 rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  /* Status rail floats to the bottom of the sidebar regardless of the
+   * number of recent entries above it. */
+  .side .statusRail {
+    margin-top: auto;
   }
   .sideTop {
     display: grid;
@@ -370,6 +388,10 @@
     font-weight: 500;
     letter-spacing: -0.003em;
     text-decoration: none;
+    transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .nav a:active {
+    transform: scale(0.99);
   }
   .nav a:before {
     content: "";
@@ -431,10 +453,84 @@
   .nav .navCount:empty {
     display: none;
   }
+  /* Recently edited — quick jump to the last 5 files touched. Adds real
+   * daily-driver utility to the sidebar (replaces the dead empty middle). */
+  .recents {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .recentsHead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 11.5px;
+    line-height: 16px;
+    letter-spacing: 0;
+    color: var(--sidebar-muted);
+    padding: 0 4px 4px;
+  }
+  .recentsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+  }
+  .recentItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    color: var(--sidebar-muted);
+    font: inherit;
+    font-size: 12.5px;
+    line-height: 16px;
+    letter-spacing: -0.003em;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .recentItem:hover,
+  .recentItem:focus-visible {
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--sidebar-ink);
+    outline: none;
+  }
+  /* Tiny serif glyph signals which kind ('P' = post, 'p' = page) without
+   * needing a real icon. Reads as a footnote letterform. */
+  .recentItemKind {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-serif);
+    font-size: 12px;
+    color: var(--sidebar-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .recentItem:hover .recentItemKind {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .recentItemTitle {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .statusRail {
     display: grid;
     gap: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding-top: 18px;
     min-width: 0;
   }
@@ -724,15 +820,21 @@
     padding: 8px 16px;
     background: var(--surface-primary);
     color: var(--text-invert);
-    box-shadow: none;
+    box-shadow: var(--elevation-2);
     white-space: nowrap;
     font-size: 13.5px;
     font-weight: 500;
     letter-spacing: -0.003em;
     text-decoration: none;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
   }
   .btn:hover {
     background: var(--surface-primary-reaction);
+    box-shadow: var(--elevation-3);
+  }
+  .btn:active {
+    transform: scale(0.985);
+    box-shadow: var(--elevation-1);
   }
   .toolbar #newItem {
     background: var(--action);
@@ -749,8 +851,13 @@
     font-weight: 500;
   }
   .btn.secondary:hover {
-    background: var(--reaction);
+    background: var(--surface-raised);
     border-color: var(--border-strong);
+    box-shadow: var(--elevation-2);
+  }
+  .btn.secondary:active {
+    background: var(--reaction);
+    box-shadow: none;
   }
   .btn.icon {
     width: 40px;
@@ -1025,9 +1132,10 @@
     background: transparent;
     border-bottom: 1px solid var(--border-weak);
     cursor: pointer;
+    transition: background-color 0.12s ease;
   }
   .contentRow:hover,
-  .contentRow:focus-visible {
+  .contentRow:focus-within {
     background: var(--surface-raised);
     outline: none;
   }
@@ -1287,18 +1395,20 @@
     text-align: center;
   }
   .statePanel {
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
+    border: 1px solid var(--border-weak);
+    border-radius: 8px;
     background: var(--surface-normal);
+    box-shadow: var(--elevation-1);
   }
   .statePanel b {
     display: block;
     color: var(--text-primary);
-    font-size: 17px;
-    line-height: 24px;
-    margin-bottom: 5px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-family: var(--font-serif);
+    font-size: 20px;
+    line-height: 26px;
+    margin-bottom: 7px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
     font-feature-settings: "palt";
   }
   .statePanel p {
@@ -1828,13 +1938,18 @@
   }
   .settingsCard {
     border: 1px solid var(--border-default);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: var(--surface-normal);
-    padding: 17px;
+    padding: 18px;
     display: grid;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
     box-shadow: var(--elevation-1);
+    transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  }
+  .settingsCard:hover {
+    box-shadow: var(--elevation-2);
+    border-color: var(--border-strong);
   }
   .settingsCard > div:first-child {
     display: flex;

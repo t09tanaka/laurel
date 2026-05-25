@@ -309,6 +309,18 @@ export function DashboardApp(): JSX.Element {
   const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
+  // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
+  const recents = (() => {
+    if (!state) return [];
+    const items: Array<{ kind: 'posts' | 'pages'; slug: string; title: string; ts: number }> = [];
+    for (const p of state.posts.items.slice(0, 12)) {
+      items.push({ kind: 'posts', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
+    }
+    for (const p of state.pages.items.slice(0, 12)) {
+      items.push({ kind: 'pages', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
+    }
+    return items.sort((a, b) => b.ts - a.ts).slice(0, 5);
+  })();
 
   return (
     <div class="shell">
@@ -317,6 +329,7 @@ export function DashboardApp(): JSX.Element {
         siteTitle={state?.site.title ?? ''}
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
+        recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
         buildLabel={rail.build.label}
@@ -325,6 +338,9 @@ export function DashboardApp(): JSX.Element {
         previewState={rail.preview.state}
         theme={ui.theme}
         onNavigate={(target) => navigateView(target)}
+        onOpenEntry={(kind, slug) => {
+          void openEditor(kind, slug);
+        }}
         onCycleTheme={cycleTheme}
         onForceSync={() => {
           void load({ force: true });

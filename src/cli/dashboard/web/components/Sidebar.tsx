@@ -1,11 +1,18 @@
 import type { JSX } from 'preact';
 import type { DashboardShellSection, DashboardState, DashboardTheme } from '../types.ts';
 
+export interface RecentEntry {
+  kind: 'posts' | 'pages';
+  slug: string;
+  title: string;
+}
+
 interface SidebarProps {
   section: DashboardShellSection;
   siteTitle: string;
   postsTotal?: number;
   pagesTotal?: number;
+  recents?: RecentEntry[];
   syncLabel: string;
   syncState: string;
   buildLabel: string;
@@ -14,6 +21,7 @@ interface SidebarProps {
   previewState: string;
   theme: DashboardTheme;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
+  onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onCycleTheme: () => void;
   onForceSync: () => void;
 }
@@ -65,6 +73,28 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           onNavigate={() => props.onNavigate('settings')}
         />
       </nav>
+      {props.recents && props.recents.length > 0 ? (
+        <div class="recents" aria-label="Recently edited">
+          <div class="recentsHead">Recently</div>
+          <ul class="recentsList">
+            {props.recents.slice(0, 5).map((entry) => (
+              <li key={`${entry.kind}/${entry.slug}`}>
+                <button
+                  type="button"
+                  class="recentItem"
+                  onClick={() => props.onOpenEntry?.(entry.kind, entry.slug)}
+                  title={`${entry.kind === 'posts' ? 'Post' : 'Page'}: ${entry.title}`}
+                >
+                  <span class="recentItemKind" aria-hidden="true">
+                    {entry.kind === 'posts' ? 'P' : 'p'}
+                  </span>
+                  <span class="recentItemTitle">{entry.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div class="statusRail" aria-label="File-backed status">
         <RailItem
           id="syncRail"
