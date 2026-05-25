@@ -82,26 +82,31 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
       ) : (
         <StatePanel kind="empty" />
       )}
-      <div class="pager">
-        <button
-          class="btn secondary"
-          id="prev"
-          type="button"
-          disabled={list.page <= 1}
-          onClick={props.onPrev}
-        >
-          Prev
-        </button>
-        <button
-          class="btn secondary"
-          id="next"
-          type="button"
-          disabled={list.page >= list.pages}
-          onClick={props.onNext}
-        >
-          Next
-        </button>
-      </div>
+      {list.pages > 1 ? (
+        <div class="pager">
+          <span class="pagerLabel">
+            page {list.page} of {list.pages}
+          </span>
+          <button
+            class="btn secondary btnCompact"
+            id="prev"
+            type="button"
+            disabled={list.page <= 1}
+            onClick={props.onPrev}
+          >
+            Prev
+          </button>
+          <button
+            class="btn secondary btnCompact"
+            id="next"
+            type="button"
+            disabled={list.page >= list.pages}
+            onClick={props.onNext}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
