@@ -2895,6 +2895,16 @@
   .editorMeta .featureImagePreview {
     max-height: 200px;
   }
+  /* Narrow viewports still need the right-side gutter to clear the
+   * fixed metadata aside, but the matching left gutter is purely
+   * decorative — it centers the body under the top bar. Drop it once
+   * the writing column starts to feel cramped so the editor reclaims
+   * the width instead of staying visually centered. */
+  @media (max-width: 1280px) {
+    .editorCanvas {
+      padding-left: 24px;
+    }
+  }
   @media (max-width: 940px) {
     .editorCanvas {
       padding-right: 0;
