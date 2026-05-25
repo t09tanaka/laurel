@@ -2035,7 +2035,9 @@
     background: var(--reaction);
   }
   /* Row actions hide until the row is hovered/focused — keeps the list
-   * dense and reading-first, surfaces actions on intent. */
+   * dense and reading-first, surfaces actions on intent. The slide-from-right
+   * mirrors the editor page-enter animation so the affordance feels like a
+   * preview of the same gesture, both on hover-in and hover-out. */
   .rowActions {
     display: flex;
     justify-content: flex-end;
@@ -2043,17 +2045,20 @@
     gap: 20px;
     flex-wrap: nowrap;
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transform: translateX(18px);
+    transition: opacity 0.18s ease, transform 0.22s ease-out;
   }
   .contentRow:hover .rowActions,
   .contentRow:focus-within .rowActions {
     opacity: 1;
+    transform: translateX(0);
   }
   /* Always-visible on touch / no-hover environments so the actions stay
    * reachable. Matches the platform conventions. */
   @media (hover: none) {
     .rowActions {
       opacity: 1;
+      transform: none;
     }
   }
   .btnCompact {
