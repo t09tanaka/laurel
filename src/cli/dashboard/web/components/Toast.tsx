@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 export type ToastIntent = 'info' | 'success' | 'warn' | 'error';
 
@@ -61,6 +61,8 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
     };
   }, []);
 
+  const api = useMemo<ToastApi>(() => ({ push, dismiss }), [push, dismiss]);
+
   const node = (
     <div class="toastHost" role="region" aria-label="Notifications">
       {items.map((item) => (
@@ -86,5 +88,5 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
     </div>
   );
 
-  return { api: { push, dismiss }, node };
+  return { api, node };
 }

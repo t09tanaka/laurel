@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 export interface ConfirmRequest {
   title: string;
@@ -68,6 +68,8 @@ export function useConfirmHost(): { api: ConfirmApi; node: JSX.Element } {
     };
   }, [pending, respond]);
 
+  const api = useMemo<ConfirmApi>(() => ({ ask }), [ask]);
+
   const node = !pending ? (
     <></>
   ) : (
@@ -110,5 +112,5 @@ export function useConfirmHost(): { api: ConfirmApi; node: JSX.Element } {
     </div>
   );
 
-  return { api: { ask }, node };
+  return { api, node };
 }
