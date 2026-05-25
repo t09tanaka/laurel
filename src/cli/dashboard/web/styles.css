@@ -1526,6 +1526,56 @@
   .contentRow:focus-visible {
     box-shadow: inset 2px 0 0 var(--focus);
   }
+  /* Status & approval expressed via cell typography rather than chips.
+   * The row's title is the canvas; weight + style + a subtle inline
+   * marker carry the meaning. */
+  .contentRow[data-status="draft"] .titleText {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-weight: 500;
+  }
+  .contentRow[data-status="scheduled"] .titleText {
+    color: var(--text-primary);
+  }
+  .contentRow[data-status="scheduled"] .titleText::after {
+    content: " · scheduled";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--success);
+    letter-spacing: 0;
+  }
+  /* Pages waiting on approval get a quiet warning rule along their
+   * left edge — visible without stealing focus from the title. */
+  .contentRow[data-approval="needs-approval"] {
+    box-shadow: inset 2px 0 0 var(--caution);
+  }
+  .contentRow[data-approval="needs-approval"]:hover,
+  .contentRow[data-approval="needs-approval"]:focus-within {
+    /* Hover keeps the warning stripe, layers the ink hover on top. */
+    box-shadow:
+      inset 2px 0 0 var(--caution),
+      inset 0 0 0 0 transparent;
+    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 50%, transparent);
+  }
+  .contentRow[data-approval="needs-approval"] .titleText::before {
+    content: "needs approval ";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--caution);
+    margin-right: 6px;
+  }
+  .contentRow[data-approval="stale"] .titleText::before {
+    content: "stale ";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--caution);
+    margin-right: 6px;
+  }
   .titleCell {
     min-width: 0;
     max-width: 100%;

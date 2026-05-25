@@ -186,11 +186,14 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
   const status = item.status ?? 'published';
   const warningCount = item.warnings?.length ?? 0;
   const title = item.title?.trim() ? item.title : '(untitled)';
+  const approvalStatus = isPages ? (item.approval?.status ?? 'needs-approval') : null;
   return (
     <tr
       class="contentRow"
       tabIndex={0}
       data-row-slug={item.slug}
+      data-status={status}
+      data-approval={approvalStatus ?? undefined}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest('a, button, summary, details, kbd')) return;
         onOpen();
@@ -208,8 +211,9 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           <span class="titleText" title={title}>
             {title}
           </span>
-          <span class={`pill ${status === 'draft' ? 'draft' : ''}`}>{status}</span>
-          {isPages ? <ApprovalPill approval={item.approval} compact /> : null}
+          {/* Status & approval communicated via row styling (see
+           * data-status / data-approval rules in styles.css), not pills.
+           * Only warnings (genuinely a footnote) keep an inline glyph. */}
           {warningCount > 0 ? <WarnDot count={warningCount} /> : null}
         </div>
         <div class="slugLine">
@@ -246,24 +250,6 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
         </div>
       </td>
     </tr>
-  );
-}
-
-interface ApprovalPillProps {
-  approval: ContentSummary['approval'];
-  compact?: boolean;
-}
-
-function ApprovalPill({ approval, compact }: ApprovalPillProps): JSX.Element {
-  const state = approval?.status ?? 'needs-approval';
-  const label = state === 'approved' ? 'Approved' : state === 'stale' ? 'Stale' : 'Needs approval';
-  // Secondary metadata — render as subtle outline so the primary status pill
-  // (published / draft / scheduled) stays the visual anchor on each row.
-  const cls = state === 'approved' ? 'subtle' : state === 'stale' ? 'warn' : 'warn';
-  return (
-    <span class={`pill ${cls} ${compact ? 'pillCompact' : ''}`} data-approval={state}>
-      {label}
-    </span>
   );
 }
 
