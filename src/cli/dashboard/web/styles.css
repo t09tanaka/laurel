@@ -1557,17 +1557,9 @@
     color: var(--caution);
     letter-spacing: 0;
   }
-  .contentRow[data-status="scheduled"] .titleText {
-    color: var(--text-primary);
-  }
-  .contentRow[data-status="scheduled"] .titleText::after {
-    content: " · scheduled";
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    color: var(--success);
-    letter-spacing: 0;
-  }
+  /* "scheduled" status removed — static-site dashboards have no
+   * publish-on-future-date semantics, so the option only confused
+   * writers. Stick with published / draft. */
   /* Pages waiting on approval get a quiet warning rule along their
    * left edge — visible without stealing focus from the title. */
   .contentRow[data-approval="needs-approval"] {

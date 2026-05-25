@@ -254,7 +254,7 @@ describe('dashboard data', () => {
       expect(unfiltered.posts.statusCounts).toBeDefined();
       const counts = unfiltered.posts.statusCounts;
       if (!counts) throw new Error('statusCounts missing');
-      const totalReported = counts.draft + counts.published + counts.scheduled;
+      const totalReported = counts.draft + counts.published;
       expect(counts.all).toBeGreaterThanOrEqual(totalReported);
       expect(counts.all).toBe(unfiltered.posts.total);
 

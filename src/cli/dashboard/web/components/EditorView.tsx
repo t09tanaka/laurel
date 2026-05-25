@@ -588,7 +588,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           >
             <option>published</option>
             <option>draft</option>
-            <option>scheduled</option>
           </select>
         </div>
         {/* Body toolbar — visible formatting + image insert. Keeps the

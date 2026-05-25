@@ -130,7 +130,6 @@ export interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
-  scheduled: number;
 }
 
 export interface DashboardList<T> {
@@ -1771,7 +1770,7 @@ export async function applyDashboardBulkAction({
     const frontmatter = { ...current.frontmatter };
     if (action === 'set-status') {
       const status = value?.trim();
-      if (status !== 'published' && status !== 'draft' && status !== 'scheduled') {
+      if (status !== 'published' && status !== 'draft') {
         skipped.push({ kind: target.kind, slug: target.slug, reason: 'invalid-status' });
         continue;
       }
@@ -2358,10 +2357,9 @@ function taxonomySummary(
 }
 
 function countSummariesByStatus(items: DashboardContentSummary[]): DashboardStatusCounts {
-  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0, scheduled: 0 };
+  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0 };
   for (const item of items) {
     if (item.status === 'draft') counts.draft += 1;
-    else if (item.status === 'scheduled') counts.scheduled += 1;
     else if (item.status === 'published') counts.published += 1;
   }
   return counts;

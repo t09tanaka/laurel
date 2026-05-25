@@ -30,7 +30,6 @@ const STATUS_TABS: ReadonlyArray<{
   { value: '', label: 'All', key: 'all' },
   { value: 'draft', label: 'Drafts', key: 'draft' },
   { value: 'published', label: 'Published', key: 'published' },
-  { value: 'scheduled', label: 'Scheduled', key: 'scheduled' },
 ];
 
 export function ContentTable(props: ContentTableProps): JSX.Element {
