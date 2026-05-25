@@ -234,8 +234,33 @@
     cursor: not-allowed;
   }
   :focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid color-mix(in srgb, var(--focus) 70%, transparent);
     outline-offset: 2px;
+  }
+  /* Refined selection — uses ink at low opacity instead of the OS default
+   * heavy blue. Reads like an editorial highlight rather than a UI focus. */
+  ::selection {
+    background: color-mix(in srgb, var(--color-ink) 16%, transparent);
+    color: var(--text-primary);
+  }
+  /* Slim, near-invisible scrollbars (WebKit). The dashboard is content-led;
+   * the scrollbar shouldn't be a UI element. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-muted) 48%, transparent);
+    background-clip: padding-box;
   }
 }
 
@@ -292,23 +317,28 @@
     min-width: 0;
   }
   .brand {
-    font-size: 17px;
-    line-height: 1.2;
-    font-weight: 600;
-    letter-spacing: -0.003em;
-    font-feature-settings: "palt";
+    /* Editorial masthead — serif logotype + brand-green sigil dot.
+     * The pairing reads like a magazine flag instead of a SaaS wordmark. */
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 500;
+    letter-spacing: -0.018em;
+    font-feature-settings: "palt", "ss01";
     color: var(--sidebar-ink);
   }
   .brand:before {
+    /* Brand sigil — a green honey-drop ring. Sized to align optically with
+     * the serif cap-height of "Nectar". */
     content: "";
     display: inline-block;
-    width: 22px;
-    height: 22px;
-    margin-right: 10px;
-    vertical-align: -6px;
-    border: 2.5px solid var(--brand);
+    width: 18px;
+    height: 18px;
+    margin-right: 9px;
+    vertical-align: -3px;
+    border: 2px solid var(--brand);
     border-radius: 50%;
-    box-shadow: inset 0 0 0 5px var(--sidebar-bg), 0 0 0 1px rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 4px var(--sidebar-bg), 0 0 0 1px rgba(255, 255, 255, 0.14);
   }
   .tagline {
     color: var(--sidebar-muted);
@@ -521,6 +551,20 @@
     letter-spacing: 0;
     text-transform: none;
     color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  /* The signature dot — a single brand-green pip before the kicker.
+   * One subtle, editorial mark that becomes "the Nectar look". */
+  .kicker:before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--brand);
+    flex: 0 0 auto;
   }
   .viewTitle {
     /* Display serif. Refined weight (no bold-on-bold cacophony) and tighter
