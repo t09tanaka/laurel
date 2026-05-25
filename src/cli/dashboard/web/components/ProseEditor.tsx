@@ -32,8 +32,10 @@ import {
 import { type Command, EditorState, type Transaction } from 'prosemirror-state';
 import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
+import { uploadImage } from '../lib/api.ts';
 import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
 import { buildInputRules } from '../lib/prose-input-rules.ts';
+import { insertMenuPlugin } from '../lib/prose-insert-menu.ts';
 
 // Wide schema: paragraph / blockquote / heading / horizontal_rule /
 // code_block / image / hard_break + lists + tables, plus the basic
@@ -255,6 +257,13 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
         history(),
         tableEditing(),
         bubbleMenuPlugin(proseSchema),
+        insertMenuPlugin(proseSchema, {
+          uploadImage: async (file) => {
+            const result = await uploadImage(file);
+            if (result.ok) return { ok: true, path: result.path };
+            return { ok: false, error: result.error };
+          },
+        }),
       ],
     });
     const view = new EditorView(host, {
