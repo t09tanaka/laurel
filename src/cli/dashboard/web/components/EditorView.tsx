@@ -66,6 +66,12 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   const [notice, setNotice] = useState('');
   const [, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
   const [slugDraft, setSlugDraft] = useState(current.slug);
+  const slugDraftRef = useRef(slugDraft);
+  slugDraftRef.current = slugDraft;
+  // Ref-of-closure pattern so the document keydown handler always runs
+  // the latest save logic (slug-aware) without re-binding on every
+  // snapshot change. Set immediately below the function definitions.
+  const saveActionRef = useRef<(() => Promise<void>) | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: slugDraft re-sets when the file identity flips
   useEffect(() => {
     setSlugDraft(current.slug);
@@ -133,7 +139,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       // ⌘S / Ctrl+S — primary writer's shortcut.
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
-        void handleSave();
+        // Always go through the ref so we run the latest closures —
+        // commitSlugRename / handleSave read snapshot, slugDraft, etc.
+        void saveActionRef.current?.();
         return;
       }
       if (event.key !== 'Escape') return;
@@ -148,8 +156,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-    // handleSave is stable enough across renders; intentionally not listed
-    // to avoid re-binding the listener for every snapshot patch.
+    // handleSave / commitSlugRename are stable enough across renders;
+    // intentionally not listed to avoid re-binding the listener for
+    // every snapshot patch.
     // biome-ignore lint/correctness/useExhaustiveDependencies: see comment above
   }, [focus.focusMode, props.onCloseEditor]);
 
@@ -384,6 +393,18 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   const warnings = computeWarnings(snapshot.body);
   const saveState = focus.saveState;
+
+  // Refresh the save action on every render so the document-level
+  // ⌘S handler always calls the latest closures (slugDraft, current,
+  // snapshot, props).
+  saveActionRef.current = async () => {
+    const next = slugDraftRef.current.trim().toLowerCase();
+    if (next && next !== current.slug) {
+      await commitSlugRename();
+      return;
+    }
+    await handleSave();
+  };
 
   return (
     <section class="editor editorPage open" id="editor" aria-labelledby="editorTitle">

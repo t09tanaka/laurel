@@ -5,13 +5,13 @@ custom_excerpt: How `nectar import-ghost` turns a Ghost JSON export into Markdow
 date: 2026-05-15T11:30:00.000Z
 feature_image: /content/images/migration-cover.svg
 feature_image_alt: A bee flying between two flowers
-slug: migrating-from-ghost2
+slug: migrating-from-ghost
 status: published
 tags:
   - migration
   - getting-started
 title: Migrating from Ghost
-updated_at: 2026-05-25T05:33:33.697Z
+updated_at: 2026-05-25T05:47:06.337Z
 ---
 
 Run `nectar import-ghost ghost-export.json` from your project root. The
