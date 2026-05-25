@@ -15,6 +15,7 @@ interface SidebarProps {
   siteUrl?: string;
   postsTotal?: number;
   pagesTotal?: number;
+  componentsTotal?: number;
   recents?: RecentEntry[];
   syncLabel: string;
   syncState: string;
@@ -27,7 +28,7 @@ interface SidebarProps {
   canDownload: boolean;
   onBuildClick: () => void;
   onDownloadClick: () => void;
-  onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
+  onNavigate: (target: 'posts' | 'pages' | 'components' | 'settings') => void;
   onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onForceSync: () => void;
 }
@@ -80,6 +81,15 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           label="Pages"
           count={props.pagesTotal}
           onNavigate={() => props.onNavigate('pages')}
+        />
+        <NavLink
+          href="/components"
+          view="components"
+          section="components"
+          active={props.section === 'components'}
+          label="Components"
+          count={props.componentsTotal}
+          onNavigate={() => props.onNavigate('components')}
         />
       </nav>
       {props.recents && props.recents.length > 0 ? (

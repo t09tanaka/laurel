@@ -54,6 +54,16 @@ export interface TaxonomySummary {
   [key: string]: unknown;
 }
 
+export interface ComponentSummary {
+  slug: string;
+  description: string;
+  hasCss: boolean;
+  hasHtml: boolean;
+  path: string;
+  fingerprint: ContentFingerprint;
+  [key: string]: unknown;
+}
+
 export interface DashboardStatusCounts {
   all: number;
   draft: number;
@@ -120,6 +130,7 @@ export interface DashboardState {
   pages: DashboardList<ContentSummary>;
   authors: DashboardList<TaxonomySummary>;
   tags: DashboardList<TaxonomySummary>;
+  components: DashboardList<ComponentSummary>;
   settings: {
     configPath: string;
     fingerprint: ContentFingerprint;

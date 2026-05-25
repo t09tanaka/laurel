@@ -2,6 +2,8 @@ import type { JSX } from 'preact';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hooks';
 import { BuildPanel, type BuildPhase } from './components/BuildPanel.tsx';
 import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
+import { ComponentEditorView } from './components/ComponentEditorView.tsx';
+import { ComponentsView } from './components/ComponentsView.tsx';
 import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
@@ -618,6 +620,7 @@ export function DashboardApp(): JSX.Element {
         siteUrl={state?.site.url}
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
+        componentsTotal={state?.components?.total}
         recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
@@ -742,6 +745,14 @@ export function DashboardApp(): JSX.Element {
                   void handleMaterialize(ui.view as 'authors' | 'tags', slug);
                 }}
               />
+            ) : ui.view === 'components' ? (
+              <ComponentsView
+                list={state.components}
+                query={ui.query}
+                onEdit={(slug) => {
+                  void openEditor('components', slug);
+                }}
+              />
             ) : ui.view === 'migration' ? (
               <MigrationView onSettingsSaved={() => load({ force: true })} />
             ) : (
@@ -763,6 +774,14 @@ export function DashboardApp(): JSX.Element {
               onCloseEditor={handleCloseEditor}
               onSaved={handleEditorSaved}
               onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          ) : editor.kind === 'components' ? (
+            <ComponentEditorView
+              current={editor}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
               onConflict={handleEditorConflict}
               onDirtyChange={setEditorDirty}
             />

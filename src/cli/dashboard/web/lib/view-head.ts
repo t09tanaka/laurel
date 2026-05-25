@@ -17,6 +17,11 @@ const VIEW_HEAD: Record<DashboardView, ViewHeadCopy> = {
     title: 'Pages',
     meta: 'Pages created newest first. Edits write to Markdown only; approve before the next build.',
   },
+  components: {
+    kicker: 'Workspace',
+    title: 'Components',
+    meta: 'Reusable HTML + CSS snippets embedded in post and page bodies via the {slug} shortcode.',
+  },
   settings: {
     kicker: 'Settings',
     title: 'Settings',
@@ -52,9 +57,19 @@ export const CREATE_HEAD: ViewHeadCopy = {
 /* Kind-aware page title — "New post" / "New page" / "New author" / "New tag"
  * matches the URL the user navigated to. The form below no longer needs
  * the Kind selector because of this. */
-export function createHeadFor(kind: 'posts' | 'pages' | 'authors' | 'tags'): ViewHeadCopy {
+export function createHeadFor(
+  kind: 'posts' | 'pages' | 'components' | 'authors' | 'tags',
+): ViewHeadCopy {
   const single =
-    kind === 'posts' ? 'post' : kind === 'pages' ? 'page' : kind === 'authors' ? 'author' : 'tag';
+    kind === 'posts'
+      ? 'post'
+      : kind === 'pages'
+        ? 'page'
+        : kind === 'components'
+          ? 'component'
+          : kind === 'authors'
+            ? 'author'
+            : 'tag';
   return {
     kicker: 'Workspace · Create',
     title: `New ${single}`,

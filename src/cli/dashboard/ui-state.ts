@@ -2,10 +2,17 @@
 // and the test suite. No Preact imports — kept free of DOM types so it can be
 // compiled under the CLI tsconfig.
 
-export type DashboardView = 'posts' | 'pages' | 'authors' | 'tags' | 'settings' | 'migration';
+export type DashboardView =
+  | 'posts'
+  | 'pages'
+  | 'components'
+  | 'authors'
+  | 'tags'
+  | 'settings'
+  | 'migration';
 export type DashboardContentView = 'posts' | 'pages';
-export type DashboardEditorKind = 'posts' | 'pages' | 'authors' | 'tags';
-export type DashboardShellSection = 'posts' | 'pages' | 'settings';
+export type DashboardEditorKind = 'posts' | 'pages' | 'components' | 'authors' | 'tags';
+export type DashboardShellSection = 'posts' | 'pages' | 'components' | 'settings';
 export type DashboardSettingsSubview = 'site' | 'authors' | 'tags' | 'migration';
 export type DashboardDensity = 'comfortable' | 'compact';
 export type DashboardLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'conflict';
@@ -48,6 +55,7 @@ export const DEFAULT_DASHBOARD_UI_STATE: DashboardUiState = {
 
 export function normalizeDashboardView(view: string | undefined): DashboardView {
   return view === 'pages' ||
+    view === 'components' ||
     view === 'authors' ||
     view === 'tags' ||
     view === 'settings' ||
@@ -58,6 +66,7 @@ export function normalizeDashboardView(view: string | undefined): DashboardView 
 
 export function dashboardShellSectionFor(view: DashboardView): DashboardShellSection {
   if (view === 'pages') return 'pages';
+  if (view === 'components') return 'components';
   if (view === 'authors' || view === 'tags' || view === 'settings' || view === 'migration') {
     return 'settings';
   }

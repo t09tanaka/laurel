@@ -2798,6 +2798,55 @@
     font-family: var(--font-mono);
     font-size: 12.5px;
   }
+  /* Component editor — stacked Description / CSS / HTML fields. Each
+   * label sits above a textarea pinned to a comfortable monospace size
+   * so the author can read the snippet without horizontal scroll. The
+   * css / html panes are intentionally taller than the description so
+   * they read as the primary content of the editor. */
+  .componentEditor {
+    display: grid;
+    gap: 20px;
+    margin-top: 12px;
+  }
+  .componentField {
+    display: grid;
+    gap: 6px;
+  }
+  .componentFieldLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  .componentTextarea {
+    width: 100%;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 12px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    resize: vertical;
+    box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .componentTextarea:hover {
+    border-color: var(--border-strong);
+  }
+  .componentTextarea:focus {
+    border-color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
+  }
+  .componentTextareaCss {
+    min-height: 180px;
+  }
+  .componentTextareaHtml {
+    min-height: 220px;
+  }
   .editorMetaTextarea {
     font-family: var(--font-sans);
     line-height: 1.5;
