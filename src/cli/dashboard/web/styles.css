@@ -1980,6 +1980,68 @@
     display: block;
     padding: 0 4px 0 0;
   }
+  /* Two-column editor canvas — writing on the left, metadata sidebar
+   * on the right. Sidebar sticks while body scrolls. */
+  .editorCanvas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 48px;
+    align-items: start;
+    max-width: 1160px;
+    margin: 0 auto;
+  }
+  .editorMain {
+    min-width: 0;
+  }
+  .editorMeta {
+    position: sticky;
+    top: 24px;
+    display: grid;
+    gap: 28px;
+    min-width: 0;
+  }
+  .editorMetaSection {
+    display: grid;
+    gap: 8px;
+  }
+  .editorMetaLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  /* Status select inside the metadata sidebar — full-width pill that
+   * sits comfortably in the 260px column. */
+  .editorMetaStatus {
+    width: 100%;
+    text-align: left;
+    background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
+    padding-right: 24px;
+  }
+  /* Sidebar feature image zone — narrower than the previous full-width
+   * version, fits the 260px column. */
+  .editorMeta .featureImageZone {
+    max-width: 260px;
+    min-height: 90px;
+    margin: 0;
+    padding: 12px;
+  }
+  .editorMeta .featureImagePreview {
+    max-height: 200px;
+  }
+  @media (max-width: 940px) {
+    .editorCanvas {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .editorMeta {
+      position: static;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+  }
   .editor textarea {
     width: 100%;
     /* Fill the bodyWrap (820px max). Long-line prose pushes against the

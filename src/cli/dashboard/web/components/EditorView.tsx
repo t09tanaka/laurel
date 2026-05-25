@@ -160,19 +160,26 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   /* Insert text around the current selection (or at the caret if no
-   * selection). Used by Cmd+B (wrap with **) and Cmd+I (wrap with _). */
+   * selection). Used by Cmd+B (wrap with **) and Cmd+I (wrap with _).
+   * Uses document.execCommand('insertText') so the change participates
+   * in the browser's native undo stack. */
   function wrapSelection(before: string, after: string): void {
     const ta = textareaRef.current;
     if (!ta) return;
+    ta.focus();
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
-    const value = ta.value;
-    const selected = value.slice(start, end);
-    const next = value.slice(0, start) + before + selected + after + value.slice(end);
-    patchSnapshot({ body: next });
+    const selected = ta.value.slice(start, end);
+    const insert = before + selected + after;
+    /* execCommand is deprecated but still the only way to insert text
+     * into a textarea while preserving the undo stack. */
+    if (!document.execCommand('insertText', false, insert)) {
+      // Fallback: direct mutation (loses undo).
+      ta.setRangeText(insert, start, end, 'end');
+    }
+    patchSnapshot({ body: ta.value });
     requestAnimationFrame(() => {
       if (!textareaRef.current) return;
-      textareaRef.current.focus();
       const caret = start + before.length + selected.length;
       textareaRef.current.selectionStart = selected ? start + before.length : caret;
       textareaRef.current.selectionEnd = caret;
@@ -213,14 +220,14 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       patchSnapshot({ body: `${snapshot.body}\n\n${md}\n` });
       return;
     }
+    ta.focus();
     const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const value = ta.value;
-    const next = value.slice(0, start) + md + value.slice(end);
-    patchSnapshot({ body: next });
+    if (!document.execCommand('insertText', false, md)) {
+      ta.setRangeText(md, start, ta.selectionEnd, 'end');
+    }
+    patchSnapshot({ body: ta.value });
     requestAnimationFrame(() => {
       if (!textareaRef.current) return;
-      textareaRef.current.focus();
       const caret = start + md.length;
       textareaRef.current.selectionStart = caret;
       textareaRef.current.selectionEnd = caret;
@@ -498,98 +505,25 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           </button>
         </div>
       </div>
-      <div class="editorScroll">
-        {/* Feature image zone — always visible above the title so
-         * uploading the hero image doesn't require digging into More
-         * metadata. Click anywhere to pick a file; drag/drop also works. */}
-        {isContent ? (
-          <label
-            class={`featureImageZone${snapshot.featureImage ? ' filled' : ''}`}
-            aria-label="Feature image — click or drop to upload"
-            onDragOver={(event) => {
-              if (event.dataTransfer?.types?.includes('Files')) {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'copy';
-              }
-            }}
-            onDrop={(event) => {
-              const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
-                f.type.startsWith('image/'),
-              );
-              if (!file) return;
-              event.preventDefault();
-              void uploadFeatureImage(file);
-            }}
-          >
+      <div class="editorCanvas">
+        <div class="editorMain editorScroll">
+          <div class="titleBlock">
             <input
-              type="file"
-              accept="image/*"
-              class="srOnly"
-              onChange={(event) => {
-                const file = (event.currentTarget as HTMLInputElement).files?.[0];
-                if (file) void uploadFeatureImage(file);
+              class="titleInput"
+              id="editTitle"
+              placeholder="Untitled"
+              value={snapshot.title}
+              onInput={(event) =>
+                patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  textareaRef.current?.focus();
+                }
               }}
             />
-            {snapshot.featureImage ? (
-              <>
-                <img
-                  src={snapshot.featureImage}
-                  alt={snapshot.featureImageAlt || 'Feature image'}
-                  class="featureImagePreview"
-                />
-                <span class="featureImageHint">Click or drop to replace</span>
-                <button
-                  type="button"
-                  class="featureImageRemove"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    patchSnapshot({
-                      featureImage: '',
-                      featureImageAlt: '',
-                      featureImageCaption: '',
-                    });
-                  }}
-                  title="Remove feature image"
-                >
-                  Remove
-                </button>
-              </>
-            ) : (
-              <span class="featureImageEmpty">
-                <em>Feature image</em> — click or drop a file
-              </span>
-            )}
-          </label>
-        ) : null}
-        <div class="titleBlock">
-          <input
-            class="titleInput"
-            id="editTitle"
-            placeholder="Untitled"
-            value={snapshot.title}
-            onInput={(event) =>
-              patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
-            }
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === 'ArrowDown') {
-                event.preventDefault();
-                textareaRef.current?.focus();
-              }
-            }}
-          />
-          <select
-            class="statusPill"
-            id="editStatus"
-            disabled={!isContent}
-            value={snapshot.status}
-            onChange={(event) =>
-              patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
-            }
-          >
-            <option>published</option>
-            <option>draft</option>
-          </select>
-        </div>
+          </div>
         {/* Body toolbar — visible formatting + image insert. Keeps the
          * paste / drag-drop affordances discoverable. */}
         {isContent ? (
@@ -638,10 +572,15 @@ export function EditorView(props: EditorViewProps): JSX.Element {
         ) : null}
         <div class="bodyWrap">
           <textarea
+            /* Key bound to the file identity so the textarea remounts
+             * only when switching to a different file. Within an edit
+             * session it stays uncontrolled (defaultValue + onInput)
+             * which preserves the browser's native undo / redo stack. */
+            key={`${current.path}@${current.fingerprint.mtimeMs}`}
             id="editBody"
             aria-label="Markdown body"
             ref={textareaRef}
-            value={snapshot.body}
+            defaultValue={baseline.body}
             onInput={(event) =>
               patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
             }
@@ -846,6 +785,86 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             </section>
           </div>
         </details>
+        </div>
+        {isContent ? (
+          <aside class="editorMeta" aria-label="Post metadata">
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Status</div>
+              <select
+                class="statusPill editorMetaStatus"
+                id="editStatus"
+                disabled={!isContent}
+                value={snapshot.status}
+                onChange={(event) =>
+                  patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                }
+              >
+                <option>published</option>
+                <option>draft</option>
+              </select>
+            </div>
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Feature image</div>
+              <label
+                class={`featureImageZone${snapshot.featureImage ? ' filled' : ''}`}
+                aria-label="Feature image — click or drop to upload"
+                onDragOver={(event) => {
+                  if (event.dataTransfer?.types?.includes('Files')) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                  }
+                }}
+                onDrop={(event) => {
+                  const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+                    f.type.startsWith('image/'),
+                  );
+                  if (!file) return;
+                  event.preventDefault();
+                  void uploadFeatureImage(file);
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="srOnly"
+                  onChange={(event) => {
+                    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+                    if (file) void uploadFeatureImage(file);
+                  }}
+                />
+                {snapshot.featureImage ? (
+                  <>
+                    <img
+                      src={snapshot.featureImage}
+                      alt={snapshot.featureImageAlt || 'Feature image'}
+                      class="featureImagePreview"
+                    />
+                    <span class="featureImageHint">Click or drop to replace</span>
+                    <button
+                      type="button"
+                      class="featureImageRemove"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        patchSnapshot({
+                          featureImage: '',
+                          featureImageAlt: '',
+                          featureImageCaption: '',
+                        });
+                      }}
+                      title="Remove feature image"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <span class="featureImageEmpty">
+                    <em>Click or drop</em>
+                  </span>
+                )}
+              </label>
+            </div>
+          </aside>
+        ) : null}
       </div>
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header

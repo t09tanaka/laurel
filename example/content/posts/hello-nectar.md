@@ -13,7 +13,7 @@ tags:
   - news
   - getting-started
 title: Hello, Nectar
-updated_at: 2026-05-25T04:24:23.572Z
+updated_at: 2026-05-25T04:42:58.655Z
 ---
 
 Welcome to **Nectar** — a static site generator built around Ghost themes and
