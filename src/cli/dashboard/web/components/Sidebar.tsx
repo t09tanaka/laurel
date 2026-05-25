@@ -10,6 +10,7 @@ export interface RecentEntry {
 interface SidebarProps {
   section: DashboardShellSection;
   siteTitle: string;
+  siteUrl?: string;
   postsTotal?: number;
   pagesTotal?: number;
   recents?: RecentEntry[];
@@ -22,6 +23,16 @@ interface SidebarProps {
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
   onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onForceSync: () => void;
+}
+
+function hostnameOf(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    return parsed.host.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
 }
 
 export function Sidebar(props: SidebarProps): JSX.Element {
@@ -49,6 +60,22 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </svg>
           <span class="brandWord">Nectar</span>
         </div>
+        {(() => {
+          const host = hostnameOf(props.siteUrl);
+          if (!host || !props.siteUrl) return null;
+          return (
+            <a
+              class="sideImprint"
+              href={props.siteUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`Open published site at ${host}`}
+            >
+              <span class="sideImprintHost">{host}</span>
+              <span class="sideImprintMark" aria-hidden="true">↗</span>
+            </a>
+          );
+        })()}
       </div>
       <nav class="nav" aria-label="Primary">
         <NavLink

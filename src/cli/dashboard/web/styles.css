@@ -369,6 +369,56 @@
   .brandWord {
     line-height: 1;
   }
+  /* Colophon imprint — sits directly beneath the masthead, like the
+   * URL line on the credits page of a small literary magazine.
+   * Hostname in italic serif, a small ↗ glyph as the only ornament. */
+  .sideImprint {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    margin-top: 10px;
+    padding: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--sidebar-muted, color-mix(in srgb, var(--sidebar-ink) 60%, transparent));
+    text-decoration: none;
+    transition: color 0.16s ease, transform 0.16s ease;
+    align-self: flex-start;
+    max-width: 100%;
+  }
+  .sideImprint:hover,
+  .sideImprint:focus-visible {
+    color: var(--sidebar-ink);
+    outline: none;
+  }
+  .sideImprint:hover .sideImprintHost,
+  .sideImprint:focus-visible .sideImprintHost {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .sideImprintHost {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sideImprintMark {
+    font-style: normal;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: transform 0.16s ease;
+    flex: 0 0 auto;
+  }
+  .sideImprint:hover .sideImprintMark,
+  .sideImprint:focus-visible .sideImprintMark {
+    opacity: 1;
+    transform: translate(1px, -1px);
+  }
   .tagline {
     color: var(--sidebar-muted);
     font-family: var(--font-serif);

@@ -506,6 +506,7 @@ export function DashboardApp(): JSX.Element {
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
+        siteUrl={state?.site.url}
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
         recents={recents}
