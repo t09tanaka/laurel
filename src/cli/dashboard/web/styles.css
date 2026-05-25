@@ -348,6 +348,9 @@
     font-weight: 400;
     font-style: italic;
     letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     font-feature-settings: "palt", "ss01", "swsh";
     color: var(--sidebar-ink);
   }
@@ -355,6 +358,14 @@
     /* Removed — the italic serif "Nectar" carries its own identity now.
      * The brand-green color appears only on semantic surfaces. */
     content: none;
+  }
+  .brandMark {
+    flex: 0 0 auto;
+    color: var(--text-invert, #f4ecd9);
+    opacity: 0.92;
+  }
+  .brandWord {
+    line-height: 1;
   }
   .tagline {
     color: var(--sidebar-muted);
@@ -425,10 +436,13 @@
     min-width: 16px;
     padding: 0;
     text-align: right;
+    /* Mono + tabular-nums so 1/2/3-digit counts share the same column
+     * width and stay legible against the dark sidebar. */
+    font-family: var(--font-mono);
     font-size: 11px;
     line-height: 18px;
     font-variant-numeric: tabular-nums;
-    color: rgba(255, 255, 255, 0.32);
+    color: rgba(255, 255, 255, 0.42);
     background: transparent;
     font-weight: 400;
     letter-spacing: 0;
@@ -765,14 +779,16 @@
     gap: 8px;
   }
   /* The signature dot — a single brand-green pip before the kicker.
-   * One subtle, editorial mark that becomes "the Nectar look". */
+   * Toned down (#1934): smaller and softer so "Workspace" reads as a
+   * label, not a status indicator. One subtle editorial mark. */
   .kicker:before {
     content: "";
     display: inline-block;
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: var(--brand);
+    opacity: 0.55;
     flex: 0 0 auto;
   }
   .viewTitle {

@@ -28,9 +28,27 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   return (
     <aside class="side" aria-label="Dashboard navigation">
       <div class="sideTop">
-        <div class="brand">Nectar</div>
-        {/* Tagline removed — the brand mark is enough. The site title is
-         * visible on the Settings page where users actually need it. */}
+        <div class="brand">
+          {/* A faint hexagon — honey-cell glyph, ties the "Nectar" name to
+           * a wordless mark without leaning on emoji or external assets. */}
+          <svg
+            class="brandMark"
+            viewBox="0 0 20 20"
+            width="20"
+            height="20"
+            aria-hidden="true"
+          >
+            <polygon
+              points="10,1.5 17.4,5.75 17.4,14.25 10,18.5 2.6,14.25 2.6,5.75"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+            <circle cx="10" cy="10" r="1.6" fill="currentColor" opacity="0.5" />
+          </svg>
+          <span class="brandWord">Nectar</span>
+        </div>
       </div>
       <nav class="nav" aria-label="Primary">
         <NavLink
