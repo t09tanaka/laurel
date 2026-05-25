@@ -5,26 +5,20 @@
 // inside this file so we don't pull preact into the editor critical
 // path.
 //
-// Three notable modes the user asked for:
+// Two notable edge cases the user asked for:
 // 1. When the cursor is *inside* an inline mark (code / link / bold
 //    / italic) without a range selection, the bubble still shows so
 //    the mark can be cleared with one click.
 // 2. Link editing happens inline inside the bubble — clicking Link
 //    swaps the row for a URL input + Apply / Remove / Cancel, no
 //    window.prompt().
-// 3. Selecting an image node swaps the row for an alt-text input plus
-//    Apply / Delete / Cancel — same inline-editor pattern as link,
-//    no separate inspector panel.
+//
+// Image controls (alt edit + delete) live on the image NodeView
+// instead — see `prose-image-view.ts`. They're always visible
+// alongside the image rather than gated on selection.
 
 import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
-import type {
-  Mark,
-  MarkType,
-  NodeType,
-  Node as ProseNode,
-  ResolvedPos,
-  Schema,
-} from 'prosemirror-model';
+import type { Mark, MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { wrapInList } from 'prosemirror-schema-list';
 import { type EditorState, Plugin } from 'prosemirror-state';
 import {
@@ -35,7 +29,6 @@ import {
   deleteTable,
 } from 'prosemirror-tables';
 import type { EditorView } from 'prosemirror-view';
-import { getImageSelection } from './prose-bubble-menu-logic.ts';
 
 // True iff the selection sits anywhere inside a table_cell or
 // table_header. Used to gate the contextual table-action buttons
@@ -252,39 +245,7 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
       linkRow.appendChild(linkCancel);
       root.appendChild(linkRow);
 
-      // ---- Image controls row --------------------------------------
-      // Visible only when an image node is the active NodeSelection.
-      // Same inline-editor pattern as the link row: text input for
-      // alt + Apply / Delete / Cancel. The image stays in the document
-      // until the user explicitly hits Delete (or hits Backspace with
-      // the node selected — that's a ProseMirror default we don't
-      // intercept).
-      const imageRow = document.createElement('div');
-      imageRow.className = 'proseBubbleRow proseBubbleRow--image';
-      imageRow.hidden = true;
-      const imageInput = document.createElement('input');
-      imageInput.type = 'text';
-      imageInput.placeholder = 'Alt text (describe the image)';
-      imageInput.className = 'proseBubbleInput proseBubbleInput--alt';
-      imageRow.appendChild(imageInput);
-      const imageApply = document.createElement('button');
-      imageApply.type = 'button';
-      imageApply.className = 'proseBubbleBtn';
-      imageApply.textContent = 'Apply';
-      imageRow.appendChild(imageApply);
-      const imageDelete = document.createElement('button');
-      imageDelete.type = 'button';
-      imageDelete.className = 'proseBubbleBtn proseBubbleBtn--danger';
-      imageDelete.textContent = 'Delete';
-      imageRow.appendChild(imageDelete);
-      const imageCancel = document.createElement('button');
-      imageCancel.type = 'button';
-      imageCancel.className = 'proseBubbleBtn';
-      imageCancel.textContent = 'Cancel';
-      imageRow.appendChild(imageCancel);
-      root.appendChild(imageRow);
-
-      let mode: 'marks' | 'link' | 'image' = 'marks';
+      let mode: 'marks' | 'link' = 'marks';
 
       function openLinkEditor() {
         if (!linkType) return;
@@ -359,70 +320,6 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
       linkCancel.addEventListener('mousedown', (event) => {
         event.preventDefault();
         closeLinkEditor();
-      });
-
-      // ---- Image edit handlers -------------------------------------
-      function enterImageMode(sel: { node: ProseNode; pos: number }): void {
-        mode = 'image';
-        marksRow.hidden = true;
-        linkRow.hidden = true;
-        imageRow.hidden = false;
-        imageInput.value = String(sel.node.attrs.alt ?? '');
-      }
-      function closeImageMode(): void {
-        mode = 'marks';
-        marksRow.hidden = false;
-        linkRow.hidden = true;
-        imageRow.hidden = true;
-      }
-      function applyAltFromInput(): void {
-        const sel = getImageSelection(view.state);
-        if (!sel) {
-          closeImageMode();
-          return;
-        }
-        const next = imageInput.value.trim();
-        // setNodeMarkup preserves the NodeSelection — the bubble stays
-        // anchored to the same image with the new alt picked up on
-        // the next update tick.
-        const newAttrs = { ...sel.node.attrs, alt: next };
-        view.dispatch(view.state.tr.setNodeMarkup(sel.pos, null, newAttrs));
-        view.focus();
-      }
-      function removeSelectedImage(): void {
-        if (!getImageSelection(view.state)) return;
-        const { from, to } = view.state.selection;
-        // delete the image node from the doc but leave the surrounding
-        // markdown / asset untouched — the file under content/images/
-        // may be referenced by other posts, and a stray asset is
-        // recoverable; an accidentally-deleted-and-republished image
-        // is not.
-        view.dispatch(view.state.tr.delete(from, to));
-        closeImageMode();
-        view.focus();
-      }
-      imageInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          applyAltFromInput();
-        } else if (event.key === 'Escape') {
-          event.preventDefault();
-          closeImageMode();
-          view.focus();
-        }
-      });
-      imageApply.addEventListener('mousedown', (event) => {
-        event.preventDefault();
-        applyAltFromInput();
-      });
-      imageDelete.addEventListener('mousedown', (event) => {
-        event.preventDefault();
-        removeSelectedImage();
-      });
-      imageCancel.addEventListener('mousedown', (event) => {
-        event.preventDefault();
-        closeImageMode();
-        view.focus();
       });
 
       const nodeBy = (name: string): NodeType | undefined => schema.nodes[name];
@@ -644,33 +541,14 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
       function update(currentView: EditorView): void {
         const state = currentView.state;
         const { from, to, empty } = state.selection;
-        const imgSel = getImageSelection(state);
-        const focused = currentView.hasFocus() || mode === 'link' || mode === 'image';
-
-        // Auto-switch into image mode on a new image NodeSelection and
-        // auto-leave when the selection moves off the image. Run this
-        // BEFORE the shouldShow check so the row visibility is right
-        // on the same frame the selection changes.
-        if (imgSel && mode !== 'image') enterImageMode(imgSel);
-        else if (!imgSel && mode === 'image') closeImageMode();
-
+        const focused = currentView.hasFocus() || mode === 'link';
         const shouldShow =
-          focused &&
-          (Boolean(imgSel) || !empty || anyMarksHere(state) || mode === 'link' || isInTable(state));
+          focused && (!empty || anyMarksHere(state) || mode === 'link' || isInTable(state));
         if (!shouldShow) {
           root.style.visibility = 'hidden';
           root.style.pointerEvents = 'none';
           if (mode === 'link') closeLinkEditor();
-          if (mode === 'image') closeImageMode();
           return;
-        }
-
-        // While the image is selected, mirror the live alt into the
-        // input unless the user is actively typing into it (overwriting
-        // a half-typed value would be hostile).
-        if (imgSel && document.activeElement !== imageInput) {
-          const liveAlt = String(imgSel.node.attrs.alt ?? '');
-          if (imageInput.value !== liveAlt) imageInput.value = liveAlt;
         }
         // Caret position in viewport coords. The bubble itself is
         // position: fixed, so we anchor against the viewport rather
@@ -679,12 +557,7 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         // column is.
         let anchorCenter = 0;
         let anchorTop = 0;
-        if (imgSel) {
-          const start = currentView.coordsAtPos(imgSel.pos, 1);
-          const end = currentView.coordsAtPos(imgSel.pos + 1, -1);
-          anchorCenter = (start.left + end.left) / 2;
-          anchorTop = Math.min(start.top, end.top);
-        } else if (!empty) {
+        if (!empty) {
           const start = currentView.coordsAtPos(from, 1);
           const end = currentView.coordsAtPos(to, -1);
           anchorCenter = (start.left + end.left) / 2;
