@@ -412,4 +412,3 @@ function GhostImportResultTable({
     </>
   );
 }
-

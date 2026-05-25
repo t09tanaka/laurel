@@ -40,8 +40,7 @@ export function routeFromPath(pathname: string): DashboardRoute {
   // /migration is the bare alias for /settings/migration; both should land
   // on the migration view so direct links never hit the 404 fallback.
   const bareMigration = parts.length === 1 && parts[0] === 'migration';
-  const view =
-    settingsNested || bareMigration ? 'migration' : normalizeView(parts[0] || 'posts');
+  const view = settingsNested || bareMigration ? 'migration' : normalizeView(parts[0] || 'posts');
   const editorKind = parts[0];
   const create =
     parts.length === 2 && parts[1] === 'new' && editorKind && isEditorKind(editorKind)

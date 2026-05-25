@@ -19,7 +19,11 @@ function str(value: unknown, fallback = ''): string {
 }
 
 function listToString(value: unknown): string {
-  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean).join(', ');
+  if (Array.isArray(value))
+    return value
+      .map((v) => String(v).trim())
+      .filter(Boolean)
+      .join(', ');
   if (typeof value === 'string') return value;
   return '';
 }

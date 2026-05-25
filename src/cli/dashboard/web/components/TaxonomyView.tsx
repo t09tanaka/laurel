@@ -24,9 +24,7 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
           <h2 class="listHeadTitle srOnly">{props.kind}</h2>
           <span class="listHeadCount">
             <span class="listHeadNumeral">{props.list.total}</span>
-            <span class="listHeadCountLabel">
-              {props.list.total === 1 ? 'record' : 'records'}
-            </span>
+            <span class="listHeadCountLabel">{props.list.total === 1 ? 'record' : 'records'}</span>
           </span>
         </div>
       </div>
@@ -58,12 +56,7 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                             href={editorHref}
                             title={item.name}
                             onClick={(event) => {
-                              if (
-                                event.metaKey ||
-                                event.ctrlKey ||
-                                event.shiftKey ||
-                                event.altKey
-                              )
+                              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
                                 return;
                               event.preventDefault();
                               props.onEdit(item.slug);
@@ -84,7 +77,10 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                       </div>
                       {item.description ? <div class="meta">{item.description}</div> : null}
                     </td>
-                    <td class="dateCell taxCountCell" title={`${item.count} posts use this ${props.kind === 'authors' ? 'author' : 'tag'}`}>
+                    <td
+                      class="dateCell taxCountCell"
+                      title={`${item.count} posts use this ${props.kind === 'authors' ? 'author' : 'tag'}`}
+                    >
                       <span class="taxCountNum">{item.count}</span>
                       <span class="taxCountUnit"> {item.count === 1 ? 'post' : 'posts'}</span>
                     </td>

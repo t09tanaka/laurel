@@ -88,6 +88,11 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
     }
   }
 
+  function runItem(item: CommandItem) {
+    onClose();
+    item.run();
+  }
+
   return (
     <div
       class="cmdkBackdrop"
@@ -96,11 +101,11 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
+      <dialog
         class="cmdkPanel"
-        role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        open
         onKeyDown={handleKeyDown}
       >
         <div class="cmdkHeader">
@@ -119,20 +124,22 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
             <li class="cmdkEmpty">No matches</li>
           ) : (
             filtered.map((item, i) => (
-              <li
-                key={item.id}
-                class={`cmdkItem ${i === active ? 'active' : ''}`}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => {
-                  onClose();
-                  item.run();
-                }}
-              >
-                <span class={`cmdkKind cmdkKind-${item.kind}`} aria-hidden="true">
-                  {item.kind === 'open' ? '↗' : item.kind === 'navigate' ? '→' : '✦'}
-                </span>
-                <span class="cmdkLabel">{item.label}</span>
-                {item.hint ? <span class="cmdkHint">{item.hint}</span> : null}
+              <li key={item.id}>
+                <button
+                  type="button"
+                  class={`cmdkItem ${i === active ? 'active' : ''}`}
+                  tabIndex={-1}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => {
+                    runItem(item);
+                  }}
+                >
+                  <span class={`cmdkKind cmdkKind-${item.kind}`} aria-hidden="true">
+                    {item.kind === 'open' ? '↗' : item.kind === 'navigate' ? '→' : '✦'}
+                  </span>
+                  <span class="cmdkLabel">{item.label}</span>
+                  {item.hint ? <span class="cmdkHint">{item.hint}</span> : null}
+                </button>
               </li>
             ))
           )}
@@ -149,7 +156,7 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
             <kbd>esc</kbd> close
           </span>
         </div>
-      </div>
+      </dialog>
     </div>
   );
 }

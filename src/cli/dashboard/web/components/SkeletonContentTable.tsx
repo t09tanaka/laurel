@@ -25,8 +25,8 @@ export function SkeletonContentTable({ rows = 4 }: SkeletonContentTableProps): J
           </tr>
         </thead>
         <tbody>
-          {Array.from({ length: rows }, (_, i) => (
-            <tr key={i} class="skeletonRow">
+          {Array.from({ length: rows }, (_, i) => `skeleton-row-${i}`).map((rowKey) => (
+            <tr key={rowKey} class="skeletonRow">
               <td class="titleCell">
                 <div class="titleLine">
                   <span class="skeletonBar skeletonBarTitle" />

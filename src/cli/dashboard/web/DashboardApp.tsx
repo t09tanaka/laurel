@@ -232,7 +232,7 @@ export function DashboardApp(): JSX.Element {
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  }, [confirmDiscard, editor, ui.view]);
+  }, [confirmDiscard, editor, ui.view, toastHost.api]);
 
   // beforeunload warning
   useEffect(() => {
@@ -269,6 +269,7 @@ export function DashboardApp(): JSX.Element {
 
   // Scroll to top when the view changes — without this, a long scroll on
   // posts is preserved when jumping to Pages/Settings, which feels broken.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: route surface changes intentionally trigger scroll reset
   useEffect(() => {
     window.scrollTo(0, 0);
     const main = document.getElementById('main');
