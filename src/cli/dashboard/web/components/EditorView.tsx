@@ -384,6 +384,17 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             Preview
           </button>
           <button
+            class="btn"
+            id="saveEditorTop"
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            title="Save to file (always visible at the top)"
+          >
+            Save
+          </button>
+          <button
             class="btn secondary"
             id="closeEditor"
             type="button"

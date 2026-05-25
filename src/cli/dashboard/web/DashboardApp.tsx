@@ -211,6 +211,14 @@ export function DashboardApp(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Scroll to top when the view changes — without this, a long scroll on
+  // posts is preserved when jumping to Pages/Settings, which feels broken.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const main = document.getElementById('main');
+    if (main) main.scrollTop = 0;
+  }, [ui.view, editor?.slug, createMode]);
+
   function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
     if (
       !confirmDiscard(
