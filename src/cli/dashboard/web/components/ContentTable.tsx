@@ -206,8 +206,20 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
   const status = item.status ?? 'published';
   const title = item.title?.trim() ? item.title : '(untitled)';
   const editorHref = pathForEditor(kind, item.slug);
+  // Clicking anywhere on the row that's not an existing anchor /
+  // button opens the editor — the title link and Detail link still
+  // behave as before, and the Preview link / Export overflow stop
+  // here so they don't get swallowed. Modifier keys are left alone so
+  // the user can still cmd-click a title to open in a new tab.
+  const onRowClick = (event: MouseEvent) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if ((event.target as HTMLElement | null)?.closest('a, button')) return;
+    event.preventDefault();
+    onOpen();
+  };
   return (
-    <tr class="contentRow" data-row-slug={item.slug} data-status={status}>
+    // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title and Detail anchors which retain link semantics
+    <tr class="contentRow" data-row-slug={item.slug} data-status={status} onClick={onRowClick}>
       <td class="titleCell">
         <div class="titleLine">
           <a
