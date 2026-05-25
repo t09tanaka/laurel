@@ -5,7 +5,7 @@ import {
   type EditorSaveState,
   reduceEditorFocus,
 } from '../../editor-focus.ts';
-import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
+import { approvePage, renameContentSlug, saveContent } from '../lib/api.ts';
 import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
@@ -24,6 +24,7 @@ import type {
   RevisionPayload,
 } from '../types.ts';
 import { FeatureImageField } from './FeatureImageField.tsx';
+import { ProseEditor } from './ProseEditor.tsx';
 
 interface EditorViewProps {
   current: DashboardContentItem;
@@ -165,29 +166,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
    * selection). Used by Cmd+B (wrap with **) and Cmd+I (wrap with _).
    * Uses document.execCommand('insertText') so the change participates
    * in the browser's native undo stack. */
-  function wrapSelection(before: string, after: string): void {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.focus();
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = ta.value.slice(start, end);
-    const insert = before + selected + after;
-    /* execCommand is deprecated but still the only way to insert text
-     * into a textarea while preserving the undo stack. */
-    if (!document.execCommand('insertText', false, insert)) {
-      // Fallback: direct mutation (loses undo).
-      ta.setRangeText(insert, start, end, 'end');
-    }
-    patchSnapshot({ body: ta.value });
-    requestAnimationFrame(() => {
-      if (!textareaRef.current) return;
-      const caret = start + before.length + selected.length;
-      textareaRef.current.selectionStart = selected ? start + before.length : caret;
-      textareaRef.current.selectionEnd = caret;
-    });
-  }
-
   /* Persist a slug rename when the sidebar input loses focus.
    * Validates basic slug shape (lowercase + digits + dashes), then calls
    * the rename endpoint and lets the parent reload the editor against
@@ -235,35 +213,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   /* Upload an image to /content/images/ and insert a Markdown image
    * reference at the caret. Used by paste + drag-drop on the body
    * and by the body toolbar's Image button. */
-  async function insertUploadedImage(file: File): Promise<void> {
-    setNotice(`Uploading ${file.name || 'image'}…`);
-    const result = await uploadImage(file);
-    if (!result.ok) {
-      setNotice(`Image upload failed — ${result.error}`);
-      return;
-    }
-    setNotice('');
-    const alt = (file.name || 'image').replace(/\.[^.]+$/, '');
-    const md = `![${alt}](${result.path})`;
-    const ta = textareaRef.current;
-    if (!ta) {
-      patchSnapshot({ body: `${snapshot.body}\n\n${md}\n` });
-      return;
-    }
-    ta.focus();
-    const start = ta.selectionStart;
-    if (!document.execCommand('insertText', false, md)) {
-      ta.setRangeText(md, start, ta.selectionEnd, 'end');
-    }
-    patchSnapshot({ body: ta.value });
-    requestAnimationFrame(() => {
-      if (!textareaRef.current) return;
-      const caret = start + md.length;
-      textareaRef.current.selectionStart = caret;
-      textareaRef.current.selectionEnd = caret;
-    });
-  }
-
   function buildFrontmatter(): Record<string, unknown> {
     return buildFrontmatterFor(current.kind, current.frontmatter, snapshot);
   }
@@ -460,113 +409,15 @@ export function EditorView(props: EditorViewProps): JSX.Element {
               }}
             />
           </div>
-          {/* Body toolbar — visible formatting + image insert. Keeps the
-           * paste / drag-drop affordances discoverable. */}
-          {isContent ? (
-            <div class="bodyToolbar" aria-label="Body formatting">
-              <button
-                type="button"
-                class="bodyToolbarBtn"
-                onClick={() => wrapSelection('**', '**')}
-                title="Bold (⌘B)"
-              >
-                <b>B</b>
-              </button>
-              <button
-                type="button"
-                class="bodyToolbarBtn"
-                onClick={() => wrapSelection('_', '_')}
-                title="Italic (⌘I)"
-              >
-                <i>I</i>
-              </button>
-              <button
-                type="button"
-                class="bodyToolbarBtn"
-                onClick={() => wrapSelection('[', '](url)')}
-                title="Link"
-              >
-                Link
-              </button>
-              <label class="bodyToolbarBtn bodyToolbarImage" title="Insert image">
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="srOnly"
-                  onChange={(event) => {
-                    const file = (event.currentTarget as HTMLInputElement).files?.[0];
-                    if (file) void insertUploadedImage(file);
-                    (event.currentTarget as HTMLInputElement).value = '';
-                  }}
-                />
-                Image
-              </label>
-              <span class="bodyToolbarHint">
-                <em>or paste / drop an image directly into the body</em>
-              </span>
-            </div>
-          ) : null}
-          <div class="bodyWrap">
-            <textarea
-              /* Key bound to the file identity so the textarea remounts
-               * only when switching to a different file. Within an edit
-               * session it stays uncontrolled (defaultValue + onInput)
-               * which preserves the browser's native undo / redo stack. */
-              key={`${current.path}@${current.fingerprint.mtimeMs}`}
-              id="editBody"
-              aria-label="Markdown body"
-              ref={textareaRef}
-              defaultValue={baseline.body}
-              onInput={(event) =>
-                patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
-              }
-              onPaste={(event) => {
-                const items = event.clipboardData?.items;
-                if (!items) return;
-                for (let i = 0; i < items.length; i++) {
-                  const item = items[i];
-                  if (!item || !item.type.startsWith('image/')) continue;
-                  const file = item.getAsFile();
-                  if (!file) continue;
-                  event.preventDefault();
-                  void insertUploadedImage(file);
-                  return;
-                }
-              }}
-              onDragOver={(event) => {
-                if (event.dataTransfer?.types?.includes('Files')) {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'copy';
-                }
-              }}
-              onDrop={(event) => {
-                const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
-                  f.type.startsWith('image/'),
-                );
-                if (!files.length) return;
-                event.preventDefault();
-                for (const file of files) void insertUploadedImage(file);
-              }}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
-                  const key = event.key.toLowerCase();
-                  if (key === 'b') {
-                    event.preventDefault();
-                    wrapSelection('**', '**');
-                    return;
-                  }
-                  if (key === 'i') {
-                    event.preventDefault();
-                    wrapSelection('_', '_');
-                    return;
-                  }
-                  if (key === 'k') {
-                    // Reserved for cmdk — let the global handler take it.
-                    return;
-                  }
-                }
-              }}
-            />
+          <div class="bodyWrap proseWrap">
+            {isContent ? (
+              <ProseEditor
+                key={`${current.path}@${current.fingerprint.mtimeMs}`}
+                resetKey={`${current.path}@${current.fingerprint.mtimeMs}`}
+                initialMarkdown={baseline.body}
+                onChange={(markdown) => patchSnapshot({ body: markdown })}
+              />
+            ) : null}
             <span class="saveHairline" data-state={saveState} aria-hidden="true" />
           </div>
           <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">

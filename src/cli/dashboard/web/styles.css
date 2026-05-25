@@ -2526,6 +2526,14 @@
     overflow: auto;
     display: block;
     padding: 0 4px 0 0;
+    /* The editor grid gives .editorCanvas a fixed 1fr row height; we
+     * must propagate that constraint down to the actual scroll
+     * container or its overflow:auto degenerates into "size to content"
+     * and the page can no longer scroll long bodies. min-height:0 lets
+     * the box shrink below its intrinsic content height under flex /
+     * grid layout contexts (Safari especially). */
+    height: 100%;
+    min-height: 0;
   }
   /* Two-column editor canvas — writing on the left, metadata sidebar
    * on the right. Sidebar sticks while body scrolls.
@@ -2918,11 +2926,10 @@
   /* Scoped to the body editor only — a bare `.editor textarea` selector
    * was cascading into sidebar metadata textareas (Description, Meta
    * description) and forcing them to 56vh. */
+  /* Legacy textarea body — kept for compatibility while the WYSIWYG
+   * surface is rolled out. */
   .editor .bodyWrap textarea {
     width: 100%;
-    /* Fill the bodyWrap (820px max). Long-line prose pushes against the
-     * 70ch comfort upper bound; mono characters average ~9.5px so 820px
-     * lands around 85ch — adequate while still feeling like a column. */
     max-width: 100%;
     min-height: 56vh;
     height: 68vh;
@@ -2932,10 +2939,6 @@
     background: transparent;
     color: var(--text-primary);
     padding: 0;
-    /* Prose-grade body. Markdown surface uses mono for code/structure
-     * but mono everywhere makes writing feel like editing a config. The
-     * larger size + warm cream surface (the page bg shows through) +
-     * generous line-height reads like a draft on paper. */
     font-family: var(--font-mono);
     font-size: 16px;
     overflow-wrap: anywhere;
@@ -2943,6 +2946,232 @@
     letter-spacing: 0.005em;
     box-shadow: none;
     outline: none;
+  }
+  /* ProseMirror WYSIWYG body — paper-textured prose surface, serif
+   * type for the column itself, mono only inside code blocks. */
+  .proseWrap {
+    position: relative;
+  }
+  /* Selection bubble menu — floats above text selections with mark
+   * toggles + a clear-all button. Active marks tint with --accent. */
+  .proseBubble {
+    position: absolute;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    background: var(--text-primary, #1a1612);
+    color: var(--text-invert, #f4ecd9);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    font-family: var(--font-serif);
+    white-space: nowrap;
+    transition: opacity 0.12s ease;
+  }
+  .proseBubble::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    background: var(--text-primary, #1a1612);
+    transform: translateX(-50%) rotate(45deg);
+    border-radius: 1px;
+    z-index: -1;
+  }
+  .proseBubbleBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    background: transparent;
+    color: inherit;
+    border: 0;
+    border-radius: 5px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .proseBubbleBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .proseBubbleBtn[data-active="true"] {
+    background: color-mix(in srgb, var(--accent-color, #d63f00) 70%, transparent);
+    color: var(--text-invert, #f4ecd9);
+  }
+  .proseBubbleBtn[data-mark="strong"] {
+    font-weight: 700;
+  }
+  .proseBubbleBtn[data-mark="em"] {
+    font-style: italic;
+  }
+  .proseBubbleBtn[data-mark="code"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .proseBubbleBtn[data-mark="strikethrough"] {
+    text-decoration: line-through;
+  }
+  /* Two-row capable bubble so all the block-type buttons still fit. */
+  .proseBubble {
+    flex-wrap: wrap;
+    max-width: min(540px, calc(100vw - 32px));
+  }
+  .proseBubbleRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+  .proseBubbleRow[hidden] {
+    display: none !important;
+  }
+  .proseBubbleBtn[hidden] {
+    display: none !important;
+  }
+  .proseBubbleRow--link {
+    gap: 4px;
+    padding: 0 2px;
+  }
+  .proseBubbleInput {
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    padding: 4px 8px;
+    width: 240px;
+    outline: none;
+  }
+  .proseBubbleInput:focus {
+    border-color: var(--accent-color, #d63f00);
+  }
+  .proseHost .ProseMirror s {
+    text-decoration: line-through;
+  }
+  .proseHost .ProseMirror {
+    min-height: 56vh;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.7;
+    letter-spacing: 0;
+  }
+  .proseHost .ProseMirror > * + * {
+    margin-top: 18px;
+  }
+  .proseHost .ProseMirror h1,
+  .proseHost .ProseMirror h2,
+  .proseHost .ProseMirror h3,
+  .proseHost .ProseMirror h4,
+  .proseHost .ProseMirror h5,
+  .proseHost .ProseMirror h6 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    line-height: 1.2;
+    margin-top: 32px;
+  }
+  .proseHost .ProseMirror h1 {
+    font-size: 32px;
+  }
+  .proseHost .ProseMirror h2 {
+    font-size: 26px;
+  }
+  .proseHost .ProseMirror h3 {
+    font-size: 21px;
+  }
+  .proseHost .ProseMirror h4 {
+    font-size: 18px;
+  }
+  .proseHost .ProseMirror p {
+    margin: 0;
+  }
+  .proseHost .ProseMirror blockquote {
+    border-left: 3px solid var(--border-default);
+    margin: 0;
+    padding: 4px 0 4px 18px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .proseHost .ProseMirror ul,
+  .proseHost .ProseMirror ol {
+    padding-left: 24px;
+    margin: 0;
+  }
+  .proseHost .ProseMirror li > p {
+    margin: 0;
+  }
+  .proseHost .ProseMirror code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .proseHost .ProseMirror pre {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.55;
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+  .proseHost .ProseMirror pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+  .proseHost .ProseMirror a {
+    color: var(--accent-color, var(--text-primary));
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .proseHost .ProseMirror hr {
+    border: 0;
+    border-top: 1px solid var(--border-default);
+    margin: 28px 0;
+  }
+  .proseHost .ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+  }
+  .proseHost .ProseMirror table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 15px;
+  }
+  .proseHost .ProseMirror table th,
+  .proseHost .ProseMirror table td {
+    border: 1px solid var(--border-default);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+    min-width: 80px;
+  }
+  .proseHost .ProseMirror table th {
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    font-weight: 600;
+  }
+  .proseHost .ProseMirror .selectedCell {
+    background: color-mix(in srgb, var(--accent-color, #d63f00) 12%, transparent);
+  }
+  .proseHost .ProseMirror p.is-empty:first-child::before,
+  .proseHost .ProseMirror .ProseMirror-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
   }
   .fields {
     display: grid;
