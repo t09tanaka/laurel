@@ -10,7 +10,10 @@ interface CreateViewProps {
 }
 
 export function CreateView(props: CreateViewProps): JSX.Element {
-  const [kind, setKind] = useState<DashboardEditorKind>(props.defaultKind);
+  // Kind comes from the URL (/posts/new, /pages/new, ...). The form
+  // doesn't ask again — the page header already announces which kind
+  // is being created.
+  const kind = props.defaultKind;
   const [title, setTitle] = useState('');
   const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -39,32 +42,14 @@ export function CreateView(props: CreateViewProps): JSX.Element {
 
   return (
     <div>
-      <div class="panelHead">
-        <h2>New file</h2>
-        <span class="meta">writes one Markdown file</span>
-      </div>
       <form class="createPage" id="createPage" onSubmit={handleSubmit}>
-        <label class="field">
-          <span>Kind</span>
-          <select
-            id="createKind"
-            value={kind}
-            onChange={(event) =>
-              setKind((event.currentTarget as HTMLSelectElement).value as DashboardEditorKind)
-            }
-          >
-            <option value="posts">Post</option>
-            <option value="pages">Page</option>
-            <option value="authors">Author</option>
-            <option value="tags">Tag</option>
-          </select>
-        </label>
         <label class="field wide">
           <span>Title or name</span>
           <input
             id="createTitle"
             autoComplete="off"
             required
+            autoFocus
             value={title}
             onInput={(event) => setTitle((event.currentTarget as HTMLInputElement).value)}
           />

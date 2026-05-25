@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'preact/hooks';
 interface ToolbarProps {
   query: string;
   showNew: boolean;
+  showFilter: boolean;
   onSearch: (value: string) => void;
-  onRefresh: () => void;
   onNew: () => void;
 }
 
@@ -33,34 +33,29 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
 
   return (
     <div class="toolbar" aria-label="Dashboard tools">
-      <label class="srOnly" for="search">
-        Filter current view
-      </label>
-      <div class="searchWrap">
-        <span class="searchIcon" aria-hidden="true">
-          ⌕
-        </span>
-        <input
-          class="search"
-          id="search"
-          ref={searchRef}
-          placeholder="タイトル / slug / タグで絞り込み"
-          value={props.query}
-          onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && props.query) {
-              event.preventDefault();
-              props.onSearch('');
-            }
-          }}
-        />
-        <span class="searchHint" aria-hidden="true">
-          /
-        </span>
-      </div>
-      <button class="btn secondary" id="refresh" onClick={props.onRefresh} type="button">
-        Refresh
-      </button>
+      {props.showFilter ? (
+        <>
+          <label class="srOnly" for="search">
+            Filter current view
+          </label>
+          <div class="searchWrap">
+            <input
+              class="search"
+              id="search"
+              ref={searchRef}
+              placeholder="Filter"
+              value={props.query}
+              onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && props.query) {
+                  event.preventDefault();
+                  props.onSearch('');
+                }
+              }}
+            />
+          </div>
+        </>
+      ) : null}
       <button
         class={`btn${props.showNew ? '' : ' hidden'}`}
         id="newItem"

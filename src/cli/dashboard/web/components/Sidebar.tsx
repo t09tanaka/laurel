@@ -1,40 +1,65 @@
 import type { JSX } from 'preact';
-import type { DashboardShellSection, DashboardState, DashboardTheme } from '../types.ts';
+import type { DashboardShellSection, DashboardState } from '../types.ts';
+
+export interface RecentEntry {
+  kind: 'posts' | 'pages';
+  slug: string;
+  title: string;
+}
 
 interface SidebarProps {
   section: DashboardShellSection;
   siteTitle: string;
+  siteUrl?: string;
   postsTotal?: number;
   pagesTotal?: number;
+  recents?: RecentEntry[];
   syncLabel: string;
   syncState: string;
   buildLabel: string;
   buildState: string;
   previewLabel: string;
   previewState: string;
-  theme: DashboardTheme;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
-  onCycleTheme: () => void;
+  onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
+  onForceSync: () => void;
 }
 
-const THEME_LABEL: Record<DashboardTheme, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
-};
-
-const THEME_NEXT: Record<DashboardTheme, DashboardTheme> = {
-  system: 'dark',
-  dark: 'light',
-  light: 'system',
-};
+function hostnameOf(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    return parsed.host.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
 
 export function Sidebar(props: SidebarProps): JSX.Element {
   return (
     <aside class="side" aria-label="Dashboard navigation">
       <div class="sideTop">
-        <div class="brand">Nectar</div>
-        <div class="tagline">{props.siteTitle || 'file-backed editorial dashboard'}</div>
+        <div class="brand">
+          {/* A faint hexagon — honey-cell glyph, ties the "Nectar" name to
+           * a wordless mark without leaning on emoji or external assets. */}
+          <svg
+            class="brandMark"
+            viewBox="0 0 20 20"
+            width="20"
+            height="20"
+            aria-hidden="true"
+          >
+            <polygon
+              points="10,1.5 17.4,5.75 17.4,14.25 10,18.5 2.6,14.25 2.6,5.75"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+            <circle cx="10" cy="10" r="1.6" fill="currentColor" opacity="0.5" />
+          </svg>
+          <span class="brandWord">Nectar</span>
+        </div>
       </div>
       <nav class="nav" aria-label="Primary">
         <NavLink
@@ -55,34 +80,82 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           count={props.pagesTotal}
           onNavigate={() => props.onNavigate('pages')}
         />
-        <NavLink
-          href="/settings"
-          view="settings"
-          section="settings"
-          active={props.section === 'settings'}
-          label="Settings"
-          onNavigate={() => props.onNavigate('settings')}
-        />
       </nav>
-      <div class="statusRail" aria-label="File-backed status">
-        <RailItem id="syncRail" label="Sync" value={props.syncLabel} state={props.syncState} live />
-        <RailItem id="buildRail" label="Build" value={props.buildLabel} state={props.buildState} />
-        <RailItem
-          id="previewRail"
-          label="Preview"
-          value={props.previewLabel}
-          state={props.previewState}
-        />
+      {props.recents && props.recents.length > 0 ? (
+        <div class="recents" aria-label="Recently edited">
+          <div class="recentsHead">Recently</div>
+          <ul class="recentsList">
+            {props.recents.slice(0, 5).map((entry) => (
+              <li key={`${entry.kind}/${entry.slug}`}>
+                <button
+                  type="button"
+                  class="recentItem"
+                  onClick={() => props.onOpenEntry?.(entry.kind, entry.slug)}
+                  title={`${entry.kind === 'posts' ? 'Post' : 'Page'}: ${entry.title}`}
+                >
+                  <span class="recentItemTitle">{entry.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {/* Sidebar footer — Settings link + a tiny sync pip. Theme toggle
+       * removed (dark theme dropped per user direction). */}
+      <div class="sideFooter">
+        <a
+          href="/settings"
+          class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
+          aria-current={props.section === 'settings' ? 'page' : undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            props.onNavigate('settings');
+          }}
+        >
+          <span>Settings</span>
+        </a>
+        {(() => {
+          const host = hostnameOf(props.siteUrl);
+          if (!host || !props.siteUrl) return null;
+          return (
+            <a
+              class="sideFooterSite"
+              href={props.siteUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`Open published site at ${host}`}
+              title={`View site · ${host}`}
+            >
+              <span class="srOnly">View site at {host}</span>
+              <svg
+                class="sideFooterIcon"
+                viewBox="0 0 16 16"
+                width="16"
+                height="16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9.5 3.5h3v3M12.3 3.7L7 9M6 4.5H4.2c-.55 0-1 .45-1 1v6.3c0 .55.45 1 1 1h6.3c.55 0 1-.45 1-1V10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </a>
+          );
+        })()}
         <button
           type="button"
-          class="themeToggle"
-          data-theme={props.theme}
-          aria-label={`Theme: ${THEME_LABEL[props.theme]}. Switch to ${THEME_LABEL[THEME_NEXT[props.theme]]}.`}
-          title={`Theme: ${THEME_LABEL[props.theme]}`}
-          onClick={props.onCycleTheme}
+          id="syncRail"
+          class="syncPip"
+          data-state={props.syncState}
+          onClick={props.onForceSync}
+          title={`Sync · ${props.syncLabel} · click to re-read`}
+          aria-label={`Sync state: ${props.syncLabel}. Click to re-read from disk.`}
         >
-          <span class="themeMark" aria-hidden="true" />
-          <span>{THEME_LABEL[props.theme]}</span>
+          <span class="syncPipMark" aria-hidden="true" />
         </button>
       </div>
     </aside>
@@ -117,32 +190,11 @@ function NavLink(props: NavLinkProps): JSX.Element {
     >
       <span class="navLabel">{props.label}</span>
       <span class="navCount" aria-hidden="true">
-        {typeof props.count === 'number' ? String(props.count) : ''}
+        {/* Show count only when there is content; an "0" or empty digit
+         * adds visual noise without information. */}
+        {typeof props.count === 'number' && props.count > 0 ? String(props.count) : ''}
       </span>
     </a>
-  );
-}
-
-interface RailItemProps {
-  id: string;
-  label: string;
-  value: string;
-  state: string;
-  live?: boolean;
-}
-
-function RailItem(props: RailItemProps): JSX.Element {
-  return (
-    <div class="railItem" id={props.id} data-state={props.state}>
-      <span>{props.label}</span>
-      {props.live ? (
-        <output>
-          <b>{props.value}</b>
-        </output>
-      ) : (
-        <b>{props.value}</b>
-      )}
-    </div>
   );
 }
 

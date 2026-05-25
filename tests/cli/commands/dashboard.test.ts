@@ -254,7 +254,7 @@ describe('dashboard data', () => {
       expect(unfiltered.posts.statusCounts).toBeDefined();
       const counts = unfiltered.posts.statusCounts;
       if (!counts) throw new Error('statusCounts missing');
-      const totalReported = counts.draft + counts.published + counts.scheduled;
+      const totalReported = counts.draft + counts.published;
       expect(counts.all).toBeGreaterThanOrEqual(totalReported);
       expect(counts.all).toBe(unfiltered.posts.total);
 
@@ -1506,10 +1506,9 @@ describe('dashboard frontend state helpers', () => {
     expect(state.view).toBe('posts');
     expect(state.postsPage).toBe(1);
     expect(state.pagesPage).toBe(1);
-    expect(state.theme).toBe('system');
   });
 
-  test('reduces search, paging, density, theme, and conflict state predictably', () => {
+  test('reduces search, paging, density, and conflict state predictably', () => {
     let state = createDashboardUiState({ postsPage: 3, pagesPage: 2 });
 
     state = reduceDashboardUiState(state, { type: 'search/set', query: 'draft' });
@@ -1522,9 +1521,6 @@ describe('dashboard frontend state helpers', () => {
 
     state = reduceDashboardUiState(state, { type: 'density/toggle' });
     expect(state.density).toBe('compact');
-
-    state = reduceDashboardUiState(state, { type: 'theme/set', theme: 'dark' });
-    expect(state.theme).toBe('dark');
 
     state = reduceDashboardUiState(state, {
       type: 'conflict',

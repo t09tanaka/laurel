@@ -8,7 +8,6 @@ export type DashboardEditorKind = 'posts' | 'pages' | 'authors' | 'tags';
 export type DashboardShellSection = 'posts' | 'pages' | 'settings';
 export type DashboardSettingsSubview = 'site' | 'authors' | 'tags' | 'migration';
 export type DashboardDensity = 'comfortable' | 'compact';
-export type DashboardTheme = 'system' | 'light' | 'dark';
 export type DashboardLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'conflict';
 
 export interface DashboardUiState {
@@ -18,7 +17,6 @@ export interface DashboardUiState {
   density: DashboardDensity;
   query: string;
   statusFilter: string;
-  theme: DashboardTheme;
   loadStatus: DashboardLoadStatus;
   lastError: string;
   conflictMessage: string;
@@ -31,7 +29,6 @@ export type DashboardUiAction =
   | { type: 'page/next'; kind: DashboardContentView; pages: number }
   | { type: 'page/prev'; kind: DashboardContentView }
   | { type: 'density/toggle' }
-  | { type: 'theme/set'; theme: DashboardTheme }
   | { type: 'load/start' }
   | { type: 'load/success' }
   | { type: 'load/error'; message: string }
@@ -44,7 +41,6 @@ export const DEFAULT_DASHBOARD_UI_STATE: DashboardUiState = {
   density: 'comfortable',
   query: '',
   statusFilter: '',
-  theme: 'system',
   loadStatus: 'idle',
   lastError: '',
   conflictMessage: '',
@@ -116,8 +112,6 @@ export function reduceDashboardUiState(
         ...state,
         density: state.density === 'compact' ? 'comfortable' : 'compact',
       };
-    case 'theme/set':
-      return { ...state, theme: action.theme };
     case 'load/start':
       return { ...state, loadStatus: 'loading', lastError: '', conflictMessage: '' };
     case 'load/success':

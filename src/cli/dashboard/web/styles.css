@@ -21,55 +21,77 @@
 @source "./**/*.{tsx,ts}";
 
 @theme {
-  --color-text-primary: #111318;
-  --color-text-secondary: #53606c;
-  --color-text-muted: #8c9aa7;
+  /* Ink-driven editorial palette. Primary action = near-black (Linear/Vercel
+   * style). Semantic colors are reserved for success / warning / danger
+   * states only. A single brand sigil green appears on the logo. A single
+   * cobalt is used for focus and in-progress states. */
+  --color-text-primary: #0f1115;
+  --color-text-secondary: #4f5b66;
+  --color-text-muted: #8590a0;
   --color-text-invert: #ffffff;
-  --color-bg-primary: #fafbfb;
-  --color-bg-secondary: #f2f5f4;
+  /* Subtle warm tint across the page surfaces — moves away from the
+   * "cold gray SaaS admin" feel toward an editorial publishing surface.
+   * Hex shifted by a few degrees toward warm without becoming sepia. */
+  --color-bg-primary: #fbfaf7;
+  --color-bg-secondary: #f3f1ec;
   --color-surface-normal: #ffffff;
-  --color-surface-raised: #f7f9f8;
-  --color-surface-primary: #111318;
-  --color-surface-primary-reaction: #2d3137;
-  --color-surface-secondary: #18b86d;
-  --color-surface-tertiary: #ff3d77;
+  --color-surface-raised: #f8f5f0;
+  --color-surface-primary: #0a0d12;
+  --color-surface-primary-reaction: #1f242b;
   --color-surface-quaternary: #eaf0ee;
   --color-surface-clear: hsla(0, 0%, 100%, 0);
-  --color-sidebar-bg: #121719;
-  --color-sidebar-ink: #edf6f2;
-  --color-sidebar-muted: #93a59d;
-  --color-action: #10b981;
-  --color-action-reaction: #059669;
-  --color-border-default: #dfe5e3;
-  --color-border-strong: #c7d1ce;
-  --color-border-weak: #edf1f0;
-  --color-border-primary: #111318;
-  --color-success: #148a50;
-  --color-success-subdued: #e7f7ef;
-  --color-danger: #d92d3d;
-  --color-danger-subdued: #fff0f2;
-  --color-caution: #a86900;
-  --color-caution-subdued: #fff6df;
-  --color-like: #ff3d77;
-  --color-badge: #ff3d77;
-  --color-point: #315dff;
-  --color-focus: #18b86d;
-  --color-disabled: #eef2f1;
-  --color-reaction: #eef4f2;
-  --color-modal: rgba(17, 19, 24, 0.42);
+  --color-sidebar-bg: #0a0d12;
+  --color-sidebar-ink: #edf0f4;
+  --color-sidebar-muted: #8e9aa6;
 
-  --font-sans: "Avenir Next", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo,
-    sans-serif;
-  --font-serif: "Hiragino Mincho ProN", "Hiragino Mincho Pro", HGSMinchoE, "Yu Mincho", YuMincho,
-    "MS PMincho", serif;
-  --font-mono: SFMono-Regular, Consolas, Menlo, Courier, monospace;
+  /* Primary action: ink, not green. */
+  --color-action: #0a0d12;
+  --color-action-reaction: #1f242b;
+
+  /* Brand sigil — the only place the green appears. */
+  --color-brand: #18b86d;
+
+  /* Interactive accent — focus rings + in-progress state. One blue, semantic. */
+  --color-focus: #2563eb;
+
+  --color-border-default: #e3e0d8;
+  --color-border-strong: #c8c4ba;
+  --color-border-weak: #efece5;
+  --color-border-primary: #0a0d12;
+  --color-success: #117a47;
+  --color-success-subdued: #e7f3eb;
+  --color-danger: #b42318;
+  --color-danger-subdued: #fdf2f1;
+  --color-warning: #a86900;
+  --color-warning-subdued: #fff6df;
+  --color-disabled: #efebe3;
+  --color-reaction: #f0ede6;
+  --color-modal: rgba(10, 13, 18, 0.46);
+
+  /* Single editorial type voice across the entire dashboard. Was a
+   * sans/serif mix; user feedback "フォントが統一されてないのが気持ち悪い"
+   * → ship one family. Serif (Charter / Iowan Old Style / Hiragino
+   * Mincho / Yu Mincho) becomes the body and UI family; --font-sans
+   * is aliased to it so every existing var(--font-sans) reference
+   * resolves to the same family without a sweep. */
+  --font-serif: "Charter", "Source Serif Pro", "Iowan Old Style", "Sitka Text", Georgia, Cambria,
+    "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-sans: var(--font-serif);
+  /* Mono kept for slugs / file paths / numerical IDs — semantic
+   * "this is code or a precise identifier" cue, not stylistic. */
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", "IBM Plex Mono", Menlo,
+    Consolas, monospace;
 
   --radius-card: 6px;
 
-  --shadow-row: 0 18px 44px rgba(17, 19, 24, 0.08);
-  --shadow-elevation-1: 0 1px 2px rgba(17, 19, 24, 0.06);
-  --shadow-elevation-4: 0 14px 36px rgba(17, 19, 24, 0.12);
-  --shadow-elevation-6: 0 28px 72px rgba(17, 19, 24, 0.2);
+  /* Elevation scale — warm shadows (slight olive tint) feel less harsh
+   * than pure black drops on the warm surface palette. */
+  --shadow-row: 0 18px 44px rgba(31, 28, 22, 0.07);
+  --shadow-elevation-1: 0 1px 2px rgba(31, 28, 22, 0.06);
+  --shadow-elevation-2: 0 4px 12px rgba(31, 28, 22, 0.06), 0 1px 2px rgba(31, 28, 22, 0.04);
+  --shadow-elevation-3: 0 10px 24px rgba(31, 28, 22, 0.09), 0 2px 4px rgba(31, 28, 22, 0.05);
+  --shadow-elevation-4: 0 14px 36px rgba(31, 28, 22, 0.12);
+  --shadow-elevation-6: 0 28px 72px rgba(31, 28, 22, 0.18);
 }
 
 @layer base {
@@ -88,8 +110,6 @@
     --surface-raised: var(--color-surface-raised);
     --surface-primary: var(--color-surface-primary);
     --surface-primary-reaction: var(--color-surface-primary-reaction);
-    --surface-secondary: var(--color-surface-secondary);
-    --surface-tertiary: var(--color-surface-tertiary);
     --surface-quaternary: var(--color-surface-quaternary);
     --surface-clear: var(--color-surface-clear);
     --sidebar-bg: var(--color-sidebar-bg);
@@ -97,6 +117,7 @@
     --sidebar-muted: var(--color-sidebar-muted);
     --action: var(--color-action);
     --action-reaction: var(--color-action-reaction);
+    --brand: var(--color-brand);
     --border-default: var(--color-border-default);
     --border-strong: var(--color-border-strong);
     --border-weak: var(--color-border-weak);
@@ -105,73 +126,39 @@
     --success-subdued: var(--color-success-subdued);
     --danger: var(--color-danger);
     --danger-subdued: var(--color-danger-subdued);
-    --caution: var(--color-caution);
-    --caution-subdued: var(--color-caution-subdued);
-    --like: var(--color-like);
-    --badge: var(--color-badge);
-    --point: var(--color-point);
+    /* --caution kept as alias for backward compat — points to --color-warning */
+    --caution: var(--color-warning);
+    --caution-subdued: var(--color-warning-subdued);
+    /* --point kept as alias for editor in-progress chips — points to --color-focus */
+    --point: var(--color-focus);
     --focus: var(--color-focus);
     --disabled: var(--color-disabled);
     --reaction: var(--color-reaction);
     --modal: var(--color-modal);
     --row-shadow: var(--shadow-row);
     --elevation-1: var(--shadow-elevation-1);
+    --elevation-2: var(--shadow-elevation-2);
+    --elevation-3: var(--shadow-elevation-3);
     --elevation-4: var(--shadow-elevation-4);
     --elevation-6: var(--shadow-elevation-6);
 
-    /* Layout constants — not exposed as Tailwind utilities. */
+    /* Layout constants — not exposed as Tailwind utilities. Narrower
+     * --main-width frames the content with symmetric whitespace instead
+     * of letting sparse pages look "empty". --sidebar-width tightened
+     * to give content more breathing room. */
     --radius: 6px;
     --space: 15px;
     --article-width: 720px;
-    --main-width: 1120px;
+    --main-width: 960px;
     --timeline-width: 580px;
     --editor-width: 760px;
-    --sidebar-width: 248px;
+    --sidebar-width: 232px;
   }
 
-  html[data-theme="dark"],
-  html.theme-dark {
-    color-scheme: dark;
-    --color-text-primary: #f5f7f7;
-    --color-text-secondary: #b3bfc8;
-    --color-text-muted: #7f8d99;
-    --color-text-invert: #111318;
-    --color-bg-primary: #101214;
-    --color-bg-secondary: #171b1d;
-    --color-surface-normal: #15191c;
-    --color-surface-raised: #1c2124;
-    --color-surface-primary: #f5f7f7;
-    --color-surface-primary-reaction: #dde4e3;
-    --color-surface-secondary: #58d66d;
-    --color-surface-tertiary: #ff6aa8;
-    --color-surface-quaternary: #242b2e;
-    --color-sidebar-bg: #0d1113;
-    --color-sidebar-ink: #f5f7f7;
-    --color-sidebar-muted: #91a09c;
-    --color-action: #58d66d;
-    --color-action-reaction: #74e284;
-    --color-border-default: #2b3336;
-    --color-border-strong: #3d484c;
-    --color-border-weak: #22292c;
-    --color-border-primary: #f5f7f7;
-    --color-success: #58d66d;
-    --color-success-subdued: #12371e;
-    --color-danger: #ff7d88;
-    --color-danger-subdued: #3a151b;
-    --color-caution: #e5ad4f;
-    --color-caution-subdued: #332613;
-    --color-focus: #58d66d;
-    --color-disabled: #2a3134;
-    --color-reaction: #20272a;
-    --color-modal: rgba(0, 0, 0, 0.64);
-    --shadow-row: 0 18px 44px rgba(0, 0, 0, 0.22);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    html[data-theme="system"] {
-      color-scheme: light;
-    }
-  }
+  /* Dark theme dropped — the dashboard is a single warm-light editorial
+   * surface. Per the project's editorial intent and to keep the design
+   * vocabulary tight, dark mode tokens and prefers-color-scheme overrides
+   * are no longer maintained. */
 
   *,
   *::before,
@@ -183,10 +170,15 @@
   }
   body {
     margin: 0;
-    background: linear-gradient(180deg, #f6f8f7 0, #fff 38%, var(--background-secondary));
+    /* Warm vertical wash + subtle SVG grain overlay. The grain is a tiny
+     * inline noise svg tiled at 100% opacity to give the surface a real
+     * "paper" quality rather than the flat white of every other admin. */
+    background:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.18 0 0 0 0 0.16 0 0 0 0 0.13 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+      linear-gradient(180deg, #f7f4ee 0, #ffffff 38%, var(--background-secondary));
     color: var(--text-primary);
-    font: 15px / 1.5 var(--font-sans);
-    letter-spacing: 0;
+    font: 14.5px / 1.55 var(--font-sans);
+    letter-spacing: -0.002em;
     text-rendering: optimizeLegibility;
     word-wrap: break-word;
     font-kerning: auto;
@@ -198,6 +190,9 @@
   body.createOpen .shell {
     min-height: 100vh;
   }
+  /* Editor-mode collapse rules (.shell grid + .side display:none + .main
+   * padding) live in the components layer next to .shell / .side / .main
+   * so they actually win the cascade. */
   body.editorOpen .viewHead,
   body.editorOpen .subnav,
   body.editorOpen #contentPanel {
@@ -220,8 +215,38 @@
     cursor: not-allowed;
   }
   :focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid color-mix(in srgb, var(--focus) 70%, transparent);
     outline-offset: 2px;
+  }
+  /* Editorial highlighter — warm amber tint that reads like a real
+   * pen highlight on the paper bg. Bright enough that selected text
+   * is obvious, but soft enough not to fight the typography. */
+  ::selection {
+    background: #fde88a;
+    color: var(--text-primary);
+  }
+  ::-moz-selection {
+    background: #fde88a;
+    color: var(--text-primary);
+  }
+  /* Slim, near-invisible scrollbars (WebKit). The dashboard is content-led;
+   * the scrollbar shouldn't be a UI element. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-muted) 48%, transparent);
+    background-clip: padding-box;
   }
 }
 
@@ -256,18 +281,60 @@
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     background: transparent;
   }
+  /* When the editor is open, the writing surface owns the full viewport.
+   * Collapse the dashboard sidebar (the editor has its own "← Posts"
+   * breadcrumb). Must live in the components layer so .side's flex
+   * display from below doesn't override the hide. */
+  body.editorOpen .shell {
+    grid-template-columns: 1fr;
+  }
+  body.editorOpen .side {
+    display: none;
+  }
   .side {
     border-right: 0;
-    padding: 30px 20px 22px;
-    background: linear-gradient(180deg, var(--sidebar-bg), #18201d);
+    padding: 36px 20px 22px;
+    /* Editorial dark sidebar — vertical gradient with a subtle warm-ink
+     * top tint to feel like cover stock, and an inset highlight at the
+     * top edge that catches light like a real sheet of paper. */
+    background:
+      radial-gradient(ellipse at 50% -20%, rgba(255, 255, 255, 0.06), transparent 60%),
+      linear-gradient(180deg, #0c1014 0%, #08090c 100%);
     color: var(--sidebar-ink);
     position: sticky;
     top: 0;
     height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
     box-shadow: inset -1px 0 rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  .side::before {
+    /* Hairline highlight along the very top edge — catches light, signals
+     * a real material rather than a flat fill. */
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.08),
+      transparent
+    );
+    pointer-events: none;
+  }
+  /* Footer floats to the bottom of the sidebar regardless of the number
+   * of recent entries above it. */
+  .side .sideFooter {
+    margin-top: auto;
+  }
+  /* Legacy statusRail rule kept null-safe but no longer rendered. */
+  .side .statusRail {
+    margin-top: auto;
   }
   .sideTop {
     display: grid;
@@ -275,28 +342,41 @@
     min-width: 0;
   }
   .brand {
-    font-size: 17px;
-    line-height: 1.2;
-    font-weight: 700;
-    letter-spacing: 0;
-    font-feature-settings: "palt";
+    /* Editorial masthead — italic serif logotype, the kind of refined
+     * wordmark you'd see at the top of an artisan magazine. */
+    font-family: var(--font-serif);
+    font-size: 26px;
+    line-height: 1.05;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-feature-settings: "palt", "ss01", "swsh";
     color: var(--sidebar-ink);
   }
   .brand:before {
-    content: "";
-    display: inline-block;
-    width: 22px;
-    height: 22px;
-    margin-right: 10px;
-    vertical-align: -6px;
-    border: 2.5px solid var(--action);
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 5px var(--sidebar-bg), 0 0 0 1px rgba(255, 255, 255, 0.28);
+    /* Removed — the italic serif "Nectar" carries its own identity now.
+     * The brand-green color appears only on semantic surfaces. */
+    content: none;
+  }
+  .brandMark {
+    flex: 0 0 auto;
+    color: var(--text-invert, #f4ecd9);
+    opacity: 0.92;
+  }
+  .brandWord {
+    line-height: 1;
   }
   .tagline {
     color: var(--sidebar-muted);
-    font-size: 12px;
-    line-height: 18px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12.5px;
+    line-height: 17px;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
   .nav {
@@ -306,36 +386,29 @@
   }
   .nav a {
     width: 100%;
-    min-height: 40px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     gap: 10px;
     text-align: left;
-    padding: 8px 12px;
+    padding: 7px 12px;
     border-radius: var(--radius);
     background: transparent;
     color: var(--sidebar-muted);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-decoration: none;
+    transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .nav a:active {
+    transform: scale(0.99);
   }
   .nav a:before {
-    content: "";
-    width: 14px;
-    height: 14px;
-    display: block;
-    border: 1.6px solid currentColor;
-    border-radius: 3px;
-    opacity: 0.78;
-    flex: 0 0 auto;
-  }
-  .nav a[data-view="pages"]:before {
-    border-radius: 2px;
-    transform: scaleX(0.85);
-  }
-  .nav a[data-view="settings"]:before {
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 4px var(--sidebar-bg);
+    /* Drop the geometric icons — they competed with the type for
+     * attention and didn't add information. The label alone reads
+     * cleaner in a 3-item nav. */
+    content: none;
   }
   .nav a:hover {
     background: rgba(255, 255, 255, 0.07);
@@ -343,10 +416,16 @@
   }
   .nav a.active,
   .nav a[aria-current="page"] {
-    background: #fff;
-    color: #111318;
-    font-weight: 700;
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+    /* Refined active state — thin warm-cream bg + sharp left rule + ink
+     * label. The rule uses sidebar-ink (warm cream) rather than --brand
+     * (green) so it sits in the same warm palette as the rest of the
+     * sidebar instead of floating above it. */
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--sidebar-ink);
+    font-weight: 500;
+    box-shadow: inset 2px 0 0 var(--sidebar-ink);
+    border-radius: 0 6px 6px 0;
+    padding-left: 14px;
   }
   .nav .navLabel {
     flex: 1 1 auto;
@@ -357,21 +436,23 @@
   }
   .nav .navCount {
     flex: 0 0 auto;
-    min-width: 22px;
-    padding: 0 7px;
-    text-align: center;
+    min-width: 16px;
+    padding: 0;
+    text-align: right;
+    /* Mono + tabular-nums so 1/2/3-digit counts share the same column
+     * width and stay legible against the dark sidebar. */
+    font-family: var(--font-mono);
     font-size: 11px;
     line-height: 18px;
     font-variant-numeric: tabular-nums;
-    color: var(--sidebar-muted);
-    border-radius: 999px;
+    color: rgba(255, 255, 255, 0.42);
     background: transparent;
-    font-weight: 600;
+    font-weight: 400;
+    letter-spacing: 0;
   }
   .nav a.active .navCount,
   .nav a[aria-current="page"] .navCount {
-    color: #53606c;
-    background: #eef4f2;
+    color: var(--sidebar-ink);
   }
   .nav a:hover .navCount {
     color: var(--sidebar-ink);
@@ -379,12 +460,222 @@
   .nav .navCount:empty {
     display: none;
   }
-  .statusRail {
+  /* Recently edited — quick jump to the last 5 files touched. Adds real
+   * daily-driver utility to the sidebar (replaces the dead empty middle). */
+  .recents {
     display: grid;
-    gap: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    padding-top: 18px;
+    gap: 6px;
     min-width: 0;
+  }
+  /* Editorial section marker — italic serif label with a hairline rule
+   * underneath, like a magazine "in this issue" column header. */
+  .recentsHead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+    color: var(--sidebar-muted);
+    padding: 0 4px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+  }
+  .recentsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+  }
+  .recentItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 6px 4px;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    color: var(--sidebar-muted);
+    font: inherit;
+    /* Recents in italic serif so each entry reads like a citation, not
+     * a nav row. Subtler than the primary nav, more editorial than sans. */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13.5px;
+    line-height: 1.3;
+    letter-spacing: -0.003em;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .recentItem:hover,
+  .recentItem:focus-visible {
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--sidebar-ink);
+    outline: none;
+  }
+  /* Removed visual kind glyph — kept in DOM for assistive context.
+   * The recents list reads as a single editorial column of titles now. */
+  /* Skip-to-main: keyboard-only affordance, slides into view on focus.
+   * Hidden under the viewport for sighted/mouse users (#1968). */
+  .pagerLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .skipToMain {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 1000;
+    transform: translateY(-200%);
+    padding: 8px 14px;
+    background: var(--text-primary, #1a1612);
+    color: var(--surface-normal, #f4ecd9);
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-family: var(--font-sans);
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.12s ease;
+  }
+  .skipToMain:focus,
+  .skipToMain:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid var(--accent-color, #d63f00);
+    outline-offset: 2px;
+  }
+  .sideFooterSettings {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sideFooterIcon {
+    flex: 0 0 auto;
+    color: currentColor;
+    opacity: 0.7;
+  }
+  .recentItemKind {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+  .recentItemKind[data-kind='posts'] {
+    color: var(--accent-color, var(--text-primary));
+    opacity: 0.85;
+  }
+  .recentItemTitle {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Minimal sidebar footer — Settings link (less frequent than Posts/
+   * Pages so it lives below the fold), plus a theme toggle dot and a
+   * sync pip. The verbose Sync/Build/Preview rail used to live here
+   * but the labels were unclear at a glance and the state belongs on
+   * the surface where the user acts. */
+  .sideFooter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .sideFooterSettings {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    color: var(--sidebar-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
+    text-decoration: none;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .sideFooterSettings:hover {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .sideFooterSettings.active {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 2px 0 0 var(--sidebar-ink);
+    border-radius: 0 6px 6px 0;
+    padding-left: 14px;
+  }
+  /* Footer "View site" link — icon-only peer to the gear icon. */
+  .sideFooterSite {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    color: var(--sidebar-muted, color-mix(in srgb, var(--sidebar-ink) 60%, transparent));
+    text-decoration: none;
+    transition: color 0.16s ease, background 0.16s ease;
+  }
+  .sideFooterSite:hover,
+  .sideFooterSite:focus-visible {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.06);
+    outline: none;
+  }
+  .syncPip {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.12s ease;
+  }
+  .syncPip:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .syncPipMark {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+  .syncPip[data-state="caution"] .syncPipMark {
+    background: var(--caution);
+  }
+  .syncPip[data-state="danger"] .syncPipMark {
+    background: var(--danger);
+  }
+  .syncPip[data-state="reading"] .syncPipMark {
+    background: var(--color-focus);
+    animation: railPulse 1.2s ease-in-out infinite;
+  }
+  /* Legacy .statusRail no longer rendered — kept null-safe styles for
+   * old browser sessions caching the prior bundle. */
+  .statusRail {
+    display: none;
   }
   .railItem {
     position: relative;
@@ -407,75 +698,123 @@
     border-radius: 50%;
     background: var(--sidebar-muted);
   }
+  /* Shape varies per state so the rail is readable without color perception. */
   .railItem[data-state="success"]:before {
-    background: var(--action);
+    background: var(--success);
   }
-  .railItem[data-state="caution"]:before,
+  .railItem[data-state="caution"]:before {
+    background: transparent;
+    border: 1.4px solid var(--caution);
+    width: 9px;
+    height: 9px;
+    top: 6px;
+    border-radius: 2px; /* square ring distinguishes caution */
+  }
+  /* "reading" = an active fetch is in flight. Breathing dot communicates
+   * liveness so the user knows the sidebar is the live status surface. */
   .railItem[data-state="reading"]:before {
-    background: var(--caution);
+    background: var(--focus);
+    animation: railPulse 1.2s ease-in-out infinite;
   }
   .railItem[data-state="danger"]:before {
     background: var(--danger);
+    width: 0;
+    height: 0;
+    border-radius: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 8px solid var(--danger);
+    top: 6px;
+  }
+  @keyframes railPulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.35);
+    }
+  }
+  /* Sync rail doubles as a "force re-read" button. Button reset + a
+   * subtle hover lift makes it feel actionable without competing with
+   * the primary navigation. */
+  .railItemAction {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.15s ease;
+  }
+  .railItemAction:hover {
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .railItemAction:active {
+    background: rgba(255, 255, 255, 0.08);
   }
   .railItem span {
     text-transform: uppercase;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 500;
+    letter-spacing: 0.06em;
   }
   .railItem b {
     color: var(--sidebar-ink);
     font-size: 12px;
     line-height: 18px;
-    font-weight: 700;
+    font-weight: 500;
+    letter-spacing: -0.003em;
   }
-  .themeToggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    align-self: start;
-    margin-top: 4px;
-    padding: 6px 10px;
-    border-radius: var(--radius);
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--sidebar-ink);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  .footerBadge {
+    /* Sidebar footer status badge (the SYSTEM chip). */
+    font-weight: 500;
+    letter-spacing: 0.06em;
   }
-  .themeToggle:hover {
-    background: rgba(255, 255, 255, 0.12);
-  }
-  .themeToggle .themeMark {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--action);
-    box-shadow: inset 0 0 0 2px var(--sidebar-bg);
-  }
-  .themeToggle[data-theme="light"] .themeMark {
-    background: #f0c63a;
-  }
-  .themeToggle[data-theme="dark"] .themeMark {
-    background: #4a5d72;
-  }
+  /* themeToggle / themeMark removed — dark theme dropped, no toggle needed. */
   .main {
-    padding: 32px 48px 72px;
+    padding: 48px 64px 64px;
     min-width: 0;
     max-width: var(--main-width);
     width: 100%;
     margin: 0 auto;
     overflow: hidden;
+    /* Subtle fade-in on every navigation — gives the dashboard a sense
+     * of "page turn" instead of an abrupt swap. */
+    animation: mainFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  body.editorOpen,
+  body.editorOpen html {
+    /* Editor owns the full viewport; lock body-level scroll so the
+     * page header / sidebar / metadata aside don't drift as the body
+     * content scrolls. The editor's own .editorScroll handles it. */
+    overflow: hidden;
+    height: 100dvh;
+  }
+  body.editorOpen .main {
+    max-width: none;
+    padding: 24px 48px 48px;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.editorOpen .editor.editorPage {
+    flex: 1 1 auto;
+    min-height: 0;
   }
   .viewHead {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
     align-items: end;
-    gap: 22px;
-    margin: 0 0 18px;
-    padding: 0 0 18px;
-    border-bottom: 1px solid var(--border-default);
+    gap: 24px;
+    margin: 0 0 24px;
+    padding: 0 0 22px;
+    border-bottom: 1px solid var(--border-weak);
   }
   .viewHeadCopy {
     min-width: 0;
@@ -483,52 +822,84 @@
     gap: 4px;
   }
   .kicker {
-    font-size: 11px;
-    line-height: 16px;
+    /* Editorial italic serif kicker — small caps abandoned in favor of
+     * lowercase italic for a more refined, less SaaS-template feel. */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--text-muted);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  /* The signature dot — a single brand-green pip before the kicker.
+   * Toned down (#1934): smaller and softer so "Workspace" reads as a
+   * label, not a status indicator. One subtle editorial mark. */
+  .kicker:before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.55;
+    flex: 0 0 auto;
   }
   .viewTitle {
-    font-size: 22px;
-    line-height: 30px;
-    margin: 0;
-    font-weight: 700;
-    letter-spacing: 0;
-    font-feature-settings: "palt";
+    /* Editorial display — refined serif, present without shouting. */
+    font-family: var(--font-serif);
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.1;
+    letter-spacing: -0.014em;
+    margin: 4px 0 0;
+    font-feature-settings: "palt", "ss01";
     max-width: 100%;
     overflow-wrap: anywhere;
     color: var(--text-primary);
   }
+  @media (max-width: 940px) {
+    .viewTitle {
+      font-size: 28px;
+    }
+  }
   .viewMeta {
-    margin: 0;
+    margin: 8px 0 0;
     color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 20px;
+    font-size: 13.5px;
+    line-height: 21px;
     max-width: 620px;
     overflow-wrap: anywhere;
   }
   .subnav {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin: 0 0 18px;
-    padding: 4px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-quaternary);
-    width: fit-content;
+    gap: 2px;
+    margin: 0 0 22px;
+    padding: 3px;
+    border: 1px solid var(--border-weak);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    /* Span the full width of the main content header (was fit-content),
+     * so the subnav visually anchors to the page header above it. */
+    width: 100%;
     max-width: 100%;
   }
   .subnav a {
     display: inline-flex;
     align-items: center;
-    min-height: 32px;
-    padding: 6px 14px;
-    border-radius: 4px;
+    justify-content: center;
+    flex: 1 1 0;
+    min-height: 30px;
+    padding: 5px 13px;
+    border-radius: 6px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     color: var(--text-secondary);
     text-decoration: none;
     white-space: nowrap;
@@ -549,9 +920,48 @@
   .toolbar {
     display: grid;
     grid-template-columns: 1fr auto auto;
-    gap: 9px;
+    gap: 10px;
     align-items: center;
     min-width: 0;
+  }
+  /* Discoverable ⌘K trigger — small kbd-styled chip next to the New
+   * button. Clicking opens the command palette; the kbd itself signals
+   * the keyboard shortcut without a separate tooltip read. */
+  .cmdkTrigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    color: var(--text-muted);
+    cursor: pointer;
+    box-shadow: var(--elevation-1);
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .cmdkTrigger:hover {
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+  .cmdkTrigger:active {
+    transform: scale(0.985);
+  }
+  .cmdkTrigger kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 18px;
+    padding: 0 3px;
+    background: transparent;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1;
+    letter-spacing: 0;
   }
   .searchWrap {
     position: relative;
@@ -559,64 +969,46 @@
   }
   .search {
     width: 100%;
-    min-height: 40px;
+    min-height: 38px;
     border: 1px solid var(--border-default);
     border-radius: var(--radius);
     background: var(--surface-normal);
     color: var(--text-primary);
-    padding: 9px 13px;
+    padding: 8px 13px;
     min-width: 0;
+    font-size: 13.5px;
+    letter-spacing: -0.003em;
     box-shadow: var(--elevation-1);
-  }
-  .searchWrap .search {
-    padding-left: 34px;
-    padding-right: 40px;
   }
   .search::placeholder {
     color: var(--text-muted);
-  }
-  .searchIcon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 14px;
-    pointer-events: none;
-  }
-  .searchHint {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 1px 6px;
-    border: 1px solid var(--border-default);
-    border-radius: 4px;
-    background: var(--surface-raised);
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1.2;
-    pointer-events: none;
+    font-weight: 400;
   }
   .btn {
-    min-height: 40px;
+    min-height: 38px;
     border-radius: var(--radius);
-    padding: 9px 16px;
+    padding: 8px 16px;
     background: var(--surface-primary);
     color: var(--text-invert);
-    box-shadow: none;
+    box-shadow: var(--elevation-2);
     white-space: nowrap;
-    font-weight: 700;
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-decoration: none;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
   }
   .btn:hover {
     background: var(--surface-primary-reaction);
+    box-shadow: var(--elevation-3);
+  }
+  .btn:active {
+    transform: scale(0.985);
+    box-shadow: var(--elevation-1);
   }
   .toolbar #newItem {
     background: var(--action);
-    color: #07120e;
+    color: #ffffff;
   }
   .toolbar #newItem:hover {
     background: var(--action-reaction);
@@ -626,11 +1018,16 @@
     color: var(--text-primary);
     border: 1px solid var(--border-default);
     box-shadow: var(--elevation-1);
-    font-weight: 700;
+    font-weight: 500;
   }
   .btn.secondary:hover {
-    background: var(--reaction);
+    background: var(--surface-raised);
     border-color: var(--border-strong);
+    box-shadow: var(--elevation-2);
+  }
+  .btn.secondary:active {
+    background: var(--reaction);
+    box-shadow: none;
   }
   .btn.icon {
     width: 40px;
@@ -660,8 +1057,423 @@
     box-shadow: none;
     overflow: visible;
   }
-  .panel[aria-busy="true"] {
-    opacity: 0.72;
+  /* Loading affects only the table interior (via skeleton rows or shimmer
+   * sweep on re-fetch), not the whole panel. Page chrome stays sharp. */
+  /* Page-change fade-in — fires whenever the panel remounts (key bound
+   * to the active view in the parent). Gives navigation a "page turn"
+   * beat instead of an abrupt swap. */
+  .panel {
+    animation: panelFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes panelFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .panel[aria-busy="true"] .tableWrap {
+    position: relative;
+  }
+  .panel[aria-busy="true"] .tableWrap::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-ink) 4%, transparent),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: panelShimmer 1.4s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes panelShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  /* Custom confirm dialog — design-system match for the old window.confirm. */
+  .confirmBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: var(--color-modal);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    backdrop-filter: blur(2px);
+    animation: cmdkBackdropIn 0.14s ease-out;
+  }
+  .confirmPanel {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--elevation-6);
+    padding: 22px 24px 18px;
+    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .confirmTitle {
+    margin: 0 0 6px;
+    font-family: var(--font-serif);
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    color: var(--text-primary);
+  }
+  .confirmBody {
+    margin: 0 0 18px;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    line-height: 20px;
+    letter-spacing: -0.003em;
+  }
+  .confirmActions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .confirmPanel-danger .btn-danger {
+    background: var(--danger);
+    color: #ffffff;
+  }
+  .confirmPanel-danger .btn-danger:hover {
+    background: color-mix(in srgb, var(--danger) 88%, #000);
+  }
+  /* Toast notification host — bottom-right stack, newest on top.
+   * Backdrop-free; pointer events live on individual toasts. */
+  .toastHost {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    min-width: 240px;
+    max-width: 360px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    background: var(--surface-normal);
+    box-shadow: var(--elevation-4);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: -0.003em;
+    animation: toastIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .toast-success {
+    border-left: 3px solid var(--success);
+  }
+  .toast-warn {
+    border-left: 3px solid var(--caution);
+  }
+  .toast-error {
+    border-left: 3px solid var(--danger);
+  }
+  .toast-info {
+    border-left: 3px solid var(--color-focus);
+  }
+  .toastBody {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .toastTitle {
+    font-family: var(--font-serif);
+    font-size: 14.5px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+  .toastMessage {
+    color: var(--text-secondary);
+  }
+  .toastClose {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .toastClose:hover {
+    background: var(--reaction);
+    color: var(--text-primary);
+  }
+  @keyframes toastIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* Command palette (⌘K) — modal jump-to / quick-action dialog. */
+  .cmdkBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--color-modal);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 12vh 16px 16px;
+    backdrop-filter: blur(2px);
+    animation: cmdkBackdropIn 0.14s ease-out;
+  }
+  .cmdkPanel {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--elevation-6);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    max-height: min(72vh, 600px);
+    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes mainFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes cmdkBackdropIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes cmdkPanelIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .cmdkHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .cmdkInput {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: 500 15px / 1.4 var(--font-sans);
+    letter-spacing: -0.005em;
+    outline: none;
+  }
+  .cmdkInput::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-style: italic;
+  }
+  .cmdkEsc {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+  .cmdkList {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .cmdkItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 13.5px;
+    line-height: 18px;
+    letter-spacing: -0.003em;
+    transition: background-color 0.08s ease;
+  }
+  .cmdkItem.active {
+    background: var(--reaction);
+  }
+  .cmdkKind {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: var(--reaction);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .cmdkKind-open {
+    background: color-mix(in srgb, var(--color-focus) 12%, var(--reaction));
+    color: var(--color-focus);
+  }
+  .cmdkKind-action {
+    background: color-mix(in srgb, var(--color-brand) 14%, var(--reaction));
+    color: var(--color-brand);
+  }
+  .cmdkLabel {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .cmdkHint {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+  }
+  .cmdkEmpty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-family: var(--font-serif);
+    font-size: 14px;
+  }
+  .cmdkFooter {
+    display: flex;
+    gap: 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-weak);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    font-size: 11.5px;
+  }
+  .cmdkFooter kbd {
+    display: inline-block;
+    padding: 0 5px;
+    margin: 0 2px;
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    background: var(--surface-normal);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+  /* Skeleton — first-load placeholder rows. Mirrors the real .contentTable
+   * shape so the chrome doesn't reflow when data lands. */
+  .skeletonTableWrap {
+    min-width: 0;
+    margin-top: 6px;
+  }
+  .skeletonTable .skeletonRow {
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .skeletonTable .skeletonRow td {
+    padding: 14px 12px;
+    vertical-align: middle;
+  }
+  .skeletonBar {
+    display: inline-block;
+    height: 12px;
+    border-radius: 3px;
+    background: linear-gradient(
+      90deg,
+      var(--reaction) 0%,
+      color-mix(in srgb, var(--text-muted) 12%, var(--reaction)) 50%,
+      var(--reaction) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s linear infinite;
+    vertical-align: middle;
+  }
+  .skeletonBarTitle {
+    width: 42%;
+    height: 14px;
+  }
+  .skeletonBarPill {
+    width: 56px;
+    height: 16px;
+    border-radius: 999px;
+  }
+  .skeletonBarSlug {
+    width: 22%;
+    height: 10px;
+    margin-top: 6px;
+  }
+  .skeletonBarDate {
+    width: 64px;
+    height: 11px;
+  }
+  .skeletonBarBtn {
+    width: 72px;
+    height: 28px;
+    border-radius: var(--radius);
+  }
+  @keyframes skeletonShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  /* Respect prefers-reduced-motion: kill the sweep, leave a flat base color. */
+  @media (prefers-reduced-motion: reduce) {
+    .skeletonBar,
+    .panel[aria-busy="true"] .tableWrap::after {
+      animation: none;
+    }
   }
   .panelHead {
     display: flex;
@@ -675,30 +1487,48 @@
   }
   .panelHead h2 {
     margin: 0;
-    font-size: 18px;
+    font-family: var(--font-serif);
+    font-size: 20px;
     line-height: 26px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.008em;
     font-feature-settings: "palt";
   }
   .listHead {
     padding-bottom: 0;
   }
   .listHeadMeta {
-    padding-bottom: 12px;
-    display: grid;
-    gap: 2px;
+    padding-bottom: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
     min-width: 0;
   }
-  .listHeadTitle {
-    font-size: 11px;
-    line-height: 16px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
+  /* The h2 inside listHeadMeta stays in DOM for a11y but visually replaced
+   * by the editorial numeral + label below. */
   .listHeadCount {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 18px;
+  }
+  /* Editorial drop-numeral — the count gets a serif italic treatment
+   * that turns "3 entries" into a real piece of typography. Italic
+   * + lining nums signals "annotation" rather than "data". */
+  .listHeadNumeral {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 22px;
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .listHeadCountLabel {
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
   .statusTabs {
@@ -715,15 +1545,15 @@
   .statusTab {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     padding: 8px 14px;
     background: transparent;
     color: var(--text-muted);
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-bottom: 1.5px solid transparent;
     font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     white-space: nowrap;
     cursor: pointer;
   }
@@ -733,25 +1563,25 @@
   }
   .statusTab[data-active="true"] {
     color: var(--text-primary);
+    font-weight: 600;
     border-bottom-color: var(--text-primary);
   }
   .statusTabCount {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 22px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: var(--surface-quaternary);
-    color: var(--text-secondary);
+    min-width: 12px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-muted);
     font-size: 11px;
     line-height: 16px;
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
+    font-weight: 400;
+    letter-spacing: 0;
   }
   .statusTab[data-active="true"] .statusTabCount {
-    background: var(--surface-primary);
-    color: var(--text-invert);
+    color: var(--text-primary);
   }
   .tableWrap {
     min-width: 0;
@@ -791,23 +1621,110 @@
     font-size: 10.5px;
     text-transform: uppercase;
     color: var(--text-muted);
-    letter-spacing: 0.08em;
-    font-weight: 700;
-    padding: 6px 12px 8px;
-    border-bottom: 1px solid var(--border-default);
+    letter-spacing: 0.06em;
+    font-weight: 500;
+    padding: 8px 12px 10px;
+    border-bottom: 1px solid var(--border-weak);
   }
   .contentRow {
     background: transparent;
     border-bottom: 1px solid var(--border-weak);
     cursor: pointer;
+    transition: background-color 0.12s ease, box-shadow 0.12s ease;
   }
   .contentRow:hover,
-  .contentRow:focus-visible {
-    background: var(--surface-raised);
+  .contentRow:focus-within {
+    background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+    /* Thin brand-ink left rule on hover — gives a "select target" cue
+     * that matches the sidebar active state language. */
+    box-shadow: inset 2px 0 0 var(--color-ink);
     outline: none;
   }
-  .contentRow:focus-visible {
+  .contentRow:focus-within {
     box-shadow: inset 2px 0 0 var(--focus);
+  }
+  /* Taxonomy source expressed via cell typography too — generated rows
+   * dim (auto-created stubs), orphaned rows wear a caution stripe. */
+  .contentRow[data-source="generated"] {
+    opacity: 0.62;
+  }
+  .contentRow[data-source="generated"]:hover {
+    opacity: 1;
+  }
+  .contentRow[data-source="generated"] .titleText::after {
+    content: " · generated";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  .contentRow[data-orphaned="true"] {
+    box-shadow: inset 2px 0 0 var(--danger);
+  }
+  .contentRow[data-orphaned="true"] .titleText::before {
+    content: "orphaned ";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--danger);
+    margin-right: 6px;
+  }
+  /* Status & approval expressed via cell typography rather than chips.
+   * The row's title is the canvas; weight + style + a subtle inline
+   * marker carry the meaning. */
+  .contentRow[data-status="draft"] {
+    opacity: 0.55;
+  }
+  .contentRow[data-status="draft"]:hover,
+  .contentRow[data-status="draft"]:focus-within {
+    opacity: 1;
+  }
+  .contentRow[data-status="draft"] .titleText {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-weight: 500;
+  }
+  /* Draft suffix dropped — the italic + dimmed row + greyed-out title
+   * already signal "draft" without needing an amber-coloured chip that
+   * read as a warning. */
+  /* "scheduled" status removed — static-site dashboards have no
+   * publish-on-future-date semantics, so the option only confused
+   * writers. Stick with published / draft. */
+  /* Pages waiting on approval get a quiet warning rule along their
+   * left edge — visible without stealing focus from the title. */
+  .contentRow[data-approval="needs-approval"] {
+    box-shadow: inset 2px 0 0 var(--caution);
+  }
+  .contentRow[data-approval="needs-approval"]:hover,
+  .contentRow[data-approval="needs-approval"]:focus-within {
+    /* Hover keeps the warning stripe, layers the ink hover on top. */
+    box-shadow:
+      inset 2px 0 0 var(--caution),
+      inset 0 0 0 0 transparent;
+    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 50%, transparent);
+  }
+  /* Approval state appears as a small uppercase caption ABOVE the title —
+   * sits like a magazine label, doesn't compete with the row title. */
+  .contentRow[data-approval="needs-approval"] .titleLine::before,
+  .contentRow[data-approval="stale"] .titleLine::before {
+    display: block;
+    flex: 1 0 100%;
+    margin-bottom: 4px;
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--caution);
+  }
+  .contentRow[data-approval="needs-approval"] .titleLine::before {
+    content: "Needs approval";
+  }
+  .contentRow[data-approval="stale"] .titleLine::before {
+    content: "Stale";
   }
   .titleCell {
     min-width: 0;
@@ -827,12 +1744,25 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 15px;
+    font-size: 14.5px;
     line-height: 22px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 600;
+    letter-spacing: -0.005em;
     font-feature-settings: "palt";
     color: var(--text-primary);
+  }
+  .titleLink {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 3px;
+  }
+  .titleLink:hover .titleText {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
   }
   .slugLine {
     margin-top: 2px;
@@ -866,47 +1796,220 @@
   .actionsCell {
     padding-right: 12px;
   }
+  /* Row text actions — weight-differentiated text links instead of
+   * button chips. Preview is the light/ghost variant; the row's primary
+   * action ("Detail") is heavier. No box, no fill, just type. */
+  .rowAction {
+    text-decoration: none;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.2;
+    letter-spacing: -0.003em;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: color 0.12s ease, background-color 0.12s ease;
+  }
+  .rowActionGhost {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+  .rowActionGhost:hover {
+    color: var(--text-primary);
+    background: transparent;
+  }
+  .rowActionPrimary {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .rowActionPrimary:hover {
+    background: var(--reaction);
+  }
+  /* Row actions hide until the row is hovered/focused — keeps the list
+   * dense and reading-first, surfaces actions on intent. */
   .rowActions {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 6px;
+    gap: 20px;
     flex-wrap: nowrap;
-    opacity: 0.7;
+    opacity: 0;
     transition: opacity 0.15s ease;
   }
   .contentRow:hover .rowActions,
   .contentRow:focus-within .rowActions {
     opacity: 1;
   }
+  /* Always-visible on touch / no-hover environments so the actions stay
+   * reachable. Matches the platform conventions. */
+  @media (hover: none) {
+    .rowActions {
+      opacity: 1;
+    }
+  }
   .btnCompact {
-    min-height: 32px;
+    min-height: 30px;
     padding: 5px 12px;
-    font-size: 12px;
+    font-size: 12.5px;
+    letter-spacing: -0.003em;
   }
   .btnIcon {
     min-width: 32px;
     padding: 5px 8px;
     text-align: center;
   }
-  .warnDot {
+  /* Inline warning label — italic serif in caution colour, sits inline
+   * after the title like an editor's footnote. Replaces the prior naked
+   * red dot which had no legible meaning at a glance. */
+  .warnInline {
+    display: inline-flex;
+    align-items: baseline;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--caution);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  /* Generic modal — backdrop dims the surface, dialog is centered
+   * with a quiet serif heading and an × close. Used by Theme upload. */
+  .modalBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(20, 16, 12, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modalDialog {
+    width: min(520px, 100%);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 22px 22px 18px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    display: grid;
+    gap: 14px;
+  }
+  .modalHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .modalHead h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .modalClose {
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .modalClose:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  }
+  .themeUploadDrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .themeUploadDrop:hover {
+    border-color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+  .themeUploadDrop.busy {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .themeUploadHint {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+  }
+  /* Quiet text-only link / button used wherever a secondary action
+   * should recede (Preview in list rows, Preview in editor header). */
+  .textLink {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    color: var(--danger);
-    font-size: 11px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+    gap: 2px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    line-height: 1;
   }
-  .warnDotMark {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--danger);
+  .textLink:hover,
+  .textLink:focus-visible {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
-  .pillCompact {
-    padding: 2px 7px;
-    font-size: 11px;
+  .textLink:disabled,
+  .textLink[disabled] {
+    color: var(--text-disabled, color-mix(in srgb, var(--text-muted) 60%, transparent));
+    cursor: not-allowed;
+    text-decoration: none;
+  }
+  .textLinkStrong {
+    /* Detail link should out-rank Preview in the row — heavier weight,
+     * upright, primary ink. */
+    font-style: normal;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 13.5px;
+  }
+  .textLinkStrong:hover,
+  .textLinkStrong:focus-visible {
+    text-decoration: underline;
+  }
+  .editorPreviewLink {
+    margin: 0 8px;
+  }
+  /* Minimal text-only status / approval / preview labels. The row
+   * itself uses cell-typography (italic + opacity for drafts) so
+   * these are companion text labels, not chips. */
+  .statusLabel,
+  .approvalLabel,
+  .previewLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .statusLabel--draft,
+  .approvalLabel[data-approval="needs-approval"],
+  .previewLabel[data-state="stale"] {
+    color: var(--caution);
+  }
+  .statusLabel--published,
+  .approvalLabel[data-approval="approved"],
+  .previewLabel[data-state="current"] {
+    color: var(--text-muted);
   }
   .overflowMenu {
     position: relative;
@@ -949,16 +2052,36 @@
     display: inline-flex;
     min-height: auto;
     align-items: center;
+    gap: 6px;
     border: 0;
     border-radius: 0;
     padding: 0;
     cursor: pointer;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     background: transparent;
     color: var(--text-muted);
+    list-style: none;
+  }
+  .rowDetails summary::-webkit-details-marker {
+    display: none;
+  }
+  .rowDetails summary::after {
+    content: "+";
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-muted);
+    transition: transform 180ms ease;
+  }
+  .rowDetails[open] summary::after {
+    content: "−";
   }
   .rowDetails summary:hover {
+    color: var(--text-primary);
+  }
+  .rowDetails summary:hover::after {
     color: var(--text-primary);
   }
   .rowDetails[open] summary {
@@ -967,42 +2090,56 @@
   .detailGrid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--border-default);
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-weak);
     border-radius: var(--radius);
-    background: var(--background-secondary);
+    background: var(--surface-raised);
   }
   .detailLabel {
     display: block;
-    margin-bottom: 5px;
-    font-size: 11px;
+    margin-bottom: 6px;
+    font-size: 10.5px;
     text-transform: uppercase;
     color: var(--text-muted);
-    font-weight: 700;
+    font-weight: 500;
+    letter-spacing: 0.06em;
   }
-  .pill,
-  .warnBadge {
+  /* Single Badge family. All pills share shape + type metrics; only the
+   * intent (info / success / warn / danger) varies bg + text color. Two
+   * variants supported: solid (default) and subtle (outline). */
+  .pill {
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    padding: 3px 9px;
-    font-size: 12px;
+    padding: 2px 9px;
+    font-size: 11px;
+    line-height: 17px;
+    letter-spacing: 0;
     white-space: nowrap;
-    font-weight: 700;
-  }
-  .pill {
+    font-weight: 500;
+    /* Default intent = success (greeted state, e.g. "published"). */
     background: var(--success-subdued);
     color: var(--success);
+    border: 1px solid transparent;
   }
-  .pill.draft {
-    background: var(--caution-subdued);
+  .pill.draft,
+  .pill.warn {
+    background: var(--warning-subdued, var(--caution-subdued));
     color: var(--caution);
   }
-  .warnBadge {
+  .pill.danger {
     background: var(--danger-subdued);
     color: var(--danger);
-    margin-top: 6px;
+  }
+  .pill.info {
+    background: var(--reaction);
+    color: var(--text-secondary);
+  }
+  .pill.subtle {
+    background: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border-default);
   }
   .meta {
     color: var(--text-muted);
@@ -1010,28 +2147,45 @@
   }
   .empty,
   .statePanel {
-    padding: 38px 16px;
+    padding: 80px 24px;
     color: var(--text-secondary);
     text-align: center;
   }
   .statePanel {
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    position: relative;
+  }
+  /* Editorial em-dash above the empty-state title — a magazine-style
+   * marker that signals "nothing here yet" without an illustration. */
+  .statePanel::before {
+    content: "";
+    display: block;
+    width: 28px;
+    height: 1px;
+    margin: 0 auto 28px;
+    background: var(--border-strong);
   }
   .statePanel b {
     display: block;
     color: var(--text-primary);
-    font-size: 17px;
-    line-height: 24px;
-    margin-bottom: 5px;
-    font-weight: 700;
-    letter-spacing: 0;
-    font-feature-settings: "palt";
+    font-family: var(--font-serif);
+    font-size: 26px;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.012em;
+    font-feature-settings: "palt", "ss01";
   }
   .statePanel p {
-    margin: 0 auto 12px;
-    max-width: 520px;
+    margin: 0 auto 16px;
+    max-width: 460px;
+    font-size: 13.5px;
+    line-height: 20px;
+    color: var(--text-muted);
   }
   .statePanel.error,
   .statePanel.conflict {
@@ -1041,10 +2195,55 @@
   }
   .pager {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
-    padding: 14px 0;
-    border-top: 1px solid var(--border-default);
+    justify-content: flex-end;
+    padding: 16px 0 0;
+    margin-top: 8px;
+    border-top: 1px solid var(--border-weak);
+  }
+  .pagerLabel {
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Taxonomy table polish (#1949 path truncate / #1950 button / #1951 count label / #1952 th headers). */
+  .taxCountCol,
+  .taxCountCell {
+    width: 110px;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+  .taxCountNum {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 400;
+  }
+  .taxCountUnit {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .taxPathCol {
+    width: 220px;
+  }
+  .taxPathCell {
+    max-width: 220px;
+  }
+  .taxPathText {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+  }
+  .taxAction {
+    font-size: 12.5px;
   }
   .editor {
     display: none;
@@ -1054,7 +2253,7 @@
     background: transparent;
     border: 0;
     border-radius: 0;
-    padding: 36px 0 0;
+    padding: 16px 0 0;
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 18px;
     overflow: hidden;
@@ -1093,23 +2292,422 @@
     display: block;
     padding: 0 4px 0 0;
   }
-  .editor textarea {
+  /* Two-column editor canvas — writing on the left, metadata sidebar
+   * on the right. Sidebar sticks while body scrolls.
+   * width: 100% is needed because editorPage is itself a grid container
+   * whose items don't justify-stretch by default in every browser. */
+  .editorCanvas {
+    /* Block layout (no grid) so the metadata aside can pin to the
+     * viewport's right edge via position: fixed instead of being
+     * constrained to a grid column inside the centered editor.
+     * Symmetric horizontal padding (320 = 280 metadata + 40 gutter)
+     * so the main writing column lands visually under the editor's
+     * top-row centre, with the metadata column anchored to the
+     * mirror image on the right. */
+    display: block;
+    max-width: 1600px;
     width: 100%;
-    max-width: 65ch;
-    min-height: 480px;
-    height: 62vh;
+    margin: 0 auto;
+    padding-left: 320px;
+    padding-right: 320px;
+  }
+  .editorMain {
+    min-width: 0;
+  }
+  /* Author / Tag editor — editorial colophon page. Large italic
+   * display name, bottom-rule columns of credits, paper-textured
+   * image well on the right. No form chrome; the surface reads as
+   * the credit page of a literary journal. */
+  .taxonomyPage {
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 16px 96px;
+    display: grid;
+    gap: 56px;
+  }
+  .taxonomyLine.taxonomySlugInput {
+    font-family: var(--font-mono);
+    font-size: 14px;
+  }
+  .taxonomyBody {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    gap: 64px;
+    align-items: start;
+  }
+  .taxonomyText {
+    display: grid;
+    gap: 36px;
+    min-width: 0;
+  }
+  .taxonomyPair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+  }
+  .taxonomyRow {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .taxonomyLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+  }
+  .taxonomyLine,
+  .taxonomyTextarea,
+  .taxonomyAccentHex {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 6px 0;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.16s ease;
+  }
+  .taxonomyLine:hover,
+  .taxonomyTextarea:hover,
+  .taxonomyAccentHex:hover {
+    border-bottom-color: var(--text-muted);
+  }
+  .taxonomyLine:focus,
+  .taxonomyTextarea:focus,
+  .taxonomyAccentHex:focus {
+    border-bottom-color: var(--text-primary);
+  }
+  .taxonomyTextarea {
     resize: vertical;
-    border: 1px solid var(--border-weak);
-    border-radius: var(--radius);
+    min-height: 120px;
+    padding-top: 4px;
+  }
+  .taxonomyAccentRow {
+    grid-template-columns: 1fr;
+  }
+  .taxonomyAccentControl {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: 4px;
+  }
+  .taxonomyAccentColor {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border-default);
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+    flex: 0 0 auto;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .taxonomyAccentColor::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .taxonomyAccentColor::-webkit-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+  .taxonomyAccentColor::-moz-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+  .taxonomyAccentHex {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    flex: 1 1 auto;
+    border-bottom: 0;
+    padding: 4px 0;
+  }
+  .taxonomyAside {
+    min-width: 0;
+  }
+  .taxonomyNotice {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding-top: 12px;
+    border-top: 1px solid var(--border-weak);
+  }
+  /* Shared FeatureImageField label so it matches the editorial frame
+   * even when used outside the taxonomy editor. */
+  .featureImageField {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  .featureImageFieldLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .featureImageAltInput {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 6px 0;
+    width: 100%;
+    outline: none;
+  }
+  .featureImageAltInput:focus {
+    border-bottom-color: var(--text-primary);
+  }
+  @media (max-width: 940px) {
+    .taxonomyBody {
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+    .taxonomyPair {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .taxonomyPage {
+      gap: 36px;
+    }
+  }
+  .editorMeta {
+    /* Pin the metadata column to the right edge of the viewport so
+     * it stays available no matter how the editor scrolls. */
+    position: fixed;
+    top: 110px;
+    right: 24px;
+    width: 280px;
+    max-height: calc(100vh - 126px);
+    /* No visible scrollbar — sidebar still scrolls if content exceeds
+     * the viewport (rare), but the chrome is hidden. */
+    overflow-y: auto;
+    scrollbar-width: none;
+    display: grid;
+    gap: 0;
+    min-width: 0;
+    padding: 12px 4px 4px 0;
+    z-index: 5;
+  }
+  .editorMeta > .editorMetaSection:first-child {
+    padding-top: 4px;
+  }
+  .editorMeta::-webkit-scrollbar {
+    display: none;
+  }
+  /* Each metadata stanza is a grouped block separated by a hairline rule.
+   * Label sits italic-serif on top, control directly underneath. */
+  .editorMetaSection {
+    display: grid;
+    gap: 8px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .editorMetaSection:first-child {
+    padding-top: 0;
+  }
+  .editorMetaSection:last-child {
+    border-bottom: 0;
+  }
+  .editorMetaLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  /* Sidebar input — refined, not a default browser chip. Subtle border,
+   * roomy padding, ink-on-focus. */
+  .editorMetaInput {
+    width: 100%;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 9px 12px;
     background: var(--surface-normal);
     color: var(--text-primary);
-    padding: 32px 40px;
-    font-family: var(--font-mono);
-    font-size: 15px;
-    overflow-wrap: anywhere;
-    line-height: 1.7;
-    letter-spacing: 0.01em;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.4;
+    letter-spacing: -0.003em;
     box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .editorMetaInput:hover {
+    border-color: var(--border-strong);
+  }
+  .editorMetaInput:focus {
+    border-color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
+  }
+  .editorMetaSlugInput {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+  .editorMetaTextarea {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 64px;
+  }
+  /* Native multi-select for author/tag pickers — kept native so ⌘-click
+   * still works; the appearance/padding match the rest of the sidebar. */
+  .editorMetaSelect[multiple] {
+    padding: 6px 8px;
+    line-height: 1.6;
+    font-family: var(--font-sans);
+    background-image: none;
+    appearance: none;
+  }
+  .editorMetaSelect[multiple] option {
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .editorMetaSelect[multiple] option:checked {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
+  }
+  .editorMetaHelp {
+    margin-top: 6px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .editorMetaEmpty {
+    padding: 10px 12px;
+    border: 1px dashed var(--border-weak);
+    border-radius: 6px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .editorMetaEmpty code {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 12px;
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  /* Advanced (SEO) collapse — italic-serif summary so it reads as a
+   * "see also" rather than another input row. */
+  .editorMetaAdvanced {
+    padding: 18px 0 0;
+    border-top: 1px solid var(--border-weak);
+    margin-top: 4px;
+  }
+  .editorMetaAdvanced > summary {
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 0 0 8px;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: color 0.12s ease;
+  }
+  .editorMetaAdvanced > summary::-webkit-details-marker {
+    display: none;
+  }
+  .editorMetaAdvanced > summary::after {
+    content: "+";
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .editorMetaAdvanced[open] > summary::after {
+    content: "−";
+  }
+  .editorMetaAdvanced > summary:hover {
+    color: var(--text-primary);
+  }
+  .editorMetaAdvanced .editorMetaSection {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .editorMetaAdvanced .editorMetaSection:last-child {
+    border-bottom: 0;
+  }
+  /* Status select sized to the 280px sidebar — full-width control with
+   * the same border + focus treatment as the slug input. */
+  .editorMetaStatus {
+    width: 100%;
+    text-align: left;
+  }
+  /* Sidebar feature image zone — fits the 280px column. */
+  .editorMeta .featureImageZone {
+    max-width: 280px;
+    min-height: 90px;
+    margin: 0;
+    padding: 12px;
+  }
+  .editorMeta .featureImagePreview {
+    max-height: 200px;
+  }
+  @media (max-width: 940px) {
+    .editorCanvas {
+      padding-right: 0;
+    }
+    .editorMeta {
+      position: static;
+      width: auto;
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+  }
+  /* Scoped to the body editor only — a bare `.editor textarea` selector
+   * was cascading into sidebar metadata textareas (Description, Meta
+   * description) and forcing them to 56vh. */
+  .editor .bodyWrap textarea {
+    width: 100%;
+    /* Fill the bodyWrap (820px max). Long-line prose pushes against the
+     * 70ch comfort upper bound; mono characters average ~9.5px so 820px
+     * lands around 85ch — adequate while still feeling like a column. */
+    max-width: 100%;
+    min-height: 56vh;
+    height: 68vh;
+    resize: vertical;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 0;
+    /* Prose-grade body. Markdown surface uses mono for code/structure
+     * but mono everywhere makes writing feel like editing a config. The
+     * larger size + warm cream surface (the page bg shows through) +
+     * generous line-height reads like a draft on paper. */
+    font-family: var(--font-mono);
+    font-size: 16px;
+    overflow-wrap: anywhere;
+    line-height: 1.8;
+    letter-spacing: 0.005em;
+    box-shadow: none;
+    outline: none;
   }
   .fields {
     display: grid;
@@ -1225,29 +2823,71 @@
     backdrop-filter: blur(12px);
   }
   .editorTopRow {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 8px 0 4px;
+    gap: 24px;
+    padding: 0 0 12px;
+    margin-bottom: 32px;
     min-width: 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  /* Quiet "← Posts" breadcrumb — replaces the prior Close button. Reads
+   * as a return path, not a destructive control. */
+  .editorBack {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.2;
+    letter-spacing: 0;
+    transition: color 0.12s ease, transform 0.12s ease;
+  }
+  .editorBack:hover {
+    color: var(--text-primary);
+  }
+  .editorBack:hover .editorBackArrow {
+    transform: translateX(-2px);
+  }
+  .editorBackArrow {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 14px;
+    transition: transform 0.12s ease;
   }
   .editorMetaRow {
     font-size: 11.5px;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-align: center;
     min-width: 0;
-    flex: 1;
   }
   .editorFocusBar {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-shrink: 0;
+  }
+  /* Preview is a quieter ghost button — Save is the visual primary. */
+  .editorBtnGhost {
+    box-shadow: none;
+    background: transparent;
+    border-color: var(--border-weak);
+  }
+  .editorBtnGhost:hover {
+    background: var(--surface-raised);
+    box-shadow: var(--elevation-1);
   }
   .exitFocusPill {
     display: inline-flex;
@@ -1275,6 +2915,14 @@
     border-radius: 4px;
     background: var(--background-secondary);
     color: var(--text-muted);
+  }
+  /* Hide the "READY" idle state — confirmation has no information. */
+  .saveChipIdle {
+    visibility: hidden;
+    width: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
   }
   .saveChip {
     display: inline-flex;
@@ -1332,7 +2980,175 @@
   .bodyWrap {
     position: relative;
     width: 100%;
-    max-width: 760px;
+    max-width: 100%;
+    margin: 0;
+    /* Always-visible base hairline gives the frameless textarea a clear
+     * bottom boundary; the saveHairline overlays it with intent colours
+     * during dirty / saving / saved transitions. */
+    border-bottom: 1px solid var(--border-weak);
+    padding-bottom: 1px;
+  }
+  /* Feature image upload zone — always visible at the top of the editor
+   * so it doesn't hide behind a metadata details panel. Click anywhere
+   * to pick a file; drag/drop also works. */
+  .featureImageZone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 820px;
+    min-height: 120px;
+    margin: 0 auto 24px;
+    padding: 20px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    text-align: center;
+    background: transparent;
+    transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+    position: relative;
+  }
+  .featureImageZone:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+  .featureImageZone.filled {
+    border: 0;
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+  }
+  .featureImageZone.filled:hover {
+    background: transparent;
+  }
+  .featureImageEmpty {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: 0;
+  }
+  .featureImageEmpty em {
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-right: 4px;
+  }
+  .featureImagePreview {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 360px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  .featureImageHint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-normal) 92%, transparent);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+  }
+  .featureImageZone.filled:hover .featureImageHint {
+    opacity: 1;
+  }
+  .featureImageRemove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--surface-normal) 92%, transparent);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
+  }
+  .featureImageZone.filled:hover .featureImageRemove {
+    opacity: 1;
+  }
+  .featureImageRemove:hover {
+    background: var(--surface-normal);
+    color: var(--text-primary);
+  }
+  /* Body formatting toolbar — sits just above the textarea inside the
+   * writing column. Frameless buttons that match the editorial voice. */
+  .bodyToolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    margin: 0 0 8px;
+    padding: 0;
+  }
+  .bodyToolbarBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .bodyToolbarBtn:hover {
+    background: var(--reaction);
+    color: var(--text-primary);
+  }
+  .bodyToolbarBtn b {
+    font-weight: 700;
+  }
+  .bodyToolbarBtn i {
+    font-style: italic;
+    font-family: var(--font-serif);
+    font-size: 15px;
+  }
+  .bodyToolbarHint {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+  .bodyToolbarHint em {
+    font-style: italic;
+  }
+  .bodyToolbarImage {
+    cursor: pointer;
+  }
+  /* Inline body statistics — words, chars, estimated read time. Reads as
+   * a footnote under the writing surface, never competing for attention. */
+  .bodyStats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 12px 4px 0;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.002em;
+  }
+  .bodyStats b {
+    color: var(--text-secondary);
+    font-weight: 500;
   }
   .saveHairline {
     position: absolute;
@@ -1373,12 +3189,12 @@
   }
   .titleBlock {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    max-width: 760px;
+    align-items: flex-end;
+    gap: 16px;
+    max-width: 100%;
+    margin: 0 0 8px;
     border-bottom: 1px solid var(--border-weak);
-    padding: 6px 0 12px;
-    margin-top: 6px;
+    padding: 0 0 20px;
   }
   .titleInput {
     flex: 1;
@@ -1386,42 +3202,58 @@
     border: 0;
     background: transparent;
     color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 30px;
-    line-height: 1.25;
-    font-weight: 700;
-    letter-spacing: -0.012em;
+    /* Editor headline — serif display, present but not monumental. */
+    font-family: var(--font-serif);
+    font-size: 36px;
+    line-height: 1.15;
+    font-weight: 500;
+    letter-spacing: -0.018em;
     padding: 4px 0;
     outline: none;
-    font-feature-settings: "palt";
+    font-feature-settings: "palt", "ss01";
+  }
+  @media (max-width: 940px) {
+    .titleInput {
+      font-size: 28px;
+    }
   }
   .titleInput::placeholder {
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
+    font-style: italic;
     opacity: 0.55;
   }
   .statusPill {
     flex: 0 0 auto;
-    height: 30px;
-    padding: 0 12px;
+    height: 36px;
+    padding: 0 30px 0 12px;
     border: 1px solid var(--border-default);
-    border-radius: 999px;
+    border-radius: 6px;
     background: var(--surface-normal);
-    color: var(--text-secondary);
-    font: 600 12px / 1 var(--font-sans);
-    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1;
+    letter-spacing: -0.003em;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
     background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
       linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
-    padding-right: 26px;
+    box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
   }
   .statusPill:hover {
     border-color: var(--border-strong);
+  }
+  .statusPill:focus {
+    border-color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
   }
   .statusPill:disabled {
     opacity: 0.6;
@@ -1443,12 +3275,18 @@
     display: block;
   }
   .metadataPanel {
-    margin-top: 22px;
-    border: 1px solid var(--border-weak);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
+    margin-top: 28px;
+    /* Frameless, no surface — a hairline above the summary is enough.
+     * Lives inside the writing column so it matches the textarea's
+     * transparent treatment. */
+    border: 0;
+    border-top: 1px solid var(--border-weak);
+    border-radius: 0;
+    background: transparent;
     overflow: hidden;
-    max-width: 760px;
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
   }
   .metadataPanel > summary {
     list-style: none;
@@ -1456,12 +3294,21 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 16px;
-    font: 600 12.5px / 1 var(--font-sans);
-    letter-spacing: 0.02em;
+    padding: 14px 0;
+    /* Italic serif so the disclosure reads like a "see also" section
+     * marker, visible without being a UI button. */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: 0;
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
+  }
+  .metadataPanel > summary:hover {
+    color: var(--text-primary);
   }
   .metadataPanel > summary::-webkit-details-marker {
     display: none;
@@ -1514,13 +3361,13 @@
   body.editorFocus .main {
     transition: padding 320ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  body.editorFocus .editor textarea {
+  body.editorFocus .editor .bodyWrap textarea {
     border-color: transparent;
     box-shadow: none;
-    background: var(--surface-normal);
+    background: transparent;
   }
-  body.editorFocus .editor textarea:focus {
-    border-color: var(--border-weak);
+  body.editorFocus .editor .bodyWrap textarea:focus {
+    border-color: transparent;
   }
   .createPage {
     padding: 18px 0;
@@ -1542,13 +3389,18 @@
   }
   .settingsCard {
     border: 1px solid var(--border-default);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: var(--surface-normal);
-    padding: 17px;
+    padding: 18px;
     display: grid;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
     box-shadow: var(--elevation-1);
+    transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  }
+  .settingsCard:hover {
+    box-shadow: var(--elevation-2);
+    border-color: var(--border-strong);
   }
   .settingsCard > div:first-child {
     display: flex;
@@ -1558,18 +3410,72 @@
   }
   .settingsCard h3 {
     margin: 0;
-    font-size: 16px;
+    font-family: var(--font-serif);
+    font-size: 18px;
     line-height: 24px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.008em;
     font-feature-settings: "palt";
   }
+  /* Settings key-value list — unified across every card. dl/dt/dd gives
+   * proper semantics; visually it's a single 2-column rhythm with the
+   * label muted serif italic on the left, value mono ink on the right. */
+  .settingsKv {
+    margin: 0;
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--border-weak);
+  }
+  .settingsKvRow {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .settingsKv dt {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12.5px;
+    line-height: 18px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  .settingsKv dd {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 20px;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    letter-spacing: -0.003em;
+  }
+  /* Legacy generic .table inside settingsCard kept for any uncaught
+   * surfaces, styled to match the dl version above. */
   .settingsCard .table {
     min-width: 0;
+    border-collapse: collapse;
+    width: 100%;
   }
   .settingsCard .table th,
   .settingsCard .table td {
-    padding: 9px 0;
+    padding: 10px 16px 10px 0;
+    border-bottom: 1px solid var(--border-weak);
+    font-size: 13.5px;
+    line-height: 20px;
+    text-align: left;
+    vertical-align: baseline;
+  }
+  .settingsCard .table th {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    width: 35%;
+    text-transform: none;
+    letter-spacing: 0;
   }
   .field {
     display: grid;
@@ -1577,21 +3483,34 @@
     min-width: 0;
   }
   .field span {
-    font-size: 11px;
-    text-transform: uppercase;
+    /* Sentence-case + italic serif reads as a label without shouting
+     * (was 10.5px uppercase with letter-spacing — felt like SaaS chrome
+     * against the rest of the editorial type). #1977 */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12.5px;
+    text-transform: none;
     color: var(--text-muted);
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    font-weight: 400;
+    letter-spacing: 0;
   }
   .field input,
   .field select {
-    min-height: 42px;
+    min-height: 38px;
     border: 1px solid var(--border-default);
     border-radius: var(--radius);
-    padding: 9px 10px;
+    padding: 8px 11px;
     background: var(--surface-normal);
     color: var(--text-primary);
+    font-size: 13.5px;
+    letter-spacing: -0.003em;
     min-width: 0;
+    box-shadow: var(--elevation-1);
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--text-primary);
+    outline: none;
   }
   .field input:disabled,
   .field select:disabled {
@@ -1652,6 +3571,17 @@
     padding-top: 12px;
     align-items: start;
   }
+  /* Stacked layout — used when there's no category rail. Single column,
+   * panels stack with generous vertical gap. */
+  .settingsLayoutStacked {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settingsLayoutStacked .settingsDetail {
+    display: grid;
+    gap: 32px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
   .settingsCategoryNav {
     position: sticky;
     top: 18px;
@@ -1675,25 +3605,28 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 14px 10px 18px;
+    padding: 9px 14px 9px 18px;
     background: transparent;
     border: 0;
     border-left: 2px solid transparent;
     color: var(--text-muted);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-align: left;
     cursor: pointer;
     border-radius: 0 var(--radius) var(--radius) 0;
+    transition: color 0.12s ease, background-color 0.12s ease;
   }
   .settingsCategoryItem:hover {
-    background: var(--background-secondary);
+    background: var(--surface-raised);
     color: var(--text-primary);
   }
   .settingsCategoryItem.active {
-    background: var(--background-secondary);
+    background: var(--surface-raised);
     color: var(--text-primary);
-    border-left-color: var(--accent, currentColor);
+    font-weight: 600;
+    border-left-color: var(--text-primary);
   }
   .settingsCategoryItemLabel {
     letter-spacing: 0.01em;
@@ -1745,20 +3678,29 @@
   }
   .settingsPanelHead h3 {
     margin: 0;
-    font-size: 15px;
-    line-height: 22px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
   }
   .siteIdentityPanel,
   .themeSwitcherPanel {
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
-    padding: 16px;
+    /* Frameless settings sections — match the Migration treatment.
+     * Each section is just typography + form fields with a hairline
+     * divider between, not a card with chrome. */
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0 0 32px;
+    border-bottom: 1px solid var(--border-weak);
     display: grid;
-    gap: 12px;
-    box-shadow: var(--elevation-1);
+    gap: 14px;
+  }
+  .settingsLayoutStacked .settingsDetail > *:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
   }
   .siteIdentityGrid {
     padding: 0;
@@ -1799,45 +3741,24 @@
     color: var(--text-muted);
     word-break: break-all;
   }
+  /* Source pill — communicates "this setting lives in X". After the color
+   * palette consolidation, all variants share one quiet treatment; the
+   * label itself carries the kind, color would just add noise. */
   .sourcePill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 3px 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 2px 8px;
     border-radius: 999px;
     border: 1px solid var(--border-default);
-    background: var(--background-secondary);
+    background: transparent;
     color: var(--text-muted);
-    font-feature-settings: "palt";
     white-space: nowrap;
-  }
-  .sourcePill-config {
-    border-color: color-mix(in srgb, var(--accent, #4f6bed) 35%, var(--border-default));
-    color: color-mix(in srgb, var(--accent, #4f6bed) 70%, var(--text-primary));
-  }
-  .sourcePill-theme {
-    border-color: color-mix(in srgb, #b07a3e 40%, var(--border-default));
-    color: color-mix(in srgb, #b07a3e 70%, var(--text-primary));
-  }
-  .sourcePill-content {
-    border-color: color-mix(in srgb, #2f8a4d 40%, var(--border-default));
-    color: color-mix(in srgb, #2f8a4d 70%, var(--text-primary));
-  }
-  .sourcePill-runtime {
-    border-color: color-mix(in srgb, #6f6f6f 40%, var(--border-default));
-    color: var(--text-muted);
-  }
-  .sourcePill-cli {
-    border-color: color-mix(in srgb, #5a39c2 40%, var(--border-default));
-    color: color-mix(in srgb, #5a39c2 70%, var(--text-primary));
-  }
-  .sourcePill-docs {
-    border-color: color-mix(in srgb, #2c6e85 40%, var(--border-default));
-    color: color-mix(in srgb, #2c6e85 70%, var(--text-primary));
   }
   .settingsCard[data-mode="dangerous-cli-only"] {
     border-color: color-mix(in srgb, var(--danger, #c4504b) 35%, var(--border-default));
@@ -1864,9 +3785,11 @@
   }
   .migrationEntryCard h3 {
     margin: 0;
-    font-size: 15px;
+    font-family: var(--font-serif);
+    font-size: 17px;
     line-height: 22px;
-    font-weight: 700;
+    font-weight: 500;
+    letter-spacing: -0.008em;
   }
   .migrationPage {
     display: grid;
@@ -1877,19 +3800,40 @@
     gap: 14px;
   }
   .migrationCard {
-    border-color: color-mix(in srgb, var(--accent, #4f6bed) 25%, var(--border-default));
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0 0 32px;
+    border-bottom: 1px solid var(--border-weak);
+    border-radius: 0;
+  }
+  .migrationCard:last-child {
+    border-bottom: 0;
+  }
+  .migrationCard:hover {
+    box-shadow: none;
+    border-color: var(--border-weak);
   }
   .migrationCardHead {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 14px;
+    margin-bottom: 8px;
   }
   .migrationCardHead h3 {
     margin: 0 0 4px;
-    font-size: 16px;
-    line-height: 22px;
-    font-weight: 700;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 1.2;
+    font-weight: 500;
+    letter-spacing: -0.012em;
+  }
+  .migrationGrid {
+    display: grid;
+    gap: 32px;
+    max-width: 720px;
+    margin: 0 auto;
   }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -1915,6 +3859,21 @@
     }
   }
 
+  /* Honor reduced-motion as a single global override so every transition /
+   * animation in this stylesheet collapses to ~0ms when the OS asks for it.
+   * Keeping this as one rule (instead of per-component disables) means new
+   * animations added later inherit the behavior for free. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   @media (max-width: 1040px) {
     .main {
       padding: 24px 28px 48px;
@@ -1934,9 +3893,21 @@
       height: auto;
       border-right: 0;
       border-bottom: 1px solid var(--border-default);
+      display: grid;
       grid-template-rows: auto auto auto;
+      padding: 18px 18px 14px;
+      gap: 14px;
+    }
+    /* Recents hidden on mobile — list view itself surfaces files at scale,
+     * the Recently rail belongs to the desktop sidebar. */
+    .side .recents {
+      display: none;
+    }
+    .side .statusRail {
+      margin-top: 0;
     }
     .nav {
+      display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .nav a {
@@ -1950,6 +3921,7 @@
       min-width: 18px;
     }
     .statusRail {
+      display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       border-top: 1px solid var(--border-default);
       padding-top: 12px;
@@ -2037,6 +4009,82 @@
     }
   }
 
+  /* Mobile / narrow viewport (<=720px): switch the 2-column shell to a
+   * stacked layout — sidebar becomes a compact top bar, main fills the
+   * width. Sidebar nav collapses to icon+label chips, sync rail and
+   * Recently list hide to recover vertical space. (#1942 #2059) */
+  @media (max-width: 720px) {
+    .shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    .side {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-right: 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--text-invert) 12%, transparent);
+      min-height: 56px;
+    }
+    .side .sideTop {
+      flex: 0 0 auto;
+    }
+    .side .brand {
+      font-size: 18px;
+      gap: 8px;
+    }
+    .side .brandWord {
+      display: none;
+    }
+    .side .nav {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: row;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 0;
+    }
+    .side .nav a {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+    .side .navLabel {
+      font-size: 13px;
+    }
+    .side .recents,
+    .side .statusRail {
+      display: none;
+    }
+    .side .sideFooter {
+      flex: 0 0 auto;
+      margin-top: 0;
+    }
+    .side .sideFooterSettings span {
+      display: none;
+    }
+    .main {
+      padding: 18px 16px 32px;
+    }
+    .viewTitle {
+      font-size: 28px;
+    }
+    .toolbar {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .searchWrap {
+      flex: 1 1 100%;
+      order: 0;
+    }
+    .editorMeta {
+      grid-template-columns: 1fr;
+    }
+  }
   @media (max-width: 560px) {
     .side {
       gap: 14px;
@@ -2265,11 +4313,11 @@
       border-right: 0;
       border-radius: 0;
     }
-    .editor textarea {
+    .editor .bodyWrap textarea {
       height: 46vh;
       min-height: 300px;
       max-width: 100%;
-      padding: 18px 16px;
+      padding: 0;
     }
     .titleBlock {
       flex-wrap: wrap;

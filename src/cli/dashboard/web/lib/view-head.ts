@@ -49,6 +49,19 @@ export const CREATE_HEAD: ViewHeadCopy = {
   meta: 'Create the file first, then continue in the full editor page.',
 };
 
+/* Kind-aware page title — "New post" / "New page" / "New author" / "New tag"
+ * matches the URL the user navigated to. The form below no longer needs
+ * the Kind selector because of this. */
+export function createHeadFor(kind: 'posts' | 'pages' | 'authors' | 'tags'): ViewHeadCopy {
+  const single =
+    kind === 'posts' ? 'post' : kind === 'pages' ? 'page' : kind === 'authors' ? 'author' : 'tag';
+  return {
+    kicker: 'Workspace · Create',
+    title: `New ${single}`,
+    meta: `Create the ${single} first, then continue in the full editor page.`,
+  };
+}
+
 export type SurfaceState = 'loading' | 'error' | 'conflict' | 'empty';
 
 export interface SurfaceCopy {

@@ -1,17 +1,20 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import {
   DEFAULT_EDITOR_FOCUS_STATE,
   type EditorSaveState,
   reduceEditorFocus,
 } from '../../editor-focus.ts';
-import { approvePage, saveContent } from '../lib/api.ts';
-import { fingerprintToken, normalizeMediaPath } from '../lib/format.ts';
+import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
+import {
+  buildFrontmatter as buildFrontmatterFor,
+  snapshotFromItem as snapshotFromItemFor,
+} from '../lib/editor-snapshot.ts';
 import {
   appendRevision,
   clearDraftsForPath,
   findLatestDraftForPath,
-  readRevisions,
   saveDraft,
 } from '../lib/storage.ts';
 import type {
@@ -27,6 +30,7 @@ interface EditorViewProps {
   state: DashboardState | null;
   onCloseEditor: () => void;
   onSaved: () => Promise<void> | void;
+  onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
 }
@@ -39,26 +43,8 @@ const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
   error: 'Error',
 };
 
-const SNIPPETS: ReadonlyArray<[string, string, string]> = [
-  ['bold', 'B', 'Bold'],
-  ['link', 'Link', 'Link'],
-  ['code', 'Code', 'Inline code'],
-  ['heading', 'H2', 'Heading'],
-  ['list', 'List', 'List'],
-  ['image', 'Image', 'Image'],
-  ['callout', 'Callout', 'Callout'],
-];
-
 function snapshotFromItem(item: DashboardContentItem): EditorSnapshot {
-  const fm = item.frontmatter;
-  return {
-    title: String(fm.title ?? fm.name ?? ''),
-    status: String(fm.status ?? 'published'),
-    featureImage: String(fm.feature_image ?? ''),
-    featureImageAlt: String(fm.feature_image_alt ?? ''),
-    featureImageCaption: String(fm.feature_image_caption ?? ''),
-    body: item.body,
-  };
+  return snapshotFromItemFor(item.kind, item);
 }
 
 function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
@@ -74,13 +60,27 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   );
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);
   const [notice, setNotice] = useState('');
-  const [pendingDraft, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
+  const [, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
+  const [slugDraft, setSlugDraft] = useState(current.slug);
+  const slugDraftRef = useRef(slugDraft);
+  slugDraftRef.current = slugDraft;
+  // Ref-of-closure pattern so the document keydown handler always runs
+  // the latest save logic (slug-aware) without re-binding on every
+  // snapshot change. Set immediately below the function definitions.
+  const saveActionRef = useRef<(() => Promise<void>) | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: slugDraft re-sets when the file identity flips
+  useEffect(() => {
+    setSlugDraft(current.slug);
+  }, [current.slug, current.path]);
   const [focus, dispatchFocus] = useReducer(reduceEditorFocus, DEFAULT_EDITOR_FOCUS_STATE);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isContent = current.kind === 'posts' || current.kind === 'pages';
 
-  useEffect(() => {
+  // useLayoutEffect so the body class is set before paint — otherwise
+  // the editor briefly renders inside the dashboard sidebar before
+  // collapsing to full-viewport mode.
+  useLayoutEffect(() => {
     document.body.classList.add('editorOpen');
     return () => {
       document.body.classList.remove('editorOpen');
@@ -132,6 +132,14 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      // ⌘S / Ctrl+S — primary writer's shortcut.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        // Always go through the ref so we run the latest closures —
+        // commitSlugRename / handleSave read snapshot, slugDraft, etc.
+        void saveActionRef.current?.();
+        return;
+      }
       if (event.key !== 'Escape') return;
       // Staged dismissal: first Escape exits focus mode, second Escape closes the editor.
       if (focus.focusMode) {
@@ -144,40 +152,134 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+    // handleSave / commitSlugRename are stable enough across renders;
+    // intentionally not listed to avoid re-binding the listener for
+    // every snapshot patch.
   }, [focus.focusMode, props.onCloseEditor]);
 
   function patchSnapshot(part: Partial<EditorSnapshot>) {
     setSnapshot((prev) => ({ ...prev, ...part }));
   }
 
-  function buildFrontmatter(): Record<string, unknown> {
-    const fm: Record<string, unknown> = { ...current.frontmatter };
-    if (current.kind === 'posts' || current.kind === 'pages') {
-      fm.title = snapshot.title;
-      fm.status = snapshot.status;
-      fm.updated_at = new Date().toISOString();
-      setOptional(fm, 'feature_image', normalizeMediaPath(snapshot.featureImage));
-      setOptional(fm, 'feature_image_alt', snapshot.featureImageAlt.trim());
-      setOptional(fm, 'feature_image_caption', snapshot.featureImageCaption.trim());
-    } else {
-      fm.name = snapshot.title;
+  /* Insert text around the current selection (or at the caret if no
+   * selection). Used by Cmd+B (wrap with **) and Cmd+I (wrap with _).
+   * Uses document.execCommand('insertText') so the change participates
+   * in the browser's native undo stack. */
+  function wrapSelection(before: string, after: string): void {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = ta.value.slice(start, end);
+    const insert = before + selected + after;
+    /* execCommand is deprecated but still the only way to insert text
+     * into a textarea while preserving the undo stack. */
+    if (!document.execCommand('insertText', false, insert)) {
+      // Fallback: direct mutation (loses undo).
+      ta.setRangeText(insert, start, end, 'end');
     }
-    return fm;
+    patchSnapshot({ body: ta.value });
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      const caret = start + before.length + selected.length;
+      textareaRef.current.selectionStart = selected ? start + before.length : caret;
+      textareaRef.current.selectionEnd = caret;
+    });
+  }
+
+  /* Persist a slug rename when the sidebar input loses focus.
+   * Validates basic slug shape (lowercase + digits + dashes), then calls
+   * the rename endpoint and lets the parent reload the editor against
+   * the new path. */
+  async function commitSlugRename(): Promise<void> {
+    const next = slugDraft.trim().toLowerCase();
+    if (!next || next === current.slug) {
+      setSlugDraft(current.slug);
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(next)) {
+      setNotice('Slug must be lowercase letters, digits, or hyphens.');
+      setSlugDraft(current.slug);
+      return;
+    }
+    if (current.kind !== 'posts' && current.kind !== 'pages') {
+      setSlugDraft(current.slug);
+      return;
+    }
+    setNotice(`Renaming to ${next}…`);
+    const result = await renameContentSlug({
+      kind: current.kind,
+      oldSlug: current.slug,
+      newSlug: next,
+      fingerprint: current.fingerprint,
+      // Append an old→new redirect so the published URL keeps
+      // resolving after the slug change (#2150).
+      redirect: true,
+    });
+    if (!result.ok) {
+      setNotice(`Rename failed — ${result.error ?? result.reason}`);
+      setSlugDraft(current.slug);
+      return;
+    }
+    setNotice(`Renamed to ${next}.`);
+    // Notify parent so it can re-fetch the editor against the new slug
+    // and update the URL.
+    if (props.onRenamed) {
+      await props.onRenamed(current.kind, next);
+    } else {
+      await props.onSaved();
+    }
+  }
+
+  /* Upload an image to /content/images/ and insert a Markdown image
+   * reference at the caret. Used by paste + drag-drop on the body
+   * and by the body toolbar's Image button. */
+  async function insertUploadedImage(file: File): Promise<void> {
+    setNotice(`Uploading ${file.name || 'image'}…`);
+    const result = await uploadImage(file);
+    if (!result.ok) {
+      setNotice(`Image upload failed — ${result.error}`);
+      return;
+    }
+    setNotice('');
+    const alt = (file.name || 'image').replace(/\.[^.]+$/, '');
+    const md = `![${alt}](${result.path})`;
+    const ta = textareaRef.current;
+    if (!ta) {
+      patchSnapshot({ body: `${snapshot.body}\n\n${md}\n` });
+      return;
+    }
+    ta.focus();
+    const start = ta.selectionStart;
+    if (!document.execCommand('insertText', false, md)) {
+      ta.setRangeText(md, start, ta.selectionEnd, 'end');
+    }
+    patchSnapshot({ body: ta.value });
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      const caret = start + md.length;
+      textareaRef.current.selectionStart = caret;
+      textareaRef.current.selectionEnd = caret;
+    });
+  }
+
+  function buildFrontmatter(): Record<string, unknown> {
+    return buildFrontmatterFor(current.kind, current.frontmatter, snapshot);
   }
 
   async function handleSave() {
+    // Snapshot the on-disk state for the local revision log — used for
+    // the rollback path. Includes every editable field on EditorSnapshot.
+    const onDisk = snapshotFromItem(current);
     const revision: RevisionPayload = {
       at: new Date().toISOString(),
       path: current.path,
       kind: current.kind,
-      slug: current.slug,
-      title: String(current.frontmatter.title ?? current.frontmatter.name ?? ''),
-      status: String(current.frontmatter.status ?? 'published'),
-      featureImage: String(current.frontmatter.feature_image ?? ''),
-      featureImageAlt: String(current.frontmatter.feature_image_alt ?? ''),
-      featureImageCaption: String(current.frontmatter.feature_image_caption ?? ''),
-      body: current.body,
       frontmatter: { ...current.frontmatter },
+      ...onDisk,
+      // onDisk already carries slug from snapshotFromItem.
+      body: current.body,
     };
     appendRevision(current, revision);
     const fm = buildFrontmatter();
@@ -258,372 +360,549 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     window.open(previewUrl(), '_blank', 'noopener');
   }
 
-  function applySnippet(name: string) {
-    const area = textareaRef.current;
-    if (!area) return;
-    const map: Record<string, [string, string, string]> = {
-      bold: ['**', '**', 'bold text'],
-      link: ['[', '](https://example.com)', 'link text'],
-      code: ['`', '`', 'code'],
-      heading: ['\n## ', '\n', 'Heading'],
-      list: ['\n- ', '\n', 'List item'],
-      image: ['![Alt text](', ')', '/content/images/image.jpg'],
-      callout: ['\n> [!NOTE]\n> ', '\n', 'Callout text'],
-    };
-    const entry = map[name];
-    if (!entry) return;
-    insertText(area, entry[0], entry[1], entry[2]);
-  }
-
-  function insertText(
-    area: HTMLTextAreaElement,
-    before: string,
-    after: string,
-    placeholder: string,
-  ) {
-    const start = area.selectionStart || 0;
-    const end = area.selectionEnd || 0;
-    const selected = area.value.slice(start, end) || placeholder;
-    const next = `${area.value.slice(0, start)}${before}${selected}${after}${area.value.slice(end)}`;
-    const cursor = start + before.length + selected.length;
-    patchSnapshot({ body: next });
-    requestAnimationFrame(() => {
-      area.focus();
-      area.setSelectionRange(cursor, cursor);
-    });
-  }
-
-  function insertMedia() {
-    const path = normalizeMediaPath(
-      prompt('Image path under content/images, or an absolute URL') ?? '',
-    );
-    if (!path) return;
-    const alt = prompt('Alt text') ?? '';
-    const caption = prompt('Caption (optional)') ?? '';
-    const area = textareaRef.current;
-    if (!area) return;
-    insertText(
-      area,
-      '',
-      `${caption ? `\n\n*${caption}*` : ''}\n`,
-      `![${alt.replace(/]/g, '')}](${path.replace(/\)/g, '')})`,
-    );
-  }
-
-  function restoreDraft() {
-    const draft = pendingDraft ?? findLatestDraftForPath(current.path);
-    if (!draft) return;
-    if (
-      !confirm(
-        'Restore the browser draft into the editor? It will not write the file until you save.',
-      )
-    )
-      return;
-    setSnapshot(draft.snapshot);
-    setNotice('Browser draft restored. Save writes it only after fingerprint checks pass.');
-  }
-
-  function rollback() {
-    const revisions = readRevisions(current);
-    const revision = revisions[revisions.length - 1];
-    if (!revision) return;
-    if (
-      !confirm(
-        'Restore the latest local revision into the editor? It will not write the file until you save.',
-      )
-    )
-      return;
-    setSnapshot({
-      title: String(revision.frontmatter.title ?? revision.frontmatter.name ?? ''),
-      status: String(revision.frontmatter.status ?? 'published'),
-      featureImage: String(revision.frontmatter.feature_image ?? ''),
-      featureImageAlt: String(revision.frontmatter.feature_image_alt ?? ''),
-      featureImageCaption: String(revision.frontmatter.feature_image_caption ?? ''),
-      body: revision.body ?? '',
-    });
-    setNotice('Local revision restored into the editor. Save after review.');
-  }
-
-  const draftMatchesFingerprint =
-    pendingDraft &&
-    fingerprintToken(pendingDraft.fingerprint) === fingerprintToken(current.fingerprint);
-  const revisions = readRevisions(current);
   const warnings = computeWarnings(snapshot.body);
-  const previewMeta = currentPreviewMeta(state, current);
   const saveState = focus.saveState;
+
+  // Refresh the save action on every render so the document-level
+  // ⌘S handler always calls the latest closures (slugDraft, current,
+  // snapshot, props).
+  saveActionRef.current = async () => {
+    const next = slugDraftRef.current.trim().toLowerCase();
+    if (next && next !== current.slug) {
+      await commitSlugRename();
+      return;
+    }
+    await handleSave();
+  };
 
   return (
     <section class="editor editorPage open" id="editor" aria-labelledby="editorTitle">
+      {/* Role-aware editor chrome — the writing surface is the page.
+       * Top bar collapses to a quiet breadcrumb on the left and a
+       * minimal action cluster on the right: save state chip + Save +
+       * a single overflow for Preview / Close. */}
       <div class="editorTopRow">
+        <button
+          type="button"
+          class="editorBack"
+          onClick={props.onCloseEditor}
+          aria-label="Close editor and return to list"
+        >
+          <span class="editorBackArrow" aria-hidden="true">
+            ←
+          </span>
+          <span class="editorBackLabel">
+            {current.kind === 'posts'
+              ? 'Posts'
+              : current.kind === 'pages'
+                ? 'Pages'
+                : current.kind === 'authors'
+                  ? 'Authors'
+                  : 'Tags'}
+          </span>
+        </button>
         <div class="editorMetaRow" id="editorMeta">
           <span id="editorTitle" class="srOnly">
             {current.path}
           </span>
-          {current.path} · fingerprint {fingerprintToken(current.fingerprint)}
         </div>
         <div class="editorFocusBar">
-          <span class="saveChip" data-state={saveState} aria-live="polite">
+          {/* saveChip hidden in idle state — "READY" was visual noise
+           * for the default condition. It surfaces only when the writer
+           * needs to know something happened (dirty / saving / saved /
+           * error). */}
+          <span
+            class={`saveChip${saveState === 'idle' ? ' saveChipIdle' : ''}`}
+            data-state={saveState}
+            aria-live="polite"
+          >
             {SAVE_CHIP_LABEL[saveState]}
           </span>
           <button
-            type="button"
-            class="exitFocusPill"
-            onClick={() => dispatchFocus({ type: 'focus/toggle' })}
-            aria-pressed={focus.focusMode}
-          >
-            {focus.focusMode ? 'Exit focus' : 'Enter focus'}
-            <kbd>Esc</kbd>
-          </button>
-          <button
-            class="btn secondary"
+            class="textLink editorPreviewLink"
             id="previewEditor"
             type="button"
             disabled={!isContent}
             onClick={handlePreview}
+            title="Preview built output"
           >
             Preview
           </button>
           <button
-            class="btn secondary"
-            id="closeEditor"
+            class="btn"
+            id="saveEditorTop"
             type="button"
-            onClick={props.onCloseEditor}
+            onClick={() => {
+              void handleSave();
+            }}
+            title="Save to file (⌘S)"
           >
-            Close
+            Save
           </button>
         </div>
       </div>
-      <div class="editorScroll">
-        <div class="titleBlock">
-          <input
-            class="titleInput"
-            id="editTitle"
-            placeholder="Untitled"
-            value={snapshot.title}
-            onInput={(event) =>
-              patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
-            }
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === 'ArrowDown') {
-                event.preventDefault();
-                textareaRef.current?.focus();
+      <div class="editorCanvas">
+        <div class="editorMain editorScroll">
+          <div class="titleBlock">
+            <input
+              class="titleInput"
+              id="editTitle"
+              placeholder="Untitled"
+              value={snapshot.title}
+              onInput={(event) =>
+                patchSnapshot({ title: (event.currentTarget as HTMLInputElement).value })
               }
-            }}
-          />
-          <select
-            class="statusPill"
-            id="editStatus"
-            disabled={!isContent}
-            value={snapshot.status}
-            onChange={(event) =>
-              patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
-            }
-          >
-            <option>published</option>
-            <option>draft</option>
-            <option>scheduled</option>
-          </select>
-        </div>
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  textareaRef.current?.focus();
+                }
+              }}
+            />
+          </div>
+        {/* Body toolbar — visible formatting + image insert. Keeps the
+         * paste / drag-drop affordances discoverable. */}
+        {isContent ? (
+          <div class="bodyToolbar" aria-label="Body formatting">
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('**', '**')}
+              title="Bold (⌘B)"
+            >
+              <b>B</b>
+            </button>
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('_', '_')}
+              title="Italic (⌘I)"
+            >
+              <i>I</i>
+            </button>
+            <button
+              type="button"
+              class="bodyToolbarBtn"
+              onClick={() => wrapSelection('[', '](url)')}
+              title="Link"
+            >
+              Link
+            </button>
+            <label class="bodyToolbarBtn bodyToolbarImage" title="Insert image">
+              <input
+                type="file"
+                accept="image/*"
+                class="srOnly"
+                onChange={(event) => {
+                  const file = (event.currentTarget as HTMLInputElement).files?.[0];
+                  if (file) void insertUploadedImage(file);
+                  (event.currentTarget as HTMLInputElement).value = '';
+                }}
+              />
+              Image
+            </label>
+            <span class="bodyToolbarHint">
+              <em>or paste / drop an image directly into the body</em>
+            </span>
+          </div>
+        ) : null}
         <div class="bodyWrap">
           <textarea
+            /* Key bound to the file identity so the textarea remounts
+             * only when switching to a different file. Within an edit
+             * session it stays uncontrolled (defaultValue + onInput)
+             * which preserves the browser's native undo / redo stack. */
+            key={`${current.path}@${current.fingerprint.mtimeMs}`}
             id="editBody"
             aria-label="Markdown body"
             ref={textareaRef}
-            value={snapshot.body}
+            defaultValue={baseline.body}
             onInput={(event) =>
               patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
             }
+            onPaste={(event) => {
+              const items = event.clipboardData?.items;
+              if (!items) return;
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (!item || !item.type.startsWith('image/')) continue;
+                const file = item.getAsFile();
+                if (!file) continue;
+                event.preventDefault();
+                void insertUploadedImage(file);
+                return;
+              }
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer?.types?.includes('Files')) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }
+            }}
+            onDrop={(event) => {
+              const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (!files.length) return;
+              event.preventDefault();
+              for (const file of files) void insertUploadedImage(file);
+            }}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+                const key = event.key.toLowerCase();
+                if (key === 'b') {
+                  event.preventDefault();
+                  wrapSelection('**', '**');
+                  return;
+                }
+                if (key === 'i') {
+                  event.preventDefault();
+                  wrapSelection('_', '_');
+                  return;
+                }
+                if (key === 'k') {
+                  // Reserved for cmdk — let the global handler take it.
+                  return;
+                }
+              }
+            }}
           />
           <span class="saveHairline" data-state={saveState} aria-hidden="true" />
         </div>
         <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
           {warnings.join(' ')}
         </output>
-        <details
-          class="metadataPanel"
-          id="metadataPanel"
-          open={focus.metadataExpanded}
-          onToggle={(event) =>
-            dispatchFocus({
-              type: 'metadata/set',
-              value: (event.currentTarget as HTMLDetailsElement).open,
-            })
+        {/* Metadata details panel removed per user note — the sidebar
+         * already exposes status + feature image (+ alt). Markdown tools
+         * are duplicated by the body toolbar; recovery actions remain
+         * accessible via browser autosave + the conflict path. */}
+        </div>
+        <aside
+          class="editorMeta"
+          aria-label={
+            current.kind === 'authors'
+              ? 'Author metadata'
+              : current.kind === 'tags'
+                ? 'Tag metadata'
+                : 'Post metadata'
           }
         >
-          <summary>More metadata{pendingDraft ? ' · draft available' : ''}</summary>
-          <div class="metadataBody">
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Slug (filename)</div>
+              <input
+                class="editorMetaInput editorMetaSlugInput"
+                type="text"
+                value={slugDraft}
+                onInput={(event) =>
+                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
+                }
+                onBlur={() => {
+                  void commitSlugRename();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
+                  }
+                }}
+                spellcheck={false}
+              />
+            </div>
             {isContent ? (
-              <section class="metadataSection" aria-label="Media">
-                <h4>Media</h4>
-                <div class="mediaGrid">
-                  <label class="field">
-                    <span>Feature image path</span>
-                    <input
-                      id="editFeatureImage"
-                      placeholder="/content/images/cover.jpg"
-                      disabled={!isContent}
-                      value={snapshot.featureImage}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImage: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label class="field">
-                    <span>Feature image alt</span>
-                    <input
-                      id="editFeatureImageAlt"
-                      disabled={!isContent}
-                      value={snapshot.featureImageAlt}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImageAlt: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label class="field wide">
-                    <span>Feature image caption</span>
-                    <input
-                      id="editFeatureImageCaption"
-                      disabled={!isContent}
-                      value={snapshot.featureImageCaption}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImageCaption: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </section>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Status</div>
+                <select
+                  class="statusPill editorMetaStatus"
+                  id="editStatus"
+                  value={snapshot.status}
+                  onChange={(event) =>
+                    patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                  }
+                >
+                  <option>published</option>
+                  <option>draft</option>
+                </select>
+              </div>
             ) : null}
-            <section class="metadataSection" aria-label="Markdown tools">
-              <h4>Markdown tools</h4>
-              <div class="snippetBar" aria-label="Markdown snippets">
-                {SNIPPETS.map(([name, label, title]) => (
-                  <button
-                    key={name}
-                    class="btn secondary"
-                    type="button"
-                    data-snippet={name}
-                    title={title}
-                    onClick={() => applySnippet(name)}
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">
+                {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+              </div>
+              <FeatureImageField
+                value={snapshot.featureImage}
+                alt={snapshot.featureImageAlt}
+                showAlt
+                onChange={({ value, alt }) =>
+                  patchSnapshot({
+                    featureImage: value,
+                    featureImageAlt: alt ?? snapshot.featureImageAlt,
+                    ...(value ? {} : { featureImageCaption: '' }),
+                  })
+                }
+                onStatus={setNotice}
+              />
+            </div>
+            {current.kind === 'authors' ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Bio</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={4}
+                    placeholder="Short author bio shown on author pages"
+                    value={snapshot.bio}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        bio: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Website</div>
+                  <input
+                    class="editorMetaInput"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={snapshot.website}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        website: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Location</div>
+                  <input
+                    class="editorMetaInput"
+                    type="text"
+                    placeholder="City, country"
+                    value={snapshot.location}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        location: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+            {current.kind === 'tags' ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Description</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={3}
+                    placeholder="Short tag description shown on tag pages"
+                    value={snapshot.description}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        description: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Accent color</div>
+                  <input
+                    class="editorMetaInput editorMetaColor"
+                    type="color"
+                    value={snapshot.accentColor || '#888888'}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        accentColor: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+            {isContent ? (
+              <>
+                <div class="editorMetaSection">
+                  <div class="editorMetaLabel">Description</div>
+                  <textarea
+                    class="editorMetaInput editorMetaTextarea"
+                    rows={3}
+                    placeholder="One-line summary for feeds and search results"
+                    value={snapshot.excerpt}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        excerpt: (event.currentTarget as HTMLTextAreaElement).value,
+                      })
+                    }
+                  />
+                </div>
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Tags</div>
+              {(() => {
+                const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
+                return (
+                  <>
+                    <input
+                      class="editorMetaInput"
+                      type="text"
+                      list="editorTagOptions"
+                      placeholder="comma, separated · existing tags suggest"
+                      value={snapshot.tags}
+                      onInput={(event) =>
+                        patchSnapshot({
+                          tags: (event.currentTarget as HTMLInputElement).value,
+                        })
+                      }
+                    />
+                    <datalist id="editorTagOptions">
+                      {existing.map((slug: string) => (
+                        <option key={slug} value={slug} />
+                      ))}
+                    </datalist>
+                  </>
+                );
+              })()}
+            </div>
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Author</div>
+              {(() => {
+                const selected = snapshot.authors
+                  .split(/[,\n]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const fromState =
+                  state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
+                const options = Array.from(new Set([...fromState, ...selected])).sort();
+                if (options.length === 0) {
+                  return (
+                    <div class="editorMetaEmpty">
+                      No authors yet. Add one in <code>content/authors/</code>.
+                    </div>
+                  );
+                }
+                const currentValue = selected[0] ?? '';
+                return (
+                  <select
+                    class="editorMetaInput"
+                    value={currentValue}
+                    onChange={(event) => {
+                      const next = (event.currentTarget as HTMLSelectElement).value;
+                      patchSnapshot({ authors: next });
+                    }}
                   >
-                    {label}
-                  </button>
-                ))}
-                <button class="btn secondary" id="insertMedia" type="button" onClick={insertMedia}>
-                  Insert media
-                </button>
+                    {currentValue === '' ? <option value="">(none)</option> : null}
+                    {options.map((slug) => (
+                      <option key={slug} value={slug}>
+                        {slug}
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
+            </div>
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Published</div>
+              <input
+                class="editorMetaInput"
+                type="text"
+                placeholder="2026-01-02 or 2026-01-02T03:04:05Z"
+                value={snapshot.publishedAt}
+                onInput={(event) =>
+                  patchSnapshot({
+                    publishedAt: (event.currentTarget as HTMLInputElement).value,
+                  })
+                }
+              />
+            </div>
+            <details class="editorMetaAdvanced">
+              <summary>SEO overrides</summary>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Meta title</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="Title shown in search results"
+                  value={snapshot.metaTitle}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      metaTitle: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
               </div>
-            </section>
-            {previewMeta ? (
-              <section class="metadataSection" aria-label="Preview">
-                <h4>Preview</h4>
-                <div class="previewBox active" id="artifactPreview">
-                  <div class="previewMeta">
-                    <span>{previewMeta.label} · saved Markdown through active theme</span>
-                    {previewMeta.openUrl ? (
-                      <a
-                        class="previewLink"
-                        href={previewMeta.openUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open
-                      </a>
-                    ) : null}
-                  </div>
-                  {previewMeta.openUrl ? (
-                    <iframe
-                      class="previewFrame"
-                      title="Markdown preview"
-                      src={previewMeta.openUrl}
-                      sandbox={(previewMeta.sandbox?.attributes ?? []).join(' ')}
-                      referrerpolicy="no-referrer"
-                    />
-                  ) : (
-                    <div class="empty">{previewMeta.detail}</div>
-                  )}
-                </div>
-              </section>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Meta description</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={2}
+                  placeholder="Override for og:description / search snippet"
+                  value={snapshot.metaDescription}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      metaDescription: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
+                  }
+                />
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Canonical URL</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="https://example.com/canonical"
+                  value={snapshot.canonicalUrl}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      canonicalUrl: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+            </details>
+              </>
             ) : null}
-            <section class="metadataSection" aria-label="Recovery">
-              <h4>Recovery</h4>
-              <div class="editorActions">
-                <button
-                  class="btn secondary"
-                  id="restoreDraft"
-                  type="button"
-                  disabled={!pendingDraft}
-                  onClick={restoreDraft}
-                >
-                  Restore draft
-                </button>
-                <button
-                  class="btn secondary"
-                  id="rollbackEditor"
-                  type="button"
-                  disabled={revisions.length === 0}
-                  onClick={rollback}
-                >
-                  Rollback
-                </button>
-              </div>
-              <output class={`storageNotice ${pendingDraft ? 'active' : ''}`} id="draftNotice">
-                {pendingDraft
-                  ? `Browser draft available for ${pendingDraft.path}${draftMatchesFingerprint ? '.' : ' from an older fingerprint; compare before saving.'}`
-                  : ''}
-              </output>
-              <output
-                class={`editorHistory ${revisions.length ? 'active' : ''}`}
-                id="editorHistory"
-              >
-                {revisions.length
-                  ? `${revisions.length} local revision(s) kept in this browser before saves.`
-                  : ''}
-              </output>
-            </section>
-          </div>
-        </details>
+          </aside>
       </div>
-      <div class="editorFooter">
-        <output class="notice" id="notice">
-          {notice}
-        </output>
-        <div class="editorActions">
-          <button
-            class="btn secondary"
-            id="approvePage"
-            type="button"
-            disabled={current.kind !== 'pages' || dirty}
-            onClick={() => {
-              void handleApprove();
-            }}
-          >
-            Approve saved page
-          </button>
-          <button
-            class="btn"
-            id="saveEditor"
-            type="button"
-            onClick={() => {
-              void handleSave();
-            }}
-          >
-            Save to file
-          </button>
+      {/* Footer is rendered only when there's a notice to surface or when
+       * the Approve action is available — otherwise Save is in the header
+       * and the footer is dead weight. */}
+      {notice || current.kind === 'pages' ? (
+        <div class="editorFooter">
+          <output class="notice" id="notice">
+            {notice}
+          </output>
+          <div class="editorActions">
+            {current.kind === 'pages' ? (
+              <button
+                class="btn secondary"
+                id="approvePage"
+                type="button"
+                disabled={dirty}
+                onClick={() => {
+                  void handleApprove();
+                }}
+              >
+                Approve saved page
+              </button>
+            ) : null}
+          </div>
         </div>
+      ) : null}
+      {/* Hidden trailing Save retained for tests/keyboard shortcuts that may
+       * reference #saveEditor. Visually it's the top header Save users see. */}
+      <div hidden>
+        <button
+          class="btn"
+          id="saveEditor"
+          type="button"
+          onClick={() => {
+            void handleSave();
+          }}
+        >
+          Save to file
+        </button>
       </div>
     </section>
   );
-}
-
-function setOptional(fm: Record<string, unknown>, key: string, value: string): void {
-  if (value) fm[key] = value;
-  else delete fm[key];
 }
 
 function computeWarnings(body: string): string[] {
@@ -634,13 +913,3 @@ function computeWarnings(body: string): string[] {
   return warnings;
 }
 
-function currentPreviewMeta(
-  state: DashboardState | null,
-  current: DashboardContentItem,
-): ContentSummary['preview'] | null {
-  if (!state) return null;
-  if (current.kind !== 'posts' && current.kind !== 'pages') return null;
-  const list = current.kind === 'posts' ? state.posts.items : state.pages.items;
-  const item = list.find((entry) => entry.slug === current.slug);
-  return item?.preview ?? null;
-}

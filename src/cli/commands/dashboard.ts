@@ -6,6 +6,7 @@ import {
   readdir,
   realpath,
   rename,
+  rmdir,
   stat,
   unlink,
   writeFile,
@@ -130,7 +131,6 @@ export interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
-  scheduled: number;
 }
 
 export interface DashboardList<T> {
@@ -1057,7 +1057,7 @@ export async function handleDashboardRequest(
   try {
     if (
       request.method === 'GET' &&
-      (['/', '/posts', '/pages', '/authors', '/tags', '/settings', '/settings/migration'].includes(
+      (['/', '/posts', '/pages', '/authors', '/tags', '/settings', '/settings/migration', '/migration'].includes(
         url.pathname,
       ) ||
         /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
@@ -1258,8 +1258,48 @@ export async function handleDashboardRequest(
     if (request.method === 'POST' && url.pathname === '/api/import/ghost') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const payload = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
-      if (payload instanceof Response) return payload;
+      // Accept either JSON (legacy local-path) or multipart upload.
+      const contentType = request.headers.get('content-type') ?? '';
+      let payload: DashboardGhostImportPayload;
+      let stagedPath: string | undefined;
+      if (contentType.startsWith('multipart/')) {
+        const form = await request.formData().catch(() => null);
+        const file = form?.get('file');
+        if (!(file instanceof File)) {
+          return jsonResponse(
+            { error: 'file field is required (multipart/form-data)' },
+            400,
+          );
+        }
+        const MAX_BYTES = 200 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
+        }
+        const safe = (file.name || 'ghost-export')
+          .replace(/[^a-zA-Z0-9._-]/g, '-')
+          .slice(0, 80);
+        stagedPath = resolve(
+          ctx.cwd,
+          '.nectar',
+          `import-ghost-${Date.now()}-${safe}`,
+        );
+        await mkdir(dirname(stagedPath), { recursive: true });
+        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        payload = {
+          file: stagedPath,
+          dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
+          onConflict:
+            (form?.get('onConflict') as DashboardGhostImportPayload['onConflict']) ?? 'skip',
+          outputDir: (form?.get('outputDir') as string | null) ?? undefined,
+        };
+      } else {
+        const json = await readJsonPayload<DashboardGhostImportPayload>(
+          request,
+          ctx.maxBodyBytes,
+        );
+        if (json instanceof Response) return json;
+        payload = json;
+      }
       try {
         const result = await runDashboardGhostImport({ cwd: ctx.cwd, payload });
         if (result.mode === 'apply') {
@@ -1268,6 +1308,8 @@ export async function handleDashboardRequest(
         return jsonResponse(result);
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      } finally {
+        if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
     const pageBundleExportMatch = url.pathname.match(/^\/api\/page-bundles\/export\/([^/]+)$/);
@@ -1284,11 +1326,47 @@ export async function handleDashboardRequest(
     if (request.method === 'POST' && url.pathname === '/api/page-bundles/import') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const payload = await readJsonPayload<DashboardPageBundleImportPayload>(
-        request,
-        ctx.maxBodyBytes,
-      );
-      if (payload instanceof Response) return payload;
+      const contentType = request.headers.get('content-type') ?? '';
+      let payload: DashboardPageBundleImportPayload;
+      let stagedPath: string | undefined;
+      if (contentType.startsWith('multipart/')) {
+        const form = await request.formData().catch(() => null);
+        const file = form?.get('file');
+        if (!(file instanceof File)) {
+          return jsonResponse(
+            { error: 'file field is required (multipart/form-data)' },
+            400,
+          );
+        }
+        const MAX_BYTES = 50 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          return jsonResponse({ error: 'page bundle exceeds 50MB limit' }, 413);
+        }
+        const safe = (file.name || 'page-bundle')
+          .replace(/[^a-zA-Z0-9._-]/g, '-')
+          .slice(0, 80);
+        stagedPath = resolve(
+          ctx.cwd,
+          '.nectar',
+          `import-bundle-${Date.now()}-${safe}`,
+        );
+        await mkdir(dirname(stagedPath), { recursive: true });
+        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        payload = {
+          file: stagedPath,
+          dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
+          onConflict:
+            (form?.get('onConflict') as DashboardPageBundleImportPayload['onConflict']) ??
+            'skip',
+        };
+      } else {
+        const json = await readJsonPayload<DashboardPageBundleImportPayload>(
+          request,
+          ctx.maxBodyBytes,
+        );
+        if (json instanceof Response) return json;
+        payload = json;
+      }
       try {
         const result = await runDashboardPageBundleImport({
           cwd: ctx.cwd,
@@ -1301,6 +1379,8 @@ export async function handleDashboardRequest(
         return jsonResponse(result);
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      } finally {
+        if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {
@@ -1386,6 +1466,154 @@ export async function handleDashboardRequest(
         changedPath: result.path,
       });
       return jsonResponse(result, 201);
+    }
+    /* Image upload — multipart/form-data with one `file` field. The
+     * file is written under content/images/ with a slug-safe name and
+     * the returned path can be inlined into Markdown as
+     * `![alt](/content/images/<name>)`. */
+    if (request.method === 'POST' && url.pathname === '/api/images') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const ALLOWED = new Set([
+        'image/png',
+        'image/jpeg',
+        'image/gif',
+        'image/webp',
+        'image/svg+xml',
+        'image/avif',
+      ]);
+      if (!ALLOWED.has(file.type)) {
+        return jsonResponse(
+          { error: `unsupported image type "${file.type || 'unknown'}"` },
+          415,
+        );
+      }
+      const MAX_BYTES = 8 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'image exceeds 8MB limit' }, 413);
+      }
+      const ts = new Date()
+        .toISOString()
+        .replace(/[-:.TZ]/g, '')
+        .slice(0, 14);
+      const safe = (file.name || 'pasted')
+        .toLowerCase()
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48) || 'image';
+      const ext =
+        file.type === 'image/jpeg'
+          ? 'jpg'
+          : file.type === 'image/svg+xml'
+            ? 'svg'
+            : (file.type.split('/')[1] ?? 'bin');
+      const filename = `${ts}-${safe}.${ext}`;
+      const targetDir = resolve(ctx.cwd, 'content', 'images');
+      await mkdir(targetDir, { recursive: true });
+      const targetPath = resolve(targetDir, filename);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      await Bun.write(targetPath, buf);
+      const relPath = `/content/images/${filename}`;
+      ctx.changeBus.broadcast({
+        reason: 'image-upload',
+        kind: 'project',
+        changedPath: relPath,
+      });
+      return jsonResponse({ ok: true, path: relPath, name: filename, size: file.size }, 201);
+    }
+    /* Theme upload — POST /api/themes/upload accepts a multipart
+     * .zip and extracts it into <themes-dir>/<safe-name>/ via the
+     * system `unzip` command. The extracted top-level folder name is
+     * used as the theme name (sanitised); if the user supplied a
+     * `name` field in the form, that wins. */
+    if (request.method === 'POST' && url.pathname === '/api/themes/upload') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const ALLOWED_TYPES = new Set([
+        'application/zip',
+        'application/x-zip-compressed',
+        'application/octet-stream',
+      ]);
+      if (!ALLOWED_TYPES.has(file.type) && !/\.zip$/i.test(file.name || '')) {
+        return jsonResponse(
+          { error: `expected a .zip archive, got "${file.type || 'unknown'}"` },
+          415,
+        );
+      }
+      const MAX_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'theme archive exceeds 50MB limit' }, 413);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const themesRoot = isAbsolute(config.theme.dir)
+        ? config.theme.dir
+        : resolve(ctx.cwd, config.theme.dir);
+      const rawName = String(form?.get('name') ?? '').trim() ||
+        (file.name || 'theme').replace(/\.zip$/i, '');
+      const safeName = rawName
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^[-.]+|[-.]+$/g, '')
+        .slice(0, 64);
+      if (!safeName) return jsonResponse({ error: 'invalid theme name' }, 400);
+      const destDir = resolve(themesRoot, safeName);
+      if (!destDir.startsWith(themesRoot + '/') && destDir !== themesRoot) {
+        return jsonResponse({ error: 'theme path escapes themes directory' }, 400);
+      }
+      await mkdir(themesRoot, { recursive: true });
+      // Stage the upload to a tmp file, then extract via `unzip -o`.
+      const tmpZip = resolve(themesRoot, `.upload-${Date.now()}-${safeName}.zip`);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      await Bun.write(tmpZip, buf);
+      try {
+        await mkdir(destDir, { recursive: true });
+        const proc = Bun.spawn(['unzip', '-o', '-q', tmpZip, '-d', destDir], {
+          stderr: 'pipe',
+          stdout: 'pipe',
+        });
+        const exitCode = await proc.exited;
+        if (exitCode !== 0) {
+          const err = await new Response(proc.stderr).text();
+          return jsonResponse(
+            { error: `unzip failed (exit ${exitCode}): ${err.slice(0, 400)}` },
+            500,
+          );
+        }
+        // If the archive wrapped everything in a single top-level
+        // folder, hoist it so the theme lives directly under destDir.
+        const entries = await readdir(destDir);
+        const visible = entries.filter((name) => !name.startsWith('.'));
+        if (visible.length === 1) {
+          const onlyChild = resolve(destDir, visible[0] ?? '');
+          const stat = await Bun.file(onlyChild).stat().catch(() => null);
+          if (stat?.isDirectory()) {
+            const children = await readdir(onlyChild);
+            for (const child of children) {
+              await rename(resolve(onlyChild, child), resolve(destDir, child));
+            }
+            await rmdir(onlyChild).catch(() => {});
+          }
+        }
+      } finally {
+        await unlink(tmpZip).catch(() => {});
+      }
+      ctx.changeBus.broadcast({
+        reason: 'theme-upload',
+        kind: 'settings',
+        changedPath: destDir,
+      });
+      return jsonResponse({ ok: true, name: safeName, dir: destDir }, 201);
     }
     const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
     if (request.method === 'POST' && approvalMatch) {
@@ -1485,7 +1713,7 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result);
     }
-    return new Response('Not Found', { status: 404 });
+    return notFoundResponse(request);
   } catch (err) {
     if (err instanceof Response) return err;
     return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
@@ -1711,7 +1939,7 @@ export async function applyDashboardBulkAction({
     const frontmatter = { ...current.frontmatter };
     if (action === 'set-status') {
       const status = value?.trim();
-      if (status !== 'published' && status !== 'draft' && status !== 'scheduled') {
+      if (status !== 'published' && status !== 'draft') {
         skipped.push({ kind: target.kind, slug: target.slug, reason: 'invalid-status' });
         continue;
       }
@@ -2298,10 +2526,9 @@ function taxonomySummary(
 }
 
 function countSummariesByStatus(items: DashboardContentSummary[]): DashboardStatusCounts {
-  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0, scheduled: 0 };
+  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0 };
   for (const item of items) {
     if (item.status === 'draft') counts.draft += 1;
-    else if (item.status === 'scheduled') counts.scheduled += 1;
     else if (item.status === 'published') counts.published += 1;
   }
   return counts;
@@ -4207,6 +4434,40 @@ function htmlResponse(html: string): Response {
       'Cache-Control': 'no-store',
       'Content-Security-Policy':
         "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'",
+    },
+  });
+}
+
+// 404 fallback. JSON for fetch / API clients, a small styled HTML page
+// for browsers — so a direct GET to an unknown URL no longer drops the
+// user onto an unstyled "Not Found" black page (was #1973).
+function notFoundResponse(request: Request): Response {
+  const accept = request.headers.get('accept') ?? '';
+  if (!accept.includes('text/html')) {
+    return jsonResponse({ error: 'Not Found' }, 404);
+  }
+  const path = new URL(request.url).pathname;
+  const safePath = path.replace(/[<>&"']/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  );
+  const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found · Nectar Dashboard</title><style>
+:root { color-scheme: light; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f4ecd9; color: #2a241b; font-family: ui-serif, 'Iowan Old Style', Georgia, serif; }
+main { max-width: 480px; padding: 48px 32px; text-align: left; }
+.kicker { font-family: ui-serif, Georgia, serif; font-style: italic; font-size: 13px; color: #6a5d4a; margin: 0 0 6px; }
+h1 { font-family: ui-serif, Georgia, serif; font-weight: 400; font-size: 44px; line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.01em; }
+p { font-size: 15px; line-height: 1.55; color: #4a4036; margin: 0 0 12px; }
+code { font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; color: #2a241b; }
+a { display: inline-block; margin-top: 20px; padding: 8px 14px; background: #1a1612; color: #f4ecd9; text-decoration: none; border-radius: 6px; font-size: 14px; font-family: ui-sans-serif, system-ui, sans-serif; }
+a:hover { background: #2a241b; }
+</style></head><body><main><p class="kicker">404</p><h1>That page isn't here.</h1><p>The URL <code>${safePath}</code> doesn't match any dashboard route.</p><p>Maybe the post was renamed, or you followed a stale link.</p><a href="/posts">Back to Posts</a></main></body></html>`;
+  return new Response(body, {
+    status: 404,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy':
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'",
     },
   });
 }

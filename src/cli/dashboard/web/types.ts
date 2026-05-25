@@ -7,7 +7,6 @@ export type {
   DashboardEditorKind,
   DashboardSettingsSubview,
   DashboardShellSection,
-  DashboardTheme,
   DashboardUiAction,
   DashboardUiState,
   DashboardView,
@@ -59,7 +58,6 @@ export interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
-  scheduled: number;
 }
 
 export interface DashboardList<T> {
@@ -166,12 +164,28 @@ export interface DashboardContentItem {
 }
 
 export interface EditorSnapshot {
+  // Shared
   title: string;
+  body: string;
+  // posts/pages
   status: string;
   featureImage: string;
   featureImageAlt: string;
   featureImageCaption: string;
-  body: string;
+  excerpt: string;
+  tags: string;
+  authors: string;
+  publishedAt: string;
+  metaTitle: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  // taxonomy (authors/tags) — empty strings for posts/pages
+  slug: string;
+  bio: string;
+  description: string;
+  website: string;
+  location: string;
+  accentColor: string;
 }
 
 export interface DraftPayload {
@@ -187,6 +201,6 @@ export interface RevisionPayload extends EditorSnapshot {
   at: string;
   path: string;
   kind: import('../ui-state.ts').DashboardEditorKind;
-  slug: string;
+  // slug now inherited from EditorSnapshot.
   frontmatter: Record<string, unknown>;
 }

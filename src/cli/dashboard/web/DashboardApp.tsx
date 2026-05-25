@@ -3,12 +3,17 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hoo
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
+import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
+import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
+import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
+import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
+import { useToastHost } from './components/Toast.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
@@ -24,8 +29,7 @@ import {
   shellSectionFor,
   syncPath,
 } from './lib/routes.ts';
-import { readThemePreference, writeThemePreference } from './lib/storage.ts';
-import { CREATE_HEAD, viewHeadFor } from './lib/view-head.ts';
+import { CREATE_HEAD, createHeadFor, viewHeadFor } from './lib/view-head.ts';
 import type {
   DashboardContentItem,
   DashboardEditorKind,
@@ -43,7 +47,6 @@ const INITIAL_STATE: DashboardUiState = {
   density: 'comfortable',
   query: '',
   statusFilter: '',
-  theme: readThemePreference(),
   loadStatus: 'idle',
   lastError: '',
   conflictMessage: '',
@@ -58,15 +61,25 @@ export function DashboardApp(): JSX.Element {
   );
   const [editorDirty, setEditorDirty] = useState(false);
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastHost = useToastHost();
+  const confirmHost = useConfirmHost();
 
   const hasSettingsDirty = siteSettingsDirty || themeSettingsDirty;
 
   const confirmDiscard = useCallback(
-    (message: string): boolean => {
+    async (body: string): Promise<boolean> => {
       if (!editorDirty && !hasSettingsDirty) return true;
-      if (!confirm(message)) return false;
+      const ok = await confirmHost.api.ask({
+        title: 'Discard unsaved changes?',
+        body,
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        intent: 'danger',
+      });
+      if (!ok) return false;
       if (editor) {
         setEditor(null);
         setEditorDirty(false);
@@ -75,16 +88,16 @@ export function DashboardApp(): JSX.Element {
       setThemeSettingsDirty(false);
       return true;
     },
-    [editorDirty, hasSettingsDirty, editor],
+    [editorDirty, hasSettingsDirty, editor, confirmHost.api],
   );
 
   const load = useCallback(
     async (options: { force?: boolean } = {}) => {
       if (
         !options.force &&
-        !confirmDiscard(
+        !(await confirmDiscard(
           'Refresh files? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-        )
+        ))
       ) {
         return;
       }
@@ -114,9 +127,8 @@ export function DashboardApp(): JSX.Element {
 
   // theme application
   useEffect(() => {
-    document.documentElement.dataset.theme = ui.theme;
     document.body.classList.toggle('densityCompact', ui.density === 'compact');
-  }, [ui.theme, ui.density]);
+  }, [ui.density]);
 
   // title sync
   useEffect(() => {
@@ -129,15 +141,17 @@ export function DashboardApp(): JSX.Element {
   useEffect(() => {
     if (INITIAL_ROUTE.editor && !editor) {
       void (async () => {
+        const initialEditor = INITIAL_ROUTE.editor;
+        if (!initialEditor) return;
         try {
-          if (!INITIAL_ROUTE.editor) return;
-          const item = await fetchContent(INITIAL_ROUTE.editor.kind, INITIAL_ROUTE.editor.slug);
+          const item = await fetchContent(initialEditor.kind, initialEditor.slug);
           setEditor(item);
           dispatch({ type: 'view/set', view: item.kind });
-        } catch (err) {
-          dispatch({
-            type: 'load/error',
-            message: err instanceof Error ? err.message : String(err),
+        } catch {
+          toastHost.api.push({
+            intent: 'error',
+            title: 'Not found',
+            message: `No ${initialEditor.kind === 'pages' ? 'page' : initialEditor.kind === 'authors' ? 'author' : initialEditor.kind === 'tags' ? 'tag' : 'post'} "${initialEditor.slug}".`,
           });
         }
       })();
@@ -146,12 +160,12 @@ export function DashboardApp(): JSX.Element {
 
   // popstate routing
   useEffect(() => {
-    function onPop() {
+    async function onPop() {
       const route = routeFromPath(location.pathname);
       if (
-        !confirmDiscard(
+        !(await confirmDiscard(
           'Leave this page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-        )
+        ))
       ) {
         if (editor) syncPath(pathForEditor(editor.kind, editor.slug), 'push');
         else syncPath(pathForView(ui.view), 'push');
@@ -167,12 +181,24 @@ export function DashboardApp(): JSX.Element {
           try {
             const item = await fetchContent(routeEditor.kind, routeEditor.slug);
             setEditor(item);
-          } catch {}
+          } catch {
+            // Surface a toast so direct hits on a removed / renamed
+            // slug aren't silent (#2091). URL is left intact so the
+            // user can correct it; the list fallback covers display.
+            toastHost.api.push({
+              intent: 'error',
+              title: 'Not found',
+              message: `No ${routeEditor.kind === 'pages' ? 'page' : routeEditor.kind === 'authors' ? 'author' : routeEditor.kind === 'tags' ? 'tag' : 'post'} "${routeEditor.slug}".`,
+            });
+          }
         })();
       }
     }
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    const handler = () => {
+      void onPop();
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
   }, [confirmDiscard, editor, ui.view]);
 
   // beforeunload warning
@@ -195,11 +221,32 @@ export function DashboardApp(): JSX.Element {
     }, [load, editorDirty, hasSettingsDirty]),
   );
 
-  function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
+  // Global ⌘K / Ctrl+K — opens the command palette from anywhere.
+  // Ignored when typing in an editor or input so users can keep typing K.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const isCmdK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      if (!isCmdK) return;
+      event.preventDefault();
+      setCmdkOpen((open) => !open);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Scroll to top when the view changes — without this, a long scroll on
+  // posts is preserved when jumping to Pages/Settings, which feels broken.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const main = document.getElementById('main');
+    if (main) main.scrollTop = 0;
+  }, [ui.view, editor?.slug, createMode]);
+
+  async function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Leave this page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
     setEditor(null);
@@ -219,22 +266,26 @@ export function DashboardApp(): JSX.Element {
     }
   }
 
-  function handleNew() {
+  async function navigateCreate(kind: DashboardEditorKind) {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Open create page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
-    const kind: DashboardEditorKind =
-      ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags'
-        ? ui.view
-        : 'posts';
     setEditor(null);
     setEditorDirty(false);
     setCreateMode(kind);
     document.body.classList.add('createOpen');
     syncPath(pathForCreate(kind), 'push');
+  }
+
+  function handleNew() {
+    const kind: DashboardEditorKind =
+      ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags'
+        ? ui.view
+        : 'posts';
+    navigateCreate(kind);
   }
 
   function handleCreated(kind: DashboardEditorKind, slug: string) {
@@ -262,11 +313,11 @@ export function DashboardApp(): JSX.Element {
     }
   }
 
-  function handleCloseEditor() {
+  async function handleCloseEditor() {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Close editor? Unsaved changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
     setEditor(null);
@@ -275,10 +326,38 @@ export function DashboardApp(): JSX.Element {
   }
 
   async function handleEditorSaved() {
-    setEditor(null);
     setEditorDirty(false);
-    syncPath(pathForView(ui.view), 'replace');
+    // Reload the workspace state so the sidebar / list show the
+    // saved file, but keep the editor open — bouncing back to the
+    // list on every Save is a hostile interaction for writers.
     await load({ force: true });
+    if (!editor) return;
+    try {
+      const next = await fetchContent(editor.kind, editor.slug);
+      setEditor(next);
+    } catch {
+      setEditor(null);
+      syncPath(pathForView(ui.view), 'replace');
+    }
+  }
+
+  /** Handle slug rename: re-fetch the editor against the new slug, update
+   * the URL, and reload the workspace state so the sidebar / list reflect
+   * the new filename. */
+  async function handleEditorRenamed(
+    kind: DashboardContentItem['kind'],
+    newSlug: string,
+  ): Promise<void> {
+    setEditorDirty(false);
+    await load({ force: true });
+    try {
+      const next = await fetchContent(kind, newSlug);
+      setEditor(next);
+      syncPath(pathForEditor(kind, newSlug), 'replace');
+    } catch {
+      setEditor(null);
+      syncPath(pathForView(ui.view), 'replace');
+    }
   }
 
   function handleEditorConflict(message: string, current: DashboardContentItem) {
@@ -295,36 +374,161 @@ export function DashboardApp(): JSX.Element {
     await load({ force: true });
   }
 
-  function cycleTheme() {
-    const next = ui.theme === 'system' ? 'dark' : ui.theme === 'dark' ? 'light' : 'system';
-    dispatch({ type: 'theme/set', theme: next });
-    writeThemePreference(next);
-  }
-
   const rail = computeStatusRail(state);
   const section = shellSectionFor(ui.view);
   const inSettings = section === 'settings';
-  const headCopy = createMode ? CREATE_HEAD : viewHeadFor(ui.view);
+  const headCopy = createMode
+    ? createMode === 'posts' ||
+      createMode === 'pages' ||
+      createMode === 'authors' ||
+      createMode === 'tags'
+      ? createHeadFor(createMode)
+      : CREATE_HEAD
+    : viewHeadFor(ui.view);
   const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
+  // Filter input only makes sense when there's actually a list to filter.
+  // Editors, the create form, settings, and migration have no view-scoped
+  // search target, so hide the input there.
+  const showFilterInput =
+    !createMode &&
+    !editor &&
+    (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags');
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
+  // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
+  const recents = (() => {
+    if (!state) return [];
+    const items: Array<{ kind: 'posts' | 'pages'; slug: string; title: string; ts: number }> = [];
+    for (const p of state.posts.items.slice(0, 12)) {
+      items.push({ kind: 'posts', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
+    }
+    for (const p of state.pages.items.slice(0, 12)) {
+      items.push({ kind: 'pages', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
+    }
+    return items.sort((a, b) => b.ts - a.ts).slice(0, 5);
+  })();
+
+  // Command palette items — all posts/pages + workspace actions. Built each
+  // render but cheap (linear in item count).
+  const commandItems: CommandItem[] = [];
+  if (state) {
+    for (const p of state.posts.items) {
+      commandItems.push({
+        id: `post:${p.slug}`,
+        kind: 'open',
+        label: p.title,
+        hint: `post · ${p.slug}`,
+        keywords: `${p.slug} post`,
+        run: () => {
+          void openEditor('posts', p.slug);
+        },
+      });
+    }
+    for (const p of state.pages.items) {
+      commandItems.push({
+        id: `page:${p.slug}`,
+        kind: 'open',
+        label: p.title,
+        hint: `page · ${p.slug}`,
+        keywords: `${p.slug} page`,
+        run: () => {
+          void openEditor('pages', p.slug);
+        },
+      });
+    }
+  }
+  commandItems.push(
+    {
+      id: 'nav:posts',
+      kind: 'navigate',
+      label: 'Go to Posts',
+      hint: 'workspace',
+      keywords: 'navigate posts list',
+      run: () => navigateView('posts'),
+    },
+    {
+      id: 'nav:pages',
+      kind: 'navigate',
+      label: 'Go to Pages',
+      hint: 'workspace',
+      keywords: 'navigate pages list',
+      run: () => navigateView('pages'),
+    },
+    {
+      id: 'nav:settings',
+      kind: 'navigate',
+      label: 'Open Settings',
+      hint: 'workspace',
+      keywords: 'navigate settings configuration',
+      run: () => navigateView('settings'),
+    },
+    {
+      id: 'nav:migration',
+      kind: 'navigate',
+      label: 'Open Migration',
+      hint: 'settings',
+      keywords: 'ghost import wordpress migration',
+      run: () => navigateView('migration'),
+    },
+    {
+      id: 'action:new-post',
+      kind: 'action',
+      label: 'New post',
+      hint: 'create',
+      keywords: 'new create post draft',
+      run: () => navigateCreate('posts'),
+    },
+    {
+      id: 'action:new-page',
+      kind: 'action',
+      label: 'New page',
+      hint: 'create',
+      keywords: 'new create page',
+      run: () => navigateCreate('pages'),
+    },
+    {
+      id: 'action:force-sync',
+      kind: 'action',
+      label: 'Re-read disk',
+      hint: 'sync',
+      keywords: 'force refresh sync reload disk',
+      run: () => {
+        void load({ force: true });
+      },
+    },
+  );
 
   return (
     <div class="shell">
+      <a class="skipToMain" href="#main">
+        Skip to main content
+      </a>
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
+        siteUrl={state?.site.url}
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
+        recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
         buildLabel={rail.build.label}
         buildState={rail.build.state}
         previewLabel={rail.preview.label}
         previewState={rail.preview.state}
-        theme={ui.theme}
         onNavigate={(target) => navigateView(target)}
-        onCycleTheme={cycleTheme}
+        onOpenEntry={(kind, slug) => {
+          void openEditor(kind, slug);
+        }}
+        onForceSync={() => {
+          void load({ force: true }).then(() => {
+            toastHost.api.push({
+              intent: 'success',
+              message: 'Re-read disk · workspace is up to date.',
+              duration: 2500,
+            });
+          });
+        }}
       />
       <main class="main" id="main" tabIndex={-1}>
         {editor ? null : (
@@ -334,10 +538,8 @@ export function DashboardApp(): JSX.Element {
               <Toolbar
                 query={ui.query}
                 showNew={showNewButton}
+                showFilter={showFilterInput}
                 onSearch={handleSearch}
-                onRefresh={() => {
-                  void load({ force: true });
-                }}
                 onNew={handleNew}
               />
             }
@@ -360,24 +562,29 @@ export function DashboardApp(): JSX.Element {
         ) : null}
         {!editor && !createMode ? (
           <section
+            key={ui.view}
             class="panel"
             id="contentPanel"
             aria-live="polite"
             aria-busy={ui.loadStatus === 'loading'}
           >
             {!state ? (
-              <StatePanel
-                kind={surfaceState}
-                {...(ui.loadStatus === 'error' ? { message: ui.lastError } : {})}
-                onAction={() => {
-                  void load({ force: true });
-                }}
-              />
+              ui.loadStatus === 'loading' && (ui.view === 'posts' || ui.view === 'pages') ? (
+                <SkeletonContentTable />
+              ) : (
+                <StatePanel
+                  kind={surfaceState}
+                  {...(ui.loadStatus === 'error' ? { message: ui.lastError } : {})}
+                  onAction={() => {
+                    void load({ force: true });
+                  }}
+                />
+              )
             ) : ui.view === 'posts' || ui.view === 'pages' ? (
               <ContentTable
                 kind={ui.view}
                 list={ui.view === 'posts' ? state.posts : state.pages}
-                resultCount={state.settings.operations.search.resultCount}
+                resultCount={(ui.view === 'posts' ? state.posts : state.pages).total}
                 statusFilter={ui.statusFilter}
                 onStatusFilterChange={(value) =>
                   dispatch({ type: 'status/set', statusFilter: value })
@@ -421,16 +628,35 @@ export function DashboardApp(): JSX.Element {
           </section>
         ) : null}
         {editor ? (
-          <EditorView
-            current={editor}
-            state={state}
-            onCloseEditor={handleCloseEditor}
-            onSaved={handleEditorSaved}
-            onConflict={handleEditorConflict}
-            onDirtyChange={setEditorDirty}
-          />
+          editor.kind === 'authors' || editor.kind === 'tags' ? (
+            <TaxonomyEditorView
+              current={editor}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          ) : (
+            <EditorView
+              current={editor}
+              state={state}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          )
         ) : null}
       </main>
+      <CommandPalette
+        open={cmdkOpen}
+        items={commandItems}
+        onClose={() => setCmdkOpen(false)}
+      />
+      {confirmHost.node}
+      {toastHost.node}
     </div>
   );
 }

@@ -21,6 +21,90 @@ function writeHeaders(): Record<string, string> {
   };
 }
 
+export async function renameContentSlug(args: {
+  kind: DashboardEditorKind;
+  oldSlug: string;
+  newSlug: string;
+  fingerprint: ContentFingerprint;
+  redirect?: boolean;
+}): Promise<
+  | { ok: true; newSlug: string; newPath: string; fingerprint: ContentFingerprint }
+  | { ok: false; reason: string; error?: string }
+> {
+  const url = `/api/content/${args.kind}/${encodeURIComponent(args.oldSlug)}/rename`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: writeHeaders(),
+    body: JSON.stringify({
+      fingerprint: args.fingerprint,
+      newSlug: args.newSlug,
+      redirect: args.redirect ?? false,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      reason: String(data.reason ?? 'unknown'),
+      error: typeof data.error === 'string' ? data.error : `rename failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    newSlug: String(data.newSlug),
+    newPath: String(data.newPath),
+    fingerprint: data.fingerprint as ContentFingerprint,
+  };
+}
+
+/* multipart upload — no content-type header (browser sets boundary). */
+export async function uploadImage(
+  file: File,
+): Promise<{ ok: true; path: string; name: string; size: number } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/images', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      error: typeof data.error === 'string' ? data.error : `upload failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    path: String(data.path),
+    name: String(data.name),
+    size: Number(data.size ?? 0),
+  };
+}
+
+export async function uploadTheme(
+  file: File,
+  name?: string,
+): Promise<{ ok: true; name: string; dir: string } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (name) fd.append('name', name);
+  const res = await fetch('/api/themes/upload', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      error: typeof data.error === 'string' ? data.error : `theme upload failed (${res.status})`,
+    };
+  }
+  return { ok: true, name: String(data.name ?? ''), dir: String(data.dir ?? '') };
+}
+
 export interface FetchStateOptions {
   postsPage: number;
   pagesPage: number;
@@ -177,6 +261,29 @@ export async function importGhost(
   return { status: response.status, data: await response.json() };
 }
 
+export interface GhostImportUploadArgs {
+  file: File;
+  dryRun: boolean;
+  onConflict: 'skip' | 'rename' | 'overwrite';
+  outputDir?: string;
+}
+
+export async function importGhostUpload(
+  args: GhostImportUploadArgs,
+): Promise<{ status: number; data: unknown }> {
+  const fd = new FormData();
+  fd.append('file', args.file);
+  fd.append('dryRun', String(args.dryRun));
+  fd.append('onConflict', args.onConflict);
+  if (args.outputDir) fd.append('outputDir', args.outputDir);
+  const response = await fetch('/api/import/ghost', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  return { status: response.status, data: await response.json() };
+}
+
 export interface PageBundleImportPayload {
   file: string;
   dryRun: boolean;
@@ -190,6 +297,27 @@ export async function importPageBundle(
     method: 'POST',
     headers: writeHeaders(),
     body: JSON.stringify(payload),
+  });
+  return { status: response.status, data: await response.json() };
+}
+
+export interface PageBundleImportUploadArgs {
+  file: File;
+  dryRun: boolean;
+  onConflict: 'skip' | 'rename' | 'overwrite';
+}
+
+export async function importPageBundleUpload(
+  args: PageBundleImportUploadArgs,
+): Promise<{ status: number; data: unknown }> {
+  const fd = new FormData();
+  fd.append('file', args.file);
+  fd.append('dryRun', String(args.dryRun));
+  fd.append('onConflict', args.onConflict);
+  const response = await fetch('/api/page-bundles/import', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
   });
   return { status: response.status, data: await response.json() };
 }

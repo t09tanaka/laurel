@@ -13,7 +13,10 @@ interface Entry {
 }
 
 const ENTRIES: ReadonlyArray<Entry> = [
-  { subview: 'site', label: 'Site', href: '/settings' },
+  // "Site" was ambiguous (it covered general identity AND every other
+  // category). Renamed to "General" to match the leading category
+  // shown on the page. #1956
+  { subview: 'site', label: 'General', href: '/settings' },
   { subview: 'authors', label: 'Authors', href: '/authors' },
   { subview: 'tags', label: 'Tags', href: '/tags' },
   { subview: 'migration', label: 'Migration', href: '/settings/migration' },

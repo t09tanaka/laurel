@@ -30,7 +30,6 @@ const STATUS_TABS: ReadonlyArray<{
   { value: '', label: 'All', key: 'all' },
   { value: 'draft', label: 'Drafts', key: 'draft' },
   { value: 'published', label: 'Published', key: 'published' },
-  { value: 'scheduled', label: 'Scheduled', key: 'scheduled' },
 ];
 
 export function ContentTable(props: ContentTableProps): JSX.Element {
@@ -54,13 +53,11 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
       {list.items.length ? (
         <div class="tableWrap">
           <table class="table contentTable">
-            <thead>
+            <thead class="srOnly">
               <tr>
                 <th>Title</th>
                 <th class="dateCol">Updated</th>
-                <th>
-                  <span class="srOnly">Actions</span>
-                </th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -77,28 +74,40 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
           </table>
         </div>
       ) : (
-        <StatePanel kind="empty" />
+        <StatePanel
+          kind="empty"
+          message={
+            list.total === 0
+              ? `No ${kind} yet. Create your first one with the New button or by adding a Markdown file to content/${kind}/.`
+              : `No ${kind} match this filter. Try a different status or clear the search.`
+          }
+        />
       )}
-      <div class="pager">
-        <button
-          class="btn secondary"
-          id="prev"
-          type="button"
-          disabled={list.page <= 1}
-          onClick={props.onPrev}
-        >
-          Prev
-        </button>
-        <button
-          class="btn secondary"
-          id="next"
-          type="button"
-          disabled={list.page >= list.pages}
-          onClick={props.onNext}
-        >
-          Next
-        </button>
-      </div>
+      {list.pages > 1 ? (
+        <div class="pager" aria-label={`${kind} pagination`}>
+          <button
+            class="btn secondary"
+            id="prev"
+            type="button"
+            disabled={list.page <= 1}
+            onClick={props.onPrev}
+          >
+            Prev
+          </button>
+          <span class="pagerLabel">
+            Page {list.page} of {list.pages}
+          </span>
+          <button
+            class="btn secondary"
+            id="next"
+            type="button"
+            disabled={list.page >= list.pages}
+            onClick={props.onNext}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -115,31 +124,52 @@ function StatusTabs({ value, counts, onChange }: StatusTabsProps): JSX.Element {
     STATUS_TABS.findIndex((tab) => tab.value === value),
   );
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
-  function onKeyDown(event: KeyboardEvent, index: number) {
-    if (
-      event.key !== 'ArrowLeft' &&
-      event.key !== 'ArrowRight' &&
-      event.key !== 'Home' &&
-      event.key !== 'End'
-    ) {
-      return;
-    }
-    event.preventDefault();
-    let next = index;
-    if (event.key === 'ArrowLeft') next = (index - 1 + STATUS_TABS.length) % STATUS_TABS.length;
-    if (event.key === 'ArrowRight') next = (index + 1) % STATUS_TABS.length;
-    if (event.key === 'Home') next = 0;
-    if (event.key === 'End') next = STATUS_TABS.length - 1;
-    const tab = STATUS_TABS[next];
+  function focusTab(nextIndex: number, activate: boolean): void {
+    const tab = STATUS_TABS[nextIndex];
     if (!tab) return;
-    refs.current[next]?.focus();
-    onChange(tab.value);
+    refs.current[nextIndex]?.focus();
+    if (activate) onChange(tab.value);
+  }
+  function onKeyDown(event: KeyboardEvent, index: number): void {
+    switch (event.key) {
+      case 'ArrowLeft':
+        event.preventDefault();
+        focusTab((index - 1 + STATUS_TABS.length) % STATUS_TABS.length, true);
+        return;
+      case 'ArrowRight':
+        event.preventDefault();
+        focusTab((index + 1) % STATUS_TABS.length, true);
+        return;
+      case 'Home':
+        event.preventDefault();
+        focusTab(0, true);
+        return;
+      case 'End':
+        event.preventDefault();
+        focusTab(STATUS_TABS.length - 1, true);
+        return;
+      case 'Enter':
+      case ' ': {
+        event.preventDefault();
+        const tab = STATUS_TABS[index];
+        if (tab) onChange(tab.value);
+        return;
+      }
+      default:
+        return;
+    }
   }
   return (
-    <div role="tablist" aria-label="Filter by status" class="statusTabs">
+    <div
+      role="tablist"
+      aria-label="Filter by status"
+      aria-orientation="horizontal"
+      class="statusTabs"
+    >
       {STATUS_TABS.map((tab, index) => {
         const active = tab.value === value;
         const count = counts ? counts[tab.key] : undefined;
+        const isFocusableTabStop = index === activeIndex;
         return (
           <button
             key={tab.value}
@@ -149,7 +179,7 @@ function StatusTabs({ value, counts, onChange }: StatusTabsProps): JSX.Element {
             role="tab"
             type="button"
             aria-selected={active}
-            tabIndex={active || index === activeIndex ? 0 : -1}
+            tabIndex={isFocusableTabStop ? 0 : -1}
             data-active={active ? 'true' : 'false'}
             class="statusTab"
             data-status={tab.value || 'all'}
@@ -173,72 +203,42 @@ interface ContentRowProps {
 }
 
 function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Element {
-  const preview = item.preview ?? null;
   const status = item.status ?? 'published';
-  const warningCount = item.warnings?.length ?? 0;
   const title = item.title?.trim() ? item.title : '(untitled)';
+  const editorHref = pathForEditor(kind, item.slug);
   return (
-    <tr
-      class="contentRow"
-      tabIndex={0}
-      data-row-slug={item.slug}
-      onClick={(event) => {
-        if ((event.target as HTMLElement).closest('a, button, summary, details, kbd')) return;
-        onOpen();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        if ((event.target as HTMLElement).closest('a, button, summary, details, input, kbd'))
-          return;
-        event.preventDefault();
-        onOpen();
-      }}
-    >
+    <tr class="contentRow" data-row-slug={item.slug} data-status={status}>
       <td class="titleCell">
         <div class="titleLine">
-          <span class="titleText" title={title}>
-            {title}
-          </span>
-          <span class={`pill ${status === 'draft' ? 'draft' : ''}`}>{status}</span>
-          {isPages ? <ApprovalPill approval={item.approval} compact /> : null}
-          {warningCount > 0 ? <WarnDot count={warningCount} /> : null}
+          <a
+            class="titleLink"
+            href={editorHref}
+            title={title}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onOpen();
+            }}
+          >
+            <span class="titleText">{title}</span>
+          </a>
+          {isPages && item.approval?.status !== 'approved' ? (
+            <ApprovalPill approval={item.approval} compact />
+          ) : null}
         </div>
         <div class="slugLine">
           <span class="slug" dir="rtl" title={item.slug}>
             {item.slug}
           </span>
         </div>
-        <details
-          class="rowDetails"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <summary>Details</summary>
-          <div class="detailGrid">
-            {isPages ? (
-              <div>
-                <span class="detailLabel">Approval</span>
-                <ApprovalDetail item={item} />
-              </div>
-            ) : null}
-            <div>
-              <span class="detailLabel">Preview</span>
-              <PreviewDetail item={item} />
-            </div>
-            <div>
-              <span class="detailLabel">Path</span>
-              <div class="pathText">{item.path}</div>
-            </div>
-          </div>
-        </details>
       </td>
       <td class="dateCell">{formatDate(item.createdAt)}</td>
       <td class="actionsCell">
         <div class="rowActions">
-          {preview?.openUrl ? (
+          {item.preview?.openUrl ? (
             <a
-              class="btn secondary btnCompact"
-              href={preview.openUrl}
+              class="textLink"
+              href={item.preview.openUrl}
               target="_blank"
               rel="noreferrer"
             >
@@ -246,15 +246,16 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
             </a>
           ) : null}
           <a
-            class="btn secondary btnCompact"
-            href={pathForEditor(kind, item.slug)}
+            class="textLink textLinkStrong"
+            href={editorHref}
             data-edit={item.slug}
             onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
               onOpen();
             }}
           >
-            Edit
+            Detail
           </a>
           {isPages ? <ExportOverflow slug={item.slug} /> : null}
         </div>
@@ -268,52 +269,14 @@ interface ApprovalPillProps {
   compact?: boolean;
 }
 
-function ApprovalPill({ approval, compact }: ApprovalPillProps): JSX.Element {
+function ApprovalPill({ approval, compact: _compact }: ApprovalPillProps): JSX.Element {
   const state = approval?.status ?? 'needs-approval';
   const label = state === 'approved' ? 'Approved' : state === 'stale' ? 'Stale' : 'Needs approval';
-  const cls = state === 'approved' ? '' : 'draft';
+  // Minimal italic serif label; only rendered when state is not the
+  // default approved path (the parent gates rendering).
   return (
-    <span class={`pill ${cls} ${compact ? 'pillCompact' : ''}`} data-approval={state}>
+    <span class="approvalLabel" data-approval={state}>
       {label}
-    </span>
-  );
-}
-
-function ApprovalDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const approval = item.approval ?? { status: 'needs-approval' };
-  const detail = approval.approvedAt
-    ? formatDate(approval.approvedAt)
-    : 'Saved changes stay out of builds until approved.';
-  return (
-    <>
-      <ApprovalPill approval={approval} />
-      <div class="meta">{detail}</div>
-    </>
-  );
-}
-
-function PreviewDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const preview = item.preview ?? null;
-  const label = preview?.label ?? 'Markdown preview';
-  const cls = preview?.state === 'current' ? '' : 'draft';
-  return (
-    <>
-      <span class={`pill ${cls}`}>{label}</span>
-      <div class="meta">{preview?.sourcePath ?? preview?.detail ?? 'Saved Markdown preview'}</div>
-      {preview?.openUrl ? (
-        <a class="previewLink" href={preview.openUrl} target="_blank" rel="noreferrer">
-          Open
-        </a>
-      ) : null}
-    </>
-  );
-}
-
-function WarnDot({ count }: { count: number }): JSX.Element {
-  return (
-    <span class="warnDot" title={`${count} warning${count === 1 ? '' : 's'}`}>
-      <span class="warnDotMark" aria-hidden="true" />
-      <span class="warnDotCount">{count}</span>
     </span>
   );
 }
