@@ -41,9 +41,17 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
               {items.map((item) => (
                 <tr key={item.slug}>
                   <td class="titleCell">
-                    <b>{item.name}</b>
-                    <div class="slug">{item.slug}</div>
-                    <div class="meta">{item.description ?? ''}</div>
+                    <div class="titleLine">
+                      <span class="titleText" title={item.name}>
+                        {item.name}
+                      </span>
+                    </div>
+                    <div class="slugLine">
+                      <span class="slug" dir="rtl" title={item.slug}>
+                        {item.slug}
+                      </span>
+                    </div>
+                    {item.description ? <div class="meta">{item.description}</div> : null}
                   </td>
                   <td>{item.count}</td>
                   <td>
