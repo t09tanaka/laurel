@@ -523,6 +523,7 @@ export function DashboardApp(): JSX.Element {
         ) : null}
         {!editor && !createMode ? (
           <section
+            key={ui.view}
             class="panel"
             id="contentPanel"
             aria-live="polite"
