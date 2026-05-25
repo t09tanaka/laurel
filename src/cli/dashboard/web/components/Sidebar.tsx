@@ -60,22 +60,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </svg>
           <span class="brandWord">Nectar</span>
         </div>
-        {(() => {
-          const host = hostnameOf(props.siteUrl);
-          if (!host || !props.siteUrl) return null;
-          return (
-            <a
-              class="sideImprint"
-              href={props.siteUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              aria-label={`Open published site at ${host}`}
-            >
-              <span class="sideImprintHost">{host}</span>
-              <span class="sideImprintMark" aria-hidden="true">↗</span>
-            </a>
-          );
-        })()}
       </div>
       <nav class="nav" aria-label="Primary">
         <NavLink
@@ -152,6 +136,23 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </svg>
           <span>Settings</span>
         </a>
+        {(() => {
+          const host = hostnameOf(props.siteUrl);
+          if (!host || !props.siteUrl) return null;
+          return (
+            <a
+              class="sideFooterSite"
+              href={props.siteUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`Open published site at ${host}`}
+              title={host}
+            >
+              <span class="sideFooterSiteLabel">View site</span>
+              <span class="sideFooterSiteMark" aria-hidden="true">↗</span>
+            </a>
+          );
+        })()}
         <button
           type="button"
           id="syncRail"
