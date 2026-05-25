@@ -1,24 +1,31 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hooks';
+import { BuildPanel, type BuildPhase } from './components/BuildPanel.tsx';
+import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
+import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
-import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
-import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
-import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
 import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
-import { useToastHost } from './components/Toast.tsx';
+import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
+import { useToastHost } from './components/Toast.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
 import { reduceUiState } from './hooks/useUiReducer.ts';
-import { fetchContent, fetchDashboardState, materializeTaxonomy } from './lib/api.ts';
+import {
+  type BuildSummarySnapshot,
+  fetchContent,
+  fetchDashboardState,
+  materializeTaxonomy,
+  streamBuild,
+} from './lib/api.ts';
 import {
   normalizeView,
   pathForCreate,
@@ -37,6 +44,22 @@ import type {
   DashboardUiState,
   DashboardView,
 } from './types.ts';
+
+function formatClock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatBuildDuration(ms: number): string {
+  if (ms < 1000) return `${ms} ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
 
 const INITIAL_ROUTE = routeFromPath(location.pathname);
 
@@ -63,6 +86,16 @@ export function DashboardApp(): JSX.Element {
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
+  const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle');
+  const [buildLog, setBuildLog] = useState<string[]>([]);
+  const [buildProgress, setBuildProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
+  const [buildSummary, setBuildSummary] = useState<BuildSummarySnapshot | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
+  const [buildPanelOpen, setBuildPanelOpen] = useState(false);
+  const [canDownload, setCanDownload] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastHost = useToastHost();
   const confirmHost = useConfirmHost();
@@ -365,6 +398,79 @@ export function DashboardApp(): JSX.Element {
     setEditor(current);
   }
 
+  const handleDownloadZip = useCallback(() => {
+    // Programmatic anchor click so the download fires without navigating
+    // away from the dashboard — important for the auto-download path
+    // because the user is still viewing the build log.
+    const anchor = document.createElement('a');
+    anchor.href = '/api/build/export.zip';
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }, []);
+
+  const handleBuildClick = useCallback(async () => {
+    if (buildPhase === 'running') {
+      setBuildPanelOpen(true);
+      return;
+    }
+    setBuildPhase('running');
+    setBuildLog([]);
+    setBuildProgress(null);
+    setBuildSummary(null);
+    setBuildError(null);
+    setBuildPanelOpen(true);
+    await streamBuild((event) => {
+      if (event.type === 'start') {
+        setBuildLog((log) => [...log, `[${formatClock(event.startedAt)}] Build started`]);
+      } else if (event.type === 'progress') {
+        const e = event.event;
+        if (e.type === 'phase-start') {
+          setBuildLog((log) => [...log, `→ ${e.label}`]);
+        } else if (e.type === 'phase-status') {
+          setBuildLog((log) => [...log, `  ${e.label}`]);
+        } else if (e.type === 'routes-planned') {
+          setBuildProgress({ completed: 0, total: e.totalRoutes });
+          setBuildLog((log) => [...log, `  ${e.totalRoutes} routes planned`]);
+        } else if (e.type === 'route-rendered') {
+          setBuildProgress({ completed: e.completedRoutes, total: e.totalRoutes });
+        } else if (e.type === 'asset-step') {
+          setBuildLog((log) => [...log, `  ${e.step}/${e.totalSteps} ${e.label}`]);
+        }
+      } else if (event.type === 'done') {
+        setBuildPhase('done');
+        setBuildSummary(event.summary);
+        setCanDownload(true);
+        setBuildLog((log) => [
+          ...log,
+          `Built ${event.summary.routeCount} routes, ${event.summary.assetCount} assets`,
+        ]);
+        toastHost.api.push({
+          intent: 'success',
+          title: 'Build complete · downloading zip',
+          message: `${event.summary.routeCount} routes · ${formatBuildDuration(event.summary.durationMs)}`,
+        });
+        // Auto-download the freshly built site. The sidebar "Zip" pill and
+        // the panel's Download zip button remain available for re-download.
+        handleDownloadZip();
+      } else if (event.type === 'error') {
+        setBuildPhase('error');
+        setBuildError(event.message);
+        toastHost.api.push({
+          intent: 'error',
+          title: 'Build failed',
+          message: event.message,
+        });
+      }
+    });
+  }, [buildPhase, toastHost.api, handleDownloadZip]);
+
+  const handleBuildPanelClose = useCallback(() => {
+    setBuildPanelOpen(false);
+  }, []);
+
   async function handleMaterialize(kind: 'authors' | 'tags', slug: string) {
     const { status, data } = await materializeTaxonomy(kind, slug);
     if (status >= 400) {
@@ -516,6 +622,13 @@ export function DashboardApp(): JSX.Element {
         buildState={rail.build.state}
         previewLabel={rail.preview.label}
         previewState={rail.preview.state}
+        buildPhase={buildPhase}
+        buildProgress={buildProgress}
+        canDownload={canDownload}
+        onBuildClick={() => {
+          void handleBuildClick();
+        }}
+        onDownloadClick={handleDownloadZip}
         onNavigate={(target) => navigateView(target)}
         onOpenEntry={(kind, slug) => {
           void openEditor(kind, slug);
@@ -528,6 +641,19 @@ export function DashboardApp(): JSX.Element {
               duration: 2500,
             });
           });
+        }}
+      />
+      <BuildPanel
+        open={buildPanelOpen}
+        phase={buildPhase}
+        log={buildLog}
+        progress={buildProgress}
+        summary={buildSummary}
+        error={buildError}
+        onClose={handleBuildPanelClose}
+        onDownload={handleDownloadZip}
+        onRetry={() => {
+          void handleBuildClick();
         }}
       />
       <main class="main" id="main" tabIndex={-1}>
@@ -650,11 +776,7 @@ export function DashboardApp(): JSX.Element {
           )
         ) : null}
       </main>
-      <CommandPalette
-        open={cmdkOpen}
-        items={commandItems}
-        onClose={() => setCmdkOpen(false)}
-      />
+      <CommandPalette open={cmdkOpen} items={commandItems} onClose={() => setCmdkOpen(false)} />
       {confirmHost.node}
       {toastHost.node}
     </div>

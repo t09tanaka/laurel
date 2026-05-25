@@ -72,6 +72,7 @@ import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
+import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -1057,9 +1058,16 @@ export async function handleDashboardRequest(
   try {
     if (
       request.method === 'GET' &&
-      (['/', '/posts', '/pages', '/authors', '/tags', '/settings', '/settings/migration', '/migration'].includes(
-        url.pathname,
-      ) ||
+      ([
+        '/',
+        '/posts',
+        '/pages',
+        '/authors',
+        '/tags',
+        '/settings',
+        '/settings/migration',
+        '/migration',
+      ].includes(url.pathname) ||
         /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
         /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
@@ -1098,6 +1106,25 @@ export async function handleDashboardRequest(
     }
     if (request.method === 'GET' && url.pathname === '/api/events') {
       return ctx.changeBus.stream();
+    }
+    if (request.method === 'POST' && url.pathname === '/api/build') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      // Broadcast once the build settles so any other dashboard tab
+      // re-reads disk and picks up the new dist/.
+      return createBuildStreamResponse({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        onComplete: ({ ok }) => {
+          if (ok) ctx.changeBus.broadcast({ reason: 'build-complete', kind: 'project' });
+        },
+      });
+    }
+    if (request.method === 'GET' && url.pathname === '/api/build/export.zip') {
+      return createExportZipResponse({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+      });
     }
     if (
       request.method === 'GET' &&
@@ -1266,23 +1293,14 @@ export async function handleDashboardRequest(
         const form = await request.formData().catch(() => null);
         const file = form?.get('file');
         if (!(file instanceof File)) {
-          return jsonResponse(
-            { error: 'file field is required (multipart/form-data)' },
-            400,
-          );
+          return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
         }
         const MAX_BYTES = 200 * 1024 * 1024;
         if (file.size > MAX_BYTES) {
           return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
         }
-        const safe = (file.name || 'ghost-export')
-          .replace(/[^a-zA-Z0-9._-]/g, '-')
-          .slice(0, 80);
-        stagedPath = resolve(
-          ctx.cwd,
-          '.nectar',
-          `import-ghost-${Date.now()}-${safe}`,
-        );
+        const safe = (file.name || 'ghost-export').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
+        stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
         await mkdir(dirname(stagedPath), { recursive: true });
         await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
         payload = {
@@ -1293,10 +1311,7 @@ export async function handleDashboardRequest(
           outputDir: (form?.get('outputDir') as string | null) ?? undefined,
         };
       } else {
-        const json = await readJsonPayload<DashboardGhostImportPayload>(
-          request,
-          ctx.maxBodyBytes,
-        );
+        const json = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
         if (json instanceof Response) return json;
         payload = json;
       }
@@ -1333,31 +1348,21 @@ export async function handleDashboardRequest(
         const form = await request.formData().catch(() => null);
         const file = form?.get('file');
         if (!(file instanceof File)) {
-          return jsonResponse(
-            { error: 'file field is required (multipart/form-data)' },
-            400,
-          );
+          return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
         }
         const MAX_BYTES = 50 * 1024 * 1024;
         if (file.size > MAX_BYTES) {
           return jsonResponse({ error: 'page bundle exceeds 50MB limit' }, 413);
         }
-        const safe = (file.name || 'page-bundle')
-          .replace(/[^a-zA-Z0-9._-]/g, '-')
-          .slice(0, 80);
-        stagedPath = resolve(
-          ctx.cwd,
-          '.nectar',
-          `import-bundle-${Date.now()}-${safe}`,
-        );
+        const safe = (file.name || 'page-bundle').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
+        stagedPath = resolve(ctx.cwd, '.nectar', `import-bundle-${Date.now()}-${safe}`);
         await mkdir(dirname(stagedPath), { recursive: true });
         await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
         payload = {
           file: stagedPath,
           dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
           onConflict:
-            (form?.get('onConflict') as DashboardPageBundleImportPayload['onConflict']) ??
-            'skip',
+            (form?.get('onConflict') as DashboardPageBundleImportPayload['onConflict']) ?? 'skip',
         };
       } else {
         const json = await readJsonPayload<DashboardPageBundleImportPayload>(
@@ -1488,10 +1493,7 @@ export async function handleDashboardRequest(
         'image/avif',
       ]);
       if (!ALLOWED.has(file.type)) {
-        return jsonResponse(
-          { error: `unsupported image type "${file.type || 'unknown'}"` },
-          415,
-        );
+        return jsonResponse({ error: `unsupported image type "${file.type || 'unknown'}"` }, 415);
       }
       const MAX_BYTES = 8 * 1024 * 1024;
       if (file.size > MAX_BYTES) {
@@ -1501,12 +1503,13 @@ export async function handleDashboardRequest(
         .toISOString()
         .replace(/[-:.TZ]/g, '')
         .slice(0, 14);
-      const safe = (file.name || 'pasted')
-        .toLowerCase()
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 48) || 'image';
+      const safe =
+        (file.name || 'pasted')
+          .toLowerCase()
+          .replace(/\.[^.]+$/, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 48) || 'image';
       const ext =
         file.type === 'image/jpeg'
           ? 'jpg'
@@ -1559,8 +1562,8 @@ export async function handleDashboardRequest(
       const themesRoot = isAbsolute(config.theme.dir)
         ? config.theme.dir
         : resolve(ctx.cwd, config.theme.dir);
-      const rawName = String(form?.get('name') ?? '').trim() ||
-        (file.name || 'theme').replace(/\.zip$/i, '');
+      const rawName =
+        String(form?.get('name') ?? '').trim() || (file.name || 'theme').replace(/\.zip$/i, '');
       const safeName = rawName
         .toLowerCase()
         .replace(/[^a-z0-9._-]+/g, '-')
@@ -1596,7 +1599,9 @@ export async function handleDashboardRequest(
         const visible = entries.filter((name) => !name.startsWith('.'));
         if (visible.length === 1) {
           const onlyChild = resolve(destDir, visible[0] ?? '');
-          const stat = await Bun.file(onlyChild).stat().catch(() => null);
+          const stat = await Bun.file(onlyChild)
+            .stat()
+            .catch(() => null);
           if (stat?.isDirectory()) {
             const children = await readdir(onlyChild);
             for (const child of children) {
@@ -4447,8 +4452,9 @@ function notFoundResponse(request: Request): Response {
     return jsonResponse({ error: 'Not Found' }, 404);
   }
   const path = new URL(request.url).pathname;
-  const safePath = path.replace(/[<>&"']/g, (c) =>
-    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  const safePath = path.replace(
+    /[<>&"']/g,
+    (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
   );
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found · Nectar Dashboard</title><style>
 :root { color-scheme: light; }
