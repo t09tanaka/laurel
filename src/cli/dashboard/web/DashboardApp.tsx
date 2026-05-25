@@ -11,6 +11,7 @@ import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
 import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
+import { useToastHost } from './components/Toast.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
@@ -63,6 +64,7 @@ export function DashboardApp(): JSX.Element {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastHost = useToastHost();
 
   const hasSettingsDirty = siteSettingsDirty || themeSettingsDirty;
 
@@ -468,7 +470,13 @@ export function DashboardApp(): JSX.Element {
         }}
         onCycleTheme={cycleTheme}
         onForceSync={() => {
-          void load({ force: true });
+          void load({ force: true }).then(() => {
+            toastHost.api.push({
+              intent: 'success',
+              message: 'Re-read disk · workspace is up to date.',
+              duration: 2500,
+            });
+          });
         }}
       />
       <main class="main" id="main" tabIndex={-1}>
@@ -583,6 +591,7 @@ export function DashboardApp(): JSX.Element {
         items={commandItems}
         onClose={() => setCmdkOpen(false)}
       />
+      {toastHost.node}
     </div>
   );
 }

@@ -953,6 +953,91 @@
       background-position: -200% 0;
     }
   }
+  /* Toast notification host — bottom-right stack, newest on top.
+   * Backdrop-free; pointer events live on individual toasts. */
+  .toastHost {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    min-width: 240px;
+    max-width: 360px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    background: var(--surface-normal);
+    box-shadow: var(--elevation-4);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: -0.003em;
+    animation: toastIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .toast-success {
+    border-left: 3px solid var(--success);
+  }
+  .toast-warn {
+    border-left: 3px solid var(--caution);
+  }
+  .toast-error {
+    border-left: 3px solid var(--danger);
+  }
+  .toast-info {
+    border-left: 3px solid var(--color-focus);
+  }
+  .toastBody {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .toastTitle {
+    font-family: var(--font-serif);
+    font-size: 14.5px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+  .toastMessage {
+    color: var(--text-secondary);
+  }
+  .toastClose {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .toastClose:hover {
+    background: var(--reaction);
+    color: var(--text-primary);
+  }
+  @keyframes toastIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
   /* Command palette (⌘K) — modal jump-to / quick-action dialog. */
   .cmdkBackdrop {
     position: fixed;
