@@ -224,10 +224,15 @@
     outline: 2px solid color-mix(in srgb, var(--focus) 70%, transparent);
     outline-offset: 2px;
   }
-  /* Refined selection — uses ink at low opacity instead of the OS default
-   * heavy blue. Reads like an editorial highlight rather than a UI focus. */
+  /* Editorial highlighter — warm amber tint that reads like a real
+   * pen highlight on the paper bg. Bright enough that selected text
+   * is obvious, but soft enough not to fight the typography. */
   ::selection {
-    background: color-mix(in srgb, var(--color-ink) 16%, transparent);
+    background: #fde88a;
+    color: var(--text-primary);
+  }
+  ::-moz-selection {
+    background: #fde88a;
     color: var(--text-primary);
   }
   /* Slim, near-invisible scrollbars (WebKit). The dashboard is content-led;
