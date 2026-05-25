@@ -5,7 +5,6 @@ interface ToolbarProps {
   query: string;
   showNew: boolean;
   onSearch: (value: string) => void;
-  onRefresh: () => void;
   onNew: () => void;
 }
 
@@ -58,9 +57,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           /
         </span>
       </div>
-      <button class="btn secondary" id="refresh" onClick={props.onRefresh} type="button">
-        Refresh
-      </button>
       <button
         class={`btn${props.showNew ? '' : ' hidden'}`}
         id="newItem"

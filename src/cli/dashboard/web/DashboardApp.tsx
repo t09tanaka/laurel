@@ -325,6 +325,9 @@ export function DashboardApp(): JSX.Element {
         theme={ui.theme}
         onNavigate={(target) => navigateView(target)}
         onCycleTheme={cycleTheme}
+        onForceSync={() => {
+          void load({ force: true });
+        }}
       />
       <main class="main" id="main" tabIndex={-1}>
         {editor ? null : (
@@ -335,9 +338,6 @@ export function DashboardApp(): JSX.Element {
                 query={ui.query}
                 showNew={showNewButton}
                 onSearch={handleSearch}
-                onRefresh={() => {
-                  void load({ force: true });
-                }}
                 onNew={handleNew}
               />
             }

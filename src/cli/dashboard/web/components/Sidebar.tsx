@@ -15,6 +15,7 @@ interface SidebarProps {
   theme: DashboardTheme;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
   onCycleTheme: () => void;
+  onForceSync: () => void;
 }
 
 const THEME_LABEL: Record<DashboardTheme, string> = {
@@ -65,7 +66,15 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         />
       </nav>
       <div class="statusRail" aria-label="File-backed status">
-        <RailItem id="syncRail" label="Sync" value={props.syncLabel} state={props.syncState} live />
+        <RailItem
+          id="syncRail"
+          label="Sync"
+          value={props.syncLabel}
+          state={props.syncState}
+          live
+          onClick={props.onForceSync}
+          actionHint="Click to re-read disk"
+        />
         <RailItem id="buildRail" label="Build" value={props.buildLabel} state={props.buildState} />
         <RailItem
           id="previewRail"
@@ -129,19 +138,37 @@ interface RailItemProps {
   value: string;
   state: string;
   live?: boolean;
+  onClick?: () => void;
+  actionHint?: string;
 }
 
 function RailItem(props: RailItemProps): JSX.Element {
+  const body = props.live ? (
+    <output>
+      <b>{props.value}</b>
+    </output>
+  ) : (
+    <b>{props.value}</b>
+  );
+  if (props.onClick) {
+    return (
+      <button
+        type="button"
+        class="railItem railItemAction"
+        id={props.id}
+        data-state={props.state}
+        onClick={props.onClick}
+        title={props.actionHint}
+      >
+        <span>{props.label}</span>
+        {body}
+      </button>
+    );
+  }
   return (
     <div class="railItem" id={props.id} data-state={props.state}>
       <span>{props.label}</span>
-      {props.live ? (
-        <output>
-          <b>{props.value}</b>
-        </output>
-      ) : (
-        <b>{props.value}</b>
-      )}
+      {body}
     </div>
   );
 }

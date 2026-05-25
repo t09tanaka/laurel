@@ -462,12 +462,48 @@
   .railItem[data-state="success"]:before {
     background: var(--success);
   }
-  .railItem[data-state="caution"]:before,
-  .railItem[data-state="reading"]:before {
+  .railItem[data-state="caution"]:before {
     background: var(--caution);
+  }
+  /* "reading" = an active fetch is in flight. Breathing dot communicates
+   * liveness so the user knows the sidebar is the live status surface. */
+  .railItem[data-state="reading"]:before {
+    background: var(--focus);
+    animation: railPulse 1.2s ease-in-out infinite;
   }
   .railItem[data-state="danger"]:before {
     background: var(--danger);
+  }
+  @keyframes railPulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.35);
+    }
+  }
+  /* Sync rail doubles as a "force re-read" button. Button reset + a
+   * subtle hover lift makes it feel actionable without competing with
+   * the primary navigation. */
+  .railItemAction {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.15s ease;
+  }
+  .railItemAction:hover {
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .railItemAction:active {
+    background: rgba(255, 255, 255, 0.08);
   }
   .railItem span {
     text-transform: uppercase;
@@ -628,8 +664,8 @@
   }
   .toolbar {
     display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: 9px;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
     align-items: center;
     min-width: 0;
   }
