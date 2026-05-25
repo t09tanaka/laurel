@@ -227,8 +227,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       async function runUpload(file: File): Promise<void> {
         const uploader = opts.uploadImage;
         if (!uploader) return;
-        const target = currentTarget;
-        if (!target) return;
+        if (!currentTarget) return;
         const result = await uploader(file);
         if (!result.ok || !result.path) {
           // Surface upload errors via the trigger title — the
@@ -239,17 +238,14 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
           console.error('insert-menu: image upload failed', result.error);
           return;
         }
-        // The doc may have changed while the upload was in flight.
-        // Re-resolve a sensible insertion point: if the user is still
-        // sitting on the same empty paragraph, insert inline there;
-        // otherwise just append to the current selection.
-        const fresh = findEmptyParagraph(view.state);
-        const alt = opts.altFromFilename(file.name);
-        if (fresh && fresh.paraStart === target.paraStart) {
-          insertImageInline(view, schema, { src: result.path, alt });
-        } else {
-          insertImageInline(view, schema, { src: result.path, alt });
-        }
+        // Insert at the current selection. The doc may have changed
+        // while the upload was in flight (the user could have typed,
+        // moved, deleted), so we trust the live cursor instead of
+        // trying to re-anchor to the original empty paragraph.
+        insertImageInline(view, schema, {
+          src: result.path,
+          alt: opts.altFromFilename(file.name),
+        });
         view.focus();
       }
 
