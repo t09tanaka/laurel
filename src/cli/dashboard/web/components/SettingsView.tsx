@@ -338,7 +338,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       <header class="settingsPanelHead">
         <div>
           <h3>Site identity</h3>
-          <p class="meta">Inline edits write straight to [site] in nectar.toml.</p>
+          <p class="meta">Saved to the <code>[site]</code> section of nectar.toml.</p>
         </div>
         <SourcePill kind="config" label={SOURCE_KIND_LABEL.config} />
       </header>
@@ -375,8 +375,9 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
               void handleSaveSite();
             }}
             disabled={!siteSettingsDirty}
+            title={siteSettingsDirty ? 'Save site identity to nectar.toml' : 'No changes to save'}
           >
-            Save site card
+            Save changes
           </button>
         </div>
       </div>
@@ -486,8 +487,15 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             onClick={() => {
               void handleSave();
             }}
+            title={
+              !dirty
+                ? 'No changes to save'
+                : !selected
+                  ? 'Pick a theme first'
+                  : 'Save the active theme to nectar.toml'
+            }
           >
-            Save active theme
+            Save changes
           </button>
           <output id="themeSettingsNotice" class="notice">
             {notice}

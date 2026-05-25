@@ -3180,11 +3180,16 @@
     min-width: 0;
   }
   .field span {
-    font-size: 10.5px;
-    text-transform: uppercase;
+    /* Sentence-case + italic serif reads as a label without shouting
+     * (was 10.5px uppercase with letter-spacing — felt like SaaS chrome
+     * against the rest of the editorial type). #1977 */
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12.5px;
+    text-transform: none;
     color: var(--text-muted);
-    font-weight: 500;
-    letter-spacing: 0.06em;
+    font-weight: 400;
+    letter-spacing: 0;
   }
   .field input,
   .field select {
