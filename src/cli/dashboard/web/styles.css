@@ -530,15 +530,41 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* Minimal sidebar footer — theme toggle + a tiny sync pip. The verbose
-   * Sync/Build/Preview rail used to live here; the labels were unclear at
-   * a glance and the state belongs on the surface where the user acts. */
+  /* Minimal sidebar footer — Settings link (less frequent than Posts/
+   * Pages so it lives below the fold), plus a theme toggle dot and a
+   * sync pip. The verbose Sync/Build/Preview rail used to live here
+   * but the labels were unclear at a glance and the state belongs on
+   * the surface where the user acts. */
   .sideFooter {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     padding-top: 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .sideFooterSettings {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 12px;
+    border-radius: 6px;
+    color: var(--sidebar-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
+    text-decoration: none;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .sideFooterSettings:hover {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .sideFooterSettings.active {
+    color: var(--sidebar-ink);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 2px 0 0 var(--brand);
+    border-radius: 0 6px 6px 0;
+    padding-left: 14px;
   }
   .syncPip {
     width: 22px;
@@ -1529,10 +1555,25 @@
   /* Status & approval expressed via cell typography rather than chips.
    * The row's title is the canvas; weight + style + a subtle inline
    * marker carry the meaning. */
+  .contentRow[data-status="draft"] {
+    opacity: 0.55;
+  }
+  .contentRow[data-status="draft"]:hover,
+  .contentRow[data-status="draft"]:focus-within {
+    opacity: 1;
+  }
   .contentRow[data-status="draft"] .titleText {
     color: var(--text-secondary);
     font-style: italic;
     font-weight: 500;
+  }
+  .contentRow[data-status="draft"] .titleText::after {
+    content: " · draft";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--caution);
+    letter-spacing: 0;
   }
   .contentRow[data-status="scheduled"] .titleText {
     color: var(--text-primary);
@@ -1558,23 +1599,26 @@
       inset 0 0 0 0 transparent;
     background: color-mix(in srgb, var(--warning-subdued, #fff6df) 50%, transparent);
   }
-  .contentRow[data-approval="needs-approval"] .titleText::before {
-    content: "needs approval ";
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 12px;
+  /* Approval state appears as a small uppercase caption ABOVE the title —
+   * sits like a magazine label, doesn't compete with the row title. */
+  .contentRow[data-approval="needs-approval"] .titleLine::before,
+  .contentRow[data-approval="stale"] .titleLine::before {
+    display: block;
+    flex: 1 0 100%;
+    margin-bottom: 4px;
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--caution);
-    margin-right: 6px;
   }
-  .contentRow[data-approval="stale"] .titleText::before {
-    content: "stale ";
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 12px;
-    color: var(--caution);
-    margin-right: 6px;
+  .contentRow[data-approval="needs-approval"] .titleLine::before {
+    content: "Needs approval";
+  }
+  .contentRow[data-approval="stale"] .titleLine::before {
+    content: "Stale";
   }
   .titleCell {
     min-width: 0;

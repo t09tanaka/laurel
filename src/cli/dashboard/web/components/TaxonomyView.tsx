@@ -19,22 +19,29 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
   );
   return (
     <div>
-      <div class="panelHead">
-        <h2>{props.kind}</h2>
-        <span class="meta">{props.list.total} records</span>
+      <div class="panelHead listHead">
+        <div class="listHeadMeta">
+          <h2 class="listHeadTitle srOnly">{props.kind}</h2>
+          <span class="listHeadCount">
+            <span class="listHeadNumeral">{props.list.total}</span>
+            <span class="listHeadCountLabel">
+              {props.list.total === 1 ? 'record' : 'records'}
+            </span>
+          </span>
+        </div>
       </div>
       {items.length ? (
         <div class="tableWrap">
           <table class="table">
-            <thead>
+            {/* Column headers visually hidden for consistency with Posts /
+             * Pages — the row content speaks for itself. */}
+            <thead class="srOnly">
               <tr>
                 <th>Name</th>
                 <th>Posts</th>
                 <th>Source</th>
                 <th>Path</th>
-                <th>
-                  <span class="srOnly">Actions</span>
-                </th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

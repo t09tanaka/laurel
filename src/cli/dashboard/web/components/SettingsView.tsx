@@ -46,7 +46,6 @@ const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
 export function SettingsView(props: SettingsViewProps): JSX.Element {
   const settings = props.state.settings;
   const site = props.state.site;
-  const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<SettingsCardCategory>('general');
 
   const cardsByCategory = useMemo(() => groupByCategory(settings.cards), [settings.cards]);
@@ -62,22 +61,17 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
     }
   }, [cardsByCategory, categories, activeCategory]);
 
-  const trimmedSearch = searchTerm.trim().toLowerCase();
-  const searchMatches = useMemo(() => {
-    if (!trimmedSearch) return null;
-    return settings.cards.filter((card) => matchesSearch(card, trimmedSearch));
-  }, [settings.cards, trimmedSearch]);
-
-  useEffect(() => {
-    if (!searchMatches || searchMatches.length === 0) return;
-    if (!searchMatches.some((card) => card.category === activeCategory)) {
-      setActiveCategory(searchMatches[0]?.category ?? activeCategory);
-    }
-  }, [searchMatches, activeCategory]);
-
-  const visibleCards = trimmedSearch
-    ? (searchMatches ?? [])
-    : (cardsByCategory.get(activeCategory) ?? []);
+  // Drop cards whose data is already rendered by a dedicated inline
+  // panel above so the right column doesn't show the same section twice.
+  const HIDDEN_CARD_IDS_BY_CATEGORY: Partial<Record<SettingsCardCategory, ReadonlySet<string>>> = {
+    general: new Set(['site']),
+    theme: new Set(['theme']),
+  };
+  const visibleCards = (() => {
+    const base = cardsByCategory.get(activeCategory) ?? [];
+    const hidden = HIDDEN_CARD_IDS_BY_CATEGORY[activeCategory];
+    return hidden ? base.filter((card) => !hidden.has(card.id)) : base;
+  })();
   const activeCategoryDef =
     CATEGORY_DEFINITIONS.find((category) => category.id === activeCategory) ??
     CATEGORY_DEFINITIONS[0];
@@ -107,27 +101,14 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
       <div class="settingsDetail">
         <div class="panelHead settingsDetailHead">
           <div>
-            <h2>{trimmedSearch ? 'Search results' : (activeCategoryDef?.label ?? 'Settings')}</h2>
-            <span class="meta">
-              {trimmedSearch
-                ? `${visibleCards.length} match${visibleCards.length === 1 ? '' : 'es'} across all settings`
-                : (activeCategoryDef?.hint ?? settings.configPath)}
-            </span>
+            <h2>{activeCategoryDef?.label ?? 'Settings'}</h2>
+            <span class="meta">{activeCategoryDef?.hint ?? settings.configPath}</span>
           </div>
           <span class="settingsConfigPath" title="Active config">
             {settings.configPath}
           </span>
         </div>
-        <label class="field settingsSearch">
-          <span>Search settings</span>
-          <input
-            id="settingsSearch"
-            placeholder="Press / to search across all settings"
-            value={searchTerm}
-            onInput={(event) => setSearchTerm((event.currentTarget as HTMLInputElement).value)}
-          />
-        </label>
-        {!trimmedSearch && activeCategory === 'general' ? (
+        {activeCategory === 'general' ? (
           <SiteIdentityPanel
             state={props.state}
             site={site}
@@ -136,7 +117,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
             onSiteDirtyChange={props.onSiteDirtyChange}
           />
         ) : null}
-        {!trimmedSearch && activeCategory === 'theme' ? (
+        {activeCategory === 'theme' ? (
           <ThemeSwitcherPanel
             state={props.state}
             onSettingsSaved={props.onSettingsSaved}
@@ -144,7 +125,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
             onThemeDirtyChange={props.onThemeDirtyChange}
           />
         ) : null}
-        {!trimmedSearch && activeCategory === 'advanced' ? (
+        {activeCategory === 'advanced' ? (
           <MigrationEntryCard onOpen={props.onOpenMigration} />
         ) : null}
         <SettingsCardsGrid cards={visibleCards} />
@@ -445,6 +426,10 @@ function MigrationEntryCard({ onOpen }: { onOpen: () => void }): JSX.Element {
 }
 
 function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
+  // When no cards remain after hiding panel-handled ones, render nothing
+  // rather than an empty state — the dedicated panel above already
+  // covers the category.
+  if (cards.length === 0) return <div class="settingsGrid" id="settingsCards" />;
   return (
     <div class="settingsGrid" id="settingsCards">
       {cards.length === 0 ? (
@@ -518,13 +503,6 @@ function modeLabel(mode: SettingsCard['mode']): string {
     default:
       return 'card';
   }
-}
-
-function matchesSearch(card: SettingsCard, query: string): boolean {
-  const haystack = `${card.section} ${card.title} ${card.summary} ${card.source} ${card.values
-    .map((value) => `${value.label} ${value.value}`)
-    .join(' ')}`.toLowerCase();
-  return haystack.includes(query);
 }
 
 function groupByCategory(cards: SettingsCard[]): Map<SettingsCardCategory, SettingsCard[]> {

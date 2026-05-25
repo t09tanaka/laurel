@@ -65,14 +65,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           count={props.pagesTotal}
           onNavigate={() => props.onNavigate('pages')}
         />
-        <NavLink
-          href="/settings"
-          view="settings"
-          section="settings"
-          active={props.section === 'settings'}
-          label="Settings"
-          onNavigate={() => props.onNavigate('settings')}
-        />
       </nav>
       {props.recents && props.recents.length > 0 ? (
         <div class="recents" aria-label="Recently edited">
@@ -96,12 +88,20 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </ul>
         </div>
       ) : null}
-      {/* Status rail dropped — Sync/Build/Preview labels were unclear at
-       * a glance. State now surfaces via toast (force-sync) + the editor
-       * save chip; manual re-read lives in the ⌘K palette. The footer
-       * keeps just the theme toggle + a tiny sync pip for those who want
-       * an at-a-glance state indicator without a full panel. */}
+      {/* Sidebar footer — Settings link (less frequent than Posts/Pages so
+       * lives below the fold), plus a theme toggle dot and sync pip. */}
       <div class="sideFooter">
+        <a
+          href="/settings"
+          class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
+          aria-current={props.section === 'settings' ? 'page' : undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            props.onNavigate('settings');
+          }}
+        >
+          Settings
+        </a>
         <button
           type="button"
           class="themeToggle"
