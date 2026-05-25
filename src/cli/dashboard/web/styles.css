@@ -2832,13 +2832,21 @@
   }
   .siteIdentityPanel,
   .themeSwitcherPanel {
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
-    padding: 16px;
+    /* Frameless settings sections — match the Migration treatment.
+     * Each section is just typography + form fields with a hairline
+     * divider between, not a card with chrome. */
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0 0 32px;
+    border-bottom: 1px solid var(--border-weak);
     display: grid;
-    gap: 12px;
-    box-shadow: var(--elevation-1);
+    gap: 14px;
+  }
+  .settingsLayoutStacked .settingsDetail > *:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
   }
   .siteIdentityGrid {
     padding: 0;
