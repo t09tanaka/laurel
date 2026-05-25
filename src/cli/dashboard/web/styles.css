@@ -1117,16 +1117,19 @@
   }
   /* Loading affects only the table interior (via skeleton rows or shimmer
    * sweep on re-fetch), not the whole panel. Page chrome stays sharp. */
-  /* Page-change fade-in — fires whenever the panel remounts (key bound
-   * to the active view in the parent). Gives navigation a "page turn"
-   * beat instead of an abrupt swap. */
-  .panel {
-    animation: panelFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Page-change slide-in — fires whenever a page surface remounts (the
+   * panel is keyed on the active view; the editor mounts when entering a
+   * record). One horizontal slide + soft fade across every view keeps
+   * navigation feeling like a single editorial gesture rather than a
+   * patchwork of per-section animations. */
+  .panel,
+  .editor {
+    animation: pageSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  @keyframes panelFadeIn {
+  @keyframes pageSlideIn {
     from {
       opacity: 0;
-      transform: translateY(4px);
+      transform: translateX(18px);
     }
     to {
       opacity: 1;
@@ -4055,17 +4058,6 @@
     .search {
       transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, color 0.15s
         ease, box-shadow 0.15s ease;
-    }
-    .editor {
-      animation: slideIn 0.16s ease-out;
-    }
-    @keyframes slideIn {
-      from {
-        transform: translateX(18px);
-      }
-      to {
-        transform: none;
-      }
     }
   }
 
