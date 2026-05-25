@@ -488,6 +488,9 @@ export function DashboardApp(): JSX.Element {
 
   return (
     <div class="shell">
+      <a class="skipToMain" href="#main">
+        Skip to main content
+      </a>
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
