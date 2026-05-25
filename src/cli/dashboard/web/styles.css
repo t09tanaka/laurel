@@ -1811,7 +1811,7 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 6px;
+    gap: 20px;
     flex-wrap: nowrap;
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -2319,24 +2319,28 @@
   }
   .taxonomyDisplayName {
     font-family: var(--font-serif);
-    font-size: clamp(40px, 5vw, 64px);
-    font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 1.05;
+    font-size: clamp(28px, 3vw, 36px);
+    font-weight: 500;
+    letter-spacing: -0.012em;
+    line-height: 1.2;
     color: var(--text-primary);
     background: transparent;
     border: 0;
-    padding: 0;
+    border-bottom: 1px solid var(--border-default);
+    padding: 4px 0 8px;
     margin: 0;
     width: 100%;
     outline: none;
-    transition: opacity 0.18s ease;
+    transition: border-color 0.16s ease;
+  }
+  .taxonomyDisplayName:hover {
+    border-bottom-color: var(--text-muted);
   }
   .taxonomyDisplayName:focus {
-    opacity: 0.92;
+    border-bottom-color: var(--text-primary);
   }
   .taxonomyDisplayName::placeholder {
-    color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
     font-style: italic;
   }
   .taxonomySlugRow {
@@ -2530,10 +2534,10 @@
     /* Pin the metadata column to the right edge of the viewport so
      * it stays available no matter how the editor scrolls. */
     position: fixed;
-    top: 84px;
+    top: 110px;
     right: 24px;
     width: 280px;
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 126px);
     /* No visible scrollbar — sidebar still scrolls if content exceeds
      * the viewport (rare), but the chrome is hidden. */
     overflow-y: auto;
@@ -2541,8 +2545,11 @@
     display: grid;
     gap: 0;
     min-width: 0;
-    padding: 4px 4px 4px 0;
+    padding: 12px 4px 4px 0;
     z-index: 5;
+  }
+  .editorMeta > .editorMetaSection:first-child {
+    padding-top: 4px;
   }
   .editorMeta::-webkit-scrollbar {
     display: none;

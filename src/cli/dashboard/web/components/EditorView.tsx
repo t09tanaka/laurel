@@ -11,7 +11,6 @@ import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
 } from '../lib/editor-snapshot.ts';
-import { fingerprintToken } from '../lib/format.ts';
 import {
   appendRevision,
   clearDraftsForPath,
@@ -405,9 +404,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
         </button>
         <div class="editorMetaRow" id="editorMeta">
           <span id="editorTitle" class="srOnly">
-            {current.path}
-          </span>
-          <span title={`fingerprint ${fingerprintToken(current.fingerprint)}`}>
             {current.path}
           </span>
         </div>

@@ -127,9 +127,7 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
             {isAuthor ? 'Authors' : 'Tags'}
           </span>
         </button>
-        <span class="editorPath" title={current.path}>
-          {current.path}
-        </span>
+        <div class="editorPathPlaceholder" />
         <div class="editorTopActions">
           <button
             class="btn"
