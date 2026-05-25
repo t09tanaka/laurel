@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'preact/hooks';
 interface ToolbarProps {
   query: string;
   showNew: boolean;
+  showFilter: boolean;
   onSearch: (value: string) => void;
   onNew: () => void;
   onOpenCmdk: () => void;
@@ -33,25 +34,29 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
 
   return (
     <div class="toolbar" aria-label="Dashboard tools">
-      <label class="srOnly" for="search">
-        Filter current view
-      </label>
-      <div class="searchWrap">
-        <input
-          class="search"
-          id="search"
-          ref={searchRef}
-          placeholder="Filter"
-          value={props.query}
-          onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && props.query) {
-              event.preventDefault();
-              props.onSearch('');
-            }
-          }}
-        />
-      </div>
+      {props.showFilter ? (
+        <>
+          <label class="srOnly" for="search">
+            Filter current view
+          </label>
+          <div class="searchWrap">
+            <input
+              class="search"
+              id="search"
+              ref={searchRef}
+              placeholder="Filter"
+              value={props.query}
+              onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && props.query) {
+                  event.preventDefault();
+                  props.onSearch('');
+                }
+              }}
+            />
+          </div>
+        </>
+      ) : null}
       <button
         type="button"
         class="cmdkTrigger"

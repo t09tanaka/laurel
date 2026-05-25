@@ -374,6 +374,13 @@ export function DashboardApp(): JSX.Element {
       : CREATE_HEAD
     : viewHeadFor(ui.view);
   const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
+  // Filter input only makes sense when there's actually a list to filter.
+  // Editors, the create form, settings, and migration have no view-scoped
+  // search target, so hide the input there.
+  const showFilterInput =
+    !createMode &&
+    !editor &&
+    (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags');
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
   // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
@@ -515,6 +522,7 @@ export function DashboardApp(): JSX.Element {
               <Toolbar
                 query={ui.query}
                 showNew={showNewButton}
+                showFilter={showFilterInput}
                 onSearch={handleSearch}
                 onNew={handleNew}
                 onOpenCmdk={() => setCmdkOpen(true)}
@@ -561,7 +569,7 @@ export function DashboardApp(): JSX.Element {
               <ContentTable
                 kind={ui.view}
                 list={ui.view === 'posts' ? state.posts : state.pages}
-                resultCount={state.settings.operations.search.resultCount}
+                resultCount={(ui.view === 'posts' ? state.posts : state.pages).total}
                 statusFilter={ui.statusFilter}
                 onStatusFilterChange={(value) =>
                   dispatch({ type: 'status/set', statusFilter: value })
