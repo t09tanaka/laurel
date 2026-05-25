@@ -115,7 +115,15 @@ export interface ThemeOption {
 }
 
 export interface DashboardState {
-  site: { title: string; description: string; url: string; accentColor: string };
+  site: {
+    title: string;
+    description: string;
+    url: string;
+    accentColor: string;
+    codeinjectionHead: string;
+    codeinjectionFoot: string;
+    allowCodeInjection: boolean;
+  };
   posts: DashboardList<ContentSummary>;
   pages: DashboardList<ContentSummary>;
   authors: DashboardList<TaxonomySummary>;

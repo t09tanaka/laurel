@@ -4073,6 +4073,66 @@
   .field.wide {
     grid-column: 1 / -1;
   }
+  .codeInjectionTextarea {
+    min-height: 160px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    letter-spacing: 0;
+    box-shadow: var(--elevation-1);
+    resize: vertical;
+  }
+  .codeInjectionTextarea:focus {
+    border-color: var(--text-primary);
+    outline: none;
+  }
+  .codeInjectionGate {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  /* Reset the .field input form styling (38px min-height, padding, border,
+   * box-shadow) so a 16px checkbox doesn't render as a fat 38px-tall box
+   * with shadow chrome around it. `appearance: auto` keeps the native
+   * checkbox glyph instead of inheriting some platform tweak. */
+  .codeInjectionGate input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-height: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    appearance: auto;
+    flex: 0 0 auto;
+  }
+  /* Restore the global :focus-visible outline that .field input:focus
+   * (line ~3974) clears with `outline: none`. Without this rule keyboard
+   * users tabbing onto the gate get no visible focus ring. */
+  .codeInjectionGate input[type="checkbox"]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--focus) 70%, transparent);
+    outline-offset: 2px;
+  }
+  .codeInjectionGate > span {
+    /* Override .field span's italic-serif label styling — the gate sits
+     * inline with its checkbox so the eyebrow look would read as broken. */
+    font-style: normal;
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+  .codeInjectionGateNote {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
   #saveSettings {
     justify-self: start;
   }

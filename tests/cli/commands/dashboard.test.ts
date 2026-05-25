@@ -1086,6 +1086,210 @@ describe('dashboard data', () => {
     }
   });
 
+  test('saves site code injection without touching the gate when allow_code_injection is omitted', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const before = await readDashboardSettings({ cwd: dir });
+      expect(before.site.codeinjectionHead).toBe('');
+      expect(before.site.codeinjectionFoot).toBe('');
+      expect(before.site.allowCodeInjection).toBe(false);
+
+      const headHtml =
+        '<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>';
+      const footHtml = '<script>console.log("foot")</script>';
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: {
+          codeinjection_head: headHtml,
+          codeinjection_foot: footHtml,
+        },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('codeinjection_head =');
+      expect(raw).toContain('codeinjection_foot =');
+      // No [build] section auto-inserted when allow_code_injection isn't in
+      // the payload. The dashboard UI sends the boolean explicitly via its
+      // own checkbox — this codepath models a partial-payload caller.
+      expect(raw).not.toContain('[build]');
+      // Existing [site] keys must still be present (regression check for
+      // updateTomlSection refactor).
+      expect(raw).toContain('title = "Dashboard Test"');
+
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.codeinjectionHead).toBe(headHtml);
+      expect(after.site.codeinjectionFoot).toBe(footHtml);
+      expect(after.site.allowCodeInjection).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('explicit allow_code_injection=true flips the gate atomically with head/foot', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const before = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: {
+          codeinjection_head: '<script>ga()</script>',
+          allow_code_injection: true,
+        },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('codeinjection_head = "<script>ga()</script>"');
+      expect(raw).toContain('[build]');
+      expect(raw).toContain('allow_code_injection = true');
+
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.allowCodeInjection).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('explicit allow_code_injection=false flips the gate back off', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      // Seed: head present, gate on.
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        [
+          '[site]',
+          'title = "Dashboard Test"',
+          'url = "https://dashboard.test"',
+          'codeinjection_head = "<script>old()</script>"',
+          '',
+          '[build]',
+          'allow_code_injection = true',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const before = await readDashboardSettings({ cwd: dir });
+      expect(before.site.allowCodeInjection).toBe(true);
+
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { allow_code_injection: false },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('allow_code_injection = false');
+      // Empty head/foot in payload (omitted) → existing values untouched.
+      expect(raw).toContain('codeinjection_head = "<script>old()</script>"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('round-trips multi-line code injection with quotes and backslashes', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const multiline = [
+        '<script>',
+        '  (function() {',
+        '    var key = "G-XXXX\\nnewline";',
+        '    console.log(`hello\\tworld`);',
+        '  })();',
+        '</script>',
+      ].join('\n');
+
+      const before = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { codeinjection_head: multiline, allow_code_injection: true },
+      });
+      expect(written.ok).toBe(true);
+
+      const after = await readDashboardSettings({ cwd: dir });
+      // The dashboard reads through the TOML parser, so any escape
+      // round-trip mistake (basic-string \n re-escape, backslash collapse,
+      // double-quote handling) would surface as a mismatch here.
+      expect(after.site.codeinjectionHead).toBe(multiline);
+      expect(after.site.allowCodeInjection).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects non-boolean allow_code_injection via the PATCH route', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const settings = await readDashboardSettings({ cwd: dir });
+      const changeBus = createChangeBus();
+      const request = new Request('http://127.0.0.1/api/settings/site', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://127.0.0.1',
+          'x-nectar-dashboard-token': 'test-token',
+        },
+        body: JSON.stringify({
+          fingerprint: settings.fingerprint,
+          updates: { allow_code_injection: 'true' },
+        }),
+      });
+      const response = await handleDashboardRequest(request, {
+        cwd: dir,
+        changeBus,
+        security: { token: 'test-token', origin: 'http://127.0.0.1', lanExposed: false },
+        maxBodyBytes: 1024 * 1024,
+      });
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; field: string; expected: string };
+      expect(body.field).toBe('allow_code_injection');
+      expect(body.expected).toBe('boolean');
+
+      // Gate must not have been touched — otherwise the silent-no-op path
+      // would have written something.
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.allowCodeInjection).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects unknown site settings fields via the PATCH route', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const settings = await readDashboardSettings({ cwd: dir });
+      const changeBus = createChangeBus();
+      const request = new Request('http://127.0.0.1/api/settings/site', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://127.0.0.1',
+          'x-nectar-dashboard-token': 'test-token',
+        },
+        body: JSON.stringify({
+          fingerprint: settings.fingerprint,
+          updates: { codeinjection_head: '<script>ok()</script>', not_a_field: 'x' },
+        }),
+      });
+      const response = await handleDashboardRequest(request, {
+        cwd: dir,
+        changeBus,
+        security: { token: 'test-token', origin: 'http://127.0.0.1', lanExposed: false },
+        maxBodyBytes: 1024 * 1024,
+      });
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; fields: string[] };
+      expect(body.fields).toContain('not_a_field');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('keeps settings readable when theme.dir is not a directory', async () => {
     const dir = await makeDashboardFixture();
     try {
