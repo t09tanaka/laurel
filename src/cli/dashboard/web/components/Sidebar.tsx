@@ -96,23 +96,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </ul>
         </div>
       ) : null}
-      <div class="statusRail" aria-label="File-backed status">
-        <RailItem
-          id="syncRail"
-          label="Sync"
-          value={props.syncLabel}
-          state={props.syncState}
-          live
-          onClick={props.onForceSync}
-          actionHint="Click to re-read disk"
-        />
-        <RailItem id="buildRail" label="Build" value={props.buildLabel} state={props.buildState} />
-        <RailItem
-          id="previewRail"
-          label="Preview"
-          value={props.previewLabel}
-          state={props.previewState}
-        />
+      {/* Status rail dropped — Sync/Build/Preview labels were unclear at
+       * a glance. State now surfaces via toast (force-sync) + the editor
+       * save chip; manual re-read lives in the ⌘K palette. The footer
+       * keeps just the theme toggle + a tiny sync pip for those who want
+       * an at-a-glance state indicator without a full panel. */}
+      <div class="sideFooter">
         <button
           type="button"
           class="themeToggle"
@@ -122,7 +111,17 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           onClick={props.onCycleTheme}
         >
           <span class="themeMark" aria-hidden="true" />
-          <span>{THEME_LABEL[props.theme]}</span>
+        </button>
+        <button
+          type="button"
+          id="syncRail"
+          class="syncPip"
+          data-state={props.syncState}
+          onClick={props.onForceSync}
+          title={`Sync · ${props.syncLabel} · click to re-read`}
+          aria-label={`Sync state: ${props.syncLabel}. Click to re-read from disk.`}
+        >
+          <span class="syncPipMark" aria-hidden="true" />
         </button>
       </div>
     </aside>

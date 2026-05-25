@@ -476,16 +476,14 @@ function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
                 {card.source}
               </code>
             </div>
-            <table class="table">
-              <tbody>
-                {card.values.map((value) => (
-                  <tr key={value.label}>
-                    <th>{value.label}</th>
-                    <td>{value.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <dl class="settingsKv">
+              {card.values.map((value) => (
+                <div key={value.label} class="settingsKvRow">
+                  <dt>{value.label}</dt>
+                  <dd>{value.value}</dd>
+                </div>
+              ))}
+            </dl>
             {card.command ? <div class="meta">{card.command}</div> : null}
           </article>
         ))
