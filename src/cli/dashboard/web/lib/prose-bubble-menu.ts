@@ -14,9 +14,9 @@
 //    window.prompt().
 
 import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
-import { type Mark, type MarkType, type NodeType, type ResolvedPos, type Schema } from 'prosemirror-model';
+import type { Mark, MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { wrapInList } from 'prosemirror-schema-list';
-import { Plugin, type EditorState } from 'prosemirror-state';
+import { type EditorState, Plugin } from 'prosemirror-state';
 import {
   addColumnAfter,
   addRowAfter,
@@ -24,7 +24,7 @@ import {
   deleteRow,
   deleteTable,
 } from 'prosemirror-tables';
-import { type EditorView } from 'prosemirror-view';
+import type { EditorView } from 'prosemirror-view';
 
 // True iff the selection sits anywhere inside a table_cell or
 // table_header. Used to gate the contextual table-action buttons
@@ -107,10 +107,7 @@ function isMarkActive(state: EditorState, type: MarkType): boolean {
   return state.doc.rangeHasMark(from, to, type);
 }
 
-function markRangeAround(
-  $pos: ResolvedPos,
-  mark: Mark,
-): { from: number; to: number } | null {
+function markRangeAround($pos: ResolvedPos, mark: Mark): { from: number; to: number } | null {
   const parent = $pos.parent;
   const parentStart = $pos.start();
   // Locate the child that contains the cursor offset.
@@ -159,10 +156,7 @@ function anyMarksHere(state: EditorState): boolean {
   return false;
 }
 
-function rangeForMark(
-  state: EditorState,
-  type: MarkType,
-): { from: number; to: number } | null {
+function rangeForMark(state: EditorState, type: MarkType): { from: number; to: number } | null {
   const { selection } = state;
   if (!selection.empty) return { from: selection.from, to: selection.to };
   const $from = selection.$from;
@@ -394,7 +388,12 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         { label: 'B', title: 'Bold (⌘B) — click again to clear', mark: 'strong', scope: 'always' },
         { label: 'I', title: 'Italic (⌘I) — click again to clear', mark: 'em', scope: 'always' },
         { label: 'S', title: 'Strikethrough (⌘⇧S)', mark: 'strikethrough', scope: 'always' },
-        { label: '<>', title: 'Inline code (⌘`) — click again to clear', mark: 'code', scope: 'always' },
+        {
+          label: '<>',
+          title: 'Inline code (⌘`) — click again to clear',
+          mark: 'code',
+          scope: 'always',
+        },
         {
           label: 'Link',
           title: 'Toggle / edit link',
@@ -581,12 +580,7 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
           const b = buttons[i];
           const btn = btns[i];
           if (!b || !btn) continue;
-          const visible =
-            b.scope === 'range'
-              ? hasRange
-              : b.scope === 'table'
-                ? inTable
-                : true;
+          const visible = b.scope === 'range' ? hasRange : b.scope === 'table' ? inTable : true;
           btn.hidden = !visible;
           if (!visible) {
             btn.dataset.active = 'false';

@@ -3,8 +3,7 @@ node_modules/
 .pnpm-store/
 
 # Build artifacts
-dist/*
-!dist/dashboard-bundle/
+dist/
 dist-bin/
 dist-sbom/
 example/dist/

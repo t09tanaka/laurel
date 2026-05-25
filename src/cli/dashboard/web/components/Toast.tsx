@@ -64,7 +64,7 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
   const api = useMemo<ToastApi>(() => ({ push, dismiss }), [push, dismiss]);
 
   const node = (
-    <div class="toastHost" role="region" aria-label="Notifications">
+    <section class="toastHost" aria-label="Notifications">
       {items.map((item) => (
         <div
           key={item.id}
@@ -85,7 +85,7 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
           </button>
         </div>
       ))}
-    </div>
+    </section>
   );
 
   return { api, node };

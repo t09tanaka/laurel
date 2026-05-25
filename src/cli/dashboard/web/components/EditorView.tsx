@@ -6,8 +6,6 @@ import {
   reduceEditorFocus,
 } from '../../editor-focus.ts';
 import { approvePage, renameContentSlug, saveContent } from '../lib/api.ts';
-import { FeatureImageField } from './FeatureImageField.tsx';
-import { ProseEditor } from './ProseEditor.tsx';
 import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
@@ -25,6 +23,8 @@ import type {
   EditorSnapshot,
   RevisionPayload,
 } from '../types.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
+import { ProseEditor } from './ProseEditor.tsx';
 
 interface EditorViewProps {
   current: DashboardContentItem;
@@ -409,24 +409,24 @@ export function EditorView(props: EditorViewProps): JSX.Element {
               }}
             />
           </div>
-        <div class="bodyWrap proseWrap">
-          {isContent ? (
-            <ProseEditor
-              key={`${current.path}@${current.fingerprint.mtimeMs}`}
-              resetKey={`${current.path}@${current.fingerprint.mtimeMs}`}
-              initialMarkdown={baseline.body}
-              onChange={(markdown) => patchSnapshot({ body: markdown })}
-            />
-          ) : null}
-          <span class="saveHairline" data-state={saveState} aria-hidden="true" />
-        </div>
-        <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
-          {warnings.join(' ')}
-        </output>
-        {/* Metadata details panel removed per user note — the sidebar
-         * already exposes status + feature image (+ alt). Markdown tools
-         * are duplicated by the body toolbar; recovery actions remain
-         * accessible via browser autosave + the conflict path. */}
+          <div class="bodyWrap proseWrap">
+            {isContent ? (
+              <ProseEditor
+                key={`${current.path}@${current.fingerprint.mtimeMs}`}
+                resetKey={`${current.path}@${current.fingerprint.mtimeMs}`}
+                initialMarkdown={baseline.body}
+                onChange={(markdown) => patchSnapshot({ body: markdown })}
+              />
+            ) : null}
+            <span class="saveHairline" data-state={saveState} aria-hidden="true" />
+          </div>
+          <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
+            {warnings.join(' ')}
+          </output>
+          {/* Metadata details panel removed per user note — the sidebar
+           * already exposes status + feature image (+ alt). Markdown tools
+           * are duplicated by the body toolbar; recovery actions remain
+           * accessible via browser autosave + the conflict path. */}
         </div>
         <aside
           class="editorMeta"
@@ -438,280 +438,278 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 : 'Post metadata'
           }
         >
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Slug (filename)</div>
-              <input
-                class="editorMetaInput editorMetaSlugInput"
-                type="text"
-                value={slugDraft}
-                onInput={(event) =>
-                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
+          <div class="editorMetaSection">
+            <div class="editorMetaLabel">Slug (filename)</div>
+            <input
+              class="editorMetaInput editorMetaSlugInput"
+              type="text"
+              value={slugDraft}
+              onInput={(event) => setSlugDraft((event.currentTarget as HTMLInputElement).value)}
+              onBlur={() => {
+                void commitSlugRename();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  (event.currentTarget as HTMLInputElement).blur();
                 }
-                onBlur={() => {
-                  void commitSlugRename();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    (event.currentTarget as HTMLInputElement).blur();
-                  }
-                }}
-                spellcheck={false}
-              />
+              }}
+              spellcheck={false}
+            />
+          </div>
+          {isContent ? (
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Status</div>
+              <select
+                class="statusPill editorMetaStatus"
+                id="editStatus"
+                value={snapshot.status}
+                onChange={(event) =>
+                  patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                }
+              >
+                <option>published</option>
+                <option>draft</option>
+              </select>
             </div>
-            {isContent ? (
+          ) : null}
+          <div class="editorMetaSection">
+            <div class="editorMetaLabel">
+              {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+            </div>
+            <FeatureImageField
+              value={snapshot.featureImage}
+              alt={snapshot.featureImageAlt}
+              showAlt
+              onChange={({ value, alt }) =>
+                patchSnapshot({
+                  featureImage: value,
+                  featureImageAlt: alt ?? snapshot.featureImageAlt,
+                  ...(value ? {} : { featureImageCaption: '' }),
+                })
+              }
+              onStatus={setNotice}
+            />
+          </div>
+          {current.kind === 'authors' ? (
+            <>
               <div class="editorMetaSection">
-                <div class="editorMetaLabel">Status</div>
-                <select
-                  class="statusPill editorMetaStatus"
-                  id="editStatus"
-                  value={snapshot.status}
-                  onChange={(event) =>
-                    patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                <div class="editorMetaLabel">Bio</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={4}
+                  placeholder="Short author bio shown on author pages"
+                  value={snapshot.bio}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      bio: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
                   }
-                >
-                  <option>published</option>
-                  <option>draft</option>
-                </select>
+                />
               </div>
-            ) : null}
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">
-                {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Website</div>
+                <input
+                  class="editorMetaInput"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={snapshot.website}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      website: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
               </div>
-              <FeatureImageField
-                value={snapshot.featureImage}
-                alt={snapshot.featureImageAlt}
-                showAlt
-                onChange={({ value, alt }) =>
-                  patchSnapshot({
-                    featureImage: value,
-                    featureImageAlt: alt ?? snapshot.featureImageAlt,
-                    ...(value ? {} : { featureImageCaption: '' }),
-                  })
-                }
-                onStatus={setNotice}
-              />
-            </div>
-            {current.kind === 'authors' ? (
-              <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Location</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="City, country"
+                  value={snapshot.location}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      location: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          {current.kind === 'tags' ? (
+            <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Description</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={3}
+                  placeholder="Short tag description shown on tag pages"
+                  value={snapshot.description}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      description: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
+                  }
+                />
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Accent color</div>
+                <input
+                  class="editorMetaInput editorMetaColor"
+                  type="color"
+                  value={snapshot.accentColor || '#888888'}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      accentColor: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          {isContent ? (
+            <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Description</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={3}
+                  placeholder="One-line summary for feeds and search results"
+                  value={snapshot.excerpt}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      excerpt: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
+                  }
+                />
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Tags</div>
+                {(() => {
+                  const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
+                  return (
+                    <>
+                      <input
+                        class="editorMetaInput"
+                        type="text"
+                        list="editorTagOptions"
+                        placeholder="comma, separated · existing tags suggest"
+                        value={snapshot.tags}
+                        onInput={(event) =>
+                          patchSnapshot({
+                            tags: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                      />
+                      <datalist id="editorTagOptions">
+                        {existing.map((slug: string) => (
+                          <option key={slug} value={slug} />
+                        ))}
+                      </datalist>
+                    </>
+                  );
+                })()}
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Author</div>
+                {(() => {
+                  const selected = snapshot.authors
+                    .split(/[,\n]/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const fromState =
+                    state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
+                  const options = Array.from(new Set([...fromState, ...selected])).sort();
+                  if (options.length === 0) {
+                    return (
+                      <div class="editorMetaEmpty">
+                        No authors yet. Add one in <code>content/authors/</code>.
+                      </div>
+                    );
+                  }
+                  const currentValue = selected[0] ?? '';
+                  return (
+                    <select
+                      class="editorMetaInput"
+                      value={currentValue}
+                      onChange={(event) => {
+                        const next = (event.currentTarget as HTMLSelectElement).value;
+                        patchSnapshot({ authors: next });
+                      }}
+                    >
+                      {currentValue === '' ? <option value="">(none)</option> : null}
+                      {options.map((slug) => (
+                        <option key={slug} value={slug}>
+                          {slug}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Published</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="2026-01-02 or 2026-01-02T03:04:05Z"
+                  value={snapshot.publishedAt}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      publishedAt: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+              <details class="editorMetaAdvanced">
+                <summary>SEO overrides</summary>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Bio</div>
-                  <textarea
-                    class="editorMetaInput editorMetaTextarea"
-                    rows={4}
-                    placeholder="Short author bio shown on author pages"
-                    value={snapshot.bio}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        bio: (event.currentTarget as HTMLTextAreaElement).value,
-                      })
-                    }
-                  />
-                </div>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Website</div>
-                  <input
-                    class="editorMetaInput"
-                    type="url"
-                    placeholder="https://example.com"
-                    value={snapshot.website}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        website: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </div>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Location</div>
+                  <div class="editorMetaLabel">Meta title</div>
                   <input
                     class="editorMetaInput"
                     type="text"
-                    placeholder="City, country"
-                    value={snapshot.location}
+                    placeholder="Title shown in search results"
+                    value={snapshot.metaTitle}
                     onInput={(event) =>
                       patchSnapshot({
-                        location: (event.currentTarget as HTMLInputElement).value,
+                        metaTitle: (event.currentTarget as HTMLInputElement).value,
                       })
                     }
                   />
                 </div>
-              </>
-            ) : null}
-            {current.kind === 'tags' ? (
-              <>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Description</div>
+                  <div class="editorMetaLabel">Meta description</div>
                   <textarea
                     class="editorMetaInput editorMetaTextarea"
-                    rows={3}
-                    placeholder="Short tag description shown on tag pages"
-                    value={snapshot.description}
+                    rows={2}
+                    placeholder="Override for og:description / search snippet"
+                    value={snapshot.metaDescription}
                     onInput={(event) =>
                       patchSnapshot({
-                        description: (event.currentTarget as HTMLTextAreaElement).value,
+                        metaDescription: (event.currentTarget as HTMLTextAreaElement).value,
                       })
                     }
                   />
                 </div>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Accent color</div>
+                  <div class="editorMetaLabel">Canonical URL</div>
                   <input
-                    class="editorMetaInput editorMetaColor"
-                    type="color"
-                    value={snapshot.accentColor || '#888888'}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        accentColor: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </div>
-              </>
-            ) : null}
-            {isContent ? (
-              <>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Description</div>
-                  <textarea
-                    class="editorMetaInput editorMetaTextarea"
-                    rows={3}
-                    placeholder="One-line summary for feeds and search results"
-                    value={snapshot.excerpt}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        excerpt: (event.currentTarget as HTMLTextAreaElement).value,
-                      })
-                    }
-                  />
-                </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Tags</div>
-              {(() => {
-                const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
-                return (
-                  <>
-                    <input
-                      class="editorMetaInput"
-                      type="text"
-                      list="editorTagOptions"
-                      placeholder="comma, separated · existing tags suggest"
-                      value={snapshot.tags}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          tags: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                    <datalist id="editorTagOptions">
-                      {existing.map((slug: string) => (
-                        <option key={slug} value={slug} />
-                      ))}
-                    </datalist>
-                  </>
-                );
-              })()}
-            </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Author</div>
-              {(() => {
-                const selected = snapshot.authors
-                  .split(/[,\n]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                const fromState =
-                  state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
-                const options = Array.from(new Set([...fromState, ...selected])).sort();
-                if (options.length === 0) {
-                  return (
-                    <div class="editorMetaEmpty">
-                      No authors yet. Add one in <code>content/authors/</code>.
-                    </div>
-                  );
-                }
-                const currentValue = selected[0] ?? '';
-                return (
-                  <select
                     class="editorMetaInput"
-                    value={currentValue}
-                    onChange={(event) => {
-                      const next = (event.currentTarget as HTMLSelectElement).value;
-                      patchSnapshot({ authors: next });
-                    }}
-                  >
-                    {currentValue === '' ? <option value="">(none)</option> : null}
-                    {options.map((slug) => (
-                      <option key={slug} value={slug}>
-                        {slug}
-                      </option>
-                    ))}
-                  </select>
-                );
-              })()}
-            </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Published</div>
-              <input
-                class="editorMetaInput"
-                type="text"
-                placeholder="2026-01-02 or 2026-01-02T03:04:05Z"
-                value={snapshot.publishedAt}
-                onInput={(event) =>
-                  patchSnapshot({
-                    publishedAt: (event.currentTarget as HTMLInputElement).value,
-                  })
-                }
-              />
-            </div>
-            <details class="editorMetaAdvanced">
-              <summary>SEO overrides</summary>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Meta title</div>
-                <input
-                  class="editorMetaInput"
-                  type="text"
-                  placeholder="Title shown in search results"
-                  value={snapshot.metaTitle}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      metaTitle: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                />
-              </div>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Meta description</div>
-                <textarea
-                  class="editorMetaInput editorMetaTextarea"
-                  rows={2}
-                  placeholder="Override for og:description / search snippet"
-                  value={snapshot.metaDescription}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      metaDescription: (event.currentTarget as HTMLTextAreaElement).value,
-                    })
-                  }
-                />
-              </div>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Canonical URL</div>
-                <input
-                  class="editorMetaInput"
-                  type="text"
-                  placeholder="https://example.com/canonical"
-                  value={snapshot.canonicalUrl}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      canonicalUrl: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                />
-              </div>
-            </details>
-              </>
-            ) : null}
-          </aside>
+                    type="text"
+                    placeholder="https://example.com/canonical"
+                    value={snapshot.canonicalUrl}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        canonicalUrl: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+            </>
+          ) : null}
+        </aside>
       </div>
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header
@@ -763,4 +761,3 @@ function computeWarnings(body: string): string[] {
     warnings.push('HTML image is missing an alt attribute.');
   return warnings;
 }
-

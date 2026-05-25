@@ -2,7 +2,13 @@
 // > quote, * bullet, 1. ordered) turn into proper nodes as the
 // author types — the same affordance Ghost Koenig provides.
 
-import { InputRule, inputRules, smartQuotes, textblockTypeInputRule, wrappingInputRule } from 'prosemirror-inputrules';
+import {
+  InputRule,
+  inputRules,
+  smartQuotes,
+  textblockTypeInputRule,
+  wrappingInputRule,
+} from 'prosemirror-inputrules';
 import type { Schema } from 'prosemirror-model';
 
 function blockQuoteRule(nodeType: Schema['nodes'][string]) {
@@ -27,11 +33,9 @@ function codeBlockRule(nodeType: Schema['nodes'][string]) {
 }
 
 function headingRule(nodeType: Schema['nodes'][string], maxLevel: number) {
-  return textblockTypeInputRule(
-    new RegExp(`^(#{1,${maxLevel}})\\s$`),
-    nodeType,
-    (match) => ({ level: (match[1] ?? '').length }),
-  );
+  return textblockTypeInputRule(new RegExp(`^(#{1,${maxLevel}})\\s$`), nodeType, (match) => ({
+    level: (match[1] ?? '').length,
+  }));
 }
 
 function horizontalRuleInput(nodeType: Schema['nodes'][string]) {

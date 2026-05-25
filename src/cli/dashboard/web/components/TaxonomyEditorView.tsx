@@ -12,10 +12,7 @@ interface TaxonomyEditorViewProps {
   current: DashboardContentItem;
   onCloseEditor: () => void;
   onSaved: () => Promise<void> | void;
-  onRenamed?: (
-    kind: DashboardContentItem['kind'],
-    newSlug: string,
-  ) => Promise<void> | void;
+  onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
 }
@@ -29,10 +26,7 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   const isAuthor = current.kind === 'authors';
   const kindLabel = isAuthor ? 'Author' : 'Tag';
 
-  const baseline = useMemo(
-    () => snapshotFromItemFor(current.kind, current),
-    [current],
-  );
+  const baseline = useMemo(() => snapshotFromItemFor(current.kind, current), [current]);
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);
   const [slugDraft, setSlugDraft] = useState(current.slug);
   const [busy, setBusy] = useState(false);
@@ -52,8 +46,7 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   const saveActionRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const isCmdS =
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
+      const isCmdS = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
       if (!isCmdS) return;
       event.preventDefault();
       void saveActionRef.current();
@@ -145,9 +138,7 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
           <span class="editorBackArrow" aria-hidden="true">
             ←
           </span>
-          <span class="editorBackLabel">
-            {isAuthor ? 'Authors' : 'Tags'}
-          </span>
+          <span class="editorBackLabel">{isAuthor ? 'Authors' : 'Tags'}</span>
         </button>
         <div class="editorPathPlaceholder" />
         <div class="editorTopActions">
@@ -188,9 +179,7 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
                   type="text"
                   value={slugDraft}
                   spellcheck={false}
-                  onInput={(event) =>
-                    setSlugDraft((event.currentTarget as HTMLInputElement).value)
-                  }
+                  onInput={(event) => setSlugDraft((event.currentTarget as HTMLInputElement).value)}
                   onBlur={() => {
                     void commitRename();
                   }}

@@ -236,12 +236,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
       <td class="actionsCell">
         <div class="rowActions">
           {item.preview?.openUrl ? (
-            <a
-              class="textLink"
-              href={item.preview.openUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a class="textLink" href={item.preview.openUrl} target="_blank" rel="noreferrer">
               Preview
             </a>
           ) : null}

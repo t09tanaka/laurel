@@ -285,8 +285,8 @@ describe('packaging', () => {
 
       expect(body).toContain('publish-docker:');
       expect(body).toContain('packages: write');
-      expect(body).toContain('uses: docker/setup-qemu-action@v3');
-      expect(body).toContain('uses: docker/setup-buildx-action@v3');
+      expect(body).toContain('uses: docker/setup-qemu-action@v4');
+      expect(body).toContain('uses: docker/setup-buildx-action@v4');
       expect(body).toContain('registry: ghcr.io');
       expect(body).toContain('DOCKERHUB_USERNAME');
       expect(body).toContain('DOCKERHUB_TOKEN');

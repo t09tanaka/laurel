@@ -17,7 +17,6 @@ import { keymap } from 'prosemirror-keymap';
 import {
   MarkdownParser,
   MarkdownSerializer,
-  MarkdownSerializerState,
   defaultMarkdownParser,
   defaultMarkdownSerializer,
 } from 'prosemirror-markdown';
@@ -103,12 +102,20 @@ export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer,
 const baseSerializer = defaultMarkdownSerializer;
 
 function serializeCell(cell: import('prosemirror-model').Node): string {
-  // Cells hold inline content directly. `MarkdownSerializer.serialize`
-  // delegates to `renderContent`, which doesn't apply marks — we need
-  // `renderInline` so emphasis / code / link marks survive the trip.
-  const state = new MarkdownSerializerState(baseSerializer.nodes, baseSerializer.marks, {});
-  state.renderInline(cell);
-  const inner = state.out.replace(/\n+/g, ' ').trim();
+  // Cells contain `block+` (usually a single paragraph). For a pipe-table
+  // cell we want each paragraph's inline content flattened onto one line.
+  // We do that via a one-off serializer whose `paragraph` rule just calls
+  // `renderInline` instead of emitting block-level delimiters — that way
+  // marks (em / strong / code / link / strikethrough) survive the trip
+  // without us reaching into MarkdownSerializerState's private surface.
+  const cellSerializer = new MarkdownSerializer(
+    {
+      ...baseSerializer.nodes,
+      paragraph: (state, node) => state.renderInline(node),
+    },
+    baseSerializer.marks,
+  );
+  const inner = cellSerializer.serialize(cell).replace(/\n+/g, ' ').trim();
   return inner.length === 0 ? ' ' : inner.replace(/\|/g, '\\|');
 }
 
@@ -117,13 +124,14 @@ export const markdownSerializer = new MarkdownSerializer(
     ...baseSerializer.nodes,
     table(state, n) {
       const rows: string[][] = [];
-      n.forEach((row) => {
+      for (let r = 0; r < n.childCount; r += 1) {
+        const row = n.child(r);
         const cells: string[] = [];
-        row.forEach((cell) => {
-          cells.push(serializeCell(cell));
-        });
+        for (let c = 0; c < row.childCount; c += 1) {
+          cells.push(serializeCell(row.child(c)));
+        }
         rows.push(cells);
-      });
+      }
       if (rows.length === 0) return;
       const header = rows[0] ?? [];
       const cols = header.length;
