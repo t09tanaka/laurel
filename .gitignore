@@ -38,6 +38,7 @@ coverage/
 
 # Worktrees
 .worktrees/
+.claude/worktrees/
 
 # Nectar build caches (image transcoder, etc.)
 .nectar-cache/
