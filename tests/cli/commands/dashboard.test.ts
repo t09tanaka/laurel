@@ -1222,6 +1222,43 @@ describe('dashboard data', () => {
     }
   });
 
+  test('rejects non-boolean allow_code_injection via the PATCH route', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const settings = await readDashboardSettings({ cwd: dir });
+      const changeBus = createChangeBus();
+      const request = new Request('http://127.0.0.1/api/settings/site', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://127.0.0.1',
+          'x-nectar-dashboard-token': 'test-token',
+        },
+        body: JSON.stringify({
+          fingerprint: settings.fingerprint,
+          updates: { allow_code_injection: 'true' },
+        }),
+      });
+      const response = await handleDashboardRequest(request, {
+        cwd: dir,
+        changeBus,
+        security: { token: 'test-token', origin: 'http://127.0.0.1', lanExposed: false },
+        maxBodyBytes: 1024 * 1024,
+      });
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; field: string; expected: string };
+      expect(body.field).toBe('allow_code_injection');
+      expect(body.expected).toBe('boolean');
+
+      // Gate must not have been touched — otherwise the silent-no-op path
+      // would have written something.
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.allowCodeInjection).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('rejects unknown site settings fields via the PATCH route', async () => {
     const dir = await makeDashboardFixture();
     try {

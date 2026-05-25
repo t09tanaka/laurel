@@ -4008,10 +4008,20 @@
     align-items: center;
     gap: 8px;
   }
+  /* Reset the .field input form styling (38px min-height, padding, border,
+   * box-shadow) so a 16px checkbox doesn't render as a fat 38px-tall box
+   * with shadow chrome around it. `appearance: auto` keeps the native
+   * checkbox glyph instead of inheriting some platform tweak. */
   .codeInjectionGate input[type="checkbox"] {
     width: 16px;
     height: 16px;
+    min-height: auto;
     margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    appearance: auto;
     flex: 0 0 auto;
   }
   .codeInjectionGate > span {

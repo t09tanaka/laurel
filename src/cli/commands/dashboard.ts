@@ -1713,6 +1713,8 @@ export async function handleDashboardRequest(
           400,
         );
       }
+      const typeError = findSettingsTypeErrors(payload.updates);
+      if (typeError) return jsonResponse(typeError, 400);
       const result = await writeDashboardSiteSettings({
         cwd: ctx.cwd,
         configPath: ctx.configPath,
@@ -4070,6 +4072,33 @@ async function writeThemeSettingsFile(
 function findInvalidSettingsFields(payload: Record<string, unknown>): string[] {
   const allowed = new Set<string>([...SITE_SETTINGS_FIELDS, ...SITE_PATCH_BUILD_FIELDS]);
   return Object.keys(payload).filter((key) => !allowed.has(key));
+}
+
+// Catch type-shaped payload bugs that the field allowlist alone misses.
+// Without this, a client sending `allow_code_injection: "true"` would pass
+// the name check, then be silently dropped by writeSiteSettingsFile's
+// `typeof === 'boolean'` guard — leaving the operator with a 200 OK and
+// no gate change.
+function findSettingsTypeErrors(
+  payload: Record<string, unknown>,
+): { error: string; field: string; expected: string } | undefined {
+  for (const key of SITE_SETTINGS_FIELDS) {
+    const value = payload[key];
+    if (value !== undefined && typeof value !== 'string') {
+      return { error: 'invalid settings field type', field: key, expected: 'string' };
+    }
+  }
+  if (
+    payload.allow_code_injection !== undefined &&
+    typeof payload.allow_code_injection !== 'boolean'
+  ) {
+    return {
+      error: 'invalid settings field type',
+      field: 'allow_code_injection',
+      expected: 'boolean',
+    };
+  }
+  return undefined;
 }
 
 function findInvalidThemeSettingsFields(payload: Record<string, unknown>): string[] {
