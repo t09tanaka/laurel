@@ -1,12 +1,7 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { saveSiteSettings, saveThemeSettings } from '../lib/api.ts';
-import type {
-  DashboardState,
-  SettingsCard,
-  SettingsCardCategory,
-  SettingsCardSourceKind,
-} from '../types.ts';
+import type { DashboardState, SettingsCardSourceKind } from '../types.ts';
 
 interface SettingsViewProps {
   state: DashboardState;
@@ -17,21 +12,10 @@ interface SettingsViewProps {
   onOpenMigration: () => void;
 }
 
-interface CategoryDefinition {
-  id: SettingsCardCategory;
-  label: string;
-  hint: string;
-}
-
-/* Dashboard surfaces only the categories a writer actually touches:
- * site identity and theme. The other categories (content paths, build
- * config, structure/routes, operations, advanced) live in nectar.toml
- * for developers to edit directly — they don't belong in an editorial
- * dashboard. */
-const CATEGORY_DEFINITIONS: ReadonlyArray<CategoryDefinition> = [
-  { id: 'general', label: 'Site', hint: 'Site identity and defaults you edit often.' },
-  { id: 'theme', label: 'Theme', hint: 'Active theme and design surface stats.' },
-];
+/* Dashboard surfaces only Site identity + Theme switcher. Everything
+ * else (content paths, build config, structure/routes, operations,
+ * advanced) lives in nectar.toml for developers to edit directly — it
+ * doesn't belong in an editorial dashboard. */
 
 const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
   config: 'nectar.toml',
@@ -43,112 +27,30 @@ const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
 };
 
 export function SettingsView(props: SettingsViewProps): JSX.Element {
-  const settings = props.state.settings;
   const site = props.state.site;
-  const [activeCategory, setActiveCategory] = useState<SettingsCardCategory>('general');
 
-  const cardsByCategory = useMemo(() => groupByCategory(settings.cards), [settings.cards]);
-  const categories = useMemo(
-    () => CATEGORY_DEFINITIONS.filter((category) => cardsByCategory.has(category.id)),
-    [cardsByCategory],
-  );
-
-  useEffect(() => {
-    if (!cardsByCategory.has(activeCategory)) {
-      const fallback = categories[0]?.id ?? 'general';
-      setActiveCategory(fallback);
-    }
-  }, [cardsByCategory, categories, activeCategory]);
-
-  const activeCategoryDef =
-    CATEGORY_DEFINITIONS.find((category) => category.id === activeCategory) ??
-    CATEGORY_DEFINITIONS[0];
-
+  // With only two settings panels (Site identity + Theme) the dashboard
+  // stacks them vertically in a single column. The category nav rail
+  // and drawer that used to switch between many categories were dropped
+  // when the category count fell to two.
   return (
-    <div class="settingsLayout" data-active-category={activeCategory}>
-      <details class="settingsCategoryDrawer">
-        <summary>
-          <span class="settingsCategoryDrawerLabel">{activeCategoryDef?.label ?? 'General'}</span>
-          <span class="settingsCategoryDrawerHint">Tap to switch category</span>
-        </summary>
-        <CategoryNav
-          categories={categories}
-          activeCategory={activeCategory}
-          onSelect={setActiveCategory}
-          counts={cardsByCategory}
-        />
-      </details>
-      <aside class="settingsCategoryNav" aria-label="Settings categories">
-        <CategoryNav
-          categories={categories}
-          activeCategory={activeCategory}
-          onSelect={setActiveCategory}
-          counts={cardsByCategory}
-        />
-      </aside>
+    <div class="settingsLayout settingsLayoutStacked">
       <div class="settingsDetail">
-        {/* Detail header dropped — the left rail already shows the active
-         * category, and the panel below names itself (Site identity /
-         * Theme). One label per concept. */}
-        {activeCategory === 'general' ? (
-          <SiteIdentityPanel
-            state={props.state}
-            site={site}
-            onSettingsSaved={props.onSettingsSaved}
-            onConflict={props.onConflict}
-            onSiteDirtyChange={props.onSiteDirtyChange}
-          />
-        ) : null}
-        {activeCategory === 'theme' ? (
-          <ThemeSwitcherPanel
-            state={props.state}
-            onSettingsSaved={props.onSettingsSaved}
-            onConflict={props.onConflict}
-            onThemeDirtyChange={props.onThemeDirtyChange}
-          />
-        ) : null}
-        {/* Only general + theme surface in the dashboard now — their data
-         * is fully rendered by the panels above. The card grid is no
-         * longer needed. */}
+        <SiteIdentityPanel
+          state={props.state}
+          site={site}
+          onSettingsSaved={props.onSettingsSaved}
+          onConflict={props.onConflict}
+          onSiteDirtyChange={props.onSiteDirtyChange}
+        />
+        <ThemeSwitcherPanel
+          state={props.state}
+          onSettingsSaved={props.onSettingsSaved}
+          onConflict={props.onConflict}
+          onThemeDirtyChange={props.onThemeDirtyChange}
+        />
       </div>
     </div>
-  );
-}
-
-interface CategoryNavProps {
-  categories: ReadonlyArray<CategoryDefinition>;
-  activeCategory: SettingsCardCategory;
-  onSelect: (category: SettingsCardCategory) => void;
-  counts: Map<SettingsCardCategory, SettingsCard[]>;
-}
-
-function CategoryNav(props: CategoryNavProps): JSX.Element {
-  return (
-    <ul class="settingsCategoryList">
-      {props.categories.map((category) => {
-        const count = props.counts.get(category.id)?.length ?? 0;
-        const isActive = category.id === props.activeCategory;
-        return (
-          <li key={category.id}>
-            <button
-              type="button"
-              class={`settingsCategoryItem${isActive ? ' active' : ''}`}
-              aria-current={isActive ? 'true' : undefined}
-              data-category={category.id}
-              onClick={() => {
-                props.onSelect(category.id);
-                const drawer =
-                  document.querySelector<HTMLDetailsElement>('.settingsCategoryDrawer');
-                if (drawer?.open) drawer.open = false;
-              }}
-            >
-              <span class="settingsCategoryItemLabel">{category.label}</span>
-              <span class="settingsCategoryItemCount">{count}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -400,12 +302,3 @@ function SourcePill({
   );
 }
 
-function groupByCategory(cards: SettingsCard[]): Map<SettingsCardCategory, SettingsCard[]> {
-  const map = new Map<SettingsCardCategory, SettingsCard[]>();
-  for (const card of cards) {
-    const list = map.get(card.category);
-    if (list) list.push(card);
-    else map.set(card.category, [card]);
-  }
-  return map;
-}

@@ -2680,6 +2680,17 @@
     padding-top: 12px;
     align-items: start;
   }
+  /* Stacked layout — used when there's no category rail. Single column,
+   * panels stack with generous vertical gap. */
+  .settingsLayoutStacked {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settingsLayoutStacked .settingsDetail {
+    display: grid;
+    gap: 32px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
   .settingsCategoryNav {
     position: sticky;
     top: 18px;
