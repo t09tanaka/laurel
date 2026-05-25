@@ -87,7 +87,6 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
             Run a Ghost JSON, folder, or ZIP import from a local path. Preview never writes files.
           </p>
         </div>
-        <SourcePill kind="cli" label="nectar import-ghost" />
       </header>
       <label class="field wide">
         <span>Export path</span>
@@ -233,7 +232,6 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
             files.
           </p>
         </div>
-        <SourcePill kind="cli" label="nectar import-page" />
       </header>
       <label class="field wide">
         <span>Bundle path</span>
@@ -373,10 +371,3 @@ function GhostImportResultTable({
   );
 }
 
-function SourcePill({ kind, label }: { kind: string; label: string }): JSX.Element {
-  return (
-    <span class={`sourcePill sourcePill-${kind}`} data-source={kind}>
-      {label}
-    </span>
-  );
-}

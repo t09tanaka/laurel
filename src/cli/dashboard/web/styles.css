@@ -1836,15 +1836,52 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
   }
-  .themeUploadPanel {
-    display: grid;
-    gap: 12px;
-    margin-top: 8px;
+  /* Generic modal — backdrop dims the surface, dialog is centered
+   * with a quiet serif heading and an × close. Used by Theme upload. */
+  .modalBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(20, 16, 12, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
   }
-  .themeUploadTitle {
-    margin: 0 0 4px;
-    font-size: 15px;
+  .modalDialog {
+    width: min(520px, 100%);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 22px 22px 18px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    display: grid;
+    gap: 14px;
+  }
+  .modalHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .modalHead h3 {
+    margin: 0;
+    font-size: 18px;
     font-weight: 500;
+  }
+  .modalClose {
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .modalClose:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
   }
   .themeUploadDrop {
     display: flex;

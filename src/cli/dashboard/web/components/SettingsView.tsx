@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
-import type { DashboardState, SettingsCardSourceKind } from '../types.ts';
+import type { DashboardState } from '../types.ts';
 
 interface SettingsViewProps {
   state: DashboardState;
@@ -16,15 +16,6 @@ interface SettingsViewProps {
  * else (content paths, build config, structure/routes, operations,
  * advanced) lives in nectar.toml for developers to edit directly — it
  * doesn't belong in an editorial dashboard. */
-
-const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
-  config: 'nectar.toml',
-  theme: 'themes/',
-  content: 'content/',
-  runtime: 'runtime',
-  cli: 'CLI',
-  docs: 'docs/',
-};
 
 export function SettingsView(props: SettingsViewProps): JSX.Element {
   const site = props.state.site;
@@ -126,7 +117,6 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
           <h3>Site identity</h3>
           <p class="meta">Saved to the <code>[site]</code> section of nectar.toml.</p>
         </div>
-        <SourcePill kind="config" label={SOURCE_KIND_LABEL.config} />
       </header>
       <div class="settingsGrid siteIdentityGrid">
         <label class="field">
@@ -218,16 +208,23 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
   }
 
   const noOptions = available.length === 0 && !missingActive;
+  const [uploadOpen, setUploadOpen] = useState(false);
   return (
-    <section class="themeSwitcherPanel" aria-label="Theme switcher">
+    <section class="themeSwitcherPanel" aria-label="Themes">
       <header class="settingsPanelHead">
         <div>
-          <h3>Active theme</h3>
+          <h3>Themes</h3>
           <p class="meta">
             Preview uses this theme immediately after saving; dist updates after the next build.
           </p>
         </div>
-        <SourcePill kind="config" label={SOURCE_KIND_LABEL.config} />
+        <button
+          type="button"
+          class="btn secondary"
+          onClick={() => setUploadOpen(true)}
+        >
+          Upload
+        </button>
       </header>
       <article class="settingsCard field wide">
         <div class="fields">
@@ -295,22 +292,37 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
               : null}
         </div>
       </article>
-      <ThemeUploadField
-        themeDir={theme.dir ?? 'themes'}
-        onUploaded={props.onSettingsSaved}
-      />
+      {uploadOpen ? (
+        <ThemeUploadModal
+          themeDir={theme.dir ?? 'themes'}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={async () => {
+            await props.onSettingsSaved();
+          }}
+        />
+      ) : null}
     </section>
   );
 }
 
-interface ThemeUploadFieldProps {
+interface ThemeUploadModalProps {
   themeDir: string;
+  onClose: () => void;
   onUploaded: () => Promise<void> | void;
 }
 
-function ThemeUploadField({ themeDir, onUploaded }: ThemeUploadFieldProps): JSX.Element {
+function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalProps): JSX.Element {
   const [status, setStatus] = useState<string>('');
   const [busy, setBusy] = useState(false);
+
+  // Esc closes; focus is delegated to the file input.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !busy) onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
 
   async function handleFile(file: File) {
     if (busy) return;
@@ -324,65 +336,79 @@ function ThemeUploadField({ themeDir, onUploaded }: ThemeUploadFieldProps): JSX.
     }
     setStatus(`Installed "${result.name}" under ${themeDir}/`);
     await onUploaded();
+    // brief acknowledgement, then close
+    setTimeout(() => onClose(), 700);
   }
 
   return (
-    <article class="settingsCard field wide themeUploadPanel">
-      <div>
-        <h4 class="themeUploadTitle">Upload theme</h4>
+    <div
+      class="modalBackdrop"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
+    >
+      <div
+        class="modalDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Upload theme"
+      >
+        <header class="modalHead">
+          <h3>Upload theme</h3>
+          <button
+            type="button"
+            class="modalClose"
+            aria-label="Close"
+            disabled={busy}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
         <p class="meta">
           Drop a Ghost-compatible theme .zip; it extracts into{' '}
-          <code>{themeDir}/</code> and becomes selectable above.
+          <code>{themeDir}/</code> and becomes selectable in the Theme list.
         </p>
-      </div>
-      <label
-        class={`themeUploadDrop${busy ? ' busy' : ''}`}
-        onDragOver={(event) => {
-          if (event.dataTransfer?.types?.includes('Files')) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'copy';
-          }
-        }}
-        onDrop={(event) => {
-          const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
-            /\.zip$/i.test(f.name),
-          );
-          if (!file) return;
-          event.preventDefault();
-          void handleFile(file);
-        }}
-      >
-        <input
-          type="file"
-          accept=".zip,application/zip"
-          class="srOnly"
-          disabled={busy}
-          onChange={(event) => {
-            const file = (event.currentTarget as HTMLInputElement).files?.[0];
-            if (file) void handleFile(file);
+        <label
+          class={`themeUploadDrop${busy ? ' busy' : ''}`}
+          onDragOver={(event) => {
+            if (event.dataTransfer?.types?.includes('Files')) {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'copy';
+            }
           }}
-        />
-        <span class="themeUploadHint">
-          {busy ? 'Uploading…' : 'Click or drop a .zip'}
-        </span>
-      </label>
-      {status ? (
-        <output class="notice" aria-live="polite">
-          {status}
-        </output>
-      ) : null}
-    </article>
+          onDrop={(event) => {
+            const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+              /\.zip$/i.test(f.name),
+            );
+            if (!file) return;
+            event.preventDefault();
+            void handleFile(file);
+          }}
+        >
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            class="srOnly"
+            disabled={busy}
+            onChange={(event) => {
+              const file = (event.currentTarget as HTMLInputElement).files?.[0];
+              if (file) void handleFile(file);
+            }}
+          />
+          <span class="themeUploadHint">
+            {busy ? 'Uploading…' : 'Click or drop a .zip'}
+          </span>
+        </label>
+        {status ? (
+          <output class="notice" aria-live="polite">
+            {status}
+          </output>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
-function SourcePill({
-  kind,
-  label,
-}: { kind: SettingsCardSourceKind | string; label: string }): JSX.Element {
-  return (
-    <span class={`sourcePill sourcePill-${kind}`} data-source={kind}>
-      {label}
-    </span>
-  );
-}
 
