@@ -105,7 +105,7 @@ export const BUILD_SPEC: CommandSpec = {
       type: 'boolean',
       default: true,
       description:
-        'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `true`) is used',
+        'Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `false`) is used',
       negatedDescription:
         'Force Ghost Content API JSON shadows off for this build without editing the config',
     },
