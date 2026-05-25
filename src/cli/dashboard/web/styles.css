@@ -780,8 +780,97 @@
     box-shadow: none;
     overflow: visible;
   }
-  .panel[aria-busy="true"] {
-    opacity: 0.72;
+  /* Loading affects only the table interior (via skeleton rows or shimmer
+   * sweep on re-fetch), not the whole panel. Page chrome stays sharp. */
+  .panel[aria-busy="true"] .tableWrap {
+    position: relative;
+  }
+  .panel[aria-busy="true"] .tableWrap::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-ink) 4%, transparent),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: panelShimmer 1.4s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes panelShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  /* Skeleton — first-load placeholder rows. Mirrors the real .contentTable
+   * shape so the chrome doesn't reflow when data lands. */
+  .skeletonTableWrap {
+    min-width: 0;
+    margin-top: 6px;
+  }
+  .skeletonTable .skeletonRow {
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .skeletonTable .skeletonRow td {
+    padding: 14px 12px;
+    vertical-align: middle;
+  }
+  .skeletonBar {
+    display: inline-block;
+    height: 12px;
+    border-radius: 3px;
+    background: linear-gradient(
+      90deg,
+      var(--reaction) 0%,
+      color-mix(in srgb, var(--text-muted) 12%, var(--reaction)) 50%,
+      var(--reaction) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s linear infinite;
+    vertical-align: middle;
+  }
+  .skeletonBarTitle {
+    width: 42%;
+    height: 14px;
+  }
+  .skeletonBarPill {
+    width: 56px;
+    height: 16px;
+    border-radius: 999px;
+  }
+  .skeletonBarSlug {
+    width: 22%;
+    height: 10px;
+    margin-top: 6px;
+  }
+  .skeletonBarDate {
+    width: 64px;
+    height: 11px;
+  }
+  .skeletonBarBtn {
+    width: 72px;
+    height: 28px;
+    border-radius: var(--radius);
+  }
+  @keyframes skeletonShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  /* Respect prefers-reduced-motion: kill the sweep, leave a flat base color. */
+  @media (prefers-reduced-motion: reduce) {
+    .skeletonBar,
+    .panel[aria-busy="true"] .tableWrap::after {
+      animation: none;
+    }
   }
   .panelHead {
     display: flex;
@@ -1724,10 +1813,11 @@
   }
   .settingsCard h3 {
     margin: 0;
-    font-size: 16px;
+    font-family: var(--font-serif);
+    font-size: 18px;
     line-height: 24px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 500;
+    letter-spacing: -0.008em;
     font-feature-settings: "palt";
   }
   .settingsCard .table {
@@ -1743,21 +1833,29 @@
     min-width: 0;
   }
   .field span {
-    font-size: 11px;
+    font-size: 10.5px;
     text-transform: uppercase;
     color: var(--text-muted);
-    font-weight: 700;
+    font-weight: 500;
     letter-spacing: 0.06em;
   }
   .field input,
   .field select {
-    min-height: 42px;
+    min-height: 38px;
     border: 1px solid var(--border-default);
     border-radius: var(--radius);
-    padding: 9px 10px;
+    padding: 8px 11px;
     background: var(--surface-normal);
     color: var(--text-primary);
+    font-size: 13.5px;
+    letter-spacing: -0.003em;
     min-width: 0;
+    box-shadow: var(--elevation-1);
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--text-primary);
+    outline: none;
   }
   .field input:disabled,
   .field select:disabled {
@@ -1841,25 +1939,28 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 14px 10px 18px;
+    padding: 9px 14px 9px 18px;
     background: transparent;
     border: 0;
     border-left: 2px solid transparent;
     color: var(--text-muted);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.003em;
     text-align: left;
     cursor: pointer;
     border-radius: 0 var(--radius) var(--radius) 0;
+    transition: color 0.12s ease, background-color 0.12s ease;
   }
   .settingsCategoryItem:hover {
-    background: var(--background-secondary);
+    background: var(--surface-raised);
     color: var(--text-primary);
   }
   .settingsCategoryItem.active {
-    background: var(--background-secondary);
+    background: var(--surface-raised);
     color: var(--text-primary);
-    border-left-color: var(--accent, currentColor);
+    font-weight: 600;
+    border-left-color: var(--text-primary);
   }
   .settingsCategoryItemLabel {
     letter-spacing: 0.01em;
@@ -1911,10 +2012,11 @@
   }
   .settingsPanelHead h3 {
     margin: 0;
-    font-size: 15px;
-    line-height: 22px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
   }
   .siteIdentityPanel,
   .themeSwitcherPanel {
@@ -1965,45 +2067,24 @@
     color: var(--text-muted);
     word-break: break-all;
   }
+  /* Source pill — communicates "this setting lives in X". After the color
+   * palette consolidation, all variants share one quiet treatment; the
+   * label itself carries the kind, color would just add noise. */
   .sourcePill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 3px 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 2px 8px;
     border-radius: 999px;
     border: 1px solid var(--border-default);
-    background: var(--background-secondary);
+    background: transparent;
     color: var(--text-muted);
-    font-feature-settings: "palt";
     white-space: nowrap;
-  }
-  .sourcePill-config {
-    border-color: color-mix(in srgb, var(--accent, #4f6bed) 35%, var(--border-default));
-    color: color-mix(in srgb, var(--accent, #4f6bed) 70%, var(--text-primary));
-  }
-  .sourcePill-theme {
-    border-color: color-mix(in srgb, #b07a3e 40%, var(--border-default));
-    color: color-mix(in srgb, #b07a3e 70%, var(--text-primary));
-  }
-  .sourcePill-content {
-    border-color: color-mix(in srgb, #2f8a4d 40%, var(--border-default));
-    color: color-mix(in srgb, #2f8a4d 70%, var(--text-primary));
-  }
-  .sourcePill-runtime {
-    border-color: color-mix(in srgb, #6f6f6f 40%, var(--border-default));
-    color: var(--text-muted);
-  }
-  .sourcePill-cli {
-    border-color: color-mix(in srgb, #5a39c2 40%, var(--border-default));
-    color: color-mix(in srgb, #5a39c2 70%, var(--text-primary));
-  }
-  .sourcePill-docs {
-    border-color: color-mix(in srgb, #2c6e85 40%, var(--border-default));
-    color: color-mix(in srgb, #2c6e85 70%, var(--text-primary));
   }
   .settingsCard[data-mode="dangerous-cli-only"] {
     border-color: color-mix(in srgb, var(--danger, #c4504b) 35%, var(--border-default));
@@ -2030,9 +2111,11 @@
   }
   .migrationEntryCard h3 {
     margin: 0;
-    font-size: 15px;
+    font-family: var(--font-serif);
+    font-size: 17px;
     line-height: 22px;
-    font-weight: 700;
+    font-weight: 500;
+    letter-spacing: -0.008em;
   }
   .migrationPage {
     display: grid;
@@ -2043,7 +2126,7 @@
     gap: 14px;
   }
   .migrationCard {
-    border-color: color-mix(in srgb, var(--accent, #4f6bed) 25%, var(--border-default));
+    border-color: var(--border-default);
   }
   .migrationCardHead {
     display: flex;
@@ -2053,9 +2136,11 @@
   }
   .migrationCardHead h3 {
     margin: 0 0 4px;
-    font-size: 16px;
-    line-height: 22px;
-    font-weight: 700;
+    font-family: var(--font-serif);
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
   }
 
   @media (prefers-reduced-motion: no-preference) {

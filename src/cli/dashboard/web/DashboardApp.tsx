@@ -8,6 +8,7 @@ import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
+import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
@@ -366,13 +367,17 @@ export function DashboardApp(): JSX.Element {
             aria-busy={ui.loadStatus === 'loading'}
           >
             {!state ? (
-              <StatePanel
-                kind={surfaceState}
-                {...(ui.loadStatus === 'error' ? { message: ui.lastError } : {})}
-                onAction={() => {
-                  void load({ force: true });
-                }}
-              />
+              ui.loadStatus === 'loading' && (ui.view === 'posts' || ui.view === 'pages') ? (
+                <SkeletonContentTable />
+              ) : (
+                <StatePanel
+                  kind={surfaceState}
+                  {...(ui.loadStatus === 'error' ? { message: ui.lastError } : {})}
+                  onAction={() => {
+                    void load({ force: true });
+                  }}
+                />
+              )
             ) : ui.view === 'posts' || ui.view === 'pages' ? (
               <ContentTable
                 kind={ui.view}
