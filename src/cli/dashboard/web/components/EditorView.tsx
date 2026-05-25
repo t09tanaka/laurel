@@ -354,13 +354,34 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   return (
     <section class="editor editorPage open" id="editor" aria-labelledby="editorTitle">
+      {/* Role-aware editor chrome — the writing surface is the page.
+       * Top bar collapses to a quiet breadcrumb on the left and a
+       * minimal action cluster on the right: save state chip + Save +
+       * a single overflow for Preview / Close. */}
       <div class="editorTopRow">
+        <button
+          type="button"
+          class="editorBack"
+          onClick={props.onCloseEditor}
+          aria-label="Close editor and return to list"
+        >
+          <span class="editorBackArrow" aria-hidden="true">
+            ←
+          </span>
+          <span class="editorBackLabel">
+            {current.kind === 'posts'
+              ? 'Posts'
+              : current.kind === 'pages'
+                ? 'Pages'
+                : current.kind === 'authors'
+                  ? 'Authors'
+                  : 'Tags'}
+          </span>
+        </button>
         <div class="editorMetaRow" id="editorMeta">
           <span id="editorTitle" class="srOnly">
             {current.path}
           </span>
-          {/* Fingerprint moved to title attribute — diagnostic info, not
-           * editorial. The path itself is the contextual anchor. */}
           <span title={`fingerprint ${fingerprintToken(current.fingerprint)}`}>
             {current.path}
           </span>
@@ -370,20 +391,12 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             {SAVE_CHIP_LABEL[saveState]}
           </span>
           <button
-            type="button"
-            class="exitFocusPill"
-            onClick={() => dispatchFocus({ type: 'focus/toggle' })}
-            aria-pressed={focus.focusMode}
-          >
-            {focus.focusMode ? 'Exit focus' : 'Enter focus'}
-            <kbd>Esc</kbd>
-          </button>
-          <button
-            class="btn secondary"
+            class="btn secondary editorBtnGhost"
             id="previewEditor"
             type="button"
             disabled={!isContent}
             onClick={handlePreview}
+            title="Preview built output"
           >
             Preview
           </button>
@@ -394,17 +407,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             onClick={() => {
               void handleSave();
             }}
-            title="Save to file (always visible at the top)"
+            title="Save to file (⌘S)"
           >
             Save
-          </button>
-          <button
-            class="btn secondary"
-            id="closeEditor"
-            type="button"
-            onClick={props.onCloseEditor}
-          >
-            Close
           </button>
         </div>
       </div>
