@@ -528,7 +528,6 @@ export function DashboardApp(): JSX.Element {
                 showFilter={showFilterInput}
                 onSearch={handleSearch}
                 onNew={handleNew}
-                onOpenCmdk={() => setCmdkOpen(true)}
               />
             }
           />

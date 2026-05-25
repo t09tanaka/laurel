@@ -437,7 +437,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             {SAVE_CHIP_LABEL[saveState]}
           </span>
           <button
-            class="btn secondary editorBtnGhost"
+            class="textLink editorPreviewLink"
             id="previewEditor"
             type="button"
             disabled={!isContent}

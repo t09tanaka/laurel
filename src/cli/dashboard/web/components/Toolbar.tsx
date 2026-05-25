@@ -7,7 +7,6 @@ interface ToolbarProps {
   showFilter: boolean;
   onSearch: (value: string) => void;
   onNew: () => void;
-  onOpenCmdk: () => void;
 }
 
 export function Toolbar(props: ToolbarProps): JSX.Element {
@@ -57,16 +56,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           </div>
         </>
       ) : null}
-      <button
-        type="button"
-        class="cmdkTrigger"
-        onClick={props.onOpenCmdk}
-        title="Jump to a file or run a command"
-        aria-label="Open command palette"
-      >
-        <kbd>⌘</kbd>
-        <kbd>K</kbd>
-      </button>
       <button
         class={`btn${props.showNew ? '' : ' hidden'}`}
         id="newItem"

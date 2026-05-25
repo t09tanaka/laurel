@@ -846,12 +846,16 @@
     border: 1px solid var(--border-weak);
     border-radius: 8px;
     background: var(--surface-raised);
-    width: fit-content;
+    /* Span the full width of the main content header (was fit-content),
+     * so the subnav visually anchors to the page header above it. */
+    width: 100%;
     max-width: 100%;
   }
   .subnav a {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    flex: 1 1 0;
     min-height: 30px;
     padding: 5px 13px;
     border-radius: 6px;
@@ -1829,6 +1833,38 @@
     color: var(--caution);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
+  }
+  /* Quiet text-only link / button used wherever a secondary action
+   * should recede (Preview in list rows, Preview in editor header). */
+  .textLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .textLink:hover,
+  .textLink:focus-visible {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .textLink:disabled,
+  .textLink[disabled] {
+    color: var(--text-disabled, color-mix(in srgb, var(--text-muted) 60%, transparent));
+    cursor: not-allowed;
+    text-decoration: none;
+  }
+  .editorPreviewLink {
+    margin: 0 8px;
   }
   /* Minimal text-only status / approval / preview labels. The row
    * itself uses cell-typography (italic + opacity for drafts) so

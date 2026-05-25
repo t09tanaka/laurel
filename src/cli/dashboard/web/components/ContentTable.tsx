@@ -203,13 +203,11 @@ interface ContentRowProps {
 }
 
 function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Element {
-  const preview = item.preview ?? null;
   const status = item.status ?? 'published';
-  const warningCount = item.warnings?.length ?? 0;
   const title = item.title?.trim() ? item.title : '(untitled)';
   const editorHref = pathForEditor(kind, item.slug);
   return (
-    <tr class="contentRow" data-row-slug={item.slug}>
+    <tr class="contentRow" data-row-slug={item.slug} data-status={status}>
       <td class="titleCell">
         <div class="titleLine">
           <a
@@ -224,85 +222,33 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           >
             <span class="titleText">{title}</span>
           </a>
-          <StatusPill status={status} />
-          {isPages ? <ApprovalPill approval={item.approval} compact /> : null}
-          {warningCount > 0 ? <WarnDot count={warningCount} /> : null}
+          {isPages && item.approval?.status !== 'approved' ? (
+            <ApprovalPill approval={item.approval} compact />
+          ) : null}
         </div>
         <div class="slugLine">
           <span class="slug" dir="rtl" title={item.slug}>
             {item.slug}
           </span>
         </div>
-        <details
-          class="rowDetails"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <summary>Details</summary>
-          <div class="detailGrid">
-            {isPages ? (
-              <div>
-                <span class="detailLabel">Approval</span>
-                <ApprovalDetail item={item} />
-              </div>
-            ) : null}
-            <div>
-              <span class="detailLabel">Preview</span>
-              <PreviewDetail item={item} />
-            </div>
-            <div>
-              <span class="detailLabel">Path</span>
-              <div class="pathText">{item.path}</div>
-            </div>
-          </div>
-        </details>
       </td>
       <td class="dateCell">{formatDate(item.createdAt)}</td>
       <td class="actionsCell">
         <div class="rowActions">
-          {preview?.openUrl ? (
+          {item.preview?.openUrl ? (
             <a
-              class="btn secondary btnCompact"
-              href={preview.openUrl}
+              class="textLink"
+              href={item.preview.openUrl}
               target="_blank"
               rel="noreferrer"
             >
               Preview
             </a>
           ) : null}
-          <a
-            class="btn secondary btnCompact"
-            href={pathForEditor(kind, item.slug)}
-            data-edit={item.slug}
-            onClick={(event) => {
-              event.preventDefault();
-              onOpen();
-            }}
-          >
-            Edit
-          </a>
           {isPages ? <ExportOverflow slug={item.slug} /> : null}
         </div>
       </td>
     </tr>
-  );
-}
-
-interface StatusPillProps {
-  status: string;
-}
-
-function StatusPill({ status }: StatusPillProps): JSX.Element {
-  // Minimal: italic serif text label, no chip / no glyph. The row
-  // itself carries cell-typography (italic + opacity for drafts) so
-  // status is communicated by typography, not decoration.
-  return (
-    <span
-      class={`statusLabel statusLabel--${status === 'draft' ? 'draft' : 'published'}`}
-      data-status={status}
-    >
-      {status}
-    </span>
   );
 }
 
@@ -314,52 +260,10 @@ interface ApprovalPillProps {
 function ApprovalPill({ approval, compact: _compact }: ApprovalPillProps): JSX.Element {
   const state = approval?.status ?? 'needs-approval';
   const label = state === 'approved' ? 'Approved' : state === 'stale' ? 'Stale' : 'Needs approval';
-  // Minimal: italic serif text label, no chip / no glyph.
+  // Minimal italic serif label; only rendered when state is not the
+  // default approved path (the parent gates rendering).
   return (
     <span class="approvalLabel" data-approval={state}>
-      {label}
-    </span>
-  );
-}
-
-function ApprovalDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const approval = item.approval ?? { status: 'needs-approval' };
-  const detail = approval.approvedAt
-    ? formatDate(approval.approvedAt)
-    : 'Saved changes stay out of builds until approved.';
-  return (
-    <>
-      <ApprovalPill approval={approval} />
-      <div class="meta">{detail}</div>
-    </>
-  );
-}
-
-function PreviewDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const preview = item.preview ?? null;
-  const label = preview?.label ?? 'Markdown preview';
-  const state = preview?.state === 'current' ? 'current' : 'stale';
-  return (
-    <>
-      <span class="previewLabel" data-state={state}>
-        {label}
-      </span>
-      <div class="meta">{preview?.sourcePath ?? preview?.detail ?? 'Saved Markdown preview'}</div>
-      {preview?.openUrl ? (
-        <a class="previewLink" href={preview.openUrl} target="_blank" rel="noreferrer">
-          Open
-        </a>
-      ) : null}
-    </>
-  );
-}
-
-function WarnDot({ count }: { count: number }): JSX.Element {
-  // Minimal: italic serif "N warning(s)" text only. Color is the
-  // warn ink (already a11y-ok contrast); no glyph, no dot.
-  const label = `${count} warning${count === 1 ? '' : 's'}`;
-  return (
-    <span class="warnInline" title={label}>
       {label}
     </span>
   );
