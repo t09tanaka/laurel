@@ -1810,7 +1810,12 @@
   .tableWrap {
     min-width: 0;
     max-width: 100%;
-    overflow: auto;
+    /* Clip horizontally so the .rowActions resting-state translateX(18px)
+     * (held while the row is not hovered, behind opacity:0) doesn't get
+     * counted as scrollable overflow. Vertical stays visible so the row
+     * overflow menu can open downward past the table's last row. */
+    overflow-x: clip;
+    overflow-y: visible;
     padding: 0;
     margin-top: 6px;
   }
