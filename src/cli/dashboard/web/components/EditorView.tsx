@@ -214,7 +214,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       oldSlug: current.slug,
       newSlug: next,
       fingerprint: current.fingerprint,
-      redirect: false,
+      // Append an old→new redirect so the published URL keeps
+      // resolving after the slug change (#2150).
+      redirect: true,
     });
     if (!result.ok) {
       setNotice(`Rename failed — ${result.error ?? result.reason}`);
