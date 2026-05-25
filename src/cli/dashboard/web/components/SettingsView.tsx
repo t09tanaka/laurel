@@ -1,7 +1,14 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { saveSiteSettings, saveThemeSettings } from '../lib/api.ts';
-import type { DashboardState, SettingsCardSourceKind } from '../types.ts';
+import type {
+  DashboardState,
+  SettingsCard,
+  SettingsCardCategory,
+  SettingsCardMode,
+  SettingsCardSourceKind,
+} from '../types.ts';
+import { StatePanel } from './StatePanel.tsx';
 
 interface SettingsViewProps {
   state: DashboardState;
@@ -12,10 +19,44 @@ interface SettingsViewProps {
   onOpenMigration: () => void;
 }
 
-/* Dashboard surfaces only Site identity + Theme switcher. Everything
- * else (content paths, build config, structure/routes, operations,
- * advanced) lives in nectar.toml for developers to edit directly — it
- * doesn't belong in an editorial dashboard. */
+interface CategoryDefinition {
+  id: SettingsCardCategory;
+  label: string;
+  hint: string;
+}
+
+// Single source of truth for category ordering on the Site subview.
+const SETTINGS_CARDS_ORDER: ReadonlyArray<SettingsCardCategory> = [
+  'general',
+  'content',
+  'theme',
+  'build',
+  'structure',
+  'operations',
+  'advanced',
+];
+
+const CATEGORY_DEFINITIONS: Record<SettingsCardCategory, CategoryDefinition> = {
+  general: { id: 'general', label: 'General', hint: 'Site identity and defaults you edit often.' },
+  content: { id: 'content', label: 'Content', hint: 'Where Markdown content lives on disk.' },
+  theme: { id: 'theme', label: 'Theme', hint: 'Active theme and design surface stats.' },
+  build: { id: 'build', label: 'Build', hint: 'Output, URL shape, and generated surfaces.' },
+  structure: {
+    id: 'structure',
+    label: 'Structure',
+    hint: 'Navigation, redirects, and routes.',
+  },
+  operations: {
+    id: 'operations',
+    label: 'Operations',
+    hint: 'Health checks, assets, bulk actions.',
+  },
+  advanced: {
+    id: 'advanced',
+    label: 'Advanced',
+    hint: 'Rarely-touched, dangerous, or scope notes.',
+  },
+};
 
 const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
   config: 'nectar.toml',
@@ -27,31 +68,204 @@ const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
 };
 
 export function SettingsView(props: SettingsViewProps): JSX.Element {
+  const settings = props.state.settings;
   const site = props.state.site;
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // With only two settings panels (Site identity + Theme) the dashboard
-  // stacks them vertically in a single column. The category nav rail
-  // and drawer that used to switch between many categories were dropped
-  // when the category count fell to two.
+  const cardsByCategory = useMemo(() => groupByCategory(settings.cards), [settings.cards]);
+  const orderedCategories = useMemo(
+    () => SETTINGS_CARDS_ORDER.filter((id) => cardsByCategory.has(id)),
+    [cardsByCategory],
+  );
+
+  const trimmedSearch = searchTerm.trim().toLowerCase();
+  const filteredByCategory = useMemo(() => {
+    if (!trimmedSearch) return cardsByCategory;
+    const next = new Map<SettingsCardCategory, SettingsCard[]>();
+    for (const [category, cards] of cardsByCategory) {
+      const matches = cards.filter((card) => matchesSearch(card, trimmedSearch));
+      if (matches.length > 0) next.set(category, matches);
+    }
+    return next;
+  }, [cardsByCategory, trimmedSearch]);
+
+  const visibleCategories = useMemo(
+    () => SETTINGS_CARDS_ORDER.filter((id) => filteredByCategory.has(id)),
+    [filteredByCategory],
+  );
+
+  const totalMatches = useMemo(() => {
+    if (!trimmedSearch) return null;
+    let count = 0;
+    for (const list of filteredByCategory.values()) count += list.length;
+    return count;
+  }, [filteredByCategory, trimmedSearch]);
+
   return (
-    <div class="settingsLayout settingsLayoutStacked">
+    <div class="settingsLayout">
+      <aside class="settingsCategoryNav" aria-label="Settings categories">
+        <CategoryNav categories={orderedCategories} counts={cardsByCategory} />
+      </aside>
       <div class="settingsDetail">
-        <SiteIdentityPanel
-          state={props.state}
-          site={site}
-          onSettingsSaved={props.onSettingsSaved}
-          onConflict={props.onConflict}
-          onSiteDirtyChange={props.onSiteDirtyChange}
-        />
-        <ThemeSwitcherPanel
-          state={props.state}
-          onSettingsSaved={props.onSettingsSaved}
-          onConflict={props.onConflict}
-          onThemeDirtyChange={props.onThemeDirtyChange}
-        />
+        <div class="panelHead settingsDetailHead">
+          <div>
+            <h2>Settings</h2>
+            <span class="meta">
+              {trimmedSearch
+                ? `${totalMatches ?? 0} match${totalMatches === 1 ? '' : 'es'} across ${visibleCategories.length} categor${visibleCategories.length === 1 ? 'y' : 'ies'}`
+                : `${orderedCategories.length} categor${orderedCategories.length === 1 ? 'y' : 'ies'} grouped by purpose`}
+            </span>
+          </div>
+          <span class="settingsConfigPath" title="Active config">
+            {settings.configPath}
+          </span>
+        </div>
+        <label class="field settingsSearch">
+          <span>Search settings</span>
+          <input
+            id="settingsSearch"
+            placeholder="Press / to search across all settings"
+            value={searchTerm}
+            onInput={(event) => setSearchTerm((event.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+        {trimmedSearch && visibleCategories.length === 0 ? (
+          <StatePanel kind="empty" message={`No settings match "${searchTerm.trim()}".`} />
+        ) : (
+          visibleCategories.map((id) => {
+            const def = CATEGORY_DEFINITIONS[id];
+            const cards = filteredByCategory.get(id) ?? [];
+            return (
+              <CategorySection
+                key={id}
+                definition={def}
+                cards={cards}
+                editorial={
+                  trimmedSearch
+                    ? null
+                    : renderEditorialFor(id, {
+                        state: props.state,
+                        site,
+                        onSettingsSaved: props.onSettingsSaved,
+                        onConflict: props.onConflict,
+                        onSiteDirtyChange: props.onSiteDirtyChange,
+                        onThemeDirtyChange: props.onThemeDirtyChange,
+                        onOpenMigration: props.onOpenMigration,
+                      })
+                }
+              />
+            );
+          })
+        )}
       </div>
     </div>
   );
+}
+
+interface CategoryNavProps {
+  categories: ReadonlyArray<SettingsCardCategory>;
+  counts: Map<SettingsCardCategory, SettingsCard[]>;
+}
+
+function CategoryNav(props: CategoryNavProps): JSX.Element {
+  return (
+    <ul class="settingsCategoryList">
+      {props.categories.map((id) => {
+        const def = CATEGORY_DEFINITIONS[id];
+        const count = props.counts.get(id)?.length ?? 0;
+        return (
+          <li key={id}>
+            <a
+              class="settingsCategoryItem"
+              href={`#settings-category-${id}`}
+              data-category={id}
+              onClick={(event) => {
+                event.preventDefault();
+                const target = document.getElementById(`settings-category-${id}`);
+                if (target) {
+                  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+            >
+              <span class="settingsCategoryItemLabel">{def.label}</span>
+              <span class="settingsCategoryItemCount">{count}</span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+interface CategorySectionProps {
+  definition: CategoryDefinition;
+  cards: SettingsCard[];
+  editorial: JSX.Element | null;
+}
+
+function CategorySection(props: CategorySectionProps): JSX.Element {
+  const { definition, cards, editorial } = props;
+  return (
+    <section
+      class="settingsCategorySection"
+      id={`settings-category-${definition.id}`}
+      data-category={definition.id}
+      aria-label={definition.label}
+    >
+      <header class="settingsCategoryHead">
+        <div>
+          <h3 class="settingsCategoryTitle">{definition.label}</h3>
+          <p class="settingsCategoryHint meta">{definition.hint}</p>
+        </div>
+        <span class="settingsCategoryCount" title={`${cards.length} cards`}>
+          {cards.length}
+        </span>
+      </header>
+      {editorial}
+      <SettingsCardsGrid cards={cards} />
+    </section>
+  );
+}
+
+interface EditorialContext {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onSiteDirtyChange: (dirty: boolean) => void;
+  onThemeDirtyChange: (dirty: boolean) => void;
+  onOpenMigration: () => void;
+}
+
+function renderEditorialFor(
+  category: SettingsCardCategory,
+  ctx: EditorialContext,
+): JSX.Element | null {
+  switch (category) {
+    case 'general':
+      return (
+        <SiteIdentityPanel
+          state={ctx.state}
+          site={ctx.site}
+          onSettingsSaved={ctx.onSettingsSaved}
+          onConflict={ctx.onConflict}
+          onSiteDirtyChange={ctx.onSiteDirtyChange}
+        />
+      );
+    case 'theme':
+      return (
+        <ThemeSwitcherPanel
+          state={ctx.state}
+          onSettingsSaved={ctx.onSettingsSaved}
+          onConflict={ctx.onConflict}
+          onThemeDirtyChange={ctx.onThemeDirtyChange}
+        />
+      );
+    case 'advanced':
+      return <MigrationEntryCard onOpen={ctx.onOpenMigration} />;
+    default:
+      return null;
+  }
 }
 
 interface SiteIdentityProps {
@@ -291,6 +505,118 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
   );
 }
 
+function MigrationEntryCard({ onOpen }: { onOpen: () => void }): JSX.Element {
+  return (
+    <section class="migrationEntryCard" aria-label="Migration entry">
+      <div>
+        <h3>Migration</h3>
+        <p class="meta">
+          Ghost JSON/ZIP and Page bundle imports moved to a dedicated page. They write Markdown and
+          assets — full-screen confirmation gates apply.
+        </p>
+      </div>
+      <button type="button" class="btn" id="openMigrationPage" onClick={onOpen}>
+        Open Migration page
+      </button>
+    </section>
+  );
+}
+
+function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
+  if (cards.length === 0) {
+    return (
+      <div class="settingsGrid" data-empty="true">
+        <StatePanel kind="empty" message="No settings in this category." />
+      </div>
+    );
+  }
+  return (
+    <div class="settingsGrid">
+      {cards.map((card) => (
+        <SettingsCardArticle key={card.id} card={card} />
+      ))}
+    </div>
+  );
+}
+
+function SettingsCardArticle({ card }: { card: SettingsCard }): JSX.Element {
+  const mode: SettingsCardMode = card.mode ?? 'read-only';
+  return (
+    <article
+      class="settingsCard"
+      data-category={card.category}
+      data-source-kind={card.sourceKind}
+      data-mode={mode}
+    >
+      <header class="settingsCardHead">
+        <div>
+          <h3>{card.title}</h3>
+          <span class="settingsCardSection">{card.section}</span>
+        </div>
+        <span class={`pill ${modePillClass(mode, card.status)}`} data-mode={mode}>
+          {modeLabel(mode)}
+        </span>
+      </header>
+      <p class="meta">{card.summary}</p>
+      <div class="settingsCardSource">
+        <SourcePill kind={card.sourceKind} label={SOURCE_KIND_LABEL[card.sourceKind]} />
+        <code class="settingsCardSourcePath" title={card.source}>
+          {card.source}
+        </code>
+      </div>
+      {card.values.length > 0 ? (
+        <table class="table">
+          <tbody>
+            {card.values.map((value) => (
+              <tr key={value.label} data-status={value.status ?? undefined}>
+                <th>{value.label}</th>
+                <td>{value.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      {renderModeFooter(card, mode)}
+    </article>
+  );
+}
+
+function renderModeFooter(card: SettingsCard, mode: SettingsCardMode): JSX.Element | null {
+  if (mode === 'editable') {
+    return (
+      <div class="settingsCardModeFoot" data-mode="editable">
+        <span class="meta">Inline edits are surfaced above when supported.</span>
+      </div>
+    );
+  }
+  if (mode === 'cli-action' || mode === 'dangerous-cli-only') {
+    if (!card.command) return null;
+    return (
+      <div class="settingsCardModeFoot" data-mode={mode}>
+        <code class="settingsCardCommand">{card.command}</code>
+        {mode === 'dangerous-cli-only' ? (
+          <span class="settingsCardWarn">Destructive — confirm before running.</span>
+        ) : null}
+      </div>
+    );
+  }
+  if (mode === 'scope-note') {
+    return (
+      <div class="settingsCardModeFoot" data-mode="scope-note">
+        <span class="meta">Scope note — currently out of scope; tracked for reference.</span>
+      </div>
+    );
+  }
+  if (card.command) {
+    return (
+      <div class="settingsCardModeFoot" data-mode="read-only">
+        <code class="settingsCardCommand">{card.command}</code>
+      </div>
+    );
+  }
+  return null;
+}
+
 function SourcePill({
   kind,
   label,
@@ -302,3 +628,42 @@ function SourcePill({
   );
 }
 
+function modeLabel(mode: SettingsCardMode): string {
+  switch (mode) {
+    case 'editable':
+      return 'editable';
+    case 'cli-action':
+      return 'CLI action';
+    case 'dangerous-cli-only':
+      return 'dangerous · CLI';
+    case 'scope-note':
+      return 'scope note';
+    case 'read-only':
+      return 'read-only';
+    default:
+      return 'card';
+  }
+}
+
+function modePillClass(mode: SettingsCardMode, status: string | undefined): string {
+  if (mode === 'dangerous-cli-only') return 'draft';
+  if (status === 'warn' || status === 'danger') return 'draft';
+  return '';
+}
+
+function matchesSearch(card: SettingsCard, query: string): boolean {
+  const haystack = `${card.section} ${card.title} ${card.summary} ${card.source} ${card.values
+    .map((value) => `${value.label} ${value.value}`)
+    .join(' ')}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function groupByCategory(cards: SettingsCard[]): Map<SettingsCardCategory, SettingsCard[]> {
+  const map = new Map<SettingsCardCategory, SettingsCard[]>();
+  for (const card of cards) {
+    const list = map.get(card.category);
+    if (list) list.push(card);
+    else map.set(card.category, [card]);
+  }
+  return map;
+}

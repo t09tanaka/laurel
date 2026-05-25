@@ -3195,9 +3195,6 @@
     padding: 4px 0;
     border-right: 1px solid var(--border-default);
   }
-  .settingsCategoryDrawer {
-    display: none;
-  }
   .settingsCategoryList {
     list-style: none;
     margin: 0;
@@ -3220,6 +3217,7 @@
     font-weight: 500;
     letter-spacing: -0.003em;
     text-align: left;
+    text-decoration: none;
     cursor: pointer;
     border-radius: 0 var(--radius) var(--radius) 0;
     transition: color 0.12s ease, background-color 0.12s ease;
@@ -3228,11 +3226,9 @@
     background: var(--surface-raised);
     color: var(--text-primary);
   }
-  .settingsCategoryItem.active {
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    font-weight: 600;
-    border-left-color: var(--text-primary);
+  .settingsCategoryItem:focus-visible {
+    outline: 2px solid var(--accent, currentColor);
+    outline-offset: 2px;
   }
   .settingsCategoryItemLabel {
     letter-spacing: 0.01em;
@@ -3249,13 +3245,76 @@
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
-  .settingsCategoryItem.active .settingsCategoryItemCount {
+  .settingsCategorySection {
+    display: grid;
+    gap: 12px;
+    scroll-margin-top: 24px;
+    padding-top: 6px;
+  }
+  .settingsCategorySection + .settingsCategorySection {
+    border-top: 1px solid var(--border-default);
+    padding-top: 22px;
+  }
+  .settingsCategoryHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .settingsCategoryTitle {
+    margin: 0;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 700;
+    letter-spacing: 0;
+    font-feature-settings: "palt";
+  }
+  .settingsCategoryHint {
+    margin: 4px 0 0;
+  }
+  .settingsCategoryCount {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: center;
+  }
+  .settingsCardModeFoot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-default);
+  }
+  .settingsCardCommand {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
     color: var(--text-primary);
+    background: var(--background-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 3px 8px;
+    word-break: break-all;
+  }
+  .settingsCardWarn {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--danger, #c4504b);
+    font-weight: 700;
+  }
+  .settingsCardModeFoot[data-mode="scope-note"] {
+    border-top-style: dotted;
   }
   .settingsDetail {
     min-width: 0;
     display: grid;
-    gap: 14px;
+    gap: 22px;
   }
   .settingsDetailHead {
     align-items: flex-start;
@@ -3537,54 +3596,22 @@
       gap: 14px;
     }
     .settingsCategoryNav {
-      display: none;
-    }
-    .settingsCategoryDrawer {
-      display: block;
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      background: var(--background-secondary);
-      padding: 4px;
-    }
-    .settingsCategoryDrawer > summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 12px 14px;
-      cursor: pointer;
-      list-style: none;
-      border-radius: var(--radius);
-    }
-    .settingsCategoryDrawer > summary::-webkit-details-marker {
-      display: none;
-    }
-    .settingsCategoryDrawerLabel {
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--text-primary);
-    }
-    .settingsCategoryDrawerHint {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    .settingsCategoryDrawer[open] > summary {
+      position: static;
+      border-right: 0;
       border-bottom: 1px solid var(--border-default);
-      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 0 0 8px;
     }
-    .settingsCategoryDrawer .settingsCategoryList {
-      padding: 6px;
+    .settingsCategoryList {
+      grid-auto-flow: column;
+      grid-auto-columns: max-content;
+      overflow-x: auto;
+      gap: 4px;
+      padding-bottom: 4px;
     }
-    .settingsCategoryDrawer .settingsCategoryItem {
-      border-radius: var(--radius);
+    .settingsCategoryItem {
       border-left: 0;
-      padding: 12px 14px;
-    }
-    .settingsCategoryDrawer .settingsCategoryItem.active {
-      background: var(--surface-normal);
-      box-shadow: var(--elevation-1);
+      border-radius: var(--radius);
+      padding: 8px 12px;
     }
     .settingsDetailHead {
       flex-wrap: wrap;
