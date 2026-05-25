@@ -17,9 +17,16 @@
 // lives in the gutter no matter how the editor is laid out, and we
 // don't have to walk the DOM up looking for `.editorCanvas`.
 
-import type { NodeType, Node as ProseNode, Schema } from 'prosemirror-model';
-import { type EditorState, Plugin } from 'prosemirror-state';
+import type { Node as ProseNode, Schema } from 'prosemirror-model';
+import { Plugin } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
+import {
+  type EmptyParagraphTarget,
+  altFromFilenameDefault,
+  build3x3Table,
+  findEmptyParagraph,
+  nodeBy,
+} from './prose-insert-menu-logic.ts';
 
 export interface InsertMenuUploadResult {
   ok: boolean;
@@ -36,64 +43,6 @@ export interface InsertMenuOptions {
   // Default alt-text prompt is suppressed in tests; the option lets
   // the runtime customise the source filename → alt translation.
   altFromFilename?: (name: string) => string;
-}
-
-interface EmptyParagraphTarget {
-  paraStart: number; // doc position of the paragraph's start token
-  caretPos: number; // selection.from (same as $from.pos for an empty paragraph)
-}
-
-function altFromFilenameDefault(name: string): string {
-  const base = name
-    .replace(/\.[^.]+$/, '')
-    .replace(/[-_]+/g, ' ')
-    .trim();
-  return base.length > 0 ? base : 'image';
-}
-
-// True iff the cursor sits on an empty top-level paragraph (i.e.
-// directly under the doc node). We restrict to depth=1 deliberately:
-// empty paragraphs inside blockquotes / list items / table cells are
-// natural targets for typing, not block-level insertion. The bubble
-// menu already handles formatting inside those contexts.
-function findEmptyParagraph(state: EditorState): EmptyParagraphTarget | null {
-  const { selection } = state;
-  if (!selection.empty) return null;
-  const $from = selection.$from;
-  if ($from.parent.type.name !== 'paragraph') return null;
-  if ($from.parent.content.size !== 0) return null;
-  if ($from.depth !== 1) return null;
-  return { paraStart: $from.before(), caretPos: selection.from };
-}
-
-function nodeBy(schema: Schema, name: string): NodeType | null {
-  return schema.nodes[name] ?? null;
-}
-
-function build3x3Table(schema: Schema): ProseNode | null {
-  const table = nodeBy(schema, 'table');
-  const row = nodeBy(schema, 'table_row');
-  const header = nodeBy(schema, 'table_header');
-  const cell = nodeBy(schema, 'table_cell');
-  if (!table || !row || !header || !cell) return null;
-  const headerCells: ProseNode[] = [];
-  for (let i = 0; i < 3; i += 1) {
-    const filled = header.createAndFill();
-    if (!filled) return null;
-    headerCells.push(filled);
-  }
-  const headerRow = row.create(null, headerCells);
-  const bodyRows: ProseNode[] = [];
-  for (let r = 0; r < 2; r += 1) {
-    const cells: ProseNode[] = [];
-    for (let c = 0; c < 3; c += 1) {
-      const filled = cell.createAndFill();
-      if (!filled) return null;
-      cells.push(filled);
-    }
-    bodyRows.push(row.create(null, cells));
-  }
-  return table.create(null, [headerRow, ...bodyRows]);
 }
 
 // Replace the empty paragraph that holds the caret with the given
@@ -415,6 +364,3 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
     },
   });
 }
-
-// Exported for tests — predicate logic without the DOM surface.
-export const _internal = { findEmptyParagraph, build3x3Table, altFromFilenameDefault };
