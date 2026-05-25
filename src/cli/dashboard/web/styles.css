@@ -1508,6 +1508,34 @@
   .contentRow:focus-visible {
     box-shadow: inset 2px 0 0 var(--focus);
   }
+  /* Taxonomy source expressed via cell typography too — generated rows
+   * dim (auto-created stubs), orphaned rows wear a caution stripe. */
+  .contentRow[data-source="generated"] {
+    opacity: 0.62;
+  }
+  .contentRow[data-source="generated"]:hover {
+    opacity: 1;
+  }
+  .contentRow[data-source="generated"] .titleText::after {
+    content: " · generated";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  .contentRow[data-orphaned="true"] {
+    box-shadow: inset 2px 0 0 var(--danger);
+  }
+  .contentRow[data-orphaned="true"] .titleText::before {
+    content: "orphaned ";
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--danger);
+    margin-right: 6px;
+  }
   /* Status & approval expressed via cell typography rather than chips.
    * The row's title is the canvas; weight + style + a subtle inline
    * marker carry the meaning. */

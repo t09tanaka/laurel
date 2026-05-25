@@ -39,14 +39,18 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
               <tr>
                 <th>Name</th>
                 <th>Posts</th>
-                <th>Source</th>
                 <th>Path</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.slug}>
+                <tr
+                  key={item.slug}
+                  class="contentRow"
+                  data-source={item.source ?? 'file'}
+                  data-orphaned={item.orphaned ? 'true' : undefined}
+                >
                   <td class="titleCell">
                     <div class="titleLine">
                       <span class="titleText" title={item.name}>
@@ -60,20 +64,10 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                     </div>
                     {item.description ? <div class="meta">{item.description}</div> : null}
                   </td>
-                  <td>{item.count}</td>
+                  <td class="dateCell">{item.count}</td>
                   <td>
-                    <span
-                      class={`pill ${
-                        item.orphaned ? 'danger' : item.source === 'generated' ? 'info' : 'subtle'
-                      }`}
-                    >
-                      {item.source ?? 'file'}
-                      {item.orphaned ? ' · orphaned' : ''}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="pathText">
-                      {item.path ?? item.materializePath ?? 'generated from content references'}
+                    <div class="pathText" title={item.path ?? item.materializePath ?? 'generated from references'}>
+                      {item.path ?? item.materializePath ?? 'generated from references'}
                     </div>
                   </td>
                   <td>
