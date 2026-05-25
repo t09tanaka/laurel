@@ -32,7 +32,7 @@ jobs:
             repo: TryGhost/Liebling
     steps:
       - name: Checkout nectar
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -40,7 +40,7 @@ jobs:
           bun-version: 1.3.0
 
       - name: Cache Bun install store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-bun-store-
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
           key: ${{ runner.os }}-bun-1.3.0-node-modules-${{ hashFiles('bun.lock') }}
@@ -57,7 +57,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download theme ${{ matrix.theme }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ matrix.repo }}
           path: .theme-cache/${{ matrix.theme }}

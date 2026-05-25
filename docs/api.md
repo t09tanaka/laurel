@@ -1,8 +1,26 @@
 # Nectar Content API
 
-Nectar emits a static, Ghost-shaped Content API at build time. This document
+Nectar can emit a static, Ghost-shaped Content API at build time. This document
 describes what is and is not supported, and how it diverges from Ghost's
 hosted Content API.
+
+**Opt-in:** the Content API is off by default. A stock build does not write
+the JSON shadows, the `_headers` / `_headers.cf` CORS files, the SDK
+trailing-slash entries in `_redirects`, or `.well-known/ghost.json`. Turn it
+on by setting:
+
+```toml
+[components.content_api]
+enabled = true
+```
+
+This default was flipped to off because most Nectar sites do not consume
+their own JSON shadows: leaving the surface on emitted roughly half of the
+output file count for a small blog (the SDK shadow tree alone is the bulk of
+that) even when no client was wired up. Opt in when you are using the
+`@tryghost/content-api` SDK, a browser-only fetcher against `/content/*.json`,
+or you specifically need the auto-generated CORS rules for Netlify /
+Cloudflare Pages.
 
 For a minimal browser app that consumes the SDK shadow tree with
 `@tryghost/content-api`, see [`EXAMPLE_SPA.md`](./EXAMPLE_SPA.md).

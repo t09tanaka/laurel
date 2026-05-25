@@ -9,8 +9,7 @@ client can be used from Vue, Svelte, or plain browser JavaScript.
 
 ## 1. Enable and deploy the Content API
 
-The Content API is enabled by default. Keep it explicit in project templates
-where an SPA depends on the JSON output:
+The Content API is off by default. SPA consumers must opt it in:
 
 ```toml
 [components.content_api]
