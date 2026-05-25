@@ -7,6 +7,8 @@ export interface RecentEntry {
   title: string;
 }
 
+export type SidebarBuildPhase = 'idle' | 'running' | 'done' | 'error';
+
 interface SidebarProps {
   section: DashboardShellSection;
   siteTitle: string;
@@ -20,6 +22,11 @@ interface SidebarProps {
   buildState: string;
   previewLabel: string;
   previewState: string;
+  buildPhase: SidebarBuildPhase;
+  buildProgress: { completed: number; total: number } | null;
+  canDownload: boolean;
+  onBuildClick: () => void;
+  onDownloadClick: () => void;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
   onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onForceSync: () => void;
@@ -42,13 +49,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         <div class="brand">
           {/* A faint hexagon — honey-cell glyph, ties the "Nectar" name to
            * a wordless mark without leaning on emoji or external assets. */}
-          <svg
-            class="brandMark"
-            viewBox="0 0 20 20"
-            width="20"
-            height="20"
-            aria-hidden="true"
-          >
+          <svg class="brandMark" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
             <polygon
               points="10,1.5 17.4,5.75 17.4,14.25 10,18.5 2.6,14.25 2.6,5.75"
               fill="none"
@@ -100,66 +101,119 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </ul>
         </div>
       ) : null}
-      {/* Sidebar footer — Settings link + a tiny sync pip. Theme toggle
-       * removed (dark theme dropped per user direction). */}
+      {/* Sidebar footer — two rows:
+       *   row 1: Build site action (primary writer action) + Download zip
+       *          once the latest build succeeded
+       *   row 2: Settings link, View site icon, sync pip (existing controls) */}
       <div class="sideFooter">
-        <a
-          href="/settings"
-          class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
-          aria-current={props.section === 'settings' ? 'page' : undefined}
-          onClick={(event) => {
-            event.preventDefault();
-            props.onNavigate('settings');
-          }}
-        >
-          <span>Settings</span>
-        </a>
-        {(() => {
-          const host = hostnameOf(props.siteUrl);
-          if (!host || !props.siteUrl) return null;
-          return (
-            <a
-              class="sideFooterSite"
-              href={props.siteUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              aria-label={`Open published site at ${host}`}
-              title={`View site · ${host}`}
+        <div class="sideFooterRow sideFooterRowBuild">
+          <button
+            type="button"
+            class="sideFooterBuild"
+            data-phase={props.buildPhase}
+            onClick={props.onBuildClick}
+            disabled={props.buildPhase === 'running'}
+          >
+            <span class="sideFooterBuildLabel">{buildButtonLabel(props)}</span>
+          </button>
+          {props.canDownload ? (
+            <button
+              type="button"
+              class="sideFooterDownload"
+              onClick={props.onDownloadClick}
+              title="Download the built site as a zip"
+              aria-label="Download built site as zip"
             >
-              <span class="srOnly">View site at {host}</span>
               <svg
                 class="sideFooterIcon"
                 viewBox="0 0 16 16"
-                width="16"
-                height="16"
+                width="14"
+                height="14"
                 aria-hidden="true"
               >
                 <path
-                  d="M9.5 3.5h3v3M12.3 3.7L7 9M6 4.5H4.2c-.55 0-1 .45-1 1v6.3c0 .55.45 1 1 1h6.3c.55 0 1-.45 1-1V10"
+                  d="M8 2v8M4.5 6.5L8 10l3.5-3.5M3 13h10"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="1.3"
+                  stroke-width="1.4"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </svg>
-            </a>
-          );
-        })()}
-        <button
-          type="button"
-          id="syncRail"
-          class="syncPip"
-          data-state={props.syncState}
-          onClick={props.onForceSync}
-          title={`Sync · ${props.syncLabel} · click to re-read`}
-          aria-label={`Sync state: ${props.syncLabel}. Click to re-read from disk.`}
-        >
-          <span class="syncPipMark" aria-hidden="true" />
-        </button>
+              <span>Zip</span>
+            </button>
+          ) : null}
+        </div>
+        <div class="sideFooterRow sideFooterRowMeta">
+          <a
+            href="/settings"
+            class={`sideFooterSettings${props.section === 'settings' ? ' active' : ''}`}
+            aria-current={props.section === 'settings' ? 'page' : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              props.onNavigate('settings');
+            }}
+          >
+            <span>Settings</span>
+          </a>
+          {(() => {
+            const host = hostnameOf(props.siteUrl);
+            if (!host || !props.siteUrl) return null;
+            return (
+              <a
+                class="sideFooterSite"
+                href={props.siteUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={`Open published site at ${host}`}
+                title={`View site · ${host}`}
+              >
+                <span class="srOnly">View site at {host}</span>
+                <svg
+                  class="sideFooterIcon"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M9.5 3.5h3v3M12.3 3.7L7 9M6 4.5H4.2c-.55 0-1 .45-1 1v6.3c0 .55.45 1 1 1h6.3c.55 0 1-.45 1-1V10"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </a>
+            );
+          })()}
+          <button
+            type="button"
+            id="syncRail"
+            class="syncPip"
+            data-state={props.syncState}
+            onClick={props.onForceSync}
+            title={`Sync · ${props.syncLabel} · click to re-read`}
+            aria-label={`Sync state: ${props.syncLabel}. Click to re-read from disk.`}
+          >
+            <span class="syncPipMark" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </aside>
   );
+}
+
+function buildButtonLabel(props: SidebarProps): string {
+  if (props.buildPhase === 'running') {
+    if (props.buildProgress && props.buildProgress.total > 0) {
+      return `Building… ${props.buildProgress.completed}/${props.buildProgress.total}`;
+    }
+    return 'Building…';
+  }
+  if (props.buildPhase === 'error') return 'Retry build';
+  return 'Build site';
 }
 
 interface NavLinkProps {

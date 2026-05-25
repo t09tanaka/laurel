@@ -322,6 +322,98 @@ export async function importPageBundleUpload(
   return { status: response.status, data: await response.json() };
 }
 
+export interface BuildSummarySnapshot {
+  outputDir: string;
+  routeCount: number;
+  assetCount: number;
+  outputBytes?: number;
+  warningCount: number;
+  renderedCount: number;
+  skippedCount: number;
+  durationMs: number;
+}
+
+export type BuildStreamEvent =
+  | { type: 'start'; startedAt: string }
+  | {
+      type: 'progress';
+      event:
+        | { type: 'phase-start' | 'phase-end'; phase: string; label: string; totalRoutes?: number }
+        | { type: 'phase-status'; phase: string; label: string }
+        | { type: 'routes-planned'; totalRoutes: number }
+        | {
+            type: 'route-rendered';
+            completedRoutes: number;
+            totalRoutes: number;
+            route: string;
+            reused: boolean;
+          }
+        | { type: 'asset-step'; step: number; totalSteps: number; label: string };
+    }
+  | { type: 'done'; summary: BuildSummarySnapshot }
+  | { type: 'error'; message: string };
+
+export async function streamBuild(onEvent: (event: BuildStreamEvent) => void): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'x-nectar-dashboard-token': TOKEN },
+    });
+  } catch (err) {
+    onEvent({ type: 'error', message: err instanceof Error ? err.message : 'Network error' });
+    return;
+  }
+  if (response.status === 409) {
+    onEvent({
+      type: 'error',
+      message: 'A build is already running. Wait for it to finish, then retry.',
+    });
+    return;
+  }
+  if (!response.ok || !response.body) {
+    let detail = '';
+    try {
+      detail = (await response.text()).slice(0, 240);
+    } catch {
+      detail = '';
+    }
+    onEvent({
+      type: 'error',
+      message: `Build request failed (${response.status})${detail ? `: ${detail}` : ''}`,
+    });
+    return;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl = buffer.indexOf('\n');
+    while (nl >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line.length > 0) {
+        try {
+          onEvent(JSON.parse(line) as BuildStreamEvent);
+        } catch {
+          // Skip malformed lines rather than aborting the entire build feed.
+        }
+      }
+      nl = buffer.indexOf('\n');
+    }
+  }
+  if (buffer.trim().length > 0) {
+    try {
+      onEvent(JSON.parse(buffer.trim()) as BuildStreamEvent);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function exportPageBundle(slug: string): Promise<unknown> {
   const response = await fetch(`/api/page-bundles/export/${encodeURIComponent(slug)}`);
   const data = await response.json();
