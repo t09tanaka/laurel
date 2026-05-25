@@ -359,7 +359,11 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           <span id="editorTitle" class="srOnly">
             {current.path}
           </span>
-          {current.path} · fingerprint {fingerprintToken(current.fingerprint)}
+          {/* Fingerprint moved to title attribute — diagnostic info, not
+           * editorial. The path itself is the contextual anchor. */}
+          <span title={`fingerprint ${fingerprintToken(current.fingerprint)}`}>
+            {current.path}
+          </span>
         </div>
         <div class="editorFocusBar">
           <span class="saveChip" data-state={saveState} aria-live="polite">

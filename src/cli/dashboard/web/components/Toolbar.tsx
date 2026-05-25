@@ -37,14 +37,11 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         Filter current view
       </label>
       <div class="searchWrap">
-        <span class="searchIcon" aria-hidden="true">
-          ⌕
-        </span>
         <input
           class="search"
           id="search"
           ref={searchRef}
-          placeholder="タイトル / slug / タグで絞り込み"
+          placeholder="Filter"
           value={props.query}
           onInput={(event) => props.onSearch((event.currentTarget as HTMLInputElement).value)}
           onKeyDown={(event) => {
@@ -54,9 +51,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             }
           }}
         />
-        <span class="searchHint" aria-hidden="true">
-          /
-        </span>
       </div>
       <button
         type="button"

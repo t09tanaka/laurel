@@ -821,37 +821,9 @@
     letter-spacing: -0.003em;
     box-shadow: var(--elevation-1);
   }
-  .searchWrap .search {
-    padding-left: 34px;
-    padding-right: 40px;
-  }
   .search::placeholder {
     color: var(--text-muted);
-  }
-  .searchIcon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 14px;
-    pointer-events: none;
-  }
-  .searchHint {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 1px 6px;
-    border: 1px solid var(--border-default);
-    border-radius: 4px;
-    background: var(--surface-raised);
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1.2;
-    pointer-events: none;
+    font-weight: 400;
   }
   .btn {
     min-height: 38px;
@@ -2686,9 +2658,21 @@
       height: auto;
       border-right: 0;
       border-bottom: 1px solid var(--border-default);
+      display: grid;
       grid-template-rows: auto auto auto;
+      padding: 18px 18px 14px;
+      gap: 14px;
+    }
+    /* Recents hidden on mobile — list view itself surfaces files at scale,
+     * the Recently rail belongs to the desktop sidebar. */
+    .side .recents {
+      display: none;
+    }
+    .side .statusRail {
+      margin-top: 0;
     }
     .nav {
+      display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .nav a {
@@ -2702,6 +2686,7 @@
       min-width: 18px;
     }
     .statusRail {
+      display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       border-top: 1px solid var(--border-default);
       padding-top: 12px;

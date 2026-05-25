@@ -58,13 +58,13 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
       {list.items.length ? (
         <div class="tableWrap">
           <table class="table contentTable">
-            <thead>
+            {/* Column headers removed visually — the row content is
+             * self-explanatory. srOnly thead preserves assistive context. */}
+            <thead class="srOnly">
               <tr>
                 <th>Title</th>
-                <th class="dateCol">Updated</th>
-                <th>
-                  <span class="srOnly">Actions</span>
-                </th>
+                <th>Updated</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
