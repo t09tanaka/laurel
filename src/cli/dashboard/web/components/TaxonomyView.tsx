@@ -41,12 +41,27 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
             <tbody>
               {items.map((item) => {
                 const editorHref = item.editable ? pathForEditor(props.kind, item.slug) : null;
+                // Non-editable rows (generated stubs that still need a
+                // materialised file) have no editor target, so we
+                // leave them inert and let the explicit "Create file"
+                // button handle that case.
+                const onRowClick = item.editable
+                  ? (event: MouseEvent) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      if ((event.target as HTMLElement | null)?.closest('a, button')) return;
+                      event.preventDefault();
+                      props.onEdit(item.slug);
+                    }
+                  : undefined;
                 return (
+                  // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title anchor and Edit button which retain their own semantics
                   <tr
                     key={item.slug}
                     class="contentRow"
                     data-source={item.source ?? 'file'}
                     data-orphaned={item.orphaned ? 'true' : undefined}
+                    data-editable={item.editable ? 'true' : 'false'}
+                    onClick={onRowClick}
                   >
                     <td class="titleCell">
                       <div class="titleLine">
