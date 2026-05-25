@@ -42,6 +42,46 @@ function blockMatches(
   return true;
 }
 
+// Resolve the visual caret position. The browser's own selection
+// reports `focusNode` + `focusOffset`; building a tiny 1-character
+// Range around that offset gives us a concrete rectangle even when
+// the selection itself is collapsed (whose rects are empty on
+// Chrome / Safari). Falls back to coordsAtPos when there's no text
+// node at the caret (e.g. cursor between two block nodes).
+function caretRect(view: EditorView, pos: number): DOMRect | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return measureViaProse(view, pos);
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed) return measureViaProse(view, pos);
+  const node = range.startContainer;
+  const offset = range.startOffset;
+  if (node.nodeType !== Node.TEXT_NODE) return measureViaProse(view, pos);
+  const text = node as Text;
+  const probe = document.createRange();
+  if (offset < text.length) {
+    probe.setStart(text, offset);
+    probe.setEnd(text, offset + 1);
+    const r = probe.getBoundingClientRect();
+    if (r.width > 0 || r.height > 0) {
+      return new DOMRect(r.left, r.top, 0, r.height);
+    }
+  }
+  if (offset > 0) {
+    probe.setStart(text, offset - 1);
+    probe.setEnd(text, offset);
+    const r = probe.getBoundingClientRect();
+    if (r.width > 0 || r.height > 0) {
+      return new DOMRect(r.right, r.top, 0, r.height);
+    }
+  }
+  return measureViaProse(view, pos);
+}
+
+function measureViaProse(view: EditorView, pos: number): DOMRect | null {
+  const c = view.coordsAtPos(pos, 1);
+  return new DOMRect(c.left, c.top, 0, c.bottom - c.top);
+}
+
 function isMarkActive(state: EditorState, type: MarkType): boolean {
   const { from, $from, to, empty } = state.selection;
   if (empty) return Boolean(type.isInSet(state.storedMarks || $from.marks()));
@@ -480,37 +520,27 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         // For an empty selection the browser's own caret rect tracks
         // text wrapping accurately; coordsAtPos can return the prior
         // line's edge when the caret sits at a wrap boundary.
-        // Resolve the caret to viewport coords. coordsAtPos defaults
-        // to the side that visually contains the cursor; when the
-        // ProseMirror position sits on a wrap boundary, biasing to
-        // the trailing side (+1) keeps the rect on the line the user
-        // actually clicked. For empty selections we also peek at the
-        // browser's caret via getClientRects so the bubble follows
-        // the real caret pixel-for-pixel.
+        // Locate the caret in viewport coords. Collapsed Range rects
+        // are unreliable across browsers (empty list on Chrome/Safari)
+        // and view.coordsAtPos picks the wrong side on wrap
+        // boundaries — so we probe a 1-character sibling Range around
+        // the caret and use its concrete rect.
         let anchorCenter = 0;
         let anchorTop = 0;
-        const biased = currentView.coordsAtPos(from, 1);
-        anchorCenter = biased.left - parentRect.left;
-        anchorTop = biased.top - parentRect.top;
         if (!empty) {
           const start = currentView.coordsAtPos(from, 1);
           const end = currentView.coordsAtPos(to, -1);
           anchorCenter = (start.left + end.left) / 2 - parentRect.left;
           anchorTop = Math.min(start.top, end.top) - parentRect.top;
         } else {
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0).cloneRange();
-            range.collapse(true);
-            const rects = range.getClientRects();
-            const rect =
-              rects.length > 0
-                ? rects[rects.length - 1]
-                : null;
-            if (rect && (rect.left !== 0 || rect.top !== 0)) {
-              anchorCenter = rect.left + rect.width / 2 - parentRect.left;
-              anchorTop = rect.top - parentRect.top;
-            }
+          const rect = caretRect(currentView, from);
+          if (rect) {
+            anchorCenter = rect.left - parentRect.left;
+            anchorTop = rect.top - parentRect.top;
+          } else {
+            const biased = currentView.coordsAtPos(from, 1);
+            anchorCenter = biased.left - parentRect.left;
+            anchorTop = biased.top - parentRect.top;
           }
         }
         // Render then measure so we can clamp into the parent's bounds.
