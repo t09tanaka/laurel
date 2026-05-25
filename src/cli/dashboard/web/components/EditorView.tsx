@@ -132,6 +132,12 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      // ⌘S / Ctrl+S — primary writer's shortcut.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleSave();
+        return;
+      }
       if (event.key !== 'Escape') return;
       // Staged dismissal: first Escape exits focus mode, second Escape closes the editor.
       if (focus.focusMode) {
@@ -144,6 +150,9 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+    // handleSave is stable enough across renders; intentionally not listed
+    // to avoid re-binding the listener for every snapshot patch.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: see comment above
   }, [focus.focusMode, props.onCloseEditor]);
 
   function patchSnapshot(part: Partial<EditorSnapshot>) {

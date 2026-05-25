@@ -2390,10 +2390,10 @@
   body.editorFocus .editor textarea {
     border-color: transparent;
     box-shadow: none;
-    background: var(--surface-normal);
+    background: transparent;
   }
   body.editorFocus .editor textarea:focus {
-    border-color: var(--border-weak);
+    border-color: transparent;
   }
   .createPage {
     padding: 18px 0;
@@ -3209,7 +3209,7 @@
       height: 46vh;
       min-height: 300px;
       max-width: 100%;
-      padding: 18px 16px;
+      padding: 0;
     }
     .titleBlock {
       flex-wrap: wrap;
