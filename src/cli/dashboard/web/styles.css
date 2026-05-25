@@ -687,12 +687,15 @@
     background: #4a5d72;
   }
   .main {
-    padding: 40px 56px 56px;
+    padding: 48px 64px 64px;
     min-width: 0;
     max-width: var(--main-width);
     width: 100%;
     margin: 0 auto;
     overflow: hidden;
+    /* Subtle fade-in on every navigation — gives the dashboard a sense
+     * of "page turn" instead of an abrupt swap. */
+    animation: mainFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .viewHead {
     display: grid;
@@ -1129,6 +1132,16 @@
     max-height: min(72vh, 600px);
     animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  @keyframes mainFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
   @keyframes cmdkBackdropIn {
     from {
       opacity: 0;
@@ -1489,11 +1502,14 @@
     background: transparent;
     border-bottom: 1px solid var(--border-weak);
     cursor: pointer;
-    transition: background-color 0.12s ease;
+    transition: background-color 0.12s ease, box-shadow 0.12s ease;
   }
   .contentRow:hover,
   .contentRow:focus-within {
-    background: var(--surface-raised);
+    background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+    /* Thin brand-ink left rule on hover — gives a "select target" cue
+     * that matches the sidebar active state language. */
+    box-shadow: inset 2px 0 0 var(--color-ink);
     outline: none;
   }
   .contentRow:focus-visible {
@@ -1747,30 +1763,45 @@
   }
   .empty,
   .statePanel {
-    padding: 38px 16px;
+    padding: 80px 24px;
     color: var(--text-secondary);
     text-align: center;
   }
   .statePanel {
-    border: 1px solid var(--border-weak);
-    border-radius: 8px;
-    background: var(--surface-normal);
-    box-shadow: var(--elevation-1);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    position: relative;
+  }
+  /* Editorial em-dash above the empty-state title — a magazine-style
+   * marker that signals "nothing here yet" without an illustration. */
+  .statePanel::before {
+    content: "";
+    display: block;
+    width: 28px;
+    height: 1px;
+    margin: 0 auto 28px;
+    background: var(--border-strong);
   }
   .statePanel b {
     display: block;
     color: var(--text-primary);
     font-family: var(--font-serif);
-    font-size: 20px;
-    line-height: 26px;
-    margin-bottom: 7px;
-    font-weight: 500;
-    letter-spacing: -0.008em;
-    font-feature-settings: "palt";
+    font-size: 26px;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.012em;
+    font-feature-settings: "palt", "ss01";
   }
   .statePanel p {
-    margin: 0 auto 12px;
-    max-width: 520px;
+    margin: 0 auto 16px;
+    max-width: 460px;
+    font-size: 13.5px;
+    line-height: 20px;
+    color: var(--text-muted);
   }
   .statePanel.error,
   .statePanel.conflict {
@@ -1842,21 +1873,26 @@
   }
   .editor textarea {
     width: 100%;
-    max-width: 65ch;
-    min-height: 480px;
-    height: 62vh;
+    max-width: 68ch;
+    min-height: 520px;
+    height: 64vh;
     resize: vertical;
-    border: 1px solid var(--border-weak);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: var(--text-primary);
-    padding: 32px 40px;
+    padding: 0;
+    /* Prose-grade body. Markdown surface uses mono for code/structure
+     * but mono everywhere makes writing feel like editing a config. The
+     * larger size + warm cream surface (the page bg shows through) +
+     * generous line-height reads like a draft on paper. */
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: 15.5px;
     overflow-wrap: anywhere;
-    line-height: 1.7;
+    line-height: 1.75;
     letter-spacing: 0.01em;
-    box-shadow: var(--elevation-1);
+    box-shadow: none;
+    outline: none;
   }
   .fields {
     display: grid;
