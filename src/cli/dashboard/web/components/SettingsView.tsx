@@ -9,6 +9,7 @@ interface SettingsViewProps {
   onConflict: (message: string) => void;
   onSiteDirtyChange: (dirty: boolean) => void;
   onThemeDirtyChange: (dirty: boolean) => void;
+  onCodeInjectionDirtyChange: (dirty: boolean) => void;
   onOpenMigration: () => void;
 }
 
@@ -46,7 +47,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
           site={site}
           onSettingsSaved={props.onSettingsSaved}
           onConflict={props.onConflict}
-          onSiteDirtyChange={props.onSiteDirtyChange}
+          onCodeInjectionDirtyChange={props.onCodeInjectionDirtyChange}
         />
       </div>
     </div>
@@ -419,7 +420,7 @@ interface CodeInjectionProps {
   site: DashboardState['site'];
   onSettingsSaved: () => Promise<void> | void;
   onConflict: (message: string) => void;
-  onSiteDirtyChange: (dirty: boolean) => void;
+  onCodeInjectionDirtyChange: (dirty: boolean) => void;
 }
 
 /* Site-wide Code Injection panel — issue #533.
@@ -427,15 +428,22 @@ interface CodeInjectionProps {
  * Mirrors Ghost's "Code injection" admin surface: a header textarea
  * splices into {{ghost_head}} on every page, a footer textarea splices
  * before </body>. Storage lands in `[site].codeinjection_head` /
- * `[site].codeinjection_foot` of nectar.toml (Ghost's own field naming);
- * the writer auto-flips `build.allow_code_injection = true` when a
- * non-empty value is saved so the operator doesn't have to bounce out
- * of the dashboard to enable the gate. */
+ * `[site].codeinjection_foot` of nectar.toml.
+ *
+ * `build.allow_code_injection` is an explicit checkbox — NOT auto-flipped
+ * from head/foot non-emptiness — because the same gate also activates
+ * per-post `codeinjection_head` / `codeinjection_foot` frontmatter (see
+ * src/content/loader.ts §asRawCodeInjection). If a content contributor
+ * had previously merged a malicious frontmatter snippet while the gate
+ * was off, silently flipping it on for an operator-initiated GA save
+ * would suddenly ship that snippet. The checkbox makes the operator
+ * acknowledge that consequence before the snippets actually run. */
 function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
   const { site } = props;
   const settings = props.state.settings;
   const [head, setHead] = useState(site.codeinjectionHead);
   const [foot, setFoot] = useState(site.codeinjectionFoot);
+  const [enabled, setEnabled] = useState(site.allowCodeInjection);
   const [notice, setNotice] = useState('');
   const [dirty, setDirty] = useState(false);
 
@@ -443,23 +451,33 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
   useEffect(() => {
     setHead(site.codeinjectionHead);
     setFoot(site.codeinjectionFoot);
+    setEnabled(site.allowCodeInjection);
     setDirty(false);
-    props.onSiteDirtyChange(false);
-  }, [site.codeinjectionHead, site.codeinjectionFoot]);
+    props.onCodeInjectionDirtyChange(false);
+  }, [site.codeinjectionHead, site.codeinjectionFoot, site.allowCodeInjection]);
 
-  function bind(setter: (value: string) => void): (event: Event) => void {
+  function markDirty(): void {
+    setDirty(true);
+    props.onCodeInjectionDirtyChange(true);
+  }
+
+  function bindTextarea(setter: (value: string) => void): (event: Event) => void {
     return (event) => {
-      const value = (event.currentTarget as HTMLTextAreaElement).value;
-      setter(value);
-      setDirty(true);
-      props.onSiteDirtyChange(true);
+      setter((event.currentTarget as HTMLTextAreaElement).value);
+      markDirty();
     };
+  }
+
+  function handleEnabledToggle(event: Event): void {
+    setEnabled((event.currentTarget as HTMLInputElement).checked);
+    markDirty();
   }
 
   async function handleSave() {
     const updates = {
       codeinjection_head: head,
       codeinjection_foot: foot,
+      allow_code_injection: enabled,
     };
     const { status, data } = await saveSiteSettings({
       fingerprint: settings.fingerprint,
@@ -477,17 +495,12 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
       return;
     }
     setDirty(false);
-    props.onSiteDirtyChange(false);
-    const enabling = head.length > 0 || foot.length > 0;
-    setNotice(
-      enabling && !site.allowCodeInjection
-        ? 'Saved to nectar.toml and enabled build.allow_code_injection.'
-        : 'Saved to nectar.toml.',
-    );
+    props.onCodeInjectionDirtyChange(false);
+    setNotice('Saved to nectar.toml.');
     await props.onSettingsSaved();
   }
 
-  const showGateHint = !site.allowCodeInjection && (head.length > 0 || foot.length > 0);
+  const hasSnippet = head.length > 0 || foot.length > 0;
   return (
     <section class="codeInjectionPanel" aria-label="Code injection">
       <header class="settingsPanelHead">
@@ -511,7 +524,7 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
             spellcheck={false}
             placeholder="<!-- e.g. Google Analytics, custom <meta>, third-party <link> --><script async src=&quot;https://www.googletagmanager.com/gtag/js?id=G-XXXX&quot;></script>"
             value={head}
-            onInput={bind(setHead)}
+            onInput={bindTextarea(setHead)}
           />
         </label>
         <label class="field wide">
@@ -523,9 +536,33 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
             spellcheck={false}
             placeholder="<!-- e.g. Plausible, Fathom, chat widgets that load before </body> -->"
             value={foot}
-            onInput={bind(setFoot)}
+            onInput={bindTextarea(setFoot)}
           />
         </label>
+        <label class="field wide codeInjectionGate">
+          <input
+            type="checkbox"
+            id="codeInjectionEnabled"
+            checked={enabled}
+            onChange={handleEnabledToggle}
+          />
+          <span>
+            Enable code injection (<code>build.allow_code_injection</code>)
+          </span>
+        </label>
+        <p class="meta wide codeInjectionGateNote">
+          Required for the snippets above to reach <code>{'{{ghost_head}}'}</code> /{' '}
+          <code>{'{{ghost_foot}}'}</code>. <strong>Also</strong> activates per-post{' '}
+          <code>codeinjection_head</code> / <code>codeinjection_foot</code> frontmatter — only
+          enable if every contributor with write access to <code>content/</code> is trusted to add
+          arbitrary HTML or JS.
+          {hasSnippet && !enabled ? (
+            <>
+              {' '}
+              <strong>The saved snippets will not run until this is checked.</strong>
+            </>
+          ) : null}
+        </p>
         <div class="field wide siteIdentityActions">
           <output id="codeInjectionNotice" class="notice">
             {notice}
@@ -543,12 +580,6 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
             Save changes
           </button>
         </div>
-        {showGateHint ? (
-          <p class="meta wide">
-            Saving will set <code>build.allow_code_injection = true</code> so these snippets reach{' '}
-            <code>{'{{ghost_head}}'}</code> / <code>{'{{ghost_foot}}'}</code> on the next build.
-          </p>
-        ) : null}
       </div>
     </section>
   );

@@ -101,6 +101,12 @@ const SITE_SETTINGS_FIELDS = [
   'codeinjection_head',
   'codeinjection_foot',
 ];
+// Companion fields the /api/settings/site PATCH route accepts that live
+// outside the [site] section. Currently just the gate that controls
+// whether site-wide AND per-post `codeinjection_*` fields are honored.
+// Surfaced through the same endpoint because the dashboard Code Injection
+// panel needs to toggle it atomically with its head/foot save.
+const SITE_PATCH_BUILD_FIELDS = ['allow_code_injection'];
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const IMAGE_EXTENSIONS = new Set(['.avif', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const DASHBOARD_PREVIEW_SANDBOX_POLICY: DashboardPreviewSandboxPolicy = {
@@ -4020,31 +4026,30 @@ async function writeSiteSettingsFile(
   target: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const updates = new Map<string, TomlLiteral>();
+  const siteUpdates = new Map<string, TomlLiteral>();
   for (const key of SITE_SETTINGS_FIELDS) {
     const value = payload[key];
-    if (typeof value === 'string') updates.set(key, { kind: 'string', value });
+    if (typeof value === 'string') siteUpdates.set(key, { kind: 'string', value });
   }
-  if (updates.size === 0) return;
+  // `build.allow_code_injection` is intentionally an explicit boolean from
+  // the dashboard, NOT auto-derived from head/foot non-emptiness. The same
+  // gate controls per-post `codeinjection_head` / `codeinjection_foot` in
+  // content frontmatter (see content/loader.ts:1627-1637), so an operator
+  // typing a GA snippet must consciously opt in to "I also trust everyone
+  // with content/ write access to ship raw HTML". The Code Injection panel
+  // surfaces this as a checkbox and sends the boolean here.
+  const allowInjectionFlag =
+    typeof payload.allow_code_injection === 'boolean' ? payload.allow_code_injection : undefined;
+  if (siteUpdates.size === 0 && allowInjectionFlag === undefined) return;
   const raw = existsSync(target) ? await readFile(target, 'utf8') : '';
-  let next = updateTomlSection(raw, 'site', updates);
-  // Site-wide code injection is gated by `build.allow_code_injection` at
-  // load time (see content/loader.ts §"Site-wide code injection mirrors
-  // Ghost's site setting"). Auto-flip the gate on when the dashboard
-  // saves a non-empty head/foot so the value actually takes effect on
-  // the next build — otherwise the operator would have to hand-edit
-  // nectar.toml to toggle a boolean immediately after using the UI,
-  // which defeats the point of having a dashboard panel for it.
-  const headLiteral = updates.get('codeinjection_head');
-  const footLiteral = updates.get('codeinjection_foot');
-  const enablingInjection =
-    (headLiteral?.kind === 'string' && headLiteral.value.length > 0) ||
-    (footLiteral?.kind === 'string' && footLiteral.value.length > 0);
-  if (enablingInjection) {
+  let next = siteUpdates.size > 0 ? updateTomlSection(raw, 'site', siteUpdates) : raw;
+  if (allowInjectionFlag !== undefined) {
     next = updateTomlSection(
       next,
       'build',
-      new Map<string, TomlLiteral>([['allow_code_injection', { kind: 'raw', value: 'true' }]]),
+      new Map<string, TomlLiteral>([
+        ['allow_code_injection', { kind: 'raw', value: String(allowInjectionFlag) }],
+      ]),
     );
   }
   await writeFile(target, next, 'utf8');
@@ -4063,7 +4068,7 @@ async function writeThemeSettingsFile(
 }
 
 function findInvalidSettingsFields(payload: Record<string, unknown>): string[] {
-  const allowed = new Set(SITE_SETTINGS_FIELDS);
+  const allowed = new Set<string>([...SITE_SETTINGS_FIELDS, ...SITE_PATCH_BUILD_FIELDS]);
   return Object.keys(payload).filter((key) => !allowed.has(key));
 }
 

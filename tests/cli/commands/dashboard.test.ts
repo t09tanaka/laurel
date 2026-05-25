@@ -1086,7 +1086,7 @@ describe('dashboard data', () => {
     }
   });
 
-  test('saves site code injection and auto-enables build.allow_code_injection', async () => {
+  test('saves site code injection without touching the gate when allow_code_injection is omitted', async () => {
     const dir = await makeDashboardFixture();
     try {
       const before = await readDashboardSettings({ cwd: dir });
@@ -1110,8 +1110,10 @@ describe('dashboard data', () => {
       const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
       expect(raw).toContain('codeinjection_head =');
       expect(raw).toContain('codeinjection_foot =');
-      expect(raw).toContain('[build]');
-      expect(raw).toContain('allow_code_injection = true');
+      // No [build] section auto-inserted when allow_code_injection isn't in
+      // the payload. The dashboard UI sends the boolean explicitly via its
+      // own checkbox — this codepath models a partial-payload caller.
+      expect(raw).not.toContain('[build]');
       // Existing [site] keys must still be present (regression check for
       // updateTomlSection refactor).
       expect(raw).toContain('title = "Dashboard Test"');
@@ -1119,16 +1121,42 @@ describe('dashboard data', () => {
       const after = await readDashboardSettings({ cwd: dir });
       expect(after.site.codeinjectionHead).toBe(headHtml);
       expect(after.site.codeinjectionFoot).toBe(footHtml);
+      expect(after.site.allowCodeInjection).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('explicit allow_code_injection=true flips the gate atomically with head/foot', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const before = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: {
+          codeinjection_head: '<script>ga()</script>',
+          allow_code_injection: true,
+        },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('codeinjection_head = "<script>ga()</script>"');
+      expect(raw).toContain('[build]');
+      expect(raw).toContain('allow_code_injection = true');
+
+      const after = await readDashboardSettings({ cwd: dir });
       expect(after.site.allowCodeInjection).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('clearing code injection leaves the gate alone', async () => {
+  test('explicit allow_code_injection=false flips the gate back off', async () => {
     const dir = await makeDashboardFixture();
     try {
-      // Seed: head/foot present, gate on.
+      // Seed: head present, gate on.
       await writeFile(
         join(dir, 'nectar.toml'),
         [
@@ -1136,7 +1164,6 @@ describe('dashboard data', () => {
           'title = "Dashboard Test"',
           'url = "https://dashboard.test"',
           'codeinjection_head = "<script>old()</script>"',
-          'codeinjection_foot = "<script>oldfoot()</script>"',
           '',
           '[build]',
           'allow_code_injection = true',
@@ -1151,20 +1178,45 @@ describe('dashboard data', () => {
       const written = await writeDashboardSiteSettings({
         cwd: dir,
         expectedFingerprint: before.fingerprint,
-        updates: { codeinjection_head: '', codeinjection_foot: '' },
+        updates: { allow_code_injection: false },
       });
       expect(written.ok).toBe(true);
 
       const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
-      // Empty values still round-trip — operators may want the keys present
-      // and intentionally empty, and we don't try to delete keys via the
-      // dashboard.
-      expect(raw).toContain('codeinjection_head = ""');
-      expect(raw).toContain('codeinjection_foot = ""');
-      // Gate stays at whatever it was — we never flip it back to false on a
-      // clear, since the operator may have other reasons to leave it on
-      // (e.g. per-page codeinjection in frontmatter).
-      expect(raw).toContain('allow_code_injection = true');
+      expect(raw).toContain('allow_code_injection = false');
+      // Empty head/foot in payload (omitted) → existing values untouched.
+      expect(raw).toContain('codeinjection_head = "<script>old()</script>"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('round-trips multi-line code injection with quotes and backslashes', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const multiline = [
+        '<script>',
+        '  (function() {',
+        '    var key = "G-XXXX\\nnewline";',
+        '    console.log(`hello\\tworld`);',
+        '  })();',
+        '</script>',
+      ].join('\n');
+
+      const before = await readDashboardSettings({ cwd: dir });
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { codeinjection_head: multiline, allow_code_injection: true },
+      });
+      expect(written.ok).toBe(true);
+
+      const after = await readDashboardSettings({ cwd: dir });
+      // The dashboard reads through the TOML parser, so any escape
+      // round-trip mistake (basic-string \n re-escape, backslash collapse,
+      // double-quote handling) would surface as a mismatch here.
+      expect(after.site.codeinjectionHead).toBe(multiline);
+      expect(after.site.allowCodeInjection).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
