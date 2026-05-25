@@ -2999,6 +2999,9 @@
   .proseBubbleRow[hidden] {
     display: none !important;
   }
+  .proseBubbleBtn[hidden] {
+    display: none !important;
+  }
   .proseBubbleRow--link {
     gap: 4px;
     padding: 0 2px;

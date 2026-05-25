@@ -128,10 +128,16 @@ function currentLinkHref(state: EditorState, linkType: MarkType): string | null 
   return href;
 }
 
+type BubbleScope = 'always' | 'range';
+
 interface BubbleButton {
   label: string;
   title: string;
   mark?: string;
+  /** When this button is meaningful. 'range' = only with a non-empty
+   * selection. 'always' = also when the cursor sits inside an
+   * existing inline mark. */
+  scope?: BubbleScope;
   run?: (view: EditorView, ctx: { openLinkEditor: () => void }) => void;
   active?: (state: EditorState) => boolean;
 }
@@ -319,13 +325,14 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
       };
 
       const buttons: BubbleButton[] = [
-        { label: 'B', title: 'Bold (⌘B) — click again to clear', mark: 'strong' },
-        { label: 'I', title: 'Italic (⌘I) — click again to clear', mark: 'em' },
-        { label: 'S', title: 'Strikethrough (⌘⇧S)', mark: 'strikethrough' },
-        { label: '<>', title: 'Inline code (⌘`) — click again to clear', mark: 'code' },
+        { label: 'B', title: 'Bold (⌘B) — click again to clear', mark: 'strong', scope: 'always' },
+        { label: 'I', title: 'Italic (⌘I) — click again to clear', mark: 'em', scope: 'always' },
+        { label: 'S', title: 'Strikethrough (⌘⇧S)', mark: 'strikethrough', scope: 'always' },
+        { label: '<>', title: 'Inline code (⌘`) — click again to clear', mark: 'code', scope: 'always' },
         {
           label: 'Link',
           title: 'Toggle / edit link',
+          scope: 'always',
           run(_v, ctx) {
             ctx.openLinkEditor();
           },
@@ -336,57 +343,67 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         {
           label: 'H1',
           title: 'Heading 1',
+          scope: 'range',
           run: setHeading(1),
           active: (s) => blockMatches(s, 'heading', { level: 1 }),
         },
         {
           label: 'H2',
           title: 'Heading 2',
+          scope: 'range',
           run: setHeading(2),
           active: (s) => blockMatches(s, 'heading', { level: 2 }),
         },
         {
           label: 'H3',
           title: 'Heading 3',
+          scope: 'range',
           run: setHeading(3),
           active: (s) => blockMatches(s, 'heading', { level: 3 }),
         },
         {
           label: 'P',
           title: 'Paragraph',
+          scope: 'range',
           run: setParagraph,
           active: (s) => blockMatches(s, 'paragraph'),
         },
         {
           label: '"',
           title: 'Quote',
+          scope: 'range',
           run: toggleQuote,
           active: (s) => blockMatches(s, 'blockquote'),
         },
         {
           label: '•',
           title: 'Bulleted list',
+          scope: 'range',
           run: toggleBulletList,
         },
         {
           label: '1.',
           title: 'Numbered list',
+          scope: 'range',
           run: toggleOrderedList,
         },
         {
           label: '{}',
           title: 'Code block',
+          scope: 'range',
           run: toggleCodeBlock,
           active: (s) => blockMatches(s, 'code_block'),
         },
         {
           label: '—',
           title: 'Insert divider',
+          scope: 'range',
           run: insertHr,
         },
         {
           label: 'Clear',
           title: 'Remove formatting at the cursor or selection',
+          scope: 'always',
           run(v) {
             const state = v.state;
             const { empty, $from, from, to } = state.selection;
@@ -475,10 +492,17 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
         const top = start.top - parentRect.top;
         root.style.left = `${left}px`;
         root.style.top = `${top}px`;
+        const hasRange = !empty;
         for (let i = 0; i < buttons.length; i += 1) {
           const b = buttons[i];
           const btn = btns[i];
           if (!b || !btn) continue;
+          const visible = b.scope === 'range' ? hasRange : true;
+          btn.hidden = !visible;
+          if (!visible) {
+            btn.dataset.active = 'false';
+            continue;
+          }
           let active = false;
           if (b.active) active = b.active(state);
           else if (b.mark) {
