@@ -93,12 +93,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                   onClick={() => props.onOpenEntry?.(entry.kind, entry.slug)}
                   title={`${entry.kind === 'posts' ? 'Post' : 'Page'}: ${entry.title}`}
                 >
-                  <span
-                    class="recentItemKind"
-                    data-kind={entry.kind}
-                  >
-                    {entry.kind === 'posts' ? 'post' : 'page'}
-                  </span>
                   <span class="recentItemTitle">{entry.title}</span>
                 </button>
               </li>
@@ -118,22 +112,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             props.onNavigate('settings');
           }}
         >
-          <svg
-            class="sideFooterIcon"
-            viewBox="0 0 16 16"
-            width="14"
-            height="14"
-            aria-hidden="true"
-          >
-            <circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3" />
-            <path
-              d="M8 1.5v2.2M8 12.3v2.2M14.5 8h-2.2M3.7 8H1.5M12.6 3.4l-1.5 1.6M4.9 11.1l-1.6 1.6M12.6 12.6l-1.5-1.6M4.9 4.9L3.3 3.3"
-              stroke="currentColor"
-              stroke-width="1.3"
-              stroke-linecap="round"
-              fill="none"
-            />
-          </svg>
           <span>Settings</span>
         </a>
         {(() => {
