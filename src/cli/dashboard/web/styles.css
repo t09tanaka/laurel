@@ -3034,7 +3034,8 @@
   .proseBubbleBtn[hidden] {
     display: none !important;
   }
-  .proseBubbleRow--link {
+  .proseBubbleRow--link,
+  .proseBubbleRow--image {
     gap: 4px;
     padding: 0 2px;
   }
@@ -3051,6 +3052,18 @@
   }
   .proseBubbleInput:focus {
     border-color: var(--accent-color, #d63f00);
+  }
+  /* Wider input for alt text — descriptive captions need more room
+   * than URLs. */
+  .proseBubbleInput--alt {
+    width: 280px;
+  }
+  /* Destructive variant — used by the image Delete control. Stays
+   * inside the dark bubble palette but tints on hover so the
+   * irreversible action reads as such. */
+  .proseBubbleBtn--danger:hover {
+    background: color-mix(in srgb, #c43d1f 60%, transparent);
+    color: var(--text-invert, #f4ecd9);
   }
   /* Ghost Koenig-style `+` insert menu — floats in the left gutter
    * of `.editorCanvas` whenever the cursor is on an empty paragraph.
