@@ -166,7 +166,9 @@ function StatusTabs({ value, counts, onChange }: StatusTabsProps): JSX.Element {
             onKeyDown={(event) => onKeyDown(event, index)}
           >
             <span class="statusTabLabel">{tab.label}</span>
-            <span class="statusTabCount">{count ?? '—'}</span>
+            {/* Hide 0/undefined counts — the empty tab itself is the
+             * information; the "0" is noise. */}
+            {count ? <span class="statusTabCount">{count}</span> : null}
           </button>
         );
       })}

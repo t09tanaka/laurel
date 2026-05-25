@@ -87,15 +87,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
         />
       </aside>
       <div class="settingsDetail">
-        <div class="panelHead settingsDetailHead">
-          <div>
-            <h2>{activeCategoryDef?.label ?? 'Settings'}</h2>
-            <span class="meta">{activeCategoryDef?.hint ?? settings.configPath}</span>
-          </div>
-          <span class="settingsConfigPath" title="Active config">
-            {settings.configPath}
-          </span>
-        </div>
+        {/* Detail header dropped — the left rail already shows the active
+         * category, and the panel below names itself (Site identity /
+         * Theme). One label per concept. */}
         {activeCategory === 'general' ? (
           <SiteIdentityPanel
             state={props.state}
