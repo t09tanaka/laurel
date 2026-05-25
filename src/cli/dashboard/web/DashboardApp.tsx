@@ -398,6 +398,19 @@ export function DashboardApp(): JSX.Element {
     setEditor(current);
   }
 
+  const handleDownloadZip = useCallback(() => {
+    // Programmatic anchor click so the download fires without navigating
+    // away from the dashboard — important for the auto-download path
+    // because the user is still viewing the build log.
+    const anchor = document.createElement('a');
+    anchor.href = '/api/build/export.zip';
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }, []);
+
   const handleBuildClick = useCallback(async () => {
     if (buildPhase === 'running') {
       setBuildPanelOpen(true);
@@ -436,9 +449,12 @@ export function DashboardApp(): JSX.Element {
         ]);
         toastHost.api.push({
           intent: 'success',
-          title: 'Build complete',
+          title: 'Build complete · downloading zip',
           message: `${event.summary.routeCount} routes · ${formatBuildDuration(event.summary.durationMs)}`,
         });
+        // Auto-download the freshly built site. The sidebar "Zip" pill and
+        // the panel's Download zip button remain available for re-download.
+        handleDownloadZip();
       } else if (event.type === 'error') {
         setBuildPhase('error');
         setBuildError(event.message);
@@ -449,13 +465,7 @@ export function DashboardApp(): JSX.Element {
         });
       }
     });
-  }, [buildPhase, toastHost.api]);
-
-  const handleDownloadZip = useCallback(() => {
-    // Trigger a download by navigating to the export endpoint. The server
-    // sets Content-Disposition so the browser saves rather than navigates.
-    window.location.assign('/api/build/export.zip');
-  }, []);
+  }, [buildPhase, toastHost.api, handleDownloadZip]);
 
   const handleBuildPanelClose = useCallback(() => {
     setBuildPanelOpen(false);
