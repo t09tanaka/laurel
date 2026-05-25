@@ -189,7 +189,7 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
       root.className = 'proseBubble';
       root.setAttribute('role', 'toolbar');
       root.setAttribute('aria-label', 'Selection formatting');
-      root.style.position = 'absolute';
+      root.style.position = 'fixed';
       root.style.visibility = 'hidden';
       root.style.pointerEvents = 'none';
       view.dom.parentElement?.appendChild(root);
@@ -513,47 +513,43 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
           if (mode === 'link') closeLinkEditor();
           return;
         }
-        const parent = root.offsetParent as HTMLElement | null;
-        const parentRect = parent
-          ? parent.getBoundingClientRect()
-          : { left: 0, top: 0, width: window.innerWidth };
-        // For an empty selection the browser's own caret rect tracks
-        // text wrapping accurately; coordsAtPos can return the prior
-        // line's edge when the caret sits at a wrap boundary.
-        // Locate the caret in viewport coords. Collapsed Range rects
-        // are unreliable across browsers (empty list on Chrome/Safari)
-        // and view.coordsAtPos picks the wrong side on wrap
-        // boundaries — so we probe a 1-character sibling Range around
-        // the caret and use its concrete rect.
+        // Caret position in viewport coords. The bubble itself is
+        // position: fixed, so we anchor against the viewport rather
+        // than the wrapping element — that way the bubble lands
+        // directly above the caret no matter how narrow the editor
+        // column is.
         let anchorCenter = 0;
         let anchorTop = 0;
         if (!empty) {
           const start = currentView.coordsAtPos(from, 1);
           const end = currentView.coordsAtPos(to, -1);
-          anchorCenter = (start.left + end.left) / 2 - parentRect.left;
-          anchorTop = Math.min(start.top, end.top) - parentRect.top;
+          anchorCenter = (start.left + end.left) / 2;
+          anchorTop = Math.min(start.top, end.top);
         } else {
           const rect = caretRect(currentView, from);
           if (rect) {
-            anchorCenter = rect.left - parentRect.left;
-            anchorTop = rect.top - parentRect.top;
+            anchorCenter = rect.left;
+            anchorTop = rect.top;
           } else {
             const biased = currentView.coordsAtPos(from, 1);
-            anchorCenter = biased.left - parentRect.left;
-            anchorTop = biased.top - parentRect.top;
+            anchorCenter = biased.left;
+            anchorTop = biased.top;
           }
         }
-        // Render then measure so we can clamp into the parent's bounds.
+        // Render at the anchor so getBoundingClientRect measures the
+        // bubble's natural width; clamp to the viewport afterwards
+        // so the chip never spills off-screen.
         root.style.visibility = 'visible';
         root.style.pointerEvents = 'auto';
         root.style.transform = 'translate(0, calc(-100% - 10px))';
+        root.style.left = `${anchorCenter}px`;
+        root.style.top = `${anchorTop}px`;
         const bubbleRect = root.getBoundingClientRect();
         const half = bubbleRect.width / 2;
         const minLeft = 8;
-        const maxLeft = Math.max(minLeft, parentRect.width - bubbleRect.width - 8);
+        const maxLeft = Math.max(minLeft, window.innerWidth - bubbleRect.width - 8);
         const left = Math.min(Math.max(anchorCenter - half, minLeft), maxLeft);
         root.style.left = `${left}px`;
-        root.style.top = `${anchorTop}px`;
         const hasRange = !empty;
         for (let i = 0; i < buttons.length; i += 1) {
           const b = buttons[i];
