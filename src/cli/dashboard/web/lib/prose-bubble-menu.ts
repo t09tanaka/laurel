@@ -12,6 +12,10 @@
 // 2. Link editing happens inline inside the bubble — clicking Link
 //    swaps the row for a URL input + Apply / Remove / Cancel, no
 //    window.prompt().
+//
+// Image controls (alt edit + delete) live on the image NodeView
+// instead — see `prose-image-view.ts`. They're always visible
+// alongside the image rather than gated on selection.
 
 import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import type { Mark, MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';

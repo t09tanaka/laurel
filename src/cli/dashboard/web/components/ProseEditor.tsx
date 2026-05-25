@@ -34,6 +34,7 @@ import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
 import { uploadImage } from '../lib/api.ts';
 import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
+import { ImageNodeView } from '../lib/prose-image-view.ts';
 import { buildInputRules } from '../lib/prose-input-rules.ts';
 import { insertMenuPlugin } from '../lib/prose-insert-menu.ts';
 
@@ -268,6 +269,9 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
     });
     const view = new EditorView(host, {
       state,
+      nodeViews: {
+        image: (n, v, getPos) => new ImageNodeView(n, v, getPos),
+      },
       dispatchTransaction(tr: Transaction) {
         const next = view.state.apply(tr);
         view.updateState(next);
