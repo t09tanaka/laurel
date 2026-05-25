@@ -2292,6 +2292,59 @@
   .editorMain {
     min-width: 0;
   }
+  /* Author / Tag editor: compact form layout (no body markdown,
+   * no metadata sidebar — the surface is small enough to fit
+   * the full editor canvas). */
+  .taxonomyEditorForm {
+    display: grid;
+    gap: 22px;
+    max-width: 640px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 8px 0 64px;
+  }
+  .taxonomyEditorForm .field {
+    display: grid;
+    gap: 6px;
+  }
+  .taxonomyEditorForm .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .taxonomyEditorForm input[type="text"],
+  .taxonomyEditorForm input[type="url"],
+  .taxonomyEditorForm input[type="color"],
+  .taxonomyEditorForm textarea {
+    min-height: 38px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 14px;
+    box-shadow: var(--elevation-1);
+    width: 100%;
+  }
+  .taxonomyEditorForm input[type="color"] {
+    padding: 4px;
+    width: 80px;
+    height: 38px;
+    cursor: pointer;
+  }
+  .taxonomyEditorForm textarea {
+    line-height: 1.55;
+    resize: vertical;
+  }
+  .taxonomyEditorForm .taxonomyNameInput {
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .taxonomyEditorForm .taxonomySlugInput {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
   .editorMeta {
     /* Pin the metadata column to the right edge of the viewport so
      * it stays available no matter how the editor scrolls. */

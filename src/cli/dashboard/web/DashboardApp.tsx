@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hoo
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
+import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
@@ -626,15 +627,26 @@ export function DashboardApp(): JSX.Element {
           </section>
         ) : null}
         {editor ? (
-          <EditorView
-            current={editor}
-            state={state}
-            onCloseEditor={handleCloseEditor}
-            onSaved={handleEditorSaved}
-            onRenamed={handleEditorRenamed}
-            onConflict={handleEditorConflict}
-            onDirtyChange={setEditorDirty}
-          />
+          editor.kind === 'authors' || editor.kind === 'tags' ? (
+            <TaxonomyEditorView
+              current={editor}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          ) : (
+            <EditorView
+              current={editor}
+              state={state}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          )
         ) : null}
       </main>
       <CommandPalette
