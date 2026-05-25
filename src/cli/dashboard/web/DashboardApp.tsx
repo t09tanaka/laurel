@@ -7,6 +7,7 @@ import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
 import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
+import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Sidebar, computeStatusRail } from './components/Sidebar.tsx';
 import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
@@ -65,13 +66,21 @@ export function DashboardApp(): JSX.Element {
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastHost = useToastHost();
+  const confirmHost = useConfirmHost();
 
   const hasSettingsDirty = siteSettingsDirty || themeSettingsDirty;
 
   const confirmDiscard = useCallback(
-    (message: string): boolean => {
+    async (body: string): Promise<boolean> => {
       if (!editorDirty && !hasSettingsDirty) return true;
-      if (!confirm(message)) return false;
+      const ok = await confirmHost.api.ask({
+        title: 'Discard unsaved changes?',
+        body,
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        intent: 'danger',
+      });
+      if (!ok) return false;
       if (editor) {
         setEditor(null);
         setEditorDirty(false);
@@ -80,16 +89,16 @@ export function DashboardApp(): JSX.Element {
       setThemeSettingsDirty(false);
       return true;
     },
-    [editorDirty, hasSettingsDirty, editor],
+    [editorDirty, hasSettingsDirty, editor, confirmHost.api],
   );
 
   const load = useCallback(
     async (options: { force?: boolean } = {}) => {
       if (
         !options.force &&
-        !confirmDiscard(
+        !(await confirmDiscard(
           'Refresh files? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-        )
+        ))
       ) {
         return;
       }
@@ -151,12 +160,12 @@ export function DashboardApp(): JSX.Element {
 
   // popstate routing
   useEffect(() => {
-    function onPop() {
+    async function onPop() {
       const route = routeFromPath(location.pathname);
       if (
-        !confirmDiscard(
+        !(await confirmDiscard(
           'Leave this page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-        )
+        ))
       ) {
         if (editor) syncPath(pathForEditor(editor.kind, editor.slug), 'push');
         else syncPath(pathForView(ui.view), 'push');
@@ -176,8 +185,11 @@ export function DashboardApp(): JSX.Element {
         })();
       }
     }
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    const handler = () => {
+      void onPop();
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
   }, [confirmDiscard, editor, ui.view]);
 
   // beforeunload warning
@@ -221,11 +233,11 @@ export function DashboardApp(): JSX.Element {
     if (main) main.scrollTop = 0;
   }, [ui.view, editor?.slug, createMode]);
 
-  function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
+  async function navigateView(view: DashboardView, mode: 'push' | 'replace' = 'push') {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Leave this page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
     setEditor(null);
@@ -245,11 +257,11 @@ export function DashboardApp(): JSX.Element {
     }
   }
 
-  function navigateCreate(kind: DashboardEditorKind) {
+  async function navigateCreate(kind: DashboardEditorKind) {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Open create page? Unsaved settings will be discarded; unsaved editor changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
     setEditor(null);
@@ -292,11 +304,11 @@ export function DashboardApp(): JSX.Element {
     }
   }
 
-  function handleCloseEditor() {
+  async function handleCloseEditor() {
     if (
-      !confirmDiscard(
+      !(await confirmDiscard(
         'Close editor? Unsaved changes stay only in this browser draft until you save.',
-      )
+      ))
     )
       return;
     setEditor(null);
@@ -591,6 +603,7 @@ export function DashboardApp(): JSX.Element {
         items={commandItems}
         onClose={() => setCmdkOpen(false)}
       />
+      {confirmHost.node}
       {toastHost.node}
     </div>
   );

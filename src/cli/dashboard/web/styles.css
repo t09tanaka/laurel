@@ -953,6 +953,57 @@
       background-position: -200% 0;
     }
   }
+  /* Custom confirm dialog — design-system match for the old window.confirm. */
+  .confirmBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: var(--color-modal);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    backdrop-filter: blur(2px);
+    animation: cmdkBackdropIn 0.14s ease-out;
+  }
+  .confirmPanel {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--elevation-6);
+    padding: 22px 24px 18px;
+    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .confirmTitle {
+    margin: 0 0 6px;
+    font-family: var(--font-serif);
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    color: var(--text-primary);
+  }
+  .confirmBody {
+    margin: 0 0 18px;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    line-height: 20px;
+    letter-spacing: -0.003em;
+  }
+  .confirmActions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .confirmPanel-danger .btn-danger {
+    background: var(--danger);
+    color: #ffffff;
+  }
+  .confirmPanel-danger .btn-danger:hover {
+    background: color-mix(in srgb, var(--danger) 88%, #000);
+  }
   /* Toast notification host — bottom-right stack, newest on top.
    * Backdrop-free; pointer events live on individual toasts. */
   .toastHost {
