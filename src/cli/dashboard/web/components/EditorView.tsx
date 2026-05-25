@@ -446,6 +446,27 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             }
           />
           <span class="saveHairline" data-state={saveState} aria-hidden="true" />
+          <div class="bodyStats" aria-label="Body statistics">
+            {(() => {
+              const text = snapshot.body || '';
+              const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+              const chars = text.length;
+              const minutes = Math.max(1, Math.round(words / 225));
+              return (
+                <>
+                  <span>
+                    <b>{words.toLocaleString()}</b> words
+                  </span>
+                  <span>
+                    <b>{chars.toLocaleString()}</b> chars
+                  </span>
+                  <span>
+                    ~<b>{minutes}</b> min read
+                  </span>
+                </>
+              );
+            })()}
+          </div>
         </div>
         <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
           {warnings.join(' ')}

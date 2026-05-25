@@ -481,6 +481,7 @@ export function DashboardApp(): JSX.Element {
                 showNew={showNewButton}
                 onSearch={handleSearch}
                 onNew={handleNew}
+                onOpenCmdk={() => setCmdkOpen(true)}
               />
             }
           />

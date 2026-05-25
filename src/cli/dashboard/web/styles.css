@@ -760,10 +760,49 @@
   }
   .toolbar {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: 10px;
     align-items: center;
     min-width: 0;
+  }
+  /* Discoverable ⌘K trigger — small kbd-styled chip next to the New
+   * button. Clicking opens the command palette; the kbd itself signals
+   * the keyboard shortcut without a separate tooltip read. */
+  .cmdkTrigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    color: var(--text-muted);
+    cursor: pointer;
+    box-shadow: var(--elevation-1);
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .cmdkTrigger:hover {
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+  .cmdkTrigger:active {
+    transform: scale(0.985);
+  }
+  .cmdkTrigger kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 18px;
+    padding: 0 3px;
+    background: transparent;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1;
+    letter-spacing: 0;
   }
   .searchWrap {
     position: relative;
@@ -1887,6 +1926,22 @@
     position: relative;
     width: 100%;
     max-width: 760px;
+  }
+  /* Inline body statistics — words, chars, estimated read time. Reads as
+   * a footnote under the writing surface, never competing for attention. */
+  .bodyStats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 12px 4px 0;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.002em;
+  }
+  .bodyStats b {
+    color: var(--text-secondary);
+    font-weight: 500;
   }
   .saveHairline {
     position: absolute;
