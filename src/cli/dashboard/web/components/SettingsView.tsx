@@ -507,10 +507,13 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
         <div>
           <h3>Code injection</h3>
           <p class="meta">
-            Raw HTML spliced into every page via <code>{'{{ghost_head}}'}</code> and{' '}
-            <code>{'{{ghost_foot}}'}</code>. Saved to the <code>[site]</code> section of nectar.toml
-            as <code>codeinjection_head</code> / <code>codeinjection_foot</code>. Values are emitted
-            verbatim — operators are responsible for what they paste.
+            Raw HTML spliced into the Ghost theme's <code>{'{{ghost_head}}'}</code> and{' '}
+            <code>{'{{ghost_foot}}'}</code> helpers on every page. Saved to the <code>[site]</code>{' '}
+            section of nectar.toml as <code>codeinjection_head</code> /{' '}
+            <code>codeinjection_foot</code>. Values are emitted verbatim — operators are responsible
+            for what they paste. Enabling also activates per-post <code>codeinjection_head</code> /{' '}
+            <code>codeinjection_foot</code> frontmatter, so only enable if every contributor with
+            write access to <code>content/</code> is trusted to add arbitrary HTML or JS.
           </p>
         </div>
       </header>
@@ -546,23 +549,13 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
             checked={enabled}
             onChange={handleEnabledToggle}
           />
-          <span>
-            Enable code injection (<code>build.allow_code_injection</code>)
-          </span>
+          <span>Enable code injection</span>
         </label>
-        <p class="meta wide codeInjectionGateNote">
-          Required for the snippets above to reach <code>{'{{ghost_head}}'}</code> /{' '}
-          <code>{'{{ghost_foot}}'}</code>. <strong>Also</strong> activates per-post{' '}
-          <code>codeinjection_head</code> / <code>codeinjection_foot</code> frontmatter — only
-          enable if every contributor with write access to <code>content/</code> is trusted to add
-          arbitrary HTML or JS.
-          {hasSnippet && !enabled ? (
-            <>
-              {' '}
-              <strong>The saved snippets will not run until this is checked.</strong>
-            </>
-          ) : null}
-        </p>
+        {hasSnippet && !enabled ? (
+          <p class="meta wide codeInjectionGateNote">
+            <strong>The saved snippets will not run until this is checked.</strong>
+          </p>
+        ) : null}
         <div class="field wide siteIdentityActions">
           <output id="codeInjectionNotice" class="notice">
             {notice}
