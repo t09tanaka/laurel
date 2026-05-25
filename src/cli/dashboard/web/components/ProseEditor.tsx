@@ -19,7 +19,7 @@ import {
   defaultMarkdownParser,
   defaultMarkdownSerializer,
 } from 'prosemirror-markdown';
-import { type NodeType, Schema } from 'prosemirror-model';
+import { type MarkSpec, type NodeType, Schema } from 'prosemirror-model';
 import {
   addListNodes,
   liftListItem,
@@ -47,9 +47,17 @@ const fullNodes = withList.append(
   }),
 );
 
+const strikethroughMark: MarkSpec = {
+  parseDOM: [{ tag: 's' }, { tag: 'strike' }, { tag: 'del' }],
+  toDOM() {
+    return ['s', 0];
+  },
+};
+const extendedMarks = basicSchema.spec.marks.addToEnd('strikethrough', strikethroughMark);
+
 export const proseSchema = new Schema({
   nodes: fullNodes,
-  marks: basicSchema.spec.marks,
+  marks: extendedMarks,
 });
 
 function node(name: string): NodeType {
@@ -59,8 +67,8 @@ function node(name: string): NodeType {
 }
 
 // Markdown parser adapted to the wider schema. prosemirror-markdown
-// doesn't ship a built-in table token handler so we wire the relevant
-// markdown-it tokens (table_open / thead / tbody / tr / th / td) here.
+// doesn't ship built-in token handlers for tables or strikethrough,
+// so we wire the relevant markdown-it tokens here.
 const parserTokens = { ...defaultMarkdownParser.tokens };
 parserTokens.table_open = { block: 'table' };
 parserTokens.thead_open = { ignore: true };
@@ -73,6 +81,8 @@ parserTokens.th_open = { block: 'table_header' };
 parserTokens.th_close = { ignore: true };
 parserTokens.td_open = { block: 'table_cell' };
 parserTokens.td_close = { ignore: true };
+parserTokens.s_open = { mark: 'strikethrough' };
+parserTokens.s_close = { mark: 'strikethrough' };
 
 export const markdownParser = new MarkdownParser(
   proseSchema,
@@ -126,7 +136,15 @@ export const markdownSerializer = new MarkdownSerializer(
       /* handled by table */
     },
   },
-  baseSerializer.marks,
+  {
+    ...baseSerializer.marks,
+    strikethrough: {
+      open: '~~',
+      close: '~~',
+      mixable: true,
+      expelEnclosingWhitespace: true,
+    },
+  },
 );
 
 export interface ProseEditorHandle {
@@ -157,6 +175,7 @@ function commandKeymap(): Record<string, Command> {
     'Mod-b': cmd('strong'),
     'Mod-i': cmd('em'),
     'Mod-`': cmd('code'),
+    'Mod-Shift-s': cmd('strikethrough'),
     'Shift-Ctrl-8': wrapInList(node('bullet_list')),
     'Shift-Ctrl-9': wrapInList(node('ordered_list')),
     'Shift-Ctrl-0': setBlockType(node('paragraph')),

@@ -2982,6 +2982,44 @@
     font-family: var(--font-mono);
     font-size: 12px;
   }
+  .proseBubbleBtn[data-mark="strikethrough"] {
+    text-decoration: line-through;
+  }
+  /* Two-row capable bubble so all the block-type buttons still fit. */
+  .proseBubble {
+    flex-wrap: wrap;
+    max-width: min(540px, calc(100vw - 32px));
+  }
+  .proseBubbleRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+  .proseBubbleRow[hidden] {
+    display: none !important;
+  }
+  .proseBubbleRow--link {
+    gap: 4px;
+    padding: 0 2px;
+  }
+  .proseBubbleInput {
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    padding: 4px 8px;
+    width: 240px;
+    outline: none;
+  }
+  .proseBubbleInput:focus {
+    border-color: var(--accent-color, #d63f00);
+  }
+  .proseHost .ProseMirror s {
+    text-decoration: line-through;
+  }
   .proseHost .ProseMirror {
     min-height: 56vh;
     outline: none;
