@@ -3052,6 +3052,96 @@
   .proseBubbleInput:focus {
     border-color: var(--accent-color, #d63f00);
   }
+  /* Ghost Koenig-style `+` insert menu — floats in the left gutter
+   * of `.editorCanvas` whenever the cursor is on an empty paragraph.
+   * The wrapper is the positioned anchor (position: fixed, driven by
+   * the plugin); the trigger sits at 0,0 inside it and the popover
+   * unfolds to the right. */
+  .proseInsertMenu {
+    z-index: 25;
+    font-family: var(--font-serif);
+  }
+  .proseInsertTrigger {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    background: var(--surface-card, #fff);
+    color: var(--text-muted, #6b6258);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease, transform 0.12s
+      ease;
+  }
+  .proseInsertTrigger:hover {
+    color: var(--text-primary, #1a1612);
+    border-color: var(--text-muted, #6b6258);
+    transform: scale(1.05);
+  }
+  .proseInsertTrigger[data-open="true"] {
+    color: var(--text-invert, #f4ecd9);
+    background: var(--text-primary, #1a1612);
+    border-color: var(--text-primary, #1a1612);
+  }
+  .proseInsertPopover {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 8px);
+    min-width: 200px;
+    padding: 6px;
+    background: var(--surface-card, #fff);
+    color: var(--text-primary, #1a1612);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .proseInsertPopover[hidden] {
+    display: none;
+  }
+  .proseInsertItem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    border-radius: 6px;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .proseInsertItem:hover,
+  .proseInsertItem:focus-visible {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+    outline: none;
+  }
+  .proseInsertItem[hidden] {
+    display: none;
+  }
+  .proseInsertItemLabel {
+    font-size: 14px;
+    line-height: 1.2;
+    color: var(--text-primary, #1a1612);
+  }
+  .proseInsertItemHint {
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseInsertFileInput {
+    display: none;
+  }
   .proseHost .ProseMirror s {
     text-decoration: line-through;
   }
