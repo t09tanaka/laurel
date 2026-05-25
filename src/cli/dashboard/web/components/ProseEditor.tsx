@@ -31,6 +31,7 @@ import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { type Command, EditorState, type Transaction } from 'prosemirror-state';
 import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
+import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
 import { buildInputRules } from '../lib/prose-input-rules.ts';
 
 // Wide schema: paragraph / blockquote / heading / horizontal_rule /
@@ -217,6 +218,7 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
         keymap(baseKeymap),
         history(),
         tableEditing(),
+        bubbleMenuPlugin(proseSchema),
       ],
     });
     const view = new EditorView(host, {

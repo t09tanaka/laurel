@@ -2919,6 +2919,69 @@
   .proseWrap {
     position: relative;
   }
+  /* Selection bubble menu — floats above text selections with mark
+   * toggles + a clear-all button. Active marks tint with --accent. */
+  .proseBubble {
+    position: absolute;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    background: var(--text-primary, #1a1612);
+    color: var(--text-invert, #f4ecd9);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    font-family: var(--font-serif);
+    white-space: nowrap;
+    transition: opacity 0.12s ease;
+  }
+  .proseBubble::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    background: var(--text-primary, #1a1612);
+    transform: translateX(-50%) rotate(45deg);
+    border-radius: 1px;
+    z-index: -1;
+  }
+  .proseBubbleBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    background: transparent;
+    color: inherit;
+    border: 0;
+    border-radius: 5px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .proseBubbleBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .proseBubbleBtn[data-active="true"] {
+    background: color-mix(in srgb, var(--accent-color, #d63f00) 70%, transparent);
+    color: var(--text-invert, #f4ecd9);
+  }
+  .proseBubbleBtn[data-mark="strong"] {
+    font-weight: 700;
+  }
+  .proseBubbleBtn[data-mark="em"] {
+    font-style: italic;
+  }
+  .proseBubbleBtn[data-mark="code"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
   .proseHost .ProseMirror {
     min-height: 56vh;
     outline: none;
