@@ -356,8 +356,12 @@
     );
     pointer-events: none;
   }
-  /* Status rail floats to the bottom of the sidebar regardless of the
-   * number of recent entries above it. */
+  /* Footer floats to the bottom of the sidebar regardless of the number
+   * of recent entries above it. */
+  .side .sideFooter {
+    margin-top: auto;
+  }
+  /* Legacy statusRail rule kept null-safe but no longer rendered. */
   .side .statusRail {
     margin-top: auto;
   }

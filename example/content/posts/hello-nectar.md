@@ -1,14 +1,19 @@
 ---
-title: "Hello, Nectar"
-slug: hello-nectar
-date: 2026-05-19T09:00:00Z
-authors: [casper]
-tags: [news, getting-started]
+authors:
+  - casper
+custom_excerpt: First post! A quick tour of what's working and what's coming next.
+date: 2026-05-19T09:00:00.000Z
+feature_image: /content/images/welcome-cover.svg
+feature_image_alt: A bee carrying a roll of parchment
+feature_image_caption: Cover art by Casper.
 featured: true
-feature_image: "/content/images/welcome-cover.svg"
-feature_image_alt: "A bee carrying a roll of parchment"
-feature_image_caption: "Cover art by Casper."
-custom_excerpt: "First post! A quick tour of what's working and what's coming next."
+slug: hello-nectar
+status: draft
+tags:
+  - news
+  - getting-started
+title: Hello, Nectar
+updated_at: 2026-05-25T02:39:53.208Z
 ---
 
 Welcome to **Nectar** — a static site generator built around Ghost themes and

@@ -7,7 +7,6 @@ import type {
   SettingsCardCategory,
   SettingsCardSourceKind,
 } from '../types.ts';
-import { StatePanel } from './StatePanel.tsx';
 
 interface SettingsViewProps {
   state: DashboardState;
@@ -24,14 +23,14 @@ interface CategoryDefinition {
   hint: string;
 }
 
+/* Dashboard surfaces only the categories a writer actually touches:
+ * site identity and theme. The other categories (content paths, build
+ * config, structure/routes, operations, advanced) live in nectar.toml
+ * for developers to edit directly — they don't belong in an editorial
+ * dashboard. */
 const CATEGORY_DEFINITIONS: ReadonlyArray<CategoryDefinition> = [
-  { id: 'general', label: 'General', hint: 'Site identity and defaults you edit often.' },
-  { id: 'content', label: 'Content', hint: 'Where Markdown content lives on disk.' },
+  { id: 'general', label: 'Site', hint: 'Site identity and defaults you edit often.' },
   { id: 'theme', label: 'Theme', hint: 'Active theme and design surface stats.' },
-  { id: 'build', label: 'Build', hint: 'Output, URL shape, and generated surfaces.' },
-  { id: 'structure', label: 'Structure', hint: 'Navigation, redirects, and routes.' },
-  { id: 'operations', label: 'Operations', hint: 'Health checks, assets, bulk actions.' },
-  { id: 'advanced', label: 'Advanced', hint: 'Rarely-touched, dangerous, or scope notes.' },
 ];
 
 const SOURCE_KIND_LABEL: Record<SettingsCardSourceKind, string> = {
@@ -61,17 +60,6 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
     }
   }, [cardsByCategory, categories, activeCategory]);
 
-  // Drop cards whose data is already rendered by a dedicated inline
-  // panel above so the right column doesn't show the same section twice.
-  const HIDDEN_CARD_IDS_BY_CATEGORY: Partial<Record<SettingsCardCategory, ReadonlySet<string>>> = {
-    general: new Set(['site']),
-    theme: new Set(['theme']),
-  };
-  const visibleCards = (() => {
-    const base = cardsByCategory.get(activeCategory) ?? [];
-    const hidden = HIDDEN_CARD_IDS_BY_CATEGORY[activeCategory];
-    return hidden ? base.filter((card) => !hidden.has(card.id)) : base;
-  })();
   const activeCategoryDef =
     CATEGORY_DEFINITIONS.find((category) => category.id === activeCategory) ??
     CATEGORY_DEFINITIONS[0];
@@ -125,10 +113,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
             onThemeDirtyChange={props.onThemeDirtyChange}
           />
         ) : null}
-        {activeCategory === 'advanced' ? (
-          <MigrationEntryCard onOpen={props.onOpenMigration} />
-        ) : null}
-        <SettingsCardsGrid cards={visibleCards} />
+        {/* Only general + theme surface in the dashboard now — their data
+         * is fully rendered by the panels above. The card grid is no
+         * longer needed. */}
       </div>
     </div>
   );
@@ -408,75 +395,6 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
   );
 }
 
-function MigrationEntryCard({ onOpen }: { onOpen: () => void }): JSX.Element {
-  return (
-    <section class="migrationEntryCard" aria-label="Migration entry">
-      <div>
-        <h3>Migration</h3>
-        <p class="meta">
-          Ghost JSON/ZIP and Page bundle imports moved to a dedicated page. They write Markdown and
-          assets — full-screen confirmation gates apply.
-        </p>
-      </div>
-      <button type="button" class="btn" id="openMigrationPage" onClick={onOpen}>
-        Open Migration page
-      </button>
-    </section>
-  );
-}
-
-function SettingsCardsGrid({ cards }: { cards: SettingsCard[] }): JSX.Element {
-  // When no cards remain after hiding panel-handled ones, render nothing
-  // rather than an empty state — the dedicated panel above already
-  // covers the category.
-  if (cards.length === 0) return <div class="settingsGrid" id="settingsCards" />;
-  return (
-    <div class="settingsGrid" id="settingsCards">
-      {cards.length === 0 ? (
-        <StatePanel kind="empty" message="No settings in this category." />
-      ) : (
-        cards.map((card) => (
-          <article
-            class="settingsCard"
-            key={card.id}
-            data-category={card.category}
-            data-source-kind={card.sourceKind}
-            data-mode={card.mode}
-          >
-            <header class="settingsCardHead">
-              <div>
-                <h3>{card.title}</h3>
-                <span class="settingsCardSection">{card.section}</span>
-              </div>
-              <span
-                class={`pill ${card.status === 'danger' ? 'danger' : card.status === 'warn' ? 'warn' : ''}`}
-              >
-                {modeLabel(card.mode)}
-              </span>
-            </header>
-            <p class="meta">{card.summary}</p>
-            <div class="settingsCardSource">
-              <SourcePill kind={card.sourceKind} label={SOURCE_KIND_LABEL[card.sourceKind]} />
-              <code class="settingsCardSourcePath" title={card.source}>
-                {card.source}
-              </code>
-            </div>
-            <dl class="settingsKv">
-              {card.values.map((value) => (
-                <div key={value.label} class="settingsKvRow">
-                  <dt>{value.label}</dt>
-                  <dd>{value.value}</dd>
-                </div>
-              ))}
-            </dl>
-            {card.command ? <div class="meta">{card.command}</div> : null}
-          </article>
-        ))
-      )}
-    </div>
-  );
-}
-
 function SourcePill({
   kind,
   label,
@@ -486,23 +404,6 @@ function SourcePill({
       {label}
     </span>
   );
-}
-
-function modeLabel(mode: SettingsCard['mode']): string {
-  switch (mode) {
-    case 'editable':
-      return 'editable';
-    case 'cli-action':
-      return 'CLI action';
-    case 'dangerous-cli-only':
-      return 'dangerous · CLI';
-    case 'scope-note':
-      return 'scope note';
-    case 'read-only':
-      return 'read-only';
-    default:
-      return 'card';
-  }
 }
 
 function groupByCategory(cards: SettingsCard[]): Map<SettingsCardCategory, SettingsCard[]> {

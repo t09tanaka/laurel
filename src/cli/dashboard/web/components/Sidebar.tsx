@@ -162,47 +162,6 @@ function NavLink(props: NavLinkProps): JSX.Element {
   );
 }
 
-interface RailItemProps {
-  id: string;
-  label: string;
-  value: string;
-  state: string;
-  live?: boolean;
-  onClick?: () => void;
-  actionHint?: string;
-}
-
-function RailItem(props: RailItemProps): JSX.Element {
-  const body = props.live ? (
-    <output>
-      <b>{props.value}</b>
-    </output>
-  ) : (
-    <b>{props.value}</b>
-  );
-  if (props.onClick) {
-    return (
-      <button
-        type="button"
-        class="railItem railItemAction"
-        id={props.id}
-        data-state={props.state}
-        onClick={props.onClick}
-        title={props.actionHint}
-      >
-        <span>{props.label}</span>
-        {body}
-      </button>
-    );
-  }
-  return (
-    <div class="railItem" id={props.id} data-state={props.state}>
-      <span>{props.label}</span>
-      {body}
-    </div>
-  );
-}
-
 export interface StatusRailValues {
   sync: { label: string; state: string };
   build: { label: string; state: string };
