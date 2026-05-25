@@ -15,12 +15,8 @@ interface MigrationViewProps {
 export function MigrationView(props: MigrationViewProps): JSX.Element {
   return (
     <div class="migrationPage">
-      <div class="panelHead">
-        <h2>Migration</h2>
-        <span class="meta">
-          Bring posts, pages, and assets in from Ghost or saved Page bundles.
-        </span>
-      </div>
+      {/* Section h2 dropped — the page-level viewTitle already says
+       * "Migration". The two import cards below name themselves. */}
       <div class="migrationGrid">
         <GhostImportPanel onApplied={props.onSettingsSaved} />
         <PageBundleImportPanel onApplied={props.onSettingsSaved} />
