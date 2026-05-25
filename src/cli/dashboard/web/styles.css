@@ -518,6 +518,13 @@
    * The recents list reads as a single editorial column of titles now. */
   /* Skip-to-main: keyboard-only affordance, slides into view on focus.
    * Hidden under the viewport for sighted/mouse users (#1968). */
+  .pagerLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
   .skipToMain {
     position: fixed;
     top: 8px;
@@ -3684,6 +3691,82 @@
     }
   }
 
+  /* Mobile / narrow viewport (<=720px): switch the 2-column shell to a
+   * stacked layout — sidebar becomes a compact top bar, main fills the
+   * width. Sidebar nav collapses to icon+label chips, sync rail and
+   * Recently list hide to recover vertical space. (#1942 #2059) */
+  @media (max-width: 720px) {
+    .shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    .side {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-right: 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--text-invert) 12%, transparent);
+      min-height: 56px;
+    }
+    .side .sideTop {
+      flex: 0 0 auto;
+    }
+    .side .brand {
+      font-size: 18px;
+      gap: 8px;
+    }
+    .side .brandWord {
+      display: none;
+    }
+    .side .nav {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: row;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 0;
+    }
+    .side .nav a {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+    .side .navLabel {
+      font-size: 13px;
+    }
+    .side .recents,
+    .side .statusRail {
+      display: none;
+    }
+    .side .sideFooter {
+      flex: 0 0 auto;
+      margin-top: 0;
+    }
+    .side .sideFooterSettings span {
+      display: none;
+    }
+    .main {
+      padding: 18px 16px 32px;
+    }
+    .viewTitle {
+      font-size: 28px;
+    }
+    .toolbar {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .searchWrap {
+      flex: 1 1 100%;
+      order: 0;
+    }
+    .editorMeta {
+      grid-template-columns: 1fr;
+    }
+  }
   @media (max-width: 560px) {
     .side {
       gap: 14px;

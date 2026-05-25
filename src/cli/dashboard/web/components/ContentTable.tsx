@@ -76,28 +76,40 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
           </table>
         </div>
       ) : (
-        <StatePanel kind="empty" />
+        <StatePanel
+          kind="empty"
+          message={
+            list.total === 0
+              ? `No ${kind} yet. Create your first one with the New button or by adding a Markdown file to content/${kind}/.`
+              : `No ${kind} match this filter. Try a different status or clear the search.`
+          }
+        />
       )}
-      <div class="pager">
-        <button
-          class="btn secondary"
-          id="prev"
-          type="button"
-          disabled={list.page <= 1}
-          onClick={props.onPrev}
-        >
-          Prev
-        </button>
-        <button
-          class="btn secondary"
-          id="next"
-          type="button"
-          disabled={list.page >= list.pages}
-          onClick={props.onNext}
-        >
-          Next
-        </button>
-      </div>
+      {list.pages > 1 ? (
+        <div class="pager" aria-label={`${kind} pagination`}>
+          <button
+            class="btn secondary"
+            id="prev"
+            type="button"
+            disabled={list.page <= 1}
+            onClick={props.onPrev}
+          >
+            Prev
+          </button>
+          <span class="pagerLabel">
+            Page {list.page} of {list.pages}
+          </span>
+          <button
+            class="btn secondary"
+            id="next"
+            type="button"
+            disabled={list.page >= list.pages}
+            onClick={props.onNext}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
