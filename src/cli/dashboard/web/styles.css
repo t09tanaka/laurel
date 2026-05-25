@@ -1984,10 +1984,10 @@
    * on the right. Sidebar sticks while body scrolls. */
   .editorCanvas {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 48px;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 32px;
     align-items: start;
-    max-width: 1160px;
+    max-width: 1320px;
     margin: 0 auto;
   }
   .editorMain {
@@ -2011,6 +2011,23 @@
     font-size: 13px;
     color: var(--text-muted);
     letter-spacing: 0;
+  }
+  /* Sidebar text input — same minimal aesthetic as the title input,
+   * sized for the 240px column. */
+  .editorMetaInput {
+    width: 100%;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 6px 10px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    line-height: 1.4;
+    letter-spacing: -0.003em;
+  }
+  .editorMetaInput:focus {
+    border-color: var(--text-primary);
+    outline: none;
   }
   /* Status select inside the metadata sidebar — full-width pill that
    * sits comfortably in the 260px column. */
@@ -2339,8 +2356,8 @@
   .bodyWrap {
     position: relative;
     width: 100%;
-    max-width: 820px;
-    margin: 0 auto;
+    max-width: 100%;
+    margin: 0;
     /* Always-visible base hairline gives the frameless textarea a clear
      * bottom boundary; the saveHairline overlays it with intent colours
      * during dirty / saving / saved transitions. */
@@ -2447,8 +2464,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    max-width: 820px;
-    margin: 0 auto 8px;
+    max-width: 100%;
+    margin: 0 0 8px;
     padding: 0;
   }
   .bodyToolbarBtn {
@@ -2550,8 +2567,8 @@
     display: flex;
     align-items: flex-end;
     gap: 16px;
-    max-width: 820px;
-    margin: 0 auto 8px;
+    max-width: 100%;
+    margin: 0 0 8px;
     border-bottom: 1px solid var(--border-weak);
     padding: 0 0 20px;
   }

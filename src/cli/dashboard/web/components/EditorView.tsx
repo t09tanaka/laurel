@@ -5,13 +5,12 @@ import {
   type EditorSaveState,
   reduceEditorFocus,
 } from '../../editor-focus.ts';
-import { approvePage, saveContent, uploadImage } from '../lib/api.ts';
+import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
 import { fingerprintToken, normalizeMediaPath } from '../lib/format.ts';
 import {
   appendRevision,
   clearDraftsForPath,
   findLatestDraftForPath,
-  readRevisions,
   saveDraft,
 } from '../lib/storage.ts';
 import type {
@@ -39,16 +38,6 @@ const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
   error: 'Error',
 };
 
-const SNIPPETS: ReadonlyArray<[string, string, string]> = [
-  ['bold', 'B', 'Bold'],
-  ['link', 'Link', 'Link'],
-  ['code', 'Code', 'Inline code'],
-  ['heading', 'H2', 'Heading'],
-  ['list', 'List', 'List'],
-  ['image', 'Image', 'Image'],
-  ['callout', 'Callout', 'Callout'],
-];
-
 function snapshotFromItem(item: DashboardContentItem): EditorSnapshot {
   const fm = item.frontmatter;
   return {
@@ -74,7 +63,12 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   );
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);
   const [notice, setNotice] = useState('');
-  const [pendingDraft, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
+  const [, setPendingDraft] = useState(() => findLatestDraftForPath(current.path));
+  const [slugDraft, setSlugDraft] = useState(current.slug);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: slugDraft re-sets when the file identity flips
+  useEffect(() => {
+    setSlugDraft(current.slug);
+  }, [current.slug, current.path]);
   const [focus, dispatchFocus] = useReducer(reduceEditorFocus, DEFAULT_EDITOR_FOCUS_STATE);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -184,6 +178,44 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       textareaRef.current.selectionStart = selected ? start + before.length : caret;
       textareaRef.current.selectionEnd = caret;
     });
+  }
+
+  /* Persist a slug rename when the sidebar input loses focus.
+   * Validates basic slug shape (lowercase + digits + dashes), then calls
+   * the rename endpoint and lets the parent reload the editor against
+   * the new path. */
+  async function commitSlugRename(): Promise<void> {
+    const next = slugDraft.trim().toLowerCase();
+    if (!next || next === current.slug) {
+      setSlugDraft(current.slug);
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(next)) {
+      setNotice('Slug must be lowercase letters, digits, or hyphens.');
+      setSlugDraft(current.slug);
+      return;
+    }
+    if (current.kind !== 'posts' && current.kind !== 'pages') {
+      setSlugDraft(current.slug);
+      return;
+    }
+    setNotice(`Renaming to ${next}…`);
+    const result = await renameContentSlug({
+      kind: current.kind,
+      oldSlug: current.slug,
+      newSlug: next,
+      fingerprint: current.fingerprint,
+      redirect: false,
+    });
+    if (!result.ok) {
+      setNotice(`Rename failed — ${result.error ?? result.reason}`);
+      setSlugDraft(current.slug);
+      return;
+    }
+    setNotice('');
+    // Re-open the editor against the new slug so the URL and snapshot
+    // both sync to the new file.
+    await props.onSaved();
   }
 
   /* Upload an image and set it as the post/page feature image. */
@@ -342,98 +374,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     window.open(previewUrl(), '_blank', 'noopener');
   }
 
-  function applySnippet(name: string) {
-    const area = textareaRef.current;
-    if (!area) return;
-    const map: Record<string, [string, string, string]> = {
-      bold: ['**', '**', 'bold text'],
-      link: ['[', '](https://example.com)', 'link text'],
-      code: ['`', '`', 'code'],
-      heading: ['\n## ', '\n', 'Heading'],
-      list: ['\n- ', '\n', 'List item'],
-      image: ['![Alt text](', ')', '/content/images/image.jpg'],
-      callout: ['\n> [!NOTE]\n> ', '\n', 'Callout text'],
-    };
-    const entry = map[name];
-    if (!entry) return;
-    insertText(area, entry[0], entry[1], entry[2]);
-  }
-
-  function insertText(
-    area: HTMLTextAreaElement,
-    before: string,
-    after: string,
-    placeholder: string,
-  ) {
-    const start = area.selectionStart || 0;
-    const end = area.selectionEnd || 0;
-    const selected = area.value.slice(start, end) || placeholder;
-    const next = `${area.value.slice(0, start)}${before}${selected}${after}${area.value.slice(end)}`;
-    const cursor = start + before.length + selected.length;
-    patchSnapshot({ body: next });
-    requestAnimationFrame(() => {
-      area.focus();
-      area.setSelectionRange(cursor, cursor);
-    });
-  }
-
-  function insertMedia() {
-    const path = normalizeMediaPath(
-      prompt('Image path under content/images, or an absolute URL') ?? '',
-    );
-    if (!path) return;
-    const alt = prompt('Alt text') ?? '';
-    const caption = prompt('Caption (optional)') ?? '';
-    const area = textareaRef.current;
-    if (!area) return;
-    insertText(
-      area,
-      '',
-      `${caption ? `\n\n*${caption}*` : ''}\n`,
-      `![${alt.replace(/]/g, '')}](${path.replace(/\)/g, '')})`,
-    );
-  }
-
-  function restoreDraft() {
-    const draft = pendingDraft ?? findLatestDraftForPath(current.path);
-    if (!draft) return;
-    if (
-      !confirm(
-        'Restore the browser draft into the editor? It will not write the file until you save.',
-      )
-    )
-      return;
-    setSnapshot(draft.snapshot);
-    setNotice('Browser draft restored. Save writes it only after fingerprint checks pass.');
-  }
-
-  function rollback() {
-    const revisions = readRevisions(current);
-    const revision = revisions[revisions.length - 1];
-    if (!revision) return;
-    if (
-      !confirm(
-        'Restore the latest local revision into the editor? It will not write the file until you save.',
-      )
-    )
-      return;
-    setSnapshot({
-      title: String(revision.frontmatter.title ?? revision.frontmatter.name ?? ''),
-      status: String(revision.frontmatter.status ?? 'published'),
-      featureImage: String(revision.frontmatter.feature_image ?? ''),
-      featureImageAlt: String(revision.frontmatter.feature_image_alt ?? ''),
-      featureImageCaption: String(revision.frontmatter.feature_image_caption ?? ''),
-      body: revision.body ?? '',
-    });
-    setNotice('Local revision restored into the editor. Save after review.');
-  }
-
-  const draftMatchesFingerprint =
-    pendingDraft &&
-    fingerprintToken(pendingDraft.fingerprint) === fingerprintToken(current.fingerprint);
-  const revisions = readRevisions(current);
   const warnings = computeWarnings(snapshot.body);
-  const previewMeta = currentPreviewMeta(state, current);
   const saveState = focus.saveState;
 
   return (
@@ -636,158 +577,36 @@ export function EditorView(props: EditorViewProps): JSX.Element {
         <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
           {warnings.join(' ')}
         </output>
-        <details
-          class="metadataPanel"
-          id="metadataPanel"
-          open={focus.metadataExpanded}
-          onToggle={(event) =>
-            dispatchFocus({
-              type: 'metadata/set',
-              value: (event.currentTarget as HTMLDetailsElement).open,
-            })
-          }
-        >
-          <summary>More metadata{pendingDraft ? ' · draft available' : ''}</summary>
-          <div class="metadataBody">
-            {isContent ? (
-              <section class="metadataSection" aria-label="Media">
-                <h4>Media</h4>
-                <div class="mediaGrid">
-                  <label class="field">
-                    <span>Feature image path</span>
-                    <input
-                      id="editFeatureImage"
-                      placeholder="/content/images/cover.jpg"
-                      disabled={!isContent}
-                      value={snapshot.featureImage}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImage: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label class="field">
-                    <span>Feature image alt</span>
-                    <input
-                      id="editFeatureImageAlt"
-                      disabled={!isContent}
-                      value={snapshot.featureImageAlt}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImageAlt: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label class="field wide">
-                    <span>Feature image caption</span>
-                    <input
-                      id="editFeatureImageCaption"
-                      disabled={!isContent}
-                      value={snapshot.featureImageCaption}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          featureImageCaption: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </section>
-            ) : null}
-            <section class="metadataSection" aria-label="Markdown tools">
-              <h4>Markdown tools</h4>
-              <div class="snippetBar" aria-label="Markdown snippets">
-                {SNIPPETS.map(([name, label, title]) => (
-                  <button
-                    key={name}
-                    class="btn secondary"
-                    type="button"
-                    data-snippet={name}
-                    title={title}
-                    onClick={() => applySnippet(name)}
-                  >
-                    {label}
-                  </button>
-                ))}
-                <button class="btn secondary" id="insertMedia" type="button" onClick={insertMedia}>
-                  Insert media
-                </button>
-              </div>
-            </section>
-            {previewMeta ? (
-              <section class="metadataSection" aria-label="Preview">
-                <h4>Preview</h4>
-                <div class="previewBox active" id="artifactPreview">
-                  <div class="previewMeta">
-                    <span>{previewMeta.label} · saved Markdown through active theme</span>
-                    {previewMeta.openUrl ? (
-                      <a
-                        class="previewLink"
-                        href={previewMeta.openUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open
-                      </a>
-                    ) : null}
-                  </div>
-                  {previewMeta.openUrl ? (
-                    <iframe
-                      class="previewFrame"
-                      title="Markdown preview"
-                      src={previewMeta.openUrl}
-                      sandbox={(previewMeta.sandbox?.attributes ?? []).join(' ')}
-                      referrerpolicy="no-referrer"
-                    />
-                  ) : (
-                    <div class="empty">{previewMeta.detail}</div>
-                  )}
-                </div>
-              </section>
-            ) : null}
-            <section class="metadataSection" aria-label="Recovery">
-              <h4>Recovery</h4>
-              <div class="editorActions">
-                <button
-                  class="btn secondary"
-                  id="restoreDraft"
-                  type="button"
-                  disabled={!pendingDraft}
-                  onClick={restoreDraft}
-                >
-                  Restore draft
-                </button>
-                <button
-                  class="btn secondary"
-                  id="rollbackEditor"
-                  type="button"
-                  disabled={revisions.length === 0}
-                  onClick={rollback}
-                >
-                  Rollback
-                </button>
-              </div>
-              <output class={`storageNotice ${pendingDraft ? 'active' : ''}`} id="draftNotice">
-                {pendingDraft
-                  ? `Browser draft available for ${pendingDraft.path}${draftMatchesFingerprint ? '.' : ' from an older fingerprint; compare before saving.'}`
-                  : ''}
-              </output>
-              <output
-                class={`editorHistory ${revisions.length ? 'active' : ''}`}
-                id="editorHistory"
-              >
-                {revisions.length
-                  ? `${revisions.length} local revision(s) kept in this browser before saves.`
-                  : ''}
-              </output>
-            </section>
-          </div>
-        </details>
+        {/* Metadata details panel removed per user note — the sidebar
+         * already exposes status + feature image (+ alt). Markdown tools
+         * are duplicated by the body toolbar; recovery actions remain
+         * accessible via browser autosave + the conflict path. */}
         </div>
         {isContent ? (
           <aside class="editorMeta" aria-label="Post metadata">
+            {isContent ? (
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Slug (filename)</div>
+                <input
+                  class="editorMetaInput editorMetaSlugInput"
+                  type="text"
+                  value={slugDraft}
+                  onInput={(event) =>
+                    setSlugDraft((event.currentTarget as HTMLInputElement).value)
+                  }
+                  onBlur={() => {
+                    void commitSlugRename();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      (event.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
+                  spellcheck={false}
+                />
+              </div>
+            ) : null}
             <div class="editorMetaSection">
               <div class="editorMetaLabel">Status</div>
               <select
@@ -862,6 +681,20 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                   </span>
                 )}
               </label>
+              {snapshot.featureImage ? (
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="Alt text for screen readers"
+                  value={snapshot.featureImageAlt}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      featureImageAlt: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                  onClick={(event) => event.stopPropagation()}
+                />
+              ) : null}
             </div>
           </aside>
         ) : null}
@@ -922,13 +755,3 @@ function computeWarnings(body: string): string[] {
   return warnings;
 }
 
-function currentPreviewMeta(
-  state: DashboardState | null,
-  current: DashboardContentItem,
-): ContentSummary['preview'] | null {
-  if (!state) return null;
-  if (current.kind !== 'posts' && current.kind !== 'pages') return null;
-  const list = current.kind === 'posts' ? state.posts.items : state.pages.items;
-  const item = list.find((entry) => entry.slug === current.slug);
-  return item?.preview ?? null;
-}

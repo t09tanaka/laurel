@@ -21,6 +21,42 @@ function writeHeaders(): Record<string, string> {
   };
 }
 
+export async function renameContentSlug(args: {
+  kind: DashboardEditorKind;
+  oldSlug: string;
+  newSlug: string;
+  fingerprint: ContentFingerprint;
+  redirect?: boolean;
+}): Promise<
+  | { ok: true; newSlug: string; newPath: string; fingerprint: ContentFingerprint }
+  | { ok: false; reason: string; error?: string }
+> {
+  const url = `/api/content/${args.kind}/${encodeURIComponent(args.oldSlug)}/rename`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: writeHeaders(),
+    body: JSON.stringify({
+      fingerprint: args.fingerprint,
+      newSlug: args.newSlug,
+      redirect: args.redirect ?? false,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      reason: String(data.reason ?? 'unknown'),
+      error: typeof data.error === 'string' ? data.error : `rename failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    newSlug: String(data.newSlug),
+    newPath: String(data.newPath),
+    fingerprint: data.fingerprint as ContentFingerprint,
+  };
+}
+
 /* multipart upload — no content-type header (browser sets boundary). */
 export async function uploadImage(
   file: File,
