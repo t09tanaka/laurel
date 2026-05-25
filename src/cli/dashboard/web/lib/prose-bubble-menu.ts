@@ -536,20 +536,11 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
             anchorTop = biased.top;
           }
         }
-        // Render at the anchor so getBoundingClientRect measures the
-        // bubble's natural width; clamp to the viewport afterwards
-        // so the chip never spills off-screen.
-        root.style.visibility = 'visible';
-        root.style.pointerEvents = 'auto';
-        root.style.transform = 'translate(0, calc(-100% - 10px))';
-        root.style.left = `${anchorCenter}px`;
-        root.style.top = `${anchorTop}px`;
-        const bubbleRect = root.getBoundingClientRect();
-        const half = bubbleRect.width / 2;
-        const minLeft = 8;
-        const maxLeft = Math.max(minLeft, window.innerWidth - bubbleRect.width - 8);
-        const left = Math.min(Math.max(anchorCenter - half, minLeft), maxLeft);
-        root.style.left = `${left}px`;
+        // Apply button visibility / active state BEFORE measuring the
+        // bubble width — otherwise the first frame after switching
+        // between "range" and "cursor only" selections measures the
+        // previous frame's wider row, which throws the centering math
+        // off by ~80–120px.
         const hasRange = !empty;
         for (let i = 0; i < buttons.length; i += 1) {
           const b = buttons[i];
@@ -569,6 +560,23 @@ export function bubbleMenuPlugin(schema: Schema): Plugin {
           }
           btn.dataset.active = active ? 'true' : 'false';
         }
+        // Render at the anchor so getBoundingClientRect measures the
+        // bubble's natural width; clamp to the viewport afterwards
+        // so the chip never spills off-screen. The `void offsetWidth`
+        // forces a synchronous reflow so the width we read reflects
+        // the button-visibility changes we just applied above.
+        root.style.visibility = 'visible';
+        root.style.pointerEvents = 'auto';
+        root.style.transform = 'translate(0, calc(-100% - 10px))';
+        root.style.left = `${anchorCenter}px`;
+        root.style.top = `${anchorTop}px`;
+        void root.offsetWidth;
+        const bubbleRect = root.getBoundingClientRect();
+        const half = bubbleRect.width / 2;
+        const minLeft = 8;
+        const maxLeft = Math.max(minLeft, window.innerWidth - bubbleRect.width - 8);
+        const left = Math.min(Math.max(anchorCenter - half, minLeft), maxLeft);
+        root.style.left = `${left}px`;
       }
 
       update(view);
