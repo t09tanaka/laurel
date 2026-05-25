@@ -153,48 +153,10 @@
     --sidebar-width: 232px;
   }
 
-  html[data-theme="dark"],
-  html.theme-dark {
-    color-scheme: dark;
-    --color-text-primary: #f4f6f8;
-    --color-text-secondary: #adb8c4;
-    --color-text-muted: #7e8a96;
-    --color-text-invert: #0a0d12;
-    --color-bg-primary: #0c0e11;
-    --color-bg-secondary: #14171a;
-    --color-surface-normal: #14171a;
-    --color-surface-raised: #1b1f23;
-    --color-surface-primary: #f4f6f8;
-    --color-surface-primary-reaction: #dde2e7;
-    --color-surface-quaternary: #232a2e;
-    --color-sidebar-bg: #08090c;
-    --color-sidebar-ink: #f4f6f8;
-    --color-sidebar-muted: #8a96a3;
-    --color-action: #f4f6f8;
-    --color-action-reaction: #dde2e7;
-    --color-brand: #34d399;
-    --color-focus: #60a5fa;
-    --color-border-default: #2a3035;
-    --color-border-strong: #3c454c;
-    --color-border-weak: #21272b;
-    --color-border-primary: #f4f6f8;
-    --color-success: #34d399;
-    --color-success-subdued: #0f2a1c;
-    --color-danger: #f87171;
-    --color-danger-subdued: #3a1818;
-    --color-warning: #e5ad4f;
-    --color-warning-subdued: #2f2412;
-    --color-disabled: #2a3134;
-    --color-reaction: #1e2428;
-    --color-modal: rgba(0, 0, 0, 0.64);
-    --shadow-row: 0 18px 44px rgba(0, 0, 0, 0.22);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    html[data-theme="system"] {
-      color-scheme: light;
-    }
-  }
+  /* Dark theme dropped — the dashboard is a single warm-light editorial
+   * surface. Per the project's editorial intent and to keep the design
+   * vocabulary tight, dark mode tokens and prefers-color-scheme overrides
+   * are no longer maintained. */
 
   *,
   *::before,
@@ -702,40 +664,7 @@
     font-weight: 500;
     letter-spacing: 0.06em;
   }
-  /* Theme toggle — compact dot-only button in the sidebar footer. Color
-   * of the dot signals the active mode; click cycles. No label needed. */
-  .themeToggle {
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.12s ease;
-  }
-  .themeToggle:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .themeToggle .themeMark {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.4);
-    transition: background-color 0.2s ease;
-  }
-  .themeToggle[data-theme="system"] .themeMark {
-    background: linear-gradient(90deg, #f0c63a 50%, #4a5d72 50%);
-  }
-  .themeToggle[data-theme="light"] .themeMark {
-    background: #f0c63a;
-  }
-  .themeToggle[data-theme="dark"] .themeMark {
-    background: #4a5d72;
-  }
+  /* themeToggle / themeMark removed — dark theme dropped, no toggle needed. */
   .main {
     padding: 48px 64px 64px;
     min-width: 0;

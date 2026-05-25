@@ -7,7 +7,6 @@ export type {
   DashboardEditorKind,
   DashboardSettingsSubview,
   DashboardShellSection,
-  DashboardTheme,
   DashboardUiAction,
   DashboardUiState,
   DashboardView,

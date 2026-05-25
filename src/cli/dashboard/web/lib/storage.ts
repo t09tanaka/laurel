@@ -98,18 +98,3 @@ export function readRevisions(item: DashboardContentItem): RevisionPayload[] {
   return Array.isArray(value) ? value : [];
 }
 
-const THEME_KEY = 'nectar-dashboard-theme';
-
-export function readThemePreference(): 'system' | 'light' | 'dark' {
-  try {
-    const value = localStorage.getItem(THEME_KEY);
-    if (value === 'dark' || value === 'light' || value === 'system') return value;
-  } catch {}
-  return 'system';
-}
-
-export function writeThemePreference(theme: 'system' | 'light' | 'dark'): void {
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch {}
-}

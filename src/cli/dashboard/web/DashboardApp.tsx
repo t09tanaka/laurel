@@ -28,7 +28,6 @@ import {
   shellSectionFor,
   syncPath,
 } from './lib/routes.ts';
-import { readThemePreference, writeThemePreference } from './lib/storage.ts';
 import { CREATE_HEAD, viewHeadFor } from './lib/view-head.ts';
 import type {
   DashboardContentItem,
@@ -47,7 +46,6 @@ const INITIAL_STATE: DashboardUiState = {
   density: 'comfortable',
   query: '',
   statusFilter: '',
-  theme: readThemePreference(),
   loadStatus: 'idle',
   lastError: '',
   conflictMessage: '',
@@ -128,9 +126,8 @@ export function DashboardApp(): JSX.Element {
 
   // theme application
   useEffect(() => {
-    document.documentElement.dataset.theme = ui.theme;
     document.body.classList.toggle('densityCompact', ui.density === 'compact');
-  }, [ui.theme, ui.density]);
+  }, [ui.density]);
 
   // title sync
   useEffect(() => {
@@ -337,12 +334,6 @@ export function DashboardApp(): JSX.Element {
     await load({ force: true });
   }
 
-  function cycleTheme() {
-    const next = ui.theme === 'system' ? 'dark' : ui.theme === 'dark' ? 'light' : 'system';
-    dispatch({ type: 'theme/set', theme: next });
-    writeThemePreference(next);
-  }
-
   const rail = computeStatusRail(state);
   const section = shellSectionFor(ui.view);
   const inSettings = section === 'settings';
@@ -442,14 +433,6 @@ export function DashboardApp(): JSX.Element {
       run: () => navigateCreate('pages'),
     },
     {
-      id: 'action:cycle-theme',
-      kind: 'action',
-      label: 'Switch theme',
-      hint: ui.theme,
-      keywords: 'theme dark light system toggle appearance',
-      run: cycleTheme,
-    },
-    {
       id: 'action:force-sync',
       kind: 'action',
       label: 'Re-read disk',
@@ -475,12 +458,10 @@ export function DashboardApp(): JSX.Element {
         buildState={rail.build.state}
         previewLabel={rail.preview.label}
         previewState={rail.preview.state}
-        theme={ui.theme}
         onNavigate={(target) => navigateView(target)}
         onOpenEntry={(kind, slug) => {
           void openEditor(kind, slug);
         }}
-        onCycleTheme={cycleTheme}
         onForceSync={() => {
           void load({ force: true }).then(() => {
             toastHost.api.push({

@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import type { DashboardShellSection, DashboardState, DashboardTheme } from '../types.ts';
+import type { DashboardShellSection, DashboardState } from '../types.ts';
 
 export interface RecentEntry {
   kind: 'posts' | 'pages';
@@ -19,24 +19,10 @@ interface SidebarProps {
   buildState: string;
   previewLabel: string;
   previewState: string;
-  theme: DashboardTheme;
   onNavigate: (target: 'posts' | 'pages' | 'settings') => void;
   onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
-  onCycleTheme: () => void;
   onForceSync: () => void;
 }
-
-const THEME_LABEL: Record<DashboardTheme, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
-};
-
-const THEME_NEXT: Record<DashboardTheme, DashboardTheme> = {
-  system: 'dark',
-  dark: 'light',
-  light: 'system',
-};
 
 export function Sidebar(props: SidebarProps): JSX.Element {
   return (
@@ -88,8 +74,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           </ul>
         </div>
       ) : null}
-      {/* Sidebar footer — Settings link (less frequent than Posts/Pages so
-       * lives below the fold), plus a theme toggle dot and sync pip. */}
+      {/* Sidebar footer — Settings link + a tiny sync pip. Theme toggle
+       * removed (dark theme dropped per user direction). */}
       <div class="sideFooter">
         <a
           href="/settings"
@@ -102,16 +88,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         >
           Settings
         </a>
-        <button
-          type="button"
-          class="themeToggle"
-          data-theme={props.theme}
-          aria-label={`Theme: ${THEME_LABEL[props.theme]}. Switch to ${THEME_LABEL[THEME_NEXT[props.theme]]}.`}
-          title={`Theme: ${THEME_LABEL[props.theme]}`}
-          onClick={props.onCycleTheme}
-        >
-          <span class="themeMark" aria-hidden="true" />
-        </button>
         <button
           type="button"
           id="syncRail"
