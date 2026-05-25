@@ -761,8 +761,15 @@ describe('nectar build preview noindex protection', () => {
     const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
     expect(html).not.toContain('<meta name="robots" content="noindex">');
 
-    const headers = readFileSync(join(dir, 'dist/_headers'), 'utf8');
-    expect(headers).not.toContain('X-Robots-Tag');
+    // Production Netlify builds must never inject `X-Robots-Tag`. The fixture
+    // doesn't opt into the Content API or a Netlify deploy gate, so
+    // `dist/_headers` may not be emitted at all — that's an even stronger form
+    // of "no X-Robots-Tag", so accept either an absent file or a present file
+    // without the header.
+    const headersPath = join(dir, 'dist/_headers');
+    if (existsSync(headersPath)) {
+      expect(readFileSync(headersPath, 'utf8')).not.toContain('X-Robots-Tag');
+    }
   });
 });
 
@@ -1085,7 +1092,7 @@ describe('nectar build --emit-content-api (#214)', () => {
     expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(false);
   });
 
-  test('no flag and no env var: respects the config value (default true)', async () => {
+  test('no flag and no env var: respects the config value (opt-in default false)', async () => {
     const dir = await makeSite({ contentApiEnabled: true });
     cleanups.push(dir);
     const result = await runCli(['build'], dir);

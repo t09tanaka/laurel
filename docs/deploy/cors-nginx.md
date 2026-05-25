@@ -1,8 +1,9 @@
 # Content API CORS on nginx
 
-Nectar always emits Content API JSON under `dist/content/`. Netlify and
-Cloudflare Pages consume the generated `_headers` files, but self-hosted nginx
-needs equivalent `add_header` rules in the active server config.
+Nectar can emit Content API JSON under `dist/content/` when
+`[components.content_api].enabled = true` is set (off by default). Netlify
+and Cloudflare Pages consume the generated `_headers` files, but self-hosted
+nginx needs equivalent `add_header` rules in the active server config.
 
 Use these snippets when the site is served by hand-written nginx config instead
 of Nectar's generated `dist/.nectar/nginx.conf`.

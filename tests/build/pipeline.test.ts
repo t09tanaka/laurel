@@ -1533,10 +1533,7 @@ describe('build pipeline basePath override', () => {
     // _redirects only emits when something needs it. The Ghost Content API
     // shadow is the canonical source of trailing-slash redirects, so opt it
     // in here to assert the base-path prefix wiring end-to-end.
-    await prependTomlTopLevel(
-      cwd,
-      ['[components.content_api]', 'enabled = true', ''].join('\n'),
-    );
+    await prependTomlTopLevel(cwd, ['[components.content_api]', 'enabled = true', ''].join('\n'));
     const summary = await build({ cwd, basePath: '/blog/' });
     const redirects = readFileSync(join(summary.outputDir, '_redirects'), 'utf8');
     expect(redirects).toContain('/blog/ghost/api/content/posts/');
@@ -2736,10 +2733,7 @@ export default {
 describe('build pipeline content_api stubs (#210/#211/#212)', () => {
   test('emits content/posts.json, content/settings.json, _headers, _headers.cf when content_api is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
-    await prependTomlTopLevel(
-      cwd,
-      ['[components.content_api]', 'enabled = true', ''].join('\n'),
-    );
+    await prependTomlTopLevel(cwd, ['[components.content_api]', 'enabled = true', ''].join('\n'));
     const summary = await build({ cwd });
 
     expect(existsSync(join(summary.outputDir, 'content', 'posts.json'))).toBe(true);
