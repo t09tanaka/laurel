@@ -1313,9 +1313,9 @@ export const configSchema = z
           .object({
             enabled: z
               .boolean()
-              .default(true)
+              .default(false)
               .describe(
-                'Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Nectar is static-only.',
+                'Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Nectar is static-only. Off by default because most sites do not consume their own JSON shadows: a stock build would otherwise emit the full SDK shadow tree, the flat dump, an `_headers`/`_headers.cf` CORS pair, a `_redirects` block for trailing-slash routing, and `.well-known/ghost.json` — easily half of the output file count for a small site. Opt in when you are wiring a Ghost Content API SDK client, a browser-only fetcher, or a Netlify/Cloudflare deploy that needs the CORS rules.',
               ),
             absolute_urls: z
               .boolean()
