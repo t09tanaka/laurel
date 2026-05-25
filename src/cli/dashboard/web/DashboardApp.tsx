@@ -148,9 +148,9 @@ export function DashboardApp(): JSX.Element {
           dispatch({ type: 'view/set', view: item.kind });
         } catch {
           toastHost.api.push({
-            kind: 'error',
+            intent: 'error',
             title: 'Not found',
-            body: `No ${initialEditor.kind === 'pages' ? 'page' : initialEditor.kind === 'authors' ? 'author' : initialEditor.kind === 'tags' ? 'tag' : 'post'} "${initialEditor.slug}".`,
+            message: `No ${initialEditor.kind === 'pages' ? 'page' : initialEditor.kind === 'authors' ? 'author' : initialEditor.kind === 'tags' ? 'tag' : 'post'} "${initialEditor.slug}".`,
           });
         }
       })();
@@ -185,9 +185,9 @@ export function DashboardApp(): JSX.Element {
             // slug aren't silent (#2091). URL is left intact so the
             // user can correct it; the list fallback covers display.
             toastHost.api.push({
-              kind: 'error',
+              intent: 'error',
               title: 'Not found',
-              body: `No ${routeEditor.kind === 'pages' ? 'page' : routeEditor.kind === 'authors' ? 'author' : routeEditor.kind === 'tags' ? 'tag' : 'post'} "${routeEditor.slug}".`,
+              message: `No ${routeEditor.kind === 'pages' ? 'page' : routeEditor.kind === 'authors' ? 'author' : routeEditor.kind === 'tags' ? 'tag' : 'post'} "${routeEditor.slug}".`,
             });
           }
         })();
