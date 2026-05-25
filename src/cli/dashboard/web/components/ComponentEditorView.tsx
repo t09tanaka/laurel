@@ -99,7 +99,11 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
   }
 
   return (
-    <section class="editor editorPage open" id="editor" aria-labelledby="editorTitle">
+    <section
+      class="editor editorPage open componentEditorPage"
+      id="editor"
+      aria-labelledby="editorTitle"
+    >
       <div class="editorTopRow">
         <button
           type="button"
@@ -132,8 +136,11 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
           </button>
         </div>
       </div>
-      <div class="editorCanvas">
-        <div class="editorMain editorScroll">
+      {/* No metadata sidebar to mirror, so we skip .editorCanvas
+       * (which forces 320px symmetric padding for the post / page
+       * aside) and let .componentEditorPage own the width directly. */}
+      <div class="editorScroll componentEditorScroll">
+        <div class="componentPage">
           <div class="titleBlock">
             <div class="titleInput" id="editorTitle" aria-label="Component shortcode">
               {`{${current.slug}}`}

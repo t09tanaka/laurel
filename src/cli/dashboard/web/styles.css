@@ -2812,11 +2812,27 @@
    * label sits above a textarea pinned to a comfortable monospace size
    * so the author can read the snippet without horizontal scroll. The
    * css / html panes are intentionally taller than the description so
-   * they read as the primary content of the editor. */
+   * they read as the primary content of the editor.
+   *
+   * .componentEditorPage drops the post-editor's symmetric 320px gutter
+   * (no metadata aside to mirror) and lets the body span a generous
+   * code-friendly width — narrow enough to keep prose comfortable, wide
+   * enough that 80-col CSS / HTML doesn't wrap. */
+  .componentEditorPage .editorScroll.componentEditorScroll {
+    padding: 0 32px 96px;
+  }
+  .componentPage {
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 0 0;
+    display: grid;
+    gap: 28px;
+  }
   .componentEditor {
     display: grid;
     gap: 20px;
-    margin-top: 12px;
+    margin-top: 4px;
   }
   .componentField {
     display: grid;
