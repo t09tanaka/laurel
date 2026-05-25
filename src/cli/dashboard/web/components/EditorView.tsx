@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import {
   DEFAULT_EDITOR_FOCUS_STATE,
   type EditorSaveState,
@@ -74,7 +74,10 @@ export function EditorView(props: EditorViewProps): JSX.Element {
   const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isContent = current.kind === 'posts' || current.kind === 'pages';
 
-  useEffect(() => {
+  // useLayoutEffect so the body class is set before paint — otherwise
+  // the editor briefly renders inside the dashboard sidebar before
+  // collapsing to full-viewport mode.
+  useLayoutEffect(() => {
     document.body.classList.add('editorOpen');
     return () => {
       document.body.classList.remove('editorOpen');

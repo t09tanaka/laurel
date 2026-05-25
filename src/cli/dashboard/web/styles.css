@@ -188,13 +188,9 @@
   body.createOpen .shell {
     min-height: 100vh;
   }
-  /* When the editor is open, the writing surface IS the page. Drop the
-   * list-page main-width cap entirely; let the .editorCanvas (max-width
-   * 1600px, internal margin auto) define the writing column itself. */
-  body.editorOpen .main {
-    max-width: none;
-    padding: 24px 48px 48px;
-  }
+  /* Editor-mode collapse rules (.shell grid + .side display:none + .main
+   * padding) live in the components layer next to .shell / .side / .main
+   * so they actually win the cascade. */
   body.editorOpen .viewHead,
   body.editorOpen .subnav,
   body.editorOpen #contentPanel {
@@ -282,6 +278,16 @@
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     background: transparent;
+  }
+  /* When the editor is open, the writing surface owns the full viewport.
+   * Collapse the dashboard sidebar (the editor has its own "← Posts"
+   * breadcrumb). Must live in the components layer so .side's flex
+   * display from below doesn't override the hide. */
+  body.editorOpen .shell {
+    grid-template-columns: 1fr;
+  }
+  body.editorOpen .side {
+    display: none;
   }
   .side {
     border-right: 0;
@@ -676,6 +682,10 @@
     /* Subtle fade-in on every navigation — gives the dashboard a sense
      * of "page turn" instead of an abrupt swap. */
     animation: mainFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  body.editorOpen .main {
+    max-width: none;
+    padding: 24px 48px 48px;
   }
   .viewHead {
     display: grid;
@@ -1977,13 +1987,16 @@
     padding: 0 4px 0 0;
   }
   /* Two-column editor canvas — writing on the left, metadata sidebar
-   * on the right. Sidebar sticks while body scrolls. */
+   * on the right. Sidebar sticks while body scrolls.
+   * width: 100% is needed because editorPage is itself a grid container
+   * whose items don't justify-stretch by default in every browser. */
   .editorCanvas {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 280px;
     gap: 40px;
     align-items: start;
     max-width: 1600px;
+    width: 100%;
     margin: 0 auto;
   }
   .editorMain {
