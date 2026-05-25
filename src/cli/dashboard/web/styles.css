@@ -1872,6 +1872,17 @@
   .contentRow:focus-within {
     box-shadow: inset 2px 0 0 var(--focus);
   }
+  /* Non-editable taxonomy rows (generated stubs awaiting a "Create
+   * file" action) aren't a click target — neutralise the row-click
+   * affordances so the cursor and hover rule don't promise something
+   * the row won't deliver. */
+  .contentRow[data-editable="false"] {
+    cursor: default;
+  }
+  .contentRow[data-editable="false"]:hover {
+    background: transparent;
+    box-shadow: none;
+  }
   /* Taxonomy source expressed via cell typography too — generated rows
    * dim (auto-created stubs), orphaned rows wear a caution stripe. */
   .contentRow[data-source="generated"] {
