@@ -43,7 +43,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     <aside class="side" aria-label="Dashboard navigation">
       <div class="sideTop">
         <div class="brand">Nectar</div>
-        <div class="tagline">{props.siteTitle || 'file-backed editorial dashboard'}</div>
+        {/* Tagline removed — the brand mark is enough. The site title is
+         * visible on the Settings page where users actually need it. */}
       </div>
       <nav class="nav" aria-label="Primary">
         <NavLink

@@ -44,7 +44,8 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
           <span class="listHeadCount">
             <span class="listHeadNumeral">{props.resultCount}</span>
             <span class="listHeadCountLabel">
-              {props.resultCount === 1 ? 'entry' : 'entries'} · page {list.page} of {list.pages}
+              {props.resultCount === 1 ? 'entry' : 'entries'}
+              {list.pages > 1 ? ` · page ${list.page} of ${list.pages}` : ''}
             </span>
           </span>
         </div>
@@ -216,29 +217,6 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
             {item.slug}
           </span>
         </div>
-        <details
-          class="rowDetails"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <summary>Details</summary>
-          <div class="detailGrid">
-            {isPages ? (
-              <div>
-                <span class="detailLabel">Approval</span>
-                <ApprovalDetail item={item} />
-              </div>
-            ) : null}
-            <div>
-              <span class="detailLabel">Preview</span>
-              <PreviewDetail item={item} />
-            </div>
-            <div>
-              <span class="detailLabel">Path</span>
-              <div class="pathText">{item.path}</div>
-            </div>
-          </div>
-        </details>
       </td>
       <td class="dateCell">{formatDate(item.createdAt)}</td>
       <td class="actionsCell">
@@ -286,36 +264,6 @@ function ApprovalPill({ approval, compact }: ApprovalPillProps): JSX.Element {
     <span class={`pill ${cls} ${compact ? 'pillCompact' : ''}`} data-approval={state}>
       {label}
     </span>
-  );
-}
-
-function ApprovalDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const approval = item.approval ?? { status: 'needs-approval' };
-  const detail = approval.approvedAt
-    ? formatDate(approval.approvedAt)
-    : 'Saved changes stay out of builds until approved.';
-  return (
-    <>
-      <ApprovalPill approval={approval} />
-      <div class="meta">{detail}</div>
-    </>
-  );
-}
-
-function PreviewDetail({ item }: { item: ContentSummary }): JSX.Element {
-  const preview = item.preview ?? null;
-  const label = preview?.label ?? 'Markdown preview';
-  const cls = preview?.state === 'current' ? '' : 'draft';
-  return (
-    <>
-      <span class={`pill ${cls}`}>{label}</span>
-      <div class="meta">{preview?.sourcePath ?? preview?.detail ?? 'Saved Markdown preview'}</div>
-      {preview?.openUrl ? (
-        <a class="previewLink" href={preview.openUrl} target="_blank" rel="noreferrer">
-          Open
-        </a>
-      ) : null}
-    </>
   );
 }
 

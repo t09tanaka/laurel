@@ -446,27 +446,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             }
           />
           <span class="saveHairline" data-state={saveState} aria-hidden="true" />
-          <div class="bodyStats" aria-label="Body statistics">
-            {(() => {
-              const text = snapshot.body || '';
-              const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-              const chars = text.length;
-              const minutes = Math.max(1, Math.round(words / 225));
-              return (
-                <>
-                  <span>
-                    <b>{words.toLocaleString()}</b> words
-                  </span>
-                  <span>
-                    <b>{chars.toLocaleString()}</b> chars
-                  </span>
-                  <span>
-                    ~<b>{minutes}</b> min read
-                  </span>
-                </>
-              );
-            })()}
-          </div>
         </div>
         <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
           {warnings.join(' ')}
@@ -621,33 +600,44 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           </div>
         </details>
       </div>
-      <div class="editorFooter">
-        <output class="notice" id="notice">
-          {notice}
-        </output>
-        <div class="editorActions">
-          <button
-            class="btn secondary"
-            id="approvePage"
-            type="button"
-            disabled={current.kind !== 'pages' || dirty}
-            onClick={() => {
-              void handleApprove();
-            }}
-          >
-            Approve saved page
-          </button>
-          <button
-            class="btn"
-            id="saveEditor"
-            type="button"
-            onClick={() => {
-              void handleSave();
-            }}
-          >
-            Save to file
-          </button>
+      {/* Footer is rendered only when there's a notice to surface or when
+       * the Approve action is available — otherwise Save is in the header
+       * and the footer is dead weight. */}
+      {notice || current.kind === 'pages' ? (
+        <div class="editorFooter">
+          <output class="notice" id="notice">
+            {notice}
+          </output>
+          <div class="editorActions">
+            {current.kind === 'pages' ? (
+              <button
+                class="btn secondary"
+                id="approvePage"
+                type="button"
+                disabled={dirty}
+                onClick={() => {
+                  void handleApprove();
+                }}
+              >
+                Approve saved page
+              </button>
+            ) : null}
+          </div>
         </div>
+      ) : null}
+      {/* Hidden trailing Save retained for tests/keyboard shortcuts that may
+       * reference #saveEditor. Visually it's the top header Save users see. */}
+      <div hidden>
+        <button
+          class="btn"
+          id="saveEditor"
+          type="button"
+          onClick={() => {
+            void handleSave();
+          }}
+        >
+          Save to file
+        </button>
       </div>
     </section>
   );
