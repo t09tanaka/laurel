@@ -1635,6 +1635,34 @@
   .actionsCell {
     padding-right: 12px;
   }
+  /* Row text actions — weight-differentiated text links instead of
+   * button chips. Preview is the light/ghost variant; the row's primary
+   * action ("Detail") is heavier. No box, no fill, just type. */
+  .rowAction {
+    text-decoration: none;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.2;
+    letter-spacing: -0.003em;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: color 0.12s ease, background-color 0.12s ease;
+  }
+  .rowActionGhost {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+  .rowActionGhost:hover {
+    color: var(--text-primary);
+    background: transparent;
+  }
+  .rowActionPrimary {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .rowActionPrimary:hover {
+    background: var(--reaction);
+  }
   /* Row actions hide until the row is hovered/focused — keeps the list
    * dense and reading-first, surfaces actions on intent. */
   .rowActions {

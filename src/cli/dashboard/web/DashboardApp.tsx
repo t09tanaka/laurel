@@ -28,7 +28,7 @@ import {
   shellSectionFor,
   syncPath,
 } from './lib/routes.ts';
-import { CREATE_HEAD, viewHeadFor } from './lib/view-head.ts';
+import { CREATE_HEAD, createHeadFor, viewHeadFor } from './lib/view-head.ts';
 import type {
   DashboardContentItem,
   DashboardEditorKind,
@@ -337,7 +337,14 @@ export function DashboardApp(): JSX.Element {
   const rail = computeStatusRail(state);
   const section = shellSectionFor(ui.view);
   const inSettings = section === 'settings';
-  const headCopy = createMode ? CREATE_HEAD : viewHeadFor(ui.view);
+  const headCopy = createMode
+    ? createMode === 'posts' ||
+      createMode === 'pages' ||
+      createMode === 'authors' ||
+      createMode === 'tags'
+      ? createHeadFor(createMode)
+      : CREATE_HEAD
+    : viewHeadFor(ui.view);
   const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';

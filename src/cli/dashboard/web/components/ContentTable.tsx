@@ -227,7 +227,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
         <div class="rowActions">
           {preview?.openUrl ? (
             <a
-              class="btn secondary btnCompact"
+              class="rowAction rowActionGhost"
               href={preview.openUrl}
               target="_blank"
               rel="noreferrer"
@@ -236,7 +236,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
             </a>
           ) : null}
           <a
-            class="btn secondary btnCompact"
+            class="rowAction rowActionPrimary"
             href={pathForEditor(kind, item.slug)}
             data-edit={item.slug}
             onClick={(event) => {
@@ -244,7 +244,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
               onOpen();
             }}
           >
-            Edit
+            Detail
           </a>
           {isPages ? <ExportOverflow slug={item.slug} /> : null}
         </div>
