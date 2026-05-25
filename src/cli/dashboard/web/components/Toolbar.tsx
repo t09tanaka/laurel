@@ -40,24 +40,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             Filter current view
           </label>
           <div class="searchWrap">
-            <svg
-              class="searchIcon"
-              viewBox="0 0 16 16"
-              width="14"
-              height="14"
-              aria-hidden="true"
-            >
-              <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4" />
-              <line
-                x1="10.4"
-                y1="10.4"
-                x2="13.5"
-                y2="13.5"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-              />
-            </svg>
             <input
               class="search"
               id="search"
@@ -72,19 +54,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
                 }
               }}
             />
-            {props.query ? (
-              <button
-                type="button"
-                class="searchClear"
-                aria-label="Clear filter"
-                onClick={() => {
-                  props.onSearch('');
-                  searchRef.current?.focus();
-                }}
-              >
-                ×
-              </button>
-            ) : null}
           </div>
         </>
       ) : null}
@@ -95,24 +64,6 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         title="Jump to a file or run a command"
         aria-label="Open command palette"
       >
-        <svg
-          class="cmdkIcon"
-          viewBox="0 0 16 16"
-          width="14"
-          height="14"
-          aria-hidden="true"
-        >
-          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4" />
-          <line
-            x1="10.4"
-            y1="10.4"
-            x2="13.5"
-            y2="13.5"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-          />
-        </svg>
         <kbd>⌘</kbd>
         <kbd>K</kbd>
       </button>
@@ -122,8 +73,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         onClick={props.onNew}
         type="button"
       >
-        <span class="btnIcon" aria-hidden="true">+</span>
-        <span>New</span>
+        New
       </button>
     </div>
   );

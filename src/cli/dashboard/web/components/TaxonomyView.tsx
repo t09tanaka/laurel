@@ -33,17 +33,12 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
       {items.length ? (
         <div class="tableWrap">
           <table class="table">
-            <thead>
+            <thead class="srOnly">
               <tr>
                 <th>Name</th>
-                <th class="taxCountCol">
-                  Posts
-                  <span class="srOnly">(number of posts using this {props.kind === 'authors' ? 'author' : 'tag'})</span>
-                </th>
-                <th class="taxPathCol">File</th>
-                <th>
-                  <span class="srOnly">Actions</span>
-                </th>
+                <th>Posts ({props.kind === 'authors' ? 'authored' : 'tagged'})</th>
+                <th>File</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
