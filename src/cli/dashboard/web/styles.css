@@ -2055,6 +2055,58 @@
     font-family: var(--font-mono);
     font-size: 12.5px;
   }
+  .editorMetaTextarea {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 64px;
+  }
+  /* Advanced (SEO) collapse — italic-serif summary so it reads as a
+   * "see also" rather than another input row. */
+  .editorMetaAdvanced {
+    padding: 18px 0 0;
+    border-top: 1px solid var(--border-weak);
+    margin-top: 4px;
+  }
+  .editorMetaAdvanced > summary {
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 0 0 8px;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: color 0.12s ease;
+  }
+  .editorMetaAdvanced > summary::-webkit-details-marker {
+    display: none;
+  }
+  .editorMetaAdvanced > summary::after {
+    content: "+";
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .editorMetaAdvanced[open] > summary::after {
+    content: "−";
+  }
+  .editorMetaAdvanced > summary:hover {
+    color: var(--text-primary);
+  }
+  .editorMetaAdvanced .editorMetaSection {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .editorMetaAdvanced .editorMetaSection:last-child {
+    border-bottom: 0;
+  }
   /* Status select sized to the 280px sidebar — full-width control with
    * the same border + focus treatment as the slug input. */
   .editorMetaStatus {
@@ -2082,7 +2134,10 @@
       gap: 16px;
     }
   }
-  .editor textarea {
+  /* Scoped to the body editor only — a bare `.editor textarea` selector
+   * was cascading into sidebar metadata textareas (Description, Meta
+   * description) and forcing them to 56vh. */
+  .editor .bodyWrap textarea {
     width: 100%;
     /* Fill the bodyWrap (820px max). Long-line prose pushes against the
      * 70ch comfort upper bound; mono characters average ~9.5px so 820px
@@ -2760,12 +2815,12 @@
   body.editorFocus .main {
     transition: padding 320ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  body.editorFocus .editor textarea {
+  body.editorFocus .editor .bodyWrap textarea {
     border-color: transparent;
     box-shadow: none;
     background: transparent;
   }
-  body.editorFocus .editor textarea:focus {
+  body.editorFocus .editor .bodyWrap textarea:focus {
     border-color: transparent;
   }
   .createPage {
@@ -3616,7 +3671,7 @@
       border-right: 0;
       border-radius: 0;
     }
-    .editor textarea {
+    .editor .bodyWrap textarea {
       height: 46vh;
       min-height: 300px;
       max-width: 100%;

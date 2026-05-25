@@ -169,6 +169,13 @@ export interface EditorSnapshot {
   featureImage: string;
   featureImageAlt: string;
   featureImageCaption: string;
+  excerpt: string;
+  tags: string;
+  authors: string;
+  publishedAt: string;
+  metaTitle: string;
+  metaDescription: string;
+  canonicalUrl: string;
   body: string;
 }
 
