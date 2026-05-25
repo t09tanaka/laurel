@@ -132,7 +132,9 @@ function NavLink(props: NavLinkProps): JSX.Element {
     >
       <span class="navLabel">{props.label}</span>
       <span class="navCount" aria-hidden="true">
-        {typeof props.count === 'number' ? String(props.count) : ''}
+        {/* Show count only when there is content; an "0" or empty digit
+         * adds visual noise without information. */}
+        {typeof props.count === 'number' && props.count > 0 ? String(props.count) : ''}
       </span>
     </a>
   );
