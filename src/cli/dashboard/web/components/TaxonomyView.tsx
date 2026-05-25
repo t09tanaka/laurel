@@ -33,74 +33,114 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
       {items.length ? (
         <div class="tableWrap">
           <table class="table">
-            {/* Column headers visually hidden for consistency with Posts /
-             * Pages — the row content speaks for itself. */}
-            <thead class="srOnly">
+            <thead>
               <tr>
                 <th>Name</th>
-                <th>Posts</th>
-                <th>Path</th>
-                <th>Actions</th>
+                <th class="taxCountCol">
+                  Posts
+                  <span class="srOnly">(number of posts using this {props.kind === 'authors' ? 'author' : 'tag'})</span>
+                </th>
+                <th class="taxPathCol">File</th>
+                <th>
+                  <span class="srOnly">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr
-                  key={item.slug}
-                  class="contentRow"
-                  data-source={item.source ?? 'file'}
-                  data-orphaned={item.orphaned ? 'true' : undefined}
-                >
-                  <td class="titleCell">
-                    <div class="titleLine">
-                      <span class="titleText" title={item.name}>
-                        {item.name}
-                      </span>
-                    </div>
-                    <div class="slugLine">
-                      <span class="slug" dir="rtl" title={item.slug}>
-                        {item.slug}
-                      </span>
-                    </div>
-                    {item.description ? <div class="meta">{item.description}</div> : null}
-                  </td>
-                  <td class="dateCell">{item.count}</td>
-                  <td>
-                    <div class="pathText" title={item.path ?? item.materializePath ?? 'generated from references'}>
-                      {item.path ?? item.materializePath ?? 'generated from references'}
-                    </div>
-                  </td>
-                  <td>
-                    {item.editable ? (
-                      <a
-                        class="btn secondary"
-                        href={pathForEditor(props.kind, item.slug)}
-                        data-edit={item.slug}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          props.onEdit(item.slug);
-                        }}
+              {items.map((item) => {
+                const editorHref = item.editable ? pathForEditor(props.kind, item.slug) : null;
+                return (
+                  <tr
+                    key={item.slug}
+                    class="contentRow"
+                    data-source={item.source ?? 'file'}
+                    data-orphaned={item.orphaned ? 'true' : undefined}
+                  >
+                    <td class="titleCell">
+                      <div class="titleLine">
+                        {editorHref ? (
+                          <a
+                            class="titleLink"
+                            href={editorHref}
+                            title={item.name}
+                            onClick={(event) => {
+                              if (
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                              )
+                                return;
+                              event.preventDefault();
+                              props.onEdit(item.slug);
+                            }}
+                          >
+                            <span class="titleText">{item.name}</span>
+                          </a>
+                        ) : (
+                          <span class="titleText" title={item.name}>
+                            {item.name}
+                          </span>
+                        )}
+                      </div>
+                      <div class="slugLine">
+                        <span class="slug" dir="rtl" title={item.slug}>
+                          {item.slug}
+                        </span>
+                      </div>
+                      {item.description ? <div class="meta">{item.description}</div> : null}
+                    </td>
+                    <td class="dateCell taxCountCell" title={`${item.count} posts use this ${props.kind === 'authors' ? 'author' : 'tag'}`}>
+                      <span class="taxCountNum">{item.count}</span>
+                      <span class="taxCountUnit"> {item.count === 1 ? 'post' : 'posts'}</span>
+                    </td>
+                    <td class="taxPathCell">
+                      <code
+                        class="taxPathText"
+                        title={item.path ?? item.materializePath ?? 'generated from references'}
                       >
-                        Edit
-                      </a>
-                    ) : (
-                      <button
-                        class="btn secondary"
-                        type="button"
-                        data-materialize={item.slug}
-                        onClick={() => props.onMaterialize(item.slug)}
-                      >
-                        Create file
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {item.path ?? item.materializePath ?? 'generated'}
+                      </code>
+                    </td>
+                    <td>
+                      {item.editable ? (
+                        <a
+                          class="btn secondary taxAction"
+                          href={editorHref ?? '#'}
+                          data-edit={item.slug}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            props.onEdit(item.slug);
+                          }}
+                        >
+                          Edit
+                        </a>
+                      ) : (
+                        <button
+                          class="btn secondary taxAction"
+                          type="button"
+                          data-materialize={item.slug}
+                          onClick={() => props.onMaterialize(item.slug)}
+                        >
+                          Create file
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : (
-        <StatePanel kind="empty" message="No taxonomy files match this view." />
+        <StatePanel
+          kind="empty"
+          message={
+            props.list.total === 0
+              ? `No ${props.kind} yet. Generated entries from posts appear here once you create one with a ${props.kind === 'authors' ? 'frontmatter author:' : 'frontmatter tags:'} field.`
+              : `No ${props.kind} match this filter.`
+          }
+        />
       )}
     </div>
   );
