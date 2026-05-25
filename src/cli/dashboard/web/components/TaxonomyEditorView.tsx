@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { renameContentSlug, saveContent } from '../lib/api.ts';
 import {
   buildFrontmatter as buildFrontmatterFor,
@@ -45,6 +45,22 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
     setNotice('');
     props.onDirtyChange(false);
   }, [current.path, current.fingerprint.mtimeMs]);
+
+  // Cmd/Ctrl+S → save. saveActionRef is reassigned on every render so
+  // the listener always invokes the latest closure (busy / snapshot /
+  // slugDraft etc. are read fresh).
+  const saveActionRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const isCmdS =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's';
+      if (!isCmdS) return;
+      event.preventDefault();
+      void saveActionRef.current();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   function patch(updates: Partial<EditorSnapshot>) {
     setSnapshot((prev) => {
@@ -111,6 +127,12 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
     await props.onSaved();
   }
 
+  // Refresh the save closure used by the ⌘S listener every render.
+  saveActionRef.current = async () => {
+    if (slugDraft.trim() !== current.slug) await commitRename();
+    await handleSave();
+  };
+
   return (
     <section class="editor editorPage open taxonomyEditor" id="editor">
       <div class="editorTopRow">
@@ -144,45 +166,42 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
 
       <div class="editorScroll">
         <div class="taxonomyPage">
-          <header class="taxonomyMasthead">
-            <span class="taxonomyEyebrow">{kindLabel}</span>
-            <input
-              class="taxonomyDisplayName"
-              type="text"
-              value={snapshot.title}
-              spellcheck={false}
-              onInput={(event) =>
-                patch({ title: (event.currentTarget as HTMLInputElement).value })
-              }
-              placeholder={isAuthor ? 'Author name' : 'Tag name'}
-              aria-label={`${kindLabel} name`}
-            />
-            <div class="taxonomySlugRow">
-              <span class="taxonomySlugLead">filename</span>
-              <input
-                class="taxonomySlugInput"
-                type="text"
-                value={slugDraft}
-                spellcheck={false}
-                onInput={(event) =>
-                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
-                }
-                onBlur={() => {
-                  void commitRename();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    (event.currentTarget as HTMLInputElement).blur();
-                  }
-                }}
-              />
-              <span class="taxonomySlugSuffix">.md</span>
-            </div>
-          </header>
-
           <div class="taxonomyBody">
             <div class="taxonomyText">
+              <label class="taxonomyRow">
+                <span class="taxonomyLabel">{isAuthor ? 'Author name' : 'Tag name'}</span>
+                <input
+                  class="taxonomyLine"
+                  type="text"
+                  value={snapshot.title}
+                  spellcheck={false}
+                  onInput={(event) =>
+                    patch({ title: (event.currentTarget as HTMLInputElement).value })
+                  }
+                  placeholder={isAuthor ? 'Casper' : 'News'}
+                />
+              </label>
+              <label class="taxonomyRow">
+                <span class="taxonomyLabel">Slug (filename)</span>
+                <input
+                  class="taxonomyLine taxonomySlugInput"
+                  type="text"
+                  value={slugDraft}
+                  spellcheck={false}
+                  onInput={(event) =>
+                    setSlugDraft((event.currentTarget as HTMLInputElement).value)
+                  }
+                  onBlur={() => {
+                    void commitRename();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      (event.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
+                />
+              </label>
               {isAuthor ? (
                 <>
                   <label class="taxonomyRow taxonomyRowLong">
