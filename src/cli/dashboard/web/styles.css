@@ -1560,14 +1560,9 @@
     font-style: italic;
     font-weight: 500;
   }
-  .contentRow[data-status="draft"] .titleText::after {
-    content: " · draft";
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    color: var(--caution);
-    letter-spacing: 0;
-  }
+  /* Draft suffix dropped — the italic + dimmed row + greyed-out title
+   * already signal "draft" without needing an amber-coloured chip that
+   * read as a warning. */
   /* "scheduled" status removed — static-site dashboards have no
    * publish-on-future-date semantics, so the option only confused
    * writers. Stick with published / draft. */

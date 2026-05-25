@@ -321,12 +321,27 @@ export function DashboardApp(): JSX.Element {
     await load({ force: true });
     if (!editor) return;
     try {
-      // Refresh the editor's `current` with the new fingerprint so
-      // the next save's conflict check still works. If the slug was
-      // renamed in this save (sidebar slug input), the old slug 404s
-      // and we fall back to the list view.
       const next = await fetchContent(editor.kind, editor.slug);
       setEditor(next);
+    } catch {
+      setEditor(null);
+      syncPath(pathForView(ui.view), 'replace');
+    }
+  }
+
+  /** Handle slug rename: re-fetch the editor against the new slug, update
+   * the URL, and reload the workspace state so the sidebar / list reflect
+   * the new filename. */
+  async function handleEditorRenamed(
+    kind: DashboardContentItem['kind'],
+    newSlug: string,
+  ): Promise<void> {
+    setEditorDirty(false);
+    await load({ force: true });
+    try {
+      const next = await fetchContent(kind, newSlug);
+      setEditor(next);
+      syncPath(pathForEditor(kind, newSlug), 'replace');
     } catch {
       setEditor(null);
       syncPath(pathForView(ui.view), 'replace');
@@ -595,6 +610,7 @@ export function DashboardApp(): JSX.Element {
             state={state}
             onCloseEditor={handleCloseEditor}
             onSaved={handleEditorSaved}
+            onRenamed={handleEditorRenamed}
             onConflict={handleEditorConflict}
             onDirtyChange={setEditorDirty}
           />

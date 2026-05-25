@@ -1,12 +1,17 @@
 ---
-title: "Migrating from Ghost"
+authors:
+  - honeybee
+custom_excerpt: How `nectar import-ghost` turns a Ghost JSON export into Markdown.
+date: 2026-05-15T11:30:00.000Z
+feature_image: /content/images/migration-cover.svg
+feature_image_alt: A bee flying between two flowers
 slug: migrating-from-ghost2
-date: 2026-05-15T11:30:00Z
-authors: [honeybee]
-tags: [migration, getting-started]
-feature_image: "/content/images/migration-cover.svg"
-feature_image_alt: "A bee flying between two flowers"
-custom_excerpt: "How `nectar import-ghost` turns a Ghost JSON export into Markdown."
+status: published
+tags:
+  - migration
+  - getting-started
+title: Migrating from Ghost
+updated_at: 2026-05-25T05:33:33.697Z
 ---
 
 Run `nectar import-ghost ghost-export.json` from your project root. The

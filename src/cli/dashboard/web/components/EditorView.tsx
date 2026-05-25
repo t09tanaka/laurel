@@ -26,6 +26,7 @@ interface EditorViewProps {
   state: DashboardState | null;
   onCloseEditor: () => void;
   onSaved: () => Promise<void> | void;
+  onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
 }
@@ -215,10 +216,14 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       setSlugDraft(current.slug);
       return;
     }
-    setNotice('');
-    // Re-open the editor against the new slug so the URL and snapshot
-    // both sync to the new file.
-    await props.onSaved();
+    setNotice(`Renamed to ${next}.`);
+    // Notify parent so it can re-fetch the editor against the new slug
+    // and update the URL.
+    if (props.onRenamed) {
+      await props.onRenamed(current.kind, next);
+    } else {
+      await props.onSaved();
+    }
   }
 
   /* Upload an image and set it as the post/page feature image. */
