@@ -155,7 +155,6 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     // handleSave / commitSlugRename are stable enough across renders;
     // intentionally not listed to avoid re-binding the listener for
     // every snapshot patch.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: see comment above
   }, [focus.focusMode, props.onCloseEditor]);
 
   function patchSnapshot(part: Partial<EditorSnapshot>) {
@@ -588,29 +587,27 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 : 'Post metadata'
           }
         >
-            {true ? (
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Slug (filename)</div>
-                <input
-                  class="editorMetaInput editorMetaSlugInput"
-                  type="text"
-                  value={slugDraft}
-                  onInput={(event) =>
-                    setSlugDraft((event.currentTarget as HTMLInputElement).value)
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Slug (filename)</div>
+              <input
+                class="editorMetaInput editorMetaSlugInput"
+                type="text"
+                value={slugDraft}
+                onInput={(event) =>
+                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
+                }
+                onBlur={() => {
+                  void commitSlugRename();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
                   }
-                  onBlur={() => {
-                    void commitSlugRename();
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      (event.currentTarget as HTMLInputElement).blur();
-                    }
-                  }}
-                  spellcheck={false}
-                />
-              </div>
-            ) : null}
+                }}
+                spellcheck={false}
+              />
+            </div>
             {isContent ? (
               <div class="editorMetaSection">
                 <div class="editorMetaLabel">Status</div>

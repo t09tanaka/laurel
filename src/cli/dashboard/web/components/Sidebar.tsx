@@ -126,6 +126,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
               aria-label={`Open published site at ${host}`}
               title={`View site · ${host}`}
             >
+              <span class="srOnly">View site at {host}</span>
               <svg
                 class="sideFooterIcon"
                 viewBox="0 0 16 16"
