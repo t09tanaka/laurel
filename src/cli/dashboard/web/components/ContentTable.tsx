@@ -256,10 +256,12 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
 }
 
 function WarnDot({ count }: { count: number }): JSX.Element {
+  // Inline italic-serif label — no naked dot. The numeral + "warning(s)"
+  // word makes the meaning obvious, matches the magazine-label vocabulary
+  // already used for approval state.
   return (
-    <span class="warnDot" title={`${count} warning${count === 1 ? '' : 's'}`}>
-      <span class="warnDotMark" aria-hidden="true" />
-      <span class="warnDotCount">{count}</span>
+    <span class="warnInline" title={`${count} warning${count === 1 ? '' : 's'}`}>
+      {count} warning{count === 1 ? '' : 's'}
     </span>
   );
 }

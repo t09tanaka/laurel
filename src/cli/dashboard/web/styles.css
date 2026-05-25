@@ -1722,23 +1722,20 @@
     padding: 5px 8px;
     text-align: center;
   }
-  /* Warning count badge — visually a member of the pill family but
-   * inline-only, no bg, just dot + count. Reads as "footnote" not "chip". */
-  .warnDot {
+  /* Inline warning label — italic serif in caution colour, sits inline
+   * after the title like an editor's footnote. Replaces the prior naked
+   * red dot which had no legible meaning at a glance. */
+  .warnInline {
     display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--danger);
-    font-size: 11px;
-    font-weight: 500;
+    align-items: baseline;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--caution);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
-  }
-  .warnDotMark {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--danger);
   }
   .pillCompact {
     padding: 2px 7px;
