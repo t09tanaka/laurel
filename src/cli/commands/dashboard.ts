@@ -1387,6 +1387,66 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result, 201);
     }
+    /* Image upload — multipart/form-data with one `file` field. The
+     * file is written under content/images/ with a slug-safe name and
+     * the returned path can be inlined into Markdown as
+     * `![alt](/content/images/<name>)`. */
+    if (request.method === 'POST' && url.pathname === '/api/images') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const ALLOWED = new Set([
+        'image/png',
+        'image/jpeg',
+        'image/gif',
+        'image/webp',
+        'image/svg+xml',
+        'image/avif',
+      ]);
+      if (!ALLOWED.has(file.type)) {
+        return jsonResponse(
+          { error: `unsupported image type "${file.type || 'unknown'}"` },
+          415,
+        );
+      }
+      const MAX_BYTES = 8 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'image exceeds 8MB limit' }, 413);
+      }
+      const ts = new Date()
+        .toISOString()
+        .replace(/[-:.TZ]/g, '')
+        .slice(0, 14);
+      const safe = (file.name || 'pasted')
+        .toLowerCase()
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48) || 'image';
+      const ext =
+        file.type === 'image/jpeg'
+          ? 'jpg'
+          : file.type === 'image/svg+xml'
+            ? 'svg'
+            : (file.type.split('/')[1] ?? 'bin');
+      const filename = `${ts}-${safe}.${ext}`;
+      const targetDir = resolve(ctx.cwd, 'content', 'images');
+      await mkdir(targetDir, { recursive: true });
+      const targetPath = resolve(targetDir, filename);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      await Bun.write(targetPath, buf);
+      const relPath = `/content/images/${filename}`;
+      ctx.changeBus.broadcast({
+        reason: 'image-upload',
+        kind: 'project',
+        changedPath: relPath,
+      });
+      return jsonResponse({ ok: true, path: relPath, name: filename, size: file.size }, 201);
+    }
     const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
     if (request.method === 'POST' && approvalMatch) {
       const blocked = validateWriteRequest(request, ctx.security);

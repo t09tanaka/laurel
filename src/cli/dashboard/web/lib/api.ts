@@ -21,6 +21,32 @@ function writeHeaders(): Record<string, string> {
   };
 }
 
+/* multipart upload — no content-type header (browser sets boundary). */
+export async function uploadImage(
+  file: File,
+): Promise<{ ok: true; path: string; name: string; size: number } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/images', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      error: typeof data.error === 'string' ? data.error : `upload failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    path: String(data.path),
+    name: String(data.name),
+    size: Number(data.size ?? 0),
+  };
+}
+
 export interface FetchStateOptions {
   postsPage: number;
   pagesPage: number;

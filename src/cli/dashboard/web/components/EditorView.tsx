@@ -5,7 +5,7 @@ import {
   type EditorSaveState,
   reduceEditorFocus,
 } from '../../editor-focus.ts';
-import { approvePage, saveContent } from '../lib/api.ts';
+import { approvePage, saveContent, uploadImage } from '../lib/api.ts';
 import { fingerprintToken, normalizeMediaPath } from '../lib/format.ts';
 import {
   appendRevision,
@@ -157,6 +157,57 @@ export function EditorView(props: EditorViewProps): JSX.Element {
 
   function patchSnapshot(part: Partial<EditorSnapshot>) {
     setSnapshot((prev) => ({ ...prev, ...part }));
+  }
+
+  /* Insert text around the current selection (or at the caret if no
+   * selection). Used by Cmd+B (wrap with **) and Cmd+I (wrap with _). */
+  function wrapSelection(before: string, after: string): void {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const value = ta.value;
+    const selected = value.slice(start, end);
+    const next = value.slice(0, start) + before + selected + after + value.slice(end);
+    patchSnapshot({ body: next });
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      const caret = start + before.length + selected.length;
+      textareaRef.current.selectionStart = selected ? start + before.length : caret;
+      textareaRef.current.selectionEnd = caret;
+    });
+  }
+
+  /* Upload an image to /content/images/ and insert a Markdown image
+   * reference at the caret. Used by paste + drag-drop on the body. */
+  async function insertUploadedImage(file: File): Promise<void> {
+    setNotice(`Uploading ${file.name || 'image'}…`);
+    const result = await uploadImage(file);
+    if (!result.ok) {
+      setNotice(`Image upload failed — ${result.error}`);
+      return;
+    }
+    setNotice('');
+    const alt = (file.name || 'image').replace(/\.[^.]+$/, '');
+    const md = `![${alt}](${result.path})`;
+    const ta = textareaRef.current;
+    if (!ta) {
+      patchSnapshot({ body: `${snapshot.body}\n\n${md}\n` });
+      return;
+    }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const value = ta.value;
+    const next = value.slice(0, start) + md + value.slice(end);
+    patchSnapshot({ body: next });
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      const caret = start + md.length;
+      textareaRef.current.selectionStart = caret;
+      textareaRef.current.selectionEnd = caret;
+    });
   }
 
   function buildFrontmatter(): Record<string, unknown> {
@@ -470,6 +521,52 @@ export function EditorView(props: EditorViewProps): JSX.Element {
             onInput={(event) =>
               patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
             }
+            onPaste={(event) => {
+              const items = event.clipboardData?.items;
+              if (!items) return;
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (!item || !item.type.startsWith('image/')) continue;
+                const file = item.getAsFile();
+                if (!file) continue;
+                event.preventDefault();
+                void insertUploadedImage(file);
+                return;
+              }
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer?.types?.includes('Files')) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }
+            }}
+            onDrop={(event) => {
+              const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (!files.length) return;
+              event.preventDefault();
+              for (const file of files) void insertUploadedImage(file);
+            }}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+                const key = event.key.toLowerCase();
+                if (key === 'b') {
+                  event.preventDefault();
+                  wrapSelection('**', '**');
+                  return;
+                }
+                if (key === 'i') {
+                  event.preventDefault();
+                  wrapSelection('_', '_');
+                  return;
+                }
+                if (key === 'k') {
+                  // Reserved for cmdk — let the global handler take it.
+                  return;
+                }
+              }
+            }}
           />
           <span class="saveHairline" data-state={saveState} aria-hidden="true" />
         </div>

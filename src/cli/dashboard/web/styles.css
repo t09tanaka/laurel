@@ -717,14 +717,12 @@
     flex: 0 0 auto;
   }
   .viewTitle {
-    /* Editorial display — meant to be the single most striking element
-     * on the page. Massive serif, the kind that signals "this is a
-     * publishing tool" the instant you open a tab. */
+    /* Editorial display — refined serif, present without shouting. */
     font-family: var(--font-serif);
     font-weight: 500;
-    font-size: 52px;
-    line-height: 1.05;
-    letter-spacing: -0.022em;
+    font-size: 34px;
+    line-height: 1.1;
+    letter-spacing: -0.014em;
     margin: 4px 0 0;
     font-feature-settings: "palt", "ss01";
     max-width: 100%;
@@ -733,7 +731,7 @@
   }
   @media (max-width: 940px) {
     .viewTitle {
-      font-size: 38px;
+      font-size: 28px;
     }
   }
   .viewMeta {
@@ -2358,21 +2356,19 @@
     border: 0;
     background: transparent;
     color: var(--text-primary);
-    /* Editor headline — the writing surface IS the page, so the title
-     * gets monumental display treatment. Italic-leaning serif at 56px,
-     * the kind of opening you'd see on a long-form publication. */
+    /* Editor headline — serif display, present but not monumental. */
     font-family: var(--font-serif);
-    font-size: 56px;
-    line-height: 1.05;
-    font-weight: 400;
-    letter-spacing: -0.026em;
+    font-size: 36px;
+    line-height: 1.15;
+    font-weight: 500;
+    letter-spacing: -0.018em;
     padding: 4px 0;
     outline: none;
     font-feature-settings: "palt", "ss01";
   }
   @media (max-width: 940px) {
     .titleInput {
-      font-size: 36px;
+      font-size: 28px;
     }
   }
   .titleInput::placeholder {
