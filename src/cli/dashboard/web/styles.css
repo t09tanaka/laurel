@@ -768,9 +768,25 @@
      * of "page turn" instead of an abrupt swap. */
     animation: mainFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  body.editorOpen,
+  body.editorOpen html {
+    /* Editor owns the full viewport; lock body-level scroll so the
+     * page header / sidebar / metadata aside don't drift as the body
+     * content scrolls. The editor's own .editorScroll handles it. */
+    overflow: hidden;
+    height: 100dvh;
+  }
   body.editorOpen .main {
     max-width: none;
     padding: 24px 48px 48px;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.editorOpen .editor.editorPage {
+    flex: 1 1 auto;
+    min-height: 0;
   }
   .viewHead {
     display: grid;
@@ -2284,12 +2300,18 @@
     right: 24px;
     width: 280px;
     max-height: calc(100vh - 100px);
+    /* No visible scrollbar — sidebar still scrolls if content exceeds
+     * the viewport (rare), but the chrome is hidden. */
     overflow-y: auto;
+    scrollbar-width: none;
     display: grid;
     gap: 0;
     min-width: 0;
     padding: 4px 4px 4px 0;
     z-index: 5;
+  }
+  .editorMeta::-webkit-scrollbar {
+    display: none;
   }
   /* Each metadata stanza is a grouped block separated by a hairline rule.
    * Label sits italic-serif on top, control directly underneath. */
