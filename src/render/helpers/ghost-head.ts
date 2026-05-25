@@ -86,6 +86,27 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       for (const hint of collectComponentHeadHints({ config: engine.config, page: ctx })) {
         head = appendHeadPart(head, renderHeadHint(hint));
       }
+      // Component-snippet CSS. The `{{content}}` helper writes the slug of
+      // every component it expanded into this render's `__componentSlugs`
+      // set; here we look each one up against the content graph and emit
+      // its `css` payload inside a single `<style>` per slug. The Set is
+      // shared across the inner + layout render so it's populated before
+      // this layout-side helper runs.
+      const componentSlugs = (options.data as { __componentSlugs?: Set<string> } | undefined)
+        ?.__componentSlugs;
+      if (componentSlugs && componentSlugs.size > 0) {
+        const componentMap = engine.content?.bySlug?.components;
+        if (componentMap) {
+          for (const slug of componentSlugs) {
+            const component = componentMap.get(slug);
+            if (!component || component.css.length === 0) continue;
+            head = appendHeadPart(
+              head,
+              `<style data-nectar-component="${escapeAttr(slug)}">${component.css}</style>`,
+            );
+          }
+        }
+      }
       // LCP preload for the post/page feature image. Pairs with the theme-side
       // `<img fetchpriority="high">` so the preload scan starts the LCP fetch
       // before CSS / JS reaches the parser. Only fires when the route actually

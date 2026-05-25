@@ -6,6 +6,7 @@ import type { RecommendationItem } from '~/config/schema.ts';
 import { truncateByWords } from '~/content/markdown.ts';
 import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
+import { expandComponentShortcodes } from '../component-shortcodes.ts';
 import { DEFAULT_PARTIALS } from '../default-partials.ts';
 import type { NectarEngine } from '../engine.ts';
 import { localizeKoenigCardLabels } from '../koenig-i18n.ts';
@@ -26,17 +27,30 @@ export function registerContentHelpers(engine: NectarEngine): void {
       if (typeof words === 'number') {
         return new engine.hb.SafeString(truncateWords(html, words, siteLocale(options)));
       }
-      // If the post body carries a loader-injected paywall stub *and* the
-      // active theme ships a `partials/paywall.hbs` (override of the built-in
-      // default partial), swap the stub for the rendered partial so the
-      // theme's copy/markup wins. Without an override we keep the existing
-      // `gh-paywall-stub` HTML so existing themes/CSS that hook
-      // `.gh-paywall-stub` continue to work end-to-end (issue #207).
-      const swapped = replacePaywallStubWithPartial(engine, html, this, options);
+      // Expand `{slug}` component shortcodes before the paywall / heading /
+      // label transforms run. This way downstream passes see the final HTML
+      // (e.g. a component that injects a heading is downshifted alongside
+      // body headings) and the per-render `__componentSlugs` bucket is
+      // populated in time for `{{ghost_head}}` to emit the CSS into <head>.
+      // Caching keys off `html` (pre-expansion) so an unchanged post body
+      // still hits the cache, and the expanded result is computed once per
+      // render then memoised on the same `this` context.
+      const components = engine.content?.bySlug?.components;
+      const expansion =
+        components && components.size > 0 ? expandComponentShortcodes(html, components) : null;
+      const expanded = expansion ? expansion.html : html;
+      if (expansion && expansion.used.size > 0) {
+        const data = options.data as { __componentSlugs?: Set<string> } | undefined;
+        if (data) {
+          data.__componentSlugs ??= new Set<string>();
+          for (const slug of expansion.used) data.__componentSlugs.add(slug);
+        }
+      }
+      const swapped = replacePaywallStubWithPartial(engine, expanded, this, options);
       const localized = localizeKoenigCardLabels(swapped, (key) =>
         translateCardLabel(engine, options, key),
       );
-      if (swapped === html && typeof this === 'object' && this !== null) {
+      if (swapped === expanded && expanded === html && typeof this === 'object' && this !== null) {
         const cached = contentHtmlCache.get(this);
         if (cached?.source === localized) return cached.safe;
         const safe = new engine.hb.SafeString(downshiftHeadings(localized));
