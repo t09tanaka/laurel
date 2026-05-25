@@ -39,10 +39,8 @@ export function CreateView(props: CreateViewProps): JSX.Element {
 
   return (
     <div>
-      <div class="panelHead">
-        <h2>New file</h2>
-        <span class="meta">writes one Markdown file</span>
-      </div>
+      {/* Panel head dropped — the page-level viewTitle already says
+       * "New file"; a second h2 was pure duplication. */}
       <form class="createPage" id="createPage" onSubmit={handleSubmit}>
         <label class="field">
           <span>Kind</span>
