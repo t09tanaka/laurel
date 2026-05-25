@@ -4024,6 +4024,13 @@
     appearance: auto;
     flex: 0 0 auto;
   }
+  /* Restore the global :focus-visible outline that .field input:focus
+   * (line ~3974) clears with `outline: none`. Without this rule keyboard
+   * users tabbing onto the gate get no visible focus ring. */
+  .codeInjectionGate input[type="checkbox"]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--focus) 70%, transparent);
+    outline-offset: 2px;
+  }
   .codeInjectionGate > span {
     /* Override .field span's italic-serif label styling — the gate sits
      * inline with its checkbox so the eyebrow look would read as broken. */
