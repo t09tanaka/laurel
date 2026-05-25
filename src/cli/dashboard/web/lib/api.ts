@@ -83,6 +83,28 @@ export async function uploadImage(
   };
 }
 
+export async function uploadTheme(
+  file: File,
+  name?: string,
+): Promise<{ ok: true; name: string; dir: string } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (name) fd.append('name', name);
+  const res = await fetch('/api/themes/upload', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': TOKEN },
+    body: fd,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) {
+    return {
+      ok: false,
+      error: typeof data.error === 'string' ? data.error : `theme upload failed (${res.status})`,
+    };
+  }
+  return { ok: true, name: String(data.name ?? ''), dir: String(data.dir ?? '') };
+}
+
 export interface FetchStateOptions {
   postsPage: number;
   pagesPage: number;

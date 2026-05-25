@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { saveSiteSettings, saveThemeSettings } from '../lib/api.ts';
+import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState, SettingsCardSourceKind } from '../types.ts';
 
 interface SettingsViewProps {
@@ -295,7 +295,83 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
               : null}
         </div>
       </article>
+      <ThemeUploadField
+        themeDir={theme.dir ?? 'themes'}
+        onUploaded={props.onSettingsSaved}
+      />
     </section>
+  );
+}
+
+interface ThemeUploadFieldProps {
+  themeDir: string;
+  onUploaded: () => Promise<void> | void;
+}
+
+function ThemeUploadField({ themeDir, onUploaded }: ThemeUploadFieldProps): JSX.Element {
+  const [status, setStatus] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(file: File) {
+    if (busy) return;
+    setBusy(true);
+    setStatus(`Uploading ${file.name}…`);
+    const result = await uploadTheme(file);
+    setBusy(false);
+    if (!result.ok) {
+      setStatus(`Upload failed: ${result.error}`);
+      return;
+    }
+    setStatus(`Installed "${result.name}" under ${themeDir}/`);
+    await onUploaded();
+  }
+
+  return (
+    <article class="settingsCard field wide themeUploadPanel">
+      <div>
+        <h4 class="themeUploadTitle">Upload theme</h4>
+        <p class="meta">
+          Drop a Ghost-compatible theme .zip; it extracts into{' '}
+          <code>{themeDir}/</code> and becomes selectable above.
+        </p>
+      </div>
+      <label
+        class={`themeUploadDrop${busy ? ' busy' : ''}`}
+        onDragOver={(event) => {
+          if (event.dataTransfer?.types?.includes('Files')) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+          }
+        }}
+        onDrop={(event) => {
+          const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+            /\.zip$/i.test(f.name),
+          );
+          if (!file) return;
+          event.preventDefault();
+          void handleFile(file);
+        }}
+      >
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          class="srOnly"
+          disabled={busy}
+          onChange={(event) => {
+            const file = (event.currentTarget as HTMLInputElement).files?.[0];
+            if (file) void handleFile(file);
+          }}
+        />
+        <span class="themeUploadHint">
+          {busy ? 'Uploading…' : 'Click or drop a .zip'}
+        </span>
+      </label>
+      {status ? (
+        <output class="notice" aria-live="polite">
+          {status}
+        </output>
+      ) : null}
+    </article>
   );
 }
 

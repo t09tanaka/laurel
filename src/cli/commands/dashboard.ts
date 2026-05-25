@@ -6,6 +6,7 @@ import {
   readdir,
   realpath,
   rename,
+  rmdir,
   stat,
   unlink,
   writeFile,
@@ -1445,6 +1446,94 @@ export async function handleDashboardRequest(
         changedPath: relPath,
       });
       return jsonResponse({ ok: true, path: relPath, name: filename, size: file.size }, 201);
+    }
+    /* Theme upload — POST /api/themes/upload accepts a multipart
+     * .zip and extracts it into <themes-dir>/<safe-name>/ via the
+     * system `unzip` command. The extracted top-level folder name is
+     * used as the theme name (sanitised); if the user supplied a
+     * `name` field in the form, that wins. */
+    if (request.method === 'POST' && url.pathname === '/api/themes/upload') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const ALLOWED_TYPES = new Set([
+        'application/zip',
+        'application/x-zip-compressed',
+        'application/octet-stream',
+      ]);
+      if (!ALLOWED_TYPES.has(file.type) && !/\.zip$/i.test(file.name || '')) {
+        return jsonResponse(
+          { error: `expected a .zip archive, got "${file.type || 'unknown'}"` },
+          415,
+        );
+      }
+      const MAX_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'theme archive exceeds 50MB limit' }, 413);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      const themesRoot = isAbsolute(config.theme.dir)
+        ? config.theme.dir
+        : resolve(ctx.cwd, config.theme.dir);
+      const rawName = String(form?.get('name') ?? '').trim() ||
+        (file.name || 'theme').replace(/\.zip$/i, '');
+      const safeName = rawName
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^[-.]+|[-.]+$/g, '')
+        .slice(0, 64);
+      if (!safeName) return jsonResponse({ error: 'invalid theme name' }, 400);
+      const destDir = resolve(themesRoot, safeName);
+      if (!destDir.startsWith(themesRoot + '/') && destDir !== themesRoot) {
+        return jsonResponse({ error: 'theme path escapes themes directory' }, 400);
+      }
+      await mkdir(themesRoot, { recursive: true });
+      // Stage the upload to a tmp file, then extract via `unzip -o`.
+      const tmpZip = resolve(themesRoot, `.upload-${Date.now()}-${safeName}.zip`);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      await Bun.write(tmpZip, buf);
+      try {
+        await mkdir(destDir, { recursive: true });
+        const proc = Bun.spawn(['unzip', '-o', '-q', tmpZip, '-d', destDir], {
+          stderr: 'pipe',
+          stdout: 'pipe',
+        });
+        const exitCode = await proc.exited;
+        if (exitCode !== 0) {
+          const err = await new Response(proc.stderr).text();
+          return jsonResponse(
+            { error: `unzip failed (exit ${exitCode}): ${err.slice(0, 400)}` },
+            500,
+          );
+        }
+        // If the archive wrapped everything in a single top-level
+        // folder, hoist it so the theme lives directly under destDir.
+        const entries = await readdir(destDir);
+        const visible = entries.filter((name) => !name.startsWith('.'));
+        if (visible.length === 1) {
+          const onlyChild = resolve(destDir, visible[0] ?? '');
+          const stat = await Bun.file(onlyChild).stat().catch(() => null);
+          if (stat?.isDirectory()) {
+            const children = await readdir(onlyChild);
+            for (const child of children) {
+              await rename(resolve(onlyChild, child), resolve(destDir, child));
+            }
+            await rmdir(onlyChild).catch(() => {});
+          }
+        }
+      } finally {
+        await unlink(tmpZip).catch(() => {});
+      }
+      ctx.changeBus.broadcast({
+        reason: 'theme-upload',
+        kind: 'settings',
+        changedPath: destDir,
+      });
+      return jsonResponse({ ok: true, name: safeName, dir: destDir }, 201);
     }
     const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
     if (request.method === 'POST' && approvalMatch) {

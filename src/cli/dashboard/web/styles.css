@@ -1836,6 +1836,41 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
   }
+  .themeUploadPanel {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .themeUploadTitle {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .themeUploadDrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .themeUploadDrop:hover {
+    border-color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+  .themeUploadDrop.busy {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .themeUploadHint {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+  }
   /* Quiet text-only link / button used wherever a secondary action
    * should recede (Preview in list rows, Preview in editor header). */
   .textLink {
