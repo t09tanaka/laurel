@@ -91,7 +91,16 @@ const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 const ACTIVITY_LIMIT = 50;
 const WATCH_DEBOUNCE_MS = 100;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
-const SITE_SETTINGS_FIELDS = ['title', 'description', 'url', 'locale', 'timezone', 'accent_color'];
+const SITE_SETTINGS_FIELDS = [
+  'title',
+  'description',
+  'url',
+  'locale',
+  'timezone',
+  'accent_color',
+  'codeinjection_head',
+  'codeinjection_foot',
+];
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const IMAGE_EXTENSIONS = new Set(['.avif', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const DASHBOARD_PREVIEW_SANDBOX_POLICY: DashboardPreviewSandboxPolicy = {
@@ -442,6 +451,14 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
+    // Mirrors Ghost's site-wide "Code injection" head/foot fields so the
+    // dashboard's Code Injection panel can hydrate from the same `[site]`
+    // table it writes back to. Reflects the raw config value regardless of
+    // whether `build.allow_code_injection` is currently true — the panel
+    // shows what's on disk so an operator can flip the gate by saving.
+    codeinjectionHead: string;
+    codeinjectionFoot: string;
+    allowCodeInjection: boolean;
   };
   posts: DashboardList<DashboardContentSummary>;
   pages: DashboardList<DashboardContentSummary>;
@@ -515,6 +532,9 @@ export interface DashboardSettings {
     locale: string;
     timezone: string;
     accentColor: string;
+    codeinjectionHead: string;
+    codeinjectionFoot: string;
+    allowCodeInjection: boolean;
   };
   theme: {
     name: string;
@@ -826,6 +846,16 @@ export async function loadDashboardState({
       description: graph.site.description,
       url: graph.site.url,
       accentColor: graph.site.accent_color,
+      // Read from `config.site` rather than `graph.site` so the dashboard can
+      // still edit the values when the operator hasn't flipped
+      // `build.allow_code_injection` on yet — `graph.site.codeinjection_*` is
+      // wiped to undefined by the gate, but the file content is what we want
+      // to round-trip.
+      codeinjectionHead:
+        typeof config.site.codeinjection_head === 'string' ? config.site.codeinjection_head : '',
+      codeinjectionFoot:
+        typeof config.site.codeinjection_foot === 'string' ? config.site.codeinjection_foot : '',
+      allowCodeInjection: config.build.allow_code_injection === true,
     },
     posts: paginatedPosts,
     pages: paginatedPages,
@@ -982,6 +1012,11 @@ export async function readDashboardSettings({
       locale: config.site.locale,
       timezone: config.site.timezone,
       accentColor: config.site.accent_color,
+      codeinjectionHead:
+        typeof config.site.codeinjection_head === 'string' ? config.site.codeinjection_head : '',
+      codeinjectionFoot:
+        typeof config.site.codeinjection_foot === 'string' ? config.site.codeinjection_foot : '',
+      allowCodeInjection: config.build.allow_code_injection === true,
     },
     theme: {
       name: config.theme.name,
@@ -3985,23 +4020,43 @@ async function writeSiteSettingsFile(
   target: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const updates = new Map<string, string>();
+  const updates = new Map<string, TomlLiteral>();
   for (const key of SITE_SETTINGS_FIELDS) {
     const value = payload[key];
-    if (typeof value === 'string') updates.set(key, value);
+    if (typeof value === 'string') updates.set(key, { kind: 'string', value });
   }
   if (updates.size === 0) return;
   const raw = existsSync(target) ? await readFile(target, 'utf8') : '';
-  await writeFile(target, updateTomlSection(raw, 'site', updates), 'utf8');
+  let next = updateTomlSection(raw, 'site', updates);
+  // Site-wide code injection is gated by `build.allow_code_injection` at
+  // load time (see content/loader.ts §"Site-wide code injection mirrors
+  // Ghost's site setting"). Auto-flip the gate on when the dashboard
+  // saves a non-empty head/foot so the value actually takes effect on
+  // the next build — otherwise the operator would have to hand-edit
+  // nectar.toml to toggle a boolean immediately after using the UI,
+  // which defeats the point of having a dashboard panel for it.
+  const headLiteral = updates.get('codeinjection_head');
+  const footLiteral = updates.get('codeinjection_foot');
+  const enablingInjection =
+    (headLiteral?.kind === 'string' && headLiteral.value.length > 0) ||
+    (footLiteral?.kind === 'string' && footLiteral.value.length > 0);
+  if (enablingInjection) {
+    next = updateTomlSection(
+      next,
+      'build',
+      new Map<string, TomlLiteral>([['allow_code_injection', { kind: 'raw', value: 'true' }]]),
+    );
+  }
+  await writeFile(target, next, 'utf8');
 }
 
 async function writeThemeSettingsFile(
   target: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const updates = new Map<string, string>();
+  const updates = new Map<string, TomlLiteral>();
   const value = payload.name;
-  if (typeof value === 'string') updates.set('name', value);
+  if (typeof value === 'string') updates.set('name', { kind: 'string', value });
   if (updates.size === 0) return;
   const raw = existsSync(target) ? await readFile(target, 'utf8') : '';
   await writeFile(target, updateTomlSection(raw, 'theme', updates), 'utf8');
@@ -4052,14 +4107,29 @@ async function isDashboardThemeDirectory(themeRoot: string): Promise<boolean> {
   }
 }
 
-function updateTomlSection(raw: string, section: string, updates: Map<string, string>): string {
+// TOML literal carrying a pre-encoded RHS. `kind: 'string'` is the common
+// path — `value` is the raw user input and the writer wraps it via
+// `tomlString`. `kind: 'raw'` is for non-string literals like booleans
+// where `value` is already the final TOML token (`true`, `false`, a
+// number, …) and must be spliced verbatim.
+type TomlLiteral = { kind: 'string'; value: string } | { kind: 'raw'; value: string };
+
+function renderTomlLiteral(literal: TomlLiteral): string {
+  return literal.kind === 'string' ? tomlString(literal.value) : literal.value;
+}
+
+function updateTomlSection(
+  raw: string,
+  section: string,
+  updates: Map<string, TomlLiteral>,
+): string {
   const lines = raw ? raw.split(/\r?\n/) : [];
   const header = `[${section}]`;
   const start = lines.findIndex((line) => line.trim() === header);
   if (start === -1) {
     const inserted = [
       header,
-      ...[...updates].map(([key, value]) => `${key} = ${tomlString(value)}`),
+      ...[...updates].map(([key, literal]) => `${key} = ${renderTomlLiteral(literal)}`),
       '',
     ];
     if (!raw.trim()) return `${inserted.join('\n')}`;
@@ -4077,13 +4147,17 @@ function updateTomlSection(raw: string, section: string, updates: Map<string, st
     const match = (lines[i] ?? '').match(/^(\s*)([A-Za-z0-9_-]+)(\s*=\s*).*/);
     if (!match) continue;
     const key = match[2] ?? '';
-    const value = updates.get(key);
-    if (value === undefined) continue;
-    lines[i] = `${match[1] ?? ''}${key}${match[3] ?? ' = '}${tomlString(value)}`;
+    const literal = updates.get(key);
+    if (literal === undefined) continue;
+    lines[i] = `${match[1] ?? ''}${key}${match[3] ?? ' = '}${renderTomlLiteral(literal)}`;
     seen.add(key);
   }
   const missing = [...updates].filter(([key]) => !seen.has(key));
-  lines.splice(end, 0, ...missing.map(([key, value]) => `${key} = ${tomlString(value)}`));
+  lines.splice(
+    end,
+    0,
+    ...missing.map(([key, literal]) => `${key} = ${renderTomlLiteral(literal)}`),
+  );
   return lines.join('\n').replace(/\n*$/, '\n');
 }
 

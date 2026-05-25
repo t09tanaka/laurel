@@ -3984,6 +3984,24 @@
   .field.wide {
     grid-column: 1 / -1;
   }
+  .codeInjectionTextarea {
+    min-height: 160px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    letter-spacing: 0;
+    box-shadow: var(--elevation-1);
+    resize: vertical;
+  }
+  .codeInjectionTextarea:focus {
+    border-color: var(--text-primary);
+    outline: none;
+  }
   #saveSettings {
     justify-self: start;
   }

@@ -12,18 +12,19 @@ interface SettingsViewProps {
   onOpenMigration: () => void;
 }
 
-/* Dashboard surfaces only Site identity + Theme switcher. Everything
- * else (content paths, build config, structure/routes, operations,
- * advanced) lives in nectar.toml for developers to edit directly — it
- * doesn't belong in an editorial dashboard. */
+/* Dashboard surfaces only Site identity, Theme switcher, and Code
+ * injection. Everything else (content paths, build config, structure /
+ * routes, operations, advanced) lives in nectar.toml for developers to
+ * edit directly — it doesn't belong in an editorial dashboard.
+ *
+ * Code injection is an exception to the editorial-restraint default
+ * because dropping a GA4 / analytics snippet is a routine operator
+ * task that doesn't justify hand-editing TOML. See issue #533 for the
+ * scope decision. */
 
 export function SettingsView(props: SettingsViewProps): JSX.Element {
   const site = props.state.site;
 
-  // With only two settings panels (Site identity + Theme) the dashboard
-  // stacks them vertically in a single column. The category nav rail
-  // and drawer that used to switch between many categories were dropped
-  // when the category count fell to two.
   return (
     <div class="settingsLayout settingsLayoutStacked">
       <div class="settingsDetail">
@@ -39,6 +40,13 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
           onSettingsSaved={props.onSettingsSaved}
           onConflict={props.onConflict}
           onThemeDirtyChange={props.onThemeDirtyChange}
+        />
+        <CodeInjectionPanel
+          state={props.state}
+          site={site}
+          onSettingsSaved={props.onSettingsSaved}
+          onConflict={props.onConflict}
+          onSiteDirtyChange={props.onSiteDirtyChange}
         />
       </div>
     </div>
@@ -403,5 +411,145 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
         ) : null}
       </dialog>
     </div>
+  );
+}
+
+interface CodeInjectionProps {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onSiteDirtyChange: (dirty: boolean) => void;
+}
+
+/* Site-wide Code Injection panel — issue #533.
+ *
+ * Mirrors Ghost's "Code injection" admin surface: a header textarea
+ * splices into {{ghost_head}} on every page, a footer textarea splices
+ * before </body>. Storage lands in `[site].codeinjection_head` /
+ * `[site].codeinjection_foot` of nectar.toml (Ghost's own field naming);
+ * the writer auto-flips `build.allow_code_injection = true` when a
+ * non-empty value is saved so the operator doesn't have to bounce out
+ * of the dashboard to enable the gate. */
+function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
+  const { site } = props;
+  const settings = props.state.settings;
+  const [head, setHead] = useState(site.codeinjectionHead);
+  const [foot, setFoot] = useState(site.codeinjectionFoot);
+  const [notice, setNotice] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callback is stable
+  useEffect(() => {
+    setHead(site.codeinjectionHead);
+    setFoot(site.codeinjectionFoot);
+    setDirty(false);
+    props.onSiteDirtyChange(false);
+  }, [site.codeinjectionHead, site.codeinjectionFoot]);
+
+  function bind(setter: (value: string) => void): (event: Event) => void {
+    return (event) => {
+      const value = (event.currentTarget as HTMLTextAreaElement).value;
+      setter(value);
+      setDirty(true);
+      props.onSiteDirtyChange(true);
+    };
+  }
+
+  async function handleSave() {
+    const updates = {
+      codeinjection_head: head,
+      codeinjection_foot: foot,
+    };
+    const { status, data } = await saveSiteSettings({
+      fingerprint: settings.fingerprint,
+      updates,
+    });
+    if (status === 409) {
+      props.onConflict(
+        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+      );
+      await props.onSettingsSaved();
+      return;
+    }
+    if (status >= 400) {
+      setNotice(data.error ?? 'Could not save code injection');
+      return;
+    }
+    setDirty(false);
+    props.onSiteDirtyChange(false);
+    const enabling = head.length > 0 || foot.length > 0;
+    setNotice(
+      enabling && !site.allowCodeInjection
+        ? 'Saved to nectar.toml and enabled build.allow_code_injection.'
+        : 'Saved to nectar.toml.',
+    );
+    await props.onSettingsSaved();
+  }
+
+  const showGateHint = !site.allowCodeInjection && (head.length > 0 || foot.length > 0);
+  return (
+    <section class="codeInjectionPanel" aria-label="Code injection">
+      <header class="settingsPanelHead">
+        <div>
+          <h3>Code injection</h3>
+          <p class="meta">
+            Raw HTML spliced into every page via <code>{'{{ghost_head}}'}</code> and{' '}
+            <code>{'{{ghost_foot}}'}</code>. Saved to the <code>[site]</code> section of nectar.toml
+            as <code>codeinjection_head</code> / <code>codeinjection_foot</code>. Values are emitted
+            verbatim — operators are responsible for what they paste.
+          </p>
+        </div>
+      </header>
+      <div class="settingsGrid">
+        <label class="field wide">
+          <span>Site header</span>
+          <textarea
+            id="codeInjectionHead"
+            class="codeInjectionTextarea"
+            rows={10}
+            spellcheck={false}
+            placeholder="<!-- e.g. Google Analytics, custom <meta>, third-party <link> --><script async src=&quot;https://www.googletagmanager.com/gtag/js?id=G-XXXX&quot;></script>"
+            value={head}
+            onInput={bind(setHead)}
+          />
+        </label>
+        <label class="field wide">
+          <span>Site footer</span>
+          <textarea
+            id="codeInjectionFoot"
+            class="codeInjectionTextarea"
+            rows={6}
+            spellcheck={false}
+            placeholder="<!-- e.g. Plausible, Fathom, chat widgets that load before </body> -->"
+            value={foot}
+            onInput={bind(setFoot)}
+          />
+        </label>
+        <div class="field wide siteIdentityActions">
+          <output id="codeInjectionNotice" class="notice">
+            {notice}
+          </output>
+          <button
+            class="btn"
+            id="saveCodeInjection"
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={!dirty}
+            title={dirty ? 'Save code injection to nectar.toml' : 'No changes to save'}
+          >
+            Save changes
+          </button>
+        </div>
+        {showGateHint ? (
+          <p class="meta wide">
+            Saving will set <code>build.allow_code_injection = true</code> so these snippets reach{' '}
+            <code>{'{{ghost_head}}'}</code> / <code>{'{{ghost_foot}}'}</code> on the next build.
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
