@@ -68,15 +68,17 @@
   --color-reaction: #f0ede6;
   --color-modal: rgba(10, 13, 18, 0.46);
 
-  /* Sans: Avenir Next on macOS, system-ui everywhere else (SF Pro on Apple,
-   * Segoe UI on Windows, Roboto on Android). No webfonts. */
-  --font-sans: "Avenir Next", "SF Pro Text", system-ui, -apple-system, "Helvetica Neue",
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-  /* Serif: Charter (macOS) → Iowan Old Style (iOS) → Georgia (everywhere).
-   * Used for editorial display headings and italic kickers. */
+  /* Single editorial type voice across the entire dashboard. Was a
+   * sans/serif mix; user feedback "フォントが統一されてないのが気持ち悪い"
+   * → ship one family. Serif (Charter / Iowan Old Style / Hiragino
+   * Mincho / Yu Mincho) becomes the body and UI family; --font-sans
+   * is aliased to it so every existing var(--font-sans) reference
+   * resolves to the same family without a sweep. */
   --font-serif: "Charter", "Source Serif Pro", "Iowan Old Style", "Sitka Text", Georgia, Cambria,
     "Hiragino Mincho ProN", "Yu Mincho", serif;
-  /* Mono: ui-monospace = SF Mono on macOS, Cascadia Mono on Windows. */
+  --font-sans: var(--font-serif);
+  /* Mono kept for slugs / file paths / numerical IDs — semantic
+   * "this is code or a precise identifier" cue, not stylistic. */
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", "IBM Plex Mono", Menlo,
     Consolas, monospace;
 
