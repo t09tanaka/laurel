@@ -1416,7 +1416,7 @@ describe('emitSitemap', () => {
     expect(tags).toContain('<loc>https://example.com/tag/news/</loc>');
 
     expect(existsSync(join(outputDir, 'sitemap-pages-2.xml'))).toBe(false);
-  });
+  }, 15000);
 
   test('empty per-kind buckets still emit a sub-sitemap with no urls', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));

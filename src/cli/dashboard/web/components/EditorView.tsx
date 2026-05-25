@@ -6,7 +6,6 @@ import {
   reduceEditorFocus,
 } from '../../editor-focus.ts';
 import { approvePage, renameContentSlug, saveContent, uploadImage } from '../lib/api.ts';
-import { FeatureImageField } from './FeatureImageField.tsx';
 import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
@@ -24,6 +23,7 @@ import type {
   EditorSnapshot,
   RevisionPayload,
 } from '../types.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
 
 interface EditorViewProps {
   current: DashboardContentItem;
@@ -460,122 +460,122 @@ export function EditorView(props: EditorViewProps): JSX.Element {
               }}
             />
           </div>
-        {/* Body toolbar — visible formatting + image insert. Keeps the
-         * paste / drag-drop affordances discoverable. */}
-        {isContent ? (
-          <div class="bodyToolbar" aria-label="Body formatting">
-            <button
-              type="button"
-              class="bodyToolbarBtn"
-              onClick={() => wrapSelection('**', '**')}
-              title="Bold (⌘B)"
-            >
-              <b>B</b>
-            </button>
-            <button
-              type="button"
-              class="bodyToolbarBtn"
-              onClick={() => wrapSelection('_', '_')}
-              title="Italic (⌘I)"
-            >
-              <i>I</i>
-            </button>
-            <button
-              type="button"
-              class="bodyToolbarBtn"
-              onClick={() => wrapSelection('[', '](url)')}
-              title="Link"
-            >
-              Link
-            </button>
-            <label class="bodyToolbarBtn bodyToolbarImage" title="Insert image">
-              <input
-                type="file"
-                accept="image/*"
-                class="srOnly"
-                onChange={(event) => {
-                  const file = (event.currentTarget as HTMLInputElement).files?.[0];
-                  if (file) void insertUploadedImage(file);
-                  (event.currentTarget as HTMLInputElement).value = '';
-                }}
-              />
-              Image
-            </label>
-            <span class="bodyToolbarHint">
-              <em>or paste / drop an image directly into the body</em>
-            </span>
+          {/* Body toolbar — visible formatting + image insert. Keeps the
+           * paste / drag-drop affordances discoverable. */}
+          {isContent ? (
+            <div class="bodyToolbar" aria-label="Body formatting">
+              <button
+                type="button"
+                class="bodyToolbarBtn"
+                onClick={() => wrapSelection('**', '**')}
+                title="Bold (⌘B)"
+              >
+                <b>B</b>
+              </button>
+              <button
+                type="button"
+                class="bodyToolbarBtn"
+                onClick={() => wrapSelection('_', '_')}
+                title="Italic (⌘I)"
+              >
+                <i>I</i>
+              </button>
+              <button
+                type="button"
+                class="bodyToolbarBtn"
+                onClick={() => wrapSelection('[', '](url)')}
+                title="Link"
+              >
+                Link
+              </button>
+              <label class="bodyToolbarBtn bodyToolbarImage" title="Insert image">
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="srOnly"
+                  onChange={(event) => {
+                    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+                    if (file) void insertUploadedImage(file);
+                    (event.currentTarget as HTMLInputElement).value = '';
+                  }}
+                />
+                Image
+              </label>
+              <span class="bodyToolbarHint">
+                <em>or paste / drop an image directly into the body</em>
+              </span>
+            </div>
+          ) : null}
+          <div class="bodyWrap">
+            <textarea
+              /* Key bound to the file identity so the textarea remounts
+               * only when switching to a different file. Within an edit
+               * session it stays uncontrolled (defaultValue + onInput)
+               * which preserves the browser's native undo / redo stack. */
+              key={`${current.path}@${current.fingerprint.mtimeMs}`}
+              id="editBody"
+              aria-label="Markdown body"
+              ref={textareaRef}
+              defaultValue={baseline.body}
+              onInput={(event) =>
+                patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
+              }
+              onPaste={(event) => {
+                const items = event.clipboardData?.items;
+                if (!items) return;
+                for (let i = 0; i < items.length; i++) {
+                  const item = items[i];
+                  if (!item || !item.type.startsWith('image/')) continue;
+                  const file = item.getAsFile();
+                  if (!file) continue;
+                  event.preventDefault();
+                  void insertUploadedImage(file);
+                  return;
+                }
+              }}
+              onDragOver={(event) => {
+                if (event.dataTransfer?.types?.includes('Files')) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'copy';
+                }
+              }}
+              onDrop={(event) => {
+                const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+                  f.type.startsWith('image/'),
+                );
+                if (!files.length) return;
+                event.preventDefault();
+                for (const file of files) void insertUploadedImage(file);
+              }}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+                  const key = event.key.toLowerCase();
+                  if (key === 'b') {
+                    event.preventDefault();
+                    wrapSelection('**', '**');
+                    return;
+                  }
+                  if (key === 'i') {
+                    event.preventDefault();
+                    wrapSelection('_', '_');
+                    return;
+                  }
+                  if (key === 'k') {
+                    // Reserved for cmdk — let the global handler take it.
+                    return;
+                  }
+                }
+              }}
+            />
+            <span class="saveHairline" data-state={saveState} aria-hidden="true" />
           </div>
-        ) : null}
-        <div class="bodyWrap">
-          <textarea
-            /* Key bound to the file identity so the textarea remounts
-             * only when switching to a different file. Within an edit
-             * session it stays uncontrolled (defaultValue + onInput)
-             * which preserves the browser's native undo / redo stack. */
-            key={`${current.path}@${current.fingerprint.mtimeMs}`}
-            id="editBody"
-            aria-label="Markdown body"
-            ref={textareaRef}
-            defaultValue={baseline.body}
-            onInput={(event) =>
-              patchSnapshot({ body: (event.currentTarget as HTMLTextAreaElement).value })
-            }
-            onPaste={(event) => {
-              const items = event.clipboardData?.items;
-              if (!items) return;
-              for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (!item || !item.type.startsWith('image/')) continue;
-                const file = item.getAsFile();
-                if (!file) continue;
-                event.preventDefault();
-                void insertUploadedImage(file);
-                return;
-              }
-            }}
-            onDragOver={(event) => {
-              if (event.dataTransfer?.types?.includes('Files')) {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'copy';
-              }
-            }}
-            onDrop={(event) => {
-              const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
-                f.type.startsWith('image/'),
-              );
-              if (!files.length) return;
-              event.preventDefault();
-              for (const file of files) void insertUploadedImage(file);
-            }}
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
-                const key = event.key.toLowerCase();
-                if (key === 'b') {
-                  event.preventDefault();
-                  wrapSelection('**', '**');
-                  return;
-                }
-                if (key === 'i') {
-                  event.preventDefault();
-                  wrapSelection('_', '_');
-                  return;
-                }
-                if (key === 'k') {
-                  // Reserved for cmdk — let the global handler take it.
-                  return;
-                }
-              }
-            }}
-          />
-          <span class="saveHairline" data-state={saveState} aria-hidden="true" />
-        </div>
-        <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
-          {warnings.join(' ')}
-        </output>
-        {/* Metadata details panel removed per user note — the sidebar
-         * already exposes status + feature image (+ alt). Markdown tools
-         * are duplicated by the body toolbar; recovery actions remain
-         * accessible via browser autosave + the conflict path. */}
+          <output class={`warningsInline ${warnings.length ? 'active' : ''}`} id="editorWarnings">
+            {warnings.join(' ')}
+          </output>
+          {/* Metadata details panel removed per user note — the sidebar
+           * already exposes status + feature image (+ alt). Markdown tools
+           * are duplicated by the body toolbar; recovery actions remain
+           * accessible via browser autosave + the conflict path. */}
         </div>
         <aside
           class="editorMeta"
@@ -587,280 +587,278 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 : 'Post metadata'
           }
         >
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Slug (filename)</div>
-              <input
-                class="editorMetaInput editorMetaSlugInput"
-                type="text"
-                value={slugDraft}
-                onInput={(event) =>
-                  setSlugDraft((event.currentTarget as HTMLInputElement).value)
+          <div class="editorMetaSection">
+            <div class="editorMetaLabel">Slug (filename)</div>
+            <input
+              class="editorMetaInput editorMetaSlugInput"
+              type="text"
+              value={slugDraft}
+              onInput={(event) => setSlugDraft((event.currentTarget as HTMLInputElement).value)}
+              onBlur={() => {
+                void commitSlugRename();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  (event.currentTarget as HTMLInputElement).blur();
                 }
-                onBlur={() => {
-                  void commitSlugRename();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    (event.currentTarget as HTMLInputElement).blur();
-                  }
-                }}
-                spellcheck={false}
-              />
+              }}
+              spellcheck={false}
+            />
+          </div>
+          {isContent ? (
+            <div class="editorMetaSection">
+              <div class="editorMetaLabel">Status</div>
+              <select
+                class="statusPill editorMetaStatus"
+                id="editStatus"
+                value={snapshot.status}
+                onChange={(event) =>
+                  patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                }
+              >
+                <option>published</option>
+                <option>draft</option>
+              </select>
             </div>
-            {isContent ? (
+          ) : null}
+          <div class="editorMetaSection">
+            <div class="editorMetaLabel">
+              {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+            </div>
+            <FeatureImageField
+              value={snapshot.featureImage}
+              alt={snapshot.featureImageAlt}
+              showAlt
+              onChange={({ value, alt }) =>
+                patchSnapshot({
+                  featureImage: value,
+                  featureImageAlt: alt ?? snapshot.featureImageAlt,
+                  ...(value ? {} : { featureImageCaption: '' }),
+                })
+              }
+              onStatus={setNotice}
+            />
+          </div>
+          {current.kind === 'authors' ? (
+            <>
               <div class="editorMetaSection">
-                <div class="editorMetaLabel">Status</div>
-                <select
-                  class="statusPill editorMetaStatus"
-                  id="editStatus"
-                  value={snapshot.status}
-                  onChange={(event) =>
-                    patchSnapshot({ status: (event.currentTarget as HTMLSelectElement).value })
+                <div class="editorMetaLabel">Bio</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={4}
+                  placeholder="Short author bio shown on author pages"
+                  value={snapshot.bio}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      bio: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
                   }
-                >
-                  <option>published</option>
-                  <option>draft</option>
-                </select>
+                />
               </div>
-            ) : null}
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">
-                {current.kind === 'authors' ? 'Cover image' : 'Feature image'}
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Website</div>
+                <input
+                  class="editorMetaInput"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={snapshot.website}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      website: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
               </div>
-              <FeatureImageField
-                value={snapshot.featureImage}
-                alt={snapshot.featureImageAlt}
-                showAlt
-                onChange={({ value, alt }) =>
-                  patchSnapshot({
-                    featureImage: value,
-                    featureImageAlt: alt ?? snapshot.featureImageAlt,
-                    ...(value ? {} : { featureImageCaption: '' }),
-                  })
-                }
-                onStatus={setNotice}
-              />
-            </div>
-            {current.kind === 'authors' ? (
-              <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Location</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="City, country"
+                  value={snapshot.location}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      location: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          {current.kind === 'tags' ? (
+            <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Description</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={3}
+                  placeholder="Short tag description shown on tag pages"
+                  value={snapshot.description}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      description: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
+                  }
+                />
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Accent color</div>
+                <input
+                  class="editorMetaInput editorMetaColor"
+                  type="color"
+                  value={snapshot.accentColor || '#888888'}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      accentColor: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          {isContent ? (
+            <>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Description</div>
+                <textarea
+                  class="editorMetaInput editorMetaTextarea"
+                  rows={3}
+                  placeholder="One-line summary for feeds and search results"
+                  value={snapshot.excerpt}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      excerpt: (event.currentTarget as HTMLTextAreaElement).value,
+                    })
+                  }
+                />
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Tags</div>
+                {(() => {
+                  const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
+                  return (
+                    <>
+                      <input
+                        class="editorMetaInput"
+                        type="text"
+                        list="editorTagOptions"
+                        placeholder="comma, separated · existing tags suggest"
+                        value={snapshot.tags}
+                        onInput={(event) =>
+                          patchSnapshot({
+                            tags: (event.currentTarget as HTMLInputElement).value,
+                          })
+                        }
+                      />
+                      <datalist id="editorTagOptions">
+                        {existing.map((slug: string) => (
+                          <option key={slug} value={slug} />
+                        ))}
+                      </datalist>
+                    </>
+                  );
+                })()}
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Author</div>
+                {(() => {
+                  const selected = snapshot.authors
+                    .split(/[,\n]/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const fromState =
+                    state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
+                  const options = Array.from(new Set([...fromState, ...selected])).sort();
+                  if (options.length === 0) {
+                    return (
+                      <div class="editorMetaEmpty">
+                        No authors yet. Add one in <code>content/authors/</code>.
+                      </div>
+                    );
+                  }
+                  const currentValue = selected[0] ?? '';
+                  return (
+                    <select
+                      class="editorMetaInput"
+                      value={currentValue}
+                      onChange={(event) => {
+                        const next = (event.currentTarget as HTMLSelectElement).value;
+                        patchSnapshot({ authors: next });
+                      }}
+                    >
+                      {currentValue === '' ? <option value="">(none)</option> : null}
+                      {options.map((slug) => (
+                        <option key={slug} value={slug}>
+                          {slug}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+              <div class="editorMetaSection">
+                <div class="editorMetaLabel">Published</div>
+                <input
+                  class="editorMetaInput"
+                  type="text"
+                  placeholder="2026-01-02 or 2026-01-02T03:04:05Z"
+                  value={snapshot.publishedAt}
+                  onInput={(event) =>
+                    patchSnapshot({
+                      publishedAt: (event.currentTarget as HTMLInputElement).value,
+                    })
+                  }
+                />
+              </div>
+              <details class="editorMetaAdvanced">
+                <summary>SEO overrides</summary>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Bio</div>
-                  <textarea
-                    class="editorMetaInput editorMetaTextarea"
-                    rows={4}
-                    placeholder="Short author bio shown on author pages"
-                    value={snapshot.bio}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        bio: (event.currentTarget as HTMLTextAreaElement).value,
-                      })
-                    }
-                  />
-                </div>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Website</div>
-                  <input
-                    class="editorMetaInput"
-                    type="url"
-                    placeholder="https://example.com"
-                    value={snapshot.website}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        website: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </div>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Location</div>
+                  <div class="editorMetaLabel">Meta title</div>
                   <input
                     class="editorMetaInput"
                     type="text"
-                    placeholder="City, country"
-                    value={snapshot.location}
+                    placeholder="Title shown in search results"
+                    value={snapshot.metaTitle}
                     onInput={(event) =>
                       patchSnapshot({
-                        location: (event.currentTarget as HTMLInputElement).value,
+                        metaTitle: (event.currentTarget as HTMLInputElement).value,
                       })
                     }
                   />
                 </div>
-              </>
-            ) : null}
-            {current.kind === 'tags' ? (
-              <>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Description</div>
+                  <div class="editorMetaLabel">Meta description</div>
                   <textarea
                     class="editorMetaInput editorMetaTextarea"
-                    rows={3}
-                    placeholder="Short tag description shown on tag pages"
-                    value={snapshot.description}
+                    rows={2}
+                    placeholder="Override for og:description / search snippet"
+                    value={snapshot.metaDescription}
                     onInput={(event) =>
                       patchSnapshot({
-                        description: (event.currentTarget as HTMLTextAreaElement).value,
+                        metaDescription: (event.currentTarget as HTMLTextAreaElement).value,
                       })
                     }
                   />
                 </div>
                 <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Accent color</div>
+                  <div class="editorMetaLabel">Canonical URL</div>
                   <input
-                    class="editorMetaInput editorMetaColor"
-                    type="color"
-                    value={snapshot.accentColor || '#888888'}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        accentColor: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </div>
-              </>
-            ) : null}
-            {isContent ? (
-              <>
-                <div class="editorMetaSection">
-                  <div class="editorMetaLabel">Description</div>
-                  <textarea
-                    class="editorMetaInput editorMetaTextarea"
-                    rows={3}
-                    placeholder="One-line summary for feeds and search results"
-                    value={snapshot.excerpt}
-                    onInput={(event) =>
-                      patchSnapshot({
-                        excerpt: (event.currentTarget as HTMLTextAreaElement).value,
-                      })
-                    }
-                  />
-                </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Tags</div>
-              {(() => {
-                const existing = state?.tags?.items?.map((t: { slug: string }) => t.slug) ?? [];
-                return (
-                  <>
-                    <input
-                      class="editorMetaInput"
-                      type="text"
-                      list="editorTagOptions"
-                      placeholder="comma, separated · existing tags suggest"
-                      value={snapshot.tags}
-                      onInput={(event) =>
-                        patchSnapshot({
-                          tags: (event.currentTarget as HTMLInputElement).value,
-                        })
-                      }
-                    />
-                    <datalist id="editorTagOptions">
-                      {existing.map((slug: string) => (
-                        <option key={slug} value={slug} />
-                      ))}
-                    </datalist>
-                  </>
-                );
-              })()}
-            </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Author</div>
-              {(() => {
-                const selected = snapshot.authors
-                  .split(/[,\n]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                const fromState =
-                  state?.authors?.items?.map((a: { slug: string }) => a.slug) ?? [];
-                const options = Array.from(new Set([...fromState, ...selected])).sort();
-                if (options.length === 0) {
-                  return (
-                    <div class="editorMetaEmpty">
-                      No authors yet. Add one in <code>content/authors/</code>.
-                    </div>
-                  );
-                }
-                const currentValue = selected[0] ?? '';
-                return (
-                  <select
                     class="editorMetaInput"
-                    value={currentValue}
-                    onChange={(event) => {
-                      const next = (event.currentTarget as HTMLSelectElement).value;
-                      patchSnapshot({ authors: next });
-                    }}
-                  >
-                    {currentValue === '' ? <option value="">(none)</option> : null}
-                    {options.map((slug) => (
-                      <option key={slug} value={slug}>
-                        {slug}
-                      </option>
-                    ))}
-                  </select>
-                );
-              })()}
-            </div>
-            <div class="editorMetaSection">
-              <div class="editorMetaLabel">Published</div>
-              <input
-                class="editorMetaInput"
-                type="text"
-                placeholder="2026-01-02 or 2026-01-02T03:04:05Z"
-                value={snapshot.publishedAt}
-                onInput={(event) =>
-                  patchSnapshot({
-                    publishedAt: (event.currentTarget as HTMLInputElement).value,
-                  })
-                }
-              />
-            </div>
-            <details class="editorMetaAdvanced">
-              <summary>SEO overrides</summary>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Meta title</div>
-                <input
-                  class="editorMetaInput"
-                  type="text"
-                  placeholder="Title shown in search results"
-                  value={snapshot.metaTitle}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      metaTitle: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                />
-              </div>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Meta description</div>
-                <textarea
-                  class="editorMetaInput editorMetaTextarea"
-                  rows={2}
-                  placeholder="Override for og:description / search snippet"
-                  value={snapshot.metaDescription}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      metaDescription: (event.currentTarget as HTMLTextAreaElement).value,
-                    })
-                  }
-                />
-              </div>
-              <div class="editorMetaSection">
-                <div class="editorMetaLabel">Canonical URL</div>
-                <input
-                  class="editorMetaInput"
-                  type="text"
-                  placeholder="https://example.com/canonical"
-                  value={snapshot.canonicalUrl}
-                  onInput={(event) =>
-                    patchSnapshot({
-                      canonicalUrl: (event.currentTarget as HTMLInputElement).value,
-                    })
-                  }
-                />
-              </div>
-            </details>
-              </>
-            ) : null}
-          </aside>
+                    type="text"
+                    placeholder="https://example.com/canonical"
+                    value={snapshot.canonicalUrl}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        canonicalUrl: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+            </>
+          ) : null}
+        </aside>
       </div>
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header
@@ -912,4 +910,3 @@ function computeWarnings(body: string): string[] {
     warnings.push('HTML image is missing an alt attribute.');
   return warnings;
 }
-

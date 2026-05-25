@@ -49,7 +49,6 @@ export function CreateView(props: CreateViewProps): JSX.Element {
             id="createTitle"
             autoComplete="off"
             required
-            autoFocus
             value={title}
             onInput={(event) => setTitle((event.currentTarget as HTMLInputElement).value)}
           />

@@ -115,7 +115,9 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       <header class="settingsPanelHead">
         <div>
           <h3>Site identity</h3>
-          <p class="meta">Saved to the <code>[site]</code> section of nectar.toml.</p>
+          <p class="meta">
+            Saved to the <code>[site]</code> section of nectar.toml.
+          </p>
         </div>
       </header>
       <div class="settingsGrid siteIdentityGrid">
@@ -218,11 +220,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             Preview uses this theme immediately after saving; dist updates after the next build.
           </p>
         </div>
-        <button
-          type="button"
-          class="btn secondary btnCompact"
-          onClick={() => setUploadOpen(true)}
-        >
+        <button type="button" class="btn secondary btnCompact" onClick={() => setUploadOpen(true)}>
           Upload
         </button>
       </header>
@@ -344,16 +342,15 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
     <div
       class="modalBackdrop"
       role="presentation"
+      tabIndex={-1}
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !busy) onClose();
+      }}
     >
-      <div
-        class="modalDialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Upload theme"
-      >
+      <dialog class="modalDialog" aria-modal="true" aria-label="Upload theme" open>
         <header class="modalHead">
           <h3>Upload theme</h3>
           <button
@@ -367,8 +364,8 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
           </button>
         </header>
         <p class="meta">
-          Drop a Ghost-compatible theme .zip; it extracts into{' '}
-          <code>{themeDir}/</code> and becomes selectable in the Theme list.
+          Drop a Ghost-compatible theme .zip; it extracts into <code>{themeDir}/</code> and becomes
+          selectable in the Theme list.
         </p>
         <label
           class={`themeUploadDrop${busy ? ' busy' : ''}`}
@@ -397,18 +394,14 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
               if (file) void handleFile(file);
             }}
           />
-          <span class="themeUploadHint">
-            {busy ? 'Uploading…' : 'Click or drop a .zip'}
-          </span>
+          <span class="themeUploadHint">{busy ? 'Uploading…' : 'Click or drop a .zip'}</span>
         </label>
         {status ? (
           <output class="notice" aria-live="polite">
             {status}
           </output>
         ) : null}
-      </div>
+      </dialog>
     </div>
   );
 }
-
-

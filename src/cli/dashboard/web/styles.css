@@ -1467,6 +1467,10 @@
   .cmdkPanel {
     width: 100%;
     max-width: 560px;
+    position: relative;
+    margin: 0;
+    padding: 0;
+    color: inherit;
     background: var(--surface-normal);
     border: 1px solid var(--border-default);
     border-radius: 12px;
@@ -1546,6 +1550,9 @@
     overscroll-behavior: contain;
   }
   .cmdkItem {
+    width: 100%;
+    border: 0;
+    background: transparent;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1553,9 +1560,11 @@
     border-radius: 6px;
     cursor: pointer;
     color: var(--text-primary);
+    font: inherit;
     font-size: 13.5px;
     line-height: 18px;
     letter-spacing: -0.003em;
+    text-align: left;
     transition: background-color 0.08s ease;
   }
   .cmdkItem.active {
@@ -2104,6 +2113,9 @@
   }
   .modalDialog {
     width: min(520px, 100%);
+    position: relative;
+    margin: 0;
+    color: inherit;
     background: var(--surface-normal);
     border: 1px solid var(--border-default);
     border-radius: var(--radius);

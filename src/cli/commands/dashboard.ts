@@ -1571,7 +1571,7 @@ export async function handleDashboardRequest(
         .slice(0, 64);
       if (!safeName) return jsonResponse({ error: 'invalid theme name' }, 400);
       const destDir = resolve(themesRoot, safeName);
-      if (!destDir.startsWith(themesRoot + '/') && destDir !== themesRoot) {
+      if (!destDir.startsWith(`${themesRoot}/`) && destDir !== themesRoot) {
         return jsonResponse({ error: 'theme path escapes themes directory' }, 400);
       }
       await mkdir(themesRoot, { recursive: true });

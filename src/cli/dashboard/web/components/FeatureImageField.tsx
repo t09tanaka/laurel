@@ -68,11 +68,7 @@ export function FeatureImageField(props: FeatureImageFieldProps): JSX.Element {
         />
         {props.value ? (
           <>
-            <img
-              src={props.value}
-              alt={props.alt || ''}
-              class="featureImagePreview"
-            />
+            <img src={props.value} alt={props.alt || ''} class="featureImagePreview" />
             <span class="featureImageHint">Click or drop to replace</span>
             <button
               type="button"

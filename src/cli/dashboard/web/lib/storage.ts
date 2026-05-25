@@ -97,4 +97,3 @@ export function readRevisions(item: DashboardContentItem): RevisionPayload[] {
   const value = readStoredJson<RevisionPayload[]>(revisionKey(item));
   return Array.isArray(value) ? value : [];
 }
-

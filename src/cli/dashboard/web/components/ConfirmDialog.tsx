@@ -33,15 +33,12 @@ export function useConfirmHost(): { api: ConfirmApi; node: JSX.Element } {
     });
   }, []);
 
-  const respond = useCallback(
-    (value: boolean) => {
-      setPending((current) => {
-        if (current) current.resolve(value);
-        return null;
-      });
-    },
-    [],
-  );
+  const respond = useCallback((value: boolean) => {
+    setPending((current) => {
+      if (current) current.resolve(value);
+      return null;
+    });
+  }, []);
 
   useEffect(() => {
     if (!pending) return;
