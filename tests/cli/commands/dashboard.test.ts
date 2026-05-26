@@ -1766,6 +1766,7 @@ describe('dashboard data', () => {
     expect(html).toContain('<title>Nectar Dashboard</title>');
     expect(html).toContain('data-theme="system"');
     expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css">');
+    expect(html).toContain('<link rel="stylesheet" href="/api/themes/active/css">');
     expect(html).toContain('<script type="module" src="/assets/dashboard.js"></script>');
     expect(html).toContain('<div id="root"></div>');
     expect(html).toContain('href="#main"');

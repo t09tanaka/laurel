@@ -6,6 +6,7 @@ export function renderDashboardHtml(): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nectar Dashboard</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/api/themes/active/css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
