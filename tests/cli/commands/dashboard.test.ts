@@ -1925,4 +1925,31 @@ describe('GET /api/dashboard/bootstrap', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  test('returns 403 when Origin header does not match security origin', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const bus = createChangeBus();
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/dashboard/bootstrap', {
+          headers: { origin: 'https://evil.example.com' },
+        }),
+        {
+          cwd: dir,
+          changeBus: bus,
+          mode: 'dev',
+          security: {
+            origin: 'http://127.0.0.1:4322',
+            token: 'unit-test-token',
+            lanExposed: false,
+          },
+        },
+      );
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('forbidden');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

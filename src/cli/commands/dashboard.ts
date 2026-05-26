@@ -1198,6 +1198,12 @@ export async function handleDashboardRequest(
       return ctx.changeBus.stream();
     }
     if (request.method === 'GET' && url.pathname === '/api/dashboard/bootstrap') {
+      if (ctx.security !== undefined) {
+        const origin = request.headers.get('origin');
+        if (origin !== null && origin !== ctx.security.origin) {
+          return jsonResponse({ error: 'forbidden' }, 403);
+        }
+      }
       return jsonResponse({
         token: ctx.security?.token ?? '',
         mode: ctx.mode ?? 'prod',
