@@ -208,6 +208,14 @@ function makeGraph(): ContentGraph {
       members_invite_only: false,
       comments_enabled: false,
       comments_access: 'all',
+      linkedin: 'nectar-ssg',
+      bluesky: 'nectar.example',
+      mastodon: 'nectar@hachyderm.io',
+      threads: '@nectar',
+      tiktok: '@nectar',
+      youtube: '@nectarvideo',
+      instagram: '@nectargram',
+      github: 't09tanaka/nectar',
       portal_button: false,
       portal_button_icon: '',
       portal_button_signup_text: '',
@@ -237,6 +245,16 @@ describe('emitContentApiShadows', () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
+    Object.assign(content.site, {
+      linkedin: 'nectar-ssg',
+      bluesky: 'nectar.example',
+      mastodon: 'nectar@hachyderm.io',
+      threads: '@nectar',
+      tiktok: '@nectar',
+      youtube: '@nectarvideo',
+      instagram: '@nectargram',
+      github: 't09tanaka/nectar',
+    });
 
     await emitContentApiShadows({ config, content, outputDir });
 
@@ -285,6 +303,14 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.members_invite_only).toBe(false);
     expect(settings.settings.comments_enabled).toBe(false);
     expect(settings.settings.comments_access).toBe('all');
+    expect(settings.settings.linkedin).toBe('nectar-ssg');
+    expect(settings.settings.bluesky).toBe('nectar.example');
+    expect(settings.settings.mastodon).toBe('nectar@hachyderm.io');
+    expect(settings.settings.threads).toBe('@nectar');
+    expect(settings.settings.tiktok).toBe('@nectar');
+    expect(settings.settings.youtube).toBe('@nectarvideo');
+    expect(settings.settings.instagram).toBe('@nectargram');
+    expect(settings.settings.github).toBe('t09tanaka/nectar');
     expect(settings.settings.portal_button).toBe(false);
     expect(settings.settings.portal_button_icon).toBe('');
     expect(settings.settings.portal_button_signup_text).toBe('');
@@ -350,6 +376,13 @@ describe('emitContentApiShadows', () => {
     const config = configSchema.parse({ site: { title: 'T' } });
     const author = makeAuthor({
       accent_color: '#7851a9',
+      linkedin: 'casper-ghost',
+      bluesky: 'casper.example',
+      mastodon: 'casper@mastodon.social',
+      threads: '@casper',
+      tiktok: '@casper',
+      youtube: '@caspervideo',
+      instagram: '@caspergram',
       og_title: 'Casper OG',
       og_description: 'Casper OG description',
       og_image: '/content/images/casper-og.jpg',
@@ -380,6 +413,13 @@ describe('emitContentApiShadows', () => {
       twitter_title: 'Casper Twitter',
       twitter_description: 'Casper Twitter description',
       twitter_image: '/content/images/casper-twitter.jpg',
+      linkedin: 'casper-ghost',
+      bluesky: 'casper.example',
+      mastodon: 'casper@mastodon.social',
+      threads: '@casper',
+      tiktok: '@casper',
+      youtube: '@caspervideo',
+      instagram: '@caspergram',
       codeinjection_head: '<meta name="author-head" content="casper">',
       codeinjection_foot: '<script>window.__author = "casper"</script>',
     });

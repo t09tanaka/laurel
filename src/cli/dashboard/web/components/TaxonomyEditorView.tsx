@@ -8,6 +8,19 @@ import {
 import type { DashboardContentItem, EditorSnapshot } from '../types.ts';
 import { FeatureImageField } from './FeatureImageField.tsx';
 
+const AUTHOR_SOCIAL_FIELDS = [
+  ['twitter', 'X / Twitter'],
+  ['facebook', 'Facebook'],
+  ['linkedin', 'LinkedIn'],
+  ['bluesky', 'Bluesky'],
+  ['mastodon', 'Mastodon'],
+  ['threads', 'Threads'],
+  ['tiktok', 'TikTok'],
+  ['youtube', 'YouTube'],
+  ['instagram', 'Instagram'],
+  ['github', 'GitHub'],
+] as const;
+
 interface TaxonomyEditorViewProps {
   current: DashboardContentItem;
   onCloseEditor: () => void;
@@ -236,6 +249,24 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
                         placeholder="City, country"
                       />
                     </label>
+                  </div>
+                  <div class="taxonomyPair">
+                    {AUTHOR_SOCIAL_FIELDS.map(([key, label]) => (
+                      <label class="taxonomyRow" key={key}>
+                        <span class="taxonomyLabel">{label}</span>
+                        <input
+                          class="taxonomyLine"
+                          type="text"
+                          value={snapshot[key]}
+                          onInput={(event) =>
+                            patch({
+                              [key]: (event.currentTarget as HTMLInputElement).value,
+                            })
+                          }
+                          placeholder={key === 'mastodon' ? 'user@host.example' : '@handle or URL'}
+                        />
+                      </label>
+                    ))}
                   </div>
                 </>
               ) : (

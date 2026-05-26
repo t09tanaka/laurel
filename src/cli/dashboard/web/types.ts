@@ -132,6 +132,18 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
+    social: {
+      twitter: string;
+      facebook: string;
+      linkedin: string;
+      bluesky: string;
+      mastodon: string;
+      threads: string;
+      tiktok: string;
+      youtube: string;
+      instagram: string;
+      github: string;
+    };
     codeinjectionHead: string;
     codeinjectionFoot: string;
     allowCodeInjection: boolean;
@@ -206,6 +218,16 @@ export interface EditorSnapshot {
   description: string;
   website: string;
   location: string;
+  twitter: string;
+  facebook: string;
+  linkedin: string;
+  bluesky: string;
+  mastodon: string;
+  threads: string;
+  tiktok: string;
+  youtube: string;
+  instagram: string;
+  github: string;
   accentColor: string;
 }
 

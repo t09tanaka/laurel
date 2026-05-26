@@ -702,6 +702,14 @@ function buildSite(config: NectarConfig): SiteData {
       config.secondary_navigation.length > 0 ? config.secondary_navigation : undefined,
     twitter: config.site.twitter,
     facebook: config.site.facebook,
+    linkedin: config.site.linkedin,
+    bluesky: config.site.bluesky,
+    mastodon: config.site.mastodon,
+    threads: config.site.threads,
+    tiktok: config.site.tiktok,
+    youtube: config.site.youtube,
+    instagram: config.site.instagram,
+    github: config.site.github,
     members_enabled: membersEnabled,
     paid_members_enabled: paidEnabled,
     members_invite_only: inviteOnly,
@@ -828,6 +836,7 @@ interface RawAuthor extends LocaleFields {
   tiktok: string | undefined;
   youtube: string | undefined;
   instagram: string | undefined;
+  github: string | undefined;
   accent_color: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;
@@ -1804,6 +1813,7 @@ async function normalizeRawAuthor(
     tiktok: asString(data.tiktok),
     youtube: asString(data.youtube),
     instagram: asString(data.instagram),
+    github: asString(data.github),
     accent_color: asString(data.accent_color),
     meta_title: asString(data.meta_title),
     meta_description: asString(data.meta_description),
@@ -1844,6 +1854,7 @@ function normalizeAuthor(
     tiktok: raw.tiktok,
     youtube: raw.youtube,
     instagram: raw.instagram,
+    github: raw.github,
     accent_color: raw.accent_color,
     meta_title: raw.meta_title,
     meta_description: raw.meta_description,
@@ -2289,6 +2300,7 @@ function resolveAuthorSlugs(
       tiktok: undefined,
       youtube: undefined,
       instagram: undefined,
+      github: undefined,
       accent_color: undefined,
       meta_title: undefined,
       meta_description: undefined,

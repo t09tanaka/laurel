@@ -1105,9 +1105,24 @@
     text-align: center;
   }
   .btn:disabled {
-    opacity: 0.58;
-    background: var(--disabled);
+    /* Disabled primary buttons used to fade via opacity:0.58 on top of
+     * --disabled (#efebe3). On the warm cream surface palette (page
+     * #fbfaf7, raised #f8f5f0) the fill was already within ~3% luminance
+     * of the background; halving its alpha erased the silhouette
+     * entirely. Drop the compounding opacity and rely on a hairline
+     * inset border so the button shape stays legible while the muted
+     * fill + muted ink still read as "not actionable". */
+    background: var(--surface-raised);
     color: var(--text-muted);
+    box-shadow: inset 0 0 0 1px var(--border-default);
+    cursor: not-allowed;
+  }
+  .btn.secondary:disabled {
+    /* Secondary buttons already carry a real 1px border via the
+     * :not(:disabled) rule above, so the inset hairline becomes
+     * redundant. Replace it with the same color on the existing
+     * border to keep specificity flat. */
+    border-color: var(--border-default);
     box-shadow: none;
   }
   .btn.hidden {
@@ -4700,6 +4715,7 @@
     letter-spacing: -0.008em;
   }
   .siteIdentityPanel,
+  .socialLinksPanel,
   .themeSwitcherPanel {
     /* Frameless settings sections — match the Migration treatment.
      * Each section is just typography + form fields with a hairline

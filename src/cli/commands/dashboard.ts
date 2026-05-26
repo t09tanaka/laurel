@@ -104,6 +104,16 @@ const SITE_SETTINGS_FIELDS = [
   'locale',
   'timezone',
   'accent_color',
+  'twitter',
+  'facebook',
+  'linkedin',
+  'bluesky',
+  'mastodon',
+  'threads',
+  'tiktok',
+  'youtube',
+  'instagram',
+  'github',
   'codeinjection_head',
   'codeinjection_foot',
 ];
@@ -483,6 +493,7 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
+    social: DashboardSocialSettings;
     // Mirrors Ghost's site-wide "Code injection" head/foot fields so the
     // dashboard's Code Injection panel can hydrate from the same `[site]`
     // table it writes back to. Reflects the raw config value regardless of
@@ -531,6 +542,19 @@ export interface DashboardState {
   generatedAt: string;
 }
 
+export interface DashboardSocialSettings {
+  twitter: string;
+  facebook: string;
+  linkedin: string;
+  bluesky: string;
+  mastodon: string;
+  threads: string;
+  tiktok: string;
+  youtube: string;
+  instagram: string;
+  github: string;
+}
+
 export interface DashboardContentItem {
   kind: EditableKind;
   slug: string;
@@ -566,6 +590,7 @@ export interface DashboardSettings {
     locale: string;
     timezone: string;
     accentColor: string;
+    social: DashboardSocialSettings;
     codeinjectionHead: string;
     codeinjectionFoot: string;
     allowCodeInjection: boolean;
@@ -971,6 +996,7 @@ export async function loadDashboardState({
       description: graph.site.description,
       url: graph.site.url,
       accentColor: graph.site.accent_color,
+      social: dashboardSocialSettings(config.site),
       // Read from `config.site` rather than `graph.site` so the dashboard can
       // still edit the values when the operator hasn't flipped
       // `build.allow_code_injection` on yet — `graph.site.codeinjection_*` is
@@ -1144,6 +1170,7 @@ export async function readDashboardSettings({
       locale: config.site.locale,
       timezone: config.site.timezone,
       accentColor: config.site.accent_color,
+      social: dashboardSocialSettings(config.site),
       codeinjectionHead:
         typeof config.site.codeinjection_head === 'string' ? config.site.codeinjection_head : '',
       codeinjectionFoot:
@@ -4364,6 +4391,21 @@ function findSettingsTypeErrors(
 
 function findInvalidThemeSettingsFields(payload: Record<string, unknown>): string[] {
   return Object.keys(payload).filter((key) => key !== 'name');
+}
+
+function dashboardSocialSettings(site: Record<string, unknown>): DashboardSocialSettings {
+  return {
+    twitter: typeof site.twitter === 'string' ? site.twitter : '',
+    facebook: typeof site.facebook === 'string' ? site.facebook : '',
+    linkedin: typeof site.linkedin === 'string' ? site.linkedin : '',
+    bluesky: typeof site.bluesky === 'string' ? site.bluesky : '',
+    mastodon: typeof site.mastodon === 'string' ? site.mastodon : '',
+    threads: typeof site.threads === 'string' ? site.threads : '',
+    tiktok: typeof site.tiktok === 'string' ? site.tiktok : '',
+    youtube: typeof site.youtube === 'string' ? site.youtube : '',
+    instagram: typeof site.instagram === 'string' ? site.instagram : '',
+    github: typeof site.github === 'string' ? site.github : '',
+  };
 }
 
 async function listDashboardThemes(
