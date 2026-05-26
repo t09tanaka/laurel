@@ -11,10 +11,6 @@ export function setDashboardToken(token: string): void {
   dashboardToken = token;
 }
 
-export function getDashboardToken(): string {
-  return dashboardToken;
-}
-
 function writeHeaders(): Record<string, string> {
   return {
     'content-type': 'application/json',

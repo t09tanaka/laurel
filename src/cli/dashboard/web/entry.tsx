@@ -23,4 +23,9 @@ async function bootstrap(): Promise<void> {
   render(<DashboardApp />, root);
 }
 
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  const root = document.getElementById('root');
+  if (root) {
+    root.textContent = err instanceof Error ? err.message : 'Dashboard failed to start.';
+  }
+});
