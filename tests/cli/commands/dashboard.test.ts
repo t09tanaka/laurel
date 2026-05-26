@@ -1760,29 +1760,23 @@ describe('dashboard data', () => {
     expect(snapshot.activity).toHaveLength(1);
   });
 
-  test('renders the minimal Preact dashboard shell with token meta and bundle references', () => {
-    const html = renderDashboardHtml('token-xyz');
+  test('renders the minimal Preact dashboard shell with bundle references', () => {
+    const html = renderDashboardHtml();
 
     expect(html).toContain('<title>Nectar Dashboard</title>');
     expect(html).toContain('data-theme="system"');
-    expect(html).toContain('<meta name="nectar-dashboard-token" content="token-xyz">');
     expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css">');
     expect(html).toContain('<script type="module" src="/assets/dashboard.js"></script>');
     expect(html).toContain('<div id="root"></div>');
     expect(html).toContain('href="#main"');
 
+    // The CSRF token now ships via /api/dashboard/bootstrap, not a meta tag.
+    expect(html).not.toContain('nectar-dashboard-token');
     // Inline `<style>` tag and bundled vanilla JS are gone — the shell only
     // loads the Preact bundle from the served assets.
     expect(html).not.toContain('<style>');
     expect(html).not.toContain('createDashboardUiState');
     expect(html).not.toContain('renderStatePanelHtml');
-  });
-
-  test('escapes the dashboard token in the meta attribute', () => {
-    const html = renderDashboardHtml('"><script>x</script>');
-    expect(html).toContain(
-      '<meta name="nectar-dashboard-token" content="&quot;&gt;&lt;script&gt;x&lt;/script&gt;">',
-    );
   });
 
   test('serves the same shell HTML for all dashboard URL routes', async () => {
