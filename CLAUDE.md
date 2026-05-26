@@ -113,6 +113,19 @@ real-world themes against static Markdown content. The current explicit scope is
 - Frontend text changes: get a `/ask-codex` review if the user requests one.
 - Implementation/refactor: get a `/codex:review` pass after non-trivial code.
 
+## Dashboard frontend development
+
+- Use `bun run src/cli/index.ts dashboard --dev` for iterative work on
+  `src/cli/dashboard/web/**`. This launches Bun's fullstack dev server
+  with HMR; no pre-build of `dist/dashboard-bundle/` is required.
+- `bun run src/cli/index.ts dashboard` (no flag) continues to serve the
+  pre-built bundle from `dist/dashboard-bundle/` and is the path used by
+  the npm-published CLI and compiled binaries.
+- The dev server bundles `.tsx` and Tailwind CSS on demand via
+  `bun-plugin-tailwind` (see `bunfig.toml`). The prod bundle is still
+  produced by `scripts/build-dashboard-bundle.ts` and is required before
+  `bun run build:cli` or `bun publish`.
+
 ## What "done" looks like for the bootstrap milestone
 
 `cd example && bun ../src/cli/index.ts build` (or `bunx nectar build`) writes a

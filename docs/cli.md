@@ -492,7 +492,7 @@ Run the local file-backed editorial dashboard
 Usage:
 
 ```
-nectar dashboard [--config <path>] [--port <n>] [--host <host>] [--open] [--json]
+nectar dashboard [--config <path>] [--dev] [--port <n>] [--host <host>] [--open] [--json]
 ```
 
 Options:
@@ -500,6 +500,7 @@ Options:
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_DASHBOARD_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
+| `--dev` | boolean | `NECTAR_DASHBOARD_DEV` | Run the dashboard with Bun's fullstack dev server (HMR for src/cli/dashboard/web/**; no pre-built bundle required) |
 | `-p, --port <n>` | string | `NECTAR_DASHBOARD_PORT` | Port to listen on (0..65535 integer; defaults to 4322; pass 0 to let the kernel pick a free port) |
 | `--host <host>` | string | `NECTAR_DASHBOARD_HOST` | Hostname to bind to (defaults to 127.0.0.1 for local-only file editing; pass 0.0.0.0 to expose on the LAN) |
 | `--open` | boolean | `NECTAR_DASHBOARD_OPEN` | Open the dashboard in the default browser after the server starts |
@@ -512,6 +513,7 @@ nectar dashboard                             # http://127.0.0.1:4322 local dashb
 nectar dashboard --open                      # launch the browser after startup
 nectar dashboard --port 0                    # pick a free port for smoke tests
 nectar dashboard --host 0.0.0.0              # expose on the LAN
+nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand
 ```
 
 ### `nectar check`

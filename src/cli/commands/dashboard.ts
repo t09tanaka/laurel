@@ -692,6 +692,8 @@ export interface DashboardSecurityContext {
   lanExposed: boolean;
 }
 
+export type DashboardServerMode = 'dev' | 'prod';
+
 export interface DashboardRequestContext {
   cwd: string;
   configPath?: string;
@@ -699,6 +701,7 @@ export interface DashboardRequestContext {
   watch?: DashboardWatchMetadata;
   security?: DashboardSecurityContext;
   maxBodyBytes?: number;
+  mode?: DashboardServerMode;
 }
 
 export type DashboardTaxonomyFileResult =
@@ -710,6 +713,106 @@ export type DashboardTaxonomyFileResult =
       fingerprint: ContentSourceFingerprint;
     }
   | { ok: false; reason: 'not-found' | 'already-exists' | 'invalid-kind' | 'forbidden' };
+
+export interface StartDashboardServerOptions {
+  cwd: string;
+  configPath?: string;
+  port: number;
+  host: string;
+  mode: DashboardServerMode;
+}
+
+export interface DashboardServerHandle {
+  port: number;
+  url: string;
+  stop: () => Promise<void>;
+}
+
+export async function startDashboardServer(
+  options: StartDashboardServerOptions,
+): Promise<DashboardServerHandle> {
+  const { cwd, configPath, port, host, mode } = options;
+  await loadConfig({ cwd, configPath });
+  const changeBus = createChangeBus();
+  const watchSetup = await watchDashboardFiles({ cwd, configPath, changeBus });
+  const token = createDashboardToken();
+  const lanExposed = isLanExposedHost(host);
+
+  const buildCtx = (request: Request): DashboardRequestContext => ({
+    cwd,
+    configPath,
+    changeBus,
+    watch: watchSetup,
+    mode,
+    security: {
+      origin: new URL(request.url).origin,
+      token,
+      lanExposed,
+    },
+  });
+
+  const server =
+    mode === 'dev'
+      ? Bun.serve({
+          port,
+          hostname: host,
+          idleTimeout: 255,
+          development: { hmr: true, console: true },
+          routes: await buildDevRoutes(),
+          async fetch(request) {
+            return handleDashboardRequest(request, buildCtx(request));
+          },
+        })
+      : Bun.serve({
+          port,
+          hostname: host,
+          idleTimeout: 255,
+          async fetch(request) {
+            return handleDashboardRequest(request, buildCtx(request));
+          },
+        });
+
+  const boundPort = server.port ?? port;
+  return {
+    port: boundPort,
+    url: `http://${host === '0.0.0.0' ? 'localhost' : host}:${boundPort}/`,
+    stop: async () => {
+      for (const watcher of watchSetup.watchers) watcher.close();
+      server.stop(true);
+    },
+  };
+}
+
+async function buildDevRoutes(): Promise<Record<string, Bun.HTMLBundle>> {
+  // Load the dev-shell HTML as a Bun route value. The path is resolved at
+  // runtime so that `bun build` (which produces the CLI bundle) does not
+  // pick this file up as a secondary build entrypoint.
+  const htmlPath = new URL('../dashboard/web/dashboard.html', import.meta.url).href;
+  const { default: shell } = (await import(htmlPath)) as { default: Bun.HTMLBundle };
+  return {
+    '/': shell,
+    '/posts': shell,
+    '/pages': shell,
+    '/components': shell,
+    '/authors': shell,
+    '/tags': shell,
+    '/settings': shell,
+    '/settings/design': shell,
+    '/settings/integration': shell,
+    '/settings/migration': shell,
+    '/migration': shell,
+    '/posts/new': shell,
+    '/pages/new': shell,
+    '/components/new': shell,
+    '/authors/new': shell,
+    '/tags/new': shell,
+    '/posts/:slug/edit': shell,
+    '/pages/:slug/edit': shell,
+    '/components/:slug/edit': shell,
+    '/authors/:slug/edit': shell,
+    '/tags/:slug/edit': shell,
+  };
+}
 
 export async function runDashboard(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -741,54 +844,31 @@ export async function runDashboard(args: string[]): Promise<number> {
 
   const cwd = process.cwd();
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
+  const mode: DashboardServerMode = parsed.values.dev === true ? 'dev' : 'prod';
+
+  let handle: DashboardServerHandle;
   try {
-    await loadConfig({ cwd, configPath });
+    handle = await startDashboardServer({ cwd, configPath, port, host, mode });
   } catch (err) {
     reportError(err, cwd);
     return 1;
   }
 
-  const changeBus = createChangeBus();
   const cleanup = createCleanupRegistry();
-  const watchSetup = await watchDashboardFiles({ cwd, configPath, changeBus });
-  cleanup.register(
-    () => {
-      for (const watcher of watchSetup.watchers) watcher.close();
-    },
-    { name: 'dashboard-watchers' },
-  );
-  const token = createDashboardToken();
-  const lanExposed = isLanExposedHost(host);
-  const server = Bun.serve({
-    port,
-    hostname: host,
-    idleTimeout: 255,
-    async fetch(request): Promise<Response> {
-      return handleDashboardRequest(request, {
-        cwd,
-        configPath,
-        changeBus,
-        watch: watchSetup,
-        security: {
-          origin: new URL(request.url).origin,
-          token,
-          lanExposed,
-        },
-      });
-    },
-  });
-  cleanup.register(() => server.stop(true), { name: 'dashboard-server' });
+  cleanup.register(() => handle.stop(), { name: 'dashboard-server' });
 
-  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
-  const url = `http://${displayHost}:${server.port}/`;
-  logger.info(`Dashboard listening on ${url}`);
-  if (lanExposed) {
+  logger.info(
+    mode === 'dev'
+      ? `Dashboard listening on ${handle.url} (dev mode, HMR enabled)`
+      : `Dashboard listening on ${handle.url}`,
+  );
+  if (isLanExposedHost(host)) {
     logger.warn(
       'Dashboard is listening on a LAN-facing host. Keep the startup URL private because this process can write local project files.',
     );
   }
   if (parsed.values.open === true) {
-    openBrowser(url);
+    openBrowser(handle.url);
   }
 
   await cleanup.waitForSignal({ signals: ['SIGINT', 'SIGTERM'] });
@@ -1155,7 +1235,7 @@ export async function handleDashboardRequest(
         /^\/(?:posts|pages|components|authors|tags)\/new$/.test(url.pathname) ||
         /^\/(?:posts|pages|components|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
-      return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
+      return htmlResponse(renderDashboardHtml());
     }
     if (
       request.method === 'GET' &&
@@ -1193,6 +1273,14 @@ export async function handleDashboardRequest(
     }
     if (request.method === 'GET' && url.pathname === '/api/events') {
       return ctx.changeBus.stream();
+    }
+    if (request.method === 'GET' && url.pathname === '/api/dashboard/bootstrap') {
+      const blocked = validateSameOrigin(request, ctx.security, 'forbidden');
+      if (blocked) return blocked;
+      return jsonResponse({
+        token: ctx.security?.token ?? '',
+        mode: ctx.mode ?? 'prod',
+      });
     }
     if (request.method === 'POST' && url.pathname === '/api/build') {
       const blocked = validateWriteRequest(request, ctx.security);
@@ -4883,6 +4971,29 @@ async function readJsonPayload<T>(
   }
 }
 
+function validateSameOrigin(
+  request: Request,
+  security: DashboardSecurityContext | undefined,
+  rejectMessage: string,
+): Response | undefined {
+  if (security === undefined) return undefined;
+  const origin = request.headers.get('origin');
+  if (origin !== null && origin !== security.origin) {
+    return jsonResponse({ error: rejectMessage }, 403);
+  }
+  const referer = request.headers.get('referer');
+  if (origin === null && referer !== null) {
+    try {
+      if (new URL(referer).origin !== security.origin) {
+        return jsonResponse({ error: rejectMessage }, 403);
+      }
+    } catch {
+      return jsonResponse({ error: 'invalid referer' }, 403);
+    }
+  }
+  return undefined;
+}
+
 function validateWriteRequest(
   request: Request,
   security: DashboardSecurityContext | undefined,
@@ -4890,21 +5001,7 @@ function validateWriteRequest(
   if (security === undefined) return undefined;
   const token = request.headers.get('x-nectar-dashboard-token');
   if (token !== security.token) return jsonResponse({ error: 'dashboard token is required' }, 403);
-  const origin = request.headers.get('origin');
-  if (origin !== null && origin !== security.origin) {
-    return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
-  }
-  const referer = request.headers.get('referer');
-  if (origin === null && referer !== null) {
-    try {
-      if (new URL(referer).origin !== security.origin) {
-        return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
-      }
-    } catch {
-      return jsonResponse({ error: 'invalid referer' }, 403);
-    }
-  }
-  return undefined;
+  return validateSameOrigin(request, security, 'cross-origin dashboard write rejected');
 }
 
 interface ChangeBusEventInput {
@@ -5042,6 +5139,6 @@ function openBrowser(url: string): void {
   Bun.spawn(command, { stdout: 'ignore', stderr: 'ignore' });
 }
 
-export function renderDashboardHtml(token = ''): string {
-  return renderDashboardShellHtml(token);
+export function renderDashboardHtml(): string {
+  return renderDashboardShellHtml();
 }

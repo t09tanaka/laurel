@@ -45,3 +45,15 @@ coverageSkipTestFiles = true
 # skip while osv-scanner, bun audit, frozen installs, and CodeQL continue to
 # provide the baseline supply-chain gate.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Bun fullstack dev server (used by `nectar dashboard --dev`).
+#
+# bun-plugin-tailwind runs Tailwind v4 against any CSS file referenced from
+# an HTML import served via Bun.serve({ routes: { ... } }). The prod bundle
+# script (scripts/build-dashboard-bundle.ts) still invokes the standalone
+# tailwindcss CLI directly; this plugin only affects the dev server path.
+# ---------------------------------------------------------------------------
+
+[serve.static]
+plugins = ["bun-plugin-tailwind"]
