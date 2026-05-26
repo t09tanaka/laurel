@@ -5,19 +5,20 @@ import type {
   DashboardState,
 } from '../types.ts';
 
-const TOKEN_META_NAME = 'nectar-dashboard-token';
+let dashboardToken = '';
 
-function readToken(): string {
-  const meta = document.querySelector<HTMLMetaElement>(`meta[name="${TOKEN_META_NAME}"]`);
-  return meta?.content ?? '';
+export function setDashboardToken(token: string): void {
+  dashboardToken = token;
 }
 
-const TOKEN = readToken();
+export function getDashboardToken(): string {
+  return dashboardToken;
+}
 
 function writeHeaders(): Record<string, string> {
   return {
     'content-type': 'application/json',
-    'x-nectar-dashboard-token': TOKEN,
+    'x-nectar-dashboard-token': dashboardToken,
   };
 }
 
@@ -91,7 +92,7 @@ export async function uploadImage(
   fd.append('file', file);
   const res = await fetch('/api/images', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -148,7 +149,7 @@ function isOgpKnownError(v: unknown): v is OgpKnownError {
 export async function fetchOgp(url: string): Promise<OgpFetchResult> {
   const res = await fetch('/api/ogp', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': dashboardToken },
     body: JSON.stringify({ url }),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -168,7 +169,7 @@ export async function uploadTheme(
   if (name) fd.append('name', name);
   const res = await fetch('/api/themes/upload', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -354,7 +355,7 @@ export async function importGhostUpload(
   if (args.outputDir) fd.append('outputDir', args.outputDir);
   const response = await fetch('/api/import/ghost', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
     body: fd,
   });
   return { status: response.status, data: await response.json() };
@@ -392,7 +393,7 @@ export async function importPageBundleUpload(
   fd.append('onConflict', args.onConflict);
   const response = await fetch('/api/page-bundles/import', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
     body: fd,
   });
   return { status: response.status, data: await response.json() };
@@ -434,7 +435,7 @@ export async function streamBuild(onEvent: (event: BuildStreamEvent) => void): P
   try {
     response = await fetch('/api/build', {
       method: 'POST',
-      headers: { 'x-nectar-dashboard-token': TOKEN },
+      headers: { 'x-nectar-dashboard-token': dashboardToken },
     });
   } catch (err) {
     onEvent({ type: 'error', message: err instanceof Error ? err.message : 'Network error' });
