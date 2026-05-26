@@ -3,13 +3,13 @@
 // When the cursor sits on an empty top-level paragraph, a small `+`
 // button floats in the left padding gutter of `.editorCanvas`
 // (outside the writing column). Clicking it opens a popover with
-// block-level insertions: Image (with upload), Divider, Code block,
-// Table.
+// block-level insertions: Image (with upload), Bookmark (URL embed),
+// Divider, Code block, Table.
 //
 // Pure ProseMirror Plugin / View — no Preact inside this file so the
 // editor critical path stays free of UI framework wiring. The image
-// uploader is injected via plugin options so api.ts coupling is
-// kept at the component layer.
+// uploader and OGP fetcher are injected via plugin options so api.ts
+// coupling is kept at the component layer.
 //
 // Position math: we anchor the `+` vertically to the caret line via
 // `view.coordsAtPos(from)`, and horizontally to a fixed offset to
@@ -47,6 +47,11 @@ export interface InsertMenuOptions {
   // Default alt-text prompt is suppressed in tests; the option lets
   // the runtime customise the source filename → alt translation.
   altFromFilename?: (name: string) => string;
+  // Optional OGP fetcher. When provided, the Bookmark menu item is
+  // enabled. The plugin stays decoupled from api.ts via this callback.
+  fetchOgp?: (
+    url: string,
+  ) => Promise<{ ok: true; meta: Record<string, string> } | { ok: false; error: string }>;
   // Getter (not a static list) so the submenu picks up components
   // registered after the editor mounted without forcing a remount.
   // Returns the live set of `{slug}` snippets the post can embed; an
@@ -109,6 +114,18 @@ interface SubmenuEntry {
   run: (view: EditorView, schema: Schema, target: EmptyParagraphTarget) => void;
 }
 
+interface InputViewSpec {
+  placeholder: string;
+  buttonLabel: string;
+  validate(value: string): { ok: true; value: string } | { ok: false; error: string };
+  run(
+    view: EditorView,
+    schema: Schema,
+    target: EmptyParagraphTarget,
+    value: string,
+  ): Promise<{ ok: boolean; error?: string }>;
+}
+
 interface MenuItemSpec {
   key: string;
   label: string;
@@ -123,6 +140,9 @@ interface MenuItemSpec {
   // popover opens so live changes (newly registered components) show
   // up without a remount.
   submenu?: (options: InsertMenuOptions) => SubmenuEntry[];
+  // Items with an inputView swap the popover body for a URL input on
+  // click and only act once the user submits.
+  inputView?: (options: InsertMenuOptions) => InputViewSpec;
   run?: (
     view: EditorView,
     schema: Schema,
@@ -131,6 +151,14 @@ interface MenuItemSpec {
     ui: { fileInput: HTMLInputElement; close: () => void },
   ) => void;
 }
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_url: 'Enter a valid http(s) URL',
+  blocked: 'Cannot preview this URL',
+  timeout: 'Preview timed out — inserted URL only',
+  fetch_failed: 'Could not fetch — inserted URL only',
+  no_metadata: 'No preview available — inserted URL only',
+};
 
 const MENU_ITEMS: MenuItemSpec[] = [
   {
@@ -143,6 +171,51 @@ const MENU_ITEMS: MenuItemSpec[] = [
       ui.fileInput.click();
       ui.close();
     },
+  },
+  {
+    key: 'bookmark',
+    label: 'Bookmark',
+    hint: 'Embed a URL as a rich link card',
+    enabled: (schema, options) => Boolean(options.fetchOgp) && Boolean(nodeBy(schema, 'bookmark')),
+    inputView: (options) => ({
+      placeholder: 'Paste or type a URL',
+      buttonLabel: 'Embed',
+      // Mirrors validateBookmarkUrl in prose-insert-menu-logic.ts so the
+      // plugin stays self-contained for tests / external embedders. Keep
+      // the two in sync if either side's messages change.
+      validate(value) {
+        const trimmed = value.trim();
+        if (!trimmed) return { ok: false, error: 'Enter a URL' };
+        try {
+          const u = new URL(trimmed);
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            return { ok: false, error: 'Only http(s) URLs are supported' };
+          }
+          return { ok: true, value: u.toString() };
+        } catch {
+          return { ok: false, error: 'Enter a valid http(s) URL' };
+        }
+      },
+      async run(view, schema, target, value) {
+        const bookmark = nodeBy(schema, 'bookmark');
+        if (!bookmark) return { ok: false, error: 'Bookmark node not registered' };
+        const fetcher = options.fetchOgp;
+        if (!fetcher) {
+          replaceEmptyParagraph(view, target, bookmark.create({ url: value }));
+          return { ok: false, error: 'No OGP fetcher configured' };
+        }
+        const result = await fetcher(value);
+        if (result.ok) {
+          replaceEmptyParagraph(view, target, bookmark.create({ url: value, ...result.meta }));
+          return { ok: true };
+        }
+        replaceEmptyParagraph(view, target, bookmark.create({ url: value }));
+        return {
+          ok: false,
+          error: ERROR_MESSAGES[result.error] ?? 'Could not fetch — inserted URL only',
+        };
+      },
+    }),
   },
   {
     key: 'divider',
@@ -214,6 +287,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
   const opts: Required<Pick<InsertMenuOptions, 'altFromFilename'>> & InsertMenuOptions = {
     altFromFilename: options.altFromFilename ?? altFromFilenameDefault,
     uploadImage: options.uploadImage,
+    fetchOgp: options.fetchOgp,
     getComponents: options.getComponents,
   };
 
@@ -266,6 +340,24 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         itemButtons.push(btn);
       }
 
+      // ---- Input view (for Bookmark and future inputView items) ------
+      const inputView = document.createElement('div');
+      inputView.className = 'proseInsertInputView';
+      inputView.hidden = true;
+      const inputLabel = document.createElement('input');
+      inputLabel.type = 'url';
+      inputLabel.className = 'proseInsertInputField';
+      const inputSubmit = document.createElement('button');
+      inputSubmit.type = 'button';
+      inputSubmit.className = 'proseInsertInputSubmit';
+      const inputError = document.createElement('div');
+      inputError.className = 'proseInsertInputError';
+      inputError.setAttribute('role', 'alert');
+      inputView.appendChild(inputLabel);
+      inputView.appendChild(inputSubmit);
+      inputView.appendChild(inputError);
+      popover.appendChild(inputView);
+
       // Flyout for items with a `submenu` — single shared DOM node
       // re-populated each time a submenu opens. Positioned fixed so
       // we can anchor it to the parent item's bounding rect without
@@ -277,6 +369,8 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       submenu.style.position = 'fixed';
       root.appendChild(submenu);
 
+      // ---- File input (image upload) ---------------------------------
+
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
@@ -284,8 +378,28 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       fileInput.hidden = true;
       root.appendChild(fileInput);
 
+      const originalTriggerTitle = trigger.title;
+      let pendingTitleResetTimer: number | null = null;
+
+      function clearPendingTitleReset(): void {
+        if (pendingTitleResetTimer !== null) {
+          window.clearTimeout(pendingTitleResetTimer);
+          pendingTitleResetTimer = null;
+        }
+      }
+
+      function flashTriggerError(message: string): void {
+        clearPendingTitleReset();
+        trigger.title = message;
+        pendingTitleResetTimer = window.setTimeout(() => {
+          pendingTitleResetTimer = null;
+          trigger.title = originalTriggerTitle;
+        }, 4000);
+      }
+
       let currentTarget: EmptyParagraphTarget | null = null;
       let popoverOpen = false;
+      let inputViewOpenKey: string | null = null;
       let submenuOpenKey: string | null = null;
       let closeSubmenuTimer: number | null = null;
 
@@ -378,6 +492,77 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         submenu.style.top = `${btnRect.top}px`;
       }
 
+      function openInputView(itemKey: string, spec: InputViewSpec): void {
+        closeSubmenu();
+        inputViewOpenKey = itemKey;
+        inputLabel.value = '';
+        inputLabel.placeholder = spec.placeholder;
+        inputSubmit.textContent = spec.buttonLabel;
+        inputSubmit.disabled = false;
+        inputLabel.disabled = false;
+        inputError.textContent = '';
+        inputView.hidden = false;
+        for (const btn of itemButtons) {
+          btn.hidden = true;
+        }
+        setTimeout(() => inputLabel.focus(), 0);
+      }
+
+      function closeInputView(): void {
+        if (inputViewOpenKey === null) return;
+        inputViewOpenKey = null;
+        inputView.hidden = true;
+        update(view);
+      }
+
+      async function submitInputView(): Promise<void> {
+        if (inputViewOpenKey === null) return;
+        const item = MENU_ITEMS.find((i) => i.key === inputViewOpenKey);
+        const spec = item?.inputView?.(opts);
+        if (!spec || !currentTarget) {
+          closeInputView();
+          return;
+        }
+        const validation = spec.validate(inputLabel.value);
+        if (!validation.ok) {
+          inputError.textContent = validation.error;
+          return;
+        }
+        inputError.textContent = '';
+        inputLabel.disabled = true;
+        inputSubmit.disabled = true;
+        const result = await spec.run(view, schema, currentTarget, validation.value);
+        inputLabel.disabled = false;
+        inputSubmit.disabled = false;
+        if (result.ok) {
+          closeInputView();
+          closePopover();
+          view.focus();
+          return;
+        }
+        closeInputView();
+        closePopover();
+        view.focus();
+        if (result.error) {
+          flashTriggerError(result.error);
+        }
+      }
+
+      inputSubmit.addEventListener('mousedown', (event) => event.preventDefault());
+      inputSubmit.addEventListener('click', (event) => {
+        event.preventDefault();
+        void submitInputView();
+      });
+      inputLabel.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          void submitInputView();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          closeInputView();
+        }
+      });
+
       function openPopover(): void {
         if (popoverOpen) return;
         popoverOpen = true;
@@ -388,6 +573,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       function closePopover(): void {
         if (!popoverOpen) return;
+        closeInputView();
         closeSubmenu();
         popoverOpen = false;
         popover.hidden = true;
@@ -452,6 +638,11 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
             closePopover();
             return;
           }
+          if (item.inputView) {
+            const spec = item.inputView(opts);
+            openInputView(item.key, spec);
+            return;
+          }
           if (item.submenu) {
             // Toggle: clicking the same item closes the submenu, a fresh
             // click on a different submenu-enabled item swaps the flyout.
@@ -505,6 +696,11 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       function onKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
+          // `onKeyDown` runs in the document capture phase first. When the
+          // input view is open we early-return so the popover-wide Escape
+          // doesn't close it; the input field's own bubble-phase keydown
+          // handler then closes only the input view.
+          if (inputViewOpenKey !== null) return;
           if (submenuOpenKey !== null) {
             event.stopPropagation();
             closeSubmenu();
@@ -531,14 +727,19 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         }
         currentTarget = target;
 
-        // Apply per-item enabled state. Items disabled by missing
-        // schema nodes or absent uploader get hidden — we don't grey
-        // them out to keep the surface unambiguous.
-        for (let i = 0; i < MENU_ITEMS.length; i += 1) {
-          const item = MENU_ITEMS[i];
-          const btn = itemButtons[i];
-          if (!item || !btn) continue;
-          btn.hidden = !item.enabled(schema, opts);
+        // When the input view is open, leave item buttons as-is —
+        // they are already hidden by openInputView and should not
+        // be reshown while the user is filling in the input.
+        if (inputViewOpenKey === null) {
+          // Apply per-item enabled state. Items disabled by missing
+          // schema nodes or absent uploader get hidden — we don't
+          // grey them out to keep the surface unambiguous.
+          for (let i = 0; i < MENU_ITEMS.length; i += 1) {
+            const item = MENU_ITEMS[i];
+            const btn = itemButtons[i];
+            if (!item || !btn) continue;
+            btn.hidden = !item.enabled(schema, opts);
+          }
         }
 
         // Anchor: line top of the empty paragraph + horizontal offset
@@ -569,6 +770,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
           update(currentView);
         },
         destroy() {
+          clearPendingTitleReset();
           clearCloseSubmenuTimer();
           document.removeEventListener('mousedown', onDocumentMousedown);
           document.removeEventListener('keydown', onKeyDown, true);

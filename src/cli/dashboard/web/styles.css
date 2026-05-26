@@ -3441,6 +3441,109 @@
   .proseInsertFileInput {
     display: none;
   }
+  .proseInsertInputView {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    min-width: 240px;
+  }
+  .proseInsertInputView[hidden] {
+    display: none;
+  }
+  .proseInsertInputField {
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 6px;
+    background: var(--surface-card, #fff);
+    color: var(--text-primary, #1a1612);
+  }
+  .proseInsertInputField:focus-visible {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 1px;
+  }
+  .proseInsertInputSubmit {
+    align-self: flex-end;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--text-primary, #1a1612);
+    background: var(--text-primary, #1a1612);
+    color: var(--text-invert, #f4ecd9);
+    font: inherit;
+    cursor: pointer;
+  }
+  .proseInsertInputSubmit[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .proseInsertInputError {
+    font-size: 12px;
+    color: var(--text-danger, #b3261e);
+    min-height: 14px;
+  }
+
+  /* Bookmark card visuals are owned by the active theme's
+   * `.kg-bookmark-card` rules, served from /api/themes/active/css with
+   * every selector rewritten to nest under `.proseBookmarkScope`. The
+   * dashboard only paints the editor chrome (selection outline,
+   * Replace/Remove toolbar, caption editor) on top. */
+  .proseBookmarkFigure {
+    margin: 1.5em 0;
+    position: relative;
+  }
+  .proseBookmarkFigure--selected .kg-bookmark-card {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 2px;
+  }
+  .proseBookmarkCaption {
+    display: block;
+    margin: 6px auto 0;
+    width: min(100%, 480px);
+    font: inherit;
+    font-size: 13px;
+    border: 0;
+    border-bottom: 1px dashed var(--border-default, rgba(0, 0, 0, 0.18));
+    background: transparent;
+    text-align: center;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseBookmarkCaption[hidden] {
+    display: none;
+  }
+  .proseBookmarkCaption:focus-visible {
+    outline: none;
+    border-bottom-color: var(--text-primary, #1a1612);
+    color: var(--text-primary, #1a1612);
+  }
+  .proseBookmarkActions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 6px;
+    padding: 2px;
+    z-index: 1;
+  }
+  .proseBookmarkActions[hidden] {
+    display: none;
+  }
+  .proseBookmarkAction {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .proseBookmarkAction:hover {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  }
   .proseHost .ProseMirror s {
     text-decoration: line-through;
   }

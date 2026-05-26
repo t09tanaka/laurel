@@ -109,6 +109,56 @@ export async function uploadImage(
   };
 }
 
+export interface OgpResultMeta {
+  url: string;
+  title: string;
+  description: string;
+  icon: string;
+  thumbnail: string;
+  author: string;
+  publisher: string;
+}
+
+export type OgpFetchResult =
+  | { ok: true; meta: OgpResultMeta }
+  | {
+      ok: false;
+      error:
+        | 'invalid_url'
+        | 'blocked'
+        | 'timeout'
+        | 'fetch_failed'
+        | 'no_metadata'
+        | 'request_failed';
+    };
+
+const OGP_KNOWN_ERRORS = [
+  'invalid_url',
+  'blocked',
+  'timeout',
+  'fetch_failed',
+  'no_metadata',
+] as const;
+type OgpKnownError = (typeof OGP_KNOWN_ERRORS)[number];
+
+function isOgpKnownError(v: unknown): v is OgpKnownError {
+  return OGP_KNOWN_ERRORS.includes(v as OgpKnownError);
+}
+
+export async function fetchOgp(url: string): Promise<OgpFetchResult> {
+  const res = await fetch('/api/ogp', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': TOKEN },
+    body: JSON.stringify({ url }),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status >= 400) return { ok: false, error: 'request_failed' };
+  if (data.ok === true && typeof data.meta === 'object' && data.meta !== null) {
+    return { ok: true, meta: data.meta as OgpResultMeta };
+  }
+  return { ok: false, error: isOgpKnownError(data.error) ? data.error : 'request_failed' };
+}
+
 export async function uploadTheme(
   file: File,
   name?: string,

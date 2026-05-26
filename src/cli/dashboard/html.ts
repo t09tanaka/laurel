@@ -7,6 +7,7 @@ export function renderDashboardHtml(token = ''): string {
 <meta name="nectar-dashboard-token" content="${escapeAttr(token)}">
 <title>Nectar Dashboard</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/api/themes/active/css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>

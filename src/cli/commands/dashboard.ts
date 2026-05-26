@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import { type Dirent, type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import {
   mkdir,
@@ -13,6 +14,7 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
+import { renderCardAssetsCss } from '~/build/card-assets.ts';
 import { type ContentImageAssetPlan, planContentImageAssets } from '~/build/emit.ts';
 import { computeFavicons } from '~/build/favicons.ts';
 import {
@@ -68,7 +70,7 @@ import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext } from '~/plugin/types.ts';
 import { type NectarEngine, createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
-import { loadTheme } from '~/theme/loader.ts';
+import { loadTheme, resolveThemeRoot } from '~/theme/loader.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
@@ -76,6 +78,8 @@ import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
+import { fetchOgp } from '../dashboard/ogp.ts';
+import { rewriteThemeCss } from '../dashboard/theme-css-rewriter.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DASHBOARD_SPEC } from '../specs.ts';
@@ -1159,6 +1163,9 @@ export async function handleDashboardRequest(
     ) {
       return serveDashboardBundleAsset(url.pathname);
     }
+    if (request.method === 'GET' && url.pathname === '/api/themes/active/css') {
+      return serveActiveThemeScopedCss({ cwd: ctx.cwd, configPath: ctx.configPath });
+    }
     if (request.method === 'GET' && url.pathname === '/api/state') {
       const kind = stateKindParam(url);
       if (url.searchParams.has('kind') && kind === undefined) {
@@ -1553,6 +1560,29 @@ export async function handleDashboardRequest(
         changedPath: result.path,
       });
       return jsonResponse(result, 201);
+    }
+    /* OGP metadata fetch — proxied through the server so the browser
+     * never makes the outbound request directly (SSRF-gated by
+     * validateWriteRequest + IP classification inside fetchOgp). Failures
+     * are returned as HTTP 200 with ok:false so the client treats all
+     * error kinds uniformly without leaking SSRF signal via status code. */
+    if (request.method === 'POST' && url.pathname === '/api/ogp') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const body = await request.json().catch(() => null);
+      const targetUrl =
+        typeof (body as { url?: unknown })?.url === 'string' ? (body as { url: string }).url : '';
+      const result = await fetchOgp(targetUrl, {
+        fetch: (u, init) => fetch(u, init),
+        lookup: async (host) => {
+          const { address } = await dnsLookup(host);
+          return address;
+        },
+        timeoutMs: 5_000,
+        maxBytes: 1_000_000,
+        maxRedirects: 3,
+      });
+      return jsonResponse(result, 200);
     }
     /* Image upload — multipart/form-data with one `file` field. The
      * file is written under content/images/ with a slug-safe name and
@@ -4687,13 +4717,99 @@ async function serveDashboardBundleAsset(pathname: string): Promise<Response> {
   });
 }
 
+// In-memory cache for the scoped theme CSS keyed by the source file's
+// path and mtime. The bookmark NodeView depends on this CSS to render a
+// faithful preview; on a typical session it is requested once per page
+// load, so the cache mostly skips a re-parse on bundle refresh / SPA
+// navigation rather than a hot path.
+let activeThemeCssCache: {
+  path: string;
+  mtimeMs: number;
+  body: string;
+} | null = null;
+
+async function serveActiveThemeScopedCss({
+  cwd,
+  configPath,
+}: {
+  cwd: string;
+  configPath?: string;
+}): Promise<Response> {
+  let config: NectarConfig;
+  let themePkg: Awaited<ReturnType<typeof loadTheme>>['pkg'];
+  try {
+    config = await loadConfig({ cwd, configPath });
+    const theme = await loadTheme({ cwd, config });
+    themePkg = theme.pkg;
+  } catch (err) {
+    return cssNotice(
+      `/* Nectar dashboard: failed to load nectar.toml or theme — ${(err as Error).message ?? 'unknown error'} */`,
+    );
+  }
+  // The dashboard ships with the same `themes/` convention the build
+  // pipeline uses (see `resolveThemeRoot`), so the rewriter source path
+  // is just `<themeDir>/<themeName>/assets/built/screen.css` after
+  // resolution.
+  const themeRoot = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
+  const screenCssPath = resolve(themeRoot, 'assets', 'built', 'screen.css');
+  const screen = Bun.file(screenCssPath);
+  if (!(await screen.exists())) {
+    return cssNotice(
+      `/* Nectar dashboard: active theme "${config.theme.name}" has no assets/built/screen.css; bookmark preview falls back to dashboard styles. */`,
+    );
+  }
+  const stat = await screen.stat();
+  if (
+    activeThemeCssCache &&
+    activeThemeCssCache.path === screenCssPath &&
+    activeThemeCssCache.mtimeMs === stat.mtimeMs
+  ) {
+    return cssResponse(activeThemeCssCache.body);
+  }
+  const source = await screen.text();
+  // Theme stylesheets only ship overrides for the Ghost card classes
+  // (`.kg-bookmark-card .kg-bookmark-container { … }`). The shared base
+  // CSS that gives kg-bookmark-card its flex layout / border / radius
+  // is generated by src/build/card-assets.ts at build time and only
+  // lands in `dist/assets/ghost-card-assets.css`. Prepend it here so
+  // the in-editor preview is faithful even though the dashboard has
+  // never run a build.
+  const cardAssets = renderCardAssetsCss(themePkg.card_assets);
+  const combined = `${cardAssets}\n${source}`;
+  const rewritten = rewriteThemeCss(combined);
+  activeThemeCssCache = { path: screenCssPath, mtimeMs: stat.mtimeMs, body: rewritten };
+  return cssResponse(rewritten);
+}
+
+function cssResponse(body: string): Response {
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'text/css; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function cssNotice(body: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/css; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 function htmlResponse(html: string): Response {
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
+      // img-src allows https: so bookmark card thumbnails / favicons
+      // fetched by OGP can render directly from the source CDN. The
+      // dashboard's own JS/CSS/data fetches stay 'self'-only.
       'Content-Security-Policy':
-        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'",
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self'",
     },
   });
 }
