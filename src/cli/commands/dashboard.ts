@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import { type Dirent, type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import {
   mkdir,
@@ -74,6 +75,7 @@ import { logger } from '~/util/logger.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
+import { fetchOgp } from '../dashboard/ogp.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DASHBOARD_SPEC } from '../specs.ts';
@@ -1512,6 +1514,29 @@ export async function handleDashboardRequest(
         changedPath: result.path,
       });
       return jsonResponse(result, 201);
+    }
+    /* OGP metadata fetch — proxied through the server so the browser
+     * never makes the outbound request directly (SSRF-gated by
+     * validateWriteRequest + IP classification inside fetchOgp). Failures
+     * are returned as HTTP 200 with ok:false so the client treats all
+     * error kinds uniformly without leaking SSRF signal via status code. */
+    if (request.method === 'POST' && url.pathname === '/api/ogp') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const body = await request.json().catch(() => null);
+      const targetUrl =
+        typeof (body as { url?: unknown })?.url === 'string' ? (body as { url: string }).url : '';
+      const result = await fetchOgp(targetUrl, {
+        fetch: (u, init) => fetch(u, init),
+        lookup: async (host) => {
+          const { address } = await dnsLookup(host);
+          return address;
+        },
+        timeoutMs: 5_000,
+        maxBytes: 1_000_000,
+        maxRedirects: 3,
+      });
+      return jsonResponse(result, 200);
     }
     /* Image upload — multipart/form-data with one `file` field. The
      * file is written under content/images/ with a slug-safe name and
