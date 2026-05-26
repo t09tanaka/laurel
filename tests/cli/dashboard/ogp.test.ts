@@ -125,3 +125,125 @@ describe('classifyResolvedIp', () => {
     expect(classifyResolvedIp('8.8.8.8')).toBe('public');
   });
 });
+
+import { fetchOgp } from '../../../src/cli/dashboard/ogp.ts';
+
+function htmlResponse(body: string, status = 200, contentType = 'text/html; charset=utf-8') {
+  return new Response(body, { status, headers: { 'content-type': contentType } });
+}
+
+function makeOpts(overrides: Partial<Parameters<typeof fetchOgp>[1]> = {}) {
+  return {
+    timeoutMs: 50,
+    maxBytes: 1024 * 1024,
+    maxRedirects: 3,
+    lookup: async () => '8.8.8.8',
+    ...overrides,
+  };
+}
+
+describe('fetchOgp', () => {
+  test('returns ok=false with invalid_url for non-http schemes', async () => {
+    const r = await fetchOgp(
+      'javascript:alert(1)',
+      makeOpts({ fetch: async () => htmlResponse('') }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('invalid_url');
+  });
+
+  test('returns ok=false with blocked for localhost hostnames', async () => {
+    const r = await fetchOgp(
+      'http://localhost/x',
+      makeOpts({ fetch: async () => htmlResponse('') }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('blocked');
+  });
+
+  test('returns ok=false with blocked when DNS resolves to private IP', async () => {
+    const r = await fetchOgp(
+      'http://example.com/',
+      makeOpts({ lookup: async () => '127.0.0.1', fetch: async () => htmlResponse('') }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('blocked');
+  });
+
+  test('returns ok=true with meta from successful response', async () => {
+    const html = `<html><head><meta property="og:title" content="X"></head></html>`;
+    const r = await fetchOgp(
+      'https://example.com/',
+      makeOpts({ fetch: async () => htmlResponse(html) }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.meta.title).toBe('X');
+  });
+
+  test('returns no_metadata when content-type is not text/html', async () => {
+    const r = await fetchOgp(
+      'https://example.com/',
+      makeOpts({ fetch: async () => htmlResponse('{}', 200, 'application/json') }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('no_metadata');
+  });
+
+  test('follows redirect, re-checks host on each hop', async () => {
+    let calls = 0;
+    const fetcher = async (url: string) => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'https://final.example.com/' },
+        });
+      }
+      return htmlResponse(`<html><head><title>${url}</title></head></html>`);
+    };
+    const r = await fetchOgp('https://start.example.com/', makeOpts({ fetch: fetcher }));
+    expect(calls).toBe(2);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.meta.title).toBe('https://final.example.com/');
+  });
+
+  test('blocks redirect target that resolves to a private IP', async () => {
+    let calls = 0;
+    const fetcher = async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'http://internal.evil/' },
+        });
+      }
+      return htmlResponse('<html></html>');
+    };
+    const lookup = async (host: string) => (host === 'internal.evil' ? '10.0.0.1' : '8.8.8.8');
+    const r = await fetchOgp('https://start.example.com/', makeOpts({ fetch: fetcher, lookup }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('blocked');
+  });
+
+  test('caps total redirects', async () => {
+    const fetcher = async () =>
+      new Response(null, { status: 302, headers: { location: 'https://next.example.com/' } });
+    const r = await fetchOgp(
+      'https://start.example.com/',
+      makeOpts({ fetch: fetcher, maxRedirects: 2 }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('fetch_failed');
+  });
+
+  test('returns timeout when fetch throws AbortError', async () => {
+    const fetcher = async () => {
+      const e: Error & { name?: string } = new Error('aborted');
+      e.name = 'AbortError';
+      throw e;
+    };
+    const r = await fetchOgp('https://example.com/', makeOpts({ fetch: fetcher }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('timeout');
+  });
+});

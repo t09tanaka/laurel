@@ -199,3 +199,134 @@ export function pickMetadata(html: string, finalUrl: URL): OgpMeta {
     publisher: trimTo(publisher),
   };
 }
+
+export type FetchOgpError = 'invalid_url' | 'blocked' | 'timeout' | 'fetch_failed' | 'no_metadata';
+
+export type FetchOgpResult = { ok: true; meta: OgpMeta } | { ok: false; error: FetchOgpError };
+
+export interface FetchOgpOptions {
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
+  lookup: (hostname: string) => Promise<string>;
+  timeoutMs: number;
+  maxBytes: number;
+  maxRedirects: number;
+}
+
+const USER_AGENT = 'Nectar-OGP/1.0 (+nectar)';
+
+function parseUrl(raw: string): URL | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+async function guardHost(
+  url: URL,
+  lookup: FetchOgpOptions['lookup'],
+): Promise<'public' | 'blocked'> {
+  if (classifyHost(url.hostname) === 'blocked') return 'blocked';
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(url.hostname) || url.hostname.includes(':')) {
+    // Literal IP — classifyHost already covered it.
+    return 'public';
+  }
+  try {
+    const ip = await lookup(url.hostname);
+    return classifyResolvedIp(ip);
+  } catch {
+    return 'blocked';
+  }
+}
+
+async function readCappedHtml(response: Response, maxBytes: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return await response.text();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    chunks.push(value);
+    total += value.byteLength;
+    if (total >= maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      break;
+    }
+  }
+  const buf = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder('utf-8').decode(buf);
+}
+
+export async function fetchOgp(raw: string, options: FetchOgpOptions): Promise<FetchOgpResult> {
+  const startUrl = parseUrl(raw);
+  if (!startUrl) return { ok: false, error: 'invalid_url' };
+
+  let current = startUrl;
+  let hops = 0;
+  while (hops <= options.maxRedirects) {
+    const guard = await guardHost(current, options.lookup);
+    if (guard === 'blocked') return { ok: false, error: 'blocked' };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+    let response: Response;
+    try {
+      response = await options.fetch(current.toString(), {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'user-agent': USER_AGENT,
+          accept: 'text/html,application/xhtml+xml',
+        },
+      });
+    } catch (err) {
+      const e = err as { name?: string };
+      if (e?.name === 'AbortError') return { ok: false, error: 'timeout' };
+      return { ok: false, error: 'fetch_failed' };
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) return { ok: false, error: 'fetch_failed' };
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        return { ok: false, error: 'fetch_failed' };
+      }
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') {
+        return { ok: false, error: 'blocked' };
+      }
+      current = next;
+      hops += 1;
+      continue;
+    }
+
+    if (response.status >= 400) return { ok: false, error: 'fetch_failed' };
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+      return { ok: false, error: 'no_metadata' };
+    }
+
+    const html = await readCappedHtml(response, options.maxBytes);
+    const meta = pickMetadata(html, current);
+    if (!meta.title && !meta.description && !meta.thumbnail) {
+      return { ok: false, error: 'no_metadata' };
+    }
+    return { ok: true, meta };
+  }
+  return { ok: false, error: 'fetch_failed' };
+}
