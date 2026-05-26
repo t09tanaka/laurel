@@ -4733,6 +4733,155 @@
     border-bottom: 0;
     padding-bottom: 0;
   }
+  /* Theme picker — card grid.
+   *
+   * Replaces an earlier `[Theme directory] [Theme select]` form pair. The
+   * directory was disabled / informational only, and the select hid the
+   * description + version we actually have from each theme's package.json.
+   * Each card is a radio button so the picker stays keyboard-accessible
+   * (arrow keys aren't wired — Tab + Space/Enter selects, matching the
+   * rest of the dashboard's button-driven form patterns).
+   *
+   * Visual rules:
+   *   - Cream surface, hairline border to fit the editorial palette.
+   *   - Selected card: ink border (matches primary button), no fill —
+   *     selection is communicated by weight, not color.
+   *   - Active card: small "Active" pill in the corner; the card is not
+   *     pre-selected just because it's active, so the Save button can
+   *     distinguish "nothing to do" from "switch to a new theme". */
+  .themeGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .themeCard {
+    text-align: left;
+    color: var(--text-primary);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: grid;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  }
+  .themeCard:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-raised);
+  }
+  /* Focus ring follows the hidden radio's focus state — the <label> is
+   * the visible affordance but assistive tech tracks the input. */
+  .themeCard:has(.themeCardRadio:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .themeCardSelected {
+    border-color: var(--text-primary);
+    box-shadow: 0 0 0 1px var(--text-primary) inset;
+    background: var(--surface-normal);
+  }
+  .themeCardHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .themeCardName {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+  .themeCardActiveBadge {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: var(--success);
+    background: var(--success-subdued);
+    border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  }
+  .themeCardDescription {
+    font-family: var(--font-serif);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    /* Hold cards to ~3 lines of body copy so a verbose theme description
+     * doesn't blow out the grid row height. */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .themeCardVersion {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    justify-self: end;
+    margin-top: auto;
+  }
+  .themeActions {
+    margin-top: 2px;
+  }
+  .themeMissingNotice {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px solid color-mix(in srgb, var(--caution) 35%, var(--border-default));
+    background: var(--caution-subdued);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .themeMissingNotice code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: color-mix(in srgb, var(--caution) 14%, transparent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .themeEmpty {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+    padding: 22px;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+  .themeEmptyTitle {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .themeEmptyBody {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .themeEmptyBody code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .themeEmpty .btn {
+    margin-top: 6px;
+  }
   .siteIdentityGrid {
     padding: 0;
     gap: 12px;
