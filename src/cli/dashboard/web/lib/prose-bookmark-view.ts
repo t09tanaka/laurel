@@ -1,3 +1,13 @@
+// Bookmark NodeView that renders a Ghost-compatible card DOM
+// (`<figure class="kg-card kg-bookmark-card">…<figcaption>`) wrapped in
+// `<div class="proseBookmarkScope">`. The dashboard loads the active
+// theme's `assets/built/screen.css` with all its selectors rescoped to
+// `.proseBookmarkScope` (see `src/cli/dashboard/theme-css-rewriter.ts`),
+// so the card paints itself with the same CSS the published site would
+// use. Replace / Remove controls and the caption editor are
+// dashboard-specific UI layered on top — they stay outside the
+// Ghost-class DOM so theme CSS does not style them.
+
 import type { Node as ProseNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
 
@@ -14,9 +24,11 @@ export class BookmarkNodeView implements NodeView {
   private readonly view: EditorView;
   private readonly getPos: () => number | undefined;
   private readonly options: BookmarkNodeViewOptions;
-  private readonly card: HTMLElement;
+  private readonly cardSlot: HTMLElement;
+  private readonly figcaptionEl: HTMLElement;
   private readonly captionInput: HTMLInputElement;
   private readonly actions: HTMLElement;
+  private readonly figureEl: HTMLElement;
 
   constructor(
     node: ProseNode,
@@ -29,18 +41,37 @@ export class BookmarkNodeView implements NodeView {
     this.getPos = getPos;
     this.options = options;
 
-    const figure = document.createElement('figure');
-    figure.className = 'proseBookmarkFigure';
-    this.dom = figure;
+    // Outer wrapper applies the theme scope. Theme CSS variables (font,
+    // colors) defined via :root rules in the source resolve inside this
+    // wrapper, so the kg-bookmark-card tree below inherits them.
+    const wrapper = document.createElement('div');
+    wrapper.className = 'proseBookmarkScope proseBookmarkFigure';
+    this.dom = wrapper;
 
-    this.card = document.createElement('div');
-    this.card.className = 'proseBookmarkCard';
-    figure.appendChild(this.card);
+    // The card itself is a Ghost-shape `<figure>`. We keep a reference
+    // because update() rebuilds its inner subtree (title/desc/...) but
+    // not the figure element.
+    this.figureEl = document.createElement('figure');
+    this.figureEl.className = 'kg-card kg-bookmark-card';
+    wrapper.appendChild(this.figureEl);
 
+    // Slot for the inner `<a class="kg-bookmark-container">` — replaced
+    // wholesale on each render to avoid juggling per-field DOM mutations.
+    this.cardSlot = document.createElement('div');
+    this.cardSlot.className = 'proseBookmarkCardSlot';
+    this.figureEl.appendChild(this.cardSlot);
+
+    this.figcaptionEl = document.createElement('figcaption');
+    this.figcaptionEl.className = 'proseBookmarkFigcaption';
+    this.figureEl.appendChild(this.figcaptionEl);
+
+    // Caption input lives outside the figure so theme CSS does not try
+    // to style it. Shown only while the node is selected.
     this.captionInput = document.createElement('input');
     this.captionInput.type = 'text';
     this.captionInput.className = 'proseBookmarkCaption';
     this.captionInput.placeholder = 'Type caption (optional)';
+    this.captionInput.hidden = true;
     this.captionInput.addEventListener('input', () => {
       const pos = this.getPos();
       if (pos === undefined) return;
@@ -50,7 +81,7 @@ export class BookmarkNodeView implements NodeView {
       });
       this.view.dispatch(tr);
     });
-    figure.appendChild(this.captionInput);
+    wrapper.appendChild(this.captionInput);
 
     this.actions = document.createElement('div');
     this.actions.className = 'proseBookmarkActions';
@@ -80,7 +111,7 @@ export class BookmarkNodeView implements NodeView {
     });
     this.actions.appendChild(replaceBtn);
     this.actions.appendChild(removeBtn);
-    figure.appendChild(this.actions);
+    wrapper.appendChild(this.actions);
 
     this.renderCard();
   }
@@ -89,20 +120,29 @@ export class BookmarkNodeView implements NodeView {
     if (node.type !== this.node.type) return false;
     this.node = node;
     this.renderCard();
-    if (this.captionInput.value !== String(node.attrs.caption ?? '')) {
-      this.captionInput.value = String(node.attrs.caption ?? '');
-    }
+    const caption = String(node.attrs.caption ?? '');
+    if (this.captionInput.value !== caption) this.captionInput.value = caption;
     return true;
   }
 
   selectNode(): void {
     this.dom.classList.add('proseBookmarkFigure--selected');
     this.actions.hidden = false;
+    this.captionInput.hidden = false;
+    this.captionInput.value = String(this.node.attrs.caption ?? '');
+    this.figcaptionEl.hidden = true;
   }
 
   deselectNode(): void {
     this.dom.classList.remove('proseBookmarkFigure--selected');
     this.actions.hidden = true;
+    this.captionInput.hidden = true;
+    // Restore the figcaption visibility based on whether the caption is
+    // actually populated. An empty figcaption would still take vertical
+    // space if the theme styles it, so toggle the element itself.
+    const caption = String(this.node.attrs.caption ?? '');
+    this.figcaptionEl.hidden = caption === '';
+    this.figcaptionEl.textContent = caption;
   }
 
   stopEvent(event: Event): boolean {
@@ -114,7 +154,8 @@ export class BookmarkNodeView implements NodeView {
   }
 
   destroy(): void {
-    // Nothing else to release — listeners are bound to elements owned by `dom`.
+    // Listeners are bound to elements owned by `dom`; removing the
+    // root node from the document is enough for GC.
   }
 
   private renderCard(): void {
@@ -125,50 +166,69 @@ export class BookmarkNodeView implements NodeView {
     const thumbnail = String(this.node.attrs.thumbnail ?? '');
     const publisher = String(this.node.attrs.publisher ?? '');
     const author = String(this.node.attrs.author ?? '');
+    const caption = String(this.node.attrs.caption ?? '');
 
-    const content = document.createElement('a');
-    content.className = 'proseBookmarkLink';
-    content.href = url || '#';
-    content.target = '_blank';
-    content.rel = 'noreferrer noopener';
+    const anchor = document.createElement('a');
+    anchor.className = 'kg-bookmark-container';
+    anchor.href = url || '#';
+    anchor.target = '_blank';
+    anchor.rel = 'noreferrer noopener';
 
-    const text = document.createElement('div');
-    text.className = 'proseBookmarkText';
+    const content = document.createElement('div');
+    content.className = 'kg-bookmark-content';
+
     const titleEl = document.createElement('div');
-    titleEl.className = 'proseBookmarkTitle';
+    titleEl.className = 'kg-bookmark-title';
     titleEl.textContent = title;
-    text.appendChild(titleEl);
+    content.appendChild(titleEl);
+
     if (description) {
       const descEl = document.createElement('div');
-      descEl.className = 'proseBookmarkDescription';
+      descEl.className = 'kg-bookmark-description';
       descEl.textContent = description;
-      text.appendChild(descEl);
+      content.appendChild(descEl);
     }
-    const meta = document.createElement('div');
-    meta.className = 'proseBookmarkMeta';
+
+    const metadata = document.createElement('div');
+    metadata.className = 'kg-bookmark-metadata';
     if (icon) {
       const iconImg = document.createElement('img');
-      iconImg.className = 'proseBookmarkIcon';
+      iconImg.className = 'kg-bookmark-icon';
       iconImg.src = icon;
       iconImg.alt = '';
-      meta.appendChild(iconImg);
+      metadata.appendChild(iconImg);
     }
-    const metaText = document.createElement('span');
-    metaText.className = 'proseBookmarkMetaText';
-    metaText.textContent = [publisher, author].filter(Boolean).join(' · ');
-    meta.appendChild(metaText);
-    text.appendChild(meta);
-    content.appendChild(text);
+    if (author) {
+      const authorEl = document.createElement('span');
+      authorEl.className = 'kg-bookmark-author';
+      authorEl.textContent = author;
+      metadata.appendChild(authorEl);
+    }
+    if (publisher) {
+      const publisherEl = document.createElement('span');
+      publisherEl.className = 'kg-bookmark-publisher';
+      publisherEl.textContent = publisher;
+      metadata.appendChild(publisherEl);
+    }
+    content.appendChild(metadata);
+    anchor.appendChild(content);
 
     if (thumbnail) {
+      const thumbWrap = document.createElement('div');
+      thumbWrap.className = 'kg-bookmark-thumbnail';
       const thumb = document.createElement('img');
-      thumb.className = 'proseBookmarkThumbnail';
       thumb.src = thumbnail;
       thumb.alt = '';
       thumb.loading = 'lazy';
-      content.appendChild(thumb);
+      thumbWrap.appendChild(thumb);
+      anchor.appendChild(thumbWrap);
     }
 
-    this.card.replaceChildren(content);
+    this.cardSlot.replaceChildren(anchor);
+
+    // Figcaption tracks the persisted caption when the node is not
+    // selected; selectNode() hides it in favour of the input.
+    this.figcaptionEl.textContent = caption;
+    this.figcaptionEl.hidden = caption === '';
   }
 }
