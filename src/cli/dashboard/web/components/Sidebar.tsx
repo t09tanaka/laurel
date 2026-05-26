@@ -9,6 +9,8 @@ export interface RecentEntry {
 
 export type SidebarBuildPhase = 'idle' | 'running' | 'done' | 'error';
 
+export type SidebarNavTarget = 'posts' | 'pages' | 'components' | 'authors' | 'tags' | 'settings';
+
 interface SidebarProps {
   section: DashboardShellSection;
   siteTitle: string;
@@ -16,6 +18,8 @@ interface SidebarProps {
   postsTotal?: number;
   pagesTotal?: number;
   componentsTotal?: number;
+  authorsTotal?: number;
+  tagsTotal?: number;
   recents?: RecentEntry[];
   syncLabel: string;
   syncState: string;
@@ -28,7 +32,7 @@ interface SidebarProps {
   canDownload: boolean;
   onBuildClick: () => void;
   onDownloadClick: () => void;
-  onNavigate: (target: 'posts' | 'pages' | 'components' | 'settings') => void;
+  onNavigate: (target: SidebarNavTarget) => void;
   onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onForceSync: () => void;
 }
@@ -63,34 +67,61 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <span class="brandWord">Nectar</span>
         </div>
       </div>
+      {/* Sidebar nav is split into two groups so writers can see at a
+       * glance which entries produce routes (Posts, Pages) versus which
+       * are reusable building blocks consumed by those routes
+       * (Components, Authors, Tags). The visual divider is a single
+       * hairline so the grouping reads without adding section headers. */}
       <nav class="nav" aria-label="Primary">
-        <NavLink
-          href="/posts"
-          view="posts"
-          section="posts"
-          active={props.section === 'posts'}
-          label="Posts"
-          count={props.postsTotal}
-          onNavigate={() => props.onNavigate('posts')}
-        />
-        <NavLink
-          href="/pages"
-          view="pages"
-          section="pages"
-          active={props.section === 'pages'}
-          label="Pages"
-          count={props.pagesTotal}
-          onNavigate={() => props.onNavigate('pages')}
-        />
-        <NavLink
-          href="/components"
-          view="components"
-          section="components"
-          active={props.section === 'components'}
-          label="Components"
-          count={props.componentsTotal}
-          onNavigate={() => props.onNavigate('components')}
-        />
+        <div class="navGroup">
+          <NavLink
+            href="/posts"
+            view="posts"
+            section="posts"
+            active={props.section === 'posts'}
+            label="Posts"
+            count={props.postsTotal}
+            onNavigate={() => props.onNavigate('posts')}
+          />
+          <NavLink
+            href="/pages"
+            view="pages"
+            section="pages"
+            active={props.section === 'pages'}
+            label="Pages"
+            count={props.pagesTotal}
+            onNavigate={() => props.onNavigate('pages')}
+          />
+        </div>
+        <div class="navGroup">
+          <NavLink
+            href="/components"
+            view="components"
+            section="components"
+            active={props.section === 'components'}
+            label="Components"
+            count={props.componentsTotal}
+            onNavigate={() => props.onNavigate('components')}
+          />
+          <NavLink
+            href="/authors"
+            view="authors"
+            section="authors"
+            active={props.section === 'authors'}
+            label="Authors"
+            count={props.authorsTotal}
+            onNavigate={() => props.onNavigate('authors')}
+          />
+          <NavLink
+            href="/tags"
+            view="tags"
+            section="tags"
+            active={props.section === 'tags'}
+            label="Tags"
+            count={props.tagsTotal}
+            onNavigate={() => props.onNavigate('tags')}
+          />
+        </div>
       </nav>
       {props.recents && props.recents.length > 0 ? (
         <div class="recents" aria-label="Recently edited">

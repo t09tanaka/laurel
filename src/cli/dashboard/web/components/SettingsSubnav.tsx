@@ -13,12 +13,12 @@ interface Entry {
 }
 
 const ENTRIES: ReadonlyArray<Entry> = [
-  // "Site" was ambiguous (it covered general identity AND every other
-  // category). Renamed to "General" to match the leading category
-  // shown on the page. #1956
-  { subview: 'site', label: 'General', href: '/settings' },
-  { subview: 'authors', label: 'Authors', href: '/authors' },
-  { subview: 'tags', label: 'Tags', href: '/tags' },
+  // "General" used to be a catch-all stacking site identity, theme, code
+  // injection, authors, and tags. Split into four narrow surfaces so the
+  // category in the subnav matches the category of the panel.
+  { subview: 'site', label: 'Site', href: '/settings' },
+  { subview: 'design', label: 'Design', href: '/settings/design' },
+  { subview: 'integration', label: 'Integration', href: '/settings/integration' },
   { subview: 'migration', label: 'Migration', href: '/settings/migration' },
 ];
 

@@ -23,17 +23,27 @@ const VIEW_HEAD: Record<DashboardView, ViewHeadCopy> = {
     meta: 'Reusable HTML + CSS snippets embedded in post and page bodies via the {slug} shortcode.',
   },
   settings: {
-    kicker: 'Settings',
-    title: 'Settings',
-    meta: 'Site, theme, and taxonomy configuration backed by nectar.toml.',
+    kicker: 'Settings · Site',
+    title: 'Site',
+    meta: 'Site identity (title, URL, accent color, description) saved to nectar.toml.',
+  },
+  design: {
+    kicker: 'Settings · Design',
+    title: 'Design',
+    meta: 'Theme selection. Preview uses the active theme immediately after saving; dist updates after the next build.',
+  },
+  integration: {
+    kicker: 'Settings · Integration',
+    title: 'Integration',
+    meta: 'Site-wide code injection for analytics, custom <meta>, and third-party widgets.',
   },
   authors: {
-    kicker: 'Settings · Taxonomy',
+    kicker: 'Workspace',
     title: 'Authors',
     meta: 'Author files in content/authors. Generated entries appear until you materialize a file.',
   },
   tags: {
-    kicker: 'Settings · Taxonomy',
+    kicker: 'Workspace',
     title: 'Tags',
     meta: 'Tag files in content/tags. Inferred tags from posts appear until you materialize a file.',
   },

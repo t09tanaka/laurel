@@ -6,19 +6,29 @@ import {
 } from '../../../src/cli/dashboard/ui-state.ts';
 
 describe('dashboard settings IA — view routing', () => {
-  test('migration is a recognised top-level view', () => {
+  test('settings sub-views are recognised top-level views', () => {
+    expect(normalizeDashboardView('design')).toBe('design');
+    expect(normalizeDashboardView('integration')).toBe('integration');
     expect(normalizeDashboardView('migration')).toBe('migration');
   });
 
-  test('migration sits under the settings shell section', () => {
+  test('all four settings sub-views sit under the settings shell section', () => {
+    expect(dashboardShellSectionFor('settings')).toBe('settings');
+    expect(dashboardShellSectionFor('design')).toBe('settings');
+    expect(dashboardShellSectionFor('integration')).toBe('settings');
     expect(dashboardShellSectionFor('migration')).toBe('settings');
   });
 
-  test('settings subnav reports "migration" for the migration view', () => {
-    expect(dashboardSettingsSubviewFor('migration')).toBe('migration');
+  test('taxonomy views are their own workspace sections, not settings', () => {
+    expect(dashboardShellSectionFor('authors')).toBe('authors');
+    expect(dashboardShellSectionFor('tags')).toBe('tags');
+  });
+
+  test('settings subnav reports the matching subview for each view', () => {
     expect(dashboardSettingsSubviewFor('settings')).toBe('site');
-    expect(dashboardSettingsSubviewFor('authors')).toBe('authors');
-    expect(dashboardSettingsSubviewFor('tags')).toBe('tags');
+    expect(dashboardSettingsSubviewFor('design')).toBe('design');
+    expect(dashboardSettingsSubviewFor('integration')).toBe('integration');
+    expect(dashboardSettingsSubviewFor('migration')).toBe('migration');
   });
 
   test('unknown view strings still fall back to posts', () => {
