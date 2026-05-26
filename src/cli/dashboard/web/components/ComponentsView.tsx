@@ -117,14 +117,17 @@ export function ComponentsView(props: ComponentsViewProps): JSX.Element {
             </tbody>
           </table>
         </div>
+      ) : props.list.total === 0 ? (
+        <StatePanel
+          kind="empty"
+          title="No components yet"
+          message="Click New to register a {slug} snippet that posts and pages can embed."
+        />
       ) : (
         <StatePanel
           kind="empty"
-          message={
-            props.list.total === 0
-              ? 'No components yet. Click New to register a {slug} snippet that posts and pages can embed.'
-              : 'No matches for the current filter.'
-          }
+          title="No matching components"
+          message="Clear the search to see all components."
         />
       )}
     </div>

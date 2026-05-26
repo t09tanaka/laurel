@@ -3,12 +3,16 @@ import { type SurfaceState, surfaceCopy } from '../lib/view-head.ts';
 
 interface StatePanelProps {
   kind: SurfaceState;
+  title?: string;
   message?: string;
   onAction?: () => void;
 }
 
-export function StatePanel({ kind, message, onAction }: StatePanelProps): JSX.Element {
-  const copy = surfaceCopy(kind, message ? { message } : {});
+export function StatePanel({ kind, title, message, onAction }: StatePanelProps): JSX.Element {
+  const overrides: Partial<{ title: string; message: string }> = {};
+  if (title) overrides.title = title;
+  if (message) overrides.message = message;
+  const copy = surfaceCopy(kind, overrides);
   return (
     <output class={`statePanel ${kind}`}>
       <b>{copy.title}</b>
