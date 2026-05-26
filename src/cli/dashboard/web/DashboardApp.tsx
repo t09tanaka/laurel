@@ -627,6 +627,8 @@ export function DashboardApp(): JSX.Element {
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
         componentsTotal={state?.components?.total}
+        authorsTotal={state?.authors?.total}
+        tagsTotal={state?.tags?.total}
         recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
@@ -764,12 +766,12 @@ export function DashboardApp(): JSX.Element {
             ) : (
               <SettingsView
                 state={state}
+                subview={settingsSubviewFor(ui.view)}
                 onSettingsSaved={() => load({ force: true })}
                 onConflict={(message) => dispatch({ type: 'conflict', message })}
                 onSiteDirtyChange={setSiteSettingsDirty}
                 onThemeDirtyChange={setThemeSettingsDirty}
                 onCodeInjectionDirtyChange={setCodeInjectionSettingsDirty}
-                onOpenMigration={() => navigateView('migration')}
               />
             )}
           </section>

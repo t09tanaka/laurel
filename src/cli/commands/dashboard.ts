@@ -1131,6 +1131,8 @@ export async function handleDashboardRequest(
         '/authors',
         '/tags',
         '/settings',
+        '/settings/design',
+        '/settings/integration',
         '/settings/migration',
         '/migration',
       ].includes(url.pathname) ||
