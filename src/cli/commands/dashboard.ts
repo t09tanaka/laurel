@@ -280,6 +280,12 @@ export interface DashboardThemeOption {
   name: string;
   path: string;
   active: boolean;
+  /* Pulled from the theme's package.json so the dashboard can surface a
+   * human-readable description and version next to the bare directory
+   * name. Both are optional — themes without a valid package.json
+   * (older or test fixtures) simply render with name only. */
+  description?: string;
+  version?: string;
 }
 
 interface DashboardReadinessItem {
@@ -4378,10 +4384,13 @@ async function listDashboardThemes(
     if (!entry.isDirectory()) continue;
     const themeRoot = join(root, entry.name);
     if (!(await isDashboardThemeDirectory(themeRoot))) continue;
+    const meta = await readDashboardThemePackage(themeRoot);
     themes.push({
       name: entry.name,
       path: relativePath(cwd, themeRoot),
       active: entry.name === activeTheme,
+      ...(meta.description ? { description: meta.description } : {}),
+      ...(meta.version ? { version: meta.version } : {}),
     });
   }
   return themes.sort((a, b) => a.name.localeCompare(b.name));
@@ -4393,6 +4402,31 @@ async function isDashboardThemeDirectory(themeRoot: string): Promise<boolean> {
     return entries.some((entry) => entry.isFile() && entry.name.endsWith('.hbs'));
   } catch {
     return false;
+  }
+}
+
+/* Ghost themes ship a package.json with name/description/version. We surface
+ * description + version on theme cards so an editor picking a theme has more
+ * than the directory name to go on. Best-effort: missing file, malformed
+ * JSON, or non-string fields all degrade silently to "no metadata". */
+async function readDashboardThemePackage(
+  themeRoot: string,
+): Promise<{ description?: string; version?: string }> {
+  const pkgPath = join(themeRoot, 'package.json');
+  if (!existsSync(pkgPath)) return {};
+  try {
+    const raw = await readFile(pkgPath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const record = parsed as Record<string, unknown>;
+    const description = typeof record.description === 'string' ? record.description.trim() : '';
+    const version = typeof record.version === 'string' ? record.version.trim() : '';
+    return {
+      ...(description ? { description } : {}),
+      ...(version ? { version } : {}),
+    };
+  } catch {
+    return {};
   }
 }
 

@@ -202,10 +202,11 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
   const theme = props.state.settings.theme;
   const available = theme.available ?? [];
   const activeExists = available.some((item) => item.name === theme.name);
-  const missingActive = theme.name && !activeExists;
+  const missingActive = Boolean(theme.name) && !activeExists;
   const [selected, setSelected] = useState<string>(activeExists ? theme.name : '');
   const [notice, setNotice] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callback is stable
   useEffect(() => {
@@ -213,6 +214,13 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
     setDirty(false);
     props.onThemeDirtyChange(false);
   }, [theme.name, activeExists]);
+
+  function choose(name: string) {
+    setSelected(name);
+    const isDirty = name !== (activeExists ? theme.name : '');
+    setDirty(isDirty);
+    props.onThemeDirtyChange(isDirty);
+  }
 
   async function handleSave() {
     if (!selected) return;
@@ -238,56 +246,90 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
   }
 
   const noOptions = available.length === 0 && !missingActive;
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const saveTitle = !dirty
+    ? 'No changes to save'
+    : !selected
+      ? 'Pick a theme first'
+      : 'Save the active theme to nectar.toml';
+
   return (
     <section class="themeSwitcherPanel" aria-label="Themes">
       <header class="settingsPanelHead">
         <div>
           <h3>Themes</h3>
           <p class="meta">
-            Preview uses this theme immediately after saving; dist updates after the next build.
+            Preview uses the selected theme immediately after saving; dist updates after the next
+            build.
           </p>
         </div>
         <button type="button" class="btn secondary btnCompact" onClick={() => setUploadOpen(true)}>
-          Upload
+          Upload theme
         </button>
       </header>
-      <article class="settingsCard field wide">
-        <div class="fields">
-          <label class="field">
-            <span>Theme directory</span>
-            <input value={theme.dir ?? 'themes'} disabled />
-          </label>
-          <label class="field">
-            <span>Theme</span>
-            <select
-              id="settingsThemeName"
-              data-current={activeExists ? theme.name : ''}
-              value={selected}
-              disabled={noOptions}
-              onChange={(event) => {
-                const value = (event.currentTarget as HTMLSelectElement).value;
-                setSelected(value);
-                const isDirty = value !== (activeExists ? theme.name : '');
-                setDirty(isDirty);
-                props.onThemeDirtyChange(isDirty);
-              }}
-            >
-              {missingActive ? (
-                <option value="" disabled>
-                  Missing: {theme.name}
-                </option>
-              ) : null}
-              {available.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name}
-                  {item.active ? ' · active' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+
+      {missingActive ? (
+        <output class="themeMissingNotice">
+          Active theme <code>{theme.name}</code> is no longer in{' '}
+          <code>{theme.dir ?? 'themes'}</code>. Pick an installed theme below to recover.
+        </output>
+      ) : null}
+
+      {noOptions ? (
+        <div class="themeEmpty">
+          <p class="themeEmptyTitle">No Ghost themes installed yet</p>
+          <p class="themeEmptyBody">
+            Drop a Ghost-compatible <code>.zip</code> or place a theme directory under{' '}
+            <code>{theme.dir ?? 'themes'}</code>.
+          </p>
+          <button type="button" class="btn secondary" onClick={() => setUploadOpen(true)}>
+            Upload your first theme
+          </button>
         </div>
-        <div class="editorActions">
+      ) : (
+        <fieldset
+          id="settingsThemeName"
+          class="themeGrid"
+          data-current={activeExists ? theme.name : ''}
+        >
+          <legend class="srOnly">Installed themes</legend>
+          {available.map((item) => {
+            const isSelected = selected === item.name;
+            return (
+              <label
+                key={item.name}
+                class={`themeCard${isSelected ? ' themeCardSelected' : ''}${
+                  item.active ? ' themeCardActive' : ''
+                }`}
+                data-theme-name={item.name}
+              >
+                <input
+                  type="radio"
+                  name="settingsThemeChoice"
+                  value={item.name}
+                  checked={isSelected}
+                  class="srOnly themeCardRadio"
+                  onChange={() => choose(item.name)}
+                />
+                <span class="themeCardHead">
+                  <span class="themeCardName">{item.name}</span>
+                  {item.active ? (
+                    <span class="themeCardActiveBadge" aria-label="Currently active theme">
+                      Active
+                    </span>
+                  ) : null}
+                </span>
+                {item.description ? (
+                  <span class="themeCardDescription">{item.description}</span>
+                ) : null}
+                {item.version ? <span class="themeCardVersion">v{item.version}</span> : null}
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
+
+      {!noOptions ? (
+        <div class="editorActions themeActions">
           <button
             class="btn"
             id="saveThemeSettings"
@@ -296,13 +338,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             onClick={() => {
               void handleSave();
             }}
-            title={
-              !dirty
-                ? 'No changes to save'
-                : !selected
-                  ? 'Pick a theme first'
-                  : 'Save the active theme to nectar.toml'
-            }
+            title={saveTitle}
           >
             Save changes
           </button>
@@ -310,14 +346,8 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             {notice}
           </output>
         </div>
-        <div class="meta">
-          {noOptions
-            ? `No theme directories found under ${theme.dir ?? 'themes'}.`
-            : missingActive
-              ? 'Active theme is missing. Choose an installed theme before saving.'
-              : null}
-        </div>
-      </article>
+      ) : null}
+
       {uploadOpen ? (
         <ThemeUploadModal
           themeDir={theme.dir ?? 'themes'}
