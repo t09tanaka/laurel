@@ -27,6 +27,7 @@ const SOCIAL_PLATFORMS = [
   { type: 'tiktok', name: 'TikTok' },
   { type: 'youtube', name: 'YouTube' },
   { type: 'instagram', name: 'Instagram' },
+  { type: 'github', name: 'GitHub' },
 ] as const;
 
 interface SocialAccount {

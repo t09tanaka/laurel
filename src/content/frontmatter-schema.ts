@@ -230,6 +230,7 @@ export const authorFrontmatterSchema = z
     tiktok: z.string().optional().describe('TikTok handle or URL.'),
     youtube: z.string().optional().describe('YouTube channel URL.'),
     instagram: z.string().optional().describe('Instagram handle or URL.'),
+    github: z.string().optional().describe('GitHub user, organization, repository, or URL.'),
     meta_title: z.string().optional().describe('SEO title override.'),
     meta_description: z.string().optional().describe('SEO description override.'),
   })

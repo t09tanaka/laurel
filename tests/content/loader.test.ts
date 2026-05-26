@@ -132,6 +132,41 @@ describe('loadContent', () => {
     );
   });
 
+  test('surfaces first-class site social account settings', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({
+      site: {
+        title: 'X',
+        url: 'https://x.test',
+        twitter: '@nectar',
+        facebook: 'nectar.blog',
+        linkedin: 'nectar-ssg',
+        bluesky: 'nectar.example',
+        mastodon: 'nectar@hachyderm.io',
+        threads: '@nectar',
+        tiktok: '@nectar',
+        youtube: '@nectarvideo',
+        instagram: '@nectargram',
+        github: 't09tanaka/nectar',
+      },
+    });
+
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.site).toMatchObject({
+      twitter: '@nectar',
+      facebook: 'nectar.blog',
+      linkedin: 'nectar-ssg',
+      bluesky: 'nectar.example',
+      mastodon: 'nectar@hachyderm.io',
+      threads: '@nectar',
+      tiktok: '@nectar',
+      youtube: '@nectarvideo',
+      instagram: '@nectargram',
+      github: 't09tanaka/nectar',
+    });
+  });
+
   test('normalizes Ghost excerpt fields from custom_excerpt or 50 plaintext words', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'nectar-excerpt-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });

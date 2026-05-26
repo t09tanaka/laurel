@@ -4,6 +4,19 @@ import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
 
+const SOCIAL_FIELDS = [
+  ['twitter', 'X / Twitter'],
+  ['facebook', 'Facebook'],
+  ['linkedin', 'LinkedIn'],
+  ['bluesky', 'Bluesky'],
+  ['mastodon', 'Mastodon'],
+  ['threads', 'Threads'],
+  ['tiktok', 'TikTok'],
+  ['youtube', 'YouTube'],
+  ['instagram', 'Instagram'],
+  ['github', 'GitHub'],
+] as const;
+
 // MigrationView is mounted upstream in DashboardApp, never inside this
 // component — exclude 'migration' from the prop so an accidental
 // SettingsView subview='migration' can't compile to an empty render.
@@ -88,6 +101,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
   const [setAccent, setSetAccent] = useState(site.accentColor);
   const [setDescription, setSetDescription] = useState(site.description);
   const [setUrl, setSetUrl] = useState(site.url);
+  const [setSocial, setSetSocial] = useState(site.social);
   const [siteNotice, setSiteNotice] = useState('');
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
 
@@ -97,9 +111,10 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
     setSetAccent(site.accentColor);
     setSetDescription(site.description);
     setSetUrl(site.url);
+    setSetSocial(site.social);
     setSiteSettingsDirty(false);
     props.onSiteDirtyChange(false);
-  }, [site.title, site.description, site.url, site.accentColor]);
+  }, [site.title, site.description, site.url, site.accentColor, site.social]);
 
   function markDirty<T>(setter: (value: T) => void): (event: Event) => void {
     return (event) => {
@@ -116,6 +131,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       description: setDescription,
       url: setUrl,
       accent_color: setAccent,
+      ...setSocial,
     };
     const { status, data } = await saveSiteSettings({
       fingerprint: settings.fingerprint,
@@ -169,6 +185,20 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
           <span>Site URL</span>
           <input id="setUrl" value={setUrl} onInput={markDirty(setSetUrl)} />
         </label>
+        {SOCIAL_FIELDS.map(([key, label]) => (
+          <label class="field" key={key}>
+            <span>{label}</span>
+            <input
+              value={setSocial[key]}
+              onInput={(event) => {
+                const value = (event.currentTarget as HTMLInputElement).value;
+                setSetSocial((prev) => ({ ...prev, [key]: value }));
+                setSiteSettingsDirty(true);
+                props.onSiteDirtyChange(true);
+              }}
+            />
+          </label>
+        ))}
         <div class="field wide siteIdentityActions">
           <output id="settingsNotice" class="notice">
             {siteNotice}
