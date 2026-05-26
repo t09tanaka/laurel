@@ -730,6 +730,7 @@ export function DashboardApp(): JSX.Element {
                 list={ui.view === 'posts' ? state.posts : state.pages}
                 resultCount={(ui.view === 'posts' ? state.posts : state.pages).total}
                 statusFilter={ui.statusFilter}
+                query={ui.query}
                 onStatusFilterChange={(value) =>
                   dispatch({ type: 'status/set', statusFilter: value })
                 }
