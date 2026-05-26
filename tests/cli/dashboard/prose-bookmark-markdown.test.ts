@@ -34,6 +34,12 @@ const serializer = new MarkdownSerializer(
 
 const FULL = `{{< bookmark url="https://example.com/post" title="Hello" description="Desc" icon="https://example.com/favicon.ico" thumbnail="https://example.com/og.png" author="A" publisher="P" caption="C" />}}`;
 
+function bookmarkType() {
+  const type = schema.nodes.bookmark;
+  if (!type) throw new Error('bookmark node type is missing');
+  return type;
+}
+
 describe('bookmark markdown bridge', () => {
   test('parses a full-attr shortcode into a bookmark node', () => {
     const doc = parser.parse(FULL);
@@ -54,7 +60,7 @@ describe('bookmark markdown bridge', () => {
   });
 
   test('omits empty attrs when serialising', () => {
-    const node = schema.nodes.bookmark.create({
+    const node = bookmarkType().create({
       url: 'https://example.com/',
       title: 'T',
       description: '',

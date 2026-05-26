@@ -11,10 +11,11 @@ const DEFAULT_OPTIONS: MinifierOptions = {
   collapseWhitespace: true,
   conservativeCollapse: true,
   removeComments: true,
+  collapseBooleanAttributes: true,
   removeRedundantAttributes: true,
   removeScriptTypeAttributes: true,
   removeStyleLinkTypeAttributes: true,
-  decodeEntities: true,
+  decodeEntities: false,
   keepClosingSlash: true,
   preserveLineBreaks: false,
 };
@@ -71,7 +72,7 @@ export async function minifyHtmlOutputs(outputs: HtmlOutput[]): Promise<MinifyHt
     outputs.map((out) =>
       limit(async () => {
         try {
-          out.html = await minify(out.html, DEFAULT_OPTIONS);
+          out.html = (await minify(out.html, DEFAULT_OPTIONS)).trimEnd();
         } catch (err) {
           // Keep the original HTML so the build still ships a valid page.
           // A theme-injected fragment of broken markup is not worth failing

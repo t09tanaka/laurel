@@ -23,7 +23,6 @@ export class BookmarkNodeView implements NodeView {
   private node: ProseNode;
   private readonly view: EditorView;
   private readonly getPos: () => number | undefined;
-  private readonly options: BookmarkNodeViewOptions;
   private readonly cardSlot: HTMLElement;
   private readonly figcaptionEl: HTMLElement;
   private readonly captionInput: HTMLInputElement;
@@ -39,7 +38,6 @@ export class BookmarkNodeView implements NodeView {
     this.node = node;
     this.view = view;
     this.getPos = getPos;
-    this.options = options;
 
     // Outer wrapper applies the theme scope. Theme CSS variables (font,
     // colors) defined via :root rules in the source resolve inside this

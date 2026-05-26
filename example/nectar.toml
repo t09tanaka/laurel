@@ -7,6 +7,9 @@ timezone = "UTC"
 accent_color = "#D63F00"
 logo = "/content/images/logo.svg"
 icon = "/content/images/logo.svg"
+cover_image = "/content/images/welcome-cover.svg"
+og_image = "/content/images/welcome-cover.svg"
+twitter_image = "/content/images/welcome-cover.svg"
 
 [theme]
 name = "source"
@@ -44,6 +47,20 @@ output_dir = "dist"
 base_path = "/"
 posts_per_page = 6
 copy_content_assets = true
+minify_html = true
+precompress = true
+
+[deploy.cloudflare_pages]
+enabled = true
+
+[deploy.early_hints]
+enabled = true
+
+[deploy.headers.security]
+frame_options = "DENY"
+strict_transport_security = "max-age=63072000; includeSubDomains; preload"
+permissions_policy = "camera=(), microphone=(), geolocation=(), payment=()"
+cross_origin_opener_policy = "same-origin"
 
 [[navigation]]
 label = "Home"

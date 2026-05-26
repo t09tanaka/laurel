@@ -5,6 +5,7 @@ date: 2026-04-12T07:00:00Z
 authors: [honeybee]
 tags: [getting-started]
 feature_image: "/content/images/git-cover.svg"
+feature_image_alt: "A branching Git graph with a bee hovering above it"
 custom_excerpt: "How treating content as Markdown in Git changes editorial workflow."
 ---
 

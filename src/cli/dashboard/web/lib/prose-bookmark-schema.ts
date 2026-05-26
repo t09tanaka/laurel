@@ -15,11 +15,26 @@ export type BookmarkAttrKey = (typeof BOOKMARK_ATTR_KEYS)[number];
 
 export type BookmarkAttrs = { [K in BookmarkAttrKey]: string };
 
+interface BookmarkDomElement {
+  getAttribute(name: string): string | null;
+  textContent: string | null;
+  querySelector(selector: string): BookmarkDomElement | null;
+}
+
 function emptyAttrs(): Record<BookmarkAttrKey, { default: string }> {
   return Object.fromEntries(BOOKMARK_ATTR_KEYS.map((k) => [k, { default: '' }])) as Record<
     BookmarkAttrKey,
     { default: string }
   >;
+}
+
+function isBookmarkDomElement(value: unknown): value is BookmarkDomElement {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'querySelector' in value &&
+    typeof value.querySelector === 'function'
+  );
 }
 
 export const bookmarkNodeSpec: NodeSpec = {
@@ -42,7 +57,7 @@ export const bookmarkNodeSpec: NodeSpec = {
     {
       tag: 'figure.kg-card.kg-bookmark-card',
       getAttrs(dom) {
-        if (!(dom instanceof HTMLElement)) return false;
+        if (!isBookmarkDomElement(dom)) return false;
         const anchor = dom.querySelector('a.kg-bookmark-container');
         const url = anchor?.getAttribute('href') ?? '';
         const title = dom.querySelector('.kg-bookmark-title')?.textContent ?? '';

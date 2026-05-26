@@ -1230,7 +1230,7 @@ describe('planRoutes — routes.yaml routes section', () => {
     const engine = createEngine({ config, content, theme });
     if (!campaign || !about) throw new Error('Expected custom routes to be planned');
     expect(engine.render(campaign)).toBe('Source News|source-news|');
-    expect(engine.render(about)).toBe('About Us||about-us');
+    expect(engine.render(about)).toBe('About Us|about-us|about-us');
   });
 
   test('emits no custom routes when routes.yaml has no `routes:` section', () => {

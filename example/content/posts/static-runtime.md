@@ -5,6 +5,7 @@ date: 2026-04-20T14:00:00Z
 authors: [casper]
 tags: [news]
 feature_image: "/content/images/static-cover.svg"
+feature_image_alt: "Static files flowing from a build box to a browser"
 custom_excerpt: "Why Nectar emits plain files and nothing else."
 ---
 
