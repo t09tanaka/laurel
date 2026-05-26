@@ -133,7 +133,7 @@ bun run lint:a11y
 bun run lint:lighthouse
 ```
 
-`size:theme-bundle` keeps the built Source runtime below the JavaScript budget.
+`size:theme-bundle` keeps the built Casper runtime below the JavaScript budget.
 `size:pages` inspects every generated HTML route and budgets the page's local
 CSS, JS, images, fonts, raw/compressed HTML, missing local assets, and external
 blocking assets. It counts emitted local assets strictly, so a large `srcset`

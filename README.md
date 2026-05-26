@@ -10,7 +10,7 @@ database.
 ```
 content/*.md   ─┐
                 ├─►  nectar build  ─►  dist/  (HTML + CSS + JS + assets)
-themes/source/ ─┘
+themes/casper/ ─┘
 ```
 
 Designed around four pillars:
@@ -143,7 +143,7 @@ level of trust, and what to look for in a contributor's diff.
 src/        # SSG implementation (cli, content, theme, render, build, ghost, config)
 tests/      # bun test suite mirroring src/
 docs/       # Design notes
-example/    # Reference blog: content + nectar.toml + vendored Source theme
+example/    # Reference blog: content + nectar.toml + vendored Casper theme
 examples/   # Deploy snippets and (planned) starter site templates — see examples/README.md
 ```
 

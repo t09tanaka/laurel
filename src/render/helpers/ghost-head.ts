@@ -23,7 +23,7 @@ import {
 import { joinPath } from '~/theme/assets.ts';
 import { textColorClassFor } from '~/util/color.ts';
 import { nonceAttr } from '~/util/csp.ts';
-import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
+import { absoluteUrl, absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
 import {
   type EmbedProviderScriptType,
   getEmbedProviderScripts,
@@ -112,7 +112,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // before CSS / JS reaches the parser. Only fires when the route actually
       // carries a feature_image — page-without-cover routes get nothing.
       if (performance?.preload_lcp_image !== false) {
-        const preloadTag = renderLcpPreload(ctx, route, site.url, basePath);
+        const preloadTag = renderLcpPreload(ctx, route, basePath);
         if (preloadTag) head = appendHeadPart(head, preloadTag);
       }
       // Surface @site.accent_color to themes as the `--ghost-accent-color`
@@ -1529,14 +1529,15 @@ function renderLcpPreload(
         data?: Record<string, unknown>;
       }
     | undefined,
-  siteUrl: string,
   basePath: string,
 ): string | undefined {
   if (!route || (route.kind !== 'post' && route.kind !== 'page')) return undefined;
   const featureImage = ctx.feature_image;
   if (typeof featureImage !== 'string' || !featureImage) return undefined;
   if (/^(?:data|blob):/i.test(featureImage)) return undefined;
-  const href = absoluteUrlWithBasePath(siteUrl, basePath, featureImage);
+  const href = /^https?:\/\//i.test(featureImage)
+    ? featureImage
+    : withBasePath(basePath, featureImage);
   const mime = mimeTypeForImage(featureImage);
   const attrs: string[] = [
     `rel="preload"`,

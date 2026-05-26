@@ -21,7 +21,7 @@ Markdown content.
 
 ## What works today
 
-- The whole Ghost Source theme renders end-to-end against this content.
+- The official Ghost Casper theme renders end-to-end against this content.
 - Posts, pages, tags, authors, pagination, RSS, sitemap — all generated.
 - Theme custom settings (`@custom.*`) come from `nectar.toml`.
 
@@ -33,4 +33,3 @@ Markdown content.
 
 > Nectar is the substance bees turn into honey. We thought it was a fitting
 > name for the substrate a Ghost theme turns into a blog.
-

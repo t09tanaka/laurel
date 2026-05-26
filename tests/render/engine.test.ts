@@ -2507,7 +2507,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toBe(
       [
         '<ul class="nav"><li class="nav-home"><a href="/">Home</a></li><li class="nav-hello" aria-current="page"><a href="/hello/" aria-current="page">Hello</a></li></ul>',
-        '<nav class="pagination" role="navigation" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
+        '<nav class="pagination" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
         '<a href="/about/" class="cta" target="_blank" rel="noopener noreferrer">About</a>',
         '/assets/css/screen.css',
         'https://example.com/content/images/size/w320/format/webp/hero.jpg',

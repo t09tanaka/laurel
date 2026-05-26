@@ -4,9 +4,9 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { constants, brotliCompressSync, gzipSync } from 'node:zlib';
 
-const DEFAULT_DIST_BUNDLE = 'example/dist/assets/built/source.js';
+const DEFAULT_DIST_BUNDLE = 'example/dist/assets/built/casper.js';
 const DEFAULT_DIST_BUNDLE_DIR = 'example/dist/assets/built';
-const DEFAULT_SOURCE_BUNDLE = 'example/themes/source/assets/built/source.js';
+const DEFAULT_SOURCE_BUNDLE = 'example/themes/casper/assets/built/casper.js';
 const DEFAULT_MAX_BROTLI_BYTES = 60 * 1024;
 
 export interface ThemeBundleSizeOptions {
@@ -27,7 +27,7 @@ function usage(): string {
   return [
     'Usage: bun scripts/theme-bundle-size.ts [--bundle path] [--max-brotli-bytes bytes]',
     '',
-    `Default bundle: ${DEFAULT_DIST_BUNDLE} or fingerprinted source.*.js in ${DEFAULT_DIST_BUNDLE_DIR}`,
+    `Default bundle: ${DEFAULT_DIST_BUNDLE} or fingerprinted casper.*.js in ${DEFAULT_DIST_BUNDLE_DIR}`,
     `Fallback bundle: ${DEFAULT_SOURCE_BUNDLE}`,
     `Default Brotli threshold: ${DEFAULT_MAX_BROTLI_BYTES} bytes`,
     '',
@@ -75,7 +75,7 @@ async function findDistBundle(): Promise<string | undefined> {
   const builtDir = resolve(process.cwd(), DEFAULT_DIST_BUNDLE_DIR);
   const candidates = await readdir(builtDir).catch(() => []);
   const sourceBundles = candidates
-    .filter((name) => /^source(?:\.[a-f0-9]+)?\.js$/.test(name))
+    .filter((name) => /^casper(?:\.[a-f0-9]+)?\.js$/.test(name))
     .sort();
   if (sourceBundles.length === 1) {
     return resolve(builtDir, sourceBundles[0] as string);

@@ -117,7 +117,7 @@ async function expectVisiblePage(page: Awaited<ReturnType<Browser['newPage']>>, 
   const mainText = await main.evaluate((element) => element.textContent?.trim() ?? '');
   expect(mainText.length, `${route} should render visible main content`).toBeGreaterThan(20);
 
-  const viewport = await page.$eval('.gh-viewport', (element) => {
+  const viewport = await page.$eval('.viewport', (element) => {
     const rect = element.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
   });

@@ -8,6 +8,6 @@
   <rect width="1200" height="600" fill="url(#g1)"/>
   <g transform="translate(600 300)" font-family="ui-sans-serif, system-ui" fill="#fff" text-anchor="middle">
     <text font-size="96" font-weight="800" y="-20">Hello, Nectar</text>
-    <text font-size="28" y="40" opacity="0.85">A demo blog built with the Source theme</text>
+    <text font-size="28" y="40" opacity="0.85">A demo blog built with the Casper theme</text>
   </g>
 </svg>
