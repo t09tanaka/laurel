@@ -122,6 +122,8 @@ export interface ThemeOption {
   name: string;
   path?: string;
   active?: boolean;
+  description?: string;
+  version?: string;
 }
 
 export interface DashboardState {
